@@ -9,6 +9,25 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude keeps an engineering build plan for your project.** Two new
+  workspace lists the assistant maintains through its own tools: **Phases** —
+  how the app gets built, stage by stage, each phase a full write-up (scope,
+  decisions, what "done" means) with its place in the build order — and
+  **Features** — what the app should have, each a full write-up of what it
+  does, linked to the phase that delivers it. Lists show short previews; the
+  full text is read per item, so plans can be as detailed as they need to be.
+  Both ride their own capability toggles, and deleting a phase or feature
+  asks for your approval in ask mode.
+
+- **Edit an app's env from the Apps menu.** Every app row now has an Env
+  button that opens the settings file the app actually reads (its `.env` —
+  Claude points at the right file when it registers the app). See every
+  variable with values hidden until you reveal them, add, change, or remove
+  entries, and save — comments and formatting in the file survive the
+  rewrite. Editing stays yours alone: the env values are never exposed as
+  assistant tools, and files using multi-line values are left for your code
+  editor rather than risk mangling them.
+
 - **Claude can open an app that isn't running.** Ask for something in an app
   you don't have open and Claude can now find it among your installed
   programs, start it, and wait for its window before carrying on — so "open

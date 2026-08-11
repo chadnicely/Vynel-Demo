@@ -9,6 +9,15 @@
 //   POST   /:appId/start   -> supervisor.start + app.started     [x-mcp, mutatingApproved]
 //   POST   /:appId/stop    -> supervisor.stop  + app.stopped     [x-mcp, mutatingApproved]
 //   GET    /:appId/logs    -> ring-buffer tail                   [x-mcp]
+//   GET    /:appId/env     -> readAppEnvFile (parse the file)    [user-only]
+//   PUT    /:appId/env     -> writeAppEnvFile (full desired set) [user-only]
+//
+// The env editor is deliberately NOT an MCP tool: env values are secrets, and
+// they must never transit chat as tool results — Claude edits files directly
+// when it needs to. The row's `envFileRelative` (settable via add_app /
+// update_app) points at the file; the editor parses and rewrites THAT file
+// line-preservingly (comments survive), so the file the app actually loads
+// stays the single source of truth.
 //
 // NO APPROVAL CARDS anywhere (Chad, docs/module-notes/apps.md): running your
 // own dev app is low-stakes + reversible; the safety story is visibility
@@ -29,9 +38,11 @@ import {
   getAppOrThrow,
   listApps,
   publishAppRuntimeEvent,
+  readAppEnvFile,
   registerApp,
   removeApp,
   updateApp,
+  writeAppEnvFile,
 } from '@vynel/apps'
 import { serializeAppForResponse } from './serializers.js'
 import {
@@ -39,9 +50,11 @@ import {
   AppLogsQuerySchema,
   RegisterAppRequestSchema,
   UpdateAppRequestSchema,
+  UpdateAppEnvRequestSchema,
   WorkspaceAppResponseSchema,
   ListWorkspaceAppsResponseSchema,
   AppLogsResponseSchema,
+  AppEnvResponseSchema,
 } from './schemas.js'
 
 export const workspaceAppsApp = factory
@@ -105,7 +118,9 @@ export const workspaceAppsApp = factory
           'scripts, monorepo layout) — never guess. `name` is plain language the user recognizes ' +
           '("Web app", "API server"). `cwdRelative` is the folder under the workspace root the ' +
           'command runs in ("" = root). Set `port` when you know it — it powers the "open in ' +
-          "browser\" link. Add an app once and reuse it; check list_apps before adding.",
+          'browser" link. Set `envFileRelative` to the env file the app loads, relative to its ' +
+          "folder (defaults to \".env\") — the user edits that file from the app's Env popup. " +
+          'Add an app once and reuse it; check list_apps before adding.',
         mutatingApproved: true,
       },
     }),
@@ -121,6 +136,9 @@ export const workspaceAppsApp = factory
           name: body.name,
           command: body.command,
           ...(body.cwdRelative !== undefined ? { cwdRelative: body.cwdRelative } : {}),
+          ...(body.envFileRelative !== undefined
+            ? { envFileRelative: body.envFileRelative }
+            : {}),
           ...(body.port !== undefined ? { port: body.port } : {}),
         },
         { logger: c.var.logger },
@@ -148,9 +166,9 @@ export const workspaceAppsApp = factory
         exposed: true,
         name: 'update_app',
         description:
-          "Update a registered app's name, command, folder, or port. A running app keeps its " +
-          'current process — the change applies on the next start (stop_app then start_app to ' +
-          'restart with the new command).',
+          "Update a registered app's name, command, folder, env file path, or port. A running " +
+          'app keeps its current process — the change applies on the next start (stop_app then ' +
+          'start_app to restart with the new command).',
         mutatingApproved: true,
       },
     }),
@@ -174,6 +192,9 @@ export const workspaceAppsApp = factory
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.command !== undefined ? { command: body.command } : {}),
           ...(body.cwdRelative !== undefined ? { cwdRelative: body.cwdRelative } : {}),
+          ...(body.envFileRelative !== undefined
+            ? { envFileRelative: body.envFileRelative }
+            : {}),
           ...(body.port !== undefined ? { port: body.port } : {}),
         },
         { logger: c.var.logger },
@@ -338,5 +359,118 @@ export const workspaceAppsApp = factory
       })
       const { tail } = c.req.valid('query')
       return c.json({ lines: c.var.appSupervisor.logsOf(app.id, tail ?? 200) })
+    },
+  )
+  // GET /:appId/env — parse the app's env file (user-only; env values are
+  // secrets and never become MCP tool results).
+  .get(
+    '/:appId/env',
+    describeRoute({
+      tags: ['apps'],
+      summary: "Read the app's env file as key/value entries.",
+      'x-sdk-name': 'workspaceApps.env',
+      responses: {
+        200: {
+          description: '{ envFileRelative, exists, entries } — parsed from the file on disk.',
+          content: { 'application/json': { schema: resolver(AppEnvResponseSchema) } },
+        },
+        400: { description: 'The env file path escapes the workspace.' },
+        404: { description: 'No such app in this workspace.' },
+      },
+    }),
+    validator('param', AppParamSchema),
+    ...workspaceScoped,
+    (c) => {
+      const app = getAppOrThrow(c.var.db, {
+        appId: c.req.valid('param').appId,
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+      })
+      try {
+        const file = readAppEnvFile({
+          workspacePath: c.var.workspace!.path,
+          cwdRelative: app.cwdRelative,
+          envFileRelative: app.envFileRelative,
+        })
+        return c.json({ envFileRelative: app.envFileRelative, ...file })
+      } catch (err) {
+        // The env ops are taxonomy-free by design — translate here (the
+        // supervisor-error precedent).
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.startsWith('app_env_escapes_workspace')) {
+          throw new ValidationError('The env file must be inside the workspace.')
+        }
+        throw err
+      }
+    },
+  )
+  // PUT /:appId/env — write the FULL desired entry set (user-only). The write
+  // is line-preserving: comments and unknown lines in the file survive.
+  .put(
+    '/:appId/env',
+    describeRoute({
+      tags: ['apps'],
+      summary: "Replace the app's env vars (line-preserving file rewrite).",
+      'x-sdk-name': 'workspaceApps.updateEnv',
+      responses: {
+        200: {
+          description: 'The saved state, re-parsed from the file.',
+          content: { 'application/json': { schema: resolver(AppEnvResponseSchema) } },
+        },
+        400: { description: "Validation error, or the app's folder does not exist." },
+        404: { description: 'No such app in this workspace.' },
+      },
+    }),
+    validator('param', AppParamSchema),
+    validator('json', UpdateAppEnvRequestSchema),
+    ...workspaceScoped,
+    (c) => {
+      const app = getAppOrThrow(c.var.db, {
+        appId: c.req.valid('param').appId,
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+      })
+      try {
+        const entries = writeAppEnvFile(
+          {
+            workspacePath: c.var.workspace!.path,
+            cwdRelative: app.cwdRelative,
+            envFileRelative: app.envFileRelative,
+          },
+          c.req.valid('json').entries,
+        )
+        // Never log the values — keys and count only.
+        c.var.logger.info(
+          { appId: app.id, entryCount: entries.length },
+          'app env file updated',
+        )
+        return c.json({ envFileRelative: app.envFileRelative, exists: true, entries })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.startsWith('app_env_escapes_workspace')) {
+          throw new ValidationError('The env file must be inside the workspace.')
+        }
+        if (message.startsWith('app_env_folder_missing')) {
+          throw new ValidationError(
+            "The app's folder does not exist on disk, so its env file can't be created.",
+          )
+        }
+        if (message.startsWith('app_env_multiline_file')) {
+          throw new ValidationError(
+            "This env file uses multi-line quoted values, which Vynel can't rewrite " +
+              'safely — edit it in your code editor instead.',
+          )
+        }
+        if (
+          message.startsWith('app_env_invalid_key') ||
+          message.startsWith('app_env_multiline_value') ||
+          message.startsWith('app_env_duplicate_key')
+        ) {
+          throw new ValidationError(
+            'Env entries need unique keys (letters, digits, underscores) and single-line values.',
+          )
+        }
+        throw err
+      }
     },
   )

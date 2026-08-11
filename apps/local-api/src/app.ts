@@ -41,6 +41,8 @@ import { tasksUserApp } from './routes/tasks/user-scoped.js'
 import { todosApp } from './routes/todos/index.js'
 import { plansApp } from './routes/plans/index.js'
 import { plansUserApp } from './routes/plans/user-scoped.js'
+import { phasesApp } from './routes/phases/index.js'
+import { featuresApp } from './routes/features/index.js'
 import { monitorsApp } from './routes/monitors/index.js'
 import { monitorsUserApp } from './routes/monitors/user-scoped.js'
 import { journalApp } from './routes/journal/index.js'
@@ -298,6 +300,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // journal ride the same reasoning (the date-wise layer + the daily record).
   app.route('/workspaces/:workspaceId/tasks', tasksApp)
   app.route('/workspaces/:workspaceId/plans', plansApp)
+  // Phases + features are the engineering-plan layer (the build plan + the
+  // app's feature catalog) — core like tasks/plans, so not feature-gated.
+  app.route('/workspaces/:workspaceId/phases', phasesApp)
+  app.route('/workspaces/:workspaceId/features', featuresApp)
   app.route('/workspaces/:workspaceId/monitors', monitorsApp)
   app.route('/workspaces/:workspaceId/journal', journalApp)
   app.route('/workspaces/:workspaceId/apps', workspaceAppsApp)

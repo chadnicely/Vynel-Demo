@@ -20,6 +20,7 @@ export interface UpdateAppInput {
   name?: string
   command?: string
   cwdRelative?: string
+  envFileRelative?: string
   port?: number | null
 }
 

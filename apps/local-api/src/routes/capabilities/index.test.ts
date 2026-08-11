@@ -50,14 +50,16 @@ describe('capabilities routes', () => {
         const res = await app.request(`/workspaces/${workspace.id}/capabilities`)
         expect(res.status).toBe(200)
         const body = (await res.json()) as { capabilities: Array<{ id: string; isEnabled: boolean }> }
-        // test: correct expectation — the catalog grew: 'plans' + 'journal'
-        // joined as defaultEnabled first-party capabilities (plans/journal
-        // modules, 2026-07-23; 'tasks' before them).
+        // test: correct expectation — the catalog grew: 'phases' + 'features'
+        // joined as defaultEnabled first-party capabilities (engineering-plan
+        // modules, 2026-08-11; 'plans'/'journal'/'tasks' before them).
         expect(body.capabilities.map((c) => c.id).sort()).toEqual([
+          'features',
           'journal',
           'knowledge',
           'memory',
           'notebook',
+          'phases',
           'plans',
           'tasks',
         ])

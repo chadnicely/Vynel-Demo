@@ -43,3 +43,11 @@ export {
   resolveContainedCwd,
   type StartAppProcessInput,
 } from './running/app-process-supervisor.js'
+
+// The app's env file (parse + line-preserving rewrite, containment-checked).
+export {
+  readAppEnvFile,
+  writeAppEnvFile,
+  type AppEnvEntry,
+  type AppEnvFileRef,
+} from './env/app-env-file.js'

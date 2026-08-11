@@ -218,6 +218,9 @@ importers:
       '@vynel/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@vynel/features':
+        specifier: workspace:*
+        version: link:../../packages/features
       '@vynel/files':
         specifier: workspace:*
         version: link:../../packages/files
@@ -254,6 +257,9 @@ importers:
       '@vynel/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
+      '@vynel/phases':
+        specifier: workspace:*
+        version: link:../../packages/phases
       '@vynel/plans':
         specifier: workspace:*
         version: link:../../packages/plans
@@ -856,6 +862,25 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/features:
+    dependencies:
+      '@vynel/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.2(@electric-sql/pglite@0.2.17)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(postgres@3.4.9)
+    devDependencies:
+      '@vynel/testing':
+        specifier: workspace:*
+        version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/files:
     dependencies:
       '@vynel/db':
@@ -1140,6 +1165,25 @@ importers:
       '@vynel/providers':
         specifier: workspace:*
         version: link:../providers
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.2(@electric-sql/pglite@0.2.17)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(postgres@3.4.9)
+    devDependencies:
+      '@vynel/testing':
+        specifier: workspace:*
+        version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/phases:
+    dependencies:
+      '@vynel/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.2(@electric-sql/pglite@0.2.17)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(postgres@3.4.9)

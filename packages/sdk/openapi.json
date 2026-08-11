@@ -7308,6 +7308,1326 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/phases": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of PhaseListItem (descriptionPreview, not the full text).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "orderIndex": {
+                        "type": "number"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "descriptionPreview": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "title",
+                      "orderIndex",
+                      "status",
+                      "sessionId",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt",
+                      "descriptionPreview"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdPhases",
+        "tags": [
+          "phases"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "in-progress",
+                "done"
+              ]
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the workspace's build-plan phases in order (previews only).",
+        "x-sdk-name": "phases.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_phases",
+          "description": "List the workspace's engineering build plan — its phases in build order. A phase is one stage of how the app gets built: title, a big-form description (TRUNCATED to a preview here — call get_phase for the full write-up), 0-based `orderIndex`, and status (open / in-progress / done). Optional `status` filters to one status. Check this before planning or building anything, and keep statuses moving as stages land. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Phase created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "orderIndex": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "orderIndex",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdPhases",
+        "tags": [
+          "phases"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Append a phase to the workspace's build plan.",
+        "x-sdk-name": "phases.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_phase",
+          "description": "Add a phase to the workspace's engineering build plan — one stage of \"how the app gets built\" (\"Phase 1 — Foundations\", \"Phase 2 — Ordering flow\"). `title` is the short label (≤200 chars); `description` is the FULL write-up (up to 50k chars): scope, the pieces to build, decisions, and what \"done\" means for the stage. New phases append to the end of the build order. Link the features a phase delivers via create_feature / update_feature with this phase's id. Side effect: the phase joins the workspace's build plan.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/phases/{phaseId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The phase, full description included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "orderIndex": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "orderIndex",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such phase owned by this user."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdPhasesByPhaseId",
+        "tags": [
+          "phases"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "phaseId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Read one phase with its full description.",
+        "x-sdk-name": "phases.get",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_phase",
+          "description": "Read one build-plan phase with its FULL description — the complete write-up of the stage (list_phases only carries previews). Use this before working on a phase so the full plan text grounds the work. Read-only."
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Phase updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "orderIndex": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "orderIndex",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such phase owned by this user."
+          }
+        },
+        "operationId": "patchWorkspacesByWorkspaceIdPhasesByPhaseId",
+        "tags": [
+          "phases"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "phaseId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update a phase (title, description, status, or position).",
+        "x-sdk-name": "phases.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_phase",
+          "description": "Update a phase. Set status \"in-progress\" when its build work starts, back to \"open\" if it stalls, or \"done\" when the stage landed (complete_phase is the shortcut). `description` REPLACES the full write-up — send the complete new text, not a diff. `orderIndex` moves the phase within the build order when the plan is reshaped. Statuses: open / in-progress / done.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  },
+                  "orderIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Phase removed."
+          },
+          "404": {
+            "description": "No such phase owned by this user."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdPhasesByPhaseId",
+        "tags": [
+          "phases"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "phaseId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Remove a phase from the build plan.",
+        "x-sdk-name": "phases.remove",
+        "x-mcp": {
+          "exposed": true,
+          "name": "delete_phase",
+          "description": "Remove a phase from the build plan — only when the user reshapes the plan and a stage genuinely goes away (prefer update_phase for renames and reordering). Features linked to it stay; unlink or relink them with update_feature. This permanently deletes the phase's write-up.",
+          "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/phases/{phaseId}/complete": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Phase completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "orderIndex": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "orderIndex",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such phase owned by this user."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdPhasesByPhaseIdComplete",
+        "tags": [
+          "phases"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "phaseId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Mark a phase done.",
+        "x-sdk-name": "phases.complete",
+        "x-mcp": {
+          "exposed": true,
+          "name": "complete_phase",
+          "description": "Mark a build-plan phase done when its stage has landed and been verified — typically after the features it delivers are complete. The user sees completed phases as the record of how far the build has come.",
+          "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/features": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of FeatureListItem (descriptionPreview, not the full text).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "phaseId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "descriptionPreview": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "title",
+                      "phaseId",
+                      "status",
+                      "sessionId",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt",
+                      "descriptionPreview"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdFeatures",
+        "tags": [
+          "features"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "in-progress",
+                "done"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "phaseId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "List the workspace's features (previews only).",
+        "x-sdk-name": "features.list",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_features",
+          "description": "List the workspace's features — the catalog of what the app should have. Each feature carries a title, a big-form description (TRUNCATED to a preview here — call get_feature for the full write-up), status (open / in-progress / done), and an optional `phaseId` linking it to the build-plan phase that delivers it. Optional `status` filters to one status; optional `phaseId` narrows to one phase's features. Check this before designing or building functionality. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Feature created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "phaseId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "phaseId",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdFeatures",
+        "tags": [
+          "features"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Add a feature to the workspace's catalog.",
+        "x-sdk-name": "features.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_feature",
+          "description": "Add a feature to the workspace's catalog — one thing the app should have (\"Online ordering\", \"Loyalty points\"). `title` is the short label (≤200 chars); `description` is the FULL write-up (up to 50k chars): what it does, how it behaves, edge cases, and what \"done\" means. Pass `phaseId` to link it to the build-plan phase that delivers it (list_phases shows the plan) — or leave it off and place it later with update_feature. Side effect: the feature appears in the workspace's catalog.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "phaseId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "title",
+                  "description"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/features/{featureId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The feature, full description included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "phaseId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "phaseId",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feature owned by this user."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdFeaturesByFeatureId",
+        "tags": [
+          "features"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "featureId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Read one feature with its full description.",
+        "x-sdk-name": "features.get",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_feature",
+          "description": "Read one feature with its FULL description — the complete write-up of what it does and how it behaves (list_features only carries previews). Use this before building or changing the feature so the full spec grounds the work. Read-only."
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Feature updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "phaseId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "phaseId",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such feature owned by this user."
+          }
+        },
+        "operationId": "patchWorkspacesByWorkspaceIdFeaturesByFeatureId",
+        "tags": [
+          "features"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "featureId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Update a feature (title, description, status, or phase link).",
+        "x-sdk-name": "features.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_feature",
+          "description": "Update a feature. Set status \"in-progress\" when work on it starts, back to \"open\" if it stalls, or \"done\" when it shipped (complete_feature is the shortcut). `description` REPLACES the full write-up — send the complete new text, not a diff. `phaseId` links the feature to the build-plan phase that delivers it; pass null to unlink. Statuses: open / in-progress / done.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  },
+                  "phaseId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Feature removed."
+          },
+          "404": {
+            "description": "No such feature owned by this user."
+          }
+        },
+        "operationId": "deleteWorkspacesByWorkspaceIdFeaturesByFeatureId",
+        "tags": [
+          "features"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "featureId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Remove a feature from the catalog.",
+        "x-sdk-name": "features.remove",
+        "x-mcp": {
+          "exposed": true,
+          "name": "delete_feature",
+          "description": "Remove a feature from the catalog — only when the user decides the app should NOT have it (prefer update_feature for rewrites and re-linking). This permanently deletes the feature's write-up.",
+          "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/features/{featureId}/complete": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Feature completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "phaseId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "title",
+                    "phaseId",
+                    "status",
+                    "sessionId",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "description"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feature owned by this user."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdFeaturesByFeatureIdComplete",
+        "tags": [
+          "features"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "featureId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Mark a feature done.",
+        "x-sdk-name": "features.complete",
+        "x-mcp": {
+          "exposed": true,
+          "name": "complete_feature",
+          "description": "Mark a feature done when it has shipped and been verified. The user sees completed features as the record of what the app can already do.",
+          "mutatingApproved": true
+        }
+      }
+    },
     "/workspaces/{workspaceId}/monitors": {
       "get": {
         "responses": {
@@ -8028,6 +9348,9 @@
                       "cwdRelative": {
                         "type": "string"
                       },
+                      "envFileRelative": {
+                        "type": "string"
+                      },
                       "port": {
                         "type": [
                           "number",
@@ -8085,6 +9408,7 @@
                       "name",
                       "command",
                       "cwdRelative",
+                      "envFileRelative",
                       "port",
                       "runtime",
                       "createdAt",
@@ -8148,6 +9472,9 @@
                     "cwdRelative": {
                       "type": "string"
                     },
+                    "envFileRelative": {
+                      "type": "string"
+                    },
                     "port": {
                       "type": [
                         "number",
@@ -8205,6 +9532,7 @@
                     "name",
                     "command",
                     "cwdRelative",
+                    "envFileRelative",
                     "port",
                     "runtime",
                     "createdAt",
@@ -8243,7 +9571,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "add_app",
-          "description": "Register a runnable app on the workspace so it can be started, stopped, and monitored. Derive the right `command` by inspecting the workspace first (package.json scripts, monorepo layout) — never guess. `name` is plain language the user recognizes (\"Web app\", \"API server\"). `cwdRelative` is the folder under the workspace root the command runs in (\"\" = root). Set `port` when you know it — it powers the \"open in browser\" link. Add an app once and reuse it; check list_apps before adding.",
+          "description": "Register a runnable app on the workspace so it can be started, stopped, and monitored. Derive the right `command` by inspecting the workspace first (package.json scripts, monorepo layout) — never guess. `name` is plain language the user recognizes (\"Web app\", \"API server\"). `cwdRelative` is the folder under the workspace root the command runs in (\"\" = root). Set `port` when you know it — it powers the \"open in browser\" link. Set `envFileRelative` to the env file the app loads, relative to its folder (defaults to \".env\") — the user edits that file from the app's Env popup. Add an app once and reuse it; check list_apps before adding.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -8264,6 +9592,11 @@
                   },
                   "cwdRelative": {
                     "type": "string",
+                    "maxLength": 300
+                  },
+                  "envFileRelative": {
+                    "type": "string",
+                    "minLength": 1,
                     "maxLength": 300
                   },
                   "port": {
@@ -8310,6 +9643,9 @@
                     "cwdRelative": {
                       "type": "string"
                     },
+                    "envFileRelative": {
+                      "type": "string"
+                    },
                     "port": {
                       "type": [
                         "number",
@@ -8367,6 +9703,7 @@
                     "name",
                     "command",
                     "cwdRelative",
+                    "envFileRelative",
                     "port",
                     "runtime",
                     "createdAt",
@@ -8414,7 +9751,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "update_app",
-          "description": "Update a registered app's name, command, folder, or port. A running app keeps its current process — the change applies on the next start (stop_app then start_app to restart with the new command).",
+          "description": "Update a registered app's name, command, folder, env file path, or port. A running app keeps its current process — the change applies on the next start (stop_app then start_app to restart with the new command).",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -8435,6 +9772,11 @@
                   },
                   "cwdRelative": {
                     "type": "string",
+                    "maxLength": 300
+                  },
+                  "envFileRelative": {
+                    "type": "string",
+                    "minLength": 1,
                     "maxLength": 300
                   },
                   "port": {
@@ -8515,6 +9857,9 @@
                     "cwdRelative": {
                       "type": "string"
                     },
+                    "envFileRelative": {
+                      "type": "string"
+                    },
                     "port": {
                       "type": [
                         "number",
@@ -8572,6 +9917,7 @@
                     "name",
                     "command",
                     "cwdRelative",
+                    "envFileRelative",
                     "port",
                     "runtime",
                     "createdAt",
@@ -8652,6 +9998,9 @@
                     "cwdRelative": {
                       "type": "string"
                     },
+                    "envFileRelative": {
+                      "type": "string"
+                    },
                     "port": {
                       "type": [
                         "number",
@@ -8709,6 +10058,7 @@
                     "name",
                     "command",
                     "cwdRelative",
+                    "envFileRelative",
                     "port",
                     "runtime",
                     "createdAt",
@@ -8821,6 +10171,197 @@
           "exposed": true,
           "name": "get_app_logs",
           "description": "Read an app's recent output (up to the last 2000 lines, in-memory — empty if it has not run since Vynel started). Use after start_app to confirm health, or to diagnose a crash (the exit line is appended). Optional `tail` limits the line count. Read-only."
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/apps/{appId}/env": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ envFileRelative, exists, entries } — parsed from the file on disk.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "envFileRelative": {
+                      "type": "string"
+                    },
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "envFileRelative",
+                    "exists",
+                    "entries"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The env file path escapes the workspace."
+          },
+          "404": {
+            "description": "No such app in this workspace."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdAppsByAppIdEnv",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Read the app's env file as key/value entries.",
+        "x-sdk-name": "workspaceApps.env"
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The saved state, re-parsed from the file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "envFileRelative": {
+                      "type": "string"
+                    },
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "envFileRelative",
+                    "exists",
+                    "entries"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or the app's folder does not exist."
+          },
+          "404": {
+            "description": "No such app in this workspace."
+          }
+        },
+        "operationId": "putWorkspacesByWorkspaceIdAppsByAppIdEnv",
+        "tags": [
+          "apps"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Replace the app's env vars (line-preserving file rewrite).",
+        "x-sdk-name": "workspaceApps.updateEnv",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "value": {
+                          "type": "string",
+                          "maxLength": 20000
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "value"
+                      ]
+                    },
+                    "maxItems": 200
+                  }
+                },
+                "required": [
+                  "entries"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -12566,6 +14107,8 @@
                               "notebook",
                               "tasks",
                               "plans",
+                              "phases",
+                              "features",
                               "journal"
                             ]
                           },
@@ -12651,6 +14194,8 @@
                         "notebook",
                         "tasks",
                         "plans",
+                        "phases",
+                        "features",
                         "journal"
                       ]
                     },
@@ -12708,6 +14253,8 @@
                 "notebook",
                 "tasks",
                 "plans",
+                "phases",
+                "features",
                 "journal"
               ]
             },

@@ -42,8 +42,13 @@ describe('vynelWorkspaceDescriptor', () => {
     // mode only. The FULL set is pinned so a regenerate that drops ANY member
     // — e.g. register_workspace losing its route flag, the exact tool Chad
     // wants carded — fails loudly here.
+    // test: correct expectation — the engineering-plan modules (2026-08-11)
+    // added delete_feature + delete_phase (DELETE routes join the tier
+    // automatically).
     expect(vynelWorkspaceDescriptor.askModeApprovalToolNames).toEqual([
       'mcp__vynel__delete_agent',
+      'mcp__vynel__delete_feature',
+      'mcp__vynel__delete_phase',
       'mcp__vynel__register_workspace',
       'mcp__vynel__remove_knowledge_source',
       'mcp__vynel__uninstall_marketplace_item',
@@ -97,6 +102,26 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__add_journal_entry',
       'mcp__vynel__list_my_journal_entries',
     ])
+    // `phases` and `features` gate their whole toolsets the same way
+    // (engineering-plan modules, 2026-08-11) — six tools each, delete
+    // included (the delete tools ALSO sit in the ask-mode tier above; the
+    // two mechanisms are independent).
+    expect(vynelWorkspaceDescriptor.capabilityGatedTools?.phases).toEqual([
+      'mcp__vynel__list_phases',
+      'mcp__vynel__create_phase',
+      'mcp__vynel__get_phase',
+      'mcp__vynel__update_phase',
+      'mcp__vynel__complete_phase',
+      'mcp__vynel__delete_phase',
+    ])
+    expect(vynelWorkspaceDescriptor.capabilityGatedTools?.features).toEqual([
+      'mcp__vynel__list_features',
+      'mcp__vynel__create_feature',
+      'mcp__vynel__get_feature',
+      'mcp__vynel__update_feature',
+      'mcp__vynel__complete_feature',
+      'mcp__vynel__delete_feature',
+    ])
   })
 
   it('contributes each capability discipline ONLY when that capability is enabled', () => {
@@ -123,6 +148,15 @@ describe('vynelWorkspaceDescriptor', () => {
     const withJournal = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['journal']))
     expect(withJournal).toContain('add_journal_entry')
     expect(withJournal).not.toContain('create_plan')
+
+    // The engineering-plan sections ride their own toggles (2026-08-11).
+    const withPhases = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['phases']))
+    expect(withPhases).toContain('get_phase')
+    expect(withPhases).not.toContain('create_feature')
+
+    const withFeatures = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['features']))
+    expect(withFeatures).toContain('create_feature')
+    expect(withFeatures).not.toContain('create_phase')
 
     // All three on → all three sections, stable order (tasks → plans → journal).
     const all = vynelWorkspaceDescriptor.contributePrompt?.(

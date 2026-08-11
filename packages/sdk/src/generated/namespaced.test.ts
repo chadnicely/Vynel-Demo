@@ -146,14 +146,18 @@ const EXPECTED_SCHEDULES_USER_METHODS = [
 
 // The workspaceApps namespace, sorted (apps module, 2026-07-17) — register +
 // run + monitor a workspace's apps. `remove` is user-only (no x-mcp).
+// test: correct expectation — the env editor (2026-08-11) added `env` +
+// `updateEnv` (both user-only, no x-mcp: env values are secrets).
 const EXPECTED_WORKSPACE_APPS_METHODS = [
   'add',
+  'env',
   'list',
   'logs',
   'remove',
   'start',
   'stop',
   'update',
+  'updateEnv',
 ] as const
 
 // The asks namespace, sorted (ask module, 2026-07-17) — the ask_user
@@ -255,6 +259,9 @@ describe('makeNamespaced — shape', () => {
       // (2026-08-04) added `desktopAccess` (GET/DELETE /desktop/access, the
       // per-app grant list + revoke doors).
       'desktopAccess',
+      // test: correct expectation — the engineering-plan modules (2026-08-11)
+      // added `phases` + `features` (agent-only workspace surfaces).
+      'features',
       'files',
       'hub',
       // test: correct expectation — the plans + journal modules (2026-07-23)
@@ -283,6 +290,7 @@ describe('makeNamespaced — shape', () => {
       'monitorsUser',
       'notebook',
       'onboarding',
+      'phases',
       'plans',
       'plansUser',
       'providers',

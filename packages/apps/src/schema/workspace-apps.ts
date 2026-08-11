@@ -24,6 +24,12 @@ export const workspaceApps = table(
     name: text().notNull(), // plain language ("Web app"); unique per workspace, case-insensitive
     command: text().notNull(), // the shell command, e.g. "pnpm --filter web dev"
     cwdRelative: text().notNull(), // '' = workspace root
+    // The app's env file, relative to its OWN folder (`cwdRelative`) —
+    // Claude points at the real file when it registers the app; '.env' is
+    // the sensible default for everything else. The env editor
+    // (`env/app-env-file.ts`) parses and rewrites THIS file directly — the
+    // file the app actually loads is the single source of truth, no DB copy.
+    envFileRelative: text().notNull().default('.env'),
     port: integer(), // nullable — powers the "open in browser" link
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),

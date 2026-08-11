@@ -1,0 +1,1 @@
+ALTER TABLE `workspace_apps` ADD `env_file_relative` text DEFAULT '.env' NOT NULL;

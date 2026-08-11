@@ -16,6 +16,7 @@ export function serializeAppForResponse(
     name: app.name,
     command: app.command,
     cwdRelative: app.cwdRelative,
+    envFileRelative: app.envFileRelative,
     port: app.port,
     runtime: snapshot
       ? {

@@ -55,6 +55,24 @@ export const CAPABILITY_CATALOG: readonly Capability[] = [
     defaultEnabled: true,
   },
   {
+    id: 'phases',
+    displayName: 'Phases',
+    description:
+      'The engineering build plan the assistant keeps — how the app gets built, stage by stage, each with its full write-up.',
+    scope: 'workspace',
+    isFirstParty: true,
+    defaultEnabled: true,
+  },
+  {
+    id: 'features',
+    displayName: 'Features',
+    description:
+      'The catalog of what the app should have — each feature a full write-up, linked to the build phase that delivers it.',
+    scope: 'workspace',
+    isFirstParty: true,
+    defaultEnabled: true,
+  },
+  {
     id: 'journal',
     displayName: 'Journal',
     description:
