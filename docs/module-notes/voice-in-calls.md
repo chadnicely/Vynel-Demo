@@ -193,6 +193,9 @@ inventory).
 
 ## Environment notes
 
+- **Flake tripwire:** overlay-channel's `/synthesize` test flaked ONCE under full parallel load
+  (2026-08-11; passed isolated + on re-runs; real-server bind timing). Second occurrence = chase
+  it; fix direction is test-side (timeout / serialize that suite), not production code.
 - **`/calls` inherits the overlay channel's open CORS** (loopback-bound, Phase-1 unauthenticated —
   same standing posture as `/speak`). Any local page can read call labels/ids and POST. Recorded
   here so the Phase-2 auth sweep covers the call surface too.

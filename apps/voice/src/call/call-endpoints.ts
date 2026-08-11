@@ -26,10 +26,13 @@ export function createCallEndpoints(roster: CallRoster, logger: Logger): Hono {
     .post('/', async (c) => {
       const body = (await c.req.json().catch(() => null)) as { label?: unknown; mode?: unknown } | null
       // A non-string label coerces to the default deliberately — the label is
-      // cosmetic. Mode gates behavior, so an invalid one 400s instead.
+      // cosmetic. Mode gates behavior, so an invalid one 400s instead. The cap
+      // matches the spawned session NAME cap (120): the label becomes the call
+      // session's name, and one limit at the outer boundary beats a truncation
+      // that would make the Sessions panel disagree with the call roster.
       const rawLabel = typeof body?.label === 'string' ? body.label.trim() : ''
-      if (rawLabel.length > 200) {
-        return c.json({ error: 'label must be at most 200 characters' }, 400)
+      if (rawLabel.length > 120) {
+        return c.json({ error: 'label must be at most 120 characters' }, 400)
       }
       const label = rawLabel === '' ? 'call' : rawLabel
       if (body?.mode !== undefined && body.mode !== 'notetaker' && body.mode !== 'participant') {

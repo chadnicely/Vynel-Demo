@@ -49,7 +49,7 @@ describe('call endpoints', () => {
 
   it('POST rejects an oversized label before touching the registry', async () => {
     const roster = fakeRoster()
-    const response = await appWith(roster).request('/', post({ label: 'x'.repeat(201) }))
+    const response = await appWith(roster).request('/', post({ label: 'x'.repeat(121) }))
 
     expect(response.status).toBe(400)
     expect(roster.startCall).not.toHaveBeenCalled()

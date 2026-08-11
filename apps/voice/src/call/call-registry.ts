@@ -6,6 +6,7 @@ import { findDeviceByName } from '../audio/device-selection.js'
 import type { SelectedDeviceConfig } from '../audio/device-selection.js'
 import { openCaptureStream, type CaptureStream } from '../audio/capture-stream.js'
 import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
+import type { CallMode } from '@vynel/voice'
 
 // The daemon's live-call roster: callId → the call's audio plumbing (Cable B
 // capture in, Cable A sink out). Registry-shaped for N calls from day one;
@@ -18,7 +19,9 @@ import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
 //  - Resolution happens per start, not at boot, so installing the cable never
 //    requires a daemon restart.
 
-export type CallMode = 'notetaker' | 'participant'
+// One home for the mode union: the pure policy in @vynel/voice owns it; the
+// registry re-exports for its HTTP-endpoint consumers.
+export type { CallMode } from '@vynel/voice'
 
 export interface CallDescriptor {
   readonly callId: string

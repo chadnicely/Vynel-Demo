@@ -35,8 +35,44 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   return null
 }
 
-// The small, fast model the voice turn runs on (the light triage tier).
-const VOICE_MODEL = 'claude-haiku-4-5'
+// The small, fast model every voice turn runs on (the light triage tier) —
+// the wake line and the call loop alike.
+export const VOICE_MODEL = 'claude-haiku-4-5'
+
+/** POST a turn request and stream the reply as `VoiceBrainEvent`s — the ONE
+ *  home for the SSE turn wire; the wake line (`/root/turn`) and the call
+ *  session client (`/sessions/:id/turn`) differ only in URL and body. */
+export async function* streamTurnEvents(
+  url: string,
+  body: Record<string, unknown>,
+): AsyncIterable<VoiceBrainEvent> {
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+      body: JSON.stringify(body),
+    })
+  } catch (error) {
+    yield { kind: 'failed', message: error instanceof Error ? error.message : 'brain unreachable' }
+    return
+  }
+
+  if (!response.ok || response.body === null) {
+    yield { kind: 'failed', message: `brain request failed (${response.status})` }
+    return
+  }
+
+  // Node's fetch body is a web ReadableStream; `Readable.fromWeb` gives a typed
+  // async-iterable of chunks the frame parser consumes.
+  for await (const frame of parseSseFrames(Readable.fromWeb(response.body))) {
+    const brainEvent = mapFrameToBrainEvent(frame)
+    if (brainEvent !== null) yield brainEvent
+    if (frame.event === 'turn-stream-ended') return
+  }
+  // The stream ended without an explicit terminal frame — treat as complete.
+  yield { kind: 'completed' }
+}
 
 /** Build the driver's `runBrainTurn` bound to a local-api base URL. Voice turns
  *  run on the fast model with `voice: true` — the brain replies by calling the
@@ -44,32 +80,10 @@ const VOICE_MODEL = 'claude-haiku-4-5'
 export function createBrainClient(
   apiUrl: string,
 ): (utterance: string) => AsyncIterable<VoiceBrainEvent> {
-  return async function* runBrainTurn(utterance: string): AsyncIterable<VoiceBrainEvent> {
-    let response: Response
-    try {
-      response = await fetch(`${apiUrl}/root/turn`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-        body: JSON.stringify({ userMessageText: utterance, model: VOICE_MODEL, voice: true }),
-      })
-    } catch (error) {
-      yield { kind: 'failed', message: error instanceof Error ? error.message : 'brain unreachable' }
-      return
-    }
-
-    if (!response.ok || response.body === null) {
-      yield { kind: 'failed', message: `brain request failed (${response.status})` }
-      return
-    }
-
-    // Node's fetch body is a web ReadableStream; `Readable.fromWeb` gives a typed
-    // async-iterable of chunks the frame parser consumes.
-    for await (const frame of parseSseFrames(Readable.fromWeb(response.body))) {
-      const brainEvent = mapFrameToBrainEvent(frame)
-      if (brainEvent !== null) yield brainEvent
-      if (frame.event === 'turn-stream-ended') return
-    }
-    // The stream ended without an explicit terminal frame — treat as complete.
-    yield { kind: 'completed' }
-  }
+  return (utterance: string) =>
+    streamTurnEvents(`${apiUrl}/root/turn`, {
+      userMessageText: utterance,
+      model: VOICE_MODEL,
+      voice: true,
+    })
 }
