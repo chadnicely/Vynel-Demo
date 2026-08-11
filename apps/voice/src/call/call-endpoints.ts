@@ -24,7 +24,17 @@ const STATUS_BY_KIND = {
 export function createCallEndpoints(roster: CallRoster, logger: Logger): Hono {
   return new Hono()
     .post('/', async (c) => {
-      const body = (await c.req.json().catch(() => null)) as { label?: unknown; mode?: unknown } | null
+      const body = (await c.req.json().catch(() => null)) as {
+        label?: unknown
+        mode?: unknown
+        sessionId?: unknown
+      } | null
+      // sessionId is FUNCTIONAL (it wires the brain), so an invalid one 400s
+      // rather than coercing — a typo must not silently start a brainless call.
+      if (body?.sessionId !== undefined && (typeof body.sessionId !== 'string' || body.sessionId.trim() === '')) {
+        return c.json({ error: 'sessionId must be a non-empty string when given' }, 400)
+      }
+      const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : undefined
       // A non-string label coerces to the default deliberately — the label is
       // cosmetic. Mode gates behavior, so an invalid one 400s instead. The cap
       // matches the spawned session NAME cap (120): the label becomes the call
@@ -40,7 +50,9 @@ export function createCallEndpoints(roster: CallRoster, logger: Logger): Hono {
       }
       const mode: CallMode = body?.mode === 'participant' ? 'participant' : 'notetaker'
       try {
-        return c.json(roster.startCall({ label, mode }))
+        return c.json(
+          roster.startCall({ label, mode, ...(sessionId !== undefined ? { sessionId } : {}) }),
+        )
       } catch (error) {
         return respondRegistryError(c, error, logger)
       }

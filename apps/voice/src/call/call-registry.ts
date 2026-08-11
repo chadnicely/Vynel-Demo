@@ -27,6 +27,9 @@ export interface CallDescriptor {
   readonly callId: string
   readonly label: string
   readonly mode: CallMode
+  /** The per-call spawned session driving the conversation — absent only on
+   *  raw /calls starts (dev probing); the start_call tool always passes it. */
+  readonly sessionId?: string
   readonly startedAtIso: string
 }
 
@@ -52,6 +55,7 @@ export interface CallCableNames {
 export interface StartCallRequest {
   readonly label: string
   readonly mode: CallMode
+  readonly sessionId?: string | undefined
 }
 
 interface LiveCall {
@@ -60,12 +64,14 @@ interface LiveCall {
   readonly sink: OutputSink
 }
 
-/** The seams C2's call loop claims — both directions of a live call's audio.
- *  Until bound, call audio is discarded and drain events go nowhere. */
+/** The seams the call loop claims — lifecycle + both directions of a live
+ *  call's audio. Until bound, call audio is discarded and events go nowhere. */
 export interface CallLoopHooks {
+  onCallStarted(descriptor: CallDescriptor): void
   onCallAudio(callId: string, audio: PcmAudio): void
   /** The call sink finished (or cut) its queued playback — the loop's drain wait. */
   onCallDrained(callId: string): void
+  onCallEnded(callId: string): void
 }
 
 export class CallRegistry {
@@ -110,6 +116,7 @@ export class CallRegistry {
       callId,
       label: request.label,
       mode: request.mode,
+      ...(request.sessionId !== undefined ? { sessionId: request.sessionId } : {}),
       startedAtIso: new Date().toISOString(),
     }
     const sink = openOutputSink(this.#logger, `call:${callId}`, output, () =>
@@ -132,6 +139,7 @@ export class CallRegistry {
     }
     this.#calls.set(callId, { descriptor, capture, sink })
     this.#logger.info({ callId, label: request.label, mode: request.mode }, 'call started')
+    this.#loopHooks?.onCallStarted(descriptor)
     return descriptor
   }
 
@@ -141,6 +149,11 @@ export class CallRegistry {
       throw new CallRegistryError('unknown-call', `no live call ${callId} — it may have already ended`)
     }
     this.#calls.delete(callId)
+    // The conversation stops FIRST, while the sink is still alive — its cancel
+    // resolves an in-flight drain wait through the cut round-trip. Stopping
+    // the sink first would clear the drain timer without firing and wedge the
+    // wait forever (the cut no-ops on a dead handle).
+    this.#loopHooks?.onCallEnded(callId)
     call.capture.stop()
     call.sink.stop()
     this.#logger.info({ callId, label: call.descriptor.label }, 'call ended')

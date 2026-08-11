@@ -6,7 +6,13 @@
 
 import pino from 'pino'
 import { SherpaSpeechRecognizer, SherpaVoiceActivityDetector, SherpaVoiceEngine } from '@vynel/voice-engine'
-import type { SpeechRecognizer, VoiceActivityDetector } from '@vynel/voice-engine'
+import type {
+  PcmAudio,
+  SpeechRecognizer,
+  SynthesizeOptions,
+  VoiceActivityDetector,
+  VoiceEngine,
+} from '@vynel/voice-engine'
 import type { Logger } from 'pino'
 import { loadEnv } from './env.js'
 import {
@@ -22,6 +28,9 @@ import { resolveAudioDevices } from './audio/device-selection.js'
 import { encodeWav } from './audio/wav-encode.js'
 import { CallRegistry } from './call/call-registry.js'
 import { createCallEndpoints } from './call/call-endpoints.js'
+import { createCallConversationHost } from './call/call-conversation-host.js'
+import { createCallSessionClient } from './call/call-session-client.js'
+import { serializeAsync } from './call/serialize-async.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
 import { createJarvisWindow } from './overlay/jarvis-window.js'
 import { VoiceSessionDriver } from './loop/voice-session-driver.js'
@@ -56,6 +65,16 @@ function main(): void {
   const vad = new SherpaVoiceActivityDetector({ vad: vadConfig })
   logger.info({ voices: synthesizer.voiceCount, sampleRate: synthesizer.sampleRate }, 'models loaded')
 
+  // The native STT/TTS engines are SINGLE instances shared by the wake line
+  // and every call loop — serialize them so concurrent turns can't race the
+  // sherpa addon (each call gets its own VAD; those are per-stream state).
+  const sharedTranscribe = serializeAsync((audio: PcmAudio) => recognizer.transcribe(audio))
+  const sharedSynthesize = serializeAsync((text: string, options?: SynthesizeOptions) =>
+    synthesizer.synthesize(text, options),
+  )
+  const serializedRecognizer: SpeechRecognizer = { transcribe: sharedTranscribe }
+  const serializedSynthesizer: VoiceEngine = { synthesize: sharedSynthesize }
+
   // audioShell + overlay need driver callbacks, and the driver needs both of
   // them — so build them first with a late-bound driver reference.
   let driver!: VoiceSessionDriver
@@ -69,6 +88,18 @@ function main(): void {
     inputName: env.VYNEL_CALL_INPUT_DEVICE,
     outputName: env.VYNEL_CALL_OUTPUT_DEVICE,
   })
+  const callConversations = createCallConversationHost({
+    logger,
+    // The spoken address name, matching the wake phrase's persona. The persona
+    // rename arc will thread a configurable name through here later.
+    assistantName: 'Vynel',
+    sessionClient: createCallSessionClient(env.VYNEL_API_URL),
+    createVad: () => new SherpaVoiceActivityDetector({ vad: vadConfig }),
+    transcribe: sharedTranscribe,
+    synthesize: (sentence) => sharedSynthesize(sentence, { voiceId: env.VYNEL_VOICE_ID }),
+    findCallSink: (callId) => callRegistry.findCallSink(callId),
+  })
+  callRegistry.bindCallLoop(callConversations)
   const jarvisEnabled = env.VYNEL_VOICE_JARVIS_WINDOW === '1'
   const overlay = startOverlayChannel(
     env.VYNEL_VOICE_DAEMON_PORT,
@@ -77,7 +108,7 @@ function main(): void {
       onClientsGone: () => driver.endHandoff(),
       // The overlay speaks with the daemon's own voice — one voice everywhere.
       onSynthesize: async (text) =>
-        encodeWav(await synthesizer.synthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
+        encodeWav(await sharedSynthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
       // The `speak` MCP tool — any global session's voice output. Route it to
       // whoever can actually play it:
       //   - a LIVE overlay command session (handed-off) plays its own turn's
@@ -143,8 +174,8 @@ function main(): void {
   driver = new VoiceSessionDriver(
     {
       vad: traceVad(vad, logger),
-      recognizer: traceRecognizer(recognizer, logger),
-      synthesizer,
+      recognizer: traceRecognizer(serializedRecognizer, logger),
+      synthesizer: serializedSynthesizer,
       runBrainTurn: createBrainClient(env.VYNEL_API_URL),
       io,
       onSpeakError: (error, text) =>

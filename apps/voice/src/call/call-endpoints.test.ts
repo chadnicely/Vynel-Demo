@@ -47,6 +47,20 @@ describe('call endpoints', () => {
     expect(roster.startCall).toHaveBeenCalledWith({ label: 'call', mode: 'notetaker' })
   })
 
+  it('POST passes a sessionId through and rejects an invalid one', async () => {
+    const roster = fakeRoster()
+    const ok = await appWith(roster).request('/', post({ label: 'standup', sessionId: ' sess-1 ' }))
+    expect(ok.status).toBe(200)
+    expect(roster.startCall).toHaveBeenCalledWith({
+      label: 'standup',
+      mode: 'notetaker',
+      sessionId: 'sess-1',
+    })
+
+    const invalid = await appWith(fakeRoster()).request('/', post({ sessionId: 42 }))
+    expect(invalid.status).toBe(400)
+  })
+
   it('POST rejects an oversized label before touching the registry', async () => {
     const roster = fakeRoster()
     const response = await appWith(roster).request('/', post({ label: 'x'.repeat(121) }))

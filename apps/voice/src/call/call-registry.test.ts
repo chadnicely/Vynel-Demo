@@ -136,7 +136,12 @@ describe('CallRegistry', () => {
 
     deliver?.(pcm) // unbound: must not throw
     const onCallAudio = vi.fn()
-    registry.bindCallLoop({ onCallAudio, onCallDrained: vi.fn() })
+    registry.bindCallLoop({
+      onCallStarted: vi.fn(),
+      onCallAudio,
+      onCallDrained: vi.fn(),
+      onCallEnded: vi.fn(),
+    })
     deliver?.(pcm)
 
     expect(onCallAudio).toHaveBeenCalledTimes(1)
@@ -154,7 +159,12 @@ describe('CallRegistry', () => {
 
     fireDrained?.() // unbound: must not throw
     const onCallDrained = vi.fn()
-    registry.bindCallLoop({ onCallAudio: vi.fn(), onCallDrained })
+    registry.bindCallLoop({
+      onCallStarted: vi.fn(),
+      onCallAudio: vi.fn(),
+      onCallDrained,
+      onCallEnded: vi.fn(),
+    })
     fireDrained?.()
 
     expect(onCallDrained).toHaveBeenCalledTimes(1)
@@ -213,6 +223,46 @@ describe('CallRegistry', () => {
     expect(registry.findCallSink(callId)).toBe(sink)
     registry.endCall(callId)
     expect(registry.findCallSink(callId)).toBeNull()
+  })
+
+  it('announces lifecycle to the bound loop — started with the full descriptor, ended by id', () => {
+    const onCallStarted = vi.fn()
+    const onCallEnded = vi.fn()
+    const registry = registryWith()
+    registry.bindCallLoop({
+      onCallStarted,
+      onCallAudio: vi.fn(),
+      onCallDrained: vi.fn(),
+      onCallEnded,
+    })
+
+    const descriptor = registry.startCall({ label: 'standup', mode: 'notetaker', sessionId: 'sess-1' })
+
+    expect(onCallStarted).toHaveBeenCalledWith(descriptor)
+    expect(descriptor.sessionId).toBe('sess-1')
+
+    registry.endCall(descriptor.callId)
+    expect(onCallEnded).toHaveBeenCalledWith(descriptor.callId)
+  })
+
+  it('endCall stops the conversation BEFORE the streams — a drain wait must resolve through the live cut', () => {
+    const order: string[] = []
+    const sink = fakeSink()
+    vi.mocked(sink.stop).mockImplementation(() => order.push('sink'))
+    openSink.mockReturnValue(sink)
+    openCapture.mockReturnValue({ stop: vi.fn(() => void order.push('capture')) })
+    const registry = registryWith()
+    registry.bindCallLoop({
+      onCallStarted: vi.fn(),
+      onCallAudio: vi.fn(),
+      onCallDrained: vi.fn(),
+      onCallEnded: vi.fn(() => order.push('conversation')),
+    })
+
+    const { callId } = registry.startCall({ label: 'standup', mode: 'notetaker' })
+    registry.endCall(callId)
+
+    expect(order).toEqual(['conversation', 'capture', 'sink'])
   })
 
   it('stopAll ends every live call (shutdown path)', () => {
