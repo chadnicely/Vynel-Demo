@@ -138,10 +138,18 @@ export async function openAppTreeReader(
     throw new Error('openAppTreeReader: an app name (or part of it) is required.')
   }
   const { App } = loadXa11y()
-  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read', undefined, (appName) =>
-    authorize?.(appName, 'read'),
-  )
-  const resolvedName = resolved.app.name
+  // CAPTURE the name resolution hands the authorizer — that is the CANONICAL
+  // grant identity, resolved through the pid. It is NOT `resolved.app.name`:
+  // xa11y names an app by its active WINDOW TITLE, so Discord arrives as
+  // "music | localhost - Discord" and a grant for "Discord" would never match
+  // it. Re-authorizing on that string denied a wait the user had just
+  // approved (live smoke, 2026-08-11) — exactly the trap `resolveAppIdentity`
+  // exists to close.
+  let canonicalName: string | null = null
+  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read', undefined, (appName) => {
+    canonicalName = appName
+    authorize?.(appName, 'read')
+  })
   const defaultDepth = resolved.viaElectronWake
     ? ELECTRON_SNAPSHOT_MAX_DEPTH
     : DEFAULT_SNAPSHOT_MAX_DEPTH
@@ -149,8 +157,11 @@ export async function openAppTreeReader(
   return {
     viaElectronWake: resolved.viaElectronWake,
     readTree: async () => {
-      // Re-checked per read, against the SAME resolved identity the wake holds.
-      authorize?.(resolvedName, 'read')
+      // Re-checked per read against the CANONICAL identity, so a grant revoked
+      // mid-poll stops the next read. Skipped only if resolution never reported
+      // one — re-checking a name we aren't sure of would deny work the user
+      // already approved, and the up-front check has already run.
+      if (canonicalName !== null) authorize?.(canonicalName, 'read')
       return withTimeout(dumpApp(resolved.app, maxDepth), SNAPSHOT_TIMEOUT_MS, 'snapshot')
     },
     dispose: () => {
