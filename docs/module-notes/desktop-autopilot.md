@@ -170,9 +170,11 @@ spawn time; ours addresses them by handle.
 
 ### 3. Autopilot is structurally impossible today — and this is the real plan
 
-`desktopFeatureDescriptor` is composed at **exactly two production sites**, both global-root:
+`desktopFeatureDescriptor` was composed at **exactly two production sites**, both global-root:
 `apps/local-api/src/streams/global-root-turn.ts:188` and
 `apps/local-api/src/sessions/run-global-root-turn.ts:211`.
+*(Arc 2a added two more: the delegated-turn composer and the interactive spawned-session
+turn — see the arc note below.)*
 
 Consequences, each verified:
 
@@ -303,6 +305,53 @@ semantics. Recorded here so the tension below isn't rediscovered from scratch:
 > This needs a table. Per house rule: **drizzle generate only, never hand-write** —
 > `pnpm --filter @vynel/db exec drizzle-kit generate`. A schema change is planned deliberately,
 > never slipped in on red.
+
+**2a SHIPPED (2026-08-11).** Composer change + boot wiring + the interactive-parity
+fix + overlay visibility + Stop targeting. Reviewed by `code-reviewer`; three
+must-fixes found and two fixed outright:
+
+- **Server-strip bug (fixed).** `streams/session-turn.ts` — the *interactive* turn into a
+  spawned session — didn't attach desktop, so typing into a session that had just run a
+  desktop task resumed the SDK session with the server GONE. Stripping is the
+  "MCP server disconnected" class the one-toolset rule exists to prevent. Desktop is now
+  merged in there too (the pre-existing vynel plain-vs-interactive delta deliberately left
+  alone — it stays within one server name, so it never strips).
+- **Dark-overlay bug (fixed).** The delegation tick announced only "this job is busy" and
+  published no per-tool steps, so a spawned session would have driven the mouse behind a
+  DARK overlay — the same hole the subagent mapping closed. The turn observer now publishes
+  turn activity steps **unconditionally** (not gated on anyone watching). This also closes
+  the recorded "delegated turns publish NO narration steps" gap **for task jobs**;
+  `run-agent-run-job` and the workspace branch of `run-report-delivery-tick` still narrate
+  blank.
+- **Stop targeted the wrong session (fixed).** The overlay's Stop called
+  `root.interruptTurn()`, which resolves the *root* primary — so for a delegated desktop
+  turn it was a no-op on the actual driver, and would kill an unrelated root turn while
+  reporting success. The fold now learns `origin`/`partialSessionId` from `turn-started`
+  and Stop routes to `root.stopDelegation` for delegated turns. When origin is unknown
+  (overlay attached mid-turn) the button is **disabled** rather than guessing.
+
+> ### ⚠ OPEN DECISION for Kafi — a spawned turn CAN still self-grant under auto/bypass
+>
+> The claim "a background turn can never self-grant" does **not** hold for a delegated
+> turn, and I did not silently change the security model to make it hold.
+>
+> The path: the dispatching root turn's permission mode is stamped on the job row and the
+> delegated turn runs under it. In the user's own `auto`/`bypass` the approval floor stands
+> down (`build-claude-pre-tool-use-hook.ts` — `floorStandsDown`), so
+> `request_desktop_access` runs **uncarded** and mints a standing grant with nobody
+> watching; the plan-gated authorizer then passes on that standing grant.
+>
+> Channel/voice turns do **not** have this hole — they default to
+> `bypass-with-behavior-gate`, where the floor holds.
+>
+> **The question is genuinely a product one:** does the user's auto/bypass pick transitively
+> consent to desktop reach in work they delegated during that turn? Both answers defensible.
+> - *Yes* → nothing to do; correct the docs to say so plainly.
+> - *No* → needs a way to force a card for ONE tool even in auto/bypass, which is a
+>   provider-level change (there is no such seam today).
+>
+> What I did instead: made the code comment and the test name state only what is actually
+> guaranteed — that an armed **plan** is not itself an authority path.
 
 **2c. Rework the root lock — NOT TAKEN.** Once long desktop work runs in a spawned session it
 already escapes the lock (the global-root core is the **sole** acquirer of `runUnderRootTurnLock` —

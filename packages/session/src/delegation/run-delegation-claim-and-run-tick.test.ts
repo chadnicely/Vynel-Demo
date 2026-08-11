@@ -1632,3 +1632,98 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 })
+
+// Desktop autopilot (2026-08-11). A spawned session can now drive the DESKTOP
+// (`DESKTOP_CAPABLE_DELEGATED_TARGETS` in the local-api composer), and the
+// attention overlay is a SAFETY surface that folds `mcp__desktop__*` steps off
+// the activity feed. Before this arc the tick announced only "this job is
+// busy" — so a delegated turn could move the user's mouse behind a DARK
+// overlay. These pin that the turn's steps actually reach the feed.
+describe('runDelegationClaimAndRunTick — turn steps reach the activity feed', () => {
+  // Collect every activity frame this user sees, the way the overlay's
+  // subscription does.
+  function captureActivity(feed: SessionActivityFeed, userId: string) {
+    const frames: Array<Record<string, unknown>> = []
+    const unsubscribe = feed.subscribe(userId, (event) =>
+      frames.push(event as unknown as Record<string, unknown>),
+    )
+    return { frames, unsubscribe }
+  }
+
+  it('publishes a desktop tool step for a SPAWNED-session turn (the overlay can never go dark)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-desktop-spawned' }),
+        { userId: user.id, name: 'S', purpose: 'p', workspacePath: '/tmp/x' },
+      )
+      enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: '/tmp/x',
+        taskText: 'click the thing',
+      })
+
+      const activityFeed = new SessionActivityFeed()
+      const { frames, unsubscribe } = captureActivity(activityFeed, user.id)
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: created.sessionId,
+          toolCallName: 'mcp__desktop__act_on_desktop',
+          resultText: 'clicked',
+        }),
+        logger: silentLogger,
+        activityFeed,
+      })
+      unsubscribe()
+
+      const started = frames.find(
+        (frame) =>
+          frame['kind'] === 'turn-tool-started' &&
+          frame['toolName'] === 'mcp__desktop__act_on_desktop',
+      )
+      expect(started, 'the desktop step must reach the feed the overlay folds').toBeDefined()
+      expect(frames.some((frame) => frame['kind'] === 'turn-tool-settled')).toBe(true)
+    })
+  })
+
+  it('still publishes steps with NO trace observer attached — visibility must not depend on someone watching', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'do the thing',
+      })
+
+      const activityFeed = new SessionActivityFeed()
+      const { frames, unsubscribe } = captureActivity(activityFeed, user.id)
+      // No `turnEvents` broadcaster => the trace-channel half of the observer is
+      // inert. The activity half must fire regardless.
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'sdk-no-observer',
+          toolCallName: 'Read',
+          resultText: 'done',
+        }),
+        logger: silentLogger,
+        activityFeed,
+      })
+      unsubscribe()
+
+      expect(
+        frames.some(
+          (frame) => frame['kind'] === 'turn-tool-started' && frame['toolName'] === 'Read',
+        ),
+      ).toBe(true)
+    })
+  })
+})

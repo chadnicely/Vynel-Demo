@@ -35,9 +35,21 @@ export interface ActiveDesktopPlan {
   steps: string[];
 }
 
+/** The turn currently driving desktop steps — Stop must target THIS one.
+ *  `origin`/`partialSessionId` are learned from the turn's `turn-started`
+ *  frame; both stay null when the overlay attached mid-turn and never saw it. */
+export interface TrackedDesktopTurn {
+  turnId: string;
+  scopeKind: "global" | "workspace";
+  /** 'delegation' = a spawned/background session is driving, NOT the root. */
+  origin: string | null;
+  /** The delegated turn's stop handle (`root.stopDelegation`). */
+  partialSessionId: string | null;
+}
+
 export interface DesktopActivityState {
   /** The turn currently driving desktop steps — Stop targets it. */
-  trackedTurn: { turnId: string; scopeKind: "global" | "workspace" } | null;
+  trackedTurn: TrackedDesktopTurn | null;
   /** Newest last, capped — the overlay shows the current + a few settled. */
   steps: DesktopStep[];
   /** Pending desktop approvals (bells; the approvals API owns the state). */
@@ -72,13 +84,15 @@ export function isControllingDesktop(state: DesktopActivityState): boolean {
   return state.activePlan !== null;
 }
 
-function trackTurn(
-  state: DesktopActivityState,
-  turnId: string,
-): DesktopActivityState["trackedTurn"] {
-  // Desktop tools ride the global root today; scopeKind stays 'global' unless a
-  // turn-started ever taught us otherwise (the feed carries no scope on steps).
-  return state.trackedTurn?.turnId === turnId ? state.trackedTurn : { turnId, scopeKind: "global" };
+function trackTurn(state: DesktopActivityState, turnId: string): TrackedDesktopTurn {
+  // Steps carry only a turnId. A turn we saw START (see the 'turn-started' case)
+  // keeps everything we learned there; otherwise we know nothing beyond the id —
+  // and `origin: null` is what makes Stop refuse to guess (it must not fire the
+  // ROOT interrupt at a delegated turn, which would kill an unrelated turn and
+  // still report success).
+  return state.trackedTurn?.turnId === turnId
+    ? state.trackedTurn
+    : { turnId, scopeKind: "global", origin: null, partialSessionId: null };
 }
 
 /** Fold one feed event. Returns the same reference when nothing changed. */
@@ -152,6 +166,25 @@ export function applyDesktopActivityEvent(
         ),
       };
     }
+    case "turn-started":
+      // Learn WHO is driving, so Stop can address the right turn. Desktop work
+      // no longer rides only the global root — a spawned session drives it in
+      // the background (desktop-autopilot), and that turn is stopped through a
+      // different route entirely. Recorded for EVERY turn, since the desktop
+      // step that reveals the overlay may arrive later.
+      //
+      // No visibility change: this frame alone must never surface the overlay
+      // (a plain chat turn publishes one too) — only a desktop STEP does.
+      if (state.trackedTurn !== null && state.trackedTurn.turnId !== event.turnId) return state;
+      return {
+        ...state,
+        trackedTurn: {
+          turnId: event.turnId,
+          scopeKind: event.scopeKind,
+          origin: event.origin,
+          partialSessionId: event.partialSessionId ?? null,
+        },
+      };
     case "turn-ended":
       // The tracked turn finished — stale narration must not float over the
       // desktop; the overlay hides immediately.

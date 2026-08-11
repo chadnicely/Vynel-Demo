@@ -98,11 +98,31 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
 }
 
 const isStopping = ref(false);
+
+// Desktop work no longer rides only the global root: a spawned session drives it
+// in the background (desktop-autopilot), and THAT turn is stopped through a
+// different route. Firing the root interrupt at a delegated turn would leave the
+// mouse moving while killing an unrelated root turn — and the route returns
+// `{ interrupted: true }` either way, so it would read as success.
+const trackedTurn = computed(() => desktopActivity.state.trackedTurn);
+const canStop = computed(() => {
+  const turn = trackedTurn.value;
+  // origin null = we attached mid-turn and never saw turn-started, so we do not
+  // know who is driving. Refusing beats stopping the wrong turn.
+  if (turn === null || turn.origin === null) return false;
+  return turn.origin === "delegation" ? turn.partialSessionId !== null : true;
+});
+
 async function stopTurn() {
-  // Desktop tools ride the global root — its server-side interrupt is the lever.
+  const turn = trackedTurn.value;
+  if (turn === null || !canStop.value) return;
   isStopping.value = true;
   try {
-    await vynel.root.interruptTurn();
+    if (turn.origin === "delegation" && turn.partialSessionId !== null) {
+      await vynel.root.stopDelegation(turn.partialSessionId);
+    } else {
+      await vynel.root.interruptTurn();
+    }
   } catch {
     // Best-effort: the turn may have just ended; the feed's turn-ended hides us.
   } finally {
@@ -205,7 +225,12 @@ onUnmounted(() => {
       </ul>
 
       <footer class="overlay-footer">
-        <button class="stop-button" :disabled="isStopping" @click="stopTurn">
+        <button
+          class="stop-button"
+          :disabled="isStopping || !canStop"
+          :title="canStop ? 'Stop what Claude is doing' : 'Can\'t identify the turn to stop'"
+          @click="stopTurn"
+        >
           {{ isStopping ? "Stopping…" : "Stop" }}
         </button>
       </footer>

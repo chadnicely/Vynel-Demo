@@ -45,6 +45,22 @@ vi.mock('@vynel/instructions', () => ({
 vi.mock('@vynel/capabilities', () => ({
   listEnabledCapabilities: () => [],
 }))
+// Mirrors the real descriptor's applicability gate: it excludes ITSELF when no
+// reader was wired at boot, which is what keeps composition safe off-Windows.
+vi.mock('@vynel/desktop-control', () => ({
+  desktopFeatureDescriptor: {
+    serverName: 'desktop',
+    build: (context: { desktopReader?: unknown; desktopPlanConsent?: string; enableDesktopActions?: boolean }) =>
+      context.desktopReader === undefined
+        ? null
+        : {
+            marker: 'desktop',
+            planConsent: context.desktopPlanConsent,
+            actionsEnabled: context.enableDesktopActions,
+          },
+    mutatingToolNames: ['mcp__desktop__request_desktop_access'],
+  },
+}))
 
 import {
   buildDelegatedTurnMcpComposer,
@@ -115,6 +131,86 @@ describe('buildDelegatedTurnMcpComposer', () => {
     const spawned = compose({ ...target, target: 'spawned-session' })
     await dispatcherOf(spawned.mcpServers['vynel-interactive'])('/routing/message', { method: 'POST' })
     expect(callerHeaders[0]).toBeNull()
+  })
+})
+
+// Desktop autopilot (Kafi, 2026-08-11): a task handed to a SPAWNED session is
+// the only way desktop work runs while the user does something else — a
+// global-root turn holds the per-user root lock for its whole life. These pin
+// both halves: that the spawned target GETS the feature, and that the targets
+// deliberately left out do NOT.
+describe('buildDelegatedTurnMcpComposer — desktop attachment', () => {
+  const desktopWired = { desktopReader: { listSince: () => [] }, enableDesktopActions: true }
+
+  it('attaches desktop to a SPAWNED session (the autopilot unlock)', async () => {
+    const { appRequest } = makeSpyAppRequest()
+    const compose = await buildDelegatedTurnMcpComposer(appRequest, desktopWired)
+    const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
+    expect(Object.keys(spawned.mcpServers)).toContain('desktop')
+  })
+
+  it('attaches desktop to a GLOBAL-grounded spawned session too — the desktop is the machine, not a workspace', async () => {
+    const { appRequest } = makeSpyAppRequest()
+    const compose = await buildDelegatedTurnMcpComposer(appRequest, desktopWired)
+    const spawned = compose({
+      ...target,
+      workspaceId: null,
+      target: 'spawned-session',
+      targetPrimarySessionId: 'sp-1',
+    })
+    expect(Object.keys(spawned.mcpServers)).toEqual(['vynel-routing', 'vynel-notebook', 'desktop'])
+  })
+
+  it('does NOT attach desktop to a workspace-root or agent-session target (scope: spawned only, for now)', async () => {
+    const { appRequest } = makeSpyAppRequest()
+    const compose = await buildDelegatedTurnMcpComposer(appRequest, desktopWired)
+    expect(Object.keys(compose({ ...target, target: 'workspace-root' }).mcpServers)).not.toContain(
+      'desktop',
+    )
+    expect(
+      Object.keys(
+        compose({ ...target, target: 'agent-session', targetPrimarySessionId: 'ag-1' }).mcpServers,
+      ),
+    ).not.toContain('desktop')
+  })
+
+  it('attaches nothing when no reader was wired (off-Windows / tests) — the descriptor self-excludes', async () => {
+    const { appRequest } = makeSpyAppRequest()
+    const compose = await buildDelegatedTurnMcpComposer(appRequest)
+    const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
+    expect(Object.keys(spawned.mcpServers)).not.toContain('desktop')
+  })
+
+  // Pins exactly ONE property, and no more: the PLAN is not an authority path
+  // for a spawned turn. Absent consent ⇒ 'display-only' by contract, so an
+  // armed plan narrates on the overlay but authorizes nothing itself; authority
+  // must come from a standing per-app grant.
+  //
+  // ⚠ This is NOT "a spawned turn can never self-grant". The standing-grant
+  // door is still open to it: a delegated turn inherits the dispatching root
+  // turn's permission mode, and in the user's own `auto`/`bypass` the approval
+  // floor stands down (`build-claude-pre-tool-use-hook.ts` — `floorStandsDown`),
+  // so `request_desktop_access` runs UNCARDED and grants directly. Closing that
+  // needs a way to force a card for one tool even in auto/bypass, which is a
+  // provider-level change and a product call — recorded as an open decision in
+  // `docs/module-notes/desktop-autopilot.md`. Do not widen this test's name
+  // back to the strict claim without the code to back it.
+  it('leaves plan consent ABSENT so an armed plan is not itself an authority path', async () => {
+    const { appRequest } = makeSpyAppRequest()
+    const compose = await buildDelegatedTurnMcpComposer(appRequest, desktopWired)
+    const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
+    const desktopServer = spawned.mcpServers['desktop'] as { planConsent?: string }
+    expect(desktopServer.planConsent).toBeUndefined()
+  })
+
+  it('carries the boot actions flag through', async () => {
+    const { appRequest } = makeSpyAppRequest()
+    const off = await buildDelegatedTurnMcpComposer(appRequest, {
+      ...desktopWired,
+      enableDesktopActions: false,
+    })
+    const spawned = off({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
+    expect((spawned.mcpServers['desktop'] as { actionsEnabled?: boolean }).actionsEnabled).toBe(false)
   })
 })
 
