@@ -29,7 +29,11 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import { findWindowedPidByName, isProcessRunningByName } from '../a11y/windowed-process.js'
+import {
+  findWindowedPidByName,
+  isProcessRunningByName,
+  trayHiddenMessage,
+} from '../a11y/windowed-process.js'
 import { resolveAppIdentity } from '../a11y/window-identity.js'
 import { rejectUnusableBounds, setWindowBounds } from '../a11y/window-bounds.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
@@ -116,9 +120,7 @@ export function makeSetWindowBoundsTool(
               {
                 type: 'text',
                 text: (await isRunning(query))
-                  ? `"${query}" IS running but has no window to move — most likely minimized to ` +
-                    'the system tray. Call launch_app with its installed name to bring the window ' +
-                    'back, then move it.'
+                  ? trayHiddenMessage(query, "move")
                   : `No open window matches "${query}". Call list_open_apps to see what's open.`,
               },
             ],

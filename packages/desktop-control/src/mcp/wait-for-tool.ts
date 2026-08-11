@@ -12,7 +12,7 @@ import type { McpToolFn } from './mcp-tool-fn.js'
 import { listOpenApps } from '../a11y/xa11y-adapter.js'
 import { openAppTreeReader, type AppTreeReader } from '../a11y/open-app-tree-reader.js'
 import { isAppNameMatch } from '../a11y/app-name-match.js'
-import { findWindowedPidByName, isProcessRunningByName } from '../a11y/windowed-process.js'
+import { findWindowedPidByName } from '../a11y/windowed-process.js'
 import {
   clampWaitTimeout,
   conditionReadsContent,
@@ -54,15 +54,9 @@ const realClock: WaitClock = {
  * pid lookup is the same fallback `resolveAppWithFallback` and `launch_app`
  * use, so all three agree on what "open" means.
  */
-async function isAppOpen(app: string): Promise<boolean> {
+async function hasVisibleWindow(app: string): Promise<boolean> {
   if ((await listOpenApps()).some((open) => isAppNameMatch(open.name, app))) return true
-  if ((await findWindowedPidByName(app)) !== null) return true
-  // BOTH sources above are windowed-only, so an app minimized to the system
-  // tray reads as closed by either — which made `app_closes` report "met"
-  // instantly for a running app and `app_appears` never fire for one. "Open"
-  // here means RUNNING, not "showing a window": a tray app is still open, and a
-  // caller who wants it visible should say so with a window-based condition.
-  return isProcessRunningByName(app)
+  return (await findWindowedPidByName(app)) !== null
 }
 
 /** Construct the read-only `wait_for` SDK MCP tool. */
@@ -129,9 +123,9 @@ export function makeWaitForTool(
                   held.reader ??= await openAppTreeReader(target, authorize)
                   return held.reader.readTree()
                 },
-                isAppOpen,
+                isAppOpen: hasVisibleWindow,
               }
-            : { readTree: async () => '', isAppOpen })
+            : { readTree: async () => '', isAppOpen: hasVisibleWindow })
         const outcome = await waitForCondition(
           { kind: until, app, ...(text !== undefined ? { text } : {}), timeoutMs },
           activeProbes,

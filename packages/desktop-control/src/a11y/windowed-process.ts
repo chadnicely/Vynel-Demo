@@ -157,3 +157,33 @@ export function matchesProcessName(processName: string, query: string): boolean 
  *  ("Code", "Slack") while rejecting the one- and two-letter queries that would
  *  match nearly any process list. */
 export const MIN_PROCESS_MATCH_LENGTH = 4
+
+/**
+ * What to tell the model when an app is running but has no window.
+ *
+ * ONE home because three tools say it (snapshot/act resolution, set_window_state,
+ * set_window_bounds) and they must not drift — and because the honest wording
+ * took two goes to get right.
+ *
+ * The first version claimed re-launching "brings the window back for most tray
+ * apps". Measured against Docker Desktop, it does not: `launch_app` ran for 21s
+ * and no window appeared. Electron apps commonly DESTROY the window on
+ * close-to-tray rather than hiding it — Docker's process owns 8 top-level
+ * windows and every one is hidden and untitled — so there is nothing for
+ * `ShowWindow` to restore either, and re-launching an already-running instance
+ * is a no-op.
+ *
+ * So: offer the cheap attempt, but do not promise it, and name the thing that
+ * always works. Telling the user to click the icon is a real answer; sending the
+ * model round a 21-second loop that cannot succeed is not.
+ */
+export function trayHiddenMessage(query: string, verb: string): string {
+  return (
+    `"${query}" IS running, but it has no window right now — it is minimized to the system tray ` +
+    `(the notification area by the clock), so there is nothing to ${verb}. Windows offers no ` +
+    'reliable way to restore that: you may try launch_app with its installed name, but for many ' +
+    'apps (Docker Desktop among them) a second launch does nothing because the window was ' +
+    'destroyed, not hidden. If one attempt does not surface it, STOP and ask the user to click ' +
+    'the tray icon — do not keep retrying.'
+  )
+}

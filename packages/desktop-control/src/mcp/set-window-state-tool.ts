@@ -12,7 +12,11 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import { findWindowedPidByName, isProcessRunningByName } from '../a11y/windowed-process.js'
+import {
+  findWindowedPidByName,
+  isProcessRunningByName,
+  trayHiddenMessage,
+} from '../a11y/windowed-process.js'
 import { resolveAppIdentity } from '../a11y/window-identity.js'
 import { setWindowState, windowStateVerb, WINDOW_STATES, isWindowState } from '../a11y/window-state.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
@@ -86,9 +90,7 @@ export function makeSetWindowStateTool(
                 // filters MainWindowHandle -ne 0, so a tray app reaches here even
                 // though it is running. "Not open" would be false.
                 text: (await isRunning(query))
-                  ? `"${query}" IS running but has no window to arrange — most likely minimized ` +
-                    'to the system tray. Call launch_app with its installed name to bring the ' +
-                    'window back first.'
+                  ? trayHiddenMessage(query, "arrange")
                   : `No open window matches "${query}". Call list_open_apps to see what's open (the app must be running).`,
               },
             ],

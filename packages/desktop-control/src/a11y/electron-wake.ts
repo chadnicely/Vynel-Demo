@@ -22,7 +22,11 @@ import {
   type Xa11ySubscription,
 } from './xa11y-loader.js'
 import { isAppNameMatch } from './app-name-match.js'
-import { findWindowedPidByName, isProcessRunningByName } from './windowed-process.js'
+import {
+  findWindowedPidByName,
+  isProcessRunningByName,
+  trayHiddenMessage,
+} from './windowed-process.js'
 import { ensureForeground } from './window-focus.js'
 import { screenReaderFlag } from './screen-reader-flag.js'
 import { resolveAppIdentity } from './window-identity.js'
@@ -181,18 +185,12 @@ export async function resolveAppWithFallback(
     const pid = await hooks.findPid(query)
     if (pid === null) {
       // "No window" and "not running" are DIFFERENT, and conflating them is what
-      // made a tray-minimized app look absent. An app tucked into the system
-      // tray is hidden, not minimized — Windows reports MainWindowHandle 0, so
-      // the windowed lookup above cannot see it — but it IS running, and
-      // re-launching restores its window for most such apps. Saying "not open"
-      // there is a false statement that sends the model to the wrong recovery.
+      // made a tray-minimized app look absent. The wording lives in one home
+      // (`trayHiddenMessage`) because three tools say it — and because the first
+      // version promised a recovery that does not work.
       throw new Error(
         (await hooks.isRunning(query))
-          ? `Could not ${intent} "${query}": it IS running, but has no window right now — it is ` +
-            'most likely minimized to the system tray (the notification area by the clock). ' +
-            'Windows offers no way to restore that programmatically, so call launch_app with its ' +
-            'installed name: for tray apps that brings the existing window back. If the window ' +
-            'still does not appear, tell the user to click its tray icon — do not keep retrying.'
+          ? `Could not ${intent} "${query}". ${trayHiddenMessage(query, String(intent))}`
           : `Could not ${intent} "${query}": no matching app is open. Call list_open_apps to see available apps.`,
         { cause: findError },
       )
