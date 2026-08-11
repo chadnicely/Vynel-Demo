@@ -14,11 +14,18 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import {
-  DESKTOP_ACCESS_TIERS,
-  isDesktopAccessTier,
-} from '../access/desktop-access-tiers.js'
+import type { DesktopAccessTier } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanApp, DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
+
+// A plan authorizes ACTING, and only the act tools consult the envelope —
+// reads (snapshot / screenshot) go through the standing grant gate regardless.
+// So `read` is deliberately NOT plannable: accepting it would let the model
+// state an authorization it never actually receives.
+const PLANNABLE_TIERS = ['click', 'full'] as const
+
+function isPlannableTier(value: unknown): value is DesktopAccessTier {
+  return typeof value === 'string' && (PLANNABLE_TIERS as readonly string[]).includes(value)
+}
 
 const TOOL_DESCRIPTION =
   'Propose your desktop plan BEFORE acting — required once per task, in every mode. State the goal, ' +
@@ -47,7 +54,7 @@ export function parsePlanApps(raw: unknown): DesktopPlanApp[] | null {
     const tier = (entry as Record<string, unknown>)['tier']
     if (typeof app !== 'string' || app.trim().length === 0) return null
     if (app.trim().length > MAX_APP_NAME_LENGTH) return null
-    if (!isDesktopAccessTier(tier)) return null
+    if (!isPlannableTier(tier)) return null
     apps.push({ app: app.trim(), tier })
   }
   return apps
@@ -112,7 +119,11 @@ export function makeProposeDesktopPlanTool(envelope: DesktopPlanEnvelope): unkno
               .min(1)
               .max(MAX_APP_NAME_LENGTH)
               .describe('App name — exactly as list_open_apps shows it when open.'),
-            tier: z.enum(DESKTOP_ACCESS_TIERS).describe('Lowest tier that does the job.'),
+            // click/full only — a plan authorizes ACTING. Reading (snapshot /
+            // screenshot) goes through the standing grant gate, so a `read`
+            // entry here would be inert and invite the model to plan an
+            // authorization it never receives.
+            tier: z.enum(PLANNABLE_TIERS).describe('Lowest tier that does the job: click (press/mouse) or full (also type).'),
           }),
         )
         .min(1)

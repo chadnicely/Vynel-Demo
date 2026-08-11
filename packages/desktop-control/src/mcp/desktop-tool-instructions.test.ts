@@ -86,12 +86,19 @@ describe('DESKTOP_ACT_INSTRUCTIONS', () => {
     expect(DESKTOP_ACT_INSTRUCTIONS.toLowerCase()).toContain("isn't available")
   })
 
-  it('says a minimized app needs no special handling, and names the explicit lever', () => {
-    // The auto-restore is the point (Kafi 2026-08-11): if the guide ever tells
+  it('never sends the user to un-minimize a window, and is honest about WHICH tool restores', () => {
+    // The never-ask rule is the point (Kafi 2026-08-11): if the guide ever tells
     // the model to ask the user to un-minimize, the remote case dead-ends again.
+    //
+    // test: correct expectation — the guide previously claimed snapshot_app
+    // restores too. It does not: restore rides `ensureForeground`, which only
+    // runs on the byPid/Electron-wake branch, so a UIA-enumerated native app
+    // (Notepad, Telegram) is never restored by snapshot_app. Only screenshot_app
+    // restores unconditionally, and that is what the guide now says.
     const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
-    expect(lower).toContain('minimized app needs nothing special')
-    expect(lower).toContain('restore it for you automatically')
+    expect(lower).toContain('never need to ask the user to un-minimize')
+    expect(lower).toContain('screenshot_app restores a minimized window')
+    expect(lower).not.toContain('snapshot_app and screenshot_app restore')
     expect(DESKTOP_ACT_INSTRUCTIONS).toContain('set_window_state')
   })
 

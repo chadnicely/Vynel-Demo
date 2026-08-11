@@ -121,7 +121,13 @@ export function parseActOnDesktopSteps(
 // Actions that can hand focus to another window — after one of these the next
 // step's focus/hit-test probe must not read the pre-click world (see
 // `input/foreground-settle.ts`). Scroll never activates a window.
-const FOCUS_CHANGING_ACTIONS = new Set<ActOnDesktopParams['action']>(['click', 'drag'])
+//
+// `press` is in the set because a KEYSTROKE can move the foreground too
+// (`alt+tab`, `win`): the mouse path would still fail closed on its own
+// coordinate-derived walls, but focus-directed input after such a keystroke
+// would otherwise authorize against the pre-keystroke focused window — an
+// assumption about OS timing rather than a guarantee.
+const FOCUS_CHANGING_ACTIONS = new Set<ActOnDesktopParams['action']>(['click', 'drag', 'press'])
 
 /** Construct the `act_on_desktop` SDK MCP tool (mutating — destructiveHint).
  *  The envelope is REQUIRED — acting is PLAN-GATED by construction: refused

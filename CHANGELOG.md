@@ -34,8 +34,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   never hidden behind a count.
 
 - **Minimized apps no longer stop the assistant.** Ask it to look at something
-  you've tucked away and it simply opens the window and looks — no more "please
-  restore it first", which was useless when you're away from the machine. It can
+  you've tucked away and it opens the window and looks — no more "please restore
+  it first", which was useless when you're away from the machine. It can
   also arrange windows on purpose now: maximize an app it just opened so the app
   is actually usable, or minimize one to clear it away. Windows it opens are left
   open, so you can see what happened when you come back.

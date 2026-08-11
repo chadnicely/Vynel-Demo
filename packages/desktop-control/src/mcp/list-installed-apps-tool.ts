@@ -15,7 +15,7 @@ import {
 const TOOL_DESCRIPTION =
   'List the apps INSTALLED on this computer (Start menu), whether or not they are running — use this ' +
   "when the app you need isn't in list_open_apps, then launch_app to start it. Each entry has a name " +
-  'and an appId (pass that exact appId to launch_app). Optional `query` filters by name, ranked ' +
+  '(pass that exact NAME to launch_app — not the appId, which is the internal Windows id). Optional `query` filters by name, ranked ' +
   'best-first — pass one whenever you know what you are looking for, so you get a short list instead ' +
   'of everything. READ-ONLY. Windows only; returns an empty list elsewhere.'
 

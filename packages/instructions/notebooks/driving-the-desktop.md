@@ -42,11 +42,12 @@ In this order:
 Don't relaunch something that's already open — you'll end up with two windows
 and act in the wrong one.
 
-**Minimized is not a problem.** `snapshot_app` and `screenshot_app` restore a
-minimized window for you before they read it — never ask the user to open it,
-because they may not be there. The one exception is pixel coordinates: a
-minimized window has no position on screen, so `screenshot_app` it first (that
-restores it) and take your coordinates from that fresh capture.
+**Minimized is not a problem** — never ask the user to open a window, because
+they may not be there. `screenshot_app` restores a minimized window before it
+captures. `snapshot_app` can usually read one as it is; if its tree comes back
+empty, fall back to `screenshot_app`, which brings the window back. The one
+exception is pixel coordinates: a minimized window has no position on screen,
+so `screenshot_app` it first and take your coordinates from that fresh capture.
 
 Reach for `set_window_state({app, state})` when the window state is the *point*:
 `maximized` to make an app you just opened properly usable, `minimized` to tuck
