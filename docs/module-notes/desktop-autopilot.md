@@ -541,17 +541,22 @@ distinguishes them.
 
 ### Quieter, but real
 
-6. **Durable task record (2b).** Deferred by Kafi's scope call; worth revisiting now that spawned
+6. **Durable task record (2b).** ✅ **PHASE 1 DONE 2026-08-13** (`a63572e`, `f431f44`, `8be4c7f`) —
+   the append-only `desktop_actions` record, which IS the access log. Phase 2 (sessionId +
+   workspaceId + the continuation prompt) is written up above. Original note: worth revisiting now that spawned
    desktop work actually runs. A task that dies mid-way has nothing to resume from. Note spawned
    tasks inherit *some* durability free (delegation jobs carry attempt counts + a boot sweep); what
    is missing is a step cursor and desktop-aware retry semantics.
-7. **Post-action verification (Arc 4's other half).** `wait_for` landed; generalising "did it
+7. **Post-action verification (Arc 4's other half).** ✅ **DONE 2026-08-13** (`14cdde9`) — typing
+   reads the field back; a click stays unverifiable by nature and says so. Original note: `wait_for` landed; generalising "did it
    actually work?" from the `launch_app` / `set_window_state` precedents did not. Success is still
    largely what the model asserts.
-8. **Approval-stall budget.** Unattended, an unanswered card burns ~10 minutes *while holding the
+8. **Approval-stall budget.** ⏭ **SKIPPED by Kafi 2026-08-12** — "that is another package, approvals
+   case". Original note: Unattended, an unanswered card burns ~10 minutes *while holding the
    per-user root lock*, so a "are you stuck?" message cannot even be processed. A group-origin card
    can never be answered at all.
-9. **The two 10-minute budgets are identical.** `DELEGATION_RUN_BUDGET_MS` measures from *claim*,
+9. **The two 10-minute budgets are identical.** ✅ **DONE 2026-08-12** (`185c429`) — the watchdog is
+   6 min, so it can actually fire on a delegated turn. Original note: `DELEGATION_RUN_BUDGET_MS` measures from *claim*,
    the new task watchdog from *first arm* — so on a spawned session the delegation budget always
    bites first and the watchdog only really covers attended turns. They probably should not match.
 10. **"Cheap fills" — NOT cheap. Each is one decision, not one file.** The loader already exposes
