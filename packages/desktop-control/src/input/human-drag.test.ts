@@ -5,6 +5,7 @@ import {
   DEFAULT_DRAG_STEPS,
   DEFAULT_THRESHOLD_NUDGE_PX,
   LONG_DRAG_STEPS,
+  buildWaypointDragLegs,
 } from './human-drag.js'
 
 describe('dragStepCountFor', () => {
@@ -108,5 +109,50 @@ describe('buildDragPath', () => {
     const path = buildDragPath({ x: -900, y: -400 }, { x: -300, y: -100 })
     expect(path[0]).toEqual({ x: -900, y: -400 })
     expect(path.at(-1)).toEqual({ x: -300, y: -100 })
+  })
+})
+
+// Waypoints exist for the gestures that need a DECISION mid-hold: a
+// spring-loaded folder that only expands once hovered, a tree that scrolls at
+// its edge, a tab strip you must cross to reach another window. The alternative
+// — raw press/release as separate tools — puts a tool-call boundary between
+// them, and a turn that dies in that gap leaves the button DOWN across the whole
+// desktop. Waypoints keep the release inside one call, where `finally` owns it.
+describe('buildWaypointDragLegs', () => {
+  const from = { x: 0, y: 0 }
+  const via = { x: 100, y: 0 }
+  const to = { x: 200, y: 0 }
+
+  it('produces one leg per hop, so each can be dwelt on', () => {
+    expect(buildWaypointDragLegs(from, [via], to)).toHaveLength(2)
+    expect(buildWaypointDragLegs(from, [via, { x: 150, y: 50 }], to)).toHaveLength(3)
+  })
+
+  it('each leg starts where the previous one ended', () => {
+    const legs = buildWaypointDragLegs(from, [via], to)
+    expect(legs[0]?.[legs[0].length - 1]).toEqual(via)
+    expect(legs[1]?.[0]).toEqual(via)
+    expect(legs[1]?.[legs[1].length - 1]).toEqual(to)
+  })
+
+  it('nudges past the drag threshold ONCE, at the grab', () => {
+    // A second nudge mid-drag would jerk the pointer sideways off the very
+    // target it is standing on — the waypoint it was sent there to hover.
+    const legs = buildWaypointDragLegs(from, [via], to)
+    expect(legs[0]?.[0]).toEqual(from)
+    expect(legs[0]?.[1]?.x).toBeGreaterThan(0)
+    expect(legs[0]?.[1]?.x).toBeLessThan(via.x)
+    // The second leg sets off straight from the waypoint.
+    expect(legs[1]?.[1]?.x).toBeGreaterThan(via.x)
+  })
+
+  it('never moves backwards along a leg', () => {
+    // The same monotonicity the single-segment path guarantees — a leg that
+    // doubles back can drop onto whatever sits behind it.
+    for (const leg of buildWaypointDragLegs(from, [via], to)) {
+      for (let i = 1; i < leg.length; i += 1) {
+        expect(leg[i]!.x).toBeGreaterThanOrEqual(leg[i - 1]!.x)
+      }
+    }
   })
 })

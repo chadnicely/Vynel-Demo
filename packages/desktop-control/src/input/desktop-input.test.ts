@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { translatePoint, actOnDesktop, type DesktopInputProbes } from './desktop-input.js'
+import {
+  translatePoint,
+  actOnDesktop,
+  planDesktopAction,
+  type DesktopInputProbes,
+} from './desktop-input.js'
 import type { DesktopAccessTier } from '../access/desktop-access-tiers.js'
 
 describe('translatePoint', () => {
@@ -198,5 +203,36 @@ describe('actOnDesktop — access enforcement (injected probes)', () => {
       ['Notepad', 'click'],
       ['PasswordSafe', 'click'],
     ])
+  })
+})
+
+// Waypoints let one call do what raw press/release would otherwise need two
+// for — and two calls means a tool-call boundary the button can be left down
+// across. Validation lives here so a malformed point can never steer the
+// pointer somewhere the caller never asked for.
+describe('planDesktopAction — drag waypoints', () => {
+  const base = { action: 'drag' as const, x: 0, y: 0, toX: 10, toY: 10 }
+
+  it('defaults to no waypoints — a plain drag is unchanged', () => {
+    expect(planDesktopAction(base)).toMatchObject({ via: [] })
+    expect(planDesktopAction({ ...base, via: undefined })).toMatchObject({ via: [] })
+  })
+
+  it('accepts a list of points', () => {
+    expect(planDesktopAction({ ...base, via: [{ x: 5, y: 5 }] })).toMatchObject({
+      via: [{ x: 5, y: 5 }],
+    })
+  })
+
+  it('refuses a malformed waypoint rather than steering somewhere unasked', () => {
+    for (const bad of [
+      [{ x: 1 }],
+      [{ x: 1, y: 'two' }],
+      [null],
+      [{ x: Number.NaN, y: 0 }],
+      'not-a-list',
+    ]) {
+      expect(() => planDesktopAction({ ...base, via: bad })).toThrow(/via|list of/i)
+    }
   })
 })

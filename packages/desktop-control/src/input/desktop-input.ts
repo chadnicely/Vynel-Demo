@@ -42,6 +42,12 @@ export interface ActOnDesktopParams {
   y?: number
   toX?: number
   toY?: number
+  /** DRAG only — points to travel through while the button is held, pausing at
+   *  each. For drop targets that only appear mid-gesture (a folder that springs
+   *  open when hovered, a tab you must cross to reach another window).
+   *  Deliberately `unknown`: it arrives as raw MCP args, and `parseWaypoints`
+   *  is the ONE place that decides what a valid point is. */
+  via?: unknown
   text?: string
   keys?: string
   button?: MouseButton
@@ -93,6 +99,24 @@ function requireNumber(value: number | undefined, name: string, action: string):
   return value
 }
 
+/** Waypoints for a drag — each must be a real point, because a malformed one
+ *  would silently steer the pointer somewhere the caller never asked for. */
+function parseWaypoints(value: unknown): Array<{ x: number; y: number }> {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) {
+    throw new Error('The "drag" action\'s "via" must be a list of {x, y} points.')
+  }
+  return value.map((point, index) => {
+    const candidate = point as { x?: unknown; y?: unknown }
+    const x = typeof candidate?.x === 'number' ? candidate.x : Number.NaN
+    const y = typeof candidate?.y === 'number' ? candidate.y : Number.NaN
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error(`The "drag" action's via[${index}] needs numeric "x" and "y".`)
+    }
+    return { x, y }
+  })
+}
+
 function mapButton(button: MouseButton | undefined, buttons: { LEFT: number; MIDDLE: number; RIGHT: number }): number {
   switch (button) {
     case 'right':
@@ -113,7 +137,7 @@ type ActionPlan =
   | { action: 'type'; text: string }
   | { action: 'press'; keys: string }
   | { action: 'scroll'; x: number; y: number }
-  | { action: 'drag'; x: number; y: number; toX: number; toY: number }
+  | { action: 'drag'; x: number; y: number; toX: number; toY: number; via: Array<{ x: number; y: number }> }
   | { action: 'move'; x: number; y: number }
 
 export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
@@ -147,6 +171,7 @@ export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
         y: requireNumber(params.y, 'y', 'drag'),
         toX: requireNumber(params.toX, 'toX', 'drag'),
         toY: requireNumber(params.toY, 'toY', 'drag'),
+        via: parseWaypoints(params.via),
       }
     case 'move':
       return {
@@ -235,18 +260,24 @@ export async function actOnDesktop(
       const resolved = probes.resolveTargetFrame(params.app)
       const from = translatePoint(resolved.frame, plan.x, plan.y)
       const to = translatePoint(resolved.frame, plan.toX, plan.toY)
-      // A drag has TWO ends — authorize both (an absolute drag can drop onto a
-      // different app than it grabbed from).
+      const via = plan.via.map((point) => translatePoint(resolved.frame, point.x, point.y))
+      // EVERY end is authorized, waypoints included — the pointer is held down
+      // as it crosses them, so a waypoint over another app is a drag through
+      // that app, not a fly-over.
       authorizeMouseTarget(authorize, probes, resolved, from, 'click')
+      for (const point of via) {
+        authorizeMouseTarget(authorize, probes, resolved, point, 'click')
+      }
       authorizeMouseTarget(authorize, probes, resolved, to, 'click')
       // Press → threshold nudge → stepped travel → dwell → guaranteed release,
       // rather than nut's one-jump `drag()`. The whole gesture lives in
       // `human-drag.ts`, next to the path it walks — see there for why a jump
       // moves a slider but never completes a drop.
-      await performSteppedDrag(from, to)
+      await performSteppedDrag(from, to, via)
+      const through = via.length > 0 ? ` via ${via.map((p) => `(${p.x}, ${p.y})`).join(' → ')}` : ''
       return {
         action: 'drag',
-        detail: `dragged (${from.x}, ${from.y}) → (${to.x}, ${to.y})${where}`,
+        detail: `dragged (${from.x}, ${from.y})${through} → (${to.x}, ${to.y})${where}`,
       }
     }
     case 'move': {

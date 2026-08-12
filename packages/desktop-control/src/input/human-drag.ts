@@ -80,13 +80,21 @@ export function buildDragPath(
   const dy = to.y - from.y
   const distance = Math.hypot(dx, dy)
   const nudged =
-    distance === 0
+    nudge === 0
+      ? { x: from.x, y: from.y }
+      : distance === 0
       ? { x: from.x + nudge, y: from.y + nudge }
       : {
           x: Math.round(from.x + (dx / distance) * Math.min(nudge, distance)),
           y: Math.round(from.y + (dy / distance) * Math.min(nudge, distance)),
         }
-  path.push(nudged)
+  // A suppressed nudge (the later legs of a waypoint drag) would otherwise
+  // push the grab point twice — harmless to the OS, but it makes the path lie
+  // about where it starts moving, and every assertion about "the first step
+  // after the grab" then reads the grab again.
+  if (nudged.x !== from.x || nudged.y !== from.y) {
+    path.push(nudged)
+  }
 
   // Interpolate from the NUDGE, not from `from`. Restarting at `from` would
   // walk the pointer back over the source before setting off — visibly wrong,
@@ -126,9 +134,52 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * Coordinates arrive already translated AND authorized; this touches no part of
  * the access model.
  */
-export async function performSteppedDrag(from: DragStep, to: DragStep): Promise<void> {
+/**
+ * The full path through any waypoints — one leg per hop, nudged only at the
+ * grab (the threshold is crossed once, not at every corner).
+ *
+ * WHY waypoints exist. A single press→travel→release cannot do the gestures
+ * that need a DECISION mid-hold: a spring-loaded folder that only expands once
+ * you hover it, a tree that scrolls when you hold near its edge, a tab strip
+ * you must cross to reach another window. The alternative — exposing raw
+ * press/release as separate tools — puts a tool-call boundary between the two,
+ * and a turn that dies in that gap leaves the button DOWN across the whole
+ * desktop, turning every later click into a drag the user has to undo by hand.
+ * Waypoints keep the release inside one call, where `finally` still owns it.
+ */
+export function buildWaypointDragLegs(
+  from: DragStep,
+  waypoints: DragStep[],
+  to: DragStep,
+  options: HumanDragOptions = {},
+): DragStep[][] {
+  const destinations = [...waypoints, to]
+  let cursor = from
+  return destinations.map((destination, index) => {
+    // Only the FIRST leg nudges: later legs start from a pointer that is
+    // already held and already moving, so a second nudge would jerk it
+    // sideways off the target it is standing on.
+    const leg = buildDragPath(
+      cursor,
+      destination,
+      index === 0 ? options : { ...options, thresholdNudgePx: 0 },
+    )
+    cursor = destination
+    return leg
+  })
+}
+
+export async function performSteppedDrag(
+  from: DragStep,
+  to: DragStep,
+  waypoints: DragStep[] = [],
+): Promise<void> {
   const { mouse, Point, Button } = loadNutInput()
-  const path = buildDragPath(from, to)
+  // One entry per hop, so each can be walked and then dwelt on.
+  const legs =
+    waypoints.length > 0
+      ? buildWaypointDragLegs(from, waypoints, to)
+      : [buildDragPath(from, to)]
   await withTimeout(mouse.setPosition(new Point(from.x, from.y)), DRAG_STEP_TIMEOUT_MS, 'move')
 
   // The press is INSIDE the try, flagged before its await. `withTimeout` bounds
@@ -143,12 +194,21 @@ export async function performSteppedDrag(from: DragStep, to: DragStep): Promise<
     // A timeout here does NOT stop the native path walk — it keeps running
     // after we move on, which is why the release below is best-effort rather
     // than a guarantee that the gesture unwound cleanly.
-    await withTimeout(
-      mouse.move(path.map((step) => new Point(step.x, step.y))),
-      DRAG_TRAVEL_TIMEOUT_MS,
-      'drag',
-    )
-    await sleep(DROP_DWELL_MS)
+    //
+    // Walked LEG BY LEG when there are waypoints, with a dwell at each: a
+    // waypoint the pointer merely passes through is no different from a
+    // straight line, and the reason to stop there is precisely that the target
+    // needs a moment to react — a spring-loaded folder to expand, a tab strip
+    // to switch. One continuous `move` would arrive and leave in the same
+    // frame, which is the naive jump this module exists to replace.
+    for (const leg of legs) {
+      await withTimeout(
+        mouse.move(leg.map((step) => new Point(step.x, step.y))),
+        DRAG_TRAVEL_TIMEOUT_MS,
+        'drag',
+      )
+      await sleep(DROP_DWELL_MS)
+    }
   } finally {
     if (buttonMayBeDown) {
       try {

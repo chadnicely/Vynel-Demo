@@ -47,11 +47,8 @@ screen looking like the app.
 
 `launch_app` tells you the name the window actually reports. Use that name from
 then on — and if it differs from the one you asked for ("Firefox Developer
-Edition" opening as "Firefox"), your plan and any access grant don't cover it,
-so re-propose for the real name before acting. You can also ask for standing
-access to an app that isn't running yet: `request_desktop_access` resolves
-installed apps, not just open ones, which is how a background task gets
-permission to open something.
+Edition" opening as "Firefox"), your plan doesn't cover it, so propose an
+updated one naming what it actually reports before acting.
 
 Treat a name that **extends** what you asked for as a warning, not a win:
 "Docker Desktop Launcher" when you wanted "Docker Desktop" is a helper,
@@ -65,9 +62,15 @@ current Notepad run their windows through one shared system process, so
 and it may come up behind whatever you were looking at. Don't relaunch on that
 report — `list_open_apps` and see what's actually there first.
 
+**Check the state before you assume it** — `get_app({app})` tells you whether an
+app is not running, hidden in the tray, open but minimized, or open and visible
+(and whether it's actually the window in front). It's the one tool that touches
+*nothing*, so it's always safe to call first.
+
 **Minimized is not a problem** — never ask the user to open a window, because
 they may not be there. `screenshot_app` restores a minimized window before it
-captures. `snapshot_app` can usually read one as it is; if its tree comes back
+captures, and tells you it did. That changes what's on the user's screen, so
+pass it on when you report back. `snapshot_app` can usually read one as it is; if its tree comes back
 empty, fall back to `screenshot_app`, which brings the window back. The one
 exception is pixel coordinates: a minimized window has no position on screen,
 so `screenshot_app` it first and take your coordinates from that fresh capture.
@@ -141,6 +144,17 @@ Drag only when an app accepts something no other way — dropping onto a compose
 window or a media timeline. Even then, look for an **Attach** button and its file
 dialog first (`ctrl+l` in the dialog, type the path, `enter`), which is far more
 reliable. When you do drag, always look afterwards to confirm it landed.
+
+If the drop target only appears **during** the drag — a folder that springs open
+when you hover it, a tab you must cross to reach another window — pass `via`:
+points to travel through while the button is held, pausing at each. Without them
+the pointer goes straight to the destination and those targets never get the
+chance to react.
+
+```
+act_on_desktop({app: "File Explorer", action: "drag",
+  x: 120, y: 300, via: [{x: 400, y: 220}], toX: 640, toY: 260})
+```
 
 ### Another screen
 
@@ -270,9 +284,9 @@ so plainly and hand it back to the user rather than trying to force it:
   coordinates; if that also fails, describe what you see and ask how to
   proceed.
 
-If an action is refused for missing access, the error tells you the recovery:
-propose an updated plan naming that app, or `request_desktop_access` for
-lasting access — the user decides.
+If an action is refused because your plan doesn't cover the app, the recovery is
+always the same: propose an updated plan naming it. There is no separate
+per-app permission to ask for — the plan *is* the permission.
 
 ## 8. Never
 

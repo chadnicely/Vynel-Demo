@@ -20,7 +20,8 @@ const TOOL_DESCRIPTION =
   'element. Pass `app` = the window name so x/y are relative to THAT window\'s screenshot (top-left = 0,0); ' +
   'omit `app` for absolute screen coordinates. Actions: click {x,y,button?,double?} · type {text} (into ' +
   'whatever is focused — click first) · press {keys} (e.g. "enter", "ctrl+c", "alt+f4") · scroll ' +
-  '{x,y,direction?,amount?} · drag {x,y,toX,toY} (stepped, so a real drag-and-drop actually lands) · ' +
+  '{x,y,direction?,amount?} · drag {x,y,toX,toY,via?} (stepped, so a real drag-and-drop actually ' +
+  'lands; `via` pauses on waypoints for targets that only open when hovered) · ' +
   'move {x,y} (hover, to open a hover menu or reveal a tooltip). ' +
   'BATCH RELATED STEPS: pass `actions` = [{action, …}, …] ' +
   'to run several in ONE call (e.g. click a field, type into it, press enter) — much faster than one call ' +
@@ -62,6 +63,7 @@ export function parseActOnDesktopParams(
   const y = numberArg(bag, 'y')
   const toX = numberArg(bag, 'toX')
   const toY = numberArg(bag, 'toY')
+  const via = Array.isArray(bag['via']) ? (bag['via'] as unknown[]) : undefined
   const text = stringArg(bag, 'text')
   const keys = stringArg(bag, 'keys')
   const amount = numberArg(bag, 'amount')
@@ -82,6 +84,7 @@ export function parseActOnDesktopParams(
     ...(y !== undefined ? { y } : {}),
     ...(toX !== undefined ? { toX } : {}),
     ...(toY !== undefined ? { toY } : {}),
+    ...(via !== undefined ? { via } : {}),
     ...(text !== undefined ? { text } : {}),
     ...(keys !== undefined ? { keys } : {}),
     ...(app !== undefined ? { app } : {}),
@@ -156,6 +159,15 @@ export function makeActOnDesktopTool(
       y: z.number().optional().describe('Y coordinate (click/scroll/drag start).'),
       toX: z.number().optional().describe('Drag target X.'),
       toY: z.number().optional().describe('Drag target Y.'),
+      via: z
+        .array(z.object({ x: z.number(), y: z.number() }))
+        .optional()
+        .describe(
+          'Drag ONLY — points to travel through while the button is held, pausing at each. Use ' +
+            'when the drop target only appears mid-drag: a folder that springs open when hovered, ' +
+            'a tab you must cross to reach another window. Without these the pointer goes straight ' +
+            'there and never gives those targets a chance to react.',
+        ),
       text: z.string().optional().describe('Text to type (for the type action).'),
       keys: z.string().optional().describe('Key or combo to press, e.g. "enter" / "ctrl+c" (for press).'),
       button: z.enum(['left', 'right', 'middle']).optional().describe('Mouse button for click (default left).'),
@@ -170,6 +182,7 @@ export function makeActOnDesktopTool(
             y: z.number().optional(),
             toX: z.number().optional(),
             toY: z.number().optional(),
+            via: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
             text: z.string().optional(),
             keys: z.string().optional(),
             button: z.enum(['left', 'right', 'middle']).optional(),
