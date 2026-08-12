@@ -237,27 +237,34 @@ state, batching, and every safety layer.
 
 ---
 
-## STATE OF PLAY — end of 2026-08-12
+## STATE OF PLAY — 2026-08-13, all smoke-tested by Kafi
 
-**Landed today, all gate-green and pushed:** tray restore actually works (the AppID never reached
-PowerShell — `-Args` is `-File`-only); `launch_app` no longer reports Docker's error dialog as the
-app, nor a longer window title as a failure; the packaged-app identity collision is closed; the
-shadowed-Store-app error tells the truth; the plan is now the sole authority for acting; and the
-desktop watchdog can finally fire on a delegated turn.
+**The access model is settled and shipped.** Looking is ungated and silent; acting rides the turn's
+approved plan and narrates on the overlay. Per-app grants, `request_desktop_access`, the
+`/desktop/access` route, the grants table and the "Desktop access" UI section are all gone. Kafi's
+framing, which is simpler than any option I had drafted:
 
-**Kafi's live verdict on tray restore:** works for qBittorrent, IDM and Telegram. Docker alone
-fails, by its own launcher-lock error — parked, see below.
+> *"claude know which message coming from where… if its auto mode, no matter schedule or remote, it
+> can do anything user asked but will show that overlay while it just not a read or status of app…
+> so we don't need any access request for each app."*
 
-**Two things need Kafi, and nothing else is blocked on him:**
-1. **The read-consent question** (A2/A3 cannot start without it) — three options written out under
-   **NEXT → A**. My recommendation: option 3.
-2. **The three "cheap fills"** (item 10) — each changes what Claude may do or see; deliberately not
-   shipped while he was away.
+**Landed 2026-08-13** — every item smoke-tested green:
+- `A1/A2/A3` — the plan is the only authority; grants retired end to end (`afd208f`, `6b25184`).
+- Post-review sweep — the model-facing surface had kept teaching the retired model, including in
+  the notebook (`65d5038`, `2f4c7f6`).
+- `system_status` — CPU / memory / battery / disks / busiest programs, one call (`15374ba`).
+- `get_app` — one app's state, touching NOTHING, plus `screenshot_app` now saying when it restored
+  a window (`f8f00f1`). This is the answer to "looking actuates": make it visible, not gated.
+- Drag `via` waypoints — the hold-through-a-decision gesture, without the stuck-button hazard that
+  raw press/release would have carried (`2f4c7f6`).
 
-**Unblocked and ready to pick up:** item 11 (Arc 6 — dependencies now approved, ranked below),
-item 7 (post-action verification), item 6 (durable task record).
+⚠ **The one piece of debt to keep visible:** a channel turn (Telegram) now acts with no approval
+anywhere. Deliberate, Kafi's call, functionality first — and the turn's ORIGIN is already known at
+`run-global-root-turn.ts`, so per-channel trust is a later filter on one value, not a redesign.
 
----
+**Remaining:** item 7 (post-action verification), item 6 (durable task record), and the last two
+fills in item 10 (`mouse_position`, whole-screen capture). `mouse_button` is CLOSED — waypoints
+covered the gesture; separate press/release is not worth reopening.
 
 ## WHAT'S LEFT — the live list (2026-08-11, after Kafi's smoke test)
 
