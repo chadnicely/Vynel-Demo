@@ -93,6 +93,7 @@ export {
   recordDesktopAction,
   listDesktopActions,
   listDesktopActionsForSession,
+  listRecentDesktopActionsForSession,
 } from './repositories/desktop-actions.js'
 export type { DesktopActionRow, RecordDesktopActionInput } from './repositories/desktop-actions.js'
 export { desktopActions } from './schema/desktop-actions.js'

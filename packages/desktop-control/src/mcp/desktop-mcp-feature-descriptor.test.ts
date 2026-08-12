@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import type { SessionToolContext } from '@vynel/mcp-contract'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
+import { recordDesktopAction } from '../repositories/desktop-actions.js'
 import { desktopFeatureDescriptor } from './desktop-mcp-feature-descriptor.js'
 import { DESKTOP_TOOL_INSTRUCTIONS, DESKTOP_ACT_INSTRUCTIONS } from './desktop-tool-instructions.js'
 
@@ -86,5 +90,55 @@ describe('desktopFeatureDescriptor', () => {
     expect(
       desktopFeatureDescriptor.contributePrompt?.({ ...baseContext, enableDesktopActions: true }),
     ).toBe(`${DESKTOP_TOOL_INSTRUCTIONS}\n\n${DESKTOP_ACT_INSTRUCTIONS}`)
+  })
+
+  it('appends the continuation section when the session has a recent recorded task', async () => {
+    // The full turn-start read: rows recorded under this session surface as
+    // "last time I got as far as X — ask before carrying on".
+    await withTestDatabase(async (db) => {
+      const now = new Date()
+      const user = insertUser(db, {
+        id: randomUUID(),
+        displayName: 'Test User',
+        emailAddress: null,
+        locale: 'en-US',
+        timezone: 'UTC',
+        hasCompletedOnboarding: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      recordDesktopAction(db, {
+        userId: user.id,
+        sessionId: 'primary-1',
+        goal: 'send the weekly report',
+        tool: 'act_on_app',
+        appName: 'Outlook',
+        detail: 'clicked Send',
+        outcome: 'unverified',
+      })
+      const section = desktopFeatureDescriptor.contributePrompt?.({
+        ...baseContext,
+        db,
+        userId: user.id,
+        sessionId: 'primary-1',
+      })
+      expect(section).toContain(DESKTOP_TOOL_INSTRUCTIONS)
+      expect(section).toContain('send the weekly report')
+      expect(section).toContain('ASK whether to carry on')
+
+      // A DIFFERENT session sees nothing — the record is task-scoped, and a
+      // sessionless turn (no stable identity) stays on the plain instructions.
+      expect(
+        desktopFeatureDescriptor.contributePrompt?.({
+          ...baseContext,
+          db,
+          userId: user.id,
+          sessionId: 'primary-other',
+        }),
+      ).toBe(DESKTOP_TOOL_INSTRUCTIONS)
+      expect(
+        desktopFeatureDescriptor.contributePrompt?.({ ...baseContext, db, userId: user.id }),
+      ).toBe(DESKTOP_TOOL_INSTRUCTIONS)
+    })
   })
 })

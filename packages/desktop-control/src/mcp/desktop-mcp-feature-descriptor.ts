@@ -14,7 +14,9 @@
 import type { McpFeatureDescriptor, SessionToolContext, SessionMcpServer } from '@vynel/mcp-contract'
 import type { Database } from '@vynel/db'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
+import { listRecentDesktopActionsForSession } from '../repositories/desktop-actions.js'
 import { buildDesktopMcpServer } from './build-desktop-mcp-server.js'
+import { buildDesktopContinuationPrompt } from './desktop-continuation-prompt.js'
 import { DESKTOP_TOOL_INSTRUCTIONS, DESKTOP_ACT_INSTRUCTIONS } from './desktop-tool-instructions.js'
 
 function build(context: SessionToolContext): SessionMcpServer | null {
@@ -37,13 +39,38 @@ function build(context: SessionToolContext): SessionMcpServer | null {
   })
 }
 
+// The turn-start read behind "last time I got as far as X, shall I carry on?".
+// Sync on purpose — the SQLite read is sync and `contributePrompt` is a sync
+// seam. A failed read drops the section rather than failing composition: the
+// same trade `recordAct` documents — a log surface that can break the turn it
+// serves is worse than a missing section (and if the db is truly down, the
+// turn's first tool call will say so loudly). Dropped WITHOUT a log line only
+// because `SessionToolContext` carries no logger and `@vynel/logger` is an
+// injection-only contract — when the context gains one, warn here.
+function readContinuationSection(context: SessionToolContext): string | null {
+  if (context.sessionId === undefined) return null
+  try {
+    const rows = listRecentDesktopActionsForSession(
+      context.db as Database,
+      context.userId,
+      context.sessionId,
+    )
+    return buildDesktopContinuationPrompt(rows, new Date())
+  } catch {
+    return null
+  }
+}
+
 // Only called by the composer AFTER `build` returned a server (reader present),
 // so the contribution is unconditional on the reader; the act instructions
 // append only when actions are enabled (mirrors the registered toolset).
 function contributePrompt(context: SessionToolContext): string {
-  return context.enableDesktopActions === true
-    ? `${DESKTOP_TOOL_INSTRUCTIONS}\n\n${DESKTOP_ACT_INSTRUCTIONS}`
-    : DESKTOP_TOOL_INSTRUCTIONS
+  const instructions =
+    context.enableDesktopActions === true
+      ? `${DESKTOP_TOOL_INSTRUCTIONS}\n\n${DESKTOP_ACT_INSTRUCTIONS}`
+      : DESKTOP_TOOL_INSTRUCTIONS
+  const continuation = readContinuationSection(context)
+  return continuation === null ? instructions : `${instructions}\n\n${continuation}`
 }
 
 // Read-only desktop observation always; the MUTATING act tools are registered

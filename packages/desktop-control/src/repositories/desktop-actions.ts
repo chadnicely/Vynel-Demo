@@ -7,9 +7,15 @@
 // pruning job's problem, not this file's.
 
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import { desktopActions, type DesktopActionOutcome } from '../schema/desktop-actions.js'
+
+// `createdAt` has millisecond resolution and rapid acts (a batch) land in the
+// SAME millisecond — a bare timestamp order would render them as a coin flip.
+// SQLite's implicit rowid is monotonic over inserts, and this table is
+// append-only, so it is the honest tie-break for "the order it happened in".
+const insertionOrder = sql`rowid`
 
 export type DesktopActionRow = typeof desktopActions.$inferSelect
 
@@ -66,7 +72,26 @@ export function listDesktopActions(
     .select()
     .from(desktopActions)
     .where(eq(desktopActions.userId, userId))
-    .orderBy(desc(desktopActions.createdAt))
+    .orderBy(desc(desktopActions.createdAt), desc(insertionOrder))
+    .limit(limit)
+    .all()
+}
+
+/** The TAIL of a session's record, newest first — what the turn-start
+ *  continuation prompt reads. A separate read from the full-task one below
+ *  because a long-lived session (the global root) accumulates rows without
+ *  bound, and the prompt only ever wants the most recent task's end. */
+export function listRecentDesktopActionsForSession(
+  db: Database,
+  userId: string,
+  sessionId: string,
+  limit = 20,
+): DesktopActionRow[] {
+  return db
+    .select()
+    .from(desktopActions)
+    .where(and(eq(desktopActions.userId, userId), eq(desktopActions.sessionId, sessionId)))
+    .orderBy(desc(desktopActions.createdAt), desc(insertionOrder))
     .limit(limit)
     .all()
 }
@@ -83,6 +108,6 @@ export function listDesktopActionsForSession(
     .select()
     .from(desktopActions)
     .where(and(eq(desktopActions.userId, userId), eq(desktopActions.sessionId, sessionId)))
-    .orderBy(desktopActions.createdAt)
+    .orderBy(asc(desktopActions.createdAt), asc(insertionOrder))
     .all()
 }

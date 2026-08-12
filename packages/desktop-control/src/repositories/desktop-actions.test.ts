@@ -5,6 +5,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import {
   listDesktopActions,
   listDesktopActionsForSession,
+  listRecentDesktopActionsForSession,
   recordDesktopAction,
 } from './desktop-actions.js'
 
@@ -132,6 +133,27 @@ describe('desktop_actions repository', () => {
         'typed the address',
         'pressed enter',
       ])
+    })
+  })
+
+  it('reads the recent TAIL newest-first, bounded — the continuation prompt read', async () => {
+    // A long-lived session (the global root) accumulates rows without bound;
+    // the prompt only wants the end, so the read must cap and lead newest.
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      // No sleeps: rapid inserts land in the SAME millisecond on purpose — the
+      // insertion-order tie-break is what keeps the order deterministic.
+      for (let step = 0; step < 5; step += 1) {
+        recordDesktopAction(db, {
+          userId: user.id,
+          sessionId: 'sess-1',
+          tool: 'act_on_desktop',
+          detail: `step ${step}`,
+          outcome: 'unverified',
+        })
+      }
+      const tail = listRecentDesktopActionsForSession(db, user.id, 'sess-1', 2)
+      expect(tail.map((row) => row.detail)).toEqual(['step 4', 'step 3'])
     })
   })
 })
