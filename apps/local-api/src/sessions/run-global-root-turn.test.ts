@@ -38,6 +38,17 @@ vi.mock('@vynel/orchestration', async () => {
   const actual = await vi.importActual<typeof import('@vynel/orchestration')>('@vynel/orchestration')
   return { ...actual, composeSessionAgents: async () => ({}) }
 })
+// The runner now resolves the root's stable primary BEFORE composing (the
+// desktop action record keys rows by it) — real resolution needs a real db,
+// and these tests drive the stub `{}` one. The resolver itself is covered by
+// `get-or-create-primary-session.test.ts`.
+vi.mock('./resolve-global-root-conversation.js', () => ({
+  resolveGlobalRootConversationTarget: async () => ({
+    primarySessionId: 'root-primary-1',
+    resumeSdkSessionId: null,
+    workspacePath: '/tmp/global-root',
+  }),
+}))
 
 import {
   runGlobalRootTurn,

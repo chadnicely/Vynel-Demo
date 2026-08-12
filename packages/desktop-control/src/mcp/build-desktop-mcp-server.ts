@@ -2,7 +2,10 @@ import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/cla
 import type { Database } from '@vynel/db'
 import type { DesktopPlanConsent } from '@vynel/mcp-contract'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
-import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
+import {
+  createDesktopPlanEnvelope,
+  type DesktopActWriter,
+} from '../plan/desktop-plan-envelope.js'
 import { makeListDesktopNotificationsTool } from './list-desktop-notifications-tool.js'
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
@@ -27,9 +30,15 @@ export type BuildDesktopMcpServerInput = {
   /** The durable action record is written against these. */
   db: Database
   userId: string
-  /** The sdk session an act belongs to — what "how far did THAT task get" reads
-   *  back by. Optional: a caller without one still gets a user-level log. */
+  /** VYNEL's own stable session id (the `primary_sessions` row id) an act
+   *  belongs to — what "how far did THAT task get" reads back by. NOT the SDK's
+   *  session id: that one is assigned mid-stream on the global-root path, after
+   *  this server is already built. Optional: a caller without one still gets a
+   *  user-level log. */
   sessionId?: string
+  /** The workspace whose task drove the acts (a workspace-grounded spawned
+   *  session). Optional: global-root and global-grounded work has none. */
+  workspaceId?: string
   /**
    * Enable the MUTATING `act_on_app` / `act_on_desktop` tools. Default OFF — a
    * real off-switch so a stray merge or run can't silently act on the desktop.
@@ -44,6 +53,27 @@ export type BuildDesktopMcpServerInput = {
    * narrates on the overlay but authorizes nothing at all.
    */
   planConsent?: DesktopPlanConsent
+}
+
+/** The one place an act record acquires its identity columns — every row this
+ *  server writes carries the SAME user/session/workspace, so the wiring is
+ *  testable without driving a native act. */
+export function buildDesktopActWriter(
+  input: Pick<BuildDesktopMcpServerInput, 'db' | 'userId' | 'sessionId' | 'workspaceId'>,
+): DesktopActWriter {
+  return (record) => {
+    recordDesktopAction(input.db, {
+      userId: input.userId,
+      sessionId: input.sessionId ?? null,
+      workspaceId: input.workspaceId ?? null,
+      goal: record.goal,
+      tool: record.tool,
+      appName: record.appName ?? null,
+      detail: record.detail,
+      outcome: record.outcome,
+      note: record.note ?? null,
+    })
+  }
 }
 
 // Builds the in-process `desktop` MCP server — tools become `mcp__desktop__*`.
@@ -102,18 +132,7 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // The recorder is wired ONCE, here, onto the envelope every act tool
     // already shares — so no tool can be added later and quietly go unrecorded.
     const envelope = createDesktopPlanEnvelope(input.planConsent ?? 'display-only', {
-      write: (record) => {
-        recordDesktopAction(input.db, {
-          userId: input.userId,
-          sessionId: input.sessionId ?? null,
-          goal: record.goal,
-          tool: record.tool,
-          appName: record.appName ?? null,
-          detail: record.detail,
-          outcome: record.outcome,
-          note: record.note ?? null,
-        })
-      },
+      write: buildDesktopActWriter(input),
     })
     factories.push(makeProposeDesktopPlanTool(envelope))
     factories.push(makeActOnAppTool(envelope))

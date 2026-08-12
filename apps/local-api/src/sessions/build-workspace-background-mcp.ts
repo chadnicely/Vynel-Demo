@@ -230,6 +230,11 @@ export async function buildDelegatedTurnMcpComposer(
             ...(desktop.enableDesktopActions !== undefined
               ? { enableDesktopActions: desktop.enableDesktopActions }
               : {}),
+            // The action record's task key — the spawned primary this delegated
+            // turn resumes (Vynel's stable id; the SDK id swaps on compaction).
+            ...(targetPrimarySessionId !== undefined
+              ? { sessionId: targetPrimarySessionId }
+              : {}),
             desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),
           }
         : {}

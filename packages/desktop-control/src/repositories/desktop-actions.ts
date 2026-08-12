@@ -16,6 +16,7 @@ export type DesktopActionRow = typeof desktopActions.$inferSelect
 export type RecordDesktopActionInput = {
   userId: string
   sessionId?: string | null
+  workspaceId?: string | null
   goal?: string | null
   tool: string
   appName?: string | null
@@ -38,6 +39,7 @@ export function recordDesktopAction(
       id: randomUUID(),
       userId: input.userId,
       sessionId: input.sessionId ?? null,
+      workspaceId: input.workspaceId ?? null,
       goal: input.goal ?? null,
       tool: input.tool,
       appName: input.appName ?? null,

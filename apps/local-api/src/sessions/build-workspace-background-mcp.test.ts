@@ -59,13 +59,19 @@ vi.mock('@vynel/desktop-control', () => ({
         : 'display-only',
   desktopFeatureDescriptor: {
     serverName: 'desktop',
-    build: (context: { desktopReader?: unknown; desktopPlanConsent?: string; enableDesktopActions?: boolean }) =>
+    build: (context: {
+      desktopReader?: unknown
+      desktopPlanConsent?: string
+      enableDesktopActions?: boolean
+      sessionId?: string
+    }) =>
       context.desktopReader === undefined
         ? null
         : {
             marker: 'desktop',
             planConsent: context.desktopPlanConsent,
             actionsEnabled: context.enableDesktopActions,
+            sessionId: context.sessionId,
           },
     mutatingToolNames: ['mcp__desktop__request_desktop_access'],
   },
@@ -239,6 +245,15 @@ describe('buildDelegatedTurnMcpComposer — desktop attachment', () => {
       ...(mode !== undefined ? { permissionMode: mode } : {}),
     })
     expect(consentOf(spawned)).toBe('display-only')
+  })
+
+  it('threads the spawned primary id as the desktop sessionId — the action record keys tasks by it', async () => {
+    // Item 6 phase 2: without this, every `desktop_actions` row a delegated
+    // turn writes has sessionId NULL and "how far did that task get" reads [].
+    const { appRequest } = makeSpyAppRequest()
+    const compose = await buildDelegatedTurnMcpComposer(appRequest, desktopWired)
+    const spawned = compose({ ...target, target: 'spawned-session', targetPrimarySessionId: 'sp-1' })
+    expect((spawned.mcpServers['desktop'] as { sessionId?: string }).sessionId).toBe('sp-1')
   })
 
   it('carries the boot actions flag through', async () => {

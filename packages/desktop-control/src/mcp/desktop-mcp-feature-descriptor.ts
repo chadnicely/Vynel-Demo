@@ -27,6 +27,11 @@ function build(context: SessionToolContext): SessionMcpServer | null {
     reader: context.desktopReader as DesktopNotificationReader,
     db: context.db as Database,
     userId: context.userId,
+    // Vynel's stable session id + the grounding workspace — what the action
+    // record keys "how far did THAT task get" by. Conditional spreads:
+    // `exactOptionalPropertyTypes` distinguishes absent from undefined.
+    ...(context.sessionId !== undefined ? { sessionId: context.sessionId } : {}),
+    ...(context.workspaceId !== undefined ? { workspaceId: context.workspaceId } : {}),
     enableActions: context.enableDesktopActions ?? false,
     planConsent: context.desktopPlanConsent ?? 'display-only',
   })

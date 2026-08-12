@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
 import { PLAN_REQUIRED_MESSAGE } from '../plan/plan-gated-authorization.js'
-import { buildDesktopMcpServer, desktopToolFactories } from './build-desktop-mcp-server.js'
+import { listDesktopActions } from '../repositories/desktop-actions.js'
+import {
+  buildDesktopActWriter,
+  buildDesktopMcpServer,
+  desktopToolFactories,
+} from './build-desktop-mcp-server.js'
 
 const emptyReader: DesktopNotificationReader = { listSince: () => [] }
 // Building the server only WIRES the db into tool closures (nothing queries at
@@ -25,6 +33,52 @@ describe('buildDesktopMcpServer', () => {
     }) as { type: string; name: string }
     expect(server.type).toBe('sdk')
     expect(server.name).toBe('desktop')
+  })
+})
+
+describe('buildDesktopActWriter', () => {
+  const makeUser = () => {
+    const now = new Date()
+    return {
+      id: randomUUID(),
+      displayName: 'Test User',
+      emailAddress: null,
+      locale: 'en-US',
+      timezone: 'UTC',
+      hasCompletedOnboarding: false,
+      createdAt: now,
+      updatedAt: now,
+    }
+  }
+
+  it('stamps every row with the turn identity it was built with', async () => {
+    // The whole point of item 6 phase 2: rows carry Vynel's stable session id
+    // + the grounding workspace, so "how far did THAT task get" has a key.
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const write = buildDesktopActWriter({
+        db,
+        userId: user.id,
+        sessionId: 'primary-1',
+        workspaceId: 'ws-1',
+      })
+      write({ goal: 'send the report', tool: 'act_on_app', detail: 'clicked Send', outcome: 'unverified' })
+      const [row] = listDesktopActions(db, user.id)
+      expect(row?.sessionId).toBe('primary-1')
+      expect(row?.workspaceId).toBe('ws-1')
+      expect(row?.goal).toBe('send the report')
+    })
+  })
+
+  it('writes null identity for a caller without one — never a made-up key', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const write = buildDesktopActWriter({ db, userId: user.id })
+      write({ goal: null, tool: 'act_on_desktop', detail: 'clicked (1, 2)', outcome: 'unverified' })
+      const [row] = listDesktopActions(db, user.id)
+      expect(row?.sessionId).toBeNull()
+      expect(row?.workspaceId).toBeNull()
+    })
   })
 })
 

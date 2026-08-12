@@ -22,8 +22,8 @@
 // stopped and ASK whether to carry on — the user decides, not the system.
 //
 // Schema files import from `@vynel/db/dialect` ONLY. `userId` is the tenant
-// boundary. `sessionId` is a LOOSE `text()` cross-system ref (the sdk session
-// id), never an FK — the same rule `delegation_jobs.parentSessionId` follows.
+// boundary. `sessionId` and `workspaceId` are LOOSE `text()` cross-feature
+// refs, never FKs — the same rule `delegation_jobs.parentSessionId` follows.
 
 import { table, id, text, timestamp, index } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
@@ -40,8 +40,16 @@ export const desktopActions = table(
     userId: text()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** The sdk session this act belonged to — loose ref, not an FK. */
+    /** VYNEL's own stable session id (the `primary_sessions` row id) — loose
+     *  ref, not an FK. NOT the SDK's session id: that one is assigned mid-stream
+     *  on the global-root path, so it cannot key a record written by tools built
+     *  before the stream started — and it swaps on every compaction, which would
+     *  split one task's rows across ids. */
     sessionId: text(),
+    /** The workspace whose task drove this act (a workspace-grounded spawned
+     *  session) — loose ref, not an FK. Null for global-root and global-grounded
+     *  work; it exists so the log can be filtered by workspace later. */
+    workspaceId: text(),
     /** The approved plan's goal, denormalised so a single row is readable on its
      *  own. A log the user has to join to understand is a log they won't read. */
     goal: text(),
@@ -58,9 +66,11 @@ export const desktopActions = table(
     createdAt: timestamp().notNull(),
   },
   (columns) => [
-    // The two reads this table exists for: "what did Claude do on my computer"
-    // (by user, newest first) and "how far did that task get" (by session).
+    // The reads this table exists for: "what did Claude do on my computer"
+    // (by user, newest first), "how far did that task get" (by session), and —
+    // once workspaces gain desktop reach — the log filtered by workspace.
     index('desktop_actions_user_created_idx').on(columns.userId, columns.createdAt),
     index('desktop_actions_session_idx').on(columns.sessionId),
+    index('desktop_actions_workspace_idx').on(columns.workspaceId),
   ],
 )

@@ -207,11 +207,19 @@ export async function runGlobalRootTurn(
   const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
     '@vynel/desktop-control'
   )
+  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // record can key its rows by it (the SDK id is only assigned mid-stream).
+  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
+  // this early call cannot fight the authoritative in-lock `resolveTarget`.
+  const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
+    userId: input.userId,
+  })
   const composedMcp = composeSessionMcpServers(
     [vynelRoutingDescriptor, notebookFeatureDescriptor, desktopFeatureDescriptor],
     {
       db: deps.db,
       userId: input.userId,
+      sessionId: conversationTarget.primarySessionId,
       appRequest,
       desktopReader: deps.desktopReader,
       enableDesktopActions: deps.enableDesktopActions ?? false,

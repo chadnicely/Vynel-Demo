@@ -50,6 +50,15 @@ export interface SessionToolContext {
   readonly userId: string
   /** Absent for workspace-scope-free turns (the global root has no workspace). */
   readonly workspaceId?: string
+  /**
+   * VYNEL's own stable session id for the turn — the `primary_sessions` row id,
+   * NEVER the SDK's session id. The SDK id cannot serve here: on the global-root
+   * path the runtime assigns it mid-stream, after this context is already built.
+   * Absent when the caller has no stable identity at build time (a schedule
+   * fire starting a fresh session); features that key per-task records on it
+   * (the desktop action log) then record without one.
+   */
+  readonly sessionId?: string
   readonly appRequest: HonoAppRequestFn
   /** The process-wide desktop-notification reader. `unknown` here — the `desktop` producer casts it. */
   readonly desktopReader?: unknown

@@ -29,6 +29,7 @@ describe('desktop_actions repository', () => {
       const row = recordDesktopAction(db, {
         userId: user.id,
         sessionId: 'sess-1',
+        workspaceId: 'ws-1',
         goal: 'check whether the containers are running',
         tool: 'launch_app',
         appName: 'Docker Desktop',
@@ -39,6 +40,8 @@ describe('desktop_actions repository', () => {
       expect(row.appName).toBe('Docker Desktop')
       expect(row.goal).toBe('check whether the containers are running')
       expect(row.outcome).toBe('ok')
+      expect(row.sessionId).toBe('sess-1')
+      expect(row.workspaceId).toBe('ws-1')
       expect(row.id).toHaveLength(36)
     })
   })
@@ -57,6 +60,22 @@ describe('desktop_actions repository', () => {
       recordDesktopAction(db, entry)
       recordDesktopAction(db, entry)
       expect(listDesktopActions(db, user.id)).toHaveLength(2)
+    })
+  })
+
+  it('stores null for an act with no session or workspace — the global-root default', async () => {
+    // A caller without a stable identity (or one outside any workspace) still
+    // gets a user-level log; the columns stay honestly empty, never ''-filled.
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const row = recordDesktopAction(db, {
+        userId: user.id,
+        tool: 'act_on_desktop',
+        detail: 'clicked (10, 20)',
+        outcome: 'unverified',
+      })
+      expect(row.sessionId).toBeNull()
+      expect(row.workspaceId).toBeNull()
     })
   })
 

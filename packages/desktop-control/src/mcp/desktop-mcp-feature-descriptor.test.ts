@@ -1,7 +1,17 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import type { SessionToolContext } from '@vynel/mcp-contract'
 import { desktopFeatureDescriptor } from './desktop-mcp-feature-descriptor.js'
 import { DESKTOP_TOOL_INSTRUCTIONS, DESKTOP_ACT_INSTRUCTIONS } from './desktop-tool-instructions.js'
+
+// Spy on the server builder so the descriptor's context → build-input threading
+// is observable — the built SDK server itself is opaque.
+vi.mock('./build-desktop-mcp-server.js', async () => {
+  const actual = await vi.importActual<typeof import('./build-desktop-mcp-server.js')>(
+    './build-desktop-mcp-server.js',
+  )
+  return { ...actual, buildDesktopMcpServer: vi.fn(actual.buildDesktopMcpServer) }
+})
+import { buildDesktopMcpServer } from './build-desktop-mcp-server.js'
 
 // `build()` only closes over the reader (the tool handlers read it later), so a
 // structural stand-in is enough to assert shape + buildability.
@@ -41,6 +51,28 @@ describe('desktopFeatureDescriptor', () => {
   it('builds a server when a reader is present', () => {
     const server = desktopFeatureDescriptor.build({ ...baseContext, desktopReader: {} })
     expect(server).not.toBeNull()
+  })
+
+  it('forwards the turn identity into the server input — the action record keys rows by it', () => {
+    // If these spreads were dropped, every row would silently write NULL while
+    // the repo, writer, and composer tests all stayed green — this is the one
+    // link in the identity chain only this test observes.
+    desktopFeatureDescriptor.build({
+      ...baseContext,
+      desktopReader: {},
+      sessionId: 'primary-1',
+      workspaceId: 'ws-1',
+    })
+    expect(vi.mocked(buildDesktopMcpServer)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sessionId: 'primary-1', workspaceId: 'ws-1' }),
+    )
+  })
+
+  it('omits identity fields the context does not carry — absent, never undefined', () => {
+    desktopFeatureDescriptor.build({ ...baseContext, desktopReader: {} })
+    const lastInput = vi.mocked(buildDesktopMcpServer).mock.lastCall?.[0] ?? {}
+    expect(lastInput).not.toHaveProperty('sessionId')
+    expect(lastInput).not.toHaveProperty('workspaceId')
   })
 
   it('contributes the observe-only prompt when actions are off', () => {

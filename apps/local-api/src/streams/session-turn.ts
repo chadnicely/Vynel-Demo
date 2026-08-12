@@ -120,6 +120,11 @@ export async function streamSpawnedSessionTurn(
       : composeSessionMcpServers([desktopFeatureDescriptor], {
           db,
           userId,
+          // The action record's task key: Vynel's stable primary id (the SDK id
+          // swaps on compaction), plus the session's grounding workspace so the
+          // log can be filtered by workspace later.
+          sessionId: spawned.id,
+          ...(spawned.workspaceId !== null ? { workspaceId: spawned.workspaceId } : {}),
           appRequest: turnSessionAppRequest,
           ...(c.var.desktopNotifications !== undefined
             ? { desktopReader: c.var.desktopNotifications }
