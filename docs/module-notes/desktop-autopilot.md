@@ -266,8 +266,43 @@ anywhere. Deliberate, Kafi's call, functionality first — and the turn's ORIGIN
   honestly: a click cannot be verified in general, so `press` still puts the burden on the model to
   look, and both the notebook and the system prompt say so.
 
-**Remaining:** item 6 (durable task record) and the last two fills in item 10 (`mouse_position`,
-whole-screen capture). `mouse_button` is CLOSED — waypoints
+- Item 6 phase 1 — a durable, append-only record of every act (`a63572e`), hardened after review
+  (`f431f44`). It IS the access log the grant removal promised: building them separately would have
+  meant two records of the same events. No resumption, by Kafi's call — see below.
+
+### Item 6 PHASE 2 — what is left, and why each piece was NOT done blind
+
+**1. Trace `sessionId` — the per-task read is inert without it.** `desktop_actions.session_id` is
+NULL on every row today, so `listDesktopActionsForSession` returns `[]` and
+`desktop_actions_session_idx` indexes a constant. The MCP server is built from
+`desktop-mcp-feature-descriptor.ts`, whose `SessionToolContext`
+(`packages/mcp-contract/src/mcp-feature-descriptor.ts`) carries **no session field at all** — so
+this is a cross-package contract change, not a one-liner.
+
+⚠ The wrinkle to design around: on the global-root path the SDK session id is not known until the
+runtime assigns it **mid-stream** (`run-global-root-turn.ts`), so a build-time `sessionId` cannot be
+filled there. **Vynel's own stable session id is the key that actually works** — not the SDK's.
+`streams/session-turn.ts` already has a spawned session in scope and is the easy half.
+
+**2. Trace `workspaceId` too** (Kafi, 2026-08-13). Workspaces have no desktop access today, so
+nothing would populate it yet — but the log is the surface a user will eventually filter by
+workspace, and adding the column with the tracing (rather than before it) keeps an unpopulated
+column out of the schema in the meantime. Do both in one migration when `sessionId` lands.
+
+**3. A step that THREW leaves no row.** Refusals *before* acting correctly write nothing — nothing
+happened. The gap is attempted-and-threw, where the act may have partially landed: a batch that
+stops at step 3 logs rows 1 and 2 and the stop is invisible, so the log reads as "two steps, no
+problem". That is precisely the question "how far did it get" exists to answer, and it is the piece
+phase 2 most depends on.
+
+**4. Then the continuation prompt** — read the record at turn start so Claude can say "last time I
+got as far as X, shall I carry on?" and let the USER decide. Option A, Kafi's call: we cannot know
+whether the act in flight completed, and if it was "click Send" then re-running it sends twice.
+Item 7 established we can only verify TYPING, so "was that step done?" is unanswerable for exactly
+the actions where being wrong is irreversible.
+
+**Remaining beyond item 6:** the last two fills in item 10 (`mouse_position`, whole-screen
+capture). `mouse_button` is CLOSED — waypoints
 covered the gesture; separate press/release is not worth reopening.
 
 ## WHAT'S LEFT — the live list (2026-08-11, after Kafi's smoke test)
