@@ -38,6 +38,8 @@ describe('desktopToolFactories', () => {
       // Display topology joins the ungated reads: knowing a screen EXISTS
       // reveals nothing about what is on it.
       'list_monitors',
+      // The machine's own vitals — no app target, so it joins the ungated reads.
+      'system_status',
       'snapshot_app',
       'screenshot_app',
       // Read-only, so it rides the observe tier and needs no plan.

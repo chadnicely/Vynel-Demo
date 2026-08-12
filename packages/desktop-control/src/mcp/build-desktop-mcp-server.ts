@@ -7,6 +7,7 @@ import { makeListDesktopNotificationsTool } from './list-desktop-notifications-t
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
 import { makeListMonitorsTool } from './list-monitors-tool.js'
+import { makeSystemStatusTool } from './system-status-tool.js'
 import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
@@ -71,6 +72,10 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // you can plan), and per-app grants — its only other gate — are gone: they
     // asked a second time for consent the plan already carries, in a vocabulary
     // a non-technical user cannot evaluate. Nothing here changes the screen.
+    // The MACHINE's own vitals rather than any app's — no target to resolve,
+    // and the answer to "why is my computer slow" is several of these numbers
+    // together, which is why it is one tool and not four.
+    makeSystemStatusTool(),
     makeSnapshotAppTool(),
     makeScreenshotAppTool(),
     makeWaitForTool(),
