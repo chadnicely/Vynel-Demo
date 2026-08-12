@@ -303,17 +303,37 @@ owned by a separate session and is NOT tracked here any more.**
      "Setup" all look like. Same lesson `selectWindowedPid` already learned for Electron helpers;
      this function never got it.
 
-### Open, found while verifying the above — the PACKAGED-APP (UWP) class
+### IN PROGRESS — the PACKAGED-APP (UWP) class
 
-Calculator launched correctly but `launch_app` reported `started-no-window`, and the window opened
-**behind** everything (`visible=True`, `iconic=False`, `isForeground=False`). Both trace to one
-fact: a UWP window belongs to **`ApplicationFrameHost`**, not to the app. So the whole packaged
-class (Calculator, Store, Photos, Settings, the current Notepad) is affected, and the serious half
-is identity — `findAppNameByPid` resolves such a window to `"Application Frame Host"`, which is what
-grants and plan entries would key on, while the model was told to use `"Calculator"`. That is a
-silent denial with no drift warning to catch it. Not fixed: it touches the grant/identity model and
-deserves its own move rather than a patch. `findWindowedPidByName` already resolves these correctly
-by window TITLE, which is the likely thread to pull.
+A UWP window belongs to the shared **`ApplicationFrameHost`** process, not to the app. Measured live
+2026-08-12 with Calculator and Settings open together:
+
+```
+node-screenshots:  "Application Frame Host" | "Settings"   | pid 8828
+                   "Application Frame Host" | "Calculator" | pid 8828
+xa11y App.list():  Settings#8828            <- Calculator absent entirely
+findAppNameByPid(8828) -> "Application Frame Host"   (for BOTH)
+resolveAppIdentity(8828, "Calculator") -> "Application Frame Host"
+```
+
+**One root cause — a pid is not a unique app identity for this class — and three defects:**
+
+1. **Identity collision. This is a security widening, not a naming wart.** Both apps key on
+   `"Application Frame Host"`, so a grant the user approves for *Calculator* equally authorizes
+   Settings, Store, Photos and Mail. The per-app grant envelope's whole promise is that consent is
+   per app; here one consent silently covers a whole class. This is the half that matters.
+2. **Reachability.** xa11y's `App.list()` is keyed per pid, so with two packaged apps open only one
+   is reachable — `App.find("Calculator")` fails outright while Settings holds the host.
+3. **`launch_app` under-reports.** `listWindowAppNames()` yields only `"Application Frame Host"`, so
+   a launch that plainly worked comes back `started-no-window`. The window also opens *behind*
+   everything (`visible=True`, `iconic=False`, `isForeground=False`) — Windows' foreground lock, a
+   background process cannot raise a window.
+
+**The fix direction:** for a window owned by a known window-HOST process, identity must come from
+the window **title**, not the process. node-screenshots already carries both per window, which is
+why it can tell the two apart and xa11y cannot. Note this strictly *narrows* access — a grant moves
+from `"Application Frame Host"` (a whole class) to `"Calculator"` (one app) — so it cannot widen
+anything by construction.
 5. **Windows cannot be moved or resized.** `set_window_bounds` does not exist. The *drag gesture* is
    functional (stepped, `act_on_desktop`), so a title-bar drag works mechanically — but dragging a
    window across monitors is exactly the thing Guide §15.2/§15.1 says not to do, and the correct
