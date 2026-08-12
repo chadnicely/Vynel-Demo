@@ -27,6 +27,9 @@ function fakeMonitor(overrides: Partial<Record<string, unknown>> = {}): NativeMo
     rotation: () => values['rotation'] as number,
     scaleFactor: () => values['scaleFactor'] as number,
     isPrimary: () => values['isPrimary'] as boolean,
+    captureImageSync: () => {
+      throw new Error('fakeMonitor does not capture — geometry tests only')
+    },
   }
 }
 

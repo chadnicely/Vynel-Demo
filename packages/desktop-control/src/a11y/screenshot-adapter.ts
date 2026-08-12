@@ -65,6 +65,8 @@ export type NativeMonitor = {
   rotation(): number
   scaleFactor(): number
   isPrimary(): boolean
+  /** Whole-monitor capture — same 0.2.x method shape as Window's. */
+  captureImageSync(): NativeImage
 }
 
 type NodeScreenshotsModule = {
