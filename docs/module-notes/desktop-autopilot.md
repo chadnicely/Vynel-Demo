@@ -243,19 +243,38 @@ Everything below the arcs is history; this is the outstanding work. Kafi's smoke
 overlay lifecycle, Stop routing, a second task starting clean, and `wait_for`. **Voice (Arc 7) is
 owned by a separate session and is NOT tracked here any more.**
 
-### Blocking the product story
+### DEFERRED by Kafi, 2026-08-12 — waiting on surfaces that do not exist yet
 
-1. **Remote monitoring + remote stop.** The biggest hole. A Telegram message can start a desktop
-   task, but there is no way to watch it or stop it — the whole remote progress story is a
-   "typing…" indicator refreshed every 4s, then one message up to 20 minutes later. Half the
-   autopilot promise exists. (`translate-chat-event-to-channel.ts` skips tool events and is unwired;
-   `channels/src/inbound` has no stop path.)
-2. **A server-side interrupt for the spawned-session surface.** Found by review, 2026-08-11. That
-   surface has no stop route at all, which is why the overlay's Stop honestly disables there. The
-   shape is `chat.interruptSession` keyed by `sessionId`.
-3. **The act flag as a real setting.** `VYNEL_DESKTOP_ACT_ENABLED` is env-only and default-off. If
-   autopilot is the headline feature this must be a user-facing toggle carrying the
-   isolated-machine acknowledgment — a shipping blocker, not a nice-to-have.
+Not dropped; blocked on a decision that isn't ours to make yet. Kafi: *"we will ultimately have
+mobile app later and the enabled env will sit in app setting so not our current deal."*
+
+1. **Remote monitoring + remote stop.** A Telegram message can start a desktop task, but there is no
+   way to watch or stop it — the remote story is a "typing…" indicator refreshed every 4s, then one
+   message up to 20 minutes later. **Deferred:** the mobile app will define this surface, and
+   building it against Telegram first would be building it twice.
+   (`translate-chat-event-to-channel.ts` skips tool events and is unwired; `channels/src/inbound`
+   has no stop path.)
+2. **A server-side interrupt for the spawned-session surface.** No stop route at all, which is why
+   the overlay's Stop honestly disables there. Shape: `chat.interruptSession` keyed by `sessionId`.
+   **Deferred with 1** — it is the primitive 1 needs, and lands when 1 does.
+3. **The act flag as a real setting.** `VYNEL_DESKTOP_ACT_ENABLED` is env-only and default-off.
+   **Deferred:** it becomes an app-settings toggle, so it waits for that surface.
+
+### NEXT — decided 2026-08-12, in order
+
+- **A. Retire the per-app grant model.** Kafi's call: no "may I use this app?" cards — they ask a
+  second time for consent the *plan* already carries, in a vocabulary a non-technical user cannot
+  evaluate (today's cards said "Docker Desktop Launcher" and "Application Frame Host"). Replaced
+  later by a **desktop access LOG** showing what Claude did. Identity was done first deliberately,
+  so the log and the plan envelope name real apps. ⚠ Known cost, decided with eyes open: the
+  standing grant is currently the only check the model cannot grant itself
+  (`propose_desktop_plan` cards in ask mode ONLY, so an unattended turn arms its own envelope —
+  see `unattendedRefusalError`). Attended turns are unaffected; **unattended desktop work loses its
+  independent gate** and the log is after-the-fact. Worth Chad seeing.
+- **B. The shadowed-Store-app error.** When a second packaged app holds the accessibility
+  connection, `snapshot_app` fails with `No element matched selector: application[pid=6280]` —
+  opaque, so the model cannot fall back. It should name the cause and point at `screenshot_app`,
+  which works fine for these windows. Small diff, real value.
 
 ### Real gaps found by using it
 
@@ -366,11 +385,22 @@ packaged app is readable at a time.**
 database. It is inert after this change (nothing resolves to that name), and it is left in place
 rather than silently deleted — it is a record of consent Chad/Kafi gave, and it disappears with the
 grant model itself.
-5. **Windows cannot be moved or resized.** `set_window_bounds` does not exist. The *drag gesture* is
-   functional (stepped, `act_on_desktop`), so a title-bar drag works mechanically — but dragging a
-   window across monitors is exactly the thing Guide §15.2/§15.1 says not to do, and the correct
-   primitive is missing. This is the one place `node-window-manager`'s **write** half is genuinely
-   additive; `node-screenshots` reads geometry but cannot set it.
+5. ~~**Windows cannot be moved or resized.**~~ **DONE.** `set_window_bounds` shipped (SetWindowPos
+   under `SetProcessDpiAwareness(2)`, reporting the VERIFIED applied rect). Kafi confirmed live:
+   *"Moving is worked."* The entry stayed stale on this list for a day — worth noticing that a
+   living list needs closing out, not just appending to.
+
+### PARKED — Docker Desktop specifically
+
+Tray restore works for **qBittorrent, IDM and Telegram** (Kafi, live 2026-08-12). Docker alone
+fails, with its OWN error: `acquiring launcher lock: open : The system cannot find the file
+specified`. Its processes had been up ~10h with no window, and the identical command restored it
+three times earlier the same morning — so this is Docker's internal lock state, not the mechanism.
+**Parked by Kafi.** The next real datapoint is a restarted, healthy Docker: if activation fails
+*then*, it is a reproducible gap worth building an AppsFolder-click fallback for. Until then that
+fallback would be built on an unverified premise — a real click and `Start-Process
+shell:AppsFolder\<id>` may well be the same ShellExecute path, and we have no case that
+distinguishes them.
 
 ### Quieter, but real
 
