@@ -289,11 +289,17 @@ nothing would populate it yet — but the log is the surface a user will eventua
 workspace, and adding the column with the tracing (rather than before it) keeps an unpopulated
 column out of the schema in the meantime. Do both in one migration when `sessionId` lands.
 
-**3. A step that THREW leaves no row.** Refusals *before* acting correctly write nothing — nothing
-happened. The gap is attempted-and-threw, where the act may have partially landed: a batch that
-stops at step 3 logs rows 1 and 2 and the stop is invisible, so the log reads as "two steps, no
-problem". That is precisely the question "how far did it get" exists to answer, and it is the piece
-phase 2 most depends on.
+**3. ~~A step that THREW leaves no row.~~ ✅ DONE 2026-08-13 (`8be4c7f`)** — pulled OUT of phase 2,
+because it was not future work: it was a correctness bug in what had just shipped. Refusals before
+acting still write nothing (nothing happened); `ForbiddenError` is the marker, since that is what
+the plan-gated authorizer raises ahead of the act. Attempted-and-threw is recorded, because the act
+may have partially landed. Both batch paths needed it separately — `runActionBatch` catches the
+throw itself, so a tool's outer catch never sees a failed step.
+
+Landed with it: the read-back polls to a 1.2s deadline instead of sleeping a fixed 150ms once. That
+sleep was the very risk its own comment warned about — a slow Electron field had not applied the
+text yet, so verification reported a false MISMATCH, which now also writes `failed` into an
+append-only row.
 
 **4. Then the continuation prompt** — read the record at turn start so Claude can say "last time I
 got as far as X, shall I carry on?" and let the USER decide. Option A, Kafi's call: we cannot know
