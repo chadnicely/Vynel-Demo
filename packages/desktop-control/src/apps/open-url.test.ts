@@ -2,17 +2,20 @@ import { describe, it, expect, vi } from 'vitest'
 import { buildOpenUrlInvocation, checkOpenableUrl, openUrl } from './open-url.js'
 
 describe('checkOpenableUrl', () => {
-  it('accepts the three web-class schemes', () => {
+  it('accepts the web-class schemes and the two meeting deep-links Kafi ruled in', () => {
     expect(checkOpenableUrl('https://example.com/page?q=1').ok).toBe(true)
     expect(checkOpenableUrl('http://example.com').ok).toBe(true)
     expect(checkOpenableUrl('mailto:chad@example.com').ok).toBe(true)
+    // Item 12, settled 2026-08-13: meeting joins ride the same consent gate.
+    expect(checkOpenableUrl('zoommtg://zoom.us/join?confno=123&pwd=x').ok).toBe(true)
+    expect(checkOpenableUrl('msteams://teams.microsoft.com/l/meetup-join/x').ok).toBe(true)
   })
 
   it.each([
     // ShellExecute RUNS these — the unrestricted-execution hole the allowlist closes.
     { url: 'file:///C:/Windows/System32/calc.exe', label: 'file scheme' },
     { url: 'C:\\Windows\\System32\\calc.exe', label: 'bare local path' },
-    { url: 'zoommtg://zoom.us/join?confno=1', label: 'deep-link scheme (item 12, not here)' },
+    { url: 'slack://open', label: 'a non-meeting app scheme (the allowlist stays closed)' },
     { url: 'javascript:alert(1)', label: 'javascript scheme' },
     { url: 'ms-settings:display', label: 'settings scheme' },
     // The WHATWG parser lowercases schemes before the allowlist compares —

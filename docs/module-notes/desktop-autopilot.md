@@ -314,9 +314,15 @@ Deferred, recorded: the descriptor's continuation read drops its section on a fa
 log line, because `SessionToolContext` carries no logger and `@vynel/logger` is injection-only —
 when the context gains a logger, warn there.
 
-**Remaining beyond item 6:** the last two fills in item 10 (`mouse_position`, whole-screen
-capture). `mouse_button` is CLOSED — waypoints
-covered the gesture; separate press/release is not worth reopening.
+**Remaining beyond item 6:** ✅ NONE — item 10 closed 2026-08-13. `mouse_position` shipped
+earlier (`56a39eb`); **whole-screen capture shipped as `screenshot_desktop`** on Kafi's ruling:
+**fully free, like every other look.** One monitor per call (never a stitched mosaic — mixed
+scales/rotations make one unreadable), downscaled with the aiming math taught in the caption
+(absolute = monitor origin + image point / scale), and the description carries the privacy line:
+it sees everything on that screen, capture to answer what was asked, never to browse. Live-probed
+on both monitors including the rotated 125% panel — captured pixels match reported size exactly.
+`mouse_button` stays CLOSED — waypoints covered the gesture; separate press/release is not worth
+reopening.
 
 ## WHAT'S LEFT — the live list (2026-08-11, after Kafi's smoke test)
 
@@ -611,10 +617,23 @@ distinguishes them.
       CLIPBOARD (`unattendedRefusalError`), not launch_app — the answering app is the OS's
       default-handler pick, unknowable pre-launch, so there is no app name to authorize.
       Smoke-tested live. Deep-link schemes stay OUT — item 12's separate decision, unchanged.
-    - **`loudness`** (system volume) — still open, thin value; not taken.
-    - **`tesseract.js`** (OCR) — still recommend last, or never.
-12. **Deep-link joining** (`zoommtg://`, `msteams:`) — needs a scheme-allowlisted URI primitive
-    beside `launch-app.ts`; higher-risk surface than anything above.
+    - **`set_volume`** → ✅ shipped 2026-08-13 (Kafi ruled it in) — and the `loudness` package was
+      AUDITED AND REJECTED: its Windows impl is a bundled pre-compiled unsigned exe
+      (`adjust_get_current_system_volume_vista_plus.exe`) — the node-notifier objection again, on
+      the only platform we run on. Vendored `volume.ps1` instead (CoreAudio COM via Add-Type,
+      auditable text; ⚠ PowerShell cannot dispatch onto a raw COM interface — all COM calls stay
+      inside the C#, the script only touches plain static methods). Clipboard-gated (app-less,
+      machine-global); returns the device's own read-back, so its `ok` outcome is honest. Kafi's
+      standing rule from this round: **prefer a cross-platform library when a SAFE one exists;
+      otherwise build Windows-only** — the seam (`setSystemVolume`) is where darwin/linux slot in.
+    - **`tesseract.js`** (OCR) — explained to Kafi 2026-08-13 (~11–15MB model download per
+      language, WASM CPU-bound, seconds per image, redundant while snapshot_app reads real text).
+      Recommendation stands: skip until a real canvas-only app forces it. Awaiting his call.
+12. ~~**Deep-link joining** (`zoommtg://`, `msteams:`)~~ ✅ **DONE 2026-08-13, Kafi's call.** The
+    scheme-allowlisted primitive it needed had just shipped as `open_url`, so this became two
+    entries in that allowlist rather than a new surface: `zoommtg:` and `msteams:` open their
+    apps' join flows, same consent gate (armed plan + real consent, refuses unattended). Every
+    other app scheme stays refused. The notebook teaches "join by link, don't drive the browser".
 
 ---
 

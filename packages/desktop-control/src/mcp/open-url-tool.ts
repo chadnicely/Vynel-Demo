@@ -16,11 +16,12 @@ import { recordFailedAct } from '../plan/record-failed-act.js'
 // refuses under display-only, exactly the clipboard's reasoning.
 
 const TOOL_DESCRIPTION =
-  'Open a web URL (https, http, or mailto) in its default app — the browser for links, the mail ' +
-  'composer for mailto (composing only; the user sends). Requires an approved plan this turn — name ' +
-  'the site in a plan step. File paths and app deep-links are refused: opening those can execute ' +
-  'programs. Opening a page does not read it — use it to put something in front of the user, not to ' +
-  'browse. Windows only.'
+  'Open a URL in its default app: https/http in the browser, mailto in the mail composer ' +
+  '(composing only; the user sends), and the meeting links zoommtg (Zoom) and msteams (Teams) in ' +
+  'their apps — how you join a meeting for the user. Requires an approved plan this turn — name the ' +
+  'site or meeting in a plan step. File paths and other app schemes are refused: opening those can ' +
+  'execute programs. Opening a page does not read it — use it to put something in front of the ' +
+  'user, not to browse. Windows only.'
 
 export type OpenUrlToolDeps = {
   open?: typeof openUrl

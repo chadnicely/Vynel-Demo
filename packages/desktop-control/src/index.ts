@@ -37,6 +37,10 @@ export {
   DESKTOP_ACTIONS,
 } from './a11y/xa11y-adapter.js'
 export { screenshotApp, findAppWindowBounds } from './a11y/screenshot-adapter.js'
+export { screenshotDesktop } from './a11y/screenshot-desktop.js'
+export type { DesktopScreenshot } from './a11y/screenshot-desktop.js'
+export { setSystemVolume } from './system/volume.js'
+export type { SystemVolumeState, SetSystemVolumeInput } from './system/volume.js'
 export { listMonitors } from './a11y/monitors.js'
 export type { MonitorInfo } from './a11y/monitors.js'
 export { waitForCondition, WAIT_CONDITIONS } from './a11y/wait-for-condition.js'

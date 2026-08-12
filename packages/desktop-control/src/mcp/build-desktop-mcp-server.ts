@@ -18,7 +18,9 @@ import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools
 import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeOpenUrlTool } from './open-url-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
+import { makeScreenshotDesktopTool } from './screenshot-desktop-tool.js'
 import { makeSendDesktopNotificationTool } from './send-desktop-notification-tool.js'
+import { makeSetVolumeTool } from './set-volume-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
 import { makeWaitForTool } from './wait-for-tool.js'
 import { makeSetWindowBoundsTool } from './set-window-bounds-tool.js'
@@ -124,6 +126,10 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     makeMousePositionTool(),
     makeSnapshotAppTool(),
     makeScreenshotAppTool(),
+    // A whole SCREEN, where screenshot_app is one window. Fully free by
+    // Kafi's ruling (2026-08-13): looking is ungated, and the privacy line
+    // lives in the tool description — answer what was asked, never browse.
+    makeScreenshotDesktopTool(),
     makeWaitForTool(),
     // A toast is its own accountability — visible by nature, reads nothing,
     // changes no app — and its headline use is a background task saying "I'm
@@ -149,7 +155,8 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     factories.push(makeLaunchAppTool(envelope))
     // A URL opener is a LAUNCHER with no resolvable target app, so it takes
     // the clipboard's consent gate (refuses unattended) plus a scheme
-    // allowlist — see open-url.ts for why file:/deep-link schemes are out.
+    // allowlist — web + the two meeting deep-links; see open-url.ts for why
+    // everything else stays out.
     factories.push(makeOpenUrlTool(envelope))
     // Arranging a window (maximize / minimize / restore) is a click-class
     // action — same envelope, same authorizer.
@@ -164,6 +171,9 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // password the user copied moments ago). See `clipboard-tools.ts`.
     factories.push(makeReadClipboardTool(envelope))
     factories.push(makeWriteClipboardTool(envelope))
+    // The volume is machine-global like the clipboard — same gate, and the
+    // response is the device's own read-back, so 'ok' is honest there.
+    factories.push(makeSetVolumeTool(envelope))
   }
   return factories
 }

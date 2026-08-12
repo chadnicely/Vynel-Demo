@@ -100,6 +100,8 @@ describe('desktopToolFactories', () => {
       'mouse_position',
       'snapshot_app',
       'screenshot_app',
+      // A whole screen, fully free by Kafi's ruling — looking is ungated.
+      'screenshot_desktop',
       // Read-only, so it rides the observe tier and needs no plan.
       'wait_for',
       // Ungated: its headline use is a background (display-only) task saying
@@ -149,6 +151,8 @@ describe('desktopToolFactories', () => {
     expect(names).toContain('launch_app')
     // A URL opener is a launcher — same rule.
     expect(names).toContain('open_url')
+    // Machine-global state, the clipboard's class — actions only.
+    expect(names).toContain('set_volume')
     // Arranging a window changes the screen — same rule.
     expect(names).toContain('set_window_state')
     // Moving/resizing is the same click-class change.
@@ -160,6 +164,7 @@ describe('desktopToolFactories', () => {
     expect(observeOnly).not.toContain('propose_desktop_plan')
     expect(observeOnly).not.toContain('launch_app')
     expect(observeOnly).not.toContain('open_url')
+    expect(observeOnly).not.toContain('set_volume')
     expect(observeOnly).not.toContain('set_window_state')
     expect(observeOnly).not.toContain('set_window_bounds')
   })

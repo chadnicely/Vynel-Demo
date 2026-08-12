@@ -6,9 +6,8 @@
 // A URL opener is a LAUNCHER, so the allowlist is the whole point. ShellExecute
 // on an arbitrary string is the unrestricted-execution hole `isLaunchableAppId`
 // exists to prevent: `file:///C:/...whatever.exe` RUNS the exe, and a bare
-// UNC/local path does too. Only web-class schemes pass; deep-link schemes
-// (zoommtg:, msteams:) are a SEPARATE, riskier decision (module notes item 12)
-// and are deliberately not here.
+// UNC/local path does too. Only the schemes on the list pass — the web-class
+// three plus the two meeting deep-links Kafi ruled in (item 12, 2026-08-13).
 
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -17,10 +16,20 @@ const execFileAsync = promisify(execFile)
 const OPEN_TIMEOUT_MS = 15_000
 const URL_MAX_LENGTH = 2048
 
-/** Web-class only. `mailto:` composes, never sends — the send stays with the
- *  user in their mail app, which is the reversibility line this package draws
- *  everywhere. */
-export const OPEN_URL_ALLOWED_SCHEMES = ['https:', 'http:', 'mailto:'] as const
+/** Web-class schemes, plus the two MEETING deep-links Kafi ruled in
+ *  (2026-08-13, item 12): `zoommtg:` and `msteams:` open their apps' join
+ *  flows. `mailto:` composes, never sends — the send stays with the user in
+ *  their mail app, which is the reversibility line this package draws
+ *  everywhere. Joining a meeting rides the same consent gate as every open:
+ *  an approved plan naming it. Still out: `file:`, bare paths, and every
+ *  other app scheme — ShellExecute EXECUTES those. */
+export const OPEN_URL_ALLOWED_SCHEMES = [
+  'https:',
+  'http:',
+  'mailto:',
+  'zoommtg:',
+  'msteams:',
+] as const
 
 export type OpenUrlRefusal = { ok: false; reason: string }
 export type OpenUrlAccepted = { ok: true; url: URL }
@@ -47,7 +56,7 @@ export function checkOpenableUrl(raw: string): OpenUrlAccepted | OpenUrlRefusal 
       reason:
         `The "${parsed.protocol.replace(/:$/, '')}" scheme is not allowed — only ` +
         `${OPEN_URL_ALLOWED_SCHEMES.map((scheme) => scheme.replace(/:$/, '')).join(', ')} open here. ` +
-        'File paths and app deep-links are deliberately out: opening them can execute programs.',
+        'File paths and other app schemes are deliberately out: opening them can execute programs.',
     }
   }
   // http://user:pass@host is a credential in a URL — this package never
