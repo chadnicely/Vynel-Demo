@@ -20,7 +20,6 @@ import { createRequire } from 'node:module'
 import { downscalePngToFit } from './screenshot-scale.js'
 import { restoreIfMinimized } from './window-state.js'
 import { planScreenshotTarget, selectWindowId, type WindowInfo } from './window-selection.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import { readWindowIdentity } from './window-host-processes.js'
 
 // The pure selection layer lives in `window-selection.ts`; re-exported here so
@@ -232,9 +231,14 @@ export async function screenshotApp(
       `Could not screenshot "${trimmedQuery}": no matching window is open. Call list_open_apps to see available apps.`,
     )
   }
-  // ENFORCE FIRST, for every remaining branch — even "that window exists and is
-  // minimized" is information about an ungranted app, and restoring one is an
-  // action on it. Nothing below this line touches a window whose grant failed.
+  // ⚠ RESTORING IS AN ACTION, and it is no longer gated by anything. Capture
+  // itself only observes, but the branch below un-minimizes the user's window
+  // (`ShowWindow(SW_RESTORE)`) so there is something to capture — and reads are
+  // ungated now, so a plain screenshot can move a window on an unattended turn.
+  // Deliberate: `screenshot_app` restoring a minimized window is what makes
+  // "look at X" work without asking the user to do anything (Kafi 2026-08-11).
+  // Recorded here because a reader of this branch will otherwise assume, as the
+  // previous comment claimed, that a gate ran above it.
   if (target.kind === 'unrestorable') {
     throw new Error(
       `The "${target.appName}" window is minimized and couldn't be restored automatically — ` +

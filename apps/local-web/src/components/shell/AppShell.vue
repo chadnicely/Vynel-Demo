@@ -14,7 +14,6 @@ import {
   House,
   ListChecks,
   MessageCircle,
-  Monitor,
   NotebookPen,
   Radio,
   ScrollText,

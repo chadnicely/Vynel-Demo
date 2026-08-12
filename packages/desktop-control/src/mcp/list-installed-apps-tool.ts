@@ -10,7 +10,7 @@ import {
 // The roster of what's INSTALLED (vs `list_open_apps`, what's running). Kept
 // read-only and ungated for the same reason `list_open_apps` is: it returns
 // names, not access. Acting on anything found here still needs the plan
-// envelope or a standing grant, and launching needs `launch_app`.
+// turn's approved plan, and launching needs `launch_app`.
 
 const TOOL_DESCRIPTION =
   'List the apps INSTALLED on this computer (Start menu), whether or not they are running — use this ' +

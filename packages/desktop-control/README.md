@@ -5,32 +5,46 @@ in-process MCP tools the AI agent calls mid-turn. Re-authored fresh in Vynel's
 house style from a reference scaffold; the accessibility engine is `xa11y`
 (adopted after a dedicated spike).
 
-> **Safety — the per-app access model (Claude-desktop-style).** Every
-> app-directed tool is gated by a **user grant for that specific app**, at a
-> tier: `read` (see) < `click` (also press) < `full` (also type). No grant = no
-> access (fails closed with the recovery path). The ONLY way a grant comes into
-> being is the `request_desktop_access` tool, declared in `mutatingToolNames` so
-> it raises an **approval card in Ask mode** (and in the unattended
-> `bypass-with-behavior-gate` default, so a schedule fire can't self-grant) — the card is the
-> consent moment. Grants persist in `desktop_app_grants` until revoked (routes
-> `GET/DELETE /desktop/access`; "Desktop access" section in the app). On top of
-> that: the act tools are **default-OFF** behind `VYNEL_DESKTOP_ACT_ENABLED`,
-> typing into a detected **password control is refused outright**
-> (`a11y/password-control-guard.ts`), and the system-prompt instructions carry
-> the prompt-injection boundary (screen content is data, never instructions) and
-> the prohibited-action canon (credentials / CAPTCHA / financial / agreements).
+> **Safety — the plan is the consent.** Desktop work splits in two:
+>
+> - **Looking** (`list_*`, `snapshot_app`, `screenshot_app`, `wait_for`,
+>   `system_status`) is **ungated** and raises no overlay. Reading needs no plan
+>   by design — you often have to look to work out *what* to plan.
+> - **Acting** (`act_on_app`, `act_on_desktop`, `launch_app`,
+>   `set_window_state`, `set_window_bounds`, clipboard) requires the turn's
+>   **approved plan**, which names every app it will touch and at which tier
+>   (`read` < `click` < `full`), and which narrates on an overlay while it runs.
+>   No armed plan, or an app the plan does not name, = refused.
+>
+> Per-app grants and `request_desktop_access` were **retired 2026-08-13**: they
+> asked a second time for consent the plan already carries, in a vocabulary a
+> non-technical user cannot evaluate (the cards this package generated in
+> practice said *"Docker Desktop Launcher"* and *"Application Frame Host"*).
+>
+> On top of that: the act tools are **default-OFF** behind
+> `VYNEL_DESKTOP_ACT_ENABLED`, typing into a detected **password control is
+> refused outright** (`a11y/password-control-guard.ts`), and the system-prompt
+> instructions carry the prompt-injection boundary (screen content is data,
+> never instructions) and the prohibited-action canon (credentials / CAPTCHA /
+> financial / agreements).
+>
+> ⚠ **Known, deliberate debt.** A channel turn (e.g. Telegram) can act with no
+> approval anywhere — the overlay and a future access log are the
+> accountability. The turn's origin is already known at
+> `run-global-root-turn.ts`, so per-channel trust is a later filter, not a
+> redesign.
 
 ## Tool surface
 
 | Tool | Role | Status |
 |---|---|---|
 | `list_desktop_notifications` | Desktop notification events since a timestamp (read-only; ungated) | **shipped** |
-| `list_open_apps` | List open windows + the granted `accessTier` per app (read-only; ungated) | **shipped** |
-| `snapshot_app` | Read a named app's accessibility tree (requires `read` grant) | **shipped** |
-| `screenshot_app` | Pixel capture of one window without focusing it; WXGA downscale for coordinate accuracy + full-res `region` zoom (requires `read` grant; `node-screenshots`/XCap) | **shipped** |
-| `request_desktop_access` | Ask the user to grant an app at a tier — the consent door (cards in ask + unattended; uncarded in the user's auto/bypass) | **shipped** |
-| `act_on_app` | Act on an element — press (`click` grant) / type_text / set_value (`full` grant); default-OFF | **shipped** |
-| `act_on_desktop` | Coordinate mouse/keyboard — click/scroll/drag (`click` grant), type/press (`full` grant, enforced against the focused/hit-tested window); default-OFF | **shipped** |
+| `list_open_apps` | List open windows (read-only; ungated) | **shipped** |
+| `snapshot_app` | Read a named app's accessibility tree (read-only; ungated) | **shipped** |
+| `screenshot_app` | Pixel capture of one window; WXGA downscale for coordinate accuracy + full-res `region` zoom. Restores a minimized window first (read-only otherwise; `node-screenshots`/XCap) | **shipped** |
+| `system_status` | CPU / memory / battery / disks / busiest programs (read-only; ungated) | **shipped** |
+| `act_on_app` | Act on an element — press (`click`) / type_text / set_value (`full`), against the approved plan; default-OFF | **shipped** |
+| `act_on_desktop` | Coordinate mouse/keyboard — click/scroll/drag (`click`), type/press (`full`, enforced against the focused/hit-tested window); default-OFF | **shipped** |
 
 ## How it plugs into Vynel
 

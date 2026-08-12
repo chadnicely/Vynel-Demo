@@ -20,9 +20,11 @@ describe('desktopFeatureDescriptor', () => {
     // ONLY `propose_desktop_plan` (Kafi 2026-08-11: one card per task, on the
     // plan) — the act tools are gated in-tool by the plan envelope instead, so
     // their presence here would re-create the per-step cards the plan removed.
-    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([
-      'mcp__desktop__request_desktop_access',
-    ])
+    // test: correct expectation — was `['mcp__desktop__request_desktop_access']`.
+    // That is the every-mode approval FLOOR, and it named a tool that no longer
+    // exists. Nothing in this package cards in every mode now: acting is
+    // authorized by the plan, and the plan cards in ask mode below.
+    expect(desktopFeatureDescriptor.mutatingToolNames).toEqual([])
     expect(desktopFeatureDescriptor.askModeApprovalToolNames).toEqual([
       'mcp__desktop__propose_desktop_plan',
     ])

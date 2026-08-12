@@ -83,14 +83,6 @@ export {
   normalizeDesktopAppKey,
 } from './access/desktop-access-tiers.js'
 export type { DesktopAccessTier, DesktopAccessAuthorizer } from './access/desktop-access-tiers.js'
-export {
-  DESKTOP_ACCESS_GRANTED,
-  DESKTOP_ACCESS_REVOKED,
-} from './desktop-control-events.js'
-export type {
-  DesktopAccessGrantedPayload,
-  DesktopAccessRevokedPayload,
-} from './desktop-control-events.js'
 
 export { resolveDesktopOs } from './platform.js'
 export type { DesktopOs } from './platform.js'

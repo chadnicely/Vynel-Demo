@@ -133,7 +133,7 @@ const FOCUS_CHANGING_ACTIONS = new Set<ActOnDesktopParams['action']>(['click', '
 /** Construct the `act_on_desktop` SDK MCP tool (mutating — destructiveHint).
  *  The envelope is REQUIRED — acting is PLAN-GATED by construction: refused
  *  until the turn's plan is armed, and the armed plan authorizes its apps
- *  alongside standing grants. (An optional envelope would be a fail-open
+ *  and it is the ONLY authority. (An optional envelope would be a fail-open
  *  default waiting for a second construction site.) */
 export function makeActOnDesktopTool(
   envelope: DesktopPlanEnvelope,

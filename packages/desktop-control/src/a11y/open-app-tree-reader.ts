@@ -5,7 +5,6 @@
 
 import { loadXa11y, dumpApp, withTimeout, resolveDesktopTimeout } from './xa11y-loader.js'
 import { resolveAppWithFallback } from './electron-wake.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const DEFAULT_SNAPSHOT_MAX_DEPTH = 12
 const ELECTRON_SNAPSHOT_MAX_DEPTH = 25

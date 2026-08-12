@@ -3,7 +3,7 @@
 // mangles formatting, unicode, and newlines that submit forms).
 //
 // BOTH are gated the same way, including the READ. The clipboard is global
-// rather than app-scoped, so the per-app grant model has nothing to check it
+// rather than app-scoped, so a per-app rule would have nothing to check it
 // against — a grant for Notepad says nothing about the password the user copied
 // out of their password manager ten seconds ago.
 //

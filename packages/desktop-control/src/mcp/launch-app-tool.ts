@@ -90,9 +90,9 @@ export function buildLaunchResponse(
             `"${result.appName}" is open. Use that exact name for snapshot_app / screenshot_app and ` +
             'the act tools.' +
             (drifted
-              ? ` NOTE: it reports as "${result.appName}", not "${requestedName}" — any plan entry or ` +
-                `access grant naming "${requestedName}" does NOT cover it. Propose an updated plan (or ` +
-                `request_desktop_access) for "${result.appName}" before acting.`
+              ? ` NOTE: it reports as "${result.appName}", not "${requestedName}" — a plan entry ` +
+                `naming "${requestedName}" does NOT cover it. Propose an updated plan for ` +
+                `"${result.appName}" before acting.`
               : ''),
         },
       ],

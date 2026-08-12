@@ -18,7 +18,7 @@ import type { DesktopAccessTier } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanApp, DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 
 // A plan authorizes ACTING, and only the act tools consult the envelope —
-// reads (snapshot / screenshot) go through the standing grant gate regardless.
+// reads (snapshot / screenshot) are ungated and need no plan at all.
 // So `read` is deliberately NOT plannable: accepting it would let the model
 // state an authorization it never actually receives.
 const PLANNABLE_TIERS = ['click', 'full'] as const
@@ -88,9 +88,10 @@ function armedSummary(envelope: DesktopPlanEnvelope, apps: DesktopPlanApp[]): st
       )
     case 'display-only':
       return (
-        'Plan recorded and visible to the user. This unattended turn cannot authorize new apps — ' +
-        'act within the user\'s standing grants; for an app without one, call ' +
-        'request_desktop_access (the user decides).'
+        'Plan recorded and visible to the user on the overlay — but this turn is running ' +
+        'unattended, so the plan carries NO authority to act and every desktop action will be ' +
+        'refused. Standing per-app grants used to be the way through; they no longer exist. ' +
+        'Tell the user what you would have done and let them run it.'
       )
   }
 }

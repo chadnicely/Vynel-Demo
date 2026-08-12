@@ -92,7 +92,7 @@ export type WaitClock = {
 
 /** A failure that no amount of waiting can fix — retrying it just spends the
  *  budget hiding the answer. An access denial is the one that matters: it
- *  carries the `request_desktop_access` recovery path the caller needs NOW. */
+ *  carries the recovery path the caller needs NOW. */
 export function isPermanentWaitFailure(error: unknown): boolean {
   return error instanceof Error && error.name === 'ForbiddenError'
 }

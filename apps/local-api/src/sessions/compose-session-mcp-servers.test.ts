@@ -180,10 +180,13 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     // test: correct expectation — plan-level approval (Kafi 2026-08-11): the
     // ask tier holds ONLY propose_desktop_plan (one card per desktop task);
     // the act tools left it — they are plan-envelope-gated in-tool instead.
-    // The CONSENT tool (request_desktop_access) keeps the MUTATING tier so it
-    // also cards on unattended background turns (no silent self-grant).
+    // test: correct expectation — the MUTATING tier is now EMPTY. It held
+    // `request_desktop_access`, the standing-grant consent moment that had to
+    // card even on an unattended turn so a background job could never
+    // self-grant. Per-app grants are retired (2026-08-13) and that tool no
+    // longer exists; the plan is the only consent, and it cards in ask mode.
     expect(composed.askModeApprovalToolNames).toEqual(['mcp__desktop__propose_desktop_plan'])
-    expect(composed.mutatingToolNames).toEqual(['mcp__desktop__request_desktop_access'])
+    expect(composed.mutatingToolNames).toEqual([])
     expect(composed.systemPromptAppend).toContain('snapshot_app')
     expect(composed.systemPromptAppend).not.toContain('act_on_app')
   })

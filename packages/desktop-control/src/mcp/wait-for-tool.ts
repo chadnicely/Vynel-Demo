@@ -23,7 +23,6 @@ import {
   type WaitClock,
   type WaitProbes,
 } from '../a11y/wait-for-condition.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const TOOL_DESCRIPTION =
   'Wait until something on screen changes, instead of screenshotting over and over. READ-ONLY, no ' +

@@ -12,7 +12,6 @@
 // xa11y name, so it asked about a string no grant could ever match.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import type { DesktopAccessTier } from '../access/desktop-access-tiers.js'
 
 const CANONICAL = 'Discord'
 /** What xa11y actually calls the same app — the live window title. */

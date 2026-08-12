@@ -9,7 +9,7 @@
 // through the same single loader as every other input primitive.
 //
 // ⚠ PRIVACY — why reading is treated as an action, not a free read. The
-// clipboard is global, not app-scoped, so the per-app grant model has nothing
+// clipboard is global, not app-scoped, so a per-app rule would have nothing
 // to check it against: a grant for Notepad says nothing about what the user
 // last copied, which may be a password, a card number, or a one-time code they
 // copied seconds ago from a password manager. It is therefore gated by the

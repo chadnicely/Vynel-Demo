@@ -2,7 +2,6 @@ import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn, McpToolContent } from './mcp-tool-fn.js'
 import { screenshotApp, type AppScreenshot } from '../a11y/screenshot-adapter.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const TOOL_DESCRIPTION =
   "Capture a desktop app's window as a PNG screenshot — your fallback eyes when the accessibility " +

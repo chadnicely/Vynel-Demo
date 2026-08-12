@@ -1,34 +1,26 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { listOpenApps, type OpenApp } from '../a11y/xa11y-adapter.js'
-import type { DesktopAccessTier } from '../access/desktop-access-tiers.js'
 
+// The `accessTier` column is GONE with the per-app grant model (2026-08-13).
+// It survived the removal for one commit, defaulting to "none" for every app on
+// every turn while its description told the model to fix that with
+// `request_desktop_access` — a tool that no longer exists. A uniformly false
+// field on the tool the instructions say to call FIRST is worse than no field.
+// There is nothing to report in its place: looking is ungated, and what may be
+// ACTED on is whatever the turn's approved plan names.
 const TOOL_DESCRIPTION =
   'List the desktop apps/windows currently open that you can target for desktop control. Returns each ' +
-  "app's name (the title to pass to snapshot_app and desktop actions), its pid, and accessTier — the " +
-  'tier the user has granted you for that app ("read" = look, "click" = also press, "full" = also type, ' +
-  '"none" = no access yet; use request_desktop_access to ask). READ-ONLY. Call this FIRST to discover ' +
-  'what to target — do not guess window titles, which are dynamic (e.g. "*Notes.txt - Notepad"). ' +
-  'Windows only today; returns an empty list on other platforms.'
+  "app's name (the title to pass to snapshot_app and the act tools) and its pid. READ-ONLY, and no " +
+  'permission is needed to look. Call this FIRST to discover what to target — do not guess window ' +
+  'titles, which are dynamic (e.g. "*Notes.txt - Notepad"). To ACT on one of these, name it in a plan ' +
+  '(propose_desktop_plan). Windows only today; returns an empty list on other platforms.'
 
-/** Reads the granted tier for a resolved app name; null = no grant. Bound to
- *  the session's db + user by the server builder. */
-export type ReadGrantedTier = (appName: string) => DesktopAccessTier | null
-
-export function buildListOpenAppsResponse(
-  apps: OpenApp[],
-  readGrantedTier?: ReadGrantedTier,
-): {
+export function buildListOpenAppsResponse(apps: OpenApp[]): {
   content: Array<{ type: 'text'; text: string }>
 } {
-  const annotated = apps.map((app) => ({
-    ...app,
-    accessTier: readGrantedTier?.(app.name) ?? 'none',
-  }))
   return {
-    content: [
-      { type: 'text', text: JSON.stringify({ count: annotated.length, apps: annotated }, null, 2) },
-    ],
+    content: [{ type: 'text', text: JSON.stringify({ count: apps.length, apps }, null, 2) }],
   }
 }
 

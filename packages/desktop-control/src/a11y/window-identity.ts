@@ -2,8 +2,8 @@
 // receives this input?" answered from the live window list (node-screenshots,
 // via the shared lazy loader in `screenshot-adapter.ts`): the focused window
 // for keystrokes, the topmost window under a point for mouse actions, and the
-// name roster the grant door resolves against. Split from the screenshot
-// adapter because these serve the access model, not capture.
+// name roster app resolution works from. Split from the screenshot adapter
+// because these serve enforcement and identity, not capture.
 
 import { loadNodeScreenshots } from './screenshot-adapter.js'
 import { isWindowHostProcess, readWindowIdentity } from './window-host-processes.js'
@@ -92,11 +92,11 @@ export function findWindowAppNameAtPoint(x: number, y: number): string | null {
 
 /**
  * Distinct app names across the current windows (minimized included — a
- * minimized app is still identifiable and grantable). One of the two identity
- * sources `request_desktop_access` resolves against: xa11y's `App.list()`
- * misses the Electron/Chromium class (tree off until woken), and a grant that
- * can't NAME those apps would deadlock the exact screenshot/wake paths built
- * for them.
+ * minimized app is still identifiable and targetable). One of the two identity
+ * sources app resolution works from: xa11y's `App.list()`
+ * misses the Electron/Chromium class (tree off until woken), and a roster that
+ * can't NAME those apps would leave the exact screenshot/wake paths built for
+ * them unaddressable.
  */
 export function listWindowAppNames(): string[] {
   const { Window } = loadNodeScreenshots()
@@ -112,34 +112,6 @@ export function listWindowAppNames(): string[] {
   return [...names]
 }
 
-/**
- * The APP name owning a process — the canonical identity every grant is keyed
- * on. Null when no window maps to that pid.
- *
- * WHY this exists: the two desktop sources name things differently. xa11y's
- * `App.name` is the WINDOW TITLE ("Vynel – Google Chrome", and a different
- * string the moment the user switches tabs); the window source reports the
- * stable app ("Google Chrome"). Keying a grant on a title made it die on the
- * next tab switch and made a grant taken through the accessibility door fail
- * on the screenshot door. The pid is what both sources agree on, so identity
- * normally resolves THROUGH it.
- *
- * The exception, and the reason this returns null more often than it used to:
- * a pid is NOT a unique app for packaged apps. Calculator and Settings both
- * live on pid 8828 inside one `ApplicationFrameHost` — so for a hosted pid the
- * "one thing both sources agree on" agrees on the wrong thing. When such a pid
- * owns more than one window there is no answer, and null is the honest one.
- *
- * And note what that costs, because it partly reverses the paragraph above:
- * for a hosted window the identity IS the title, the very thing this function
- * exists to avoid keying on. That is accepted rather than overlooked. A
- * packaged app's title is its name ("Calculator", "Settings"), not the volatile
- * document string a browser tab produces — but it is still app-controlled, so a
- * hosted window titled "Google Chrome" would identify as Chrome. There is no
- * better identity source for these windows in `node-screenshots`, and the
- * alternative — one shared host name — was measurably worse: it made every
- * packaged app the SAME app. A narrower wrong beats a categorical one.
- */
 /**
  * The identities of every HOSTED window — the packaged (Store) apps currently
  * open. Used to tell "the accessibility engine cannot reach this one because a
@@ -194,6 +166,34 @@ export function pickIdentityForPid(candidates: PidWindowCandidate[], pid: number
   return first ?? null
 }
 
+/**
+ * The APP name owning a process — the canonical identity the plan envelope and
+ * the activity record are keyed on. Null when no window maps to that pid.
+ *
+ * WHY this exists: the two desktop sources name things differently. xa11y's
+ * `App.name` is the WINDOW TITLE ("Vynel – Google Chrome", and a different
+ * string the moment the user switches tabs); the window source reports the
+ * stable app ("Google Chrome"). Keying a grant on a title made it die on the
+ * next tab switch and made a grant taken through the accessibility door fail
+ * on the screenshot door. The pid is what both sources agree on, so identity
+ * normally resolves THROUGH it.
+ *
+ * The exception, and the reason this returns null more often than it used to:
+ * a pid is NOT a unique app for packaged apps. Calculator and Settings both
+ * live on pid 8828 inside one `ApplicationFrameHost` — so for a hosted pid the
+ * "one thing both sources agree on" agrees on the wrong thing. When such a pid
+ * owns more than one window there is no answer, and null is the honest one.
+ *
+ * And note what that costs, because it partly reverses the paragraph above:
+ * for a hosted window the identity IS the title, the very thing this function
+ * exists to avoid keying on. That is accepted rather than overlooked. A
+ * packaged app's title is its name ("Calculator", "Settings"), not the volatile
+ * document string a browser tab produces — but it is still app-controlled, so a
+ * hosted window titled "Google Chrome" would identify as Chrome. There is no
+ * better identity source for these windows in `node-screenshots`, and the
+ * alternative — one shared host name — was measurably worse: it made every
+ * packaged app the SAME app. A narrower wrong beats a categorical one.
+ */
 export function findAppNameByPid(pid: number): string | null {
   const { Window } = loadNodeScreenshots()
   const candidates: PidWindowCandidate[] = []

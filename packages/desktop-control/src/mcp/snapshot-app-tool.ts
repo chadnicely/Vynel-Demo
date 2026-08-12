@@ -2,7 +2,6 @@ import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { snapshotApp, type AppSnapshot } from '../a11y/xa11y-adapter.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const TOOL_DESCRIPTION =
   "Read a desktop app's on-screen UI as an indented accessibility tree (roles, names, values) — your " +

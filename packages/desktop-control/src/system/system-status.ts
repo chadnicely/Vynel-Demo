@@ -79,9 +79,13 @@ export function formatSystemStatus(snapshot: SystemSnapshot): string {
   }
 
   for (const disk of snapshot.disks) {
+    // `use` comes straight from systeminformation, which computes it as
+    // (size-free)/size — NaN on a zero-size volume (an empty card reader, an
+    // unmounted share). Memory already had this guard and a test; disks did not.
+    const usedPercent = Number.isFinite(disk.usedPercent) ? disk.usedPercent : 0
     lines.push(
       `Disk ${disk.mount}: ${round(disk.freeGb, 1)} GB free of ${round(disk.totalGb, 1)} GB ` +
-        `(${round(disk.usedPercent)}% used)`,
+        `(${round(usedPercent)}% used)`,
     )
   }
 

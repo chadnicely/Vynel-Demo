@@ -6,7 +6,7 @@
 // SAFETY IS UNCHANGED BY BATCHING: the batch runner performs no authorization
 // itself — it invokes the SAME per-action execution path a single call takes,
 // so every item re-resolves its target, re-authorizes against the plan
-// envelope + standing grants, and re-runs the password-control guard. A batch
+// envelope, and re-runs the password-control guard. A batch
 // is a convenience over N calls, never a way to act once and reuse the check.
 //
 // STOP ON FIRST FAILURE: the desktop is stateful — if step 2 didn't happen,

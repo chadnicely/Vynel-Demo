@@ -21,21 +21,22 @@ import { makeProposeDesktopPlanTool } from './propose-desktop-plan-tool.js'
 
 export type BuildDesktopMcpServerInput = {
   reader: DesktopNotificationReader
-  /** The session's db + user — the per-app access grants are enforced against these. */
+  /** Kept for the descriptor's uniform construction shape; no tool reads them
+   *  now that the package owns no tables. */
   db: Database
   userId: string
   /**
    * Enable the MUTATING `act_on_app` / `act_on_desktop` tools. Default OFF — a
    * real off-switch so a stray merge or run can't silently act on the desktop.
-   * With actions ON, every action still passes the per-app access gate: no
-   * grant row (user consent via `request_desktop_access`) = no action.
+   * With actions ON, every action still passes the PLAN gate: no app named in
+   * the turn's approved plan = no action on it.
    */
   enableActions?: boolean
   /**
    * How this turn's proposed plan acquires authority (mode-derived by the
    * caller via `deriveDesktopPlanConsent`). Default 'display-only' — the
    * conservative floor: a caller that forgets to thread it gets a plan that
-   * narrates without authorizing anything beyond standing grants.
+   * narrates on the overlay but authorizes nothing at all.
    */
   planConsent?: DesktopPlanConsent
 }

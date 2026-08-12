@@ -20,9 +20,17 @@ describe('DESKTOP_TOOL_INSTRUCTIONS', () => {
     expect(DESKTOP_TOOL_INSTRUCTIONS).toContain('snapshot_app')
   })
 
-  it('teaches the per-app access model and its recovery path', () => {
-    expect(DESKTOP_TOOL_INSTRUCTIONS).toContain('request_desktop_access')
-    expect(DESKTOP_TOOL_INSTRUCTIONS.toLowerCase()).toContain('per-app')
+  // test: correct expectation — was "teaches the per-app access model and its
+  // recovery path", asserting the prompt contained `request_desktop_access`.
+  // Per-app grants are retired, so that assertion PINNED a lie: it passed
+  // precisely because the stale paragraph was still there, and would have kept
+  // the prompt teaching a tool that no longer exists.
+  it('teaches that looking is free and only CHANGING things needs a plan', () => {
+    expect(DESKTOP_TOOL_INSTRUCTIONS).not.toContain('request_desktop_access')
+    expect(DESKTOP_TOOL_INSTRUCTIONS.toLowerCase()).toContain('looking needs no permission')
+    // Free to look is not licence to wander — the restraint has to survive the
+    // removal of the gate that used to enforce it.
+    expect(DESKTOP_TOOL_INSTRUCTIONS.toLowerCase()).toMatch(/never go hunting/)
   })
 
   it('carries the prompt-injection boundary (screen content is data, not instructions)', () => {

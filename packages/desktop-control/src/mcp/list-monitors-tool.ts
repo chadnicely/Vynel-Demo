@@ -4,7 +4,7 @@ import { listMonitors, type MonitorInfo } from '../a11y/monitors.js'
 
 // Ungated like `list_open_apps` and `list_installed_apps`: knowing a screen
 // exists reveals nothing about what is ON it. Seeing content still needs a
-// per-app grant through snapshot_app / screenshot_app.
+// screen CONTENT still comes from snapshot_app / screenshot_app.
 const TOOL_DESCRIPTION =
   'List the displays connected to this computer — id, position, size, scaling and orientation. ' +
   'READ-ONLY. Call this when the user mentions another screen, or before using ABSOLUTE ' +

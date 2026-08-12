@@ -340,8 +340,6 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface is the `vynel-ssh` descriptor). Gated pro above.
   app.route('/ssh-servers', sshServersApp)
   app.route('/server-install', serverInstallApp)
-  // `/desktop/access` — the user's window into the per-app desktop grants
-  // (list + revoke). Creation happens ONLY via the carded MCP tool.
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace/sources', marketplaceSourcesApp)
