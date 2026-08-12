@@ -7,6 +7,7 @@ import { listWindowAppNames } from '../a11y/window-identity.js'
 import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 
 // Starting a program is an ACTION, so it sits inside the same envelope every
 // other act does: plan first, then authorization against the RESOLVED app.
@@ -203,6 +204,7 @@ export function makeLaunchAppTool(
           target.name,
         )
       } catch (err) {
+        recordFailedAct(envelope, { tool: 'launch_app', appName: query, detail: 'launch threw' }, err)
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

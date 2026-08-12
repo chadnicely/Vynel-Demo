@@ -10,6 +10,7 @@ import {
 import { waitForForegroundSettle } from '../input/foreground-settle.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 import { buildBatchResponse, runActionBatch, MAX_BATCH_ACTIONS } from './act-batch.js'
 
 const TOOL_DESCRIPTION =
@@ -237,7 +238,21 @@ export function makeActOnDesktopTool(
           await runActionBatch(
             steps,
             async (step) => {
-              const result = await actOnDesktop(step, effectiveAuthorize)
+              // The step that STOPS a batch has to leave a row too. runActionBatch
+              // catches the throw itself, so the tool's outer catch never sees it
+              // — without this the log shows the steps that worked and nothing
+              // about the one that didn't, which reads as "no problem".
+              let result
+              try {
+                result = await actOnDesktop(step, effectiveAuthorize)
+              } catch (stepError) {
+                recordFailedAct(
+                  envelope,
+                  { tool: 'act_on_desktop', appName: step.app ?? null, detail: `${step.action} threw` },
+                  stepError,
+                )
+                throw stepError
+              }
               // Every step of a batch gets its own row: a batch that stopped
               // half-way is exactly the case "how far did it get" must answer.
               envelope.recordAct({
@@ -286,6 +301,11 @@ export function makeActOnDesktopTool(
         })
         return { content: [{ type: 'text', text: `Done: ${result.detail}.` }] }
       } catch (err) {
+        recordFailedAct(
+          envelope,
+          { tool: 'act_on_desktop', appName: app ?? null, detail: 'act threw' },
+          err,
+        )
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

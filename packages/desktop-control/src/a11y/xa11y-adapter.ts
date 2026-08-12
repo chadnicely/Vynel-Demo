@@ -137,11 +137,14 @@ export type ActOnAppResult =
   | { kind: 'ambiguous'; selector: string; matchCount: number; candidates: ActCandidate[] }
 
 const MAX_AMBIGUITY_CANDIDATES = 15
-/** A beat for the app to apply the input before we read it back. Typing is not
- *  instantaneous in every toolkit, and reading too early would report a false
- *  mismatch — which is worse than not checking, because it would send the model
- *  to "fix" something that was about to be right. */
-const VERIFY_SETTLE_MS = 150
+/** How often to re-read while waiting for the input to appear, and how long to
+ *  keep trying. A single fixed sleep was the first version and was the very risk
+ *  its own comment warned about: a slow Electron or web-view field had not
+ *  applied the text yet, so the read-back reported a false MISMATCH — and that
+ *  now writes `failed` into an append-only row, so the wrong answer is permanent.
+ *  Polling stops at the first match, so the common case is still one read. */
+const VERIFY_POLL_MS = 100
+const VERIFY_DEADLINE_MS = 1200
 
 /** Re-read the element and compare. Any failure to read is reported as
  *  UNVERIFIABLE rather than swallowed — the whole point is to stop claiming
@@ -153,12 +156,23 @@ async function readBackValue(
   valueBefore: string | null,
 ): Promise<ActVerification> {
   try {
-    await new Promise((resolve) => setTimeout(resolve, VERIFY_SETTLE_MS))
-    const [element] = await withTimeout(locator.elements(), ACT_TIMEOUT_MS, 'verify')
-    if (element === undefined) {
-      return { kind: 'unverifiable', reason: 'the element was gone by the time it was re-read' }
+    const deadline = Date.now() + VERIFY_DEADLINE_MS
+    let latest: ActVerification = {
+      kind: 'unverifiable',
+      reason: 'the element was gone by the time it was re-read',
     }
-    return verifyTypedValue(action, intended, element.value, valueBefore)
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, VERIFY_POLL_MS))
+      const [element] = await withTimeout(locator.elements(), ACT_TIMEOUT_MS, 'verify')
+      if (element !== undefined) {
+        latest = verifyTypedValue(action, intended, element.value, valueBefore)
+        // Confirmed is final; so is "we cannot tell" (re-reading a control that
+        // exposes no value, or a field that already held the text, will never
+        // start telling us more).
+        if (latest.kind !== 'mismatch') return latest
+      }
+      if (Date.now() >= deadline) return latest
+    }
   } catch (cause) {
     return {
       kind: 'unverifiable',

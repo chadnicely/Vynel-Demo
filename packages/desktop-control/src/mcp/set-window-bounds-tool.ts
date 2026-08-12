@@ -39,6 +39,7 @@ import { hostedAmbiguityMessage } from '../a11y/window-host-processes.js'
 import { rejectUnusableBounds, setWindowBounds } from '../a11y/window-bounds.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 
 const TOOL_DESCRIPTION =
   'Move and resize an app window — put it on another screen, or lay it out beside something else. ' +
@@ -195,6 +196,11 @@ export function makeSetWindowBoundsTool(
           ],
         }
       } catch (err) {
+        recordFailedAct(
+          envelope,
+          { tool: 'set_window_bounds', appName: query, detail: 'move threw' },
+          err,
+        )
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

@@ -22,6 +22,7 @@ import { hostedAmbiguityMessage } from '../a11y/window-host-processes.js'
 import { setWindowState, windowStateVerb, WINDOW_STATES, isWindowState } from '../a11y/window-state.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 
 const TOOL_DESCRIPTION =
   'Arrange an app window: "maximized" (fill the screen — do this to make an app you launched usable), ' +
@@ -139,6 +140,11 @@ export function makeSetWindowStateTool(
           content: [{ type: 'text', text: `"${appName}" is ${windowStateVerb(state)}.` }],
         }
       } catch (err) {
+        recordFailedAct(
+          envelope,
+          { tool: 'set_window_state', appName: query, detail: 'arrange threw' },
+          err,
+        )
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

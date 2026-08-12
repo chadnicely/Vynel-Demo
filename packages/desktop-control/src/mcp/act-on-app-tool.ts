@@ -10,6 +10,7 @@ import {
 } from '../a11y/xa11y-adapter.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 import {
   buildBatchResponse,
   runActionBatch,
@@ -197,13 +198,25 @@ export function makeActOnAppTool(
         // convenience over N calls, never a shortcut past the gate.
         return buildBatchResponse(
           await runActionBatch(steps, async (step) => {
-            const stepResult = await actOnApp(
-              app,
-              step.selector,
-              step.action,
-              step.value,
-              effectiveAuthorize,
-            )
+            // The step that STOPS a batch leaves a row too — runActionBatch
+            // catches the throw, so the outer catch never sees it.
+            let stepResult
+            try {
+              stepResult = await actOnApp(
+                app,
+                step.selector,
+                step.action,
+                step.value,
+                effectiveAuthorize,
+              )
+            } catch (stepError) {
+              recordFailedAct(
+                envelope,
+                { tool: 'act_on_app', appName: app, detail: `${step.action} on ${step.selector} threw` },
+                stepError,
+              )
+              throw stepError
+            }
             // Every step gets its own row, exactly as act_on_desktop's batch
             // does. The verification is computed here either way — discarding
             // it from the record was an omission, not a decision.
@@ -254,6 +267,7 @@ export function makeActOnAppTool(
         }
         return buildActResponse(app, result)
       } catch (err) {
+        recordFailedAct(envelope, { tool: 'act_on_app', appName: app, detail: 'act threw' }, err)
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,
