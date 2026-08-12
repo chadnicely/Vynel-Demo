@@ -35,6 +35,7 @@ import {
   trayHiddenMessage,
 } from '../a11y/windowed-process.js'
 import { resolveAppIdentity } from '../a11y/window-identity.js'
+import { hostedAmbiguityMessage } from '../a11y/window-host-processes.js'
 import { rejectUnusableBounds, setWindowBounds } from '../a11y/window-bounds.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
@@ -138,16 +139,7 @@ export function makeSetWindowBoundsTool(
             : resolveAppIdentity(pid, '')
         if (appName.length === 0) {
           return {
-            content: [
-              {
-                type: 'text',
-                text:
-                  `Could not identify which app owns the window matching "${query}", so nothing was ` +
-                  'moved. Windows Store apps (Calculator, Settings, Photos) share one process, so ' +
-                  'when several are open a name alone cannot pick one. Close the others, or name ' +
-                  'the app exactly as list_open_apps reports it.',
-              },
-            ],
+            content: [{ type: 'text', text: hostedAmbiguityMessage(query, 'moved') }],
             isError: true,
           }
         }

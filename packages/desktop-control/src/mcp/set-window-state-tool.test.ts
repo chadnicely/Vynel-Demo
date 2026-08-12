@@ -26,6 +26,7 @@ function build(
     findPid?: (query: string) => Promise<number | null>
     apply?: (pid: number, state: WindowState) => Promise<boolean>
     authorize?: (appName: string, required: string) => void
+    appNameByPid?: (pid: number) => string | null
   } = {},
 ) {
   const applied: Array<{ pid: number; state: WindowState }> = []
@@ -37,7 +38,7 @@ function build(
       // Injected so these tests never load the capture binary — the default
       // identity lookup reaches node-screenshots (the request_desktop_access
       // precedent).
-      appNameByPid: () => 'Notepad',
+      appNameByPid: overrides.appNameByPid ?? (() => 'Notepad'),
       apply:
         overrides.apply ??
         (async (pid: number, state: WindowState) => {
@@ -135,5 +136,42 @@ describe('makeSetWindowStateTool', () => {
     expect(result.isError).not.toBe(true)
     expect(standingCalls).toBe(0)
     expect(applied).toEqual([{ pid: 42, state: 'maximized' }])
+  })
+})
+
+// The packaged-app class. Calculator and Settings share one ApplicationFrameHost
+// pid, so `apply` acting on that pid's MainWindowHandle can hit EITHER app.
+// This tool used to pass the model's own `query` as the identity fallback,
+// which meant "minimize Calculator" could authorize as Calculator and minimize
+// Settings — the same hole its twin set_window_bounds had.
+describe('set_window_state — an unidentifiable window', () => {
+  it('changes NOTHING when the identity is ambiguous', async () => {
+    const { tool, applied } = build(armed(), { appNameByPid: () => null })
+    const result = await tool.handler({ app: 'Calculator', state: 'minimized' })
+    expect(result.isError).toBe(true)
+    expect(applied).toEqual([])
+  })
+
+  it('does not send the model round a rename loop it cannot win', async () => {
+    // list_open_apps can only see ONE packaged app at a time, so "name it
+    // exactly" would be advice the tool itself makes impossible to follow.
+    const { tool } = build(armed(), { appNameByPid: () => null })
+    const text = (await tool.handler({ app: 'Calculator', state: 'minimized' })).content[0]?.text
+    expect(text).toMatch(/one shared process/i)
+    expect(text).toMatch(/different name will fail the same way/i)
+    expect(text).not.toMatch(/list_open_apps/i)
+  })
+
+  it('never authorizes against the name the MODEL supplied', async () => {
+    const seen: string[] = []
+    const { tool } = build(armed(), {
+      appNameByPid: () => null,
+      authorize: (appName) => {
+        seen.push(appName)
+      },
+    })
+    await tool.handler({ app: 'Calculator', state: 'minimized' })
+    expect(seen).not.toContain('Calculator')
+    expect(seen).toEqual([])
   })
 })

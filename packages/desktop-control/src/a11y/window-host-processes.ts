@@ -36,6 +36,28 @@ export function isWindowHostProcess(appName: string): boolean {
  * host name: an unnameable window must fail closed, because the alternative is
  * handing back a name that spans a whole class of apps.
  */
+/**
+ * What to tell the model when a hosted pid owns several windows and so cannot
+ * be resolved to one app.
+ *
+ * ONE home because both window-arranging tools say it and they must not drift —
+ * and because the obvious wording is a lie. The first draft ended "name the app
+ * exactly as list_open_apps reports it", which cannot work twice over: identity
+ * ignores the query entirely, and `list_open_apps` reads xa11y's `App.list()`,
+ * which shows only ONE packaged app at a time — the app the model would need to
+ * name is precisely the one that source cannot show. That would have sent it
+ * round a rename loop that can never succeed. Same rule as `trayHiddenMessage`:
+ * offer the recovery that works, and never promise one that doesn't.
+ */
+export function hostedAmbiguityMessage(query: string, verb: string): string {
+  return (
+    `Could not tell which app owns the window matching "${query}", so nothing was ${verb}. Windows ` +
+    'runs every Store app (Calculator, Settings, Photos, Store) inside ONE shared process, so while ' +
+    'several are open no name can pick one of them — retrying with a different name will fail the ' +
+    'same way. Close the other Store apps, or ask the user to, then retry.'
+  )
+}
+
 export function readWindowIdentity(native: {
   appName(): unknown
   title?(): unknown

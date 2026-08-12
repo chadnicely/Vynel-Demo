@@ -129,27 +129,65 @@ export function listWindowAppNames(): string[] {
  * live on pid 8828 inside one `ApplicationFrameHost` — so for a hosted pid the
  * "one thing both sources agree on" agrees on the wrong thing. When such a pid
  * owns more than one window there is no answer, and null is the honest one.
+ *
+ * And note what that costs, because it partly reverses the paragraph above:
+ * for a hosted window the identity IS the title, the very thing this function
+ * exists to avoid keying on. That is accepted rather than overlooked. A
+ * packaged app's title is its name ("Calculator", "Settings"), not the volatile
+ * document string a browser tab produces — but it is still app-controlled, so a
+ * hosted window titled "Google Chrome" would identify as Chrome. There is no
+ * better identity source for these windows in `node-screenshots`, and the
+ * alternative — one shared host name — was measurably worse: it made every
+ * packaged app the SAME app. A narrower wrong beats a categorical one.
  */
-export function findAppNameByPid(pid: number): string | null {
-  const { Window } = loadNodeScreenshots()
+/** One window as the identity rule needs to see it. */
+export type PidWindowCandidate = { pid: number; appName: string; title?: string }
+
+/**
+ * Which app a pid means — pure, so the rule can be tested without the native
+ * binary (the same reason `pickTopmostWindowAt` is extracted).
+ *
+ * A HOSTED pid is genuinely ambiguous once it owns more than one NAMED window:
+ * Calculator and Settings both live on pid 8828, and nothing in the pid says
+ * which one the caller meant, so answering would name the wrong app.
+ *
+ * One named window plus untitled siblings still answers — deliberately. An
+ * untitled hosted window cannot be named at all, so refusing everything would
+ * make the common single-Store-app case unusable to protect a window no caller
+ * can address by name anyway.
+ */
+export function pickIdentityForPid(candidates: PidWindowCandidate[], pid: number): string | null {
   const identities = new Set<string>()
   let hosted = false
+  for (const candidate of candidates) {
+    if (candidate.pid !== pid) continue
+    if (isWindowHostProcess(candidate.appName)) hosted = true
+    const identity = readWindowIdentity({
+      appName: () => candidate.appName,
+      title: () => candidate.title,
+    })
+    if (identity !== null) identities.add(identity)
+  }
+  if (hosted && identities.size !== 1) return null
+  const [first] = identities
+  return first ?? null
+}
+
+export function findAppNameByPid(pid: number): string | null {
+  const { Window } = loadNodeScreenshots()
+  const candidates: PidWindowCandidate[] = []
   for (const native of Window.all()) {
     try {
-      if (Number(native.pid()) !== pid) continue
-      if (isWindowHostProcess(String(native.appName() ?? ''))) hosted = true
-      const identity = readWindowIdentity(native)
-      if (identity !== null) identities.add(identity)
+      candidates.push({
+        pid: Number(native.pid()),
+        appName: String(native.appName() ?? ''),
+        title: String(native.title() ?? ''),
+      })
     } catch {
       // A shape surprise on one window must not blind the whole lookup.
     }
   }
-  const [first] = identities
-  // A HOSTED pid is genuinely ambiguous once it owns more than one window —
-  // Calculator and Settings both live on pid 8828, and nothing in the pid says
-  // which one the caller meant. Answering anyway would name the wrong app.
-  if (hosted && identities.size !== 1) return null
-  return first ?? null
+  return pickIdentityForPid(candidates, pid)
 }
 
 /** The lookup `resolveAppIdentity` performs — injectable for tests. */

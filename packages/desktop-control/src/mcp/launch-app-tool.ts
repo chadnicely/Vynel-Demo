@@ -40,6 +40,15 @@ export function buildLaunchResponse(
   result: LaunchAppResult,
   requestedName?: string,
 ): { content: Array<{ type: 'text'; text: string }> } {
+  // The SAME drift check both outcomes need. `already-open` needs it just as
+  // much as `launched`: packaged apps enter the window roster under their
+  // TITLE, so a document window ("Mail attachment.jpg - Photos") can satisfy a
+  // loose match for "Mail" and be reported as the app. Naming the mismatch is
+  // what stops the model targeting a document as though it were the program.
+  const drifted =
+    requestedName !== undefined &&
+    normalizeDesktopAppKey(requestedName) !== normalizeDesktopAppKey(result.appName)
+
   if (result.kind === 'already-open') {
     return {
       content: [
@@ -49,15 +58,17 @@ export function buildLaunchResponse(
             `"${result.appName}" already has a window open — nothing was launched, which is what you ` +
             'want: activating an app that is already showing can pop an error dialog that then sits ' +
             `on screen looking like the app. Use "${result.appName}" for snapshot_app / screenshot_app ` +
-            'and the act tools. If it is not the window you expected, call list_open_apps.',
+            'and the act tools.' +
+            (drifted
+              ? ` NOTE: that window reports as "${result.appName}", not "${requestedName}" — check ` +
+                'with list_open_apps that it really is the app you meant and not a document or ' +
+                `helper window, and re-propose your plan for "${result.appName}" before acting.`
+              : ' If it is not the window you expected, call list_open_apps.'),
         },
       ],
     }
   }
   if (result.kind === 'launched') {
-    const drifted =
-      requestedName !== undefined &&
-      normalizeDesktopAppKey(requestedName) !== normalizeDesktopAppKey(result.appName)
     return {
       content: [
         {

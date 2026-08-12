@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { ForbiddenError } from '@vynel/errors'
 import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { PLAN_REQUIRED_MESSAGE } from '../plan/plan-gated-authorization.js'
-import { makeLaunchAppTool } from './launch-app-tool.js'
+import { buildLaunchResponse, makeLaunchAppTool } from './launch-app-tool.js'
 import type { InstalledApp } from '../apps/installed-apps.js'
 
 type BuiltTool = {
@@ -156,5 +156,28 @@ describe('makeLaunchAppTool', () => {
     const { tool } = buildTool()
     const result = await tool.handler({ app: '   ' })
     expect(result.isError).toBe(true)
+  })
+})
+
+// Packaged apps enter the window roster under their TITLE, which is dynamic —
+// so a document window can satisfy a loose match and be reported as the app.
+// The drift note is what stops the model targeting a document as the program.
+describe('buildLaunchResponse — drift on an app that was already open', () => {
+  it('flags a window whose name is not the app that was asked for', () => {
+    const text = buildLaunchResponse(
+      { kind: 'already-open', appName: 'Mail attachment.jpg - Photos' },
+      'Mail',
+    ).content[0]?.text
+    expect(text).toMatch(/not "Mail"/)
+    expect(text).toMatch(/document or helper window/i)
+  })
+
+  it('stays quiet when the window really is the app', () => {
+    const text = buildLaunchResponse(
+      { kind: 'already-open', appName: 'Calculator' },
+      'Calculator',
+    ).content[0]?.text
+    expect(text).not.toMatch(/NOTE:/)
+    expect(text).toMatch(/already has a window open/)
   })
 })

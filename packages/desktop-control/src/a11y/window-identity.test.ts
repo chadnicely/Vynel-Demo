@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { pickTopmostWindowAt, resolveAppIdentity, type WindowHitCandidate } from './window-identity.js'
+import {
+  pickIdentityForPid,
+  pickTopmostWindowAt,
+  resolveAppIdentity,
+  type WindowHitCandidate,
+} from './window-identity.js'
 
 describe('pickTopmostWindowAt', () => {
   const candidate = (overrides: Partial<WindowHitCandidate>): WindowHitCandidate => ({
@@ -84,5 +89,49 @@ describe('resolveAppIdentity — the host backstop', () => {
     // set_window_bounds passes '' rather than the model's query for this reason:
     // an unidentifiable window must produce no name at all.
     expect(resolveAppIdentity(8828, '', () => null)).toBe('')
+  })
+})
+
+// The most substantive rule in the packaged-app fix, extracted pure for exactly
+// this reason (the `pickTopmostWindowAt` precedent). Calculator and Settings
+// both live on pid 8828 inside one ApplicationFrameHost — measured 2026-08-12.
+describe('pickIdentityForPid', () => {
+  const hosted = (title: string, pid = 8828) => ({
+    pid,
+    appName: 'Application Frame Host',
+    title,
+  })
+
+  it('names a lone packaged app by its title', () => {
+    expect(pickIdentityForPid([hosted('Calculator')], 8828)).toBe('Calculator')
+  })
+
+  it('refuses when one hosted pid owns TWO named apps', () => {
+    // The security case. Answering either way names the wrong app half the time.
+    expect(pickIdentityForPid([hosted('Calculator'), hosted('Settings')], 8828)).toBeNull()
+  })
+
+  it('still answers when the siblings are untitled', () => {
+    // Untitled hosted windows cannot be addressed by name at all, so refusing
+    // over them would break the ordinary single-Store-app case for nothing.
+    expect(pickIdentityForPid([hosted('Calculator'), hosted(''), hosted('  ')], 8828)).toBe(
+      'Calculator',
+    )
+  })
+
+  it('ignores windows belonging to other pids', () => {
+    expect(pickIdentityForPid([hosted('Calculator'), hosted('Settings', 999)], 8828)).toBe(
+      'Calculator',
+    )
+  })
+
+  it('is unaffected by an ordinary app owning several windows', () => {
+    // Only the HOSTED class is ambiguous — Chrome's many windows are all Chrome.
+    const chrome = (title: string) => ({ pid: 7, appName: 'Google Chrome', title })
+    expect(pickIdentityForPid([chrome('Gmail'), chrome('Docs')], 7)).toBe('Google Chrome')
+  })
+
+  it('returns null for a pid with no windows', () => {
+    expect(pickIdentityForPid([hosted('Calculator')], 4242)).toBeNull()
   })
 })

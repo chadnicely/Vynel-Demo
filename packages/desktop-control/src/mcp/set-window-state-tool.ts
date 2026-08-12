@@ -18,6 +18,7 @@ import {
   trayHiddenMessage,
 } from '../a11y/windowed-process.js'
 import { resolveAppIdentity } from '../a11y/window-identity.js'
+import { hostedAmbiguityMessage } from '../a11y/window-host-processes.js'
 import { setWindowState, windowStateVerb, WINDOW_STATES, isWindowState } from '../a11y/window-state.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
@@ -97,12 +98,22 @@ export function makeSetWindowStateTool(
             isError: true,
           }
         }
-        // Resolve the canonical grant identity, then enforce the click tier
-        // against it — never the fuzzy query — before touching the window.
+        // Resolve the canonical identity, then enforce the click tier against
+        // it — never the fuzzy query. The fallback is '' rather than `query`
+        // because the query is what the MODEL asked for, not what was found:
+        // packaged apps share one pid, and `apply` actuates that pid's
+        // MainWindowHandle, so trusting the query would let "minimize
+        // Calculator" authorize as Calculator and minimize Settings.
         const appName =
           appNameByPid !== undefined
-            ? resolveAppIdentity(pid, query, appNameByPid)
-            : resolveAppIdentity(pid, query)
+            ? resolveAppIdentity(pid, '', appNameByPid)
+            : resolveAppIdentity(pid, '')
+        if (appName.length === 0) {
+          return {
+            content: [{ type: 'text', text: hostedAmbiguityMessage(query, 'changed') }],
+            isError: true,
+          }
+        }
         effectiveAuthorize(appName, 'click')
         // Report the VERIFIED outcome — claiming a state the window never
         // reached would have the model build its next step on a fiction.
