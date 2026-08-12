@@ -203,7 +203,7 @@ const occupancy = useContextOccupancy(
   () => activeTurn.value,
 );
 
-// "account"/"application"/"engine"/"desktop-access" are global-only — the
+// "account"/"application"/"engine" are global-only — the
 // workspace menu never sets them, but the type excludes them here so the
 // shell union stays one shape. "customize" is workspace-only and renders its
 // own canvas below.
@@ -213,7 +213,6 @@ const activeSection = computed<WorkspaceSectionId | null>(() =>
   shell.mainView !== "application" &&
   shell.mainView !== "account" &&
   shell.mainView !== "engine" &&
-  shell.mainView !== "desktop-access" &&
   shell.mainView !== "customize"
     ? shell.mainView
     : null,

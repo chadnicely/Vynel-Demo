@@ -2,9 +2,6 @@ import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/cla
 import type { Database } from '@vynel/db'
 import type { DesktopPlanConsent } from '@vynel/mcp-contract'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
-import { makeDesktopAccessAuthorizer } from '../access/assert-desktop-access.js'
-import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
-import { findDesktopAppGrant } from '../repositories/desktop-app-grants.js'
 import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makeListDesktopNotificationsTool } from './list-desktop-notifications-tool.js'
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
@@ -20,7 +17,6 @@ import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
 import { makeActOnDesktopTool } from './act-on-desktop-tool.js'
 import { makeProposeDesktopPlanTool } from './propose-desktop-plan-tool.js'
-import { makeRequestDesktopAccessTool } from './request-desktop-access-tool.js'
 
 export type BuildDesktopMcpServerInput = {
   reader: DesktopNotificationReader
@@ -50,34 +46,34 @@ export type BuildDesktopMcpServerInput = {
 // shape. Forwarded into the SDK session's `options.mcpServers` alongside the
 // other servers. See decision `[[desktop-control-mcp-server]]`.
 //
-// The access model (Claude-desktop-style per-app tiers): EVERY app-directed
-// tool — snapshot/screenshot (read) and the act tools (click/full) — resolves
-// its target app first and enforces the user's grant for THAT app via the
-// authorizer. `request_desktop_access` (registered always; carded in every
-// mode) is the only way a grant comes into being. `list_open_apps` (names
-// only) and `list_desktop_notifications` (redacted at ingest) stay ungated.
+// THE ACCESS MODEL, as of 2026-08-13 (Kafi's call): the PLAN is the only
+// authority, and it covers ACTING only.
+//
+//   looking  (list_*, snapshot, screenshot, wait_for)  -> ungated, no overlay
+//   acting   (act_*, launch, window state/bounds, clipboard) -> plan + overlay
+//
+// Per-app grants and `request_desktop_access` are gone. They asked a second
+// time for consent the plan already carries, in a vocabulary a non-technical
+// user cannot evaluate — the cards this package generated in practice said
+// "Docker Desktop Launcher" and "Application Frame Host". A plan that says
+// "open Docker and check whether the containers are running" is consent someone
+// can actually give, and the overlay narrates the acting as it happens.
 /** The turn's tool set — exported so tests can assert registration without
  *  reaching into the live McpServer instance. */
 export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown[] {
-  const authorize = makeDesktopAccessAuthorizer(input.db, input.userId)
-  const readGrantedTier = (appName: string) =>
-    findDesktopAppGrant(input.db, input.userId, normalizeDesktopAppKey(appName))?.tier ?? null
   const factories: unknown[] = [
     makeListDesktopNotificationsTool(input.reader),
-    makeListOpenAppsTool(readGrantedTier),
+    makeListOpenAppsTool(),
     // Names only, like list_open_apps — knowing an app exists grants nothing.
     makeListInstalledAppsTool(),
-    // Display topology. Ungated for the same reason: knowing a screen EXISTS
-    // reveals nothing about what is on it — seeing that still needs a grant.
     makeListMonitorsTool(),
-    makeSnapshotAppTool(authorize),
-    makeScreenshotAppTool(authorize),
-    // Read-only, so no plan — but the text conditions read an app's content,
-    // and those enforce the same `read` tier snapshot_app does, on every poll.
-    makeWaitForTool(authorize),
-    // Registered even with actions OFF — the read tools are grant-gated too,
-    // so the consent path must always exist.
-    makeRequestDesktopAccessTool(input.db, input.userId),
+    // LOOKING is ungated. Reading needs no plan (you often have to look before
+    // you can plan), and per-app grants — its only other gate — are gone: they
+    // asked a second time for consent the plan already carries, in a vocabulary
+    // a non-technical user cannot evaluate. Nothing here changes the screen.
+    makeSnapshotAppTool(),
+    makeScreenshotAppTool(),
+    makeWaitForTool(),
   ]
   if (input.enableActions === true) {
     // ONE envelope shared by the plan tool and both act tools — that shared

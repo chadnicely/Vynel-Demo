@@ -203,7 +203,6 @@ export function clampZoomRegion(
  */
 export async function screenshotApp(
   query: string,
-  authorize?: DesktopAccessAuthorizer,
   options: { region?: ZoomRegion } = {},
   // Internal: the auto-restore retry. A minimized window has no pixels, so the
   // first pass restores it (at the read tier — Kafi 2026-08-11) and re-enters
@@ -236,7 +235,6 @@ export async function screenshotApp(
   // ENFORCE FIRST, for every remaining branch — even "that window exists and is
   // minimized" is information about an ungranted app, and restoring one is an
   // action on it. Nothing below this line touches a window whose grant failed.
-  authorize?.(target.appName, 'read')
   if (target.kind === 'unrestorable') {
     throw new Error(
       `The "${target.appName}" window is minimized and couldn't be restored automatically — ` +
@@ -249,7 +247,7 @@ export async function screenshotApp(
     // 2026-08-11). The retry re-enters with `alreadyRestored`, so a window that
     // refuses to come back lands on `unrestorable` instead of looping.
     await restore(target.pid)
-    return screenshotApp(query, authorize, options, { restore, alreadyRestored: true })
+    return screenshotApp(query, options, { restore, alreadyRestored: true })
   }
   const winner = windows.find((entry) => entry.info.id === target.windowId)
   if (winner === undefined) {

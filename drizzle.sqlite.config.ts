@@ -65,7 +65,6 @@ export default defineConfig({
     '../session/src/schema/primary-sessions.ts',
     '../session/src/schema/session-turns.ts',
     '../orchestration/src/schema/delegation-jobs.ts',
-    '../desktop-control/src/schema/desktop-app-grants.ts',
     './src/schema/_shared/outbox-events.ts',
   ],
   out: './src/migrations-sqlite',

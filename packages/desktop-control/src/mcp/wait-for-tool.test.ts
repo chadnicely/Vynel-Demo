@@ -21,7 +21,7 @@ function instantClock(): WaitClock {
 }
 
 const build = (probes: WaitProbes) =>
-  makeWaitForTool(undefined, { probes, clock: instantClock() }) as unknown as BuiltTool
+  makeWaitForTool({ probes, clock: instantClock() }) as unknown as BuiltTool
 
 const textOf = (result: { content: Array<{ text?: string }> }) => result.content[0]?.text ?? ''
 

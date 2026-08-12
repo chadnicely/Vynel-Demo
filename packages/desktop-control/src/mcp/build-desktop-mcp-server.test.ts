@@ -29,7 +29,7 @@ describe('buildDesktopMcpServer', () => {
 })
 
 describe('desktopToolFactories', () => {
-  it('registers request_desktop_access even with actions OFF (read tools need grants too)', () => {
+  it('registers LOOKING only with actions OFF — and no consent tool at all', () => {
     const names = toolNames(desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u' }))
     expect(names).toEqual([
       'list_desktop_notifications',
@@ -42,8 +42,19 @@ describe('desktopToolFactories', () => {
       'screenshot_app',
       // Read-only, so it rides the observe tier and needs no plan.
       'wait_for',
-      'request_desktop_access',
     ])
+  })
+
+  it('has NO request_desktop_access in any mode — the plan is the only consent', () => {
+    // Per-app grants are retired: they asked a second time for consent the plan
+    // already carries, in a vocabulary a non-technical user cannot evaluate.
+    // A stray re-registration would resurrect a door with nothing behind it.
+    for (const enableActions of [false, true]) {
+      const names = toolNames(
+        desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u', enableActions }),
+      )
+      expect(names).not.toContain('request_desktop_access')
+    }
   })
 
   it('keeps BOTH clipboard tools behind actions — even the read', () => {

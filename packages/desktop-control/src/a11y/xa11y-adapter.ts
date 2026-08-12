@@ -79,19 +79,17 @@ export type AppSnapshot = {
 export async function snapshotApp(
   query: string,
   options: SnapshotAppOptions = {},
-  authorize?: DesktopAccessAuthorizer,
 ): Promise<AppSnapshot> {
   const trimmedQuery = query.trim()
   if (trimmedQuery.length === 0) {
     throw new Error('snapshotApp: an app name (or part of it) is required — name the app to look at.')
   }
   const { App } = loadXa11y()
-  // Enforcement rides the resolution seam: it fires on the RESOLVED identity
-  // (never the fuzzy query) and BEFORE the Electron wake actuates anything —
-  // a denied app must not be foregrounded or woken.
-  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read', undefined, (appName) =>
-    authorize?.(appName, 'read'),
-  )
+  // Reading is ungated: no per-app grant to enforce, so resolution no longer
+  // carries an identity callback. The identity work it does still matters —
+  // it is what the plan envelope and the activity log name — but nothing is
+  // refused on the way in.
+  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read')
   // Electron renderer trees are deep — use the deeper default only on that path;
   // keep enumerated apps (incl. Chromium browsers) shallow. Explicit maxDepth wins.
   const defaultDepth = resolved.viaElectronWake ? ELECTRON_SNAPSHOT_MAX_DEPTH : DEFAULT_SNAPSHOT_MAX_DEPTH

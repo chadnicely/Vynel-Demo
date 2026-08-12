@@ -4,9 +4,10 @@
 // calls mid-turn: desktop notifications, listing open apps, reading an app's
 // accessibility tree / pixels (`src/a11y/`), and — behind the default-off env
 // flag — element and coordinate actions (`src/input/`). Every app-directed
-// operation is gated by the PER-APP ACCESS GRANTS (`src/access/` +
-// `desktop_app_grants`): the user consents per app, per tier (read / click /
-// full) via the `request_desktop_access` approval card, and enforcement fails
+// LOOKING is ungated; ACTING is gated by the turn's approved PLAN (`src/plan/`),
+// which names every app it will touch and at which tier (read / click / full).
+// Per-app grants were retired 2026-08-13 — they asked a second time for consent
+// the plan already carries. Enforcement fails
 // closed against the resolved target app. See README.md.
 
 export { createDesktopNotificationListener } from './notifications/listener.js'
@@ -82,14 +83,6 @@ export {
   normalizeDesktopAppKey,
 } from './access/desktop-access-tiers.js'
 export type { DesktopAccessTier, DesktopAccessAuthorizer } from './access/desktop-access-tiers.js'
-export { assertDesktopAccess, makeDesktopAccessAuthorizer } from './access/assert-desktop-access.js'
-export { grantDesktopAccess, revokeDesktopAccess } from './access/grant-desktop-access.js'
-export type {
-  GrantDesktopAccessInput,
-  GrantDesktopAccessOutcome,
-} from './access/grant-desktop-access.js'
-export { listDesktopAppGrants, findDesktopAppGrant } from './repositories/desktop-app-grants.js'
-export type { DesktopAppGrantRow } from './repositories/desktop-app-grants.js'
 export {
   DESKTOP_ACCESS_GRANTED,
   DESKTOP_ACCESS_REVOKED,

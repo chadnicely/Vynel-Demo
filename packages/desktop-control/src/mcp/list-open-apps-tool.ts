@@ -33,14 +33,14 @@ export function buildListOpenAppsResponse(
 }
 
 /** Construct the read-only `list_open_apps` SDK MCP tool. */
-export function makeListOpenAppsTool(readGrantedTier?: ReadGrantedTier): unknown {
+export function makeListOpenAppsTool(): unknown {
   return (tool as unknown as McpToolFn)(
     'list_open_apps',
     TOOL_DESCRIPTION,
     {},
     async () => {
       try {
-        return buildListOpenAppsResponse(await listOpenApps(), readGrantedTier)
+        return buildListOpenAppsResponse(await listOpenApps())
       } catch (err) {
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],

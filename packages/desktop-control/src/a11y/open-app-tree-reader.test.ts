@@ -61,37 +61,6 @@ describe('openAppTreeReader — the identity it re-authorizes against', () => {
     dispose.mockClear()
   })
 
-  it('re-checks the CANONICAL app name, never the window title', async () => {
-    const checked: Array<[string, DesktopAccessTier]> = []
-    const reader = await openAppTreeReader('discord', (appName: string, tier: DesktopAccessTier) => {
-      checked.push([appName, tier])
-    })
-    await reader.readTree()
-    await reader.readTree()
-    reader.dispose()
-
-    // Once at resolution, once per read — and every one names "Discord".
-    expect(checked).toEqual([
-      [CANONICAL, 'read'],
-      [CANONICAL, 'read'],
-      [CANONICAL, 'read'],
-    ])
-    expect(checked.some(([name]) => name === WINDOW_TITLE)).toBe(false)
-  })
-
-  it('still stops a read once the grant is revoked mid-poll', async () => {
-    // The property the per-read check exists for. Holding the wake open must
-    // not mean holding the authorization open.
-    let revoked = false
-    const reader = await openAppTreeReader('discord', (appName: string) => {
-      if (revoked) throw new Error(`Desktop access denied for "${appName}"`)
-    })
-    await expect(reader.readTree()).resolves.toBe('<tree/>')
-    revoked = true
-    await expect(reader.readTree()).rejects.toThrow(/denied for "Discord"/)
-    reader.dispose()
-  })
-
   it('resolves ONCE however many reads happen — the wake is held, not repeated', async () => {
     const reader = await openAppTreeReader('discord')
     await reader.readTree()

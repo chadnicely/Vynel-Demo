@@ -49,7 +49,7 @@ export function buildSnapshotAppResponse(
 }
 
 /** Construct the read-only `snapshot_app` SDK MCP tool. */
-export function makeSnapshotAppTool(authorize?: DesktopAccessAuthorizer): unknown {
+export function makeSnapshotAppTool(): unknown {
   return (tool as unknown as McpToolFn)(
     'snapshot_app',
     TOOL_DESCRIPTION,
@@ -86,7 +86,6 @@ export function makeSnapshotAppTool(authorize?: DesktopAccessAuthorizer): unknow
             ...(maxDepth !== undefined ? { maxDepth } : {}),
             ...(timeoutMs !== undefined ? { timeoutMs } : {}),
           },
-          authorize,
         )
         return buildSnapshotAppResponse(app, snapshot)
       } catch (err) {

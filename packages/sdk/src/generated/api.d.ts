@@ -2286,40 +2286,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/desktop/access": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List the desktop apps the user has granted Claude access to. */
-        get: operations["getDesktopAccess"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/desktop/access/{appName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Revoke Claude's access to a desktop app. */
-        delete: operations["deleteDesktopAccessByAppName"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/marketplace/sources": {
         parameters: {
             query?: never;
@@ -12267,60 +12233,6 @@ export interface operations {
                 content?: never;
             };
             /** @description Unknown install, or no sign-in in progress. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getDesktopAccess: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Array of desktop app grants (app + tier). */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        id: string;
-                        appName: string;
-                        /** @enum {string} */
-                        tier: "read" | "click" | "full";
-                        createdAt: string;
-                        updatedAt: string;
-                    }[];
-                };
-            };
-        };
-    };
-    deleteDesktopAccessByAppName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                appName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Grant revoked. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No grant exists for that app. */
             404: {
                 headers: {
                     [name: string]: unknown;

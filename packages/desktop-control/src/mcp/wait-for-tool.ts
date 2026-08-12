@@ -61,7 +61,6 @@ async function hasVisibleWindow(app: string): Promise<boolean> {
 
 /** Construct the read-only `wait_for` SDK MCP tool. */
 export function makeWaitForTool(
-  authorize?: DesktopAccessAuthorizer,
   deps: WaitForToolDeps = {},
 ): unknown {
   const clock = deps.clock ?? realClock
@@ -120,7 +119,7 @@ export function makeWaitForTool(
           (conditionReadsContent(until)
             ? {
                 readTree: async (target) => {
-                  held.reader ??= await openAppTreeReader(target, authorize)
+                  held.reader ??= await openAppTreeReader(target)
                   return held.reader.readTree()
                 },
                 isAppOpen: hasVisibleWindow,

@@ -63,7 +63,7 @@ function parseRegion(raw: unknown): { x: number; y: number; width: number; heigh
 }
 
 /** Construct the read-only `screenshot_app` SDK MCP tool. */
-export function makeScreenshotAppTool(authorize?: DesktopAccessAuthorizer): unknown {
+export function makeScreenshotAppTool(): unknown {
   return (tool as unknown as McpToolFn)(
     'screenshot_app',
     TOOL_DESCRIPTION,
@@ -90,7 +90,7 @@ export function makeScreenshotAppTool(authorize?: DesktopAccessAuthorizer): unkn
         const app = typeof args['app'] === 'string' ? args['app'] : ''
         const region = parseRegion(args['region'])
         return buildScreenshotAppResponse(
-          await screenshotApp(app, authorize, region !== null ? { region } : {}),
+          await screenshotApp(app, region !== null ? { region } : {}),
         )
       } catch (err) {
         return {

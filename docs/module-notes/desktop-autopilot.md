@@ -302,10 +302,33 @@ mobile app later and the enabled env will sit in app setting so not our current 
     default would make every act permissive. So A1 inverts it: a plan miss DENIES, with the
     "propose an updated plan" recovery. This is the only phase that changes behaviour.
   - **A1 ✅ DONE 2026-08-12** (`afd208f`). Scoped to ACTING. Gate green.
-  - **A2 / A3 — 🔴 BLOCKED, and it needs one decision from Kafi.** ⚠ **Do not start these without
-    answering the question below**, or reading breaks completely.
+  - **A2 / A3 — ✅ DONE 2026-08-13.** Kafi answered the question below: **reading is free.** The
+    model he described is simpler than any of the three options:
 
-    **The question: should READING the desktop still need consent?**
+    > *"todo/steps where claude can set steps… control overlay in that same way. If its a long task
+    > like automation not only read but also perform, claude will decide and show proposal and
+    > overlay while controlling. And if its auto mode, no matter schedule or remote, it can do
+    > anything user asked but will show that overlay… so claude can handle when to show the control
+    > when not to. So we don't need any access request for each app."*
+
+    So: **looking is ungated and silent; acting rides the plan and narrates on the overlay.** The
+    overlay is the accountability, not a consent card. Confirmed with him: a read NEVER raises the
+    overlay, and ask mode DOES still card the plan once.
+
+    Removed: `request_desktop_access`, `assert-desktop-access`, `grant-desktop-access`, the grants
+    repository + table (migration `0036`, one `DROP TABLE`), the `/desktop/access` API route, and
+    the whole "Desktop access" UI section. **That nav slot is where the access LOG should live.**
+
+    ⚠ **The security debt Kafi took on knowingly**, so it is not rediscovered as a bug: a channel
+    turn (Telegram) now acts on the desktop with no approval anywhere. That reverses "a background
+    turn can never self-grant" (Chad 2026-08-04). His reasoning: *"we can't complete all security
+    level right now but we have to build the functionality right. claude know which message coming
+    from where. So we can have strict rule later where telegram message won't have any unwanted
+    control — we will have our own mobile app later."* The turn's ORIGIN is already known at
+    `run-global-root-turn.ts`, so the tightening is a filter on one value, not a redesign.
+
+    ~~**The question: should READING the desktop still need consent?**~~ *(answered — kept for the
+    reasoning)*
 
     The read tools (`snapshot_app`, `screenshot_app`, `wait_for`) do NOT go through the plan — a
     read needs no plan, by design. Their only gate is the per-app grant. So:

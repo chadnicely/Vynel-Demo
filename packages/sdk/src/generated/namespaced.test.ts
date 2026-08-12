@@ -255,10 +255,10 @@ describe('makeNamespaced — shape', () => {
       // added `dashboardWorkspace` (GET /workspaces/:id/dashboard/usage, the
       // per-workspace dashboard twin).
       'dashboardWorkspace',
-      // test: correct expectation — the desktop-control security slice
-      // (2026-08-04) added `desktopAccess` (GET/DELETE /desktop/access, the
-      // per-app grant list + revoke doors).
-      'desktopAccess',
+      // test: correct expectation — `desktopAccess` REMOVED (2026-08-13). The
+      // per-app grant model it fronted (GET/DELETE /desktop/access) is retired:
+      // the turn's approved plan is the only authority for acting, and looking
+      // is ungated, so there is no grant list to read or revoke.
       // test: correct expectation — the engineering-plan modules (2026-08-11)
       // added `phases` + `features` (agent-only workspace surfaces).
       'features',
