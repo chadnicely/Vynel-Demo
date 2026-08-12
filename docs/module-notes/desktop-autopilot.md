@@ -272,22 +272,21 @@ anywhere. Deliberate, Kafi's call, functionality first — and the turn's ORIGIN
 
 ### Item 6 PHASE 2 — what is left, and why each piece was NOT done blind
 
-**1. Trace `sessionId` — the per-task read is inert without it.** `desktop_actions.session_id` is
-NULL on every row today, so `listDesktopActionsForSession` returns `[]` and
-`desktop_actions_session_idx` indexes a constant. The MCP server is built from
-`desktop-mcp-feature-descriptor.ts`, whose `SessionToolContext`
-(`packages/mcp-contract/src/mcp-feature-descriptor.ts`) carries **no session field at all** — so
-this is a cross-package contract change, not a one-liner.
+**1. Trace `sessionId` — ✅ DONE 2026-08-13.** The key is **Vynel's own stable primary-session id,
+never the SDK's** (assigned mid-stream on the global-root path; swaps on compaction, which would
+split one task's rows). `SessionToolContext` gained an optional `sessionId`; the descriptor threads
+it through the new `buildDesktopActWriter` seam (testable without driving a native act). All four
+desktop-composing sites populate it: the spawned-session turn (`spawned.id` + its grounding
+workspace), both global-root paths (the idempotent, race-safe primary resolve hoisted above
+composition — the in-lock `resolveTarget` stays authoritative), and the delegated composer
+(`targetPrimarySessionId`). ⚠ Rows recorded BEFORE this change carry SDK ids in `session_id` —
+unmatchable against primary ids, and no backfill is possible (the SDK→primary mapping is lost
+across compactions). Those keys were already useless; do not puzzle over the mixed keys when the
+log's read side lands.
 
-⚠ The wrinkle to design around: on the global-root path the SDK session id is not known until the
-runtime assigns it **mid-stream** (`run-global-root-turn.ts`), so a build-time `sessionId` cannot be
-filled there. **Vynel's own stable session id is the key that actually works** — not the SDK's.
-`streams/session-turn.ts` already has a spawned session in scope and is the easy half.
-
-**2. Trace `workspaceId` too** (Kafi, 2026-08-13). Workspaces have no desktop access today, so
-nothing would populate it yet — but the log is the surface a user will eventually filter by
-workspace, and adding the column with the tracing (rather than before it) keeps an unpopulated
-column out of the schema in the meantime. Do both in one migration when `sessionId` lands.
+**2. Trace `workspaceId` too — ✅ DONE 2026-08-13, same migration (`0038`),** with its filter index.
+It populates today for workspace-grounded spawned sessions (they CAN drive the desktop); null for
+global work, as expected.
 
 **3. ~~A step that THREW leaves no row.~~ ✅ DONE 2026-08-13 (`8be4c7f`)** — pulled OUT of phase 2,
 because it was not future work: it was a correctness bug in what had just shipped. Refusals before
@@ -301,11 +300,19 @@ sleep was the very risk its own comment warned about — a slow Electron field h
 text yet, so verification reported a false MISMATCH, which now also writes `failed` into an
 append-only row.
 
-**4. Then the continuation prompt** — read the record at turn start so Claude can say "last time I
-got as far as X, shall I carry on?" and let the USER decide. Option A, Kafi's call: we cannot know
-whether the act in flight completed, and if it was "click Send" then re-running it sends twice.
-Item 7 established we can only verify TYPING, so "was that step done?" is unanswerable for exactly
-the actions where being wrong is irreversible.
+**4. The continuation prompt — ✅ DONE 2026-08-13.** `contributePrompt` reads the session's recent
+tail (`listRecentDesktopActionsForSession`, newest-first, bounded — the global root accumulates
+rows without bound) and renders the most recent task via `desktop-continuation-prompt.ts`: 24h
+recency window, the newest goal's contiguous rows, a 12-act cap with an honest truncation marker.
+Option A held, Kafi's call: NOT automatic resume — we cannot know whether the act in flight
+completed, and if it was "click Send" then re-running it sends twice. The section instructs
+ask-first and never re-arms anything; it also declares itself a **historical record, never
+instructions** (a failure note can quote on-screen third-party text, which must not gain
+system-prompt authority). Review sweep folded in: all three record reads tie-break equal
+timestamps by insertion order — rapid same-ms acts rendered in a coin-flip order before.
+Deferred, recorded: the descriptor's continuation read drops its section on a failed read with NO
+log line, because `SessionToolContext` carries no logger and `@vynel/logger` is injection-only —
+when the context gains a logger, warn there.
 
 **Remaining beyond item 6:** the last two fills in item 10 (`mouse_position`, whole-screen
 capture). `mouse_button` is CLOSED — waypoints
