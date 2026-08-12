@@ -54,8 +54,24 @@ export type DesktopPlan = {
  * lands well inside it, so hitting this means something is wrong, not that the
  * work was big. The model is told to re-observe and re-plan, not merely retry:
  * retrying is what got it here.
+ *
+ * ⚠ IT MUST STAY BELOW `DELEGATION_RUN_BUDGET_MS` (10 min, in
+ * `packages/session/.../run-delegation-claim-and-run-tick.ts`), AND BY A MARGIN.
+ * The two clocks start at different moments: the delegation budget runs from the
+ * job being CLAIMED, this one from the plan being FIRST ARMED — which is always
+ * later, because the model has to read the request and propose a plan before it
+ * can arm anything. At 10 minutes each, the delegation deadline therefore always
+ * arrived first and this watchdog could never fire on a delegated turn — exactly
+ * the unattended case it was written for. Identical numbers looked deliberate
+ * and were the bug.
+ *
+ * Six minutes of CONTINUOUS ACTING is still generous (a click or keystroke is
+ * milliseconds; even several `wait_for` calls at the 120s cap fit), and the four
+ * minutes of headroom are not slack — they are what lets the model do what the
+ * timeout message asks: stop, look at the screen, and TELL THE USER where it got
+ * to. A watchdog that fires with no time left to report is just a silent death.
  */
-export const DESKTOP_TASK_BUDGET_MS = 10 * 60 * 1000
+export const DESKTOP_TASK_BUDGET_MS = 6 * 60 * 1000
 
 export type DesktopPlanEnvelope = {
   readonly consent: DesktopPlanConsent

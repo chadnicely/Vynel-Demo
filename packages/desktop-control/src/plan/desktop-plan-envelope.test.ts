@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { createDesktopPlanEnvelope, type DesktopPlan } from './desktop-plan-envelope.js'
+import {
+  createDesktopPlanEnvelope,
+  DESKTOP_TASK_BUDGET_MS,
+  type DesktopPlan,
+} from './desktop-plan-envelope.js'
 
 const chromePlan: DesktopPlan = {
   goal: 'Open Chrome and search the latest song on YouTube',
@@ -114,5 +118,32 @@ describe('the desktop task budget', () => {
     expect(envelope.elapsedMs()).toBe(9_000)
     advance(1_000)
     expect(envelope.hasOutrunBudget()).toBe(true)
+  })
+})
+
+// The two budgets used to be identical, which LOOKED deliberate and was the bug:
+// the delegation budget runs from the job being CLAIMED, this one from the plan
+// being FIRST ARMED — always later — so at 10 minutes each the delegation
+// deadline always won and this watchdog could never fire on a delegated turn,
+// the exact unattended case it exists for.
+describe('the desktop watchdog against the delegation budget', () => {
+  // Mirrored, not imported: desktop-control must not depend on @vynel/session.
+  // If that constant moves, this test is the tripwire.
+  const DELEGATION_RUN_BUDGET_MS = 10 * 60 * 1000
+
+  it('leaves room for the delegation clock, which starts EARLIER', () => {
+    expect(DESKTOP_TASK_BUDGET_MS).toBeLessThan(DELEGATION_RUN_BUDGET_MS)
+  })
+
+  it('leaves enough headroom to REPORT, not just to die quietly', () => {
+    // The timeout message tells the model to look at the screen and tell the
+    // user where it got to. That needs time after the watchdog fires.
+    const headroom = DELEGATION_RUN_BUDGET_MS - DESKTOP_TASK_BUDGET_MS
+    expect(headroom).toBeGreaterThanOrEqual(3 * 60 * 1000)
+  })
+
+  it('still allows a long real task to finish', () => {
+    // Several wait_for calls at the 120s cap plus the acting between them.
+    expect(DESKTOP_TASK_BUDGET_MS).toBeGreaterThanOrEqual(5 * 60 * 1000)
   })
 })
