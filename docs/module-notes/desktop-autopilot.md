@@ -262,8 +262,12 @@ framing, which is simpler than any option I had drafted:
 anywhere. Deliberate, Kafi's call, functionality first — and the turn's ORIGIN is already known at
 `run-global-root-turn.ts`, so per-channel trust is a later filter on one value, not a redesign.
 
-**Remaining:** item 7 (post-action verification), item 6 (durable task record), and the last two
-fills in item 10 (`mouse_position`, whole-screen capture). `mouse_button` is CLOSED — waypoints
+- Item 7 — typing now reports what actually LANDED, read back from the field (`14cdde9`). Scoped
+  honestly: a click cannot be verified in general, so `press` still puts the burden on the model to
+  look, and both the notebook and the system prompt say so.
+
+**Remaining:** item 6 (durable task record) and the last two fills in item 10 (`mouse_position`,
+whole-screen capture). `mouse_button` is CLOSED — waypoints
 covered the gesture; separate press/release is not worth reopening.
 
 ## WHAT'S LEFT — the live list (2026-08-11, after Kafi's smoke test)
