@@ -6,6 +6,7 @@
 // adapter because these serve the access model, not capture.
 
 import { loadNodeScreenshots } from './screenshot-adapter.js'
+import { isWindowHostProcess, readWindowIdentity } from './window-host-processes.js'
 
 /**
  * The app name of the window that currently has keyboard focus — the
@@ -22,7 +23,7 @@ export function findFocusedWindowAppName(): string | null {
       return false
     }
   })
-  return focused !== undefined ? String(focused.appName()) : null
+  return focused !== undefined ? readWindowIdentity(focused) : null
 }
 
 /** A window's rectangle + stacking order, read into plain data for the pure
@@ -71,7 +72,11 @@ export function pickTopmostWindowAt(
 export function findWindowAppNameAtPoint(x: number, y: number): string | null {
   const { Window } = loadNodeScreenshots()
   const candidates: WindowHitCandidate[] = Window.all().map((native) => ({
-    appName: String(native.appName()),
+    // The identity, not the raw process name — a click landing on Calculator
+    // must enforce and report as Calculator, not as the host it shares with
+    // every other packaged app. An unnameable window keeps '' and so can never
+    // match an authorization.
+    appName: readWindowIdentity(native) ?? '',
     isMinimized: Boolean(native.isMinimized()),
     x: Number(native.x()),
     y: Number(native.y()),
@@ -79,7 +84,10 @@ export function findWindowAppNameAtPoint(x: number, y: number): string | null {
     height: Number(native.height()),
     z: Number(native.z()),
   }))
-  return pickTopmostWindowAt(candidates, x, y)?.appName ?? null
+  // '' is the unnameable marker, not a name — hand back null so the caller
+  // fails closed the same way it does when no window contains the point.
+  const hit = pickTopmostWindowAt(candidates, x, y)?.appName ?? ''
+  return hit.length > 0 ? hit : null
 }
 
 /**
@@ -94,8 +102,12 @@ export function listWindowAppNames(): string[] {
   const { Window } = loadNodeScreenshots()
   const names = new Set<string>()
   for (const native of Window.all()) {
-    const appName = String(native.appName())
-    if (appName.length > 0) names.add(appName)
+    // Packaged apps enter here as one repeated "Application Frame Host"; their
+    // titles are what make Calculator and Settings distinct rows. Without this
+    // the roster cannot name them, which is why launch_app reported
+    // started-no-window for a Store app that had plainly opened.
+    const identity = readWindowIdentity(native)
+    if (identity !== null) names.add(identity)
   }
   return [...names]
 }
@@ -114,17 +126,24 @@ export function listWindowAppNames(): string[] {
  */
 export function findAppNameByPid(pid: number): string | null {
   const { Window } = loadNodeScreenshots()
+  const identities = new Set<string>()
+  let hosted = false
   for (const native of Window.all()) {
     try {
-      if (Number(native.pid()) === pid) {
-        const appName = String(native.appName())
-        if (appName.length > 0) return appName
-      }
+      if (Number(native.pid()) !== pid) continue
+      if (isWindowHostProcess(String(native.appName() ?? ''))) hosted = true
+      const identity = readWindowIdentity(native)
+      if (identity !== null) identities.add(identity)
     } catch {
       // A shape surprise on one window must not blind the whole lookup.
     }
   }
-  return null
+  const [first] = identities
+  // A HOSTED pid is genuinely ambiguous once it owns more than one window —
+  // Calculator and Settings both live on pid 8828, and nothing in the pid says
+  // which one the caller meant. Answering anyway would name the wrong app.
+  if (hosted && identities.size !== 1) return null
+  return first ?? null
 }
 
 /** The lookup `resolveAppIdentity` performs — injectable for tests. */
@@ -134,14 +153,29 @@ export type AppNameByPidLookup = (pid: number) => string | null
  * Canonical identity for an app reached through the accessibility tree:
  * the pid's real app name, falling back to the name the caller had when the
  * pid can't be mapped (a pid-less app, or a window the capture source can't
- * see). The fallback is deliberately the LAST resort — it can only ever match
- * a grant taken under that same fallback, so it never widens access.
+ * see).
+ *
+ * **`fallbackName` must be a name that was OBSERVED, never one that was
+ * REQUESTED.** xa11y's resolved `App.name` and a window title qualify; the
+ * model's `app` argument does not. The distinction is not academic: packaged
+ * apps share one pid, so the lookup returns null for an ambiguous host pid and
+ * the fallback becomes the answer. Pass the query there and "move Calculator"
+ * happily names a Settings window Calculator — which then authorizes against
+ * the wrong app and records the wrong one. `set-window-bounds-tool.ts` passes
+ * `''` for exactly this reason, and takes the empty result as "cannot identify,
+ * do nothing". A caller with no observed name should do the same.
  */
 export function resolveAppIdentity(
   pid: number | null,
   fallbackName: string,
   lookup: AppNameByPidLookup = findAppNameByPid,
 ): string {
-  if (pid === null) return fallbackName
-  return lookup(pid) ?? fallbackName
+  const resolved = pid === null ? fallbackName : (lookup(pid) ?? fallbackName)
+  // A host process is never an identity, by whichever route it arrived. This is
+  // the backstop that makes the whole rule hold: even a stale grant keyed on
+  // "Application Frame Host" — one exists in the dev database — becomes
+  // unreachable, because nothing can resolve to that name any more. '' is the
+  // unidentified marker, which `assertDesktopAccess` already refuses with
+  // "the target app could not be identified".
+  return isWindowHostProcess(resolved) ? '' : resolved
 }

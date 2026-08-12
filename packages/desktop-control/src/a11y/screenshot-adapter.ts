@@ -21,6 +21,7 @@ import { downscalePngToFit } from './screenshot-scale.js'
 import { restoreIfMinimized } from './window-state.js'
 import { planScreenshotTarget, selectWindowId, type WindowInfo } from './window-selection.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import { readWindowIdentity } from './window-host-processes.js'
 
 // The pure selection layer lives in `window-selection.ts`; re-exported here so
 // the a11y folder keeps ONE import point for the capture path's vocabulary.
@@ -99,7 +100,12 @@ function readWindow(window: NativeWindow): WindowInfo {
   return {
     id: Number(window.id()),
     pid: Number(window.pid()),
-    appName: String(window.appName()),
+    // The IDENTITY, not the raw process name. This field is what
+    // `findAppWindowBounds` hands the coordinate input path to enforce against,
+    // and what `screenshot_app` authorizes and reports — so a packaged app must
+    // arrive here as "Calculator", never as the host it shares with Settings,
+    // Store and Photos. '' when unnameable, which matches nothing.
+    appName: readWindowIdentity(window) ?? '',
     title: String(window.title()),
     isMinimized: Boolean(window.isMinimized()),
     width: Number(window.width()),

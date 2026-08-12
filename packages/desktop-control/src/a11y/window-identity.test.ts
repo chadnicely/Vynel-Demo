@@ -57,3 +57,32 @@ describe('resolveAppIdentity', () => {
     ).toBe('Some App')
   })
 })
+
+describe('resolveAppIdentity — the host backstop', () => {
+  it('never returns a host name, whichever route it arrives by', () => {
+    // A stale grant keyed "application frame host" exists in the dev database.
+    // Making this unreachable is what actually closes the widening.
+    expect(resolveAppIdentity(8828, 'x', () => 'Application Frame Host')).toBe('')
+    expect(resolveAppIdentity(8828, 'Application Frame Host', () => null)).toBe('')
+    expect(resolveAppIdentity(null, 'Application Frame Host')).toBe('')
+  })
+
+  it('still resolves a real app normally', () => {
+    expect(resolveAppIdentity(42, 'Vynel - Google Chrome', () => 'Google Chrome')).toBe(
+      'Google Chrome',
+    )
+  })
+
+  it('lets an OBSERVED fallback answer an ambiguous hosted pid', () => {
+    // The hosted pid is ambiguous, so the lookup returns null and the fallback
+    // decides. That is correct ONLY because callers pass an observed name —
+    // xa11y's resolved App.name, which IS the window it actually opened.
+    expect(resolveAppIdentity(8828, 'Settings', () => null)).toBe('Settings')
+  })
+
+  it('a caller with nothing observed gets nothing back, not a guess', () => {
+    // set_window_bounds passes '' rather than the model's query for this reason:
+    // an unidentifiable window must produce no name at all.
+    expect(resolveAppIdentity(8828, '', () => null)).toBe('')
+  })
+})

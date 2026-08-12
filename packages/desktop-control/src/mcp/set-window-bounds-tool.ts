@@ -127,12 +127,30 @@ export function makeSetWindowBoundsTool(
             isError: true,
           }
         }
-        // Canonical grant identity, then the click tier against IT — never the
-        // fuzzy query — before the window moves.
+        // Canonical identity, then the click tier against IT — never the fuzzy
+        // query. The fallback is '' rather than `query` precisely because the
+        // query is what the MODEL asked for, not what was found: passing it
+        // would let "move Calculator" name a Settings window Calculator, since
+        // both share one pid. No identity means no move.
         const appName =
           appNameByPid !== undefined
-            ? resolveAppIdentity(pid, query, appNameByPid)
-            : resolveAppIdentity(pid, query)
+            ? resolveAppIdentity(pid, '', appNameByPid)
+            : resolveAppIdentity(pid, '')
+        if (appName.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  `Could not identify which app owns the window matching "${query}", so nothing was ` +
+                  'moved. Windows Store apps (Calculator, Settings, Photos) share one process, so ' +
+                  'when several are open a name alone cannot pick one. Close the others, or name ' +
+                  'the app exactly as list_open_apps reports it.',
+              },
+            ],
+            isError: true,
+          }
+        }
         effectiveAuthorize(appName, 'click')
 
         const outcome = await apply(pid, bounds)

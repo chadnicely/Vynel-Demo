@@ -329,11 +329,43 @@ resolveAppIdentity(8828, "Calculator") -> "Application Frame Host"
    everything (`visible=True`, `iconic=False`, `isForeground=False`) — Windows' foreground lock, a
    background process cannot raise a window.
 
-**The fix direction:** for a window owned by a known window-HOST process, identity must come from
-the window **title**, not the process. node-screenshots already carries both per window, which is
-why it can tell the two apart and xa11y cannot. Note this strictly *narrows* access — a grant moves
-from `"Application Frame Host"` (a whole class) to `"Calculator"` (one app) — so it cannot widen
-anything by construction.
+**FIXED 2026-08-12 (defects 1 and 3).** The rule: a window owned by a known host process takes its
+identity from the window **title**, and *a host process name is never itself a valid identity*. That
+second clause is what closes the hole — nothing can resolve to `"Application Frame Host"` any more,
+so the stale grant row keyed on it is unreachable whatever else changes.
+
+`window-host-processes.ts` is the one home for the rule. Its own leaf with no imports, because BOTH
+identity paths need it and they already point at each other (`window-identity.ts` reaches the window
+source through `screenshot-adapter.ts`). The sweep found that second path: `readWindow` in the
+screenshot adapter builds the `appName` that `findAppWindowBounds` hands the coordinate input path
+to enforce against — so it had the same widening, and fixing only `window-identity.ts` would have
+left it open.
+
+Where it fails closed rather than guessing:
+- A hosted window with **no title** is unnameable — null, never the host name.
+- `findAppNameByPid` on a hosted pid owning **more than one** window is genuinely ambiguous
+  (Calculator and Settings are both pid 8828); it answers null rather than naming the wrong app.
+- `set_window_bounds` now passes `''` as `resolveAppIdentity`'s fallback instead of the model's
+  query. The comment there already said "never the fuzzy query" while passing exactly that — with
+  one pid behind two apps, "move Calculator" would have named a Settings window Calculator.
+  `resolveAppIdentity`'s contract is now written down: **the fallback must be OBSERVED, never
+  REQUESTED.**
+
+Verified live with both apps open on the shared pid: the roster reports `["Settings","Calculator"]`
+and no longer contains `"Application Frame Host"`; `findAppNameByPid(8828)` is null;
+`findAppWindowBounds("Calculator")` reports `"Calculator"`; `launch_app` on an open Calculator
+returns `already-open` with zero launches. Non-packaged apps are unchanged (`"Discord"` →
+`"Discord"`).
+
+**Still open — defect 2, reachability.** Not ours: `App.byPid(8828)` returns a tree rooted at ONE
+window (measured: `window "Settings"`, with Calculator absent), and `App.find("Calculator")` throws
+while Settings holds the entry. That is inside the xa11y binding. **Documented limitation: only one
+packaged app is readable at a time.**
+
+**Note for the grant removal.** A stale `application frame host : read` row exists in the dev
+database. It is inert after this change (nothing resolves to that name), and it is left in place
+rather than silently deleted — it is a record of consent Chad/Kafi gave, and it disappears with the
+grant model itself.
 5. **Windows cannot be moved or resized.** `set_window_bounds` does not exist. The *drag gesture* is
    functional (stepped, `act_on_desktop`), so a title-bar drag works mechanically — but dragging a
    window across monitors is exactly the thing Guide §15.2/§15.1 says not to do, and the correct
