@@ -279,10 +279,32 @@ mobile app later and the enabled env will sit in app setting so not our current 
     how test harnesses build ungated tools. Dropping the second argument without flipping that
     default would make every act permissive. So A1 inverts it: a plan miss DENIES, with the
     "propose an updated plan" recovery. This is the only phase that changes behaviour.
-  - **A2 — the surfaces.** Delete `request_desktop_access`, the `desktop-access` API route, the
-    approval plumbing, and `accessTier` from `list_open_apps`.
-  - **A3 — the storage.** Delete the repository, the schema table, and generate the migration
-    (`pnpm --filter @vynel/db exec drizzle-kit generate` — never hand-written).
+  - **A1 ✅ DONE 2026-08-12** (`afd208f`). Scoped to ACTING. Gate green.
+  - **A2 / A3 — 🔴 BLOCKED, and it needs one decision from Kafi.** ⚠ **Do not start these without
+    answering the question below**, or reading breaks completely.
+
+    **The question: should READING the desktop still need consent?**
+
+    The read tools (`snapshot_app`, `screenshot_app`, `wait_for`) do NOT go through the plan — a
+    read needs no plan, by design. Their only gate is the per-app grant. So:
+    - Delete `request_desktop_access` (A2) while reads still require a grant ⇒ **no way to create
+      one ⇒ reading becomes impossible.** The two halves cannot land separately.
+    - Delete the read gate too ⇒ any turn can screenshot any window, with no consent anywhere.
+      That is a privacy LOOSENING, and the opposite direction from A1, which tightened acting.
+
+    A1 was deliberately scoped to acting because it is strictly *more* restrictive and needed no
+    ruling. This one does. Three coherent answers:
+    1. **Reads free.** Simplest, matches "as per user ask it can open any app", and the access LOG
+       becomes the accountability. Accepts that a background turn can screenshot anything.
+    2. **Reads ride the plan.** A read of an app the plan does not name is refused. Keeps one
+       consent model, but changes today's "a read needs no plan" contract and would make the
+       observe-then-plan flow awkward — you often read to find out what to plan.
+    3. **Reads free only on an attended turn** (consent ≠ `display-only`), mirroring the clipboard
+       rule in `unattendedRefusalError`. Probably the closest to the existing security posture.
+
+    My read: **3**, because it keeps the property the whole envelope exists to protect — a
+    background turn can never self-grant — without making the ordinary attended flow clumsy. But it
+    is a product/privacy call, not an engineering one, and worth Chad seeing alongside A.
   Tiers SURVIVE all three: they are how a plan states intent (`apps: [{app, tier}]`), and the
   `read ⊂ click ⊂ full` ladder still gates what an armed plan permits.
 
