@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { buildLaunchInvocation, isLaunchableAppId, launchApp } from './launch-app.js'
+import {
+  buildLaunchInvocation,
+  isLaunchableAppId,
+  launchApp,
+  selectAppearedWindow,
+} from './launch-app.js'
 
 const chrome = { name: 'Google Chrome', appId: 'Chrome' }
 
@@ -110,8 +115,32 @@ describe('launchApp', () => {
   })
 
   it('matches a window named differently from the Start-menu entry', async () => {
-    const { deps } = harness([['chrome.exe']])
+    const { deps } = harness([[], ['chrome.exe']])
     expect(await launchApp(chrome, deps)).toEqual({ kind: 'launched', appName: 'chrome.exe' })
+  })
+
+  // Kafi, live 2026-08-12. Tray recovery means launch_app now gets called on
+  // apps that ARE running, so "launch it anyway" stopped being free: Docker
+  // answers a second activation with an "acquiring launcher lock" error dialog,
+  // which then sits on screen looking exactly like the app.
+  it('starts NOTHING when a window is already open, and says so', async () => {
+    const { started, deps } = harness([['Google Chrome']])
+    expect(await launchApp(chrome, deps)).toEqual({
+      kind: 'already-open',
+      appName: 'Google Chrome',
+    })
+    expect(started).toEqual([])
+  })
+
+  it('still launches a TRAY-hidden app — no window is what makes recovery legal', async () => {
+    // The tray case and the already-open case are the same call; only the
+    // window roster tells them apart, so this is the line that must not blur.
+    const { started, deps } = harness([[], ['Docker Desktop']])
+    expect(await launchApp({ name: 'Docker Desktop', appId: 'Docker.X' }, deps)).toEqual({
+      kind: 'launched',
+      appName: 'Docker Desktop',
+    })
+    expect(started).toEqual(['Docker.X'])
   })
 
   it('reports started-no-window at the deadline instead of hanging', async () => {
@@ -121,7 +150,43 @@ describe('launchApp', () => {
       appName: 'Google Chrome',
     })
   })
+})
 
+describe('selectAppearedWindow', () => {
+  it('prefers the app over a look-alike that EXTENDS its name', () => {
+    // The live failure: a leftover "Docker Desktop Launcher" error dialog was
+    // reported AS Docker, and the model spent the turn screenshotting an error
+    // box. Order reversed here because first-hit matching is what broke.
+    expect(selectAppearedWindow(['Docker Desktop Launcher', 'Docker Desktop'], 'Docker Desktop')).toBe(
+      'Docker Desktop',
+    )
+  })
+
+  it('takes the CLOSEST look-alike when the app itself has no window yet', () => {
+    expect(
+      selectAppearedWindow(['Docker Desktop Installer', 'Docker Desktop Launcher'], 'Docker Desktop'),
+    ).toBe('Docker Desktop Launcher')
+  })
+
+  it('still matches a window reporting a plainer name than the Start-menu entry', () => {
+    expect(selectAppearedWindow(['chrome.exe'], 'Google Chrome')).toBe('chrome.exe')
+    expect(selectAppearedWindow(['Firefox'], 'Firefox Developer Edition')).toBe('Firefox')
+  })
+
+  it('ranks the plainer name ABOVE a suffixed one', () => {
+    // "Firefox" is the app; "Firefox Installer" merely contains what was asked.
+    expect(selectAppearedWindow(['Firefox Installer', 'Firefox'], 'Firefox Developer Edition')).toBe(
+      'Firefox',
+    )
+  })
+
+  it('returns null rather than guessing when nothing relates', () => {
+    expect(selectAppearedWindow(['Discord', 'Slack'], 'Google Chrome')).toBeNull()
+    expect(selectAppearedWindow(['Discord'], '  ')).toBeNull()
+  })
+})
+
+describe('launchApp resilience', () => {
   it('keeps polling when the window source throws mid-wait', async () => {
     let poll = 0
     let clock = 0

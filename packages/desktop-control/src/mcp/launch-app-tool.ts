@@ -40,6 +40,20 @@ export function buildLaunchResponse(
   result: LaunchAppResult,
   requestedName?: string,
 ): { content: Array<{ type: 'text'; text: string }> } {
+  if (result.kind === 'already-open') {
+    return {
+      content: [
+        {
+          type: 'text',
+          text:
+            `"${result.appName}" already has a window open — nothing was launched, which is what you ` +
+            'want: activating an app that is already showing can pop an error dialog that then sits ' +
+            `on screen looking like the app. Use "${result.appName}" for snapshot_app / screenshot_app ` +
+            'and the act tools. If it is not the window you expected, call list_open_apps.',
+        },
+      ],
+    }
+  }
   if (result.kind === 'launched') {
     const drifted =
       requestedName !== undefined &&

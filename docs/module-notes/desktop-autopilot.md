@@ -286,6 +286,34 @@ owned by a separate session and is NOT tracked here any more.**
 
    **The lesson:** never let a tool's silence become a claim about the platform. I shipped
    "Windows can't do this" three times over, and it was a missing argument.
+
+   **Two follow-ups, found by smoke-testing the fix (Kafi, same day).** Tray recovery changed the
+   shape of `launch_app`: it is now routinely called on apps that ARE running, and both bugs were
+   dormant until that became true.
+   - *A second activation is not free.* Docker answers one with an **"acquiring launcher lock"**
+     error dialog. `launchApp` now looks at the window roster BEFORE starting anything and returns
+     `already-open` — a tray app has no window, so recovery still launches, which is exactly the
+     line that separates the two cases.
+   - *The appeared-window match was unranked.* `find()` on a loose substring took whichever window
+     was enumerated first, so the leftover **"Docker Desktop Launcher"** dialog was reported AS
+     Docker and the model spent the turn screenshotting and requesting access to an error box.
+     `selectAppearedWindow` now ranks: exact name → the window reporting a *plainer* name
+     ("Firefox" for "Firefox Developer Edition") → a name that *extends* the request, shortest
+     first. That third tier is the suspicious direction — it is what "<App> Launcher", "Helper" and
+     "Setup" all look like. Same lesson `selectWindowedPid` already learned for Electron helpers;
+     this function never got it.
+
+### Open, found while verifying the above — the PACKAGED-APP (UWP) class
+
+Calculator launched correctly but `launch_app` reported `started-no-window`, and the window opened
+**behind** everything (`visible=True`, `iconic=False`, `isForeground=False`). Both trace to one
+fact: a UWP window belongs to **`ApplicationFrameHost`**, not to the app. So the whole packaged
+class (Calculator, Store, Photos, Settings, the current Notepad) is affected, and the serious half
+is identity — `findAppNameByPid` resolves such a window to `"Application Frame Host"`, which is what
+grants and plan entries would key on, while the model was told to use `"Calculator"`. That is a
+silent denial with no drift warning to catch it. Not fixed: it touches the grant/identity model and
+deserves its own move rather than a patch. `findWindowedPidByName` already resolves these correctly
+by window TITLE, which is the likely thread to pull.
 5. **Windows cannot be moved or resized.** `set_window_bounds` does not exist. The *drag gesture* is
    functional (stepped, `act_on_desktop`), so a title-bar drag works mechanically — but dragging a
    window across monitors is exactly the thing Guide §15.2/§15.1 says not to do, and the correct

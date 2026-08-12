@@ -40,6 +40,16 @@ export type LaunchAppDeps = {
   now?: () => number
 }
 
+/** The window roster, or an empty one. A window-source hiccup is not a launch
+ *  failure — the caller's deadline decides. */
+function readWindowNames(listNames: () => string[]): string[] {
+  try {
+    return listNames()
+  } catch {
+    return []
+  }
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -88,9 +98,53 @@ async function startViaShell(appId: string): Promise<void> {
   })
 }
 
+/**
+ * Pick the window that IS the app, from the names currently on screen.
+ *
+ * Ranked, not first-hit — the same lesson `selectWindowedPid` learned: an
+ * unranked substring match takes whichever window the enumeration happened to
+ * list first. Kafi hit it live (2026-08-12): a leftover "Docker Desktop
+ * Launcher" error dialog was still on screen, "Docker Desktop Launcher"
+ * contains "Docker Desktop", so `launch_app` reported the DIALOG as the app and
+ * the model spent the rest of the turn screenshotting and requesting access to
+ * an error box.
+ *
+ * The tiers, most trustworthy first:
+ *   1. An exact name — no ambiguity to resolve.
+ *   2. The window reports a SHORTER name than asked for ("Firefox Developer
+ *      Edition" opening as "Firefox", "Google Chrome" as "chrome.exe"). This is
+ *      the real app under a plainer name.
+ *   3. The window name EXTENDS the one asked for — the suspicious direction,
+ *      because that is what "<App> Launcher", "<App> Helper" and "<App> Setup"
+ *      all look like. Shortest wins, being the closest to what was asked.
+ *
+ * Pure, for tests.
+ */
+export function selectAppearedWindow(names: string[], requestedName: string): string | null {
+  const needle = requestedName.trim().toLowerCase()
+  if (needle.length === 0) return null
+  const simplify = (name: string): string => name.trim().toLowerCase().replace(/\.exe$/, '')
+  const tierOf = (name: string): number => {
+    const candidate = simplify(name)
+    if (candidate === needle) return 1
+    if (needle.includes(candidate)) return 2
+    return candidate.includes(needle) ? 3 : Number.POSITIVE_INFINITY
+  }
+  const ranked = names
+    .map((name) => ({ name, tier: tierOf(name) }))
+    .filter((entry) => Number.isFinite(entry.tier))
+    .sort((a, b) => a.tier - b.tier || a.name.length - b.name.length)
+  return ranked[0]?.name ?? null
+}
+
 export type LaunchAppResult =
   /** A window carrying this name appeared — the app is ready to target. */
   | { kind: 'launched'; appName: string }
+  /** A window was ALREADY on screen, so nothing was started. Launching an app
+   *  that already has a window is not harmless: Docker Desktop answers a second
+   *  activation with an "acquiring launcher lock" error DIALOG, which then sits
+   *  on screen looking like the app (Kafi, live 2026-08-12). */
+  | { kind: 'already-open'; appName: string }
   /** The launch command ran, but no matching window appeared before the
    *  deadline (a slow splash, an app that reuses an existing window, or one
    *  whose window name differs from its Start-menu name). */
@@ -122,25 +176,19 @@ export async function launchApp(
   const sleep = deps.sleep ?? realSleep
   const now = deps.now ?? Date.now
 
+  // Look BEFORE starting. A tray-hidden app has no window, so recovery still
+  // launches; an app already showing one gets left alone, because a second
+  // activation is what produces Docker's launcher-lock error dialog.
+  const openNow = selectAppearedWindow(readWindowNames(listNames), app.name)
+  if (openNow !== null) return { kind: 'already-open', appName: openNow }
+
   await start(app.appId)
 
   const deadline = now() + WINDOW_WAIT_TIMEOUT_MS
-  const needle = app.name.toLowerCase()
   while (now() < deadline) {
     await sleep(WINDOW_POLL_INTERVAL_MS)
-    let names: string[] = []
-    try {
-      names = listNames()
-    } catch {
-      // A window-source hiccup mid-wait is not a launch failure — keep polling
-      // until the deadline decides.
-      names = []
-    }
-    const appeared = names.find((name) => {
-      const candidate = name.toLowerCase()
-      return candidate.includes(needle) || needle.includes(candidate.replace(/\.exe$/, ''))
-    })
-    if (appeared !== undefined) return { kind: 'launched', appName: appeared }
+    const appeared = selectAppearedWindow(readWindowNames(listNames), app.name)
+    if (appeared !== null) return { kind: 'launched', appName: appeared }
   }
   return { kind: 'started-no-window', appName: app.name }
 }
