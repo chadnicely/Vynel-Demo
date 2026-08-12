@@ -168,6 +168,26 @@ export type AppScreenshot = {
   scale: number
   /** The zoomed region (window-relative, physical pixels), when one was asked for. */
   region: ZoomRegion | null
+  /** Whether this capture UN-MINIMIZED the window to get it. Reported rather
+   *  than silent: it changes what is on the user's screen, and a "read" that
+   *  quietly rearranges their desktop is the one thing a read must not be. */
+  restored: boolean
+}
+
+/** How long to let a just-restored window finish appearing before capturing it.
+ *  A window still animating back captures blank or half-drawn, and the model
+ *  reads that as "the app is empty". */
+export const RESTORE_SETTLE_MS = 250
+
+const settle = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+export type ScreenshotAppOptions = {
+  region?: ZoomRegion
+  /** Override the post-restore settle. Injectable so tests never really wait. */
+  settleMs?: number
 }
 
 /** A window-relative rectangle to zoom into (physical pixels, top-left origin). */
@@ -202,7 +222,7 @@ export function clampZoomRegion(
  */
 export async function screenshotApp(
   query: string,
-  options: { region?: ZoomRegion } = {},
+  options: ScreenshotAppOptions = {},
   // Internal: the auto-restore retry. A minimized window has no pixels, so the
   // first pass restores it (at the read tier — Kafi 2026-08-11) and re-enters
   // ONCE with `restore` disabled, so a window that refuses to restore ends in
@@ -251,6 +271,10 @@ export async function screenshotApp(
     // 2026-08-11). The retry re-enters with `alreadyRestored`, so a window that
     // refuses to come back lands on `unrestorable` instead of looping.
     await restore(target.pid)
+    // Let the window finish coming back before capturing it — an animating or
+    // still-painting window captures as a blank or half-drawn frame, which the
+    // model then reads as "the app is empty". One settle beats a retry loop.
+    await settle(options.settleMs ?? RESTORE_SETTLE_MS)
     return screenshotApp(query, options, { restore, alreadyRestored: true })
   }
   const winner = windows.find((entry) => entry.info.id === target.windowId)
@@ -275,6 +299,9 @@ export async function screenshotApp(
       : await downscalePngToFit(png, image.width, image.height)
   return {
     pngBase64: fitted.png.toString('base64'),
+    // True only on the re-entry AFTER a restore — this is the branch that
+    // captured, so it is the one that knows.
+    restored: internal.alreadyRestored === true,
     appName: winner.info.appName,
     windowTitle: winner.info.title,
     width: fitted.width,

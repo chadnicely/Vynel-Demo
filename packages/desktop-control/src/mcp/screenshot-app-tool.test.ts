@@ -13,6 +13,7 @@ function makeScreenshot(overrides: Partial<AppScreenshot> = {}): AppScreenshot {
     windowHeight: 720,
     scale: 1,
     region: null,
+    restored: false,
     ...overrides,
   }
 }
@@ -56,5 +57,40 @@ describe('buildScreenshotAppResponse', () => {
     const caption = text && 'text' in text ? text.text : ''
     expect(caption).toContain('Zoomed')
     expect(caption).toContain('do not use zoomed-image coordinates')
+  })
+})
+
+
+/** The caption block, the way the existing assertions above unwrap it (the
+ *  content union carries an image block too). */
+function captionOf(response: { content: Array<unknown> }): string {
+  const block = response.content[0] as { type: string; text?: string } | undefined
+  return block !== undefined && block.type === 'text' ? (block.text ?? '') : ''
+}
+
+// A capture that un-minimizes a window CHANGES WHAT IS ON THE USER'S SCREEN.
+// It used to do that silently, which is the one thing a "read" must not do —
+// the whole reason `get_app` now exists is so the model can know beforehand.
+describe('buildScreenshotAppResponse — a restored window is never silent', () => {
+  it('says so when the capture had to un-minimize the window', () => {
+    const text = captionOf(buildScreenshotAppResponse(makeScreenshot({ restored: true })))
+    expect(text).toMatch(/MINIMIZED and has been restored/)
+    expect(text).toMatch(/on the user's screen/)
+  })
+
+  it('says nothing when the window was already visible', () => {
+    const text = captionOf(buildScreenshotAppResponse(makeScreenshot()))
+    expect(text).not.toMatch(/restored/i)
+  })
+
+  it('still says so on a ZOOMED capture', () => {
+    // The zoom branch builds its own caption — an easy place for the note to
+    // get lost, and the restore is just as real there.
+    const text = captionOf(
+      buildScreenshotAppResponse(
+        makeScreenshot({ restored: true, region: { x: 0, y: 0, width: 10, height: 10 } }),
+      ),
+    )
+    expect(text).toMatch(/MINIMIZED and has been restored/)
   })
 })

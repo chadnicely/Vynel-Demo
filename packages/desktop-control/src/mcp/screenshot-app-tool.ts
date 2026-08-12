@@ -21,6 +21,15 @@ const TOOL_DESCRIPTION =
 export function buildScreenshotAppResponse(screenshot: AppScreenshot): {
   content: McpToolContent[]
 } {
+  // Never let the restore be silent. Capturing a minimized window un-minimizes
+  // it first, which CHANGES WHAT IS ON THE USER'S SCREEN — a "read" that
+  // quietly rearranges their desktop is the one thing a read must not be. The
+  // model is told so it can tell them, and `get_app` is how it can know in
+  // advance instead of finding out afterwards.
+  const restoreNote = screenshot.restored
+    ? ` NOTE: this window was MINIMIZED and has been restored to capture it, so it is now on the ` +
+      `user's screen. Mention that if they were not expecting it.`
+    : ''
   // A zoomed region is for READING detail — its pixels are not the act frame,
   // so the caption says exactly which coordinates remain actionable.
   const caption =
@@ -28,13 +37,14 @@ export function buildScreenshotAppResponse(screenshot: AppScreenshot): {
       ? `Zoomed screenshot of "${screenshot.windowTitle}" (app: ${screenshot.appName}) — region ` +
         `${screenshot.region.width}×${screenshot.region.height}px at (${screenshot.region.x}, ${screenshot.region.y}) ` +
         `of the ${screenshot.windowWidth}×${screenshot.windowHeight}px window. For act_on_desktop, take a ` +
-        'FULL screenshot and use ITS frame — do not use zoomed-image coordinates:'
+        'FULL screenshot and use ITS frame — do not use zoomed-image coordinates:' + restoreNote
       : `Screenshot of "${screenshot.windowTitle}" (app: ${screenshot.appName}), ` +
         `${screenshot.width}×${screenshot.height}px` +
         (screenshot.scale < 1
           ? ` (window ${screenshot.windowWidth}×${screenshot.windowHeight}px, downscaled for accuracy)`
           : '') +
-        ` — for act_on_desktop with app="${screenshot.appName}", the top-left of THIS image is (0, 0):`
+        ` — for act_on_desktop with app="${screenshot.appName}", the top-left of THIS image is (0, 0):` +
+        restoreNote
   return {
     content: [
       { type: 'text', text: caption },

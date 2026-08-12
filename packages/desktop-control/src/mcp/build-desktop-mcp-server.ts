@@ -8,6 +8,7 @@ import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
 import { makeListMonitorsTool } from './list-monitors-tool.js'
 import { makeSystemStatusTool } from './system-status-tool.js'
+import { makeGetAppTool } from './get-app-tool.js'
 import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
@@ -77,6 +78,10 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // and the answer to "why is my computer slow" is several of these numbers
     // together, which is why it is one tool and not four.
     makeSystemStatusTool(),
+    // ONE app's state, and the only tool here that truly touches nothing —
+    // screenshot_app restores a minimized window to capture it, so this is how
+    // the model can find that out BEFORE it happens rather than after.
+    makeGetAppTool(),
     makeSnapshotAppTool(),
     makeScreenshotAppTool(),
     makeWaitForTool(),

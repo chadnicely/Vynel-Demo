@@ -40,6 +40,9 @@ describe('desktopToolFactories', () => {
       'list_monitors',
       // The machine's own vitals — no app target, so it joins the ungated reads.
       'system_status',
+      // ONE app's state, and the only tool here that truly touches nothing —
+      // screenshot_app restores a minimized window to capture it.
+      'get_app',
       'snapshot_app',
       'screenshot_app',
       // Read-only, so it rides the observe tier and needs no plan.
