@@ -162,28 +162,31 @@ export const MIN_PROCESS_MATCH_LENGTH = 4
  * What to tell the model when an app is running but has no window.
  *
  * ONE home because three tools say it (snapshot/act resolution, set_window_state,
- * set_window_bounds) and they must not drift — and because the honest wording
- * took two goes to get right.
+ * set_window_bounds) and they must not drift.
  *
- * The first version claimed re-launching "brings the window back for most tray
- * apps". Measured against Docker Desktop, it does not: `launch_app` ran for 21s
- * and no window appeared. Electron apps commonly DESTROY the window on
- * close-to-tray rather than hiding it — Docker's process owns 8 top-level
- * windows and every one is hidden and untitled — so there is nothing for
- * `ShowWindow` to restore either, and re-launching an already-running instance
- * is a no-op.
+ * A previous version of this message declared tray recovery impossible — "for
+ * many apps a second launch does nothing because the window was destroyed". That
+ * was WRONG, and the way it was wrong is worth keeping. It was inferred from a
+ * `launch_app` that ran for 21s and surfaced nothing, and concluded the app was
+ * unreachable. The real cause was in `launch-app.ts`: the AppID never reached
+ * PowerShell, so the launch opened the Applications folder and reported success.
+ * The measurement was of our own bug, not of Windows.
  *
- * So: offer the cheap attempt, but do not promise it, and name the thing that
- * always works. Telling the user to click the icon is a real answer; sending the
- * model round a 21-second loop that cannot succeed is not.
+ * Measured again once that was fixed, 2026-08-12: Docker Desktop, hidden in the
+ * tray with every process reporting `MainWindowHandle = 0`, came back in ~1
+ * second. Shell activation of an already-running app is exactly what clicking
+ * its Start-menu entry does, and the app's own handler restores its window.
+ *
+ * The lesson, not just the fix: never let a tool's silence become a claim about
+ * the platform.
  */
 export function trayHiddenMessage(query: string, verb: string): string {
   return (
     `"${query}" IS running, but it has no window right now — it is minimized to the system tray ` +
-    `(the notification area by the clock), so there is nothing to ${verb}. Windows offers no ` +
-    'reliable way to restore that: you may try launch_app with its installed name, but for many ' +
-    'apps (Docker Desktop among them) a second launch does nothing because the window was ' +
-    'destroyed, not hidden. If one attempt does not surface it, STOP and ask the user to click ' +
-    'the tray icon — do not keep retrying.'
+    `(the notification area by the clock), so there is nothing to ${verb} yet. Call launch_app ` +
+    'with its installed name: activating an app that is already running is what clicking its ' +
+    'Start-menu entry does, and it brings a tray app back. Then retry this call with the window ' +
+    'name launch_app reports. If launch_app comes back without a window, STOP and ask the user to ' +
+    'click the tray icon — do not keep retrying.'
   )
 }

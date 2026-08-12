@@ -57,6 +57,13 @@ empty, fall back to `screenshot_app`, which brings the window back. The one
 exception is pixel coordinates: a minimized window has no position on screen,
 so `screenshot_app` it first and take your coordinates from that fresh capture.
 
+**An app in the system tray is running, not closed.** When a tool tells you an
+app is running but has no window, it's tucked into the notification area by the
+clock — hidden rather than minimized, which is why nothing can find a window to
+act on. `launch_app` is the fix: launching something already running doesn't
+start a second copy, it activates the running one and the app restores its own
+window. Retry with the window name `launch_app` reports.
+
 Reach for `set_window_state({app, state})` when the window state is the *point*:
 `maximized` to make an app you just opened properly usable, `minimized` to tuck
 something away, `restored` for a normal window. Leave windows open when you're

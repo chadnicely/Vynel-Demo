@@ -1,7 +1,48 @@
 import { describe, it, expect } from 'vitest'
-import { isLaunchableAppId, launchApp } from './launch-app.js'
+import { buildLaunchInvocation, isLaunchableAppId, launchApp } from './launch-app.js'
 
 const chrome = { name: 'Google Chrome', appId: 'Chrome' }
+
+/**
+ * What PowerShell would actually resolve `-FilePath` to.
+ *
+ * This mirrors PowerShell's most dangerous habit: a variable the command
+ * dereferences but the invocation never supplies resolves to the EMPTY STRING,
+ * silently. That is how the original bug hid — `-Args` is only honoured by
+ * `-File`, so under `-Command` the id vanished and the path became bare
+ * `shell:AppsFolder\`, which is a real folder, so the launch "succeeded" and
+ * opened the Applications window instead of the app. Asserting on the resolved
+ * path is the only test shape that catches that class; asserting on the argument
+ * array would have passed the whole time.
+ */
+function resolvedFilePath(appId: string): string {
+  const invocation = buildLaunchInvocation(appId)
+  const command = invocation.args[invocation.args.length - 1] ?? ''
+  const concatenation = /\("([^"]*)"\s*\+\s*([^)]+)\)/.exec(command)
+  if (concatenation === null) throw new Error(`unrecognised command shape: ${command}`)
+  const literal = concatenation[1] ?? ''
+  const reference = /^\$env:(\w+)$/.exec((concatenation[2] ?? '').trim())
+  const substituted = reference === null ? '' : (invocation.env[reference[1] ?? ''] ?? '')
+  return literal + substituted
+}
+
+describe('buildLaunchInvocation', () => {
+  it('resolves to the app itself', () => {
+    expect(resolvedFilePath('Docker.DockerForWindows.Settings')).toBe(
+      'shell:AppsFolder\\Docker.DockerForWindows.Settings',
+    )
+  })
+
+  it('never resolves to the bare Applications folder — that opens Explorer and REPORTS SUCCESS', () => {
+    expect(resolvedFilePath('Chrome')).not.toBe('shell:AppsFolder\\')
+  })
+
+  it('keeps the id out of the command text so it cannot become a statement', () => {
+    const invocation = buildLaunchInvocation('Some.App.Id')
+    expect(invocation.args.join(' ')).not.toContain('Some.App.Id')
+    expect(Object.values(invocation.env)).toContain('Some.App.Id')
+  })
+})
 
 function harness(windowsOverTime: string[][]) {
   let clock = 0

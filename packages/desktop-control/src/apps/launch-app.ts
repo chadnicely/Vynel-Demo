@@ -7,10 +7,10 @@
 // Start-menu id start the same way — no exe-path guessing, and the id came
 // from the roster the user's own Start menu shows.
 //
-// The AppID is never interpolated into a command string: it goes through
-// `execFile`'s ARGUMENT array, so a hostile-looking id can't become another
-// PowerShell statement. It is also validated first — the only ids we launch are
-// ones that came back from `Get-StartApps`.
+// The AppID is never interpolated into a command string: it rides an ENVIRONMENT
+// VARIABLE, so a hostile-looking id can't become another PowerShell statement.
+// It is also validated first — the only ids we launch are ones that came back
+// from `Get-StartApps`.
 
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -43,24 +43,47 @@ const realSleep = (ms: number): Promise<void> =>
     setTimeout(resolve, ms)
   })
 
+/** The env var carrying the AppID into PowerShell. Named, not inline, because
+ *  the invariant that binds this file together is "the command dereferences
+ *  exactly what the invocation supplies" — and its test asserts that by name. */
+const APP_ID_VARIABLE = 'VYNEL_LAUNCH_APP_ID'
+
+/**
+ * The exact PowerShell invocation, separated from the spawn so it can be
+ * asserted without starting anything.
+ *
+ * WHY an env var and not `-Args`: `-Args` is only honoured by `-File`. Under
+ * `-Command` it is silently ignored, `$args` stays empty, and the path collapses
+ * to bare `shell:AppsFolder\` — which is a real folder, so `Start-Process`
+ * SUCCEEDS and opens the Applications window instead of the app. Every launch
+ * reported success and nothing ever started. An env var has no such trapdoor,
+ * and keeps the id out of the command text exactly as an argument array would.
+ */
+export function buildLaunchInvocation(appId: string): {
+  args: string[]
+  env: Record<string, string>
+} {
+  return {
+    args: [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `Start-Process -FilePath ("shell:AppsFolder\\" + $env:${APP_ID_VARIABLE})`,
+    ],
+    env: { [APP_ID_VARIABLE]: appId },
+  }
+}
+
 async function startViaShell(appId: string): Promise<void> {
   if (process.platform !== 'win32') {
     throw new Error('Launching apps is supported on Windows only.')
   }
-  // `-EncodedCommand`-free by design: the id rides an argument, never the
-  // command text. `-Args` keeps PowerShell's own quoting out of it too.
-  await execFileAsync(
-    'powershell',
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      'Start-Process -FilePath ("shell:AppsFolder\\" + $args[0])',
-      '-Args',
-      appId,
-    ],
-    { windowsHide: true, timeout: LAUNCH_TIMEOUT_MS },
-  )
+  const invocation = buildLaunchInvocation(appId)
+  await execFileAsync('powershell', invocation.args, {
+    windowsHide: true,
+    timeout: LAUNCH_TIMEOUT_MS,
+    env: { ...process.env, ...invocation.env },
+  })
 }
 
 export type LaunchAppResult =

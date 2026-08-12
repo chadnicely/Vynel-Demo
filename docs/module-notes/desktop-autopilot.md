@@ -259,20 +259,33 @@ owned by a separate session and is NOT tracked here any more.**
 
 ### Real gaps found by using it
 
-4. **An app minimized to the SYSTEM TRAY cannot be reached — and we describe it wrongly.** Kafi hit
-   this with Docker Desktop. A tray app is *hidden*, not minimized: every Docker process reports
-   `MainWindowHandle = 0`, so `IsIconic` is false, `ShowWindow(SW_RESTORE)` is a no-op,
-   `findWindowedPidByName` filters it out (`MainWindowHandle -ne 0`), and `Window.all()` never
-   lists it. The user is told **"no matching app is open"**, which is false — it is running — and
-   sends the model down the wrong recovery. Windows has no general "restore from tray" API (a tray
-   icon is just a notification-area icon with an app-defined click handler), so the fix is:
-   - **detect** it — process running by name but no windowed pid ⇒ say "running, but has no window
-     (likely minimized to the system tray)" instead of "not open";
-   - **recover** — re-launching usually restores the window for tray apps (Docker Desktop included),
-     so point the model at `launch_app`;
-   - **fall back honestly** — if that doesn't surface it, tell the user to click the tray icon.
-   *(A further option, not taken: the notification area is UIA-accessible, so the tray icon could be
-   invoked directly. More fragile and app-specific; revisit only if re-launch proves insufficient.)*
+4. ~~**An app minimized to the SYSTEM TRAY cannot be reached — and we describe it wrongly.**~~
+   **RESOLVED 2026-08-12.** Kafi hit this with Docker Desktop. The *detection* half was real and is
+   fixed: a tray app is hidden, not minimized — every Docker process reports `MainWindowHandle = 0`,
+   so `findWindowedPidByName` filters it out (`MainWindowHandle -ne 0`) and the user was told "no
+   matching app is open", which is false. `isProcessRunningByName` now tells the two apart.
+
+   The *recovery* half was misdiagnosed, and how is worth remembering. I measured `launch_app`
+   against a tray-hidden Docker, saw nothing appear in 21s, and concluded Windows had no reliable
+   way back — writing that into the tool description, the shared `trayHiddenMessage`, and the system
+   prompt. **The root cause was ours.** `launch-app.ts` built its PowerShell as
+   `-Command '… + $args[0]' -Args <appId>`, but `-Args` is only honoured by `-File`; under
+   `-Command` it is silently ignored, `$args` stays empty, and the path collapses to bare
+   `shell:AppsFolder\` — a real folder, so `Start-Process` **succeeded** and opened the Applications
+   window. Every launch reported success and nothing ever started. Kafi found it by hand: *"if you
+   visit this you can see all apps and if you click on app icon it open if minimized."*
+
+   With the id actually passed, Docker came back from the tray in **~1 second**. The AppID rides an
+   env var now (same no-interpolation guarantee, no `-Args` trapdoor), and
+   `buildLaunchInvocation`'s tests assert the **resolved** `-FilePath`, since asserting the argument
+   array would have passed the entire time. All three tray messages now name `launch_app` as the
+   recovery that works.
+
+   *(The unexplored option stays unexplored, and is no longer needed: the notification area is
+   UIA-accessible, so a tray icon could be invoked directly. More fragile and app-specific.)*
+
+   **The lesson:** never let a tool's silence become a claim about the platform. I shipped
+   "Windows can't do this" three times over, and it was a missing argument.
 5. **Windows cannot be moved or resized.** `set_window_bounds` does not exist. The *drag gesture* is
    functional (stepped, `act_on_desktop`), so a title-bar drag works mechanically — but dragging a
    window across monitors is exactly the thing Guide §15.2/§15.1 says not to do, and the correct
