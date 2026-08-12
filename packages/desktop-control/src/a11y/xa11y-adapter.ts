@@ -14,6 +14,7 @@ import { resolveAppWithFallback } from './electron-wake.js'
 import { isAppNameMatch } from './app-name-match.js'
 import { isPasswordControl, passwordControlRefusal } from './password-control-guard.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import { verifyTypedValue, type ActVerification } from './act-verification.js'
 
 // Re-exported so the public surface (index.ts) and the MCP tools keep one
 // import point for the a11y operations.
@@ -125,10 +126,45 @@ export function actionRequiresValue(action: DesktopAction): boolean {
 
 export type ActCandidate = { stableId: string | null; role: string; name: string | null }
 export type ActOnAppResult =
-  | { kind: 'done'; action: DesktopAction; selector: string }
+  | {
+      kind: 'done'
+      action: DesktopAction
+      selector: string
+      /** Present for the VALUE actions only — a press cannot be verified in
+       *  general, and claiming otherwise would be worse than saying nothing. */
+      verification?: ActVerification
+    }
   | { kind: 'ambiguous'; selector: string; matchCount: number; candidates: ActCandidate[] }
 
 const MAX_AMBIGUITY_CANDIDATES = 15
+/** A beat for the app to apply the input before we read it back. Typing is not
+ *  instantaneous in every toolkit, and reading too early would report a false
+ *  mismatch — which is worse than not checking, because it would send the model
+ *  to "fix" something that was about to be right. */
+const VERIFY_SETTLE_MS = 150
+
+/** Re-read the element and compare. Any failure to read is reported as
+ *  UNVERIFIABLE rather than swallowed — the whole point is to stop claiming
+ *  outcomes we have not seen. */
+async function readBackValue(
+  locator: { elements(): Promise<Array<{ value: string | null }>> },
+  action: 'type_text' | 'set_value',
+  intended: string,
+): Promise<ActVerification> {
+  try {
+    await new Promise((resolve) => setTimeout(resolve, VERIFY_SETTLE_MS))
+    const [element] = await withTimeout(locator.elements(), ACT_TIMEOUT_MS, 'verify')
+    if (element === undefined) {
+      return { kind: 'unverifiable', reason: 'the element was gone by the time it was re-read' }
+    }
+    return verifyTypedValue(action, intended, element.value)
+  } catch (cause) {
+    return {
+      kind: 'unverifiable',
+      reason: `re-reading the element failed (${cause instanceof Error ? cause.message : String(cause)})`,
+    }
+  }
+}
 
 /**
  * Perform an element action on a named app. The element is addressed by a
@@ -226,6 +262,17 @@ export async function actOnApp(
         // the mutating surface). This makes that a compile error.
         const unhandled: never = action
         throw new Error(`Unsupported desktop action: ${String(unhandled)}`)
+      }
+    }
+    // Read the value BACK. The action returning means the keystrokes were
+    // sent, not that they landed where they were aimed — see
+    // `act-verification.ts`. Only the value actions can be checked this way.
+    if (actionRequiresValue(action)) {
+      return {
+        kind: 'done',
+        action,
+        selector,
+        verification: await readBackValue(locator, action as 'type_text' | 'set_value', value ?? ''),
       }
     }
     return { kind: 'done', action, selector }

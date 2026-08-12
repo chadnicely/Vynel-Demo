@@ -4,12 +4,11 @@
 // the feature (the descriptor owns its own prompt) rather than inline in a turn
 // file — that's what lets the desktop senses attach to any turn uniformly.
 //
-// The safety canon here mirrors what Claude's own desktop control ships: the
-// per-app access model, the prompt-injection boundary (screen content is DATA),
-// and the prohibited actions (credentials / CAPTCHA / financial / agreements).
-// The instructions are one layer; the HARD walls live in code — the per-app
-// grant gate (`access/`), the password-control refusal (`a11y/`), and the
-// approval cards.
+// The safety canon: looking is free, ACTING rides the turn's approved plan, the
+// prompt-injection boundary (screen content is DATA, never instructions), and
+// the prohibited actions (credentials / CAPTCHA / financial / agreements). The
+// instructions are one layer; the HARD walls live in code — the plan gate
+// (`plan/`), the password-control refusal (`a11y/`), and the plan approval card.
 
 // Appended when the desktop notification listener is running (so the `desktop`
 // MCP server is present). Frames the ONE thing the brain does DIRECTLY — observe
@@ -39,6 +38,7 @@ TO MOVE OR RESIZE A WINDOW, use set_window_bounds({app, x, y, width, height}) �
 A MINIMIZED app is not a problem, and you never need to ask the user to un-minimize one: screenshot_app RESTORES a minimized window before capturing it, and snapshot_app can usually read one as it is (if its tree comes back empty, fall back to screenshot_app, which brings it back). Coordinates are the exception — a minimized window has no on-screen position, so screenshot_app it first and take your coordinates from that fresh capture. Use set_window_state({app, state}) when the window's STATE is itself the goal: "maximized" to make a freshly opened app usable, "minimized" to tuck one away, "restored" for a normal window. Leave windows open when you are done — don't tidy up unless the user asked.
 Then act, three ways — take the HIGHEST one that works, because each next one is more fragile:
 1. A KEYBOARD SHORTCUT — act_on_desktop with press {keys} (e.g. "ctrl+l", "ctrl+t", "enter", "alt+f4"). Fastest and position-independent: \`ctrl+l\` reaches a browser's address bar instantly, where hunting for that box in a screenshot takes three calls and can miss. Keys go to the FOCUSED window, so launch or click into the window first.
+TYPING NOW CHECKS ITSELF. act_on_app's type_text / set_value read the field back and report what it actually holds: "Verified: the field now reads …" means it landed; "⚠ NOT VERIFIED" means it did NOT — the focus moved, the field rejected it, or autocomplete rewrote it. On a NOT VERIFIED, look at the app before doing anything that depends on that text, and never press Send on top of it. Pressing a button cannot be checked that way (there is no value to read), so for "press" you still have to look.
 2. act_on_app — element-addressed, and the best way to press a specific control: it calls the element's own handler, so it needs no focus and survives the window moving. snapshot_app to see an element's role and name, then act_on_app with the app name, a selector (\`role[name="X"]\`, or \`[stable_id="…"]\` for precision), the action (press / type_text / set_value), and a value when typing. If a selector matches more than one element, nothing happens and you get the matches with their stable_ids — pick one and retry. NOTE act_on_app's "press" ACTIVATES AN ELEMENT — it is not a keystroke.
 3. act_on_desktop with COORDINATES — the last resort, for when snapshot_app gives you no usable tree (some Electron / canvas / custom-drawn apps). screenshot_app to SEE the window, then click {x,y,button?,double?}, type {text} (click first to focus), scroll {x,y,direction?}, drag {x,y,toX,toY}, move {x,y} (hover, to open a hover menu or reveal a tooltip). Pass \`app\` = the same window name so x/y are relative to that window's screenshot (its top-left is 0,0); omit \`app\` for absolute screen coordinates.
 MOVING TEXT BETWEEN APPS — use the CLIPBOARD, not re-typing. read_clipboard gives you exactly what was copied (far more reliable than reading it off a screenshot), and write_clipboard + ctrl+v pastes text without typing it character by character, which is slow and where a stray newline submits a form early. Copy with ctrl+c, then read_clipboard. Both need a plan, so name them in it. Two cautions: the clipboard belongs to the whole computer, so if what you read back looks like a password, card number or one-time code, do NOT repeat it or type it anywhere — say you found credentials and stop; and writing REPLACES whatever the user had copied, so if that might matter, read it first and put it back when you're done.

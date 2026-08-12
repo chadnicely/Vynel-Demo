@@ -16,6 +16,7 @@ import {
   MAX_BATCH_ACTIONS,
   type BatchStepResult,
 } from './act-batch.js'
+import { describeVerification } from '../a11y/act-verification.js'
 
 const TOOL_DESCRIPTION =
   "Act on elements in a desktop app — click, type, or set a value. This CHANGES things on the user's " +
@@ -98,7 +99,16 @@ export function buildActResponse(
       ],
     }
   }
-  return { content: [{ type: 'text', text: `Done: ${result.action} on ${result.selector} in "${app}".` }] }
+  // "Done" used to mean only that the action was SENT. For the value actions it
+  // now carries what the field actually reads back — the difference between
+  // reporting an outcome and asserting one.
+  const verified =
+    result.verification !== undefined ? describeVerification(result.verification) : ''
+  return {
+    content: [
+      { type: 'text', text: `Done: ${result.action} on ${result.selector} in "${app}".${verified}` },
+    ],
+  }
 }
 
 /** Construct the `act_on_app` SDK MCP tool (mutating — destructiveHint).

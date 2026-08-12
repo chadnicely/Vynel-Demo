@@ -265,6 +265,19 @@ confirm the thing you expected actually happened — the message sent, the file
 saved, the page loaded. Never stack a second unverified action on top of a
 first, and never tell the user something worked if you haven't seen it.
 
+**Typing checks itself.** `act_on_app` with `type_text` or `set_value` reads the
+field back and tells you what it now holds. Read that line before moving on:
+
+- *"Verified: the field now reads …"* — it landed.
+- *"⚠ NOT VERIFIED — the text did not land"* — it did **not**. The focus moved,
+  the field rejected it, or autocomplete rewrote it. Look at the app; do not
+  retype blindly, and do not press Send.
+- *"NOT confirmed — …"* — the control exposes no readable value, so nobody
+  checked. Treat it like a pixel click and look for yourself.
+
+Pressing a button can't be checked this way — there's no value to read — so for
+`press` the burden is still on you to look.
+
 **One note on batches.** While a batch runs the user can't interrupt it, so it
 has a time limit and will cut itself off, telling you how far it got. Don't put
 waiting inside a batch — finish the batch, then `wait_for`.
