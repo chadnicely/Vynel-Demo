@@ -39,7 +39,7 @@ const TOOL_DESCRIPTION =
 export function buildLaunchResponse(
   result: LaunchAppResult,
   requestedName?: string,
-): { content: Array<{ type: 'text'; text: string }> } {
+): { content: Array<{ type: 'text'; text: string }>; isError?: boolean } {
   // The SAME drift check both outcomes need. `already-open` needs it just as
   // much as `launched`: packaged apps enter the window roster under their
   // TITLE, so a document window ("Mail attachment.jpg - Photos") can satisfy a
@@ -66,6 +66,22 @@ export function buildLaunchResponse(
               : ' If it is not the window you expected, call list_open_apps.'),
         },
       ],
+    }
+  }
+  if (result.kind === 'look-alike-only') {
+    return {
+      content: [
+        {
+          type: 'text',
+          text:
+            `"${result.appName}" did NOT open. A window called "${result.lookAlikeName}" appeared ` +
+            'instead — a name that merely extends the app\'s, which is almost always the app ' +
+            'refusing to start and saying why in a dialog. Do NOT target it as if it were the app, ' +
+            `and do NOT just launch again. Read it — screenshot_app({ app: "${result.lookAlikeName}" }) ` +
+            '— then tell the user what it says, because the fix is usually theirs to make.',
+        },
+      ],
+      isError: true,
     }
   }
   if (result.kind === 'launched') {

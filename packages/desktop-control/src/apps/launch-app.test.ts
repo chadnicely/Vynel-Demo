@@ -205,3 +205,36 @@ describe('launchApp resilience', () => {
     expect(result).toEqual({ kind: 'launched', appName: 'Google Chrome' })
   })
 })
+
+// Kafi hit the launcher-lock dialog TWICE, live 2026-08-12. Docker answers an
+// activation it dislikes with an error dialog whose window is "Docker Desktop
+// Launcher" — which contains "Docker Desktop", so ranking alone still handed it
+// back as the app and the model spent the turn screenshotting an error box.
+describe('a look-alike is never reported AS the app', () => {
+  const docker = { name: 'Docker Desktop', appId: 'Docker.X' }
+
+  it('reports look-alike-only rather than naming the dialog as the app', async () => {
+    const { deps } = harness([[], ['Docker Desktop Launcher']])
+    expect(await launchApp(docker, deps)).toEqual({
+      kind: 'look-alike-only',
+      appName: 'Docker Desktop',
+      lookAlikeName: 'Docker Desktop Launcher',
+    })
+  })
+
+  it('still returns the REAL window when it follows the look-alike', async () => {
+    // A splash or installer legitimately precedes the app, so a look-alike must
+    // never end the wait early.
+    const { deps } = harness([[], ['Docker Desktop Launcher'], ['Docker Desktop']])
+    expect(await launchApp(docker, deps)).toEqual({
+      kind: 'launched',
+      appName: 'Docker Desktop',
+    })
+  })
+
+  it('does not let a leftover dialog count as already-open and block a launch', async () => {
+    const { started, deps } = harness([['Docker Desktop Launcher'], ['Docker Desktop']])
+    expect(await launchApp(docker, deps)).toEqual({ kind: 'launched', appName: 'Docker Desktop' })
+    expect(started).toEqual(['Docker.X'])
+  })
+})

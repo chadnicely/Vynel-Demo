@@ -121,6 +121,28 @@ async function startViaShell(appId: string): Promise<void> {
  * Pure, for tests.
  */
 export function selectAppearedWindow(names: string[], requestedName: string): string | null {
+  return rankAppearedWindow(names, requestedName)?.name ?? null
+}
+
+/** The tier-3 look-alike: a window whose name EXTENDS the app's. */
+export type AppearedWindow = { name: string; isLookAlike: boolean }
+
+/**
+ * As `selectAppearedWindow`, but saying WHICH kind of match it found.
+ *
+ * The distinction earns its keep because a tier-3 match is usually not the app
+ * at all. Docker answers an activation it doesn't like with an "acquiring
+ * launcher lock" error DIALOG whose window is "Docker Desktop Launcher" — which
+ * contains "Docker Desktop", so ranking alone still hands it back, and the model
+ * then spends its turn screenshotting and requesting access to an error box
+ * (Kafi, live 2026-08-12, twice). Ranking it last was not enough: when a
+ * look-alike is ALL we found, the honest answer is that the app's own window
+ * never appeared.
+ */
+export function rankAppearedWindow(
+  names: string[],
+  requestedName: string,
+): AppearedWindow | null {
   const needle = requestedName.trim().toLowerCase()
   if (needle.length === 0) return null
   const simplify = (name: string): string => name.trim().toLowerCase().replace(/\.exe$/, '')
@@ -134,7 +156,8 @@ export function selectAppearedWindow(names: string[], requestedName: string): st
     .map((name) => ({ name, tier: tierOf(name) }))
     .filter((entry) => Number.isFinite(entry.tier))
     .sort((a, b) => a.tier - b.tier || a.name.length - b.name.length)
-  return ranked[0]?.name ?? null
+  const best = ranked[0]
+  return best === undefined ? null : { name: best.name, isLookAlike: best.tier === 3 }
 }
 
 export type LaunchAppResult =
@@ -149,6 +172,12 @@ export type LaunchAppResult =
    *  deadline (a slow splash, an app that reuses an existing window, or one
    *  whose window name differs from its Start-menu name). */
   | { kind: 'started-no-window'; appName: string }
+  /** Only a LOOK-ALIKE appeared — a window whose name extends the app's. Almost
+   *  always the app refusing to start and saying why: Docker answers an
+   *  activation it dislikes with an "acquiring launcher lock" dialog named
+   *  "Docker Desktop Launcher". Reported separately so the app's own name is
+   *  never attached to it. */
+  | { kind: 'look-alike-only'; appName: string; lookAlikeName: string }
 
 /**
  * Start an installed app and wait until a window whose app name matches shows
@@ -179,16 +208,30 @@ export async function launchApp(
   // Look BEFORE starting. A tray-hidden app has no window, so recovery still
   // launches; an app already showing one gets left alone, because a second
   // activation is what produces Docker's launcher-lock error dialog.
-  const openNow = selectAppearedWindow(readWindowNames(listNames), app.name)
-  if (openNow !== null) return { kind: 'already-open', appName: openNow }
+  // A LOOK-ALIKE does not count as open — otherwise a leftover "Docker Desktop
+  // Launcher" dialog from an earlier attempt would block the next legitimate
+  // launch.
+  const openNow = rankAppearedWindow(readWindowNames(listNames), app.name)
+  if (openNow !== null && !openNow.isLookAlike) {
+    return { kind: 'already-open', appName: openNow.name }
+  }
 
   await start(app.appId)
 
   const deadline = now() + WINDOW_WAIT_TIMEOUT_MS
+  // Remembered, but never returned AS the app. A look-alike can also be a
+  // legitimate splash or installer that the real window follows, so it never
+  // ends the wait early — only the deadline decides it was all we got.
+  let lookAlike: string | null = null
   while (now() < deadline) {
     await sleep(WINDOW_POLL_INTERVAL_MS)
-    const appeared = selectAppearedWindow(readWindowNames(listNames), app.name)
-    if (appeared !== null) return { kind: 'launched', appName: appeared }
+    const appeared = rankAppearedWindow(readWindowNames(listNames), app.name)
+    if (appeared === null) continue
+    if (!appeared.isLookAlike) return { kind: 'launched', appName: appeared.name }
+    lookAlike = appeared.name
+  }
+  if (lookAlike !== null) {
+    return { kind: 'look-alike-only', appName: app.name, lookAlikeName: lookAlike }
   }
   return { kind: 'started-no-window', appName: app.name }
 }
