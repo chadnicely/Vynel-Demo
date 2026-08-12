@@ -8,12 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/local-api --filter=@vynel/local-web",
-    "dev:local": "turbo run dev --filter=@vynel/local-api --filter=@vynel/local-web",
+    "dev": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/local-api --filter=@vynel/local-web --no-daemon",
+    "dev:local": "turbo run dev --filter=@vynel/local-api --filter=@vynel/local-web --no-daemon",
     "dev:voice": "pnpm --filter @vynel/voice-daemon dev",
     "dev:desktop": "pnpm --filter @vynel/desktop build:shell",
-    "dev:full": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/cloud-admin-web --filter=@vynel/local-api --filter=@vynel/local-web --filter=@vynel/voice-daemon",
-    "dev:all": "turbo run dev",
+    "dev:full": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/cloud-admin-web --filter=@vynel/local-api --filter=@vynel/local-web --filter=@vynel/voice-daemon --no-daemon",
+    "dev:all": "turbo run dev --no-daemon",
     "db:up": "pnpm --filter @vynel/cloud-api db:up",
     "db:down": "pnpm --filter @vynel/cloud-api db:down",
     "build": "turbo run build",
