@@ -27,9 +27,10 @@ import {
   isProcessRunningByName,
   trayHiddenMessage,
 } from './windowed-process.js'
+import { shadowedStoreAppMessage } from './window-host-processes.js'
 import { ensureForeground } from './window-focus.js'
 import { screenReaderFlag } from './screen-reader-flag.js'
-import { resolveAppIdentity } from './window-identity.js'
+import { listHostedWindowNames, resolveAppIdentity } from './window-identity.js'
 
 // Shorter timeout for the UIA-enumeration attempt: an already-open app matches
 // near-instantly, so a 2.5s miss means "not enumerated" (the Electron case) —
@@ -134,6 +135,10 @@ export type ResolveAppHooks = {
   /** Map a resolved app to its CANONICAL identity (the grant key) — xa11y's
    *  own `name` is the window title, which changes with the active tab. */
   resolveIdentity: (pid: number | null, fallbackName: string) => string
+  /** The packaged (Store) apps currently open — consulted ONLY when the pid
+   *  lookup fails, to tell "a sibling holds the shared process" apart from
+   *  "not open". */
+  listHostedWindows: () => string[]
 }
 
 export const defaultResolveAppHooks: ResolveAppHooks = {
@@ -144,6 +149,7 @@ export const defaultResolveAppHooks: ResolveAppHooks = {
   delay: defaultDelay,
   now: () => Date.now(),
   resolveIdentity: (pid, fallbackName) => resolveAppIdentity(pid, fallbackName),
+  listHostedWindows: listHostedWindowNames,
 }
 
 /** Resolve a named app to an xa11y App, transparently waking Electron apps.
@@ -184,6 +190,16 @@ export async function resolveAppWithFallback(
   {
     const pid = await hooks.findPid(query)
     if (pid === null) {
+      // A shadowed Store app lands HERE, not on the byPid throw — measured live
+      // 2026-08-12. `findWindowedPidByName` filters on MainWindowHandle, and the
+      // shared host process exposes only ONE main window title, so the sibling
+      // is invisible to it. Without this check the app is declared "minimized to
+      // the system tray" while it is plainly on screen, which is worse than the
+      // opaque error: it is confidently wrong, and sends the model to launch_app
+      // for a window that never went anywhere.
+      if (hooks.listHostedWindows().some((name) => isAppNameMatch(name, query))) {
+        throw new Error(shadowedStoreAppMessage(query, String(intent)), { cause: findError })
+      }
       // "No window" and "not running" are DIFFERENT, and conflating them is what
       // made a tray-minimized app look absent. The wording lives in one home
       // (`trayHiddenMessage`) because three tools say it — and because the first
@@ -195,7 +211,20 @@ export async function resolveAppWithFallback(
         { cause: findError },
       )
     }
-    const initial = await App.byPid(pid, { timeout: APP_LOOKUP_TIMEOUT_MS })
+    // A packaged app whose sibling holds the shared process fails HERE, deep in
+    // the binding, with "No element matched selector: application[pid=…]". That
+    // reads as "gone" when the app is open and plainly visible, so the model
+    // retries or gives up instead of taking the route that works.
+    let initial: Awaited<ReturnType<Xa11yModule['App']['byPid']>>
+    try {
+      initial = await App.byPid(pid, { timeout: APP_LOOKUP_TIMEOUT_MS })
+    } catch (byPidError) {
+      const hosted = hooks.listHostedWindows()
+      if (hosted.some((name) => isAppNameMatch(name, query))) {
+        throw new Error(shadowedStoreAppMessage(query, String(intent)), { cause: byPidError })
+      }
+      throw byPidError
+    }
     // Enforce BEFORE the flag/subscription/foreground steps — the wake
     // actuates the desktop, and a denied app must never be woken.
     onResolvedIdentity?.(hooks.resolveIdentity(pid, initial.name))

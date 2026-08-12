@@ -140,6 +140,27 @@ export function listWindowAppNames(): string[] {
  * alternative — one shared host name — was measurably worse: it made every
  * packaged app the SAME app. A narrower wrong beats a categorical one.
  */
+/**
+ * The identities of every HOSTED window — the packaged (Store) apps currently
+ * open. Used to tell "the accessibility engine cannot reach this one because a
+ * sibling holds the process" apart from "this app is not open", which are the
+ * same failure as far as xa11y is concerned and need opposite advice.
+ */
+export function listHostedWindowNames(): string[] {
+  const { Window } = loadNodeScreenshots()
+  const names: string[] = []
+  for (const native of Window.all()) {
+    try {
+      if (!isWindowHostProcess(String(native.appName() ?? ''))) continue
+      const identity = readWindowIdentity(native)
+      if (identity !== null) names.push(identity)
+    } catch {
+      // A shape surprise on one window must not blind the whole lookup.
+    }
+  }
+  return names
+}
+
 /** One window as the identity rule needs to see it. */
 export type PidWindowCandidate = { pid: number; appName: string; title?: string }
 

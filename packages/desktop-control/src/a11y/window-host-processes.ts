@@ -58,6 +58,31 @@ export function hostedAmbiguityMessage(query: string, verb: string): string {
   )
 }
 
+/**
+ * What to tell the model when a packaged app is open but another one is holding
+ * the accessibility connection.
+ *
+ * xa11y keys its app list by PROCESS, and every Store app shares one
+ * `ApplicationFrameHost` — so with two open, only one has a readable tree and
+ * the other fails deep inside the binding with
+ * `No element matched selector: application[pid=6280]`. That is not a message a
+ * model can act on: it names an internal selector and a pid, so the obvious
+ * response is to retry or give up, when there is a route that works.
+ *
+ * There IS one: `screenshot_app` reads these windows perfectly (it goes through
+ * node-screenshots, which sees each window separately). So this says the true
+ * thing and names the working door, rather than leaving a dead end.
+ */
+export function shadowedStoreAppMessage(query: string, intent: string): string {
+  return (
+    `Cannot ${intent} "${query}" through the accessibility tree right now. It is a Windows Store ` +
+    'app, and Store apps share one process — while another one is open, only that one is readable. ' +
+    `This is a limitation of the accessibility engine, NOT a sign the app is missing: "${query}" is ` +
+    'open and perfectly visible. Use screenshot_app instead, which reads these windows normally, ' +
+    'and act with coordinates from that capture. Closing the other Store app also frees the tree.'
+  )
+}
+
 export function readWindowIdentity(native: {
   appName(): unknown
   title?(): unknown
