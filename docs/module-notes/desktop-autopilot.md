@@ -592,26 +592,27 @@ distinguishes them.
 
 ### Decisions, not work
 
-11. **Arc 6 in/out calls** — each needs a new dependency. **Kafi unblocked this 2026-08-12**
-    ("no worries what dependency you need you can install verifying they are safe"), so these are
-    now work rather than decisions. Ranked by value-per-risk, with the safety read on each:
-    - **`systeminformation`** (CPU / memory / battery / process list) — *best first pick*. Widely
-      used, no native build, read-only by nature. Answers "is my laptop about to die", "what's
-      eating my CPU" — questions a non-technical user actually asks.
-    - **`open`** (open a file or URL in its default app) — tiny, ubiquitous. ⚠ It is a **launcher**,
-      so it needs the same gating as `launch_app` plus a scheme allowlist, or it becomes the
-      unrestricted-execution hole that `isLaunchableAppId` exists to prevent. Overlaps item 12.
-    - **`node-notifier`** (send a desktop notification) — low risk, genuinely useful for a
-      background task saying "I'm done". Note the existing notifications helper already logs
-      `Class not registered (hresult 0x80040154)` on every poll on this machine — worth fixing or
-      understanding first, since it may be the same COM surface.
-    - **`loudness`** (system volume) — small, but thin value and it touches global system state.
-    - **`tesseract.js`** (OCR) — *heaviest by far*: large model downloads, slow, and mostly
-      redundant now that `snapshot_app` reads real text from the accessibility tree. Only earns its
-      place for canvas/image-only content. **Recommend last, or never.**
-
-    Suggested order: `systeminformation` → `node-notifier` → `open` (with the allowlist) → stop and
-    reassess. Each ships as its own arc with its own tests, not as a batch.
+11. **Arc 6 in/out calls — the top three are DONE (2026-08-13), and the second two took ZERO new
+    dependencies.** The `0x80040154` question answered itself first: both `WpnService` and the
+    per-user `WpnUserService` are RUNNING on this machine — the error was a transient dead-service
+    state the listener already diagnoses by name (its catch block) and heals with backoff. Nothing
+    to fix; a toast tool just has to surface the same error honestly, and does.
+    - **`systeminformation`** → ✅ shipped earlier as `system_status` (`15374ba`).
+    - **`send_desktop_notification`** → ✅ shipped — but NOT via `node-notifier` (stale, unsigned
+      bundled SnoreToast.exe, a command-injection CVE in its history). A vendored
+      `notify-toast.ps1` beside the listener writes the same WinRT surface the listener reads.
+      UNGATED deliberately: the headline use is a background (display-only) task saying "I'm done",
+      where every plan-gated act refuses — and a toast is its own accountability. Hardened per
+      review: titles forced to lead `Vynel — ` (the AUMID attribution reads "Windows PowerShell",
+      an OS-authority costume a model-authored toast must not wear). Smoke-tested live.
+    - **`open_url`** → ✅ shipped, also dependency-free (the launch-app spawn pattern). Allowlist
+      IS the feature: https/http/mailto only; file:/bare paths/deep-links refused (ShellExecute
+      executes them); credentials-in-URL and mailto attach params refused. Gated like the
+      CLIPBOARD (`unattendedRefusalError`), not launch_app — the answering app is the OS's
+      default-handler pick, unknowable pre-launch, so there is no app name to authorize.
+      Smoke-tested live. Deep-link schemes stay OUT — item 12's separate decision, unchanged.
+    - **`loudness`** (system volume) — still open, thin value; not taken.
+    - **`tesseract.js`** (OCR) — still recommend last, or never.
 12. **Deep-link joining** (`zoommtg://`, `msteams:`) — needs a scheme-allowlisted URI primitive
     beside `launch-app.ts`; higher-risk surface than anything above.
 
