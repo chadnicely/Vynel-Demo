@@ -16,7 +16,9 @@ import { makeMousePositionTool } from './mouse-position-tool.js'
 import { recordDesktopAction } from '../repositories/desktop-actions.js'
 import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
+import { makeOpenUrlTool } from './open-url-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
+import { makeSendDesktopNotificationTool } from './send-desktop-notification-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
 import { makeWaitForTool } from './wait-for-tool.js'
 import { makeSetWindowBoundsTool } from './set-window-bounds-tool.js'
@@ -123,6 +125,12 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     makeSnapshotAppTool(),
     makeScreenshotAppTool(),
     makeWaitForTool(),
+    // A toast is its own accountability — visible by nature, reads nothing,
+    // changes no app — and its headline use is a background task saying "I'm
+    // done", which runs under display-only consent where every plan-gated act
+    // refuses. Gating it would disable it for exactly that turn. See the
+    // tool file's header.
+    makeSendDesktopNotificationTool(),
   ]
   if (input.enableActions === true) {
     // ONE envelope shared by the plan tool and both act tools — that shared
@@ -139,6 +147,10 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     factories.push(makeActOnDesktopTool(envelope))
     // Starting a program is an action — same envelope, same authorizer.
     factories.push(makeLaunchAppTool(envelope))
+    // A URL opener is a LAUNCHER with no resolvable target app, so it takes
+    // the clipboard's consent gate (refuses unattended) plus a scheme
+    // allowlist — see open-url.ts for why file:/deep-link schemes are out.
+    factories.push(makeOpenUrlTool(envelope))
     // Arranging a window (maximize / minimize / restore) is a click-class
     // action — same envelope, same authorizer.
     factories.push(makeSetWindowStateTool(envelope))

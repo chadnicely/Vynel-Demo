@@ -21,6 +21,14 @@ export type {
 } from './notifications/desktop-notification.js'
 
 export {
+  sendDesktopToast,
+  TOAST_TITLE_PREFIX,
+  TOAST_TITLE_MAX_LENGTH,
+  TOAST_MESSAGE_MAX_LENGTH,
+} from './notifications/send-toast.js'
+export type { SendDesktopToastInput } from './notifications/send-toast.js'
+
+export {
   listOpenApps,
   snapshotApp,
   actOnApp,
@@ -67,6 +75,7 @@ export { listInstalledApps, matchInstalledApps } from './apps/installed-apps.js'
 export type { InstalledApp } from './apps/installed-apps.js'
 export { launchApp } from './apps/launch-app.js'
 export type { LaunchAppResult } from './apps/launch-app.js'
+export { openUrl, checkOpenableUrl, OPEN_URL_ALLOWED_SCHEMES } from './apps/open-url.js'
 
 export { deriveDesktopPlanConsent } from './plan/desktop-plan-consent.js'
 export { createDesktopPlanEnvelope } from './plan/desktop-plan-envelope.js'

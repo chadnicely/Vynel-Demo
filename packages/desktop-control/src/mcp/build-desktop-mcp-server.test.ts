@@ -102,6 +102,9 @@ describe('desktopToolFactories', () => {
       'screenshot_app',
       // Read-only, so it rides the observe tier and needs no plan.
       'wait_for',
+      // Ungated: its headline use is a background (display-only) task saying
+      // "I'm done", and a toast is its own accountability — visible by nature.
+      'send_desktop_notification',
     ])
   })
 
@@ -144,6 +147,8 @@ describe('desktopToolFactories', () => {
     expect(names).toContain('act_on_desktop')
     // Starting a program is an action — it must not exist on observe-only turns.
     expect(names).toContain('launch_app')
+    // A URL opener is a launcher — same rule.
+    expect(names).toContain('open_url')
     // Arranging a window changes the screen — same rule.
     expect(names).toContain('set_window_state')
     // Moving/resizing is the same click-class change.
@@ -154,6 +159,7 @@ describe('desktopToolFactories', () => {
     )
     expect(observeOnly).not.toContain('propose_desktop_plan')
     expect(observeOnly).not.toContain('launch_app')
+    expect(observeOnly).not.toContain('open_url')
     expect(observeOnly).not.toContain('set_window_state')
     expect(observeOnly).not.toContain('set_window_bounds')
   })
