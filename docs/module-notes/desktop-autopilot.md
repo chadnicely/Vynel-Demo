@@ -237,6 +237,28 @@ state, batching, and every safety layer.
 
 ---
 
+## STATE OF PLAY — end of 2026-08-12
+
+**Landed today, all gate-green and pushed:** tray restore actually works (the AppID never reached
+PowerShell — `-Args` is `-File`-only); `launch_app` no longer reports Docker's error dialog as the
+app, nor a longer window title as a failure; the packaged-app identity collision is closed; the
+shadowed-Store-app error tells the truth; the plan is now the sole authority for acting; and the
+desktop watchdog can finally fire on a delegated turn.
+
+**Kafi's live verdict on tray restore:** works for qBittorrent, IDM and Telegram. Docker alone
+fails, by its own launcher-lock error — parked, see below.
+
+**Two things need Kafi, and nothing else is blocked on him:**
+1. **The read-consent question** (A2/A3 cannot start without it) — three options written out under
+   **NEXT → A**. My recommendation: option 3.
+2. **The three "cheap fills"** (item 10) — each changes what Claude may do or see; deliberately not
+   shipped while he was away.
+
+**Unblocked and ready to pick up:** item 11 (Arc 6 — dependencies now approved, ranked below),
+item 7 (post-action verification), item 6 (durable task record).
+
+---
+
 ## WHAT'S LEFT — the live list (2026-08-11, after Kafi's smoke test)
 
 Everything below the arcs is history; this is the outstanding work. Kafi's smoke test passed on the
@@ -457,14 +479,51 @@ distinguishes them.
 9. **The two 10-minute budgets are identical.** `DELEGATION_RUN_BUDGET_MS` measures from *claim*,
    the new task watchdog from *first arm* — so on a spawned session the delegation budget always
    bites first and the watchdog only really covers attended turns. They probably should not match.
-10. **Cheap fills still open:** `mouse_position`, `mouse_button` (press/hold/release), whole-screen
-    capture. One file each; the nut loader widening unlocks most of them.
+10. **"Cheap fills" — NOT cheap. Each is one decision, not one file.** The loader already exposes
+    everything needed (`pressButton`, `releaseButton`, `getPosition`, `Button`), so the plumbing was
+    never the blocker. Looked at properly, 2026-08-12:
+    - **`mouse_position` — must NOT use nut's `getPosition`.** It mis-reports on scaled monitors;
+      that is the sensor that produced this session's phantom-DPI "fix" (retracted, finding 1). The
+      honest source is Win32 `GetCursorPos` via PowerShell, verified this session: asked 561,1056,
+      reported 561,1056. Safe and read-only once built on that — but of marginal value to the
+      model, which rarely needs to know where the cursor is.
+    - **`mouse_button` (press / hold / release) — the risk is a STUCK BUTTON.** If a turn dies
+      between press and release, the left button stays down desktop-wide and the user's machine is
+      unusable until they click. This package already hit exactly that in the stepped drag (fixed
+      with the `buttonMayBeDown` flag + a caught release). `drag` already covers the real use case,
+      so shipping a raw hold is trading a genuine hazard for very little. **Recommend: don't.**
+    - **Whole-screen capture — the question is what it may SEE.** `screenshot_app` captures one
+      window, which is why the plan can enumerate what Claude looks at. A whole-screen shot takes in
+      every app the plan never named. That is consistent with where A is heading ("as per user ask
+      it can open any app", with the access log as accountability), but it is a privacy decision,
+      not a fill. It is also the most genuinely useful of the three — "what's on my screen?" is a
+      natural request.
+
+    **Deliberately not shipped while Kafi was away**: all three change what Claude may do or see,
+    and none is urgent. They are one-line calls in the morning.
 
 ### Decisions, not work
 
-11. **Arc 6 in/out calls** — each needs a new dependency: OCR (`tesseract.js`) · volume
-    (`loudness`) · CPU/mem/battery + process list (`systeminformation`) · sending a desktop
-    notification (`node-notifier`) · opening an arbitrary file/URL (`open`).
+11. **Arc 6 in/out calls** — each needs a new dependency. **Kafi unblocked this 2026-08-12**
+    ("no worries what dependency you need you can install verifying they are safe"), so these are
+    now work rather than decisions. Ranked by value-per-risk, with the safety read on each:
+    - **`systeminformation`** (CPU / memory / battery / process list) — *best first pick*. Widely
+      used, no native build, read-only by nature. Answers "is my laptop about to die", "what's
+      eating my CPU" — questions a non-technical user actually asks.
+    - **`open`** (open a file or URL in its default app) — tiny, ubiquitous. ⚠ It is a **launcher**,
+      so it needs the same gating as `launch_app` plus a scheme allowlist, or it becomes the
+      unrestricted-execution hole that `isLaunchableAppId` exists to prevent. Overlaps item 12.
+    - **`node-notifier`** (send a desktop notification) — low risk, genuinely useful for a
+      background task saying "I'm done". Note the existing notifications helper already logs
+      `Class not registered (hresult 0x80040154)` on every poll on this machine — worth fixing or
+      understanding first, since it may be the same COM surface.
+    - **`loudness`** (system volume) — small, but thin value and it touches global system state.
+    - **`tesseract.js`** (OCR) — *heaviest by far*: large model downloads, slow, and mostly
+      redundant now that `snapshot_app` reads real text from the accessibility tree. Only earns its
+      place for canvas/image-only content. **Recommend last, or never.**
+
+    Suggested order: `systeminformation` → `node-notifier` → `open` (with the allowlist) → stop and
+    reassess. Each ships as its own arc with its own tests, not as a batch.
 12. **Deep-link joining** (`zoommtg://`, `msteams:`) — needs a scheme-allowlisted URI primitive
     beside `launch-app.ts`; higher-risk surface than anything above.
 
