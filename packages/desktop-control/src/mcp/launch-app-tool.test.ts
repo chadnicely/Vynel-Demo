@@ -36,10 +36,7 @@ function buildTool(
   } = {},
 ) {
   const launched = options.launched ?? []
-  const tool = makeLaunchAppTool(
-    envelope,
-    options.authorize as never,
-    {
+  const tool = makeLaunchAppTool(envelope, {
       listApps: async () => INSTALLED,
       launch: async (app) => {
         launched.push(app.name)
@@ -105,15 +102,12 @@ describe('makeLaunchAppTool', () => {
 
   it('requires the CLICK tier — "look only" never starts programs', async () => {
     // The read tier is a promise to observe and not touch; starting a program
-    // is touching. The standing authorizer is what denies it here.
-    const { tool, launched } = buildTool(armedEnvelope('Google Chrome', 'read'), {
-      authorize: (app, tier) => {
-        throw new ForbiddenError(`denied ${app} at ${tier}`)
-      },
-    })
+    // is touching. The PLAN denies it directly now — a plan asking for "read"
+    // does not authorize a launch, and there is no second door to fall through.
+    const { tool, launched } = buildTool(armedEnvelope('Google Chrome', 'read'))
     const result = await tool.handler({ app: 'Google Chrome' })
     expect(result.isError).toBe(true)
-    expect(result.content[0]?.text).toContain('denied Google Chrome at click')
+    expect(result.content[0]?.text).toMatch(/does not cover it at the "click" tier/)
     expect(launched).toEqual([])
   })
 

@@ -24,7 +24,7 @@ function build(
   apply: (pid: number, bounds: { x: number; y: number; width: number; height: number }) => Promise<SetWindowBoundsOutcome>,
   envelope = armed(),
 ) {
-  return makeSetWindowBoundsTool(envelope, undefined, {
+  return makeSetWindowBoundsTool(envelope, {
     findPid: async () => 4242,
     appNameByPid: () => 'Chrome',
     apply,

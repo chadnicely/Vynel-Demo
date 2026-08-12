@@ -4,10 +4,7 @@ import type { McpToolFn } from './mcp-tool-fn.js'
 import { listInstalledApps, matchInstalledApps, type InstalledApp } from '../apps/installed-apps.js'
 import { launchApp, type LaunchAppResult } from '../apps/launch-app.js'
 import { listWindowAppNames } from '../a11y/window-identity.js'
-import {
-  normalizeDesktopAppKey,
-  type DesktopAccessAuthorizer,
-} from '../access/desktop-access-tiers.js'
+import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 
@@ -123,10 +120,9 @@ export type LaunchAppToolDeps = {
  *  Plan-gated by construction, exactly like the act tools. */
 export function makeLaunchAppTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
   deps: LaunchAppToolDeps = {},
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   const listApps = deps.listApps ?? (() => listInstalledApps())
   const launch = deps.launch ?? launchApp
   return (tool as unknown as McpToolFn)(

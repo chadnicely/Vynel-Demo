@@ -11,7 +11,7 @@
 // BOTH doors (update the plan, or request standing access).
 
 import { ForbiddenError } from '@vynel/errors'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import type { DesktopAccessAuthorizer, DesktopAccessTier } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from './desktop-plan-envelope.js'
 
 export const PLAN_REQUIRED_MESSAGE =
@@ -69,27 +69,62 @@ export function unattendedRefusalError(envelope: DesktopPlanEnvelope): string | 
 }
 
 /**
- * An authorizer that consults the armed plan before the standing grants.
+ * The authorizer: the armed plan is the ONLY authority.
+ *
  * Called by the execution adapters AFTER resolving the real target app, so
  * coordinate confinement + hit-test identity keep their guarantees.
+ *
+ * WHY there is no second door any more (Kafi, 2026-08-12). Per-app grants asked
+ * a second time for consent the PLAN already carries, in a vocabulary a
+ * non-technical user cannot evaluate — the cards this package generated in
+ * practice said "Docker Desktop Launcher" and "Application Frame Host". A plan
+ * that says "open Docker and check whether the containers are running" is
+ * consent someone can actually give.
+ *
+ * ⚠ THE DEFAULT IS INVERTED FROM THE OLD ONE, DELIBERATELY. The previous
+ * version RETURNED — allowed — when no standing authorizer was supplied, which
+ * is how test harnesses built ungated tools. Simply dropping that argument
+ * would have made every act permissive. A plan miss now DENIES.
+ *
+ * Consequence, stated rather than discovered: a turn whose consent is
+ * `display-only` (an absent permission mode — channels, schedules) can no
+ * longer act on the desktop AT ALL, because `authorizesApp` is false for it and
+ * standing grants were its only other authority (`desktop-plan-consent.ts`).
+ * That is the conservative side of the change, and it strengthens rather than
+ * overturns "a background turn can never self-grant" (Chad 2026-08-04). Spawned
+ * sessions are unaffected — they inherit the parent's auto/bypass mode, which
+ * maps to `standing-consent`.
  */
-export function makePlanGatedAuthorizer(
-  envelope: DesktopPlanEnvelope,
-  standingAuthorize?: DesktopAccessAuthorizer,
-): DesktopAccessAuthorizer {
+export function makePlanGatedAuthorizer(envelope: DesktopPlanEnvelope): DesktopAccessAuthorizer {
   return (resolvedAppName, required) => {
     if (envelope.authorizesApp(resolvedAppName, required)) return
-    if (standingAuthorize === undefined) return
-    try {
-      standingAuthorize(resolvedAppName, required)
-    } catch (err) {
-      if (err instanceof ForbiddenError) {
-        throw new ForbiddenError(
-          `${err.message} Or propose an updated plan (propose_desktop_plan) that lists ` +
-            `"${resolvedAppName}" at tier "${required}" — the user approves the change once.`,
-        )
-      }
-      throw err
-    }
+    throw new ForbiddenError(planDenialMessage(envelope, resolvedAppName, required))
   }
+}
+
+/** Why the plan did not cover this act — each cause has a different recovery,
+ *  and a denial that names the wrong one sends the model in circles. */
+function planDenialMessage(
+  envelope: DesktopPlanEnvelope,
+  resolvedAppName: string,
+  required: DesktopAccessTier,
+): string {
+  if (resolvedAppName.trim().length === 0) {
+    return (
+      'Desktop access denied: the target app could not be identified, so nothing was done. Name the ' +
+      'app explicitly, or use list_open_apps to see what is actually open.'
+    )
+  }
+  if (envelope.consent === 'display-only') {
+    return (
+      `Cannot act on "${resolvedAppName}": this turn is running unattended, so its plan narrates on ` +
+      'the overlay but carries no authority to act. Desktop actions need a turn the user is present ' +
+      'for. Tell the user what you would have done and let them run it.'
+    )
+  }
+  return (
+    `Desktop access denied for "${resolvedAppName}": the approved plan does not cover it at the ` +
+    `"${required}" tier. Propose an updated plan (propose_desktop_plan) listing "${resolvedAppName}" ` +
+    `at tier "${required}" — the user approves the change once, and it replaces the old plan.`
+  )
 }

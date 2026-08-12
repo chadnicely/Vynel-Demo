@@ -37,7 +37,6 @@ import {
 import { resolveAppIdentity } from '../a11y/window-identity.js'
 import { hostedAmbiguityMessage } from '../a11y/window-host-processes.js'
 import { rejectUnusableBounds, setWindowBounds } from '../a11y/window-bounds.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 
@@ -62,10 +61,9 @@ export type SetWindowBoundsToolDeps = {
 /** Construct the `set_window_bounds` SDK MCP tool (mutating — destructiveHint). */
 export function makeSetWindowBoundsTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
   deps: SetWindowBoundsToolDeps = {},
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   const findPid = deps.findPid ?? findWindowedPidByName
   const isRunning = deps.isRunning ?? isProcessRunningByName
   const apply = deps.apply ?? setWindowBounds

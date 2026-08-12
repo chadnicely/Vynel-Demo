@@ -8,7 +8,6 @@ import {
   type ActOnDesktopParams,
 } from '../input/desktop-input.js'
 import { waitForForegroundSettle } from '../input/foreground-settle.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 import { buildBatchResponse, runActionBatch, MAX_BATCH_ACTIONS } from './act-batch.js'
@@ -138,9 +137,8 @@ const FOCUS_CHANGING_ACTIONS = new Set<ActOnDesktopParams['action']>(['click', '
  *  default waiting for a second construction site.) */
 export function makeActOnDesktopTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   return (tool as unknown as McpToolFn)(
     'act_on_desktop',
     TOOL_DESCRIPTION,

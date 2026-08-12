@@ -8,7 +8,6 @@ import {
   type ActOnAppResult,
   type DesktopAction,
 } from '../a11y/xa11y-adapter.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 import {
@@ -109,9 +108,8 @@ export function buildActResponse(
  *  default waiting for a second construction site.) */
 export function makeActOnAppTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   return (tool as unknown as McpToolFn)(
     'act_on_app',
     TOOL_DESCRIPTION,

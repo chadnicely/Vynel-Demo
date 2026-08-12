@@ -29,49 +29,64 @@ describe('planRequiredError', () => {
 })
 
 describe('makePlanGatedAuthorizer', () => {
-  it('lets the armed plan satisfy an act without consulting standing grants', () => {
-    let standingCalls = 0
-    const authorize = makePlanGatedAuthorizer(armed(), () => {
-      standingCalls += 1
-      throw new ForbiddenError('no grant')
-    })
-    expect(() => authorize('Notepad', 'click')).not.toThrow()
-    expect(standingCalls).toBe(0)
+  it('lets the armed plan satisfy an act', () => {
+    expect(() => makePlanGatedAuthorizer(armed())('Notepad', 'click')).not.toThrow()
   })
 
-  it('falls through to standing grants when the plan does not cover the act', () => {
-    let standingCalls = 0
-    const authorize = makePlanGatedAuthorizer(armed(), () => {
-      standingCalls += 1
-    })
-    // Above the plan's tier AND an unplanned app both defer to the grant gate.
-    authorize('Notepad', 'full')
-    authorize('Discord', 'read')
-    expect(standingCalls).toBe(2)
+  // The inversion. This USED to fall through to a standing per-app grant, and —
+  // the trap — ALLOWED when no standing authorizer was supplied, which is how
+  // test harnesses built ungated tools. With grants retired, that default would
+  // have made every act permissive, so a plan miss now denies.
+  it('DENIES an app the plan does not name', () => {
+    expect(() => makePlanGatedAuthorizer(armed())('Discord', 'click')).toThrow(ForbiddenError)
   })
 
-  it('appends the plan recovery path to a standing denial', () => {
-    const authorize = makePlanGatedAuthorizer(armed(), () => {
-      throw new ForbiddenError('Desktop access denied for "Discord".')
-    })
-    expect(() => authorize('Discord', 'full')).toThrowError(
-      /Desktop access denied for "Discord"\..*propose_desktop_plan.*"Discord" at tier "full"/s,
-    )
+  it('DENIES a tier above what the plan asked for', () => {
+    // The plan names Notepad at "click"; typing into it is "full".
+    expect(() => makePlanGatedAuthorizer(armed())('Notepad', 'full')).toThrow(ForbiddenError)
   })
 
-  it('rethrows a non-Forbidden failure untouched (never masks a real error)', () => {
-    const boom = new Error('adapter exploded')
-    const authorize = makePlanGatedAuthorizer(armed(), () => {
-      throw boom
-    })
-    expect(() => authorize('Discord', 'read')).toThrow(boom)
+  it('names the ONE recovery that exists now', () => {
+    const denial = makePlanGatedAuthorizer(armed())
+    let message = ''
+    try {
+      denial('Discord', 'full')
+    } catch (err) {
+      message = (err as Error).message
+    }
+    expect(message).toMatch(/propose_desktop_plan/)
+    expect(message).toMatch(/"Discord" at tier "full"/)
+    // The second door is gone; the denial must not send the model looking for it.
+    expect(message).not.toMatch(/request_desktop_access/)
   })
 
-  it('mirrors the bare-authorizer contract when no standing authorizer exists', () => {
-    // Test harnesses build act tools without an authorizer; a plan miss must
-    // not invent a denial the ungated path would never have raised.
-    const authorize = makePlanGatedAuthorizer(armed(), undefined)
-    expect(() => authorize('Discord', 'full')).not.toThrow()
+  it('says WHY when the app could not be identified, rather than blaming the plan', () => {
+    // set_window_bounds / set_window_state pass '' for an unresolvable hosted
+    // window; "your plan does not cover ''" would be a nonsense recovery.
+    let message = ''
+    try {
+      makePlanGatedAuthorizer(armed())('', 'click')
+    } catch (err) {
+      message = (err as Error).message
+    }
+    expect(message).toMatch(/could not be identified/i)
+    expect(message).not.toMatch(/propose_desktop_plan/)
+  })
+
+  it('tells an UNATTENDED turn that it has no authority at all', () => {
+    // display-only was the conservative floor whose only authority WAS a
+    // standing grant, so with grants gone it can no longer act. Say that
+    // plainly instead of suggesting a plan change that would not help.
+    const envelope = createDesktopPlanEnvelope('display-only')
+    envelope.arm({ goal: 'g', steps: ['s'], apps: [{ app: 'Notepad', tier: 'click' }] })
+    let message = ''
+    try {
+      makePlanGatedAuthorizer(envelope)('Notepad', 'click')
+    } catch (err) {
+      message = (err as Error).message
+    }
+    expect(message).toMatch(/unattended/i)
+    expect(message).not.toMatch(/propose_desktop_plan/)
   })
 })
 

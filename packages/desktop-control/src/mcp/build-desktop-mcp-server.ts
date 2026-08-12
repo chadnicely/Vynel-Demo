@@ -86,17 +86,17 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // whatever its approval authorized) dies with the turn.
     const envelope = createDesktopPlanEnvelope(input.planConsent ?? 'display-only')
     factories.push(makeProposeDesktopPlanTool(envelope))
-    factories.push(makeActOnAppTool(envelope, authorize))
-    factories.push(makeActOnDesktopTool(envelope, authorize))
+    factories.push(makeActOnAppTool(envelope))
+    factories.push(makeActOnDesktopTool(envelope))
     // Starting a program is an action — same envelope, same authorizer.
-    factories.push(makeLaunchAppTool(envelope, authorize))
+    factories.push(makeLaunchAppTool(envelope))
     // Arranging a window (maximize / minimize / restore) is a click-class
     // action — same envelope, same authorizer.
-    factories.push(makeSetWindowStateTool(envelope, authorize))
+    factories.push(makeSetWindowStateTool(envelope))
     // Moving/resizing is the same click-class change as arranging state, and the
     // correct primitive for "put this on my other screen" — dragging a title bar
     // across a monitor boundary is slow and fails invisibly.
-    factories.push(makeSetWindowBoundsTool(envelope, authorize))
+    factories.push(makeSetWindowBoundsTool(envelope))
     // The clipboard is GLOBAL, not app-scoped, so the per-app authorizer has
     // nothing to check it against — the plan envelope is its only gate, which
     // is why even the READ lives behind `enableActions` (it can surface a

@@ -30,10 +30,7 @@ function build(
   } = {},
 ) {
   const applied: Array<{ pid: number; state: WindowState }> = []
-  const tool = makeSetWindowStateTool(
-    envelope,
-    overrides.authorize as never,
-    {
+  const tool = makeSetWindowStateTool(envelope, {
       findPid: overrides.findPid ?? (async () => 42),
       // Injected so these tests never load the capture binary — the default
       // identity lookup reaches node-screenshots (the request_desktop_access
@@ -102,26 +99,19 @@ describe('makeSetWindowStateTool', () => {
     expect(applied).toEqual([])
   })
 
-  it('enforces the CLICK tier against standing grants, and a denial stops the change', async () => {
-    // A display-only envelope arms (so the plan gate passes) but authorizes
-    // nothing — the unattended shape — which is what forces the fall-through to
-    // the standing grant gate this assertion is about. Arranging a window
-    // changes the screen but types nothing: click, not full.
+  it('an UNATTENDED turn cannot arrange a window, and nothing changes', async () => {
+    // display-only ARMS (so the plan gate passes) but authorizes nothing. That
+    // used to fall through to a standing per-app grant; with grants retired it
+    // is the end of the road — the conservative direction, and the one case
+    // where "propose a better plan" would be useless advice.
     const displayOnly = createDesktopPlanEnvelope('display-only')
     displayOnly.arm({ goal: 'g', steps: ['s'], apps: [{ app: 'Notepad', tier: 'click' }] })
-    const seen: Array<{ appName: string; required: string }> = []
-    const { tool, applied } = build(displayOnly, {
-      authorize: (appName, required) => {
-        seen.push({ appName, required })
-        throw new ForbiddenError('Desktop access denied for "Notepad".')
-      },
-    })
+    const { tool, applied } = build(displayOnly)
     const result = await tool.handler({ app: 'Notepad', state: 'minimized' })
-    expect(seen[0]?.required).toBe('click')
     expect(result.isError).toBe(true)
+    expect(result.content[0]?.text).toMatch(/unattended/i)
     expect(applied).toEqual([])
   })
-
   it('an armed plan covering the app satisfies it without a standing grant', async () => {
     // The plan-envelope short-circuit: a covered app never reaches the standing
     // gate, which is exactly what makes one approval cover the whole task.

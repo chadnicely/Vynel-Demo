@@ -271,7 +271,25 @@ mobile app later and the enabled env will sit in app setting so not our current 
   (`propose_desktop_plan` cards in ask mode ONLY, so an unattended turn arms its own envelope —
   see `unattendedRefusalError`). Attended turns are unaffected; **unattended desktop work loses its
   independent gate** and the log is after-the-fact. Worth Chad seeing.
-- **B. The shadowed-Store-app error.** When a second packaged app holds the accessibility
+  **The shape, in three green phases** (~50 files across desktop-control, local-api, providers, ui,
+  local-web — too big for one commit, and a HALF-removed security layer is worse than none):
+  - **A1 — the semantics.** The plan envelope becomes the sole authority.
+    `makePlanGatedAuthorizer(envelope, standing)` currently falls through to the standing grant on a
+    plan miss, and — the trap — **returns (ALLOWS) when no standing authorizer is passed**, which is
+    how test harnesses build ungated tools. Dropping the second argument without flipping that
+    default would make every act permissive. So A1 inverts it: a plan miss DENIES, with the
+    "propose an updated plan" recovery. This is the only phase that changes behaviour.
+  - **A2 — the surfaces.** Delete `request_desktop_access`, the `desktop-access` API route, the
+    approval plumbing, and `accessTier` from `list_open_apps`.
+  - **A3 — the storage.** Delete the repository, the schema table, and generate the migration
+    (`pnpm --filter @vynel/db exec drizzle-kit generate` — never hand-written).
+  Tiers SURVIVE all three: they are how a plan states intent (`apps: [{app, tier}]`), and the
+  `read ⊂ click ⊂ full` ladder still gates what an armed plan permits.
+
+- **B. The shadowed-Store-app error.** ✅ **DONE 2026-08-12** (`3f78992`). Both failure paths now
+  name the cause and point at `screenshot_app`. The worse of the two was the *confidently wrong*
+  one: the shared host exposes a single `MainWindowTitle`, so the shadowed sibling fell through to
+  the tray branch and a visible window was declared "minimized to the system tray". When a second packaged app holds the accessibility
   connection, `snapshot_app` fails with `No element matched selector: application[pid=6280]` —
   opaque, so the model cannot fall back. It should name the cause and point at `screenshot_app`,
   which works fine for these windows. Small diff, real value.
