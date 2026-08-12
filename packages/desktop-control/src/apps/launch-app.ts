@@ -124,8 +124,42 @@ export function selectAppearedWindow(names: string[], requestedName: string): st
   return rankAppearedWindow(names, requestedName)?.name ?? null
 }
 
-/** The tier-3 look-alike: a window whose name EXTENDS the app's. */
+/** The look-alike: a window that is a HELPER of the app, not the app. */
 export type AppearedWindow = { name: string; isLookAlike: boolean }
+
+/**
+ * Words that, appended bare to an app's name, name a helper rather than the app.
+ *
+ * Deliberately a closed list of whole words, not a shape rule. The first version
+ * treated ANY name that extended the request as suspicious, which was wrong
+ * within hours: qBittorrent's real main window is "qBittorrent - A Bittorrent
+ * Client", so launch_app called a perfectly good launch a failure (Kafi, live
+ * 2026-08-12). A descriptor after a separator is just a longer title; a bare
+ * "Launcher" appended is a different program.
+ *
+ * This is safe against apps genuinely CALLED "X Launcher" (Epic Games Launcher
+ * is one) because the requested name comes from `list_installed_apps`, i.e. the
+ * Start-menu entry — so Epic is asked for by its full name and matches exactly.
+ * Only a request for the SHORTER name can reach this check at all.
+ */
+const HELPER_SUFFIXES = new Set([
+  'launcher',
+  'installer',
+  'setup',
+  'updater',
+  'update',
+  'helper',
+  'uninstall',
+  'uninstaller',
+  'crash handler',
+  'crash reporter',
+])
+
+/** Whether `candidate` is the app's name plus a bare helper word. Pure. */
+function isHelperExtension(candidate: string, needle: string): boolean {
+  if (!candidate.startsWith(needle)) return false
+  return HELPER_SUFFIXES.has(candidate.slice(needle.length).trim())
+}
 
 /**
  * As `selectAppearedWindow`, but saying WHICH kind of match it found.
@@ -157,7 +191,11 @@ export function rankAppearedWindow(
     .filter((entry) => Number.isFinite(entry.tier))
     .sort((a, b) => a.tier - b.tier || a.name.length - b.name.length)
   const best = ranked[0]
-  return best === undefined ? null : { name: best.name, isLookAlike: best.tier === 3 }
+  if (best === undefined) return null
+  return {
+    name: best.name,
+    isLookAlike: best.tier === 3 && isHelperExtension(simplify(best.name), needle),
+  }
 }
 
 export type LaunchAppResult =

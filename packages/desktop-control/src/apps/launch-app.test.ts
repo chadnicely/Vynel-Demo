@@ -238,3 +238,46 @@ describe('a look-alike is never reported AS the app', () => {
     expect(started).toEqual(['Docker.X'])
   })
 })
+
+// The correction. The first look-alike rule treated ANY name that extended the
+// request as a helper, and within hours it called a good launch a failure:
+// qBittorrent's real main window is "qBittorrent - A Bittorrent Client"
+// (Kafi, live 2026-08-12 — "it shows failed but it was opened").
+describe('a longer TITLE is the app; a bare helper word is not', () => {
+  const opened = async (requested: string, windowName: string) =>
+    launchApp(
+      { name: requested, appId: 'X' },
+      harness([[], [windowName]]).deps,
+    )
+
+  it('accepts a window that adds a DESCRIPTOR after a separator', async () => {
+    expect(await opened('qBittorrent', 'qBittorrent - A Bittorrent Client')).toEqual({
+      kind: 'launched',
+      appName: 'qBittorrent - A Bittorrent Client',
+    })
+  })
+
+  it('still refuses a bare helper word', async () => {
+    expect(await opened('Docker Desktop', 'Docker Desktop Launcher')).toEqual({
+      kind: 'look-alike-only',
+      appName: 'Docker Desktop',
+      lookAlikeName: 'Docker Desktop Launcher',
+    })
+  })
+
+  it('does not trip on an app whose real name ENDS in a helper word', async () => {
+    // launch_app is given the Start-menu name, so Epic is asked for in full and
+    // matches exactly — the helper check is never even reached.
+    expect(await opened('Epic Games Launcher', 'Epic Games Launcher')).toEqual({
+      kind: 'launched',
+      appName: 'Epic Games Launcher',
+    })
+  })
+
+  it('treats the other helper words the same way', async () => {
+    for (const suffix of ['Installer', 'Setup', 'Updater', 'Helper']) {
+      const result = await opened('Telegram', `Telegram ${suffix}`)
+      expect(result.kind).toBe('look-alike-only')
+    }
+  })
+})
