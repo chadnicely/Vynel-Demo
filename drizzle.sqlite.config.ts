@@ -64,6 +64,7 @@ export default defineConfig({
     '../instructions/src/schema/instruction-documents.ts',
     '../session/src/schema/primary-sessions.ts',
     '../session/src/schema/session-turns.ts',
+    '../desktop-control/src/schema/desktop-actions.ts',
     '../orchestration/src/schema/delegation-jobs.ts',
     './src/schema/_shared/outbox-events.ts',
   ],

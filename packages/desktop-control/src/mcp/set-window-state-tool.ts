@@ -129,6 +129,12 @@ export function makeSetWindowStateTool(
             isError: true,
           }
         }
+        envelope.recordAct({
+          tool: 'set_window_state',
+          appName,
+          detail: `${windowStateVerb(state)} the window`,
+          outcome: 'ok',
+        })
         return {
           content: [{ type: 'text', text: `"${appName}" is ${windowStateVerb(state)}.` }],
         }

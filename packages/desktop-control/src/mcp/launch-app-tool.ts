@@ -176,8 +176,19 @@ export function makeLaunchAppTool(
         const target = exact ?? matches[0]!
         // Authorize the app the user actually approved, BEFORE starting it.
         effectiveAuthorize(target.name, 'click')
+        const launchResult = await launch(target, { listWindowAppNames })
+        envelope.recordAct({
+          tool: 'launch_app',
+          appName: target.name,
+          detail:
+            launchResult.kind === 'already-open'
+              ? 'was already open — nothing launched'
+              : `launched (${launchResult.kind})`,
+          outcome: launchResult.kind === 'look-alike-only' ? 'failed' : 'ok',
+          note: launchResult.kind === 'look-alike-only' ? launchResult.lookAlikeName : null,
+        })
         return buildLaunchResponse(
-          await launch(target, { listWindowAppNames }),
+          launchResult,
           // The name the authorization was taken under — so a window that
           // opens reporting something else is called out immediately.
           target.name,

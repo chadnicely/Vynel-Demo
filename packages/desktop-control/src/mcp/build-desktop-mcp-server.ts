@@ -9,6 +9,7 @@ import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
 import { makeListMonitorsTool } from './list-monitors-tool.js'
 import { makeSystemStatusTool } from './system-status-tool.js'
 import { makeGetAppTool } from './get-app-tool.js'
+import { recordDesktopAction } from '../repositories/desktop-actions.js'
 import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
@@ -22,10 +23,12 @@ import { makeProposeDesktopPlanTool } from './propose-desktop-plan-tool.js'
 
 export type BuildDesktopMcpServerInput = {
   reader: DesktopNotificationReader
-  /** Kept for the descriptor's uniform construction shape; no tool reads them
-   *  now that the package owns no tables. */
+  /** The durable action record is written against these. */
   db: Database
   userId: string
+  /** The sdk session an act belongs to — what "how far did THAT task get" reads
+   *  back by. Optional: a caller without one still gets a user-level log. */
+  sessionId?: string
   /**
    * Enable the MUTATING `act_on_app` / `act_on_desktop` tools. Default OFF — a
    * real off-switch so a stray merge or run can't silently act on the desktop.
@@ -91,7 +94,22 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // instance is the whole plan-approval mechanism: propose arms it, acts
     // refuse without it. Server instances are per-turn, so the plan (and
     // whatever its approval authorized) dies with the turn.
-    const envelope = createDesktopPlanEnvelope(input.planConsent ?? 'display-only')
+    // The recorder is wired ONCE, here, onto the envelope every act tool
+    // already shares — so no tool can be added later and quietly go unrecorded.
+    const envelope = createDesktopPlanEnvelope(input.planConsent ?? 'display-only', {
+      write: (record) => {
+        recordDesktopAction(input.db, {
+          userId: input.userId,
+          sessionId: input.sessionId ?? null,
+          goal: record.goal,
+          tool: record.tool,
+          appName: record.appName ?? null,
+          detail: record.detail,
+          outcome: record.outcome,
+          note: record.note ?? null,
+        })
+      },
+    })
     factories.push(makeProposeDesktopPlanTool(envelope))
     factories.push(makeActOnAppTool(envelope))
     factories.push(makeActOnDesktopTool(envelope))

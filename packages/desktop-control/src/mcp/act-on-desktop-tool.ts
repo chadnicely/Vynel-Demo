@@ -238,6 +238,14 @@ export function makeActOnDesktopTool(
             steps,
             async (step) => {
               const result = await actOnDesktop(step, effectiveAuthorize)
+              // Every step of a batch gets its own row: a batch that stopped
+              // half-way is exactly the case "how far did it get" must answer.
+              envelope.recordAct({
+                tool: 'act_on_desktop',
+                appName: step.app ?? null,
+                detail: result.detail,
+                outcome: 'unverified',
+              })
               return { ok: true, detail: result.detail }
             },
             {
@@ -265,6 +273,15 @@ export function makeActOnDesktopTool(
       }
       try {
         const result = await actOnDesktop(params, effectiveAuthorize)
+        // 'unverified' is the honest outcome for every coordinate act — a click
+        // has no read-back, so the record says what was DONE, never that it
+        // worked. Claiming otherwise is the fiction this arc exists to remove.
+        envelope.recordAct({
+          tool: 'act_on_desktop',
+          appName: params.app ?? null,
+          detail: result.detail,
+          outcome: 'unverified',
+        })
         return { content: [{ type: 'text', text: `Done: ${result.detail}.` }] }
       } catch (err) {
         return {

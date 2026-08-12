@@ -73,6 +73,21 @@ export type DesktopPlan = {
  */
 export const DESKTOP_TASK_BUDGET_MS = 6 * 60 * 1000
 
+/** One act, as the durable record wants it. The envelope supplies the goal, so
+ *  a caller only describes what it just did. */
+export type DesktopActRecord = {
+  tool: string
+  appName?: string | null
+  detail: string
+  outcome: 'ok' | 'failed' | 'unverified'
+  note?: string | null
+}
+
+/** Where an act gets written down. Injected, so the desktop package stays
+ *  db-free below the MCP builder — the same seam the per-app authorizer used
+ *  before it was retired, now serving accountability rather than consent. */
+export type DesktopActWriter = (record: DesktopActRecord & { goal: string | null }) => void
+
 export type DesktopPlanEnvelope = {
   readonly consent: DesktopPlanConsent
   /** Arm (or replace) the turn's plan. In ask mode the call that reaches this
@@ -89,11 +104,24 @@ export type DesktopPlanEnvelope = {
   elapsedMs(): number | null
   /** True once the task has outrun its budget. The act tools refuse from here. */
   hasOutrunBudget(): boolean
+  /**
+   * Write down one act that just happened.
+   *
+   * It lives on the ENVELOPE rather than being threaded through every act tool
+   * because the envelope is already the one thing all of them share, and it
+   * already holds the plan — so the record gets its goal for free and no tool
+   * signature changes. A recorder wired in one place cannot be forgotten in a
+   * seventh tool later.
+   *
+   * NEVER throws: a log that can break the act it is logging is worse than no
+   * log. A failed write is dropped, deliberately.
+   */
+  recordAct(record: DesktopActRecord): void
 }
 
 export function createDesktopPlanEnvelope(
   consent: DesktopPlanConsent,
-  options: { budgetMs?: number; now?: () => number } = {},
+  options: { budgetMs?: number; now?: () => number; write?: DesktopActWriter } = {},
 ): DesktopPlanEnvelope {
   let plan: DesktopPlan | null = null
   let armedAtMs: number | null = null
@@ -110,6 +138,16 @@ export function createDesktopPlanEnvelope(
     },
     elapsedMs(): number | null {
       return armedAtMs === null ? null : now() - armedAtMs
+    },
+    recordAct(record: DesktopActRecord): void {
+      if (options.write === undefined) return
+      try {
+        options.write({ ...record, goal: plan?.goal ?? null })
+      } catch {
+        // Swallowed ON PURPOSE. The act already happened; failing the tool call
+        // now would tell the model the act failed when it did not, which is a
+        // worse lie than a missing log line.
+      }
     },
     hasOutrunBudget(): boolean {
       return armedAtMs !== null && now() - armedAtMs >= budgetMs

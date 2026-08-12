@@ -86,3 +86,14 @@ export type { DesktopAccessTier, DesktopAccessAuthorizer } from './access/deskto
 
 export { resolveDesktopOs } from './platform.js'
 export type { DesktopOs } from './platform.js'
+
+// The durable record of what Claude did on the desktop — the access log's read
+// side, and what "how far did that task get" is answered from.
+export {
+  recordDesktopAction,
+  listDesktopActions,
+  listDesktopActionsForSession,
+} from './repositories/desktop-actions.js'
+export type { DesktopActionRow, RecordDesktopActionInput } from './repositories/desktop-actions.js'
+export { desktopActions } from './schema/desktop-actions.js'
+export type { DesktopActionOutcome } from './schema/desktop-actions.js'

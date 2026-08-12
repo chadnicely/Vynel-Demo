@@ -144,6 +144,13 @@ export function makeSetWindowBoundsTool(
         effectiveAuthorize(appName, 'click')
 
         const outcome = await apply(pid, bounds)
+        envelope.recordAct({
+          tool: 'set_window_bounds',
+          appName,
+          detail: `moved/resized to ${bounds.width}x${bounds.height} at ${bounds.x},${bounds.y}`,
+          outcome: outcome.ok ? 'ok' : 'failed',
+          note: outcome.ok ? null : outcome.reason,
+        })
         if (!outcome.ok) {
           return {
             content: [

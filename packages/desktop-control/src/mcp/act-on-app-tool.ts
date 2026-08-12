@@ -77,6 +77,16 @@ export function toBatchStep(app: string, result: ActOnAppResult): BatchStepResul
   return { ok: result.kind !== 'ambiguous', detail: text }
 }
 
+/** The recorded outcome for an element act. A press carries no verification, so
+ *  it is `unverified` — saying "we did not look" rather than implying we did. */
+function verificationOutcome(
+  verification: { kind: 'confirmed' | 'mismatch' | 'unverifiable' } | undefined,
+): 'ok' | 'failed' | 'unverified' {
+  if (verification === undefined) return 'unverified'
+  if (verification.kind === 'confirmed') return 'ok'
+  return verification.kind === 'mismatch' ? 'failed' : 'unverified'
+}
+
 export function buildActResponse(
   app: string,
   result: ActOnAppResult,
@@ -209,7 +219,22 @@ export function makeActOnAppTool(
       }
       try {
         const value = typeof args['value'] === 'string' ? args['value'] : undefined
-        return buildActResponse(app, await actOnApp(app, selector, action, value, effectiveAuthorize))
+        const result = await actOnApp(app, selector, action, value, effectiveAuthorize)
+        if (result.kind === 'done') {
+          // The recorded outcome mirrors the VERIFICATION, not the fact that the
+          // call returned — a log that says "ok" for text that never landed is
+          // exactly the fiction this whole arc exists to remove.
+          envelope.recordAct({
+            tool: 'act_on_app',
+            appName: app,
+            detail: `${result.action} on ${result.selector}`,
+            outcome: verificationOutcome(result.verification),
+            note: result.verification?.kind === 'mismatch'
+              ? `field reads ${JSON.stringify(result.verification.actual)}`
+              : null,
+          })
+        }
+        return buildActResponse(app, result)
       } catch (err) {
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],

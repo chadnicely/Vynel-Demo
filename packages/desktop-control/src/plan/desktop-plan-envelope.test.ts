@@ -147,3 +147,50 @@ describe('the desktop watchdog against the delegation budget', () => {
     expect(DESKTOP_TASK_BUDGET_MS).toBeGreaterThanOrEqual(5 * 60 * 1000)
   })
 })
+
+// The durable record's seam. It lives on the envelope because that is the one
+// thing every act tool already shares — so a seventh tool added later cannot
+// quietly go unrecorded.
+describe('recordAct', () => {
+  const plan = { goal: 'check the containers', steps: ['open it'], apps: [] }
+
+  it('stamps every act with the plan goal, so a row reads on its own', () => {
+    const written: Array<{ goal: string | null; detail: string }> = []
+    const envelope = createDesktopPlanEnvelope('approval-card', {
+      write: (record) => written.push(record),
+    })
+    envelope.arm(plan)
+    envelope.recordAct({ tool: 'launch_app', detail: 'launched', outcome: 'ok' })
+    expect(written).toEqual([
+      expect.objectContaining({ goal: 'check the containers', detail: 'launched' }),
+    ])
+  })
+
+  it('records an act that happened BEFORE any plan with a null goal', () => {
+    // Should not arise (acting refuses unarmed), but a record that throws or
+    // invents a goal would be worse than one that says "no goal".
+    const written: Array<{ goal: string | null }> = []
+    const envelope = createDesktopPlanEnvelope('approval-card', {
+      write: (record) => written.push(record),
+    })
+    envelope.recordAct({ tool: 'x', detail: 'y', outcome: 'ok' })
+    expect(written[0]?.goal).toBeNull()
+  })
+
+  it('NEVER lets a failing log break the act it is logging', () => {
+    // The act already happened. Throwing here would tell the model it failed
+    // when it did not — a worse lie than a missing line.
+    const envelope = createDesktopPlanEnvelope('approval-card', {
+      write: () => {
+        throw new Error('database is gone')
+      },
+    })
+    envelope.arm(plan)
+    expect(() => envelope.recordAct({ tool: 'x', detail: 'y', outcome: 'ok' })).not.toThrow()
+  })
+
+  it('is a no-op when nothing is wired to write to', () => {
+    const envelope = createDesktopPlanEnvelope('approval-card')
+    expect(() => envelope.recordAct({ tool: 'x', detail: 'y', outcome: 'ok' })).not.toThrow()
+  })
+})
