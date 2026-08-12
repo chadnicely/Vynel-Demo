@@ -121,8 +121,14 @@ export function listWindowAppNames(): string[] {
  * string the moment the user switches tabs); the window source reports the
  * stable app ("Google Chrome"). Keying a grant on a title made it die on the
  * next tab switch and made a grant taken through the accessibility door fail
- * on the screenshot door. The pid is the one thing both sources agree on, so
- * identity resolves THROUGH it.
+ * on the screenshot door. The pid is what both sources agree on, so identity
+ * normally resolves THROUGH it.
+ *
+ * The exception, and the reason this returns null more often than it used to:
+ * a pid is NOT a unique app for packaged apps. Calculator and Settings both
+ * live on pid 8828 inside one `ApplicationFrameHost` — so for a hosted pid the
+ * "one thing both sources agree on" agrees on the wrong thing. When such a pid
+ * owns more than one window there is no answer, and null is the honest one.
  */
 export function findAppNameByPid(pid: number): string | null {
   const { Window } = loadNodeScreenshots()
