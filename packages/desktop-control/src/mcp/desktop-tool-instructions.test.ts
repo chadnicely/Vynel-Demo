@@ -57,8 +57,13 @@ describe('DESKTOP_ACT_INSTRUCTIONS', () => {
     const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
     expect(DESKTOP_ACT_INSTRUCTIONS).toContain('launch_app')
     expect(lower).toContain("isn't running")
-    // Launching something already open is the obvious failure mode.
-    expect(lower).toContain('already open')
+    // Relaunching an app that already has a window is the obvious failure mode
+    // — and the CONSEQUENCE is asserted too, because "don't" without "or else"
+    // is what the model talks itself out of. Kafi hit exactly this: Docker
+    // answered a second activation with an error dialog, which then got
+    // reported as the app.
+    expect(lower).toContain('already has a window')
+    expect(lower).toContain('error dialog')
   })
 
   it('ranks the three ways to act — shortcut, then element, then coordinates', () => {

@@ -39,8 +39,11 @@ In this order:
 3. `launch_app({app})` — start it and wait for its window. Use the window name
    it returns for everything afterward.
 
-Don't relaunch something that's already open — you'll end up with two windows
-and act in the wrong one.
+Don't relaunch something that already has a window. `launch_app` won't let you —
+it says so and hands back the name — and that guard is there because a second
+activation isn't harmless: some apps answer one by popping their own error
+dialog (Docker's is "acquiring launcher lock"), and that dialog then sits on
+screen looking like the app.
 
 `launch_app` tells you the name the window actually reports. Use that name from
 then on — and if it differs from the one you asked for ("Firefox Developer
@@ -49,6 +52,18 @@ so re-propose for the real name before acting. You can also ask for standing
 access to an app that isn't running yet: `request_desktop_access` resolves
 installed apps, not just open ones, which is how a background task gets
 permission to open something.
+
+Treat a name that **extends** what you asked for as a warning, not a win:
+"Docker Desktop Launcher" when you wanted "Docker Desktop" is a helper,
+installer or error dialog. `launch_app` ranks those last, so getting one back
+means the app's own window never appeared. Look at it with `screenshot_app`
+before you act on it — it's usually telling you why.
+
+**Windows Store apps under-report.** Calculator, Settings, Photos, Store and the
+current Notepad run their windows through one shared system process, so
+`launch_app` can tell you no window appeared when the app opened perfectly well,
+and it may come up behind whatever you were looking at. Don't relaunch on that
+report — `list_open_apps` and see what's actually there first.
 
 **Minimized is not a problem** — never ask the user to open a window, because
 they may not be there. `screenshot_app` restores a minimized window before it
@@ -60,9 +75,10 @@ so `screenshot_app` it first and take your coordinates from that fresh capture.
 **An app in the system tray is running, not closed.** When a tool tells you an
 app is running but has no window, it's tucked into the notification area by the
 clock — hidden rather than minimized, which is why nothing can find a window to
-act on. `launch_app` is the fix: launching something already running doesn't
-start a second copy, it activates the running one and the app restores its own
-window. Retry with the window name `launch_app` reports.
+act on. This is the one case where you launch something that's already running,
+and the missing window is exactly what makes it safe: nothing to duplicate,
+nothing to argue with. `launch_app` activates the running app, the app restores
+its own window, and you carry on with the name `launch_app` reports.
 
 Reach for `set_window_state({app, state})` when the window state is the *point*:
 `maximized` to make an app you just opened properly usable, `minimized` to tuck
