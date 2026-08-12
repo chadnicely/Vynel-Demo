@@ -70,9 +70,9 @@ describe('isLaunchableAppId', () => {
   })
 
   it('refuses shell metacharacters, newlines, and absurd lengths', () => {
-    // Belt-and-braces with argument-array passing: an id also reaches
-    // PowerShell's own parser, so a quote or a statement separator in one is
-    // never legitimate.
+    // Belt-and-braces with env-var passing: the id no longer reaches
+    // PowerShell's parser, but it still reaches the SHELL, and a quote or a
+    // statement separator in a real Get-StartApps id is never legitimate.
     for (const bad of [
       'app"; Remove-Item C:\\',
       "app'; rm -rf /",

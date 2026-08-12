@@ -23,7 +23,9 @@ const WINDOW_POLL_INTERVAL_MS = 400
 /** Whether an AppID is safe to hand to the shell. Deliberately strict: real
  *  `Get-StartApps` ids are AUMIDs and shell-folder paths, so quotes, newlines
  *  and shell metacharacters have no legitimate place in one. Belt-and-braces
- *  with argument-array passing — an id also reaches PowerShell's own parser. */
+ *  with env-var passing, which already keeps the id out of the command text —
+ *  this stays because the id still reaches the SHELL, which has its own
+ *  opinions about what a path means. */
 export function isLaunchableAppId(appId: string): boolean {
   if (appId.length === 0 || appId.length > 512) return false
   return !/["'`$;&|<>\r\n]/.test(appId)
