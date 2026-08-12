@@ -9,6 +9,7 @@ import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
 import { makeListMonitorsTool } from './list-monitors-tool.js'
 import { makeSystemStatusTool } from './system-status-tool.js'
 import { makeGetAppTool } from './get-app-tool.js'
+import { makeMousePositionTool } from './mouse-position-tool.js'
 import { recordDesktopAction } from '../repositories/desktop-actions.js'
 import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
@@ -85,6 +86,10 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // screenshot_app restores a minimized window to capture it, so this is how
     // the model can find that out BEFORE it happens rather than after.
     makeGetAppTool(),
+    // Reports in list_monitors' frame, so it answers "which screen is the user
+    // on". Reads via Win32 GetCursorPos, never nut's getPosition — see
+    // `input/cursor-position.ts` for why that distinction is load-bearing.
+    makeMousePositionTool(),
     makeSnapshotAppTool(),
     makeScreenshotAppTool(),
     makeWaitForTool(),

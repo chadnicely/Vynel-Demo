@@ -562,11 +562,12 @@ distinguishes them.
 10. **"Cheap fills" — NOT cheap. Each is one decision, not one file.** The loader already exposes
     everything needed (`pressButton`, `releaseButton`, `getPosition`, `Button`), so the plumbing was
     never the blocker. Looked at properly, 2026-08-12:
-    - **`mouse_position` — must NOT use nut's `getPosition`.** It mis-reports on scaled monitors;
-      that is the sensor that produced this session's phantom-DPI "fix" (retracted, finding 1). The
-      honest source is Win32 `GetCursorPos` via PowerShell, verified this session: asked 561,1056,
-      reported 561,1056. Safe and read-only once built on that — but of marginal value to the
-      model, which rarely needs to know where the cursor is.
+    - ~~**`mouse_position`**~~ ✅ **DONE 2026-08-13** — built on Win32 `GetCursorPos`, never nut's
+      `getPosition`. Worth recording precisely: nut was measured DISAGREEING on the 125% panel
+      (2026-08-11, off by 1/scaleFactor) but AGREED on 2026-08-13 for a cursor on that same panel.
+      The trigger conditions are NOT established. Win32 is used because it is the independent
+      witness, not because the convenient reader is reliably wrong — which is the stronger reason
+      and the one that survives the next time they happen to agree.
     - **`mouse_button` (press / hold / release) — the risk is a STUCK BUTTON.** If a turn dies
       between press and release, the left button stays down desktop-wide and the user's machine is
       unusable until they click. This package already hit exactly that in the stepped drag (fixed
