@@ -147,7 +147,12 @@ export function makeSetWindowBoundsTool(
         envelope.recordAct({
           tool: 'set_window_bounds',
           appName,
-          detail: `moved/resized to ${bounds.width}x${bounds.height} at ${bounds.x},${bounds.y}`,
+          // The APPLIED rect, not the requested one — apps clamp sizes they
+          // will not accept, and this handler already goes out of its way to
+          // tell the model where it really landed.
+          detail: outcome.ok
+            ? `moved/resized to ${outcome.applied.width}x${outcome.applied.height} at ${outcome.applied.x},${outcome.applied.y}`
+            : `tried to move/resize to ${bounds.width}x${bounds.height} at ${bounds.x},${bounds.y}`,
           outcome: outcome.ok ? 'ok' : 'failed',
           note: outcome.ok ? null : outcome.reason,
         })

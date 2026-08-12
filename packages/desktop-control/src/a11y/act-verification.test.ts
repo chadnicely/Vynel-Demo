@@ -59,3 +59,40 @@ describe('describeVerification', () => {
     expect(text).toContain('…')
   })
 })
+
+// A false CONFIRMATION is the dangerous direction — a false mismatch is merely
+// loud, but confirming text the keystrokes never delivered is silent and gets
+// built upon.
+describe('verifyTypedValue — the before-value guard', () => {
+  it('will NOT confirm text the field already contained', () => {
+    // Autofilled field, a retry after a timeout, the second of two identical
+    // batch steps: containment alone says "confirmed" while the keystrokes may
+    // have gone anywhere.
+    const result = verifyTypedValue('type_text', 'hello', 'hello', 'hello')
+    expect(result.kind).toBe('unverifiable')
+    expect(result).toMatchObject({ reason: expect.stringContaining('already contained') })
+  })
+
+  it('still confirms a genuine addition to a non-empty field', () => {
+    expect(verifyTypedValue('type_text', 'world', 'hello world', 'hello')).toMatchObject({
+      kind: 'confirmed',
+    })
+  })
+
+  it('does not treat an unchanged field as a MISMATCH — that is its own false alarm', () => {
+    // Correctly re-typing the same text into a field that already had it is a
+    // legitimate no-visible-change; calling it failed would be wrong too.
+    expect(verifyTypedValue('type_text', 'hi', 'hi', 'hi').kind).not.toBe('mismatch')
+  })
+
+  it('leaves set_value alone — it REPLACES, so the prior content is irrelevant', () => {
+    expect(verifyTypedValue('set_value', 'hello', 'hello', 'hello')).toMatchObject({
+      kind: 'confirmed',
+    })
+  })
+
+  it('is unaffected when the before-value is unknown', () => {
+    expect(verifyTypedValue('type_text', 'x', 'x', null)).toMatchObject({ kind: 'confirmed' })
+    expect(verifyTypedValue('type_text', 'x', 'x')).toMatchObject({ kind: 'confirmed' })
+  })
+})

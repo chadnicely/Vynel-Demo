@@ -150,6 +150,7 @@ async function readBackValue(
   locator: { elements(): Promise<Array<{ value: string | null }>> },
   action: 'type_text' | 'set_value',
   intended: string,
+  valueBefore: string | null,
 ): Promise<ActVerification> {
   try {
     await new Promise((resolve) => setTimeout(resolve, VERIFY_SETTLE_MS))
@@ -157,7 +158,7 @@ async function readBackValue(
     if (element === undefined) {
       return { kind: 'unverifiable', reason: 'the element was gone by the time it was re-read' }
     }
-    return verifyTypedValue(action, intended, element.value)
+    return verifyTypedValue(action, intended, element.value, valueBefore)
   } catch (cause) {
     return {
       kind: 'unverifiable',
@@ -231,6 +232,10 @@ export async function actOnApp(
     // the single-match element BEFORE any typing action fires; detection has no
     // override. (Pressing a password field — e.g. to focus it FOR the user — is
     // deliberately allowed; entering the value is not.)
+    // Captured for the password wall AND for verification: knowing what the
+    // field held BEFORE is what stops a read-back confirming text that was
+    // already there.
+    let valueBefore: string | null = null
     if (actionRequiresValue(action)) {
       const [element] = await withTimeout(locator.elements(), ACT_TIMEOUT_MS, 'inspect')
       if (element === undefined) {
@@ -244,6 +249,7 @@ export async function actOnApp(
       if (isPasswordControl(element)) {
         throw new Error(passwordControlRefusal(appName))
       }
+      valueBefore = element.value
     }
 
     switch (action) {
@@ -272,7 +278,12 @@ export async function actOnApp(
         kind: 'done',
         action,
         selector,
-        verification: await readBackValue(locator, action as 'type_text' | 'set_value', value ?? ''),
+        verification: await readBackValue(
+          locator,
+          action as 'type_text' | 'set_value',
+          value ?? '',
+          valueBefore,
+        ),
       }
     }
     return { kind: 'done', action, selector }

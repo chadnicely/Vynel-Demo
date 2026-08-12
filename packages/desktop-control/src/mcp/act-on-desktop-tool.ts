@@ -243,7 +243,7 @@ export function makeActOnDesktopTool(
               envelope.recordAct({
                 tool: 'act_on_desktop',
                 appName: step.app ?? null,
-                detail: result.detail,
+                detail: result.recordDetail,
                 outcome: 'unverified',
               })
               return { ok: true, detail: result.detail }
@@ -279,7 +279,9 @@ export function makeActOnDesktopTool(
         envelope.recordAct({
           tool: 'act_on_desktop',
           appName: params.app ?? null,
-          detail: result.detail,
+          // recordDetail, NOT detail: the record is append-only, and `type`'s
+          // detail carries what was typed.
+          detail: result.recordDetail,
           outcome: 'unverified',
         })
         return { content: [{ type: 'text', text: `Done: ${result.detail}.` }] }

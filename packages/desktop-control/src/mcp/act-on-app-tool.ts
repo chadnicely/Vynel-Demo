@@ -196,9 +196,27 @@ export function makeActOnAppTool(
         // Each step re-resolves + re-authorizes inside actOnApp — batching is a
         // convenience over N calls, never a shortcut past the gate.
         return buildBatchResponse(
-          await runActionBatch(steps, async (step) =>
-            toBatchStep(app, await actOnApp(app, step.selector, step.action, step.value, effectiveAuthorize)),
-          ),
+          await runActionBatch(steps, async (step) => {
+            const stepResult = await actOnApp(
+              app,
+              step.selector,
+              step.action,
+              step.value,
+              effectiveAuthorize,
+            )
+            // Every step gets its own row, exactly as act_on_desktop's batch
+            // does. The verification is computed here either way — discarding
+            // it from the record was an omission, not a decision.
+            if (stepResult.kind === 'done') {
+              envelope.recordAct({
+                tool: 'act_on_app',
+                appName: app,
+                detail: `${stepResult.action} on ${stepResult.selector}`,
+                outcome: verificationOutcome(stepResult.verification),
+              })
+            }
+            return toBatchStep(app, stepResult)
+          }),
         )
       }
 

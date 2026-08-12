@@ -34,7 +34,28 @@ export function verifyTypedValue(
   action: 'type_text' | 'set_value',
   intended: string,
   actual: string | null,
+  /** What the field held BEFORE. Without it, containment can confirm text the
+   *  keystrokes never delivered — see below. */
+  before?: string | null,
 ): ActVerification {
+  // A false CONFIRMATION is the dangerous direction (a false mismatch is merely
+  // loud), and containment has exactly one: if the field ALREADY contained the
+  // text, `type_text` confirms even though the keystrokes went elsewhere.
+  // Realistic every day — an autofilled field, a retry after a timeout, the
+  // second of two identical batch steps.
+  //
+  // Note this is NOT `after !== before`: correctly re-typing the same text into
+  // a field that already had it is a legitimate no-visible-change, and calling
+  // that a mismatch would be its own false alarm. Inconclusive is the honest
+  // answer — we cannot tell the two apart from the outside.
+  if (action === 'type_text' && intended.length > 0 && before?.includes(intended) === true) {
+    return {
+      kind: 'unverifiable',
+      reason:
+        'the field already contained that text before typing, so a read-back cannot tell whether ' +
+        'the keystrokes landed or went somewhere else',
+    }
+  }
   if (actual === null) {
     return {
       kind: 'unverifiable',

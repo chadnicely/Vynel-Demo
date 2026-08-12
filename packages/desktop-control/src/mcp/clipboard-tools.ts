@@ -49,6 +49,16 @@ export function makeReadClipboardTool(envelope: DesktopPlanEnvelope): unknown {
       }
       try {
         const result = await readClipboard()
+        // Recorded — and the LENGTH only, never the text. An access log whose
+        // purpose is "show the user what Claude did" cannot omit "read your
+        // clipboard": this tool's own description warns it may surface a
+        // password, which makes it the entry that matters most and the one
+        // whose content must never be stored.
+        envelope.recordAct({
+          tool: 'read_clipboard',
+          detail: `read the clipboard (${result.totalLength} characters)`,
+          outcome: 'ok',
+        })
         if (result.totalLength === 0) {
           return { content: [{ type: 'text', text: 'The clipboard is empty.' }] }
         }
@@ -92,6 +102,13 @@ export function makeWriteClipboardTool(envelope: DesktopPlanEnvelope): unknown {
       }
       try {
         await writeClipboard(text)
+        // Length only. A write REPLACES global machine state, so it belongs in
+        // the record; what was written does not.
+        envelope.recordAct({
+          tool: 'write_clipboard',
+          detail: `replaced the clipboard (${text.length} characters)`,
+          outcome: 'ok',
+        })
         return {
           content: [{ type: 'text', text: `Copied ${text.length} characters to the clipboard.` }],
         }

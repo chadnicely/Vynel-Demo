@@ -184,7 +184,16 @@ export function makeLaunchAppTool(
             launchResult.kind === 'already-open'
               ? 'was already open — nothing launched'
               : `launched (${launchResult.kind})`,
-          outcome: launchResult.kind === 'look-alike-only' ? 'failed' : 'ok',
+          // `started-no-window` is explicitly UNVERIFIED — the launch ran and
+          // no window appeared. Recording it as `ok` would be the same
+          // overstatement that let a launch which opened the Applications
+          // folder report success for a whole day.
+          outcome:
+            launchResult.kind === 'look-alike-only'
+              ? 'failed'
+              : launchResult.kind === 'started-no-window'
+                ? 'unverified'
+                : 'ok',
           note: launchResult.kind === 'look-alike-only' ? launchResult.lookAlikeName : null,
         })
         return buildLaunchResponse(

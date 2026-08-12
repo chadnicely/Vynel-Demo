@@ -60,8 +60,23 @@ export interface ActOnDesktopParams {
 
 export interface ActOnDesktopResult {
   action: DesktopInputAction
-  /** Human summary for the tool response + overlay narration. */
+  /** Human summary for the tool response + overlay narration. May contain what
+   *  was typed — the user watching their own screen should see it. */
   detail: string
+  /**
+   * The summary for the DURABLE RECORD: the shape of what happened, never its
+   * content.
+   *
+   * ⚠ These must stay separate. `desktop_actions` is append-only, so anything
+   * written there is on disk forever — and unlike `act_on_app`, this coordinate
+   * path has NO element-level password wall (`isPasswordControl` guards the a11y
+   * path only). Credentials typed here are prevented by the instruction layer
+   * alone, and instructions are not a wall. This package already holds the
+   * contrary posture as locked: `notifications/redact-one-time-codes.ts` never
+   * stores the raw code. Every other action's detail is already shape-only, so
+   * `type` was the lone leak.
+   */
+  recordDetail: string
 }
 
 const INPUT_TIMEOUT_MS = 15000
@@ -220,13 +235,18 @@ export async function actOnDesktop(
         'click',
       )
       const kind = params.double === true ? 'double-click' : `${params.button ?? 'left'} click`
-      return { action: 'click', detail: `${kind} at (${point.x}, ${point.y})${where}` }
+      const clickDetail = `${kind} at (${point.x}, ${point.y})${where}`
+      return { action: 'click', detail: clickDetail, recordDetail: clickDetail }
     }
     case 'type': {
       authorizeFocusedTarget(authorize, probes, 'type')
       const { keyboard } = loadNutInput()
       await withTimeout(keyboard.type(plan.text), INPUT_TIMEOUT_MS, 'type')
-      return { action: 'type', detail: `typed "${plan.text}"${where}` }
+      return {
+        action: 'type',
+        detail: `typed "${plan.text}"${where}`,
+        recordDetail: `typed ${plan.text.length} characters${where}`,
+      }
     }
     case 'press': {
       authorizeFocusedTarget(authorize, probes, 'press')
@@ -235,7 +255,9 @@ export async function actOnDesktop(
       await withTimeout(keyboard.pressKey(...keyValues), INPUT_TIMEOUT_MS, 'press')
       // Release in reverse so a chord unwinds cleanly (modifier released last).
       await withTimeout(keyboard.releaseKey(...[...keyValues].reverse()), INPUT_TIMEOUT_MS, 'press')
-      return { action: 'press', detail: `pressed ${plan.keys}` }
+      // Key NAMES are shape, not content — "pressed ctrl+v" says nothing about
+      // what was pasted.
+      return { action: 'press', detail: `pressed ${plan.keys}`, recordDetail: `pressed ${plan.keys}` }
     }
     case 'scroll': {
       const resolved = probes.resolveTargetFrame(params.app)
@@ -254,7 +276,8 @@ export async function actOnDesktop(
               ? mouse.scrollRight(amount)
               : mouse.scrollDown(amount)
       await withTimeout(scroll, INPUT_TIMEOUT_MS, 'scroll')
-      return { action: 'scroll', detail: `scrolled ${direction} at (${point.x}, ${point.y})${where}` }
+      const scrollDetail = `scrolled ${direction} at (${point.x}, ${point.y})${where}`
+      return { action: 'scroll', detail: scrollDetail, recordDetail: scrollDetail }
     }
     case 'drag': {
       const resolved = probes.resolveTargetFrame(params.app)
@@ -275,10 +298,8 @@ export async function actOnDesktop(
       // moves a slider but never completes a drop.
       await performSteppedDrag(from, to, via)
       const through = via.length > 0 ? ` via ${via.map((p) => `(${p.x}, ${p.y})`).join(' → ')}` : ''
-      return {
-        action: 'drag',
-        detail: `dragged (${from.x}, ${from.y})${through} → (${to.x}, ${to.y})${where}`,
-      }
+      const dragDetail = `dragged (${from.x}, ${from.y})${through} → (${to.x}, ${to.y})${where}`
+      return { action: 'drag', detail: dragDetail, recordDetail: dragDetail }
     }
     case 'move': {
       const resolved = probes.resolveTargetFrame(params.app)
@@ -288,7 +309,8 @@ export async function actOnDesktop(
       authorizeMouseTarget(authorize, probes, resolved, point, 'click')
       const { mouse, Point } = loadNutInput()
       await withTimeout(mouse.setPosition(new Point(point.x, point.y)), INPUT_TIMEOUT_MS, 'move')
-      return { action: 'move', detail: `moved to (${point.x}, ${point.y})${where}` }
+      const moveDetail = `moved to (${point.x}, ${point.y})${where}`
+      return { action: 'move', detail: moveDetail, recordDetail: moveDetail }
     }
   }
 }
