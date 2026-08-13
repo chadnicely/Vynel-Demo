@@ -27,6 +27,11 @@ import { cpal } from './audio/cpal.js'
 import { resolveAudioDevices } from './audio/device-selection.js'
 import { encodeWav } from './audio/wav-encode.js'
 import { CallRegistry } from './call/call-registry.js'
+import {
+  createLinuxCallCablePool,
+  reapStaleVynelModules,
+  type LinuxCallCablePool,
+} from './call/linux-null-sink-cables.js'
 import { createCallEndpoints } from './call/call-endpoints.js'
 import { createCallConversationHost } from './call/call-conversation-host.js'
 import { createCallSessionClient } from './call/call-session-client.js'
@@ -41,7 +46,7 @@ import type { VoiceSessionIo } from './loop/voice-session-types.js'
 // leave the daemon deaf.
 const JARVIS_CONNECT_TIMEOUT_MS = 10_000
 
-function main(): void {
+async function main(): Promise<void> {
   const env = loadEnv()
   const logger = pino({ level: env.LOG_LEVEL })
 
@@ -84,9 +89,9 @@ function main(): void {
     () => cpal.getDevices(),
   )
   const audioShell = createAudioShell(logger, () => driver.notifyPlaybackDrained(), audioDevices)
-  // The cable-pair inventory — env's superRefine guarantees each pair is
+  // The env cable-pair inventory — env's superRefine guarantees each pair is
   // whole, so presence of one end means the pair exists.
-  const callCablePairs = [
+  const envCallCablePairs = [
     ...(env.VYNEL_CALL_INPUT_DEVICE !== undefined && env.VYNEL_CALL_OUTPUT_DEVICE !== undefined
       ? [{ inputName: env.VYNEL_CALL_INPUT_DEVICE, outputName: env.VYNEL_CALL_OUTPUT_DEVICE }]
       : []),
@@ -94,7 +99,20 @@ function main(): void {
       ? [{ inputName: env.VYNEL_CALL_INPUT_DEVICE_2, outputName: env.VYNEL_CALL_OUTPUT_DEVICE_2 }]
       : []),
   ]
-  const callRegistry = new CallRegistry(logger, callCablePairs)
+  // Linux needs no cable install at all: the daemon provisions null-sink
+  // pairs at boot and reaps strays from a crashed run first
+  // (docs/module-notes/virtual-audio-driver.md). Env pairs stay the Windows
+  // path (on Linux they remain claimable behind the pool; VYNEL_CALL_LINUX_PAIRS=0
+  // makes them the only inventory).
+  let linuxCablePool: LinuxCallCablePool | null = null
+  if (process.platform === 'linux' && env.VYNEL_CALL_LINUX_PAIRS > 0) {
+    await reapStaleVynelModules(logger)
+    linuxCablePool = await createLinuxCallCablePool(logger, env.VYNEL_CALL_LINUX_PAIRS)
+  }
+  const callRegistry = new CallRegistry(logger, [
+    ...(linuxCablePool?.pairs ?? []),
+    ...envCallCablePairs,
+  ])
   const callConversations = createCallConversationHost({
     logger,
     // The spoken address name, matching the wake phrase's persona. The persona
@@ -230,8 +248,20 @@ function main(): void {
     audioShell.stop()
     overlay.stop()
     driver.stop()
-    // eslint-disable-next-line n/no-process-exit -- explicit exit at the end of a graceful shutdown
-    process.exit(0)
+    const exitNow = (): void => {
+      // eslint-disable-next-line n/no-process-exit -- explicit exit at the end of a graceful shutdown
+      process.exit(0)
+    }
+    if (linuxCablePool === null) {
+      exitNow()
+      return
+    }
+    // Unloading pulse modules is I/O — bound it so a hung sound server can
+    // never wedge the daemon's exit.
+    void Promise.race([
+      linuxCablePool.destroy(),
+      new Promise((resolve) => setTimeout(resolve, 2_000)),
+    ]).finally(exitNow)
   }
   process.on('SIGINT', shutdown)
   process.on('SIGTERM', shutdown)
@@ -262,4 +292,13 @@ function traceRecognizer(recognizer: SpeechRecognizer, logger: Logger): SpeechRe
   }
 }
 
-main()
+main().catch((error: unknown) => {
+  // The daemon may die before (or after) its configured logger exists — a
+  // bare pino still gets a structured fatal line out.
+  pino().fatal(
+    { error: error instanceof Error ? error.message : String(error) },
+    'voice daemon failed to boot',
+  )
+  // eslint-disable-next-line n/no-process-exit -- a half-booted daemon must not linger holding the audio device and the port
+  process.exit(1)
+})
