@@ -23,23 +23,46 @@ Every service sits on one contiguous 5-digit serial starting at 18890:
 The next new service takes **18895** — always the next number in the serial, never an arbitrary
 free port.
 
-The engine and voice ports have ONE home: `packages/contracts/src/network/ports.ts`. Every
-TypeScript consumer imports it; the two copies TypeScript can't reach (`apps/desktop/src-tauri/src/daemon.rs`
-and `tauri.conf.json`'s `frontendDist`) are guarded by `scripts/src/generators/check-port-parity.ts`,
-which fails `pnpm test` the moment they drift. The hub, portal, and web ports default in their own
-`env.ts` / `vite.config.ts`.
+All five ports have ONE home: `packages/contracts/src/network/ports.ts`, where the band is
+`VYNEL_PORT_BASE` (default 18890) + fixed offsets. Every app's port *and* derived-URL defaults flow
+from it, so setting one env var shifts a whole instance coherently. The copies TypeScript can't
+reach (`apps/desktop/src-tauri/src/engine_port.rs` and `tauri.conf.json`'s
+`frontendDist`/`devUrl`) are guarded by `scripts/src/generators/check-port-parity.ts`, which fails
+`pnpm test` the moment they drift.
+
+The ports above are *preferred*, not assumed: the installed desktop app allocates the engine port
+each boot (canonical first, scan on conflict) and the engine advertises where it actually bound in
+`~/.vynel/engine.port` — clients (CLI, MCP, voice, the shell windows) resolve explicit env → live
+port file → band default.
 
 ## Development
 
 ```bash
 pnpm install
-pnpm dev          # engine API (18892) + web dev server (18894)
-pnpm dev:full     # the above + hub (18890), admin portal (18891), voice daemon (18893)
+pnpm dev          # the classic trio: hub (18890) + engine API (18892) + web dev server (18894)
+pnpm dev:full     # the above + admin portal (18891) + voice daemon (18893)
 pnpm dev:desktop  # rebuild the Tauri shell — see below
 pnpm test         # the gate: typecheck + schema/MCP/port parity + vitest
 ```
 
-Copy `.env.example` to `.env` to adjust local settings.
+`pnpm dev` also takes app names and a port band, so you start exactly what you need:
+
+```bash
+pnpm dev api web                      # just the engine + UI, no Postgres
+pnpm dev cloud admin api web voice    # the full stack (same as dev:full)
+pnpm dev api web --base 28890         # same apps on another band (engine 28892, web 28894)
+pnpm dev api --port 28892             # same flag, named by the engine port (base = port − 2)
+pnpm dev --help                       # the full alias roster
+```
+
+Aliases: `api`/`engine`, `web`/`ui`, `cloud`/`hub`, `admin`, `voice`, `worker`, `desktop`/`shell`.
+Hub apps (`cloud`, `admin`) bring the Postgres container up first automatically. `--base` sets
+`VYNEL_PORT_BASE`, and *everything* — ports and the URLs between apps — shifts together; the flags
+work on `dev:local` and `dev:full` too.
+
+Copy `.env.example` to `.env` to adjust local settings. For a second checkout (a git worktree), run
+`pnpm worktree:env` inside it once — it copies the main `.env` and claims a free port band so both
+instances run side by side.
 
 ### Rebuild the Tauri shell after a port or config change
 
