@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel never fights over a port again.** The installed desktop app now
+  *allocates* its local port each time it starts instead of assuming the
+  default is free — if Docker, WSL, or any other app holds it, Vynel quietly
+  picks the next free one and every window and companion tool (CLI, voice,
+  Claude integrations) finds the engine wherever it actually landed. The
+  same rework gives developers one-variable side-by-side checkouts: every
+  port derives from a single `VYNEL_PORT_BASE`, and `pnpm worktree:env`
+  claims a free band for a fresh worktree automatically. Release builds also
+  stopped failing when Docker reserved the build's fixed test port — the
+  proof-of-life boot now borrows a free port from the OS.
+
 - **Vynel can sit in your meetings.** Ask it to join a call (Zoom, Meet,
   Teams, Discord — anything whose audio you point at the virtual cable) and
   it opens a dedicated call session you can watch live in Sessions. In a
