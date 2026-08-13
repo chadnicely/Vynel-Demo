@@ -1,10 +1,10 @@
-// Port-parity guard. The engine port's ONE home is
-// `packages/contracts/src/network/ports.ts` (VYNEL_ENGINE_PORT); every
-// TypeScript consumer imports it. Two copies live where TypeScript can't
-// reach — the Tauri shell (`daemon.rs`) and `tauri.conf.json`'s frontendDist
-// — so this check fails `pnpm test` the moment they drift. Changing the
-// product's port = edit the contracts constant, chase the failures this
-// check names.
+// Port-parity guard. The ports' ONE home is
+// `packages/contracts/src/network/ports.ts`; every TypeScript consumer
+// derives from it. Copies live where TypeScript can't reach — the Tauri
+// shell's CANONICAL_ENGINE_PORT (daemon.rs, the PREFERRED first candidate of
+// its per-boot allocation) and `tauri.conf.json`'s frontendDist/devUrl — so
+// this check fails `pnpm test` the moment they drift. Changing a canonical
+// port = edit the contracts literals, chase the failures this check names.
 //
 // Wired into `pnpm test` via `pnpm test:parity`.
 
@@ -28,31 +28,37 @@ const contractsSource = readFileSync(
   'utf8',
 )
 const enginePort = extract(/VYNEL_ENGINE_PORT = (\d+)/, contractsSource, 'contracts ports.ts')
+const localWebPort = extract(/VYNEL_LOCAL_WEB_PORT = (\d+)/, contractsSource, 'contracts ports.ts')
 
 const daemonRs = readFileSync(join(repoRoot, 'apps', 'desktop', 'src-tauri', 'src', 'daemon.rs'), 'utf8')
 const tauriConf = readFileSync(join(repoRoot, 'apps', 'desktop', 'src-tauri', 'tauri.conf.json'), 'utf8')
 
 const copies = [
   {
-    label: 'daemon.rs DAEMON_ADDRESS',
-    value: extract(/DAEMON_ADDRESS: &str = "127\.0\.0\.1:(\d+)"/, daemonRs, 'daemon.rs DAEMON_ADDRESS'),
-  },
-  {
-    label: 'daemon.rs PORT env',
-    value: extract(/\.env\("PORT", "(\d+)"\)/, daemonRs, 'daemon.rs PORT env'),
+    label: 'daemon.rs CANONICAL_ENGINE_PORT',
+    expected: enginePort,
+    value: extract(/CANONICAL_ENGINE_PORT: u16 = (\d+)/, daemonRs, 'daemon.rs CANONICAL_ENGINE_PORT'),
   },
   {
     label: 'tauri.conf.json frontendDist',
+    expected: enginePort,
     value: extract(/"frontendDist": "http:\/\/127\.0\.0\.1:(\d+)"/, tauriConf, 'tauri.conf.json frontendDist'),
+  },
+  {
+    label: 'tauri.conf.json devUrl',
+    expected: localWebPort,
+    value: extract(/"devUrl": "http:\/\/localhost:(\d+)"/, tauriConf, 'tauri.conf.json devUrl'),
   },
 ]
 
-const drifted = copies.filter((copy) => copy.value !== enginePort)
+const drifted = copies.filter((copy) => copy.value !== copy.expected)
 if (drifted.length > 0) {
   console.error(
-    `check-port-parity: FAILED — VYNEL_ENGINE_PORT is ${enginePort} but:\n` +
-      drifted.map((copy) => ` - ${copy.label} says ${copy.value}`).join('\n'),
+    `check-port-parity: FAILED — contracts says engine ${enginePort} / local-web ${localWebPort} but:\n` +
+      drifted.map((copy) => ` - ${copy.label} says ${copy.value} (expected ${copy.expected})`).join('\n'),
   )
   process.exit(1)
 }
-console.log(`check-port-parity: OK — engine port ${enginePort} consistent across contracts, daemon.rs, tauri.conf.json.`)
+console.log(
+  `check-port-parity: OK — engine ${enginePort} + local-web ${localWebPort} consistent across contracts, daemon.rs, tauri.conf.json.`,
+)

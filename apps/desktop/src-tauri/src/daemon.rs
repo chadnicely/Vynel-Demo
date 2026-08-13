@@ -3,9 +3,11 @@
 // vynel-engine.exe (renamed node) runs the compiled dist/server.mjs from
 // resources\engine, state in app_data) and REPO (dev checkout —
 // `node --import tsx`, unchanged D1 flow).
-// The port probe doubles as the health check — the daemon binds
-// 127.0.0.1:18892 as the LAST step of a successful boot (migrations + services
-// first, see local-api boot.ts).
+// The port probe doubles as the health check — the daemon binds its port as
+// the LAST step of a successful boot (migrations + services first, see
+// local-api boot.ts) and advertises it in ~/.vynel/engine.port. The port is
+// ALLOCATED per boot (canonical first, never assumed) — an end-user machine
+// may have any port taken.
 //
 // Shutdown is a hard kill (TerminateProcess): SQLite in WAL mode survives it,
 // and the kill-on-close Job Object (job_object.rs) reaps the whole daemon
@@ -16,14 +18,22 @@
 // platform log dir always.
 
 use crate::launch_plan::{resolve_launch_plan, BundledLaunch, LaunchPlan};
-use std::net::TcpStream;
+use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
 
-// Matches the PORT default in apps/local-api/src/env.ts and the frontendDist
-// URL in tauri.conf.json — the one address the whole sidecar mode hangs on.
-const DAEMON_ADDRESS: &str = "127.0.0.1:18892";
+// The canonical engine port — the PREFERRED first candidate, never an
+// assumption: on an end-user machine anything may hold it (Hyper-V reserved
+// blocks, another app), so every boot ALLOCATES (choose_engine_port) and the
+// windows open wherever the engine actually landed. check-port-parity.ts
+// pins this constant against contracts ports.ts.
+const CANONICAL_ENGINE_PORT: u16 = 18892;
+// Fallback scanning steps by the band stride so a chosen port never lands on
+// another Vynel component's slot (contracts VYNEL_PORT_OFFSETS).
+const PORT_SCAN_STRIDE: u16 = 10;
+const PORT_SCAN_ATTEMPTS: u16 = 100;
 const SPAWN_ATTEMPTS: u32 = 3;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -51,14 +61,35 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, jarvis_only: bo
     // AppHandle for app_data_dir + the packaged version.
     let plan = resolve_launch_plan(&handle);
     std::thread::spawn(move || {
-        if !port_is_listening() {
-            supervise_daemon(plan);
-        }
-        if !wait_for_port(STARTUP_TIMEOUT) {
-            log::error!(
-                "no daemon listening on {DAEMON_ADDRESS} after {STARTUP_TIMEOUT:?} — opening the window anyway (it will show a connection error)"
-            );
-        }
+        let expected_port = match discover_running_engine() {
+            // A live engine already advertises a port (pnpm dev, a previous
+            // shell, a shifted worktree band) — attach, never rival it.
+            Some(port) => {
+                log::info!("attaching to the engine already listening on 127.0.0.1:{port}");
+                port
+            }
+            None => {
+                // Repo mode: the checkout's .env owns PORT — spawn portless
+                // and discover where the engine lands via its port file.
+                // Bundled/remote: the shell allocates and passes PORT down.
+                let spawn_port = match &plan {
+                    Some(LaunchPlan::Repo(_)) | None => None,
+                    Some(_) => Some(choose_engine_port()),
+                };
+                supervise_daemon(plan, spawn_port);
+                spawn_port.unwrap_or(CANONICAL_ENGINE_PORT)
+            }
+        };
+        let engine_port = match wait_for_engine(expected_port, STARTUP_TIMEOUT) {
+            Some(port) => port,
+            None => {
+                log::error!(
+                    "no engine listening on 127.0.0.1:{expected_port} after {STARTUP_TIMEOUT:?} — opening the window anyway (it will show a connection error)"
+                );
+                expected_port
+            }
+        };
+        crate::windows::set_engine_port(engine_port);
         let handle_for_windows = handle.clone();
         let created = handle.run_on_main_thread(move || {
             if let Err(error) = crate::windows::create_windows(&handle_for_windows, jarvis_only) {
@@ -89,7 +120,7 @@ fn lock_daemon() -> std::sync::MutexGuard<'static, DaemonState> {
 /// backoff, capped at SPAWN_ATTEMPTS total spawns (a daemon that can't hold
 /// the port — node missing, port stolen, crash loop — should not burn CPU
 /// forever; the window's connection error is the visible symptom).
-fn supervise_daemon(plan: Option<LaunchPlan>) {
+fn supervise_daemon(plan: Option<LaunchPlan>, spawn_port: Option<u16>) {
     std::thread::spawn(move || {
         let Some(plan) = plan else {
             log::error!(
@@ -102,7 +133,7 @@ fn supervise_daemon(plan: Option<LaunchPlan>) {
             if lock_daemon().stopping {
                 return;
             }
-            match spawn_daemon(&plan) {
+            match spawn_daemon(&plan, spawn_port) {
                 Ok(mut child) => {
                     log::info!("daemon spawned (pid {})", child.id());
                     #[cfg(windows)]
@@ -136,7 +167,7 @@ fn supervise_daemon(plan: Option<LaunchPlan>) {
             std::thread::sleep(Duration::from_millis(500 * u64::from(attempt)));
         }
         log::error!(
-            "giving up on the daemon after {SPAWN_ATTEMPTS} attempts — is node on PATH, and is port {DAEMON_ADDRESS} free?"
+            "giving up on the daemon after {SPAWN_ATTEMPTS} attempts — is node on PATH, and does the engine boot cleanly (logs\\daemon.log)?"
         );
         lock_daemon().abandoned = true;
     });
@@ -169,7 +200,7 @@ fn watch_until_exit() {
     }
 }
 
-fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
+fn spawn_daemon(plan: &LaunchPlan, spawn_port: Option<u16>) -> std::io::Result<Child> {
     let mut command = match plan {
         LaunchPlan::Bundled(bundled) => bundled_daemon_command(bundled, "dist/server.mjs")?,
         // Remote mode: the tunnel child supervises identically — same port,
@@ -192,6 +223,11 @@ fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
             command
         }
     };
+    // The allocated port (bundled/remote). Repo mode spawns portless — the
+    // checkout's .env owns PORT and the port file reports where it landed.
+    if let Some(port) = spawn_port {
+        command.env("PORT", port.to_string());
+    }
     #[cfg(windows)]
     {
         // CREATE_NO_WINDOW: the shell is a GUI app; the spawned engine process
@@ -248,7 +284,6 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
         ))
         .arg(entry)
         .current_dir(&bundled.engine_dir)
-        .env("PORT", "18892")
         .env("DB_PATH", data_dir.join("vynel.db"))
         .env("VYNEL_ASSETS_DIR", bundled.engine_dir.join("assets"))
         .env("VYNEL_WEB_UI_DIST", &bundled.web_dir)
@@ -260,21 +295,89 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
     Ok(command)
 }
 
-fn port_is_listening() -> bool {
-    let address = DAEMON_ADDRESS.parse().expect("static daemon address parses");
+/// Allocate the port a bundled/remote spawn binds: explicit env override
+/// (the WSL/Docker escape hatch) → the canonical port when free → a
+/// band-stride scan upward → whatever the OS hands out. Never assumes.
+fn choose_engine_port() -> u16 {
+    if let Ok(raw) = std::env::var("VYNEL_ENGINE_PORT") {
+        match raw.parse::<u16>() {
+            Ok(port) if port > 0 => return port,
+            _ => log::warn!("ignoring unparseable VYNEL_ENGINE_PORT ({raw})"),
+        }
+    }
+    let mut candidate = CANONICAL_ENGINE_PORT;
+    for _ in 0..PORT_SCAN_ATTEMPTS {
+        if port_is_free(candidate) {
+            if candidate != CANONICAL_ENGINE_PORT {
+                log::info!("canonical engine port busy — allocated 127.0.0.1:{candidate} instead");
+            }
+            return candidate;
+        }
+        candidate = candidate.saturating_add(PORT_SCAN_STRIDE);
+    }
+    // Docker/Hyper-V can reserve whole blocks — let the OS pick as the last
+    // resort (its allocator skips reserved ranges by construction).
+    match ephemeral_port() {
+        Some(port) => {
+            log::warn!("engine port scan exhausted — using OS-assigned 127.0.0.1:{port}");
+            port
+        }
+        None => CANONICAL_ENGINE_PORT,
+    }
+}
+
+/// The port a LIVE engine advertises (`~/.vynel/engine.port`, written by
+/// local-api boot.ts) — verified by an actual TCP answer, so a stale file
+/// left by a crash is never trusted.
+fn discover_running_engine() -> Option<u16> {
+    let port_file = user_data_dir()?.join("engine.port");
+    let text = std::fs::read_to_string(port_file).ok()?;
+    let record: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let port = u16::try_from(record.get("port")?.as_u64()?).ok()?;
+    if port_is_listening(port) {
+        Some(port)
+    } else {
+        None
+    }
+}
+
+/// Mirrors the engine's `VYNEL_USER_DATA_DIR` default (`<home>/.vynel`,
+/// contracts network/port-file.ts).
+fn user_data_dir() -> Option<PathBuf> {
+    let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
+    Some(PathBuf::from(home).join(".vynel"))
+}
+
+fn port_is_free(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+fn ephemeral_port() -> Option<u16> {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).ok()?;
+    Some(listener.local_addr().ok()?.port())
+}
+
+fn port_is_listening(port: u16) -> bool {
+    let address = SocketAddr::from(([127, 0, 0, 1], port));
     TcpStream::connect_timeout(&address, Duration::from_millis(300)).is_ok()
 }
 
-fn wait_for_port(timeout: Duration) -> bool {
+/// Wait for the engine, answering the port it ACTUALLY serves: the advertised
+/// port file wins (repo mode's .env may differ from our expectation), then
+/// the expected port.
+fn wait_for_engine(expected_port: u16, timeout: Duration) -> Option<u16> {
     let deadline = std::time::Instant::now() + timeout;
     while std::time::Instant::now() < deadline {
-        if port_is_listening() {
-            return true;
+        if let Some(port) = discover_running_engine() {
+            return Some(port);
+        }
+        if port_is_listening(expected_port) {
+            return Some(expected_port);
         }
         if lock_daemon().abandoned {
-            return false;
+            return None;
         }
         std::thread::sleep(Duration::from_millis(500));
     }
-    false
+    None
 }

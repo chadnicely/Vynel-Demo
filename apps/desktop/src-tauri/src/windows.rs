@@ -1,9 +1,36 @@
 // Window creation lives in code (not tauri.conf.json) because release builds
 // must delay it until the daemon sidecar is listening — a config window would
-// load http://127.0.0.1:18892 before anything serves it and freeze an error
-// page. Dev creates immediately (`pnpm dev` owns the servers).
+// load the gateway URL before anything serves it and freeze an error page.
+// Dev creates immediately (`pnpm dev` owns the servers).
+//
+// Release windows point at the RUNTIME engine port (set_engine_port, from the
+// daemon's per-boot allocation) — the static frontendDist URL only covers the
+// unset window (dev builds, a second launch racing daemon resolution).
 
+use std::sync::atomic::{AtomicU16, Ordering};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+
+// 0 = unresolved → WebviewUrl::App (devUrl in dev, frontendDist in release).
+static ENGINE_PORT: AtomicU16 = AtomicU16::new(0);
+
+/// Record where the engine actually listens — every window built after this
+/// points there. Called by the daemon path once the port is resolved.
+pub fn set_engine_port(port: u16) {
+    ENGINE_PORT.store(port, Ordering::Relaxed);
+}
+
+fn webview_url(path: &str) -> WebviewUrl {
+    match ENGINE_PORT.load(Ordering::Relaxed) {
+        0 => WebviewUrl::App(path.into()),
+        port => match format!("http://127.0.0.1:{port}{path}").parse() {
+            Ok(url) => WebviewUrl::External(url),
+            Err(error) => {
+                log::error!("engine url failed to parse (port {port}): {error}");
+                WebviewUrl::App(path.into())
+            }
+        },
+    }
+}
 
 /// Bring the main window to the user — the single-instance path: a second
 /// launch routes here instead of starting a new process, so a --jarvis-only
@@ -20,7 +47,7 @@ pub fn open_main_window(handle: &AppHandle) -> tauri::Result<()> {
 }
 
 fn build_main_window(handle: &AppHandle) -> tauri::Result<()> {
-    WebviewWindowBuilder::new(handle, "main", WebviewUrl::App("/".into()))
+    WebviewWindowBuilder::new(handle, "main", webview_url("/"))
         .title("Vynel")
         .inner_size(1280.0, 800.0)
         .min_inner_size(960.0, 600.0)
@@ -40,7 +67,7 @@ pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()
     // Flags mirror the pre-D1 tauri.conf.json jarvis window verbatim — the
     // overlay web view manages its own show/hide/park/drag behavior
     // (local-web composables/voice/tauri-overlay-window.ts).
-    WebviewWindowBuilder::new(handle, "jarvis", WebviewUrl::App("/jarvis".into()))
+    WebviewWindowBuilder::new(handle, "jarvis", webview_url("/jarvis"))
         .title("Vynel Jarvis")
         .inner_size(420.0, 560.0)
         .decorations(false)
@@ -61,11 +88,7 @@ pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()
     // a voice-driven desktop turn must surface it with the main window closed.
     // skip_taskbar: unlike jarvis there is nothing to summon from the taskbar —
     // the feed shows/hides it. No set-focus permission (never steals typing).
-    WebviewWindowBuilder::new(
-        handle,
-        "desktop-overlay",
-        WebviewUrl::App("/desktop-control".into()),
-    )
+    WebviewWindowBuilder::new(handle, "desktop-overlay", webview_url("/desktop-control"))
     .title("Claude on your desktop")
     .inner_size(380.0, 360.0)
     .decorations(false)
