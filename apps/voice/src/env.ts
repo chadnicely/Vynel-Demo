@@ -6,7 +6,11 @@
 import { fileURLToPath } from 'node:url'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { z } from 'zod'
-import { VYNEL_ENGINE_PORT, VYNEL_VOICE_DAEMON_PORT } from '@vynel/contracts/network/ports'
+import {
+  parseVynelPortBase,
+  resolveVynelPorts,
+  type VynelPorts,
+} from '@vynel/contracts/network/ports'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..') // src -> voice -> apps -> repo-root
@@ -15,9 +19,13 @@ function resolveAgainstRepoRoot(raw: string): string {
   return isAbsolute(raw) ? raw : resolve(repoRoot, raw)
 }
 
-export const EnvSchema = z.object({
+// Port and URL defaults derive from the band (`VYNEL_PORT_BASE`) so one
+// `.env` var shifts a whole instance — the worktree story. Explicit vars
+// still win.
+function buildEnvSchema(ports: VynelPorts) {
+  return z.object({
   // The local-api daemon the sidecar sends turns to (loopback, unauthenticated in Phase 1).
-  VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${VYNEL_ENGINE_PORT}`),
+  VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${ports.engine}`),
   // Where the downloaded voice models live (gitignored) — `pnpm voice:fetch-models`.
   VYNEL_VOICE_MODELS_DIR: z.string().default('.models/voice').transform(resolveAgainstRepoRoot),
   // Which TTS voice to speak with: 'kokoro' (11 natural voices) or 'piper-lessac' (small).
@@ -48,13 +56,13 @@ export const EnvSchema = z.object({
   // Silence (ms) in an active conversation before falling back asleep.
   VYNEL_VOICE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   // Loopback port for the browser Jarvis-view channel (SSE wake/state events).
-  VYNEL_VOICE_DAEMON_PORT: z.coerce.number().int().positive().default(VYNEL_VOICE_DAEMON_PORT),
+  VYNEL_VOICE_DAEMON_PORT: z.coerce.number().int().positive().default(ports.voiceDaemon),
   // '1' = wake opens/focuses the floating Jarvis window (chrome --app) and the
   // browser owns every command session; '0' = the pre-window behavior (hand
   // off only to an already-connected tab, else answer natively).
   VYNEL_VOICE_JARVIS_WINDOW: z.enum(['0', '1']).default('1'),
   // Where the floating window points (local-web's /jarvis route).
-  VYNEL_VOICE_JARVIS_URL: z.string().url().default('http://localhost:18894/jarvis'),
+  VYNEL_VOICE_JARVIS_URL: z.string().url().default(`http://localhost:${ports.localWeb}/jarvis`),
   VYNEL_VOICE_JARVIS_BROWSER: z.enum(['chrome', 'msedge']).default('chrome'),
   // The Tauri overlay executable — launched on wake when it exists and no
   // overlay is connected; otherwise the Chrome app-window is the fallback.
@@ -78,7 +86,12 @@ export const EnvSchema = z.object({
       })
     }
   }
-})
+  })
+}
+
+// Canonical-band schema — the shape (and type) every consumer sees; loadEnv
+// parses with the instance's actual band.
+export const EnvSchema = buildEnvSchema(resolveVynelPorts())
 
 export type Env = z.infer<typeof EnvSchema>
 
@@ -86,6 +99,7 @@ let cachedEnv: Env | undefined
 
 export function loadEnv(): Env {
   if (cachedEnv !== undefined) return cachedEnv
-  cachedEnv = EnvSchema.parse(process.env)
+  const ports = resolveVynelPorts(parseVynelPortBase(process.env['VYNEL_PORT_BASE']))
+  cachedEnv = buildEnvSchema(ports).parse(process.env)
   return cachedEnv
 }

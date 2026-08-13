@@ -10,6 +10,11 @@
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
+import {
+  parseVynelPortBase,
+  resolveVynelPorts,
+  type VynelPorts,
+} from '@vynel/contracts/network/ports'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..') // src -> cloud-api -> apps -> repo-root
@@ -37,8 +42,11 @@ const base64Pem = z
     return decoded
   })
 
-export const EnvSchema = z.object({
-  CLOUD_PORT: z.coerce.number().int().positive().default(18890),
+// Port defaults derive from the band (`VYNEL_PORT_BASE`) so one `.env` var
+// shifts a whole instance — the worktree story. Explicit vars still win.
+function buildEnvSchema(ports: VynelPorts) {
+  return z.object({
+  CLOUD_PORT: z.coerce.number().int().positive().default(ports.cloudApi),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   // Pooled URL for the app; the DIRECT (non-pooled) URL for the boot
   // migrator (postgres-phase2.md §1). With no pooler they're the same —
@@ -96,13 +104,20 @@ export const EnvSchema = z.object({
     .string()
     .url()
     .default('https://github.com/kafijunior/vynel-releases/releases/latest/download/latest.json'),
-})
+  })
+}
+
+// Canonical-band schema — the shape (and type) every consumer sees; loadEnv
+// parses with the instance's actual band.
+export const EnvSchema = buildEnvSchema(resolveVynelPorts())
 
 export type Env = z.infer<typeof EnvSchema>
 
 let cachedEnv: Env | undefined
 
 export function loadEnv(): Env {
-  cachedEnv ??= EnvSchema.parse(process.env)
+  if (cachedEnv !== undefined) return cachedEnv
+  const ports = resolveVynelPorts(parseVynelPortBase(process.env['VYNEL_PORT_BASE']))
+  cachedEnv = buildEnvSchema(ports).parse(process.env)
   return cachedEnv
 }

@@ -9,16 +9,27 @@
 // a Phase-2 bearer relay would add `VYNEL_API_TOKEN` here.
 
 import { z } from 'zod'
-import { VYNEL_ENGINE_PORT } from '@vynel/contracts/network/ports'
+import {
+  parseVynelPortBase,
+  resolveVynelPorts,
+  type VynelPorts,
+} from '@vynel/contracts/network/ports'
 
-export const EnvSchema = z.object({
-  // 127.0.0.1 literal, never `localhost` — same IPv6-first hazard as the CLI:
-  // the engine binds IPv4 loopback only.
-  VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${VYNEL_ENGINE_PORT}`),
-})
+function buildEnvSchema(ports: VynelPorts) {
+  return z.object({
+    // 127.0.0.1 literal, never `localhost` — same IPv6-first hazard as the CLI:
+    // the engine binds IPv4 loopback only.
+    VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${ports.engine}`),
+  })
+}
+
+// Canonical-band schema — the shape (and type) every consumer sees; loadEnv
+// parses with the instance's actual band (`VYNEL_PORT_BASE`).
+export const EnvSchema = buildEnvSchema(resolveVynelPorts())
 
 export type Env = z.infer<typeof EnvSchema>
 
 export function loadEnv(): Env {
-  return EnvSchema.parse(process.env)
+  const ports = resolveVynelPorts(parseVynelPortBase(process.env['VYNEL_PORT_BASE']))
+  return buildEnvSchema(ports).parse(process.env)
 }

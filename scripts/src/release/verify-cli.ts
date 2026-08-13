@@ -12,13 +12,14 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { VYNEL_ENGINE_PORT } from '@vynel/contracts/network/ports'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..')
 const publishDir = join(repoRoot, 'apps', 'cli', 'dist-npm')
 // The spawned CLI/MCP children read the same env var — probe and programs
 // must agree on which daemon is under test.
-const apiUrl = process.env['VYNEL_API_URL'] ?? 'http://127.0.0.1:18892'
+const apiUrl = process.env['VYNEL_API_URL'] ?? `http://127.0.0.1:${VYNEL_ENGINE_PORT}`
 
 const failures: string[] = []
 function assertThat(condition: boolean, message: string): void {

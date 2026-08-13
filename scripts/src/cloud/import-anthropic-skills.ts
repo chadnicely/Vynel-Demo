@@ -20,6 +20,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { packItemFolder, type AnthropicImportManifest } from '@vynel/registry'
+import { VYNEL_CLOUD_API_PORT } from '@vynel/contracts/network/ports'
 
 function fail(message: string): never {
   // eslint-disable-next-line no-console -- CLI error channel
@@ -40,7 +41,7 @@ async function main(): Promise<void> {
   }
   const hubUrl =
     (argValue('--url') ?? process.env['VYNEL_HUB_URL'])?.replace(/\/+$/, '') ??
-    'http://localhost:18890'
+    `http://localhost:${VYNEL_CLOUD_API_PORT}`
   const adminToken = process.env['CLOUD_ADMIN_TOKEN']
   if (adminToken === undefined || adminToken === '') fail('CLOUD_ADMIN_TOKEN is not set')
   const only = argValue('--only')
