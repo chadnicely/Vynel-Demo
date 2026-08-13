@@ -32,6 +32,7 @@ function toShelfScope(context: SessionToolContext): PlaybookShelfScope {
 // by the `notebook` capability (defaultEnabled — a toggle row turns it off).
 export const notebookFeatureDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel-notebook',
+  toolNames: ['mcp__vynel-notebook__list_playbooks', 'mcp__vynel-notebook__read_playbook'],
   build: (context) =>
     // The one documented producer-boundary cast — see file header.
     buildNotebookMcpServer(context.db as Database, toShelfScope(context)),

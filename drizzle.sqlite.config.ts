@@ -59,6 +59,7 @@ export default defineConfig({
     '../server-install/src/schema/server-installs.ts',
     './src/schema/onboarding/onboarding-runs.ts',
     './src/schema/capabilities/workspace-capabilities.ts',
+    '../capabilities/src/schema/tool-policies.ts',
     './src/schema/agents/agents.ts',
     './src/schema/agents/agent-skills.ts',
     '../instructions/src/schema/instruction-documents.ts',

@@ -29,6 +29,7 @@ export const ASK_PROMPT_INSTRUCTIONS =
 export function buildAskFeatureDescriptor(deps: AskUserToolDeps): McpFeatureDescriptor {
   return {
     serverName: 'vynel-ask',
+    toolNames: ['mcp__vynel-ask__ask_user'],
     build: (context) =>
       buildAskMcpServer(
         // The one documented producer-boundary cast — see file header.

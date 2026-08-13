@@ -100,6 +100,14 @@ export interface McpFeatureDescriptor {
   // Omit when none of the feature's tools are capability-gated.
   readonly capabilityGatedTools?: Readonly<Record<string, readonly string[]>>
 
+  // The feature's FULL tool inventory (`mcp__<server>__<tool>` names) — the
+  // legible surface the policy catalog and the admin matrix read; the built
+  // server stays the executable truth. Vynel's descriptors DERIVE theirs from
+  // the generated registry (no drift possible); hand-built servers declare
+  // theirs and pin them with a colocated test. Optional only until every
+  // descriptor carries it — new descriptors should always declare it.
+  readonly toolNames?: readonly string[]
+
   // The TIER twin of `capabilityGatedTools`: tools denied when the user's hub
   // entitlement lacks the feature key (basic vs pro). Keys are `HubFeatureKey`
   // STRINGS (`@vynel/contracts/hub/entitlements` — kept untyped here so this

@@ -23,7 +23,26 @@ import {
   buildGlobalRootMcpServer,
   buildWorkspaceInteractiveMcpServer,
 } from './build-in-process-server.js'
-import { generatedAskModeApprovalToolNames } from './generated/api-tools.js'
+import {
+  generatedAskModeApprovalToolNames,
+  generatedMcpTools,
+  generatedRoutingMcpTools,
+  generatedWorkspaceInteractiveMcpTools,
+} from './generated/api-tools.js'
+
+// The declared inventories are DERIVED from the generated registry (factory
+// function names are the camelCase tool names), so the catalog/admin surface
+// can never drift from what the servers actually register.
+const camelToSnake = (value: string): string =>
+  value.replace(/[A-Z]/g, (character) => `_${character.toLowerCase()}`)
+const toVynelToolNames = (factories: readonly { name: string }[]): readonly string[] =>
+  factories.map((factory) => `mcp__vynel__${camelToSnake(factory.name)}`)
+const WORKSPACE_TOOL_NAMES = toVynelToolNames(generatedMcpTools)
+const WORKSPACE_INTERACTIVE_TOOL_NAMES = [
+  ...WORKSPACE_TOOL_NAMES,
+  ...toVynelToolNames(generatedWorkspaceInteractiveMcpTools),
+]
+const ROUTING_TOOL_NAMES = toVynelToolNames(generatedRoutingMcpTools)
 
 // The MCP tools each capability owns (server name `vynel` → `mcp__vynel__<x-mcp
 // name>`); the composer denies a capability's tools when that capability is off.
@@ -245,6 +264,7 @@ const contributeWorkspacePrompt: NonNullable<McpFeatureDescriptor['contributePro
 
 export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
+  toolNames: WORKSPACE_TOOL_NAMES,
   build: (context) => buildInProcessMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
@@ -268,6 +288,7 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
 // surface), so `mutatingToolNames` stays empty here too.
 export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
+  toolNames: WORKSPACE_INTERACTIVE_TOOL_NAMES,
   build: (context) => buildWorkspaceInteractiveMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
@@ -290,6 +311,7 @@ export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
 // one capability went missing.
 export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
+  toolNames: ROUTING_TOOL_NAMES,
   build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,

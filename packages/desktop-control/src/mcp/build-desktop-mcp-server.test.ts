@@ -4,6 +4,7 @@ import type { Database } from '@vynel/db'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
+import { desktopFeatureDescriptor } from './desktop-mcp-feature-descriptor.js'
 import { PLAN_REQUIRED_MESSAGE } from '../plan/plan-gated-authorization.js'
 import { listDesktopActions } from '../repositories/desktop-actions.js'
 import {
@@ -214,5 +215,15 @@ describe('desktopToolFactories', () => {
     expect(afterApp.content[0]?.text).not.toContain(PLAN_REQUIRED_MESSAGE)
     expect(afterDesktop.isError).toBe(true)
     expect(afterDesktop.content[0]?.text).toContain('EITHER a single')
+  })
+
+  it("pins the descriptor's declared toolNames to the REAL factory roster", () => {
+    // The declared inventory is the policy/admin surface; the built server is
+    // the executable truth. A tool added to the factories without updating
+    // the descriptor (or vice versa) must fail loudly here.
+    const registered = toolNames(
+      desktopToolFactories({ reader: emptyReader, db: dbStandIn, userId: 'u', enableActions: true }),
+    ).map((name) => `mcp__desktop__${name}`)
+    expect(desktopFeatureDescriptor.toolNames).toEqual(registered)
   })
 })

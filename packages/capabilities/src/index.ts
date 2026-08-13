@@ -9,3 +9,21 @@ export {
   listCapabilityStatusForWorkspace,
   type CapabilityStatus,
 } from './list-capability-status.js'
+export {
+  SESSION_SURFACE_KINDS,
+  type EffectiveToolPolicies,
+  type EffectiveToolPolicy,
+  type SessionSurfaceKind,
+  type ToolCardClass,
+  type ToolCatalogEntry,
+} from './tool-policy/tool-policy-types.js'
+export {
+  resolveEffectiveToolPolicies,
+  TOOL_POLICY_UNGATED,
+} from './tool-policy/resolve-effective-tool-policies.js'
+export {
+  setToolPolicyOverride,
+  type SetToolPolicyOverrideInput,
+} from './tool-policy/set-tool-policy-override.js'
+export { TOOL_POLICY_UPDATED, type ToolPolicyUpdatedPayload } from './tool-policy/tool-policy-events.js'
+export { listToolPolicies, findToolPolicy, type ToolPolicyRow } from './repositories/tool-policies.js'

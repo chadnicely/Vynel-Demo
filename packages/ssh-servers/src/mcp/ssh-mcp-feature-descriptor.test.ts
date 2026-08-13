@@ -19,6 +19,8 @@ describe('buildSshFeatureDescriptor', () => {
     expect(descriptor.serverName).toBe('vynel-ssh')
     expect(descriptor.mutatingToolNames).toEqual([]) // NO cards — Chad's call
     expect(descriptor.askModeApprovalToolNames).toBeUndefined()
+    // The declared inventory matches the tier map — every ssh tool is pro.
+    expect(descriptor.toolNames).toEqual(descriptor.featureGatedTools?.['ssh'])
   })
 
   it('build() constructs the server without touching the DB', () => {

@@ -43,6 +43,7 @@ export function buildSshFeatureDescriptor(deps: {
 }): McpFeatureDescriptor {
   return {
     serverName: 'vynel-ssh',
+    toolNames: ['mcp__vynel-ssh__list_ssh_servers', 'mcp__vynel-ssh__run_ssh_command'],
     build: (context) => {
       // The one documented producer-boundary cast (the asks precedent).
       const db = context.db as Database

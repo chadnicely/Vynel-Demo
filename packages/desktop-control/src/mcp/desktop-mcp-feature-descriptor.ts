@@ -92,6 +92,33 @@ function contributePrompt(context: SessionToolContext): string {
 // plan cards in ask mode above.
 export const desktopFeatureDescriptor: McpFeatureDescriptor = {
   serverName: 'desktop',
+  // The FULL declared surface (12 read + 10 act). A read-only context
+  // registers only the first 12 — the inventory is the legible policy/admin
+  // surface; the built server stays the executable truth.
+  toolNames: [
+    'mcp__desktop__list_desktop_notifications',
+    'mcp__desktop__list_open_apps',
+    'mcp__desktop__list_installed_apps',
+    'mcp__desktop__list_monitors',
+    'mcp__desktop__system_status',
+    'mcp__desktop__get_app',
+    'mcp__desktop__mouse_position',
+    'mcp__desktop__snapshot_app',
+    'mcp__desktop__screenshot_app',
+    'mcp__desktop__screenshot_desktop',
+    'mcp__desktop__wait_for',
+    'mcp__desktop__send_desktop_notification',
+    'mcp__desktop__propose_desktop_plan',
+    'mcp__desktop__act_on_app',
+    'mcp__desktop__act_on_desktop',
+    'mcp__desktop__launch_app',
+    'mcp__desktop__open_url',
+    'mcp__desktop__set_window_state',
+    'mcp__desktop__set_window_bounds',
+    'mcp__desktop__read_clipboard',
+    'mcp__desktop__write_clipboard',
+    'mcp__desktop__set_volume',
+  ],
   build,
   // EMPTY, deliberately. This list is the every-mode approval FLOOR, and it
   // named `request_desktop_access` — a tool that no longer exists. Nothing in
