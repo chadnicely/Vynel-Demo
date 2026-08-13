@@ -11,7 +11,7 @@ naming contract) — it is the whole story. Four commits on the branch: `99edb5f
 `dc8fffc` P4 registry auto-discovery ("Vynel Call <n> Ears/Voice" pairs, keyed inventory,
 reviewer-clean, 13 tests) · `6560067` P2 Linux runtime null-sink pool (reviewer-clean, 10
 tests) · `c129217` P1 branded ACX driver `drivers/windows/vynel-call-audio` (builds green with
-the EWDK at `E:\KLONE\Toolchains\`, test-signed, InfVerif /h VALID, VM-only LOADING.md).
+the EWDK at `E:\KLONE\Workspace\Toolchains\`, test-signed, InfVerif /h VALID, VM-only LOADING.md).
 Voice-daemon suite 156 green; full `pnpm test` gate NOT run (CPU rule — Kafi's call).
 **Needs Chad:** Partner Center + EV cert (attestation signing) · Mac hardware (P3) ·
 bundle-vs-guided for our own driver. Next engineering milestone: driver loopback wiring

@@ -137,13 +137,13 @@ An autonomous session on Kafi's Windows machine can do P0–P2 and P4 without a 
 Windows 11 Pro 26200, zero VS/MSBuild/WDK installed. Chosen: **EWDK Windows 11 26H1 (July
 2026, VS BuildTools 18.3.0, MSVC 14.50)** — a mount-and-run ISO: no install, no admin, no
 UAC-prompt hang risk unattended, no system mutation, deletable when done. Lives at
-`E:\KLONE\Toolchains\`. Fallback if samples fight the VS2026 toolset: the samples repo's
+`E:\KLONE\Workspace\Toolchains\`. Fallback if samples fight the VS2026 toolset: the samples repo's
 per-WDK release tags, or EWDK 26100.6584 (VS2022 era) from Other WDK Downloads.
 
 ## Night-run results (2026-08-13, autonomous — branch worktree-virtual-audio-driver)
 
 - **P0 — DONE** (findings above; `99edb5f`).
-- **P1 — DONE as a spike.** Toolchain: EWDK 26H1 (28000.2526) at `E:\KLONE\Toolchains\`
+- **P1 — DONE as a spike.** Toolchain: EWDK 26H1 (28000.2526) at `E:\KLONE\Workspace\Toolchains\`
   (mount-and-run ISO; the machine itself unmutated). Release x64 builds: sysvad kernel driver +
   libs GREEN — only the three wil-dependent user-mode APO effect samples fail (the EWDK's
   msbuild cannot NuGet-restore PackageReference; irrelevant to our path) · ACX AudioCodec

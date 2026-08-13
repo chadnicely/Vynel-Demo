@@ -50,7 +50,7 @@ Virtual-Audio-Driver` (SimpleAudioSample-family branding precedent).
 
 ## Building (EWDK — no Visual Studio install)
 
-1. Mount `E:\KLONE\Toolchains\EWDK_26H1_ge.iso` (double-click, or
+1. Mount `E:\KLONE\Workspace\Toolchains\EWDK_26H1_ge.iso` (double-click, or
    `Mount-DiskImage -ImagePath ...`) — say it lands on `F:`.
 2. `F:\LaunchBuildEnv.cmd`
 3. In that shell:
