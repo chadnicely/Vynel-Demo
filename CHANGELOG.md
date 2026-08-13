@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **On Windows, Vynel can hear a call with no cable to install.** A new native
+  module captures a single app's audio directly (Zoom, Teams, a Meet tab) —
+  the "ears" half of a meeting — so a Windows call needs only one virtual
+  cable for Vynel's voice, not two. Off-Windows or until the module is built,
+  Vynel falls back to a cable feed exactly as before. Not yet wired into live
+  calls; it lands with the virtual-audio driver's voice half.
+
 - **Vynel finds its own call cables.** Virtual audio devices named
   `Vynel Call <n> Ears/Voice` are now claimed as call cable pairs
   automatically, checked fresh at every call start — install a device and

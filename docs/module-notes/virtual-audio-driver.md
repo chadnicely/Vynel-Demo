@@ -95,6 +95,22 @@ An autonomous session on Kafi's Windows machine can do P0–P2 and P4 without a 
 - **Consequence confirmed: the Windows driver only needs the voice direction** — ears is
   device-less per-app capture. One cable per call, not two.
 
+### P0.1 — BUILT + LIVE-VERIFIED (2026-08-14): the ears addon exists
+
+The verdict above is now code. `apps/voice/native/process-loopback/` is a dependency-free N-API
+addon (clean-room from the MIT ApplicationLoopback sample — no WIL/WRL/Media Foundation, which
+the EWDK's msbuild can't NuGet-restore anyway): one refcounted completion handler + one capture
+thread on the WASAPI event + a non-blocking, unref'd thread-safe function. Builds with the same
+EWDK (`build.cmd` auto-detects the MSVC x64 toolset + SDK version; node headers/lib staged under
+`Toolchains/node-headers/`). TS boundary `src/audio/process-loopback.ts` soft-loads it (absent
+off-Windows / until built → the seam throws and the caller falls back to a cable), and
+`src/audio/process-loopback-capture.ts` adapts it to `CaptureStream` byte-for-byte like
+`openCaptureStream` (downmix → resample → 16 kHz mono). 6 seam tests on a fake addon; 162 green.
+**Live smoke passed**: captured a 440 Hz tone from a real PID (peak 0.24, rms 0.17, non-silent),
+399 frames over 3.99 s at 48 kHz stereo. NOT yet wired into the call registry as an ears source —
+that lands with the loopback-driver milestone (the voice half), when a Windows call becomes one
+cable + this addon.
+
 ### P0.2 — ACX vs sysvad: ACX is virtual-capable; AudioCodec is the better brand base
 
 - Verified against the sample INF on `main`: **ACX `AudioCodec` installs `ROOT\AudioCodec`**
