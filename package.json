@@ -8,11 +8,11 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/local-api --filter=@vynel/local-web --no-daemon",
-    "dev:local": "turbo run dev --filter=@vynel/local-api --filter=@vynel/local-web --no-daemon",
+    "dev": "tsx scripts/src/dev/dev.ts",
+    "dev:local": "tsx scripts/src/dev/dev.ts api web",
     "dev:voice": "pnpm --filter @vynel/voice-daemon dev",
     "dev:desktop": "pnpm --filter @vynel/desktop build:shell",
-    "dev:full": "pnpm db:up && turbo run dev --filter=@vynel/cloud-api --filter=@vynel/cloud-admin-web --filter=@vynel/local-api --filter=@vynel/local-web --filter=@vynel/voice-daemon --no-daemon",
+    "dev:full": "tsx scripts/src/dev/dev.ts cloud admin api web voice",
     "dev:all": "turbo run dev --no-daemon",
     "db:up": "pnpm --filter @vynel/cloud-api db:up",
     "db:down": "pnpm --filter @vynel/cloud-api db:down",

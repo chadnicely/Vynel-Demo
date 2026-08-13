@@ -9,7 +9,8 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": ["VYNEL_PORT_BASE"]
     },
     "typecheck": {
       "dependsOn": ["^build"],

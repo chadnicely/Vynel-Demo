@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Pick what you run: `pnpm dev` now takes app names and a port band.**
+  `pnpm dev api web` starts just the engine and the UI; `pnpm dev cloud admin
+  api web voice` is the full stack; `--base 28890` (or `--port 28892`, named
+  by the engine port) shifts the whole instance to another port band in one
+  flag — perfect for running a second copy beside the first. Bare `pnpm dev`,
+  `dev:local`, and `dev:full` behave exactly as before.
+
 - **Vynel never fights over a port again.** The installed desktop app now
   *allocates* its local port each time it starts instead of assuming the
   default is free — if Docker, WSL, or any other app holds it, Vynel quietly
