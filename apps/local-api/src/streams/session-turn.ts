@@ -25,6 +25,7 @@ import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
+import { buildEnabledFeatureKeysReader } from '../sessions/enabled-feature-keys.js'
 import {
   buildDelegatedTurnMcpComposer,
   buildWorkspaceBackgroundMcpComposer,
@@ -81,9 +82,10 @@ export async function streamSpawnedSessionTurn(
   // agent-session caller identity its mention runs carry — so the colleague's
   // own send_message updates/reports resolve their requester correctly, and
   // its toolset never flip-flops by turn origin (the deferred-tool trap).
+  const readEnabledFeatureKeys = buildEnabledFeatureKeysReader(c.var.hubSession)
   const composedBackgroundMcp =
     spawned.scope === 'agent'
-      ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest))({
+      ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest, {}, readEnabledFeatureKeys))({
           db,
           userId,
           workspaceId: spawned.workspaceId,
@@ -91,7 +93,7 @@ export async function streamSpawnedSessionTurn(
           targetPrimarySessionId: spawned.id,
         })
       : spawned.workspaceId !== null
-        ? (await buildWorkspaceBackgroundMcpComposer(turnSessionAppRequest))({
+        ? (await buildWorkspaceBackgroundMcpComposer(turnSessionAppRequest, readEnabledFeatureKeys))({
             db,
             userId,
             workspaceId: spawned.workspaceId,

@@ -27,6 +27,7 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { HonoAppRequestFn } from '../factory.js'
 import { buildWorkspaceBackgroundMcpComposer } from './build-workspace-background-mcp.js'
+import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
 
 export async function buildScheduleFireDeps(
   db: Database,
@@ -34,10 +35,14 @@ export async function buildScheduleFireDeps(
   logger: Logger,
   activityFeed: SessionActivityFeed,
   turnEvents?: TurnEventBroadcaster,
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys,
 ): Promise<FireScheduleDeps> {
   // The shared background composer closes over the in-process `appRequest`
   // dispatcher so each fired turn re-enters the api (dynamic MCP import inside).
-  const composeWorkspaceMcpServers = await buildWorkspaceBackgroundMcpComposer(appRequest)
+  const composeWorkspaceMcpServers = await buildWorkspaceBackgroundMcpComposer(
+    appRequest,
+    readEnabledFeatureKeys,
+  )
 
   // A fired turn mutates a workspace thread the user may have OPEN, with no
   // other signal — announce it on the session-activity feed like every other

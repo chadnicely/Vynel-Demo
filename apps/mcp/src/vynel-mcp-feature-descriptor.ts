@@ -90,6 +90,50 @@ const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> 
   ],
 }
 
+// The TIER map for the workspace registries — `HubFeatureKey` → the tools
+// whose routes re-enter through that key's `featureGate` mount (app.ts).
+// Composition-level filtering makes an out-of-tier tool INVISIBLE instead of
+// a 403 at call time. `channels` is deliberately absent (basic tier carries
+// it — gating it would be a no-op); curated agents ride the ungated /agents
+// routes. Keys + names are pinned against the real contract + registry by
+// vynel-mcp-feature-descriptor.test.ts.
+const VYNEL_FEATURE_GATED_TOOLS: Readonly<Record<string, readonly string[]>> = {
+  apps: [
+    'mcp__vynel__list_apps',
+    'mcp__vynel__add_app',
+    'mcp__vynel__update_app',
+    'mcp__vynel__start_app',
+    'mcp__vynel__stop_app',
+    'mcp__vynel__get_app_logs',
+  ],
+  schedules: [
+    'mcp__vynel__list_schedules',
+    'mcp__vynel__list_my_schedules',
+    'mcp__vynel__list_schedule_runs',
+    'mcp__vynel__list_schedule_templates',
+  ],
+  marketplace: [
+    'mcp__vynel__list_marketplace_items',
+    'mcp__vynel__get_marketplace_item',
+    'mcp__vynel__install_marketplace_item',
+    'mcp__vynel__uninstall_marketplace_item',
+    'mcp__vynel__update_marketplace_item',
+  ],
+  knowledge: VYNEL_CAPABILITY_GATED_TOOLS['knowledge']!,
+  memory: VYNEL_CAPABILITY_GATED_TOOLS['memory']!,
+}
+
+// The routing surface's tier map: the call/voice lifecycle tools dispatch
+// through the `/voice/*` featureGate mount.
+const ROUTING_FEATURE_GATED_TOOLS: Readonly<Record<string, readonly string[]>> = {
+  voice: [
+    'mcp__vynel__speak',
+    'mcp__vynel__start_call',
+    'mcp__vynel__end_call',
+    'mcp__vynel__list_calls',
+  ],
+}
+
 // The standing per-capability disciplines for a workspace turn. Each section
 // is self-contained (the tools it names are this descriptor's own) and
 // dropped when its capability is off — the capability-aware contributePrompt
@@ -205,6 +249,7 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
+  featureGatedTools: VYNEL_FEATURE_GATED_TOOLS,
   contributePrompt: contributeWorkspacePrompt,
 }
 
@@ -227,6 +272,7 @@ export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
+  featureGatedTools: VYNEL_FEATURE_GATED_TOOLS,
   contributePrompt: contributeWorkspacePrompt,
 }
 
@@ -247,5 +293,6 @@ export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
+  featureGatedTools: ROUTING_FEATURE_GATED_TOOLS,
   contributePrompt: () => TODOS_PROMPT_INSTRUCTIONS,
 }

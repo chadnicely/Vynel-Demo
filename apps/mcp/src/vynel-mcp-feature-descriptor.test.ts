@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import type { SessionToolContext } from '@vynel/mcp-contract'
+import { ALL_FEATURE_KEYS } from '@vynel/contracts/hub/entitlements'
 import { buildInProcessMcpServer } from './build-in-process-server.js'
+import { generatedMcpTools, generatedRoutingMcpTools } from './generated/api-tools.js'
 import {
   vynelWorkspaceDescriptor,
   vynelWorkspaceInteractiveDescriptor,
@@ -218,5 +220,84 @@ describe('vynelWorkspaceInteractiveDescriptor (Slice ④b)', () => {
     const server = vynelWorkspaceInteractiveDescriptor.build(fakeContext())
     expect(server).not.toBeNull()
     expect(typeof server).toBe('object')
+  })
+})
+
+describe('featureGatedTools (the tier maps)', () => {
+  // The generated factories are named as the camelCase tool name — derive the
+  // real registry name-sets from them so the pins can't drift from the
+  // generator (the same inversion api-tools.test.ts uses).
+  const camelToSnake = (s: string): string => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+  const workspaceToolNames = new Set(
+    generatedMcpTools.map((factory) => `mcp__vynel__${camelToSnake(factory.name)}`),
+  )
+  const routingToolNames = new Set(
+    generatedRoutingMcpTools.map((factory) => `mcp__vynel__${camelToSnake(factory.name)}`),
+  )
+
+  it('workspace map: shared by both workspace descriptors; keys are real HubFeatureKeys; names are real registry tools', () => {
+    const map = vynelWorkspaceDescriptor.featureGatedTools
+    expect(map).toBeDefined()
+    expect(vynelWorkspaceInteractiveDescriptor.featureGatedTools).toBe(map)
+    for (const [featureKey, toolNames] of Object.entries(map!)) {
+      expect(ALL_FEATURE_KEYS as readonly string[], featureKey).toContain(featureKey)
+      for (const toolName of toolNames) {
+        expect(workspaceToolNames, `${featureKey}: ${toolName}`).toContain(toolName)
+      }
+    }
+  })
+
+  it('pins the workspace tier keys + the hand-curated lists exactly', () => {
+    const map = vynelWorkspaceDescriptor.featureGatedTools!
+    expect(Object.keys(map).sort()).toEqual([
+      'apps',
+      'knowledge',
+      'marketplace',
+      'memory',
+      'schedules',
+    ])
+    expect(map['apps']).toEqual([
+      'mcp__vynel__list_apps',
+      'mcp__vynel__add_app',
+      'mcp__vynel__update_app',
+      'mcp__vynel__start_app',
+      'mcp__vynel__stop_app',
+      'mcp__vynel__get_app_logs',
+    ])
+    expect(map['schedules']).toEqual([
+      'mcp__vynel__list_schedules',
+      'mcp__vynel__list_my_schedules',
+      'mcp__vynel__list_schedule_runs',
+      'mcp__vynel__list_schedule_templates',
+    ])
+    expect(map['marketplace']).toEqual([
+      'mcp__vynel__list_marketplace_items',
+      'mcp__vynel__get_marketplace_item',
+      'mcp__vynel__install_marketplace_item',
+      'mcp__vynel__uninstall_marketplace_item',
+      'mcp__vynel__update_marketplace_item',
+    ])
+  })
+
+  it('knowledge + memory tier entries ARE the capability lists — one home per list', () => {
+    const map = vynelWorkspaceDescriptor.featureGatedTools!
+    const capabilityMap = vynelWorkspaceDescriptor.capabilityGatedTools!
+    expect(map['knowledge']).toBe(capabilityMap['knowledge'])
+    expect(map['memory']).toBe(capabilityMap['memory'])
+  })
+
+  it('routing map: exactly the voice lifecycle, and every name is a real routing tool', () => {
+    const map = vynelRoutingDescriptor.featureGatedTools
+    expect(map).toBeDefined()
+    expect(Object.keys(map!)).toEqual(['voice'])
+    expect(map!['voice']).toEqual([
+      'mcp__vynel__speak',
+      'mcp__vynel__start_call',
+      'mcp__vynel__end_call',
+      'mcp__vynel__list_calls',
+    ])
+    for (const toolName of map!['voice']!) {
+      expect(routingToolNames, toolName).toContain(toolName)
+    }
   })
 })

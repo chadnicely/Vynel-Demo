@@ -22,6 +22,7 @@ import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 import type { HonoAppRequestFn } from '../factory.js'
 import { buildScheduleFireDeps } from '../sessions/build-schedule-fire-deps.js'
+import type { ReadEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 
 const SCHEDULE_POLL_INTERVAL_MS = 60_000 // per-minute poll (NOT sub-minute — blueprint §2)
 
@@ -31,14 +32,23 @@ export interface SchedulesServiceOptions {
   appRequest: HonoAppRequestFn // from createApp(...) in server.ts (app.request.bind(app))
   activityFeed: SessionActivityFeed // shared turn-liveness registry (server.ts)
   turnEvents?: TurnEventBroadcaster // shared live-turn pub/sub (Watch everywhere, Slice ③)
+  /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys
 }
 
 export async function startSchedulesService(
   options: SchedulesServiceOptions,
 ): Promise<{ stop: () => void }> {
-  const { db, logger, appRequest, activityFeed, turnEvents } = options
+  const { db, logger, appRequest, activityFeed, turnEvents, readEnabledFeatureKeys } = options
 
-  const fireDeps = await buildScheduleFireDeps(db, appRequest, logger, activityFeed, turnEvents)
+  const fireDeps = await buildScheduleFireDeps(
+    db,
+    appRequest,
+    logger,
+    activityFeed,
+    turnEvents,
+    readEnabledFeatureKeys,
+  )
 
   const pollTimer = setInterval(() => {
     runScheduleClaimAndFireTick(db, fireDeps).catch((err) =>

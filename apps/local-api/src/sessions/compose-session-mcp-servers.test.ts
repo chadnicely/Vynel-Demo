@@ -202,4 +202,71 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     expect(composed.systemPromptAppend).toContain('act_on_app')
     expect(composed.systemPromptAppend).toContain('propose_desktop_plan')
   })
+
+  describe('tier filtering (featureGatedTools)', () => {
+    const tierGated = fakeDescriptor({
+      featureGatedTools: {
+        ssh: ['mcp__vynel__run_ssh_command'],
+        apps: ['mcp__vynel__list_apps', 'mcp__vynel__start_app'],
+      },
+      contributePrompt: () => 'TIER_PROMPT',
+    })
+
+    it('denies the tools of feature keys the entitlement lacks', () => {
+      const composed = composeSessionMcpServers([tierGated], context, {
+        enabledFeatureKeys: new Set(['apps']),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual(['mcp__vynel__run_ssh_command'])
+      // Partially denied → the prompt survives (some tools remain live).
+      expect(composed.systemPromptAppend).toBe('TIER_PROMPT')
+    })
+
+    it('FAIL-OPEN: no live entitlement (option absent) means no tier denials at all', () => {
+      // The featureGate posture: hub not configured / signed out / offline
+      // past grace = permissive. Capabilities differ deliberately.
+      const composed = composeSessionMcpServers([tierGated], context)
+      expect(composed.deniedMcpToolPatterns).toEqual([])
+    })
+
+    it('drops the prompt of a descriptor gated ONLY by tier when every key is denied (the ssh shape)', () => {
+      const composed = composeSessionMcpServers([tierGated], context, {
+        enabledFeatureKeys: new Set(['channels']),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual([
+        'mcp__vynel__run_ssh_command',
+        'mcp__vynel__list_apps',
+        'mcp__vynel__start_app',
+      ])
+      expect(composed.systemPromptAppend).toBe('')
+      // The server still registers — the deny list is what strips the tools.
+      expect(composed.mcpServers).toHaveProperty('vynel')
+    })
+
+    it('keeps the prompt when a fully tier-denied descriptor also has capability gates', () => {
+      // The vynel shape: its prompt sections are capability-owned (tasks,
+      // plans, journal…) and stay valid even when every TIER key is denied.
+      const both = fakeDescriptor({
+        featureGatedTools: { apps: ['mcp__vynel__list_apps'] },
+        capabilityGatedTools: { tasks: ['mcp__vynel__list_tasks'] },
+        contributePrompt: () => 'CAPABILITY_PROMPT',
+      })
+      const composed = composeSessionMcpServers([both], context, {
+        enabledCapabilityIds: new Set(['tasks']),
+        enabledFeatureKeys: new Set(['channels']),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual(['mcp__vynel__list_apps'])
+      expect(composed.systemPromptAppend).toBe('CAPABILITY_PROMPT')
+    })
+
+    it('an alwaysOn core feature is never tier-denied', () => {
+      const core = fakeDescriptor({
+        alwaysOn: true,
+        featureGatedTools: { ssh: ['mcp__vynel__run_ssh_command'] },
+      })
+      const composed = composeSessionMcpServers([core], context, {
+        enabledFeatureKeys: new Set<string>(),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual([])
+    })
+  })
 })

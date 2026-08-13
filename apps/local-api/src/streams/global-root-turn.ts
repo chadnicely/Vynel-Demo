@@ -37,6 +37,7 @@ import { writeSseSafely } from './write-sse-safely.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
 import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
+import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import type { z } from 'zod'
 import type { StartGlobalRootTurnRequestSchema } from '../routes/root/schemas.js'
 
@@ -187,6 +188,7 @@ export async function streamGlobalRootTurn(
     },
     { logger: c.var.logger },
   )
+  const enabledFeatureKeys = resolveEnabledFeatureKeys(c.var.hubSession)
   const composedMcp = composeSessionMcpServers(
     [
       vynelRoutingDescriptor,
@@ -211,7 +213,10 @@ export async function streamGlobalRootTurn(
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
     // the notebook's defaultEnabled gated tools would be denied here).
-    { enabledCapabilityIds: defaultEnabledCapabilityIds() },
+    {
+      enabledCapabilityIds: defaultEnabledCapabilityIds(),
+      ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+    },
   )
 
   return streamSSE(c, async (stream) => {

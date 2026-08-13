@@ -23,6 +23,7 @@ import {
   composeSessionMcpServers,
   type ComposedSessionMcpServers,
 } from './compose-session-mcp-servers.js'
+import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
 import { wrapAppRequestWithDelegationThread } from './delegation-thread-header.js'
 import { wrapAppRequestWithDelegationJob } from './delegation-job-header.js'
 import {
@@ -39,19 +40,25 @@ export type WorkspaceBackgroundMcpComposer = (input: {
 
 export async function buildWorkspaceBackgroundMcpComposer(
   appRequest: HonoAppRequestFn,
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys,
 ): Promise<WorkspaceBackgroundMcpComposer> {
   const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  return ({ db, userId, workspaceId }) =>
-    composeSessionMcpServers(
+  return ({ db, userId, workspaceId }) => {
+    // Read the entitlement PER COMPOSITION — the hub session refreshes while
+    // the process runs; absent reader/entitlement = fail-open (no tier filter).
+    const enabledFeatureKeys = readEnabledFeatureKeys?.()
+    return composeSessionMcpServers(
       [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
       { db, userId, workspaceId, appRequest },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
         ),
+        ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
       },
     )
+  }
 }
 
 // The DELEGATED-turn composer (2026-07-21, Chad's re-decision of the ④b pin):
@@ -137,6 +144,7 @@ export type DelegatedTurnMcpComposer = (input: {
 export async function buildDelegatedTurnMcpComposer(
   appRequest: HonoAppRequestFn,
   desktop: DelegatedTurnDesktopContext = {},
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys,
 ): Promise<DelegatedTurnMcpComposer> {
   const { vynelWorkspaceInteractiveDescriptor, vynelRoutingDescriptor } = await import(
     '@vynel/mcp'
@@ -246,11 +254,15 @@ export async function buildDelegatedTurnMcpComposer(
     // row to read, so the catalog defaults apply — the same fallback both
     // global-root turn sites use (omitting the set entirely read as "all
     // disabled" and silently denied the notebook's gated tools here).
+    const enabledFeatureKeys = readEnabledFeatureKeys?.()
     if (workspaceId === null) {
       return composeSessionMcpServers(
         [vynelRoutingDescriptor, notebookFeatureDescriptor, ...desktopDescriptors],
         { db, userId, appRequest: jobAwareAppRequest, ...desktopContext },
-        { enabledCapabilityIds: defaultEnabledCapabilityIds() },
+        {
+          enabledCapabilityIds: defaultEnabledCapabilityIds(),
+          ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+        },
       )
     }
     return composeSessionMcpServers(
@@ -260,6 +272,7 @@ export async function buildDelegatedTurnMcpComposer(
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
         ),
+        ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
       },
     )
   }

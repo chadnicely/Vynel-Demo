@@ -35,6 +35,7 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
 import { buildScheduleFireDeps } from '../../sessions/build-schedule-fire-deps.js'
+import { buildEnabledFeatureKeysReader } from '../../sessions/enabled-feature-keys.js'
 import {
   createSchedule,
   listSchedules,
@@ -279,7 +280,14 @@ export const schedulesApp = factory
       // boot seam). No logic in the route — build deps + call core + serialize.
       const fireDeps =
         c.var.scheduleFireDeps ??
-        (await buildScheduleFireDeps(c.var.db, c.var.appRequest, c.var.logger, c.var.activityFeed))
+        (await buildScheduleFireDeps(
+          c.var.db,
+          c.var.appRequest,
+          c.var.logger,
+          c.var.activityFeed,
+          undefined,
+          buildEnabledFeatureKeysReader(c.var.hubSession),
+        ))
       const run = await manualFireSchedule(
         c.var.db,
         { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },

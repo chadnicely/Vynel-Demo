@@ -111,6 +111,12 @@ export function buildSshFeatureDescriptor(deps: {
       return createSdkMcpServer({ name: 'vynel-ssh', version: '1.0.0', tools })
     },
     mutatingToolNames: [], // NO cards — Chad's call; see file header.
+    // SSH is a pro feature (Chad 2026-07-17). These handlers call package ops
+    // directly — no HTTP re-entry, so the `featureGate` middleware never sees
+    // them; composition-level filtering is the ONLY tier gate on this server.
+    featureGatedTools: {
+      ssh: ['mcp__vynel-ssh__list_ssh_servers', 'mcp__vynel-ssh__run_ssh_command'],
+    },
     contributePrompt: () => SSH_PROMPT_INSTRUCTIONS,
   }
 }

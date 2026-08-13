@@ -100,6 +100,17 @@ export interface McpFeatureDescriptor {
   // Omit when none of the feature's tools are capability-gated.
   readonly capabilityGatedTools?: Readonly<Record<string, readonly string[]>>
 
+  // The TIER twin of `capabilityGatedTools`: tools denied when the user's hub
+  // entitlement lacks the feature key (basic vs pro). Keys are `HubFeatureKey`
+  // STRINGS (`@vynel/contracts/hub/entitlements` — kept untyped here so this
+  // contract stays dependency-light; the apps/mcp pin test holds the keys to
+  // the real union). Filtering at COMPOSITION is what makes an out-of-tier
+  // tool invisible to the model instead of a 403 at call time — and it is the
+  // only tier gate that reaches descriptors whose handlers never re-enter
+  // HTTP (ssh, desktop, notebook, ask, study). The HTTP `featureGate`
+  // middleware stays as the UI door + defense in depth. Omit when none.
+  readonly featureGatedTools?: Readonly<Record<string, readonly string[]>>
+
   // CORE-CAPABILITY tier seam (future memory/knowledge direction): when `true`
   // the composer (1) never denies this feature's tools via the capability gate,
   // and (2) keeps its tools OUT of the mutating set regardless of mode — so a

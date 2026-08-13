@@ -53,6 +53,7 @@ import { startChannelsService } from './services/channels-service.js'
 import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
 import { buildDelegatedTurnMcpComposer } from './sessions/build-workspace-background-mcp.js'
+import { buildEnabledFeatureKeysReader } from './sessions/enabled-feature-keys.js'
 import { buildGlobalRootReportTurnRunner } from './sessions/run-global-root-turn.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
 import { startMonitorsService } from './services/monitors-service.js'
@@ -265,7 +266,17 @@ export async function boot(): Promise<void> {
   // The per-minute schedule poll — claims due schedules + fires each via a
   // headless workspace turn. MCP-intrinsic, so it lives in the api process (not
   // the worker). Stopped on shutdown, like the file watcher.
-  const schedulesService = await startSchedulesService({ db, logger, appRequest, activityFeed, turnEvents })
+  // Boot services read the entitlement PER COMPOSITION through this reader —
+  // tier filtering follows a mid-process sign-in/upgrade without a restart.
+  const readEnabledFeatureKeys = buildEnabledFeatureKeysReader(hubSession)
+  const schedulesService = await startSchedulesService({
+    db,
+    logger,
+    appRequest,
+    activityFeed,
+    turnEvents,
+    readEnabledFeatureKeys,
+  })
   // Watcher restore + catch-up scan for every registered knowledge source, plus
   // the in-process embeddings tick (the desktop app runs no apps/worker).
   const knowledgeIndexingService = startKnowledgeIndexingService({ db, logger, fileWatcher })
@@ -284,6 +295,7 @@ export async function boot(): Promise<void> {
     turnEvents,
     desktopReader: desktopNotifications,
     enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
+    readEnabledFeatureKeys,
   })
   // The delegation claim-and-run tick — claims one pending routing job per tick,
   // runs it as a workspace turn, records the terminal state; at startup it fails
@@ -298,10 +310,14 @@ export async function boot(): Promise<void> {
   // `DESKTOP_CAPABLE_DELEGATED_TARGETS` — a task handed to a spawned session is
   // the only way desktop work runs WHILE the user does something else, since a
   // global-root turn holds the per-user root lock for its whole duration.
-  const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(appRequest, {
-    desktopReader: desktopNotifications,
-    enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
-  })
+  const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(
+    appRequest,
+    {
+      desktopReader: desktopNotifications,
+      enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
+    },
+    readEnabledFeatureKeys,
+  )
   // The GLOBAL-root notify runner (session-comms): a completed delegation's
   // report runs a REAL turn on the root — the assistant absorbs the result in
   // its own flow instead of receiving a detached pushed row.
@@ -311,6 +327,7 @@ export async function boot(): Promise<void> {
     appRequest,
     activityFeed,
     turnEvents,
+    readEnabledFeatureKeys,
   })
   const delegationService = startDelegationService({
     db,

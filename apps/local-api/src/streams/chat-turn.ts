@@ -34,6 +34,7 @@ import { composeSessionMcpServers } from '../sessions/compose-session-mcp-server
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
+import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import type { z } from 'zod'
 import type { StartChatTurnRequestSchema } from '../routes/chat/schemas.js'
@@ -81,6 +82,7 @@ export async function streamChatTurn(
   const enabledCapabilityIds = new Set(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
   )
+  const enabledFeatureKeys = resolveEnabledFeatureKeys(c.var.hubSession)
   // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
   // (enqueued once the turn's session resolves) + the per-turn # study
   // descriptor. Never throws; null = a token-free turn.
@@ -117,7 +119,10 @@ export async function streamChatTurn(
       workspaceId: c.var.workspace!.id,
       appRequest: turnSession.wrapAppRequest(c.var.appRequest),
     },
-    { enabledCapabilityIds },
+    {
+      enabledCapabilityIds,
+      ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+    },
   )
 
   // Primary-as-thread (Slice 1) + continue-mode activation (Slice 2): when the

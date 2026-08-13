@@ -45,7 +45,16 @@ export interface ComposedSessionMcpServers {
 export function composeSessionMcpServers(
   descriptors: readonly McpFeatureDescriptor[],
   context: SessionToolContext,
-  options: { enabledCapabilityIds?: ReadonlySet<string> } = {},
+  options: {
+    enabledCapabilityIds?: ReadonlySet<string>
+    /** The hub entitlement's feature keys. `undefined` = NO live entitlement
+     *  (hub not configured / signed out / offline past grace) — deliberately
+     *  FAIL-OPEN, matching the HTTP featureGate's posture: the gate enforces
+     *  only what a live entitlement actually says. A set filters strictly.
+     *  (Capabilities differ on purpose: absent set = default-deny — a
+     *  capability read always exists; an entitlement may genuinely not.) */
+    enabledFeatureKeys?: ReadonlySet<string>
+  } = {},
 ): ComposedSessionMcpServers {
   const enabledCapabilityIds = options.enabledCapabilityIds ?? new Set<string>()
   const mcpServers: Record<string, unknown> = {}
@@ -65,6 +74,7 @@ export function composeSessionMcpServers(
     // A core-tier (`alwaysOn`) feature is always-on + no-approval: never
     // capability-denied, never carded — regardless of permission mode.
     let everyGatedToolDenied = false
+    let everyFeatureGateDenied = false
     if (descriptor.alwaysOn !== true) {
       mutatingToolNames.push(...descriptor.mutatingToolNames)
       for (const toolName of descriptor.askModeApprovalToolNames ?? []) {
@@ -80,14 +90,30 @@ export function composeSessionMcpServers(
         for (const [, toolNames] of deniedGateEntries) deniedMcpToolPatterns.push(...toolNames)
         everyGatedToolDenied = gateEntries.length > 0 && deniedGateEntries.length === gateEntries.length
       }
+      // The tier gate — same three lines as the capability gate, but only
+      // against a LIVE entitlement (undefined = fail-open, see the option doc).
+      if (descriptor.featureGatedTools !== undefined && options.enabledFeatureKeys !== undefined) {
+        const enabledFeatureKeys = options.enabledFeatureKeys
+        const featureEntries = Object.entries(descriptor.featureGatedTools)
+        const deniedFeatureEntries = featureEntries.filter(
+          ([featureKey]) => !enabledFeatureKeys.has(featureKey),
+        )
+        for (const [, toolNames] of deniedFeatureEntries) deniedMcpToolPatterns.push(...toolNames)
+        everyFeatureGateDenied =
+          featureEntries.length > 0 && deniedFeatureEntries.length === featureEntries.length
+      }
     }
 
     // A fully capability-denied feature contributes NO prompt: the notebook is
     // the first descriptor combining capabilityGatedTools + contributePrompt,
     // and with its capability toggled OFF the turn would still say "call
     // list_playbooks…" while every one of those tools is denied — the model
-    // gets steered into calls that can only fail.
+    // gets steered into calls that can only fail. The tier twin applies the
+    // same rule to a descriptor gated ONLY by tier (ssh: every tool behind one
+    // key); a descriptor that also has capability gates keeps its prompt —
+    // its capability-gated sections may still be live.
     if (everyGatedToolDenied) continue
+    if (everyFeatureGateDenied && descriptor.capabilityGatedTools === undefined) continue
     const contribution = descriptor.contributePrompt?.(context, enabledCapabilityIds)
     if (contribution !== undefined && contribution !== null && contribution !== '') {
       promptSections.push(contribution)

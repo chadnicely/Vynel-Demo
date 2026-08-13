@@ -41,6 +41,7 @@ import {
 import type { DelegationOrigin } from '@vynel/orchestration'
 import type { HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
+import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
 import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
@@ -54,6 +55,8 @@ export interface RunGlobalRootTurnDeps {
   logger: Logger
   /** The in-process API dispatcher (`c.var.appRequest`) — the routing MCP tools dispatch through it. */
   appRequest: HonoAppRequestFn
+  /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys
   /** The turn-liveness registry — a background channel turn must announce
    *  itself so the open app surfaces it live (the web has no other signal). */
   activityFeed: SessionActivityFeed
@@ -214,6 +217,7 @@ export async function runGlobalRootTurn(
   const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
     userId: input.userId,
   })
+  const enabledFeatureKeys = deps.readEnabledFeatureKeys?.()
   const composedMcp = composeSessionMcpServers(
     [vynelRoutingDescriptor, notebookFeatureDescriptor, desktopFeatureDescriptor],
     {
@@ -246,7 +250,10 @@ export async function runGlobalRootTurn(
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
     // the notebook's defaultEnabled gated tools would be denied here).
-    { enabledCapabilityIds: defaultEnabledCapabilityIds() },
+    {
+      enabledCapabilityIds: defaultEnabledCapabilityIds(),
+      ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+    },
   )
 
   // USER-scope agents ride channel turns too — a Telegram ask can spawn the
