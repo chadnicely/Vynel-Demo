@@ -39,10 +39,14 @@ export async function buildScheduleFireDeps(
 ): Promise<FireScheduleDeps> {
   // The shared background composer closes over the in-process `appRequest`
   // dispatcher so each fired turn re-enters the api (dynamic MCP import inside).
-  const composeWorkspaceMcpServers = await buildWorkspaceBackgroundMcpComposer(
+  const backgroundComposer = await buildWorkspaceBackgroundMcpComposer(
     appRequest,
     readEnabledFeatureKeys,
   )
+  // The schedules contract stays surface-agnostic; a fired turn IS the
+  // 'schedule' consumer kind, stamped here at the binding.
+  const composeWorkspaceMcpServers: FireScheduleDeps['composeWorkspaceMcpServers'] = (input) =>
+    backgroundComposer({ ...input, surfaceKind: 'schedule' })
 
   // A fired turn mutates a workspace thread the user may have OPEN, with no
   // other signal — announce it on the session-activity feed like every other

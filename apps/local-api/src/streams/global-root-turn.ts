@@ -38,6 +38,7 @@ import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
 import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
 import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import type { z } from 'zod'
 import type { StartGlobalRootTurnRequestSchema } from '../routes/root/schemas.js'
 
@@ -189,6 +190,10 @@ export async function streamGlobalRootTurn(
     { logger: c.var.logger },
   )
   const enabledFeatureKeys = resolveEnabledFeatureKeys(c.var.hubSession)
+  const toolPolicies = resolveSessionToolPolicies(c.var.db, {
+    userId: c.var.user.id,
+    desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
+  })
   const composedMcp = composeSessionMcpServers(
     [
       vynelRoutingDescriptor,
@@ -216,6 +221,8 @@ export async function streamGlobalRootTurn(
     {
       enabledCapabilityIds: defaultEnabledCapabilityIds(),
       ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+      toolPolicies,
+      surfaceKind: 'global-interactive',
     },
   )
 

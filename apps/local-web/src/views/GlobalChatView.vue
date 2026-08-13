@@ -27,6 +27,7 @@ import RulesSection from "../components/sections/RulesSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import SkillsSection from "../components/sections/SkillsSection.vue";
 import SshServersSection from "../components/sections/SshServersSection.vue";
+import ToolPolicySection from "../components/sections/ToolPolicySection.vue";
 import EngineSection from "../components/sections/EngineSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
 import PlansSection from "../components/sections/PlansSection.vue";
@@ -86,6 +87,7 @@ const GLOBAL_SECTION_IDS = [
   "skills",
   "rules",
   "commands",
+  "tool-policy",
   "mcp-servers",
   "account",
 ] as const;
@@ -397,6 +399,10 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         />
         <McpServersSection
           v-else-if="shell.mainView === 'mcp-servers'"
+          :scope="{ kind: 'global' }"
+        />
+        <ToolPolicySection
+          v-else-if="shell.mainView === 'tool-policy'"
           :scope="{ kind: 'global' }"
         />
         <LockedFeatureCard

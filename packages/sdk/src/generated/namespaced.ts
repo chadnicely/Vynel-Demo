@@ -1797,6 +1797,28 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  toolPolicies: {
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/tool-policies")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  reset: async (toolName: NonNullable<paths["/tool-policies/{toolName}"]["delete"]['parameters']>['path']["toolName"]) => {
+    const { data, error, response } = await client["DELETE"]("/tool-policies/{toolName}", {
+      params: { path: { toolName: toolName } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  save: async (toolName: NonNullable<paths["/tool-policies/{toolName}"]["put"]['parameters']>['path']["toolName"], input: NonNullable<paths["/tool-policies/{toolName}"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/tool-policies/{toolName}", {
+      params: { path: { toolName: toolName } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   users: {
   getMe: async () => {
     const { data, error, response } = await client["GET"]("/users/me")

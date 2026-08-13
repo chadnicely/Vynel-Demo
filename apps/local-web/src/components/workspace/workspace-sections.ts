@@ -8,6 +8,7 @@ export type WorkspaceSectionId =
   | "skills"
   | "rules"
   | "commands"
+  | "tool-policy"
   | "mcp-servers"
   | "marketplace"
   | "channels"
@@ -70,6 +71,12 @@ export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
     id: "commands",
     label: "Commands",
     hint: "Reusable slash commands it can run",
+    group: "toolkit",
+  },
+  {
+    id: "tool-policy",
+    label: "Tool Policy",
+    hint: "Which tools it may use, where, and when they card",
     group: "toolkit",
   },
   {

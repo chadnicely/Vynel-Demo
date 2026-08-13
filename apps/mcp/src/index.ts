@@ -30,6 +30,9 @@ export {
   vynelRoutingDescriptor,
 } from './vynel-mcp-feature-descriptor.js'
 // The declared inventories + gate maps live on the `@vynel/mcp/tool-gates`
-// subpath (vynel-tool-gates.ts) — deliberately NOT re-exported here, so the
-// catalog assembler can import them without pulling this index's SDK-laden
-// descriptor graph at boot.
+// subpath (vynel-tool-gates.ts) — not re-exported here so the catalog
+// assembler skips this index's descriptor graph. KNOWN LIMIT: the subpath
+// still transitively loads the generated registry, whose first import is the
+// SDK's `tool` builder — so a static import of it puts the (builder-only)
+// SDK on the api's boot path. The recorded fix is the Slice-6 generator
+// improve: emit an SDK-free names/paths module and point the subpath there.

@@ -47,6 +47,9 @@ vi.mock('@vynel/capabilities', () => ({
   // The global-grounded branch has no workspace row to read — it falls back
   // to the catalog defaults (the same fallback the global-root sites use).
   defaultEnabledCapabilityIds: () => new Set<string>(['notebook']),
+  // The builders resolve admin overrides internally; the db here is a
+  // stand-in, so the resolver answers "no overrides".
+  resolveEffectiveToolPolicies: () => new Map(),
 }))
 // Mirrors the real descriptor's applicability gate: it excludes ITSELF when no
 // reader was wired at boot, which is what keeps composition safe off-Windows.
@@ -87,7 +90,12 @@ import {
 import { parseReportCallerHeader, REPORT_CALLER_HEADER } from './report-caller-header.js'
 import type { HonoAppRequestFn } from '../factory.js'
 
-const target = { db: {} as Database, userId: 'user-1', workspaceId: 'ws-1' }
+const target = {
+  db: {} as Database,
+  userId: 'user-1',
+  workspaceId: 'ws-1',
+  surfaceKind: 'schedule' as const,
+}
 
 // A spy dispatcher: records the caller header of every request the composed
 // descriptors dispatch (the wrap happens per compose call — per JOB).

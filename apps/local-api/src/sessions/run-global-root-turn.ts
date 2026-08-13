@@ -42,6 +42,7 @@ import type { DelegationOrigin } from '@vynel/orchestration'
 import type { HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
 import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
@@ -218,6 +219,10 @@ export async function runGlobalRootTurn(
     userId: input.userId,
   })
   const enabledFeatureKeys = deps.readEnabledFeatureKeys?.()
+  const toolPolicies = resolveSessionToolPolicies(deps.db, {
+    userId: input.userId,
+    desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
+  })
   const composedMcp = composeSessionMcpServers(
     [vynelRoutingDescriptor, notebookFeatureDescriptor, desktopFeatureDescriptor],
     {
@@ -253,6 +258,8 @@ export async function runGlobalRootTurn(
     {
       enabledCapabilityIds: defaultEnabledCapabilityIds(),
       ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+      toolPolicies,
+      surfaceKind: 'global-channel',
     },
   )
 

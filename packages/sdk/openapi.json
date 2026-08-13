@@ -24999,6 +24999,364 @@
         }
       }
     },
+    "/tool-policies": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ tools: EffectiveToolPolicy[] } sorted by server then tool.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "toolName": {
+                            "type": "string"
+                          },
+                          "serverName": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "surfaces": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "global-interactive",
+                                "global-channel",
+                                "workspace-interactive",
+                                "workspace-background",
+                                "delegated-workspace",
+                                "delegated-global",
+                                "spawned",
+                                "agent",
+                                "schedule"
+                              ]
+                            }
+                          },
+                          "cardClass": {
+                            "type": "string",
+                            "enum": [
+                              "never",
+                              "ask",
+                              "always"
+                            ]
+                          },
+                          "featureKey": {
+                            "type": "string"
+                          },
+                          "capabilityId": {
+                            "type": "string"
+                          },
+                          "hasOverride": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "toolName",
+                          "serverName",
+                          "enabled",
+                          "surfaces",
+                          "cardClass",
+                          "hasOverride"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "tools"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getTool-policies",
+        "tags": [
+          "tool-policies"
+        ],
+        "parameters": [],
+        "summary": "List the effective per-tool policy matrix (defaults merged with overrides).",
+        "x-sdk-name": "toolPolicies.list"
+      }
+    },
+    "/tool-policies/{toolName}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The updated effective policy for the tool.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "surfaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "global-interactive",
+                          "global-channel",
+                          "workspace-interactive",
+                          "workspace-background",
+                          "delegated-workspace",
+                          "delegated-global",
+                          "spawned",
+                          "agent",
+                          "schedule"
+                        ]
+                      }
+                    },
+                    "cardClass": {
+                      "type": "string",
+                      "enum": [
+                        "never",
+                        "ask",
+                        "always"
+                      ]
+                    },
+                    "featureKey": {
+                      "type": "string"
+                    },
+                    "capabilityId": {
+                      "type": "string"
+                    },
+                    "hasOverride": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "toolName",
+                    "serverName",
+                    "enabled",
+                    "surfaces",
+                    "cardClass",
+                    "hasOverride"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Unknown tool (not in the declared catalog)."
+          }
+        },
+        "operationId": "putTool-policiesByToolName",
+        "tags": [
+          "tool-policies"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toolName",
+            "schema": {
+              "type": "string",
+              "pattern": "^mcp__[a-z0-9-]+__[a-z0-9_]+$"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Save one tool's policy override (full-replace; null fields inherit).",
+        "x-sdk-name": "toolPolicies.save",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "cardClass": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "never",
+                      "ask",
+                      "always",
+                      null
+                    ]
+                  },
+                  "surfaces": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "global-interactive",
+                        "global-channel",
+                        "workspace-interactive",
+                        "workspace-background",
+                        "delegated-workspace",
+                        "delegated-global",
+                        "spawned",
+                        "agent",
+                        "schedule"
+                      ]
+                    }
+                  },
+                  "featureKey": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "none",
+                      "channels",
+                      "voice",
+                      "schedules",
+                      "knowledge",
+                      "memory",
+                      "marketplace",
+                      "apps",
+                      "ssh",
+                      null
+                    ]
+                  },
+                  "capabilityId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "none",
+                      "memory",
+                      "knowledge",
+                      "notebook",
+                      "tasks",
+                      "plans",
+                      "phases",
+                      "features",
+                      "journal",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "cardClass",
+                  "surfaces",
+                  "featureKey",
+                  "capabilityId"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "The tool policy after the reset (its declared defaults).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "surfaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "global-interactive",
+                          "global-channel",
+                          "workspace-interactive",
+                          "workspace-background",
+                          "delegated-workspace",
+                          "delegated-global",
+                          "spawned",
+                          "agent",
+                          "schedule"
+                        ]
+                      }
+                    },
+                    "cardClass": {
+                      "type": "string",
+                      "enum": [
+                        "never",
+                        "ask",
+                        "always"
+                      ]
+                    },
+                    "featureKey": {
+                      "type": "string"
+                    },
+                    "capabilityId": {
+                      "type": "string"
+                    },
+                    "hasOverride": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "toolName",
+                    "serverName",
+                    "enabled",
+                    "surfaces",
+                    "cardClass",
+                    "hasOverride"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown tool (not in the declared catalog)."
+          }
+        },
+        "operationId": "deleteTool-policiesByToolName",
+        "tags": [
+          "tool-policies"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toolName",
+            "schema": {
+              "type": "string",
+              "pattern": "^mcp__[a-z0-9-]+__[a-z0-9_]+$"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Reset one tool's policy to the declared defaults.",
+        "x-sdk-name": "toolPolicies.reset"
+      }
+    },
     "/users/me": {
       "get": {
         "responses": {

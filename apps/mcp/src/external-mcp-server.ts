@@ -107,9 +107,19 @@ export function collectExternalTools(spec: OpenApiSpec, dispatch: FetchDispatch)
   return tools.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function buildExternalMcpServer(spec: OpenApiSpec, dispatch: FetchDispatch): McpServer {
+export function buildExternalMcpServer(
+  spec: OpenApiSpec,
+  dispatch: FetchDispatch,
+  options: {
+    /** Full `mcp__vynel__<tool>`-style names the admin DISABLED — skipped at
+     *  registration so this surface honors the kill-switch like every session
+     *  surface does. Tier stays call-time here (the HTTP featureGate). */
+    disabledToolNames?: ReadonlySet<string>
+  } = {},
+): McpServer {
   const server = new McpServer({ name: 'vynel', version: '1.0.0' })
   for (const tool of collectExternalTools(spec, dispatch)) {
+    if (options.disabledToolNames?.has(`mcp__vynel__${tool.name}`) === true) continue
     server.registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },

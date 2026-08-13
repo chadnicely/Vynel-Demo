@@ -52,6 +52,16 @@ describe('buildSessionToolCatalog', () => {
     }
   })
 
+  it("spawning tools ride 'spawned' — a spawned session keeps its parent's toolset (Chad 2026-07-26)", () => {
+    // The delegated spawned-session turn composes the INTERACTIVE variant;
+    // stripping create_session/list_sessions there would silently reverse
+    // the recorded two-hop-chains decision.
+    const createSession = catalog.find((entry) => entry.toolName === 'mcp__vynel__create_session')!
+    expect(createSession.surfaces).toEqual(
+      expect.arrayContaining(['workspace-interactive', 'spawned', 'agent']),
+    )
+  })
+
   it('routing-only tools attach to no workspace surface; workspace-only to no global one', () => {
     const registerWorkspace = catalog.find(
       (entry) => entry.toolName === 'mcp__vynel__register_workspace',

@@ -26,6 +26,7 @@ import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
 import { buildEnabledFeatureKeysReader } from '../sessions/enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import {
   buildDelegatedTurnMcpComposer,
   buildWorkspaceBackgroundMcpComposer,
@@ -97,6 +98,7 @@ export async function streamSpawnedSessionTurn(
             db,
             userId,
             workspaceId: spawned.workspaceId,
+            surfaceKind: 'spawned',
           })
         : null
 
@@ -140,6 +142,13 @@ export async function streamSpawnedSessionTurn(
           desktopPlanConsent: deriveDesktopPlanConsent(
             toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
           ),
+        },
+        {
+          toolPolicies: resolveSessionToolPolicies(db, {
+            userId,
+            desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
+          }),
+          surfaceKind: 'spawned',
         })
   // `desktopMcp` composes to an EMPTY attachment off-Windows (the descriptor
   // self-excludes), so merging it is a no-op there rather than a shape change.

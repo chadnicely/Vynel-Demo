@@ -314,6 +314,9 @@ describe('makeNamespaced — shape', () => {
       // test: correct expectation — the working-steps dock added `todos`
       // (/todos: the agent's whole-list replace + the user's dock ops).
       'todos',
+      // test: correct expectation — the tool-policy admin matrix added
+      // `toolPolicies` (/tool-policies: list/save/reset; x-mcp-free).
+      'toolPolicies',
       'users',
       'voice',
       'workspaceApps',

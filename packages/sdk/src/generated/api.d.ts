@@ -2665,6 +2665,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tool-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the effective per-tool policy matrix (defaults merged with overrides). */
+        get: operations["getTool-policies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tool-policies/{toolName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save one tool's policy override (full-replace; null fields inherit). */
+        put: operations["putTool-policiesByToolName"];
+        post?: never;
+        /** Reset one tool's policy to the declared defaults. */
+        delete: operations["deleteTool-policiesByToolName"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/me": {
         parameters: {
             query?: never;
@@ -13558,6 +13593,136 @@ export interface operations {
             };
             /** @description The approval was already resolved. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "getTool-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { tools: EffectiveToolPolicy[] } sorted by server then tool. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tools: {
+                            toolName: string;
+                            serverName: string;
+                            enabled: boolean;
+                            surfaces: ("global-interactive" | "global-channel" | "workspace-interactive" | "workspace-background" | "delegated-workspace" | "delegated-global" | "spawned" | "agent" | "schedule")[];
+                            /** @enum {string} */
+                            cardClass: "never" | "ask" | "always";
+                            featureKey?: string;
+                            capabilityId?: string;
+                            hasOverride: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    "putTool-policiesByToolName": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                toolName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    enabled: boolean | null;
+                    /** @enum {string|null} */
+                    cardClass: "never" | "ask" | "always" | null;
+                    surfaces: ("global-interactive" | "global-channel" | "workspace-interactive" | "workspace-background" | "delegated-workspace" | "delegated-global" | "spawned" | "agent" | "schedule")[] | null;
+                    /** @enum {string|null} */
+                    featureKey: "none" | "channels" | "voice" | "schedules" | "knowledge" | "memory" | "marketplace" | "apps" | "ssh" | null;
+                    /** @enum {string|null} */
+                    capabilityId: "none" | "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal" | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The updated effective policy for the tool. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        toolName: string;
+                        serverName: string;
+                        enabled: boolean;
+                        surfaces: ("global-interactive" | "global-channel" | "workspace-interactive" | "workspace-background" | "delegated-workspace" | "delegated-global" | "spawned" | "agent" | "schedule")[];
+                        /** @enum {string} */
+                        cardClass: "never" | "ask" | "always";
+                        featureKey?: string;
+                        capabilityId?: string;
+                        hasOverride: boolean;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown tool (not in the declared catalog). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteTool-policiesByToolName": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                toolName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tool policy after the reset (its declared defaults). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        toolName: string;
+                        serverName: string;
+                        enabled: boolean;
+                        surfaces: ("global-interactive" | "global-channel" | "workspace-interactive" | "workspace-background" | "delegated-workspace" | "delegated-global" | "spawned" | "agent" | "schedule")[];
+                        /** @enum {string} */
+                        cardClass: "never" | "ask" | "always";
+                        featureKey?: string;
+                        capabilityId?: string;
+                        hasOverride: boolean;
+                    };
+                };
+            };
+            /** @description Unknown tool (not in the declared catalog). */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

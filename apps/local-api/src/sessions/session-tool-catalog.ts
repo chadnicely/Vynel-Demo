@@ -40,7 +40,10 @@ export const SURFACE_DESCRIPTOR_SETS: Readonly<Record<SessionSurfaceKind, readon
   'global-channel': ['vynel', 'vynel-notebook', 'desktop'],
   'workspace-interactive': ['vynel', 'vynel-notebook', 'vynel-ask', 'vynel-ssh'],
   'workspace-background': ['vynel', 'vynel-notebook'],
-  'delegated-workspace': ['vynel', 'vynel-notebook', 'desktop'],
+  // Desktop never composes here: DESKTOP_CAPABLE_DELEGATED_TARGETS is
+  // {'spawned-session'}, and that target always reclassifies to 'spawned' /
+  // 'delegated-global' — a workspace-root delegation is desktop-free.
+  'delegated-workspace': ['vynel', 'vynel-notebook'],
   'delegated-global': ['vynel', 'vynel-notebook', 'desktop'],
   spawned: ['vynel', 'vynel-notebook', 'desktop'],
   agent: ['vynel', 'vynel-notebook'],
@@ -59,6 +62,10 @@ const WORKSPACE_VARIANT_SURFACES: readonly SessionSurfaceKind[] = [
 const INTERACTIVE_EXTRA_SURFACES: readonly SessionSurfaceKind[] = [
   'workspace-interactive',
   'delegated-workspace',
+  // A delegated spawned-session turn composes the INTERACTIVE variant (Chad
+  // 2026-07-26: a spawned session keeps its parent's whole toolset — the
+  // two-hop chains need it), so the spawning tools ride 'spawned' too.
+  'spawned',
   'agent',
 ]
 const ROUTING_SURFACES: readonly SessionSurfaceKind[] = [
@@ -112,7 +119,7 @@ const FIXED_SERVERS: readonly FixedServer[] = [
   {
     serverName: 'desktop',
     toolNames: [], // filled below from the descriptor's declared inventory
-    surfaces: ['global-interactive', 'global-channel', 'delegated-workspace', 'delegated-global', 'spawned'],
+    surfaces: ['global-interactive', 'global-channel', 'delegated-global', 'spawned'],
   },
   {
     serverName: 'vynel-ssh',

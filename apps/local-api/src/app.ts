@@ -63,6 +63,7 @@ import { notebookApp } from './routes/notebook/index.js'
 import { capabilitiesApp } from './routes/capabilities/index.js'
 import { usersApp } from './routes/users/index.js'
 import { agentsApp } from './routes/agents/index.js'
+import { toolPoliciesApp } from './routes/tool-policies/index.js'
 import { providersApp } from './routes/providers/index.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
@@ -361,6 +362,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/commands', commandsUserApp)
   app.route('/mcp-servers', mcpServersUserApp)
   app.route('/approvals', approvalsUserApp)
+  // The admin tool-policy matrix — deliberately x-mcp-free (an agent must
+  // never edit its own gates; the capabilities-PUT doctrine).
+  app.route('/tool-policies', toolPoliciesApp)
   app.route('/users', usersApp)
   app.route('/onboarding', onboardingApp)
   app.route('/providers', providersApp)

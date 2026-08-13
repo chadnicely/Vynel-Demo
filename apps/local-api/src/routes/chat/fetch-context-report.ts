@@ -10,6 +10,7 @@ import { listEnabledCapabilities } from '@vynel/capabilities'
 import type { AppEnv } from '../../factory.js'
 import { composeSessionMcpServers } from '../../sessions/compose-session-mcp-servers.js'
 import { resolveEnabledFeatureKeys } from '../../sessions/enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from '../../sessions/session-tool-catalog.js'
 
 export async function fetchSessionContextReport(c: Context<AppEnv>): Promise<string | null> {
   // Same MCP attachment the chat turn uses (streams/chat-turn.ts — descriptors
@@ -34,6 +35,10 @@ export async function fetchSessionContextReport(c: Context<AppEnv>): Promise<str
     {
       enabledCapabilityIds,
       ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+      // Mirror the chat turn's policy view so the report counts what the
+      // turn will actually carry.
+      toolPolicies: resolveSessionToolPolicies(c.var.db, { userId: c.var.user.id }),
+      surfaceKind: 'workspace-interactive',
     },
   )
 

@@ -26,6 +26,12 @@ vi.mock('@vynel/session/runtime', async () => {
 vi.mock('@vynel/mcp', () => ({
   vynelRoutingDescriptor: { serverName: 'vynel', build: () => null },
 }))
+// The runner resolves admin tool overrides per turn against the real db —
+// these tests drive a stub `{}` db, so the resolver answers "no overrides".
+vi.mock('@vynel/capabilities', () => ({
+  defaultEnabledCapabilityIds: () => new Set<string>(),
+  resolveEffectiveToolPolicies: () => new Map(),
+}))
 // Same treatment for the notebook descriptor (instructions slice) — a null
 // build keeps the SDK out and the composed MCP set empty.
 vi.mock('@vynel/instructions', () => ({

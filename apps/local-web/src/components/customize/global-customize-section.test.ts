@@ -30,7 +30,9 @@ describe("GlobalCustomizeSection", () => {
     );
     expect(wrapper.text()).toContain("Conversation icon");
     // The catalog minus Apps.
-    expect(wrapper.findAll(".entry-row").length).toBe(15);
+    // test: correct expectation — the catalog grew: 'tool-policy' joined the
+    // toolkit group (the admin tool matrix, 2026-08-14).
+    expect(wrapper.findAll(".entry-row").length).toBe(16);
     expect(wrapper.text()).not.toContain("Apps");
   });
 
