@@ -66,14 +66,29 @@ select* → *Sound, video and game controllers* → *Have Disk…* → point at 
 
 - Device Manager → Sound, video and game controllers → **Vynel Call Audio** present, no
   yellow bang (Code 52 = signature not trusted → the certutil step or test mode is missing).
-- `mmsys.cpl` → Playback tab shows **Vynel Call 1 Speaker**, Recording tab shows
+- `mmsys.cpl` → Playback tab shows **Vynel Call 1 Voice**, Recording tab shows
   **Vynel Call 1 Microphone**.
-- Optional: play a tone at the speaker endpoint — this SPIKE renders to nowhere by design
-  (loopback wiring is the next milestone), so "plays without error" is the pass bar, not
-  "audio comes back".
-- The registry's auto-discovery must NOT claim it (endpoints are the app-facing pair only) —
-  `Vynel Call <n> Ears/Voice` arrive with the loopback milestone. To exercise the daemon
-  against the VM anyway, the env inventory still works.
+
+### The cable smoke (the real test)
+
+The driver is a render→capture loopback: audio played into "Vynel Call 1 Voice" must come out
+"Vynel Call 1 Microphone". `smoke-cable.mjs` proves it in one command (needs the repo's Node +
+`node-cpal`, i.e. run it from a checkout in the VM, or copy the voice app's `node_modules`):
+
+```bat
+node drivers\windows\vynel-call-audio\smoke-cable.mjs 4
+```
+
+It plays a 440 Hz tone into the Voice endpoint, records the Microphone endpoint for 4 s, and
+prints `PASS` with a non-zero `peak`/`rms` if the ring carried the audio (`FAIL` / silent if
+not; exit 2 if the driver isn't loaded). A PASS here means the daemon's own capture path — same
+`node-cpal` binding — will carry a real call. Then sanity-check latency + glitches by ear
+(mmsys "Listen to this device" on the Microphone), and confirm both ends negotiate the same
+format (the v1 ring assumes it).
+
+- The registry's auto-discovery treats the lone **Voice** device as a loopback pair (ears via
+  process-loopback), so a call on this VM uses the driver + the process-loopback addon — no
+  capture device. The env inventory still works too, for a device-cable smoke.
 
 ## Remove / roll back
 
