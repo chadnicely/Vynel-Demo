@@ -767,7 +767,8 @@ Return Value:
     // Create the virtual streaming engine which will control
     // streaming logic for the render circuit.
     //
-    renderStreamEngine = new (POOL_FLAG_NON_PAGED, DeviceDriverTag) CRenderStreamEngine(stream, StreamFormat, FALSE, NULL);
+    renderStreamEngine = new (POOL_FLAG_NON_PAGED, DeviceDriverTag) CRenderStreamEngine(
+        stream, StreamFormat, FALSE, NULL, (CLoopbackRing*)GetCodecDeviceContext(Device)->LoopbackRing);
     RETURN_NTSTATUS_IF_TRUE(renderStreamEngine == nullptr, STATUS_INSUFFICIENT_RESOURCES);
 
     streamCtx = GetStreamEngineContext(stream);

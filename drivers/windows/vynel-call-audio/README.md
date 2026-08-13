@@ -1,22 +1,34 @@
-# Vynel Call Audio — Windows virtual audio driver (P1 spike)
+# Vynel Call Audio — Windows virtual audio driver
 
-Vynel's own virtual audio device for voice-in-calls
-(`docs/module-notes/virtual-audio-driver.md` is the commissioning brief + P0 findings). This is
-the **P1 spike**: a minimal brand of Microsoft's ACX `AudioCodec` sample proving we can build,
-brand, and test-sign our own device — it is NOT yet a functional cable (the speaker renders to
-nowhere, the microphone captures generated audio; the render→capture loopback wiring is the
-next driver milestone).
+Vynel's own virtual audio cable for voice-in-calls
+(`docs/module-notes/virtual-audio-driver.md` is the commissioning brief + P0 findings). It is
+now a **one-way loopback cable**: audio played into the render endpoint comes back out the
+capture endpoint, so a call app reads Vynel's voice as its microphone. Branded from Microsoft's
+ACX `AudioCodec` sample (MIT). **Compile-verified + InfVerif-clean; NOT yet runtime-tested** (a
+kernel driver loads only in a VM — see `LOADING.md`).
 
 ## What it publishes
 
 One root-enumerated device (`ROOT\VynelCallAudio`, install via devcon/pnputil — no hardware)
-with two endpoints, named per the cross-OS contract in the module note:
+with two looped endpoints:
 
-- **Vynel Call 1 Speaker** (render — what the user picks as the call app's speaker)
-- **Vynel Call 1 Microphone** (capture — what the user picks as the call app's mic)
+- **Vynel Call 1 Voice** (render — Vynel's daemon plays TTS into this; the registry's
+  `outputName`)
+- **Vynel Call 1 Microphone** (capture — the call app selects this as its mic and hears Vynel)
 
-The Vynel-facing `Vynel Call 1 Ears/Voice` ends arrive with the loopback milestone; this spike
-deliberately does NOT trip the registry's auto-discovery (which claims Ears/Voice pairs only).
+The cable is the render→capture ring in `Common/LoopbackRing.{h,cpp}`: the render stream engine
+writes each played packet into a device-level spin-lock ring, the capture stream engine reads it
+back (silence on underrun). One direction only — this is the VOICE half. The EARS half (hearing
+participants) is device-less on Windows via the process-loopback addon
+(`apps/voice/native/process-loopback`), so a Windows call needs just this one cable.
+
+**Format constraint (v1):** both endpoints must run the same PCM format; Vynel's daemon opens
+both ends and picks matching formats. A mismatch produces wrong-rate audio, not a crash.
+In-driver resampling is a recorded later-improve.
+
+This device does NOT publish the `Vynel Call 1 Ears/Voice` PAIR the registry auto-discovers
+(that pattern is for the two-cable env model); the Windows integration claims this single voice
+cable + the process-loopback addon. Wiring that into the call registry is the next seam.
 
 ## Why in-repo (`drivers/`), not a sibling repo
 
@@ -58,15 +70,24 @@ Virtual-Audio-Driver` (SimpleAudioSample-family branding precedent).
 4. Output: `VynelCallAudio\Driver\x64\Release\` → `VynelCallAudio.sys` + `VynelCallAudio.inf`
    + catalog, test-signed by the WDK's generated `WDKTestCert` (export the `.cer` for the VM).
 
+> **Build-clock note:** the WDK auto-stamps `DriverVer` with the build machine's LOCAL date, and
+> `inf2cat` rejects it as "postdated" if that local date is ahead of UTC (a machine a few hours
+> into the next day UTC-wise). This fails catalog generation only — compilation, linking, and
+> `InfVerif /h` all succeed. Build on a machine whose local date is not ahead of UTC, or bump the
+> source `DriverVer` per release; the loopback build was verified this way (compile + link + INF
+> VALID) on 2026-08-14.
+
 **Never load this on a dev machine — VM only.** See `LOADING.md`.
 
 ## Status & next milestones (honest effort read)
 
-- [x] builds unmodified-sample-equivalent, test-signed (this spike)
-- [ ] **Loopback wiring** (render→capture ring buffer, makes it a real cable): the two ACX
-  circuits share one WDF device context, so the ring is plain kernel code — but stream-format/
-  clock matching needs care. Weeks-scale, not days. Then add the Ears/Voice endpoints (second
-  looped cable per pair) so discovery claims it.
+- [x] builds, test-signs, InfVerif `/h` VALID (the brand spike)
+- [x] **Loopback wiring** — render→capture ring (`Common/LoopbackRing`), compiles + links +
+  InfVerif-clean. **Runtime-unverified** (needs a VM per `LOADING.md`): confirm audio played
+  into "Vynel Call 1 Voice" is heard on "Vynel Call 1 Microphone", check latency + glitching,
+  and verify the format assumption holds when the daemon opens both ends at 48 kHz.
+- [ ] **In-driver format tolerance**: v1 assumes both ends share one PCM format; add a format
+  check + resample so a mismatch degrades gracefully instead of playing wrong-rate audio.
 - [ ] **N static pairs**: INF-models change (N device nodes, per-model friendly names, same
   binary) — days-scale, mostly INF + install UX.
 - [ ] **Dynamic pairs** (create per call on demand): ACX supports post-start

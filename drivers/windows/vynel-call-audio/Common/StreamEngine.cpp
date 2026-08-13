@@ -688,10 +688,12 @@ CRenderStreamEngine::CRenderStreamEngine(
     _In_    ACXSTREAM       Stream,
     _In_    ACXDATAFORMAT   StreamFormat,
     _In_    BOOL            Offload,
-    _In_    CSimPeakMeter * CircuitPeakmeter
+    _In_    CSimPeakMeter * CircuitPeakmeter,
+    _In_opt_ CLoopbackRing * LoopbackRing
 
 )
-    : CStreamEngine(Stream, StreamFormat, Offload, CircuitPeakmeter)
+    : CStreamEngine(Stream, StreamFormat, Offload, CircuitPeakmeter),
+    m_LoopbackRing(LoopbackRing)
 {
     PAGED_CODE();
 }
@@ -865,6 +867,12 @@ CRenderStreamEngine::ProcessPacket()
     }
 
     m_SaveData.WriteData(packetBuffer, m_PacketSize);
+
+    // The virtual cable: hand the just-played audio to the capture endpoint.
+    if (m_LoopbackRing != nullptr)
+    {
+        m_LoopbackRing->Write(packetBuffer, m_PacketSize);
+    }
 }
 
 
@@ -872,10 +880,12 @@ _Use_decl_annotations_
 PAGED_CODE_SEG
 CCaptureStreamEngine::CCaptureStreamEngine(
     _In_    ACXSTREAM       Stream,
-    _In_    ACXDATAFORMAT   StreamFormat
+    _In_    ACXDATAFORMAT   StreamFormat,
+    _In_opt_ CLoopbackRing * LoopbackRing
 )
     : CStreamEngine(Stream, StreamFormat, FALSE, NULL),
-    m_EnableWaveCapture(0)
+    m_EnableWaveCapture(0),
+    m_LoopbackRing(LoopbackRing)
 {
     PAGED_CODE();
 
@@ -910,6 +920,13 @@ CCaptureStreamEngine::PrepareHardware()
     if (!NT_SUCCESS(status))
     {
         goto exit;
+    }
+
+    // Drop any audio the render side buffered before this capture session
+    // opened, so a call never starts by playing out stale sound.
+    if (m_LoopbackRing != nullptr)
+    {
+        m_LoopbackRing->Reset();
     }
 
     (void)ReadRegistrySettings();
@@ -1000,7 +1017,13 @@ CCaptureStreamEngine::ProcessPacket()
         packetBuffer += m_FirstPacketOffset;
     }
 
-    if (m_EnableWaveCapture)
+    // The virtual cable: the mic outputs whatever the render endpoint played.
+    // Falls back to the sample's tone/wave only when no ring is wired.
+    if (m_LoopbackRing != nullptr)
+    {
+        m_LoopbackRing->Read(packetBuffer, m_PacketSize);
+    }
+    else if (m_EnableWaveCapture)
     {
         m_WaveReader.ReadWaveData(packetBuffer, m_PacketSize);
     }
@@ -1070,7 +1093,8 @@ CBufferedCaptureStreamEngine::CBufferedCaptureStreamEngine(
     _In_ CKeywordDetector* KeywordDetector
 
 )
-    : CCaptureStreamEngine(Stream, StreamFormat),
+    // Keyword-detect capture has its own buffered source — never the cable.
+    : CCaptureStreamEngine(Stream, StreamFormat, nullptr),
     m_KeywordDetector(KeywordDetector)
 {
     PAGED_CODE();

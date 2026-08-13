@@ -183,6 +183,30 @@ per-WDK release tags, or EWDK 26100.6584 (VS2022 era) from Other WDK Downloads.
   clean; 13 new tests. Contract below.
 - **P3 — untouched (needs Mac hardware), as briefed.**
 
+## 2026-08-14 — the driver is a real cable (voice half) + Windows ears exist
+
+Two milestones past the spike, both on `worktree-virtual-audio-driver`:
+
+- **Ears addon** (`apps/voice/native/process-loopback`) — per-process WASAPI loopback, so a
+  Windows call hears one app with NO cable. Built, live-smoke-verified (440 Hz tone off a real
+  pid). Detail in its README + the P0.1 BUILT block above.
+- **Loopback cable** (`drivers/windows/vynel-call-audio`) — the branded ACX driver is now a
+  one-way virtual cable: a device-level spin-lock PCM ring (`Common/LoopbackRing.{h,cpp}`) that
+  the render stream engine writes each played packet into and the capture stream engine reads
+  back (silence on underrun), wired through the device context + both circuits' stream-create.
+  Render endpoint renamed "Vynel Call 1 Voice"; capture stays "Vynel Call 1 Microphone".
+  **Compiles + links clean into `VynelCallAudio.sys`; InfVerif `/h` VALID. Runtime-UNVERIFIED**
+  (kernel driver → VM only, none here) — the reviewer + VM smoke are the remaining gates.
+  Catalog gen (inf2cat) currently fails only on a local-vs-UTC build-clock skew ("postdated
+  DriverVer"), documented in the driver README — not a code issue.
+
+**The Windows call shape now:** ONE voice cable (this driver) + device-less ears (the addon) —
+not two cables. Next seam: wire both into the call registry as the Windows ears/voice sources
+(the current auto-discovery claims Ears/Voice device PAIRS — the env two-cable model; Windows
+needs a distinct "this driver's Voice→Mic + process-loopback ears" wiring). v1 driver
+constraint: both endpoints must share one PCM format (daemon opens both; mismatch = wrong-rate
+audio, not a crash) — in-driver resample is the recorded next driver improve.
+
 ## The cross-OS device-naming contract (settled this run)
 
 One convention everywhere — the registry's auto-discovery (P4), the Linux null-sink pool (P2),

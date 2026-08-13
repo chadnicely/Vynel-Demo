@@ -52,6 +52,9 @@ typedef struct _CODEC_DEVICE_CONTEXT {
     ACXCIRCUIT      Render;
     ACXCIRCUIT      Capture;
     WDF_TRI_STATE   ExcludeD3Cold;
+    // The render->capture virtual cable, shared by both circuits' stream
+    // engines. Opaque here (Public.h is C-facing); it is a CLoopbackRing*.
+    PVOID           LoopbackRing;
 } CODEC_DEVICE_CONTEXT, * PCODEC_DEVICE_CONTEXT;
 
 //

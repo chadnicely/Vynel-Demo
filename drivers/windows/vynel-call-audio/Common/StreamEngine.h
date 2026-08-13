@@ -5,6 +5,7 @@
 #include "WaveReader.h"
 #include "SimPeakMeter.h"
 #include "keyworddetector.h"
+#include "LoopbackRing.h"
 
 #define HNSTIME_PER_MILLISECOND 10000
 
@@ -295,7 +296,8 @@ public:
         _In_    ACXSTREAM       Stream,
         _In_    ACXDATAFORMAT   StreamFormat,
         _In_    BOOL            Offload,
-        _In_    CSimPeakMeter   *CircuitPeakmeter
+        _In_    CSimPeakMeter   *CircuitPeakmeter,
+        _In_opt_ CLoopbackRing  *LoopbackRing
         );
 
     __drv_maxIRQL(PASSIVE_LEVEL)
@@ -334,6 +336,10 @@ public:
 
 protected:
     CSaveData m_SaveData;
+    // The virtual cable's write side — the audio an app plays is copied here
+    // for the capture endpoint to read. Device-owned; may be null (then the
+    // render endpoint just discards, the pre-cable behavior).
+    CLoopbackRing* m_LoopbackRing;
 
     virtual
     __drv_maxIRQL(DISPATCH_LEVEL)
@@ -349,7 +355,8 @@ public:
     PAGED_CODE_SEG
     CCaptureStreamEngine(
         _In_    ACXSTREAM       Stream,
-        _In_    ACXDATAFORMAT   StreamFormat
+        _In_    ACXDATAFORMAT   StreamFormat,
+        _In_opt_ CLoopbackRing  *LoopbackRing
         );
 
     __drv_maxIRQL(PASSIVE_LEVEL)
@@ -383,6 +390,10 @@ protected:
     DWORD           m_EnableWaveCapture;
     UNICODE_STRING  m_HostCaptureFileName;
     UNICODE_STRING  m_LoopbackCaptureFileName;
+    // The virtual cable's read side — the mic outputs whatever the render
+    // endpoint played (silence on underrun). Device-owned; when null the
+    // engine falls back to the sample's tone/wave generator.
+    CLoopbackRing*  m_LoopbackRing;
 
     virtual
     __drv_maxIRQL(DISPATCH_LEVEL)

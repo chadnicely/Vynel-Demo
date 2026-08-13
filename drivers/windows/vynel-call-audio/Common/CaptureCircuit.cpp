@@ -760,7 +760,8 @@ Return Value:
     // Create the virtual streaming engine which will control
     // streaming logic for the capture circuit. 
     //
-    streamEngine = new (POOL_FLAG_NON_PAGED, DeviceDriverTag) CCaptureStreamEngine(stream, StreamFormat);
+    streamEngine = new (POOL_FLAG_NON_PAGED, DeviceDriverTag) CCaptureStreamEngine(
+        stream, StreamFormat, (CLoopbackRing*)GetCodecDeviceContext(Device)->LoopbackRing);
     RETURN_NTSTATUS_IF_TRUE(streamEngine == nullptr, STATUS_INSUFFICIENT_RESOURCES);
 
     streamCtx->StreamEngine = (PVOID)streamEngine;

@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel's own Windows call cable is now a real cable.** The virtual-audio
+  driver went from a silent placeholder to a working one-way loopback: audio
+  played into its "Vynel Call 1 Voice" endpoint comes back out "Vynel Call 1
+  Microphone", which a call app selects as its mic — so Vynel can speak into a
+  meeting through a device it ships itself, no third-party cable. Paired with
+  the per-app capture above, a Windows call needs just this one cable. Built
+  and validated as far as is possible without loading it (compiles, links,
+  passes Microsoft's INF checks); live audio still needs a VM test pass before
+  it's trusted, and it isn't wired into calls yet.
+
 - **On Windows, Vynel can hear a call with no cable to install.** A new native
   module captures a single app's audio directly (Zoom, Teams, a Meet tab) —
   the "ears" half of a meeting — so a Windows call needs only one virtual

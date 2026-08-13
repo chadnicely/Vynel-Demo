@@ -24,6 +24,8 @@ Environment:
 #include <mmsystem.h>
 #include <ksmedia.h>
 #include "streamengine.h"
+#include "NewDelete.h"
+#include "LoopbackRing.h"
 #include "DriverSettings.h"
 
 #ifndef __INTELLISENSE__
@@ -156,6 +158,17 @@ Return Value:
     devCtx->Render = nullptr;
     devCtx->Capture = nullptr;
     devCtx->ExcludeD3Cold = WdfFalse;
+
+    //
+    // The render->capture virtual cable. One ring per device, shared by both
+    // circuits' stream engines; freed in Codec_EvtDeviceContextCleanup.
+    //
+    {
+        CLoopbackRing* loopbackRing = new (POOL_FLAG_NON_PAGED, DeviceDriverTag) CLoopbackRing();
+        RETURN_NTSTATUS_IF_TRUE(loopbackRing == nullptr, STATUS_INSUFFICIENT_RESOURCES);
+        loopbackRing->Init();
+        devCtx->LoopbackRing = (PVOID)loopbackRing;
+    }
 
     //
     // The driver calls this DDI in its AddDevice callback after creating the PnP
@@ -435,5 +448,11 @@ Return Value:
     if (devCtx->Capture)
     {
         CodecC_CircuitCleanup(devCtx->Capture);
+    }
+
+    if (devCtx->LoopbackRing)
+    {
+        delete (CLoopbackRing*)devCtx->LoopbackRing;
+        devCtx->LoopbackRing = nullptr;
     }
 }
