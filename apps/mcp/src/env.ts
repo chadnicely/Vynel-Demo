@@ -9,16 +9,44 @@
 // a Phase-2 bearer relay would add `VYNEL_API_TOKEN` here.
 
 import { z } from 'zod'
-import { VYNEL_ENGINE_PORT } from '@vynel/contracts/network/ports'
+import {
+  defaultUserDataDir,
+  enginePortFilePath,
+  resolveEngineUrl,
+} from '@vynel/contracts/network/port-file'
+import {
+  VYNEL_PORT_BASE_DEFAULT,
+  parseVynelPortBase,
+  resolveVynelPorts,
+} from '@vynel/contracts/network/ports'
 
-export const EnvSchema = z.object({
-  // 127.0.0.1 literal, never `localhost` — same IPv6-first hazard as the CLI:
-  // the engine binds IPv4 loopback only.
-  VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${VYNEL_ENGINE_PORT}`),
-})
+function buildEnvSchema(portBase: number) {
+  const ports = resolveVynelPorts(portBase)
+  return z.object({
+    VYNEL_PORT_BASE: z.coerce.number().int().positive().default(portBase),
+    // Where the engine advertises its port file — must mirror the engine's
+    // own VYNEL_USER_DATA_DIR or discovery silently misses it.
+    VYNEL_USER_DATA_DIR: z.string().optional(),
+    // 127.0.0.1 literal, never `localhost` — same IPv6-first hazard as the CLI:
+    // the engine binds IPv4 loopback only.
+    VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${ports.engine}`),
+  })
+}
+
+// Canonical-band schema — the shape (and type) every consumer sees; loadEnv
+// parses with the instance's actual band (`VYNEL_PORT_BASE`).
+export const EnvSchema = buildEnvSchema(VYNEL_PORT_BASE_DEFAULT)
 
 export type Env = z.infer<typeof EnvSchema>
 
 export function loadEnv(): Env {
-  return EnvSchema.parse(process.env)
+  const portBase = parseVynelPortBase(process.env['VYNEL_PORT_BASE'])
+  const env = buildEnvSchema(portBase).parse(process.env)
+  // No explicit URL → prefer the port a LIVE engine of OUR band advertises
+  // (the desktop shell may have allocated a non-default one), then the band
+  // default.
+  const explicitUrl = process.env['VYNEL_API_URL'] === undefined ? undefined : env.VYNEL_API_URL
+  const portFilePath = enginePortFilePath(portBase, env.VYNEL_USER_DATA_DIR ?? defaultUserDataDir())
+  env.VYNEL_API_URL = resolveEngineUrl(explicitUrl, resolveVynelPorts(portBase).engine, portFilePath)
+  return env
 }

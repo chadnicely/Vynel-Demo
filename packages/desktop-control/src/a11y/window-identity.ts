@@ -6,7 +6,11 @@
 // because these serve enforcement and identity, not capture.
 
 import { loadNodeScreenshots } from './screenshot-adapter.js'
-import { isWindowHostProcess, readWindowIdentity } from './window-host-processes.js'
+import {
+  displayNameFromPathishAppName,
+  isWindowHostProcess,
+  readWindowIdentity,
+} from './window-host-processes.js'
 
 /**
  * The app name of the window that currently has keyboard focus — the
@@ -123,7 +127,9 @@ export function listHostedWindowNames(): string[] {
   const names: string[] = []
   for (const native of Window.all()) {
     try {
-      if (!isWindowHostProcess(String(native.appName() ?? ''))) continue
+      // Reduced BEFORE the host check, as readWindowIdentity does — a host
+      // arriving as a raw exe path must not slip past as an ordinary app.
+      if (!isWindowHostProcess(displayNameFromPathishAppName(String(native.appName() ?? '')))) continue
       const identity = readWindowIdentity(native)
       if (identity !== null) names.push(identity)
     } catch {
@@ -154,7 +160,7 @@ export function pickIdentityForPid(candidates: PidWindowCandidate[], pid: number
   let hosted = false
   for (const candidate of candidates) {
     if (candidate.pid !== pid) continue
-    if (isWindowHostProcess(candidate.appName)) hosted = true
+    if (isWindowHostProcess(displayNameFromPathishAppName(candidate.appName))) hosted = true
     const identity = readWindowIdentity({
       appName: () => candidate.appName,
       title: () => candidate.title,

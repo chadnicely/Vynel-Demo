@@ -17,7 +17,7 @@ export default defineConfig({
     // one-off flakes always green in isolation.
     testTimeout: 20_000,
     name: "cloud-admin-web",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "env.test.ts"],
     environment: "happy-dom",
     passWithNoTests: true,
   },

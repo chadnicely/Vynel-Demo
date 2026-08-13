@@ -1,6 +1,6 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-13.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
 ## ✅ 2026-08-13 VIRTUAL-AUDIO-DRIVER NIGHT RUN — P0/P1/P2/P4 landed (branch worktree-virtual-audio-driver)
@@ -16,6 +16,26 @@ Voice-daemon suite 156 green; full `pnpm test` gate NOT run (CPU rule — Kafi's
 **Needs Chad:** Partner Center + EV cert (attestation signing) · Mac hardware (P3) ·
 bundle-vs-guided for our own driver. Next engineering milestone: driver loopback wiring
 (render→capture ring) — effort read in the module note.
+
+## 🔥 2026-08-14 WORKSPACE REDESIGN ARC — mirror seeded, plan settled, theme LANDED
+
+1. **Design mirror seeded** (`6f46e6c`): `.claude-design/project/` mirrors Chad's Claude Design
+   project, synced byte-clean from export zips via `/sync-design` — every sync is one commit, so
+   `git diff .claude-design/` is the upstream design-change worklist. First pack: the 13-step
+   **"New app" onboarding wizard** + six **Vynel Workspace** screen states on **Nocturne**.
+2. **THE PLAN (read it): `.claude/plan/workspace-redesign.md`** — research findings, canvas
+   inventory, lifecycles, arcs 0–5, settled decisions. **Critical standing rule:** the
+   `design/mission-control-prototype` worktree is the BOSS's AI-built prototype — UI reference
+   only, code unverified, never adopt its API/label changes, build new functionality fresh on
+   main (memory: mission-control-worktree-boss-reference).
+3. **Settled by Chad:** main is home · Phosphor swap (worktree never migrated icons — verified) ·
+   needs-input blue #38b6ff · completed oklch(0.70 0.105 158) · Inter vendored.
+4. **Arc 1a LANDED (gate green 773 files/4759 tests, live-verified dark+light at 18894):**
+   `tokens.css` rewritten — raw Nocturne verbatim from the DS source + semantic aliases
+   (new: --bg-chrome/--bg-inset/--needs-input; --ok/--danger re-pointed; row hovers per canvas);
+   Inter variable fonts vendored in `packages/ui/src/styles/fonts/`; Tailwind bridge + 6px
+   scrollbars; six components' on-gold ink → `var(--color-bg)`; index.html flash → #161826.
+   **NEXT: Arc 1b Phosphor icon sweep, then Arc 2 tabs/menu view** (per the plan).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

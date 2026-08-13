@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import JSZip from 'jszip'
+import { VYNEL_CLOUD_API_PORT } from '@vynel/contracts/network/ports'
 
 const METADATA_FILE = 'vynel-item.json'
 
@@ -36,7 +37,7 @@ async function main(): Promise<void> {
   const urlFlag = process.argv.indexOf('--url')
   const hubUrl = (
     urlFlag !== -1 ? process.argv[urlFlag + 1] : process.env['VYNEL_HUB_URL']
-  )?.replace(/\/+$/, '') ?? 'http://localhost:18890'
+  )?.replace(/\/+$/, '') ?? `http://localhost:${VYNEL_CLOUD_API_PORT}`
   const adminToken = process.env['CLOUD_ADMIN_TOKEN']
   if (adminToken === undefined || adminToken === '') fail('CLOUD_ADMIN_TOKEN is not set')
 

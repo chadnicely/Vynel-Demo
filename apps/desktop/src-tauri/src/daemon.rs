@@ -3,9 +3,11 @@
 // vynel-engine.exe (renamed node) runs the compiled dist/server.mjs from
 // resources\engine, state in app_data) and REPO (dev checkout —
 // `node --import tsx`, unchanged D1 flow).
-// The port probe doubles as the health check — the daemon binds
-// 127.0.0.1:18892 as the LAST step of a successful boot (migrations + services
-// first, see local-api boot.ts).
+// The port probe doubles as the health check — the daemon binds its port as
+// the LAST step of a successful boot (migrations + services first, see
+// local-api boot.ts) and advertises it in ~/.vynel/engine.port. The port is
+// ALLOCATED per boot (canonical first, never assumed) — an end-user machine
+// may have any port taken.
 //
 // Shutdown is a hard kill (TerminateProcess): SQLite in WAL mode survives it,
 // and the kill-on-close Job Object (job_object.rs) reaps the whole daemon
@@ -15,15 +17,14 @@
 // through the log plugin: stdout when a terminal is attached, and the
 // platform log dir always.
 
+use crate::engine_port::{
+    choose_engine_port, discover_running_engine, port_is_listening, CANONICAL_ENGINE_PORT,
+};
 use crate::launch_plan::{resolve_launch_plan, BundledLaunch, LaunchPlan};
-use std::net::TcpStream;
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
 
-// Matches the PORT default in apps/local-api/src/env.ts and the frontendDist
-// URL in tauri.conf.json — the one address the whole sidecar mode hangs on.
-const DAEMON_ADDRESS: &str = "127.0.0.1:18892";
 const SPAWN_ATTEMPTS: u32 = 3;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -51,14 +52,35 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, jarvis_only: bo
     // AppHandle for app_data_dir + the packaged version.
     let plan = resolve_launch_plan(&handle);
     std::thread::spawn(move || {
-        if !port_is_listening() {
-            supervise_daemon(plan);
-        }
-        if !wait_for_port(STARTUP_TIMEOUT) {
-            log::error!(
-                "no daemon listening on {DAEMON_ADDRESS} after {STARTUP_TIMEOUT:?} — opening the window anyway (it will show a connection error)"
-            );
-        }
+        let expected_port = match discover_running_engine() {
+            // A live engine already advertises a port (pnpm dev, a previous
+            // shell, a shifted worktree band) — attach, never rival it.
+            Some(port) => {
+                log::info!("attaching to the engine already listening on 127.0.0.1:{port}");
+                port
+            }
+            None => {
+                // Repo mode: the checkout's .env owns PORT — spawn portless
+                // and discover where the engine lands via its port file.
+                // Bundled/remote: the shell allocates and passes PORT down.
+                let spawn_port = match &plan {
+                    Some(LaunchPlan::Repo(_)) | None => None,
+                    Some(_) => Some(choose_engine_port()),
+                };
+                supervise_daemon(plan, spawn_port);
+                spawn_port.unwrap_or(CANONICAL_ENGINE_PORT)
+            }
+        };
+        let engine_port = match wait_for_engine(expected_port, STARTUP_TIMEOUT) {
+            Some(port) => port,
+            None => {
+                log::error!(
+                    "no engine listening on 127.0.0.1:{expected_port} after {STARTUP_TIMEOUT:?} — opening the window anyway (it will show a connection error)"
+                );
+                expected_port
+            }
+        };
+        crate::windows::set_engine_port(engine_port);
         let handle_for_windows = handle.clone();
         let created = handle.run_on_main_thread(move || {
             if let Err(error) = crate::windows::create_windows(&handle_for_windows, jarvis_only) {
@@ -89,7 +111,7 @@ fn lock_daemon() -> std::sync::MutexGuard<'static, DaemonState> {
 /// backoff, capped at SPAWN_ATTEMPTS total spawns (a daemon that can't hold
 /// the port — node missing, port stolen, crash loop — should not burn CPU
 /// forever; the window's connection error is the visible symptom).
-fn supervise_daemon(plan: Option<LaunchPlan>) {
+fn supervise_daemon(plan: Option<LaunchPlan>, spawn_port: Option<u16>) {
     std::thread::spawn(move || {
         let Some(plan) = plan else {
             log::error!(
@@ -102,7 +124,16 @@ fn supervise_daemon(plan: Option<LaunchPlan>) {
             if lock_daemon().stopping {
                 return;
             }
-            match spawn_daemon(&plan) {
+            // Re-choose on retries: the first pick may have lost the
+            // probe-then-bind race — respawning onto the same taken port
+            // would burn every remaining attempt. The port file reports the
+            // final landing spot either way (wait_for_engine reads it first).
+            let attempt_port = if attempt == 1 {
+                spawn_port
+            } else {
+                spawn_port.map(|_| choose_engine_port())
+            };
+            match spawn_daemon(&plan, attempt_port) {
                 Ok(mut child) => {
                     log::info!("daemon spawned (pid {})", child.id());
                     #[cfg(windows)]
@@ -136,7 +167,7 @@ fn supervise_daemon(plan: Option<LaunchPlan>) {
             std::thread::sleep(Duration::from_millis(500 * u64::from(attempt)));
         }
         log::error!(
-            "giving up on the daemon after {SPAWN_ATTEMPTS} attempts — is node on PATH, and is port {DAEMON_ADDRESS} free?"
+            "giving up on the daemon after {SPAWN_ATTEMPTS} attempts — is node on PATH, and does the engine boot cleanly (logs\\daemon.log)?"
         );
         lock_daemon().abandoned = true;
     });
@@ -169,7 +200,7 @@ fn watch_until_exit() {
     }
 }
 
-fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
+fn spawn_daemon(plan: &LaunchPlan, spawn_port: Option<u16>) -> std::io::Result<Child> {
     let mut command = match plan {
         LaunchPlan::Bundled(bundled) => bundled_daemon_command(bundled, "dist/server.mjs")?,
         // Remote mode: the tunnel child supervises identically — same port,
@@ -192,6 +223,11 @@ fn spawn_daemon(plan: &LaunchPlan) -> std::io::Result<Child> {
             command
         }
     };
+    // The allocated port (bundled/remote). Repo mode spawns portless — the
+    // checkout's .env owns PORT and the port file reports where it landed.
+    if let Some(port) = spawn_port {
+        command.env("PORT", port.to_string());
+    }
     #[cfg(windows)]
     {
         // CREATE_NO_WINDOW: the shell is a GUI app; the spawned engine process
@@ -248,7 +284,6 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
         ))
         .arg(entry)
         .current_dir(&bundled.engine_dir)
-        .env("PORT", "18892")
         .env("DB_PATH", data_dir.join("vynel.db"))
         .env("VYNEL_ASSETS_DIR", bundled.engine_dir.join("assets"))
         .env("VYNEL_WEB_UI_DIST", &bundled.web_dir)
@@ -260,21 +295,22 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
     Ok(command)
 }
 
-fn port_is_listening() -> bool {
-    let address = DAEMON_ADDRESS.parse().expect("static daemon address parses");
-    TcpStream::connect_timeout(&address, Duration::from_millis(300)).is_ok()
-}
-
-fn wait_for_port(timeout: Duration) -> bool {
+/// Wait for the engine, answering the port it ACTUALLY serves: the advertised
+/// port file wins (repo mode's .env may differ from our expectation), then
+/// the expected port.
+fn wait_for_engine(expected_port: u16, timeout: Duration) -> Option<u16> {
     let deadline = std::time::Instant::now() + timeout;
     while std::time::Instant::now() < deadline {
-        if port_is_listening() {
-            return true;
+        if let Some(port) = discover_running_engine() {
+            return Some(port);
+        }
+        if port_is_listening(expected_port) {
+            return Some(expected_port);
         }
         if lock_daemon().abandoned {
-            return false;
+            return None;
         }
         std::thread::sleep(Duration::from_millis(500));
     }
-    false
+    None
 }

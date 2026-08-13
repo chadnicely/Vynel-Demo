@@ -299,7 +299,7 @@ function discard() {
 .action.is-primary {
   background: var(--gold);
   border-color: transparent;
-  color: #14171c;
+  color: var(--color-bg);
 }
 
 .action.is-primary:hover {

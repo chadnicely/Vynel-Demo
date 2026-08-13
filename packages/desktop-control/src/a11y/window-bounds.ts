@@ -69,6 +69,13 @@ $h = if ($p) { $p.MainWindowHandle } else { [IntPtr]::Zero }
 if ($h -ne 0) {
   [void][VynelBounds]::SetWindowPos($h, [IntPtr]::Zero, ${bounds.x}, ${bounds.y}, ${bounds.width}, ${bounds.height}, 0x14)
   Start-Sleep -Milliseconds 150
+  # Re-assert once: a move ACROSS a DPI boundary makes the app rescale itself
+  # (WM_DPICHANGED) — measured live, a 1200x800 request leaving a 125% monitor
+  # landed at 960x640, exactly 1/1.25. The second call applies the asked rect
+  # now that the window is already ON the target monitor; when no DPI
+  # transition happened it re-applies the same rect, a no-op.
+  [void][VynelBounds]::SetWindowPos($h, [IntPtr]::Zero, ${bounds.x}, ${bounds.y}, ${bounds.width}, ${bounds.height}, 0x14)
+  Start-Sleep -Milliseconds 150
   $r = New-Object VynelBounds+RECT
   [void][VynelBounds]::GetWindowRect($h, [ref]$r)
   Write-Output ("$($r.Left),$($r.Top),$($r.Right - $r.Left),$($r.Bottom - $r.Top)")

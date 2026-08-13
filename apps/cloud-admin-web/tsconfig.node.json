@@ -8,5 +8,5 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts"]
+  "include": ["env.ts", "env.test.ts", "vite.config.ts", "vitest.config.ts"]
 }

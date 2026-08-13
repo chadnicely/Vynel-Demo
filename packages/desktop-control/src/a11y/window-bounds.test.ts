@@ -118,4 +118,18 @@ describe('setWindowBounds', () => {
       reason: 'failed',
     })
   })
+
+  it('applies the rect TWICE — the cross-DPI re-assert', async () => {
+    // Measured live: a 1200x800 request leaving a 125% monitor landed at
+    // 960x640 (exactly 1/1.25) because the app rescaled itself on
+    // WM_DPICHANGED. The second SetWindowPos, issued once the window is ON the
+    // target monitor, restores the asked size; same-monitor moves just
+    // re-apply the same rect. Dropping the second call re-opens the shrink.
+    let command = ''
+    await setWindowBounds(1, rect, async (script) => {
+      command = script
+      return '10,20,300,200'
+    })
+    expect(command.match(/SetWindowPos\(\$h/g)).toHaveLength(2)
+  })
 })

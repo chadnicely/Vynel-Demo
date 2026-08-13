@@ -10,6 +10,7 @@ mod browser;
 mod daemon;
 mod data_home;
 mod engine_config;
+mod engine_port;
 mod job_object;
 mod launch_plan;
 mod updater;

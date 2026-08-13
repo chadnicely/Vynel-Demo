@@ -53,7 +53,7 @@ const emit = defineEmits<{
   border-radius: var(--radius-s);
   padding: 9px 26px;
   background: var(--gold);
-  color: #14171c;
+  color: var(--color-bg);
   font: 600 13.5px/1.6 var(--font-ui);
   transition: background var(--t-fast) var(--ease-out);
 }

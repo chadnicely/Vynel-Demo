@@ -24,6 +24,32 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   Real-Linux-box verification is still pending — recorded in the module
   note.
 
+- **Design changes are now traceable.** Vynel's UI designs from claude.ai/design
+  live in the repo as a git-tracked mirror (`.claude-design/`), refreshed
+  wholesale from each export zip by the new `/sync-design` command — so every
+  design iteration is one commit and `git diff .claude-design/` shows exactly
+  what changed upstream. Seeded with the first design pack: the "New app"
+  onboarding wizard modal flow plus six Vynel Workspace screen states, built on
+  the Nocturne design system.
+
+- **Pick what you run: `pnpm dev` now takes app names and a port band.**
+  `pnpm dev api web` starts just the engine and the UI; `pnpm dev cloud admin
+  api web voice` is the full stack; `--base 28890` (or `--port 28892`, named
+  by the engine port) shifts the whole instance to another port band in one
+  flag — perfect for running a second copy beside the first. Bare `pnpm dev`,
+  `dev:local`, and `dev:full` behave exactly as before.
+
+- **Vynel never fights over a port again.** The installed desktop app now
+  *allocates* its local port each time it starts instead of assuming the
+  default is free — if Docker, WSL, or any other app holds it, Vynel quietly
+  picks the next free one and every window and companion tool (CLI, voice,
+  Claude integrations) finds the engine wherever it actually landed. The
+  same rework gives developers one-variable side-by-side checkouts: every
+  port derives from a single `VYNEL_PORT_BASE`, and `pnpm worktree:env`
+  claims a free band for a fresh worktree automatically. Release builds also
+  stopped failing when Docker reserved the build's fixed test port — the
+  proof-of-life boot now borrows a free port from the OS.
+
 - **Vynel can sit in your meetings.** Ask it to join a call (Zoom, Meet,
   Teams, Discord — anything whose audio you point at the virtual cable) and
   it opens a dedicated call session you can watch live in Sessions. In a
@@ -303,6 +329,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   task's opening row names Claude honestly instead of masquerading as you.
 
 ### Changed
+
+- **Vynel wears its new look: Nocturne.** The whole app moved from the old
+  near-black palette to the Nocturne design system — a quiet blue-grey ground,
+  one violet accent used as a line and a glow rather than a flood, Inter as
+  the interface typeface (bundled with the app, no font CDN at boot), thinner
+  scrollbars, and ring-edged elevation. Light mode follows as a mirrored
+  inversion of the same ramps. The tokens are lifted verbatim from the design
+  mirror (`.claude-design/`), so future design retunes land as one reviewable
+  token diff.
 
 - **The installed app is unmistakably Vynel now.** The program is `Vynel.exe`
   (no more `vynel-desktop.exe`), the engine runs as `vynel-engine.exe` instead

@@ -19,7 +19,11 @@
 // through `screenshot-adapter.ts`, so the rule cannot live in either without
 // making the pair circular.
 
-const WINDOW_HOST_PROCESS_NAMES = new Set(['application frame host'])
+// Both the friendly form (measured) and the executable-name form: the window
+// source can report a raw exe PATH as an app name (measured on the packaged
+// Notepad), and a host arriving that way would reduce to "ApplicationFrameHost"
+// — which must not dodge the rule this file exists for.
+const WINDOW_HOST_PROCESS_NAMES = new Set(['application frame host', 'applicationframehost'])
 
 /** Whether an app name names a window HOST rather than an app. */
 export function isWindowHostProcess(appName: string): boolean {
@@ -83,12 +87,28 @@ export function shadowedStoreAppMessage(query: string, intent: string): string {
   )
 }
 
+/**
+ * A window source can report a raw executable PATH as the app name — measured
+ * live 2026-08-13: the packaged Windows 11 Notepad arrives as
+ * "C:\Program Files\WindowsApps\Microsoft.WindowsNotepad_…\Notepad.exe". A path
+ * is not a name a plan can sensibly carry or a log a user reads, so it reduces
+ * to its display half: basename, minus the .exe suffix. Deliberately narrow —
+ * bare names pass through untouched, even "chrome.exe", so nothing that already
+ * worked changes key.
+ */
+export function displayNameFromPathishAppName(appName: string): string {
+  if (!appName.includes('\\') && !appName.includes('/')) return appName
+  const basename = appName.split(/[\\/]/).pop()?.trim() ?? ''
+  const withoutExtension = basename.replace(/\.exe$/i, '').trim()
+  return withoutExtension.length > 0 ? withoutExtension : appName
+}
+
 export function readWindowIdentity(native: {
   appName(): unknown
   title?(): unknown
 }): string | null {
   try {
-    const appName = String(native.appName() ?? '').trim()
+    const appName = displayNameFromPathishAppName(String(native.appName() ?? '').trim())
     if (!isWindowHostProcess(appName)) return appName.length > 0 ? appName : null
     const title = String(native.title?.() ?? '').trim()
     return title.length > 0 ? title : null
