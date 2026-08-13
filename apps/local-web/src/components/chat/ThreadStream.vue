@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { PhDisc as Disc } from "@phosphor-icons/vue";
 import type {
   ChatMessageResponse,
   ChatToolCallResponse,
@@ -20,6 +21,7 @@ import PointerRow from "./PointerRow.vue";
 import { buildToolCallPointer } from "./thread-pointers.js";
 import type { ThreadPointerModel } from "./thread-pointers.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
+import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
 // Global → Workspace → Session → Agent): a thread shows chips ONLY for its
@@ -286,11 +288,6 @@ function startsNewTurn(
   );
 }
 
-function showsHeaderFor(index: number): boolean {
-  const message = visibleMessages.value[index];
-  if (!message) return true;
-  return startsNewTurn(message, visibleMessages.value[index - 1]);
-}
 const hiddenOlderCount = computed(() =>
   Math.max(0, settledMessages.value.length - visibleCount.value),
 );
@@ -299,8 +296,8 @@ const hiddenOlderCount = computed(() =>
 // author, first-line preview, time, chevron. Only the LATEST turn is open by
 // default; a manual toggle overrides its turn from then on (so an arriving
 // turn folds the previous one unless the user pinned it open). A turn = a
-// header row + its continuations (the showsHeaderFor grouping), keyed by its
-// first row's id.
+// header row + its continuations (the startsNewTurn boundaries, rendered by
+// turnCardGroups), keyed by its first row's id.
 // Keys derive from the FULL settled history, not the window — revealing an
 // older page must never re-key a turn cut at the window boundary (that would
 // orphan a manual fold override, the Gate-3 catch).
@@ -325,12 +322,6 @@ const latestTurnKey = computed(() => {
     : (turnKeyByMessageId.value.get(last.id) ?? null);
 });
 const collapseOverrides = ref(new Map<string, boolean>());
-
-function turnKeyAt(index: number): string {
-  const message = visibleMessages.value[index];
-  if (message === undefined) return "";
-  return turnKeyByMessageId.value.get(message.id) ?? message.id;
-}
 
 function isTurnExpanded(turnKey: string): boolean {
   return (
@@ -387,6 +378,31 @@ function turnPreviewFallbackFor(turnKey: string): string | null {
   const { bodyLines, toolLines } = turnPreviewFallbacks.value;
   return bodyLines.get(turnKey) ?? toolLines.get(turnKey) ?? null;
 }
+
+// The visible window grouped into TURN CARDS (workspace redesign Arc 3): one
+// wrapper per turn, so the card lifecycle — folded past turns dim to
+// grayscale strips, the expanded turn reads as a quiet card, the live turn
+// glows — is one class on one element. A window-cut turn's first visible row
+// acts as its header (same behavior the flat list had when the previous row
+// was off-window).
+const turnCardGroups = computed(() => {
+  const groups: { key: string; messages: ChatMessageResponse[] }[] = [];
+  for (const message of visibleMessages.value) {
+    const key = turnKeyByMessageId.value.get(message.id) ?? message.id;
+    const last = groups.at(-1);
+    if (last !== undefined && last.key === key) last.messages.push(message);
+    else groups.push({ key, messages: [message] });
+  }
+  return groups;
+});
+
+// The live card's top-right working pill — the canvas's "working · 8m 15s"
+// signature. Same composable as LiveTurn's chip (independent 1s ticks, so a
+// transient 1s disagreement is possible and harmless).
+const workingElapsed = useTickingElapsed(
+  () => props.activeTurn?.startedAtMs ?? null,
+  () => props.activeTurn?.status === "streaming",
+);
 
 // The per-turn run stats (Chad, 2026-08-09: EVERY assistant turn wears the
 // info door, not just delivered rows): tool calls, tokens, and duration
@@ -605,50 +621,81 @@ watch(
           load
         </p>
 
-        <template v-for="(message, index) in visibleMessages" :key="message.id">
-          <!-- A folded turn renders only its header row (the strip); its
-               continuations wait behind the chevron. Pointers render
-               regardless — a tracker never hides with its turn. -->
-          <MessageRow
-            v-if="showsHeaderFor(index) || isTurnExpanded(turnKeyAt(index))"
-            :message="message"
-            :data-trace-id="message.partialSessionId ?? undefined"
-            :class="{ 'is-continuation': !showsHeaderFor(index) }"
-            :assistant-name="props.assistantName"
-            :assistant-icon-url="props.assistantIconUrl"
-            :author-persona="authorPersonaFor(message)"
-            :workspace-badge="workspaceBadgeFor(message)"
-            :show-header="showsHeaderFor(index)"
-            :collapsible="showsHeaderFor(index)"
-            :collapsed="!isTurnExpanded(turnKeyAt(index))"
-            :preview-fallback="turnPreviewFallbackFor(turnKeyAt(index))"
-            :run-stats="
-              showsHeaderFor(index) ? turnRunStatsFor(turnKeyAt(index)) : null
-            "
-            @toggle-collapse="toggleTurn(turnKeyAt(index))"
+        <!-- The task cards (workspace redesign Arc 3): one card per turn.
+             Folded past turns dim to grayscale strips and wake on hover; the
+             expanded turn is a quiet hairline card. A folded turn renders
+             only its header row; pointers render regardless — a tracker
+             never hides with its turn. -->
+        <section
+          v-for="group in turnCardGroups"
+          :key="group.key"
+          class="turn-card"
+          :class="isTurnExpanded(group.key) ? 'is-open' : 'is-folded'"
+        >
+          <template
+            v-for="(message, memberIndex) in group.messages"
+            :key="message.id"
           >
-            <template
-              v-if="props.toolCallsByMessageId[message.id]?.length"
-              #tool-calls
+            <MessageRow
+              v-if="memberIndex === 0 || isTurnExpanded(group.key)"
+              :message="message"
+              :data-trace-id="message.partialSessionId ?? undefined"
+              :class="{ 'is-continuation': memberIndex > 0 }"
+              :assistant-name="props.assistantName"
+              :assistant-icon-url="props.assistantIconUrl"
+              :author-persona="authorPersonaFor(message)"
+              :workspace-badge="workspaceBadgeFor(message)"
+              :show-header="memberIndex === 0"
+              :collapsible="memberIndex === 0"
+              :collapsed="!isTurnExpanded(group.key)"
+              :preview-fallback="turnPreviewFallbackFor(group.key)"
+              :run-stats="memberIndex === 0 ? turnRunStatsFor(group.key) : null"
+              @toggle-collapse="toggleTurn(group.key)"
             >
-              <ToolCallList
-                class="tool-list"
-                :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
-              />
-            </template>
-          </MessageRow>
-          <PointerRow
-            v-for="pointer in pointersByMessageId.get(message.id) ?? []"
-            :key="pointer.partialSessionId"
-            :pointer="pointer"
-            @open="emit('openPointer', pointer)"
-          />
-        </template>
+              <template
+                v-if="props.toolCallsByMessageId[message.id]?.length"
+                #tool-calls
+              >
+                <ToolCallList
+                  class="tool-list"
+                  :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
+                />
+              </template>
+            </MessageRow>
+            <PointerRow
+              v-for="pointer in pointersByMessageId.get(message.id) ?? []"
+              :key="pointer.partialSessionId"
+              :pointer="pointer"
+              @open="emit('openPointer', pointer)"
+            />
+          </template>
+        </section>
 
-        <template v-if="props.activeTurn">
+        <!-- The live card — the canvas's glowing accent treatment: tinted
+             ground, accent spine sweeping the left edge, the working pill
+             ticking top-right. -->
+        <section v-if="props.activeTurn" class="turn-card is-live">
+          <!-- Motion only while genuinely streaming — the settle window keeps
+               the tinted ground with LiveTurn's quiet done chip, and an error
+               note must not sit beside a sweeping light. -->
+          <span
+            v-if="props.activeTurn.status === 'streaming'"
+            class="live-spine"
+            aria-hidden="true"
+          />
+          <span
+            v-if="props.activeTurn.status === 'streaming' && workingElapsed"
+            class="working-pill"
+          >
+            <Disc :size="13" class="working-disc" aria-hidden="true" />
+            <span class="working-label">{{ props.assistantName }} working</span>
+            <span class="working-sep" aria-hidden="true" />
+            <span class="working-time">{{ workingElapsed }}</span>
+          </span>
           <MessageRow
             v-if="props.activeTurn.userMessage"
             :message="props.activeTurn.userMessage"
+            class="live-user-row"
           />
           <LiveTurn
             :view="props.activeTurn"
@@ -658,7 +705,7 @@ watch(
               (id, decision) => emit('decideApproval', id, decision)
             "
           />
-        </template>
+        </section>
       </div>
     </div>
 
@@ -711,7 +758,157 @@ watch(
   margin: 0 auto;
   padding: 24px 24px 16px;
   display: grid;
+  gap: 12px;
+}
+
+/* ── The task cards (workspace redesign Arc 3). One element per turn; the
+   lifecycle is a class swap: folded past turns are dim grayscale strips that
+   wake on hover, the open turn is a quiet hairline card, the live turn glows
+   on the accent ground with the spine + working pill. ── */
+.turn-card {
+  display: grid;
   gap: 20px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  padding: 12px 16px;
+  transition:
+    border-color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out);
+}
+
+/* The rows moved one grid level deeper — the card re-applies the column's
+   min-width guard, or one long unbroken token floors the internal track
+   past the card (grid items default min-width:auto). */
+.turn-card > * {
+  min-width: 0;
+}
+
+.turn-card.is-open {
+  border-color: color-mix(in srgb, var(--hair) 80%, transparent);
+  background: color-mix(in srgb, var(--color-text) 2%, transparent);
+}
+
+.turn-card.is-folded {
+  padding: 6px 16px;
+}
+
+/* The dim rides the MEMBERS, not the card — an ancestor filter would also
+   grayscale a live tracker's gold presence dot (PointerRow renders under
+   folded turns on purpose; gold = presence, the one rule). */
+.turn-card.is-folded > :deep(.message-row) {
+  opacity: 0.4;
+  filter: grayscale(1);
+  transition:
+    opacity var(--t-slow) var(--ease-out),
+    filter var(--t-slow) var(--ease-out);
+}
+
+.turn-card.is-folded:hover > :deep(.message-row),
+.turn-card.is-folded:focus-within > :deep(.message-row) {
+  opacity: 0.85;
+  filter: grayscale(0.25);
+}
+
+.turn-card.is-live {
+  position: relative;
+  border-color: color-mix(in srgb, var(--gold) 45%, transparent);
+  background: color-mix(in srgb, var(--gold) 9%, transparent);
+  /* Room for the working pill so the first row never collides with it. */
+  padding-top: 16px;
+  overflow: hidden;
+}
+
+/* The spine — a light sweeping the live card's left edge (the canvas's
+   vw-spine), painted inside the rounded border. */
+.live-spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--gold-bright) 45%,
+    var(--gold-bright) 55%,
+    transparent 100%
+  );
+  background-size: 100% 55%;
+  background-repeat: no-repeat;
+  animation: live-spine-sweep 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes live-spine-sweep {
+  0% {
+    background-position: 0 -140%;
+  }
+  100% {
+    background-position: 0 240%;
+  }
+}
+
+.working-pill {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 9px 2px 6px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  /* A long persona name must never outgrow the card or sit on the user
+     bubble — the label ellipsizes inside the capped pill. */
+  max-width: calc(100% - 28px);
+}
+
+.working-disc {
+  color: var(--gold);
+  animation: working-disc-spin 3.2s linear infinite;
+}
+
+@keyframes working-disc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.working-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 9.5px/1.5 var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+}
+
+.working-sep {
+  width: 1px;
+  height: 9px;
+  background: color-mix(in srgb, var(--gold) 40%, transparent);
+}
+
+.working-time {
+  font: 500 9.5px/1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-bright);
+}
+
+/* The live card's user row leaves room for the pill on narrow hosts. */
+.live-user-row {
+  padding-right: 120px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-spine,
+  .working-disc {
+    animation: none;
+  }
 }
 
 /* Grid items default min-width:auto — one nowrap preview or long token would

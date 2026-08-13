@@ -42,7 +42,16 @@
    `/workspaces/groups` routes + `PUT /:workspaceId/group`, regenerated SDK (listGroups/
    createGroup/renameGroup/deleteGroup/setGroup) + MCP `list_workspace_groups` (roster test +1),
    tree folders UI (drag-drop, dashed drop targets, ContextMenu inline rename, root-zone
-   detach, persisted folds). **NEXT: Arc 3 — patch the shared chat pair** (per the plan).
+   detach, persisted folds).
+8. **Arc 3a LANDED (gate green 4787, 29 chat-component tests):** the task-card lifecycle on the
+   shared ThreadStream — `turnCardGroups` wraps the EXISTING 2026-08-09 turn-fold machinery in
+   one `<section class="turn-card">` per turn (zero host changes; all four mounts inherit):
+   folded past turns dim to grayscale strips with hover wake, the open turn is a hairline card,
+   the live turn wears `.is-live` (gold-tinted ground + `.live-spine` sweep + `.working-pill`
+   with "{persona} working · elapsed" on the NEW shared `use-ticking-elapsed` clock — LiveTurn
+   refactored onto it). Canvas items still deferred: refs chips + handed-off card (cross-project
+   data), inline per-card comment, composer actions/toggles (engine semantics — plan Finding 4).
+   **NEXT: Arc 4 — the workspace right rail** (per the plan).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

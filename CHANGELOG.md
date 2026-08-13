@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The conversation reads like a task list now.** Every chat surface groups
+  each exchange into its own card: past turns quiet down to dimmed one-line
+  strips that wake when you hover (click to reopen them), the latest turn
+  sits in a clean card, and while the assistant works its card glows with a
+  sweeping light along the edge and a live "working · 1m 32s" pill ticking in
+  the corner — you can tell at a glance what's history, what's current, and
+  what's in motion.
+
 - **Folders for your projects.** In Menu navigation the workspace tree now
   has real folders: make one with the new-folder button, drag projects in and
   out (or back to the top level), right-click to rename or delete. Deleting a
