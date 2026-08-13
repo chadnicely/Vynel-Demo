@@ -2,16 +2,21 @@ import { randomUUID } from 'node:crypto'
 import type { Logger } from 'pino'
 import type { PcmAudio } from '@vynel/voice-engine'
 import { cpal } from '../audio/cpal.js'
-import { findDeviceByName } from '../audio/device-selection.js'
+import { findDeviceByName, normalizeDeviceName } from '../audio/device-selection.js'
 import type { SelectedDeviceConfig } from '../audio/device-selection.js'
 import { openCaptureStream, type CaptureStream } from '../audio/capture-stream.js'
 import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
+import { discoverVynelCallPairs } from './call-cable-discovery.js'
 import type { CallMode } from '@vynel/voice'
 
 // The daemon's live-call roster: callId → the call's audio plumbing (Cable B
-// capture in, Cable A sink out). Concurrency = the env cable-pair INVENTORY:
-// each installed pair carries one live call; a start picks the first free
-// pair and 'pair-busy' fires only when every pair is held.
+// capture in, Cable A sink out). Concurrency = the cable-pair INVENTORY:
+// auto-discovered "Vynel Call <n> Ears/Voice" devices first (our own virtual
+// devices need zero config), then the env pairs as the fallback — deduped, so
+// an env var naming a discovered device never doubles capacity. Each pair
+// carries one live call; a start picks the first free pair and 'pair-busy'
+// fires only when every pair is held. Discovery re-runs per start (same rule
+// as device resolution: installing a device never requires a daemon restart).
 //
 // Two deliberate contrasts with the primary mic/speaker path:
 //  - Devices resolve STRICTLY at start-call time — no fallback to the system
@@ -63,8 +68,16 @@ interface LiveCall {
   readonly descriptor: CallDescriptor
   readonly capture: CaptureStream
   readonly sink: OutputSink
-  /** Which inventory pair this call holds — freed when the call ends. */
-  readonly pairIndex: number
+  /** Which inventory pair this call holds — freed when the call ends. Keyed by
+   *  the pair's device names (not position): discovery makes the inventory
+   *  dynamic between starts, so positions don't stay stable. */
+  readonly pairKey: string
+}
+
+// Inventory identity — an env entry duplicating a discovered pair must not
+// double capacity, and a held pair must stay held across re-discovery.
+function cablePairKey(pair: CallCablePair): string {
+  return `${normalizeDeviceName(pair.inputName)}::${normalizeDeviceName(pair.outputName)}`
 }
 
 /** The seams the call loop claims — lifecycle + both directions of a live
@@ -79,13 +92,13 @@ export interface CallLoopHooks {
 
 export class CallRegistry {
   readonly #logger: Logger
-  readonly #pairs: readonly CallCablePair[]
+  readonly #envPairs: readonly CallCablePair[]
   readonly #calls = new Map<string, LiveCall>()
   #loopHooks: CallLoopHooks | null = null
 
-  constructor(logger: Logger, pairs: readonly CallCablePair[]) {
+  constructor(logger: Logger, envPairs: readonly CallCablePair[]) {
     this.#logger = logger
-    this.#pairs = pairs
+    this.#envPairs = envPairs
   }
 
   bindCallLoop(hooks: CallLoopHooks): void {
@@ -93,27 +106,29 @@ export class CallRegistry {
   }
 
   startCall(request: StartCallRequest): CallDescriptor {
-    if (this.#pairs.length === 0) {
+    const devices = cpal.getDevices()
+    const inventory = this.#buildPairInventory(devices)
+    if (inventory.length === 0) {
       throw new CallRegistryError(
         'not-configured',
-        'call audio is not configured — set VYNEL_CALL_INPUT_DEVICE (Cable B capture end) and ' +
-          'VYNEL_CALL_OUTPUT_DEVICE (Cable A playback end) to the installed virtual-cable device names',
+        'call audio is not configured — no "Vynel Call <n> Ears/Voice" devices were discovered ' +
+          'and no cable env vars are set: install Vynel call devices, or set ' +
+          'VYNEL_CALL_INPUT_DEVICE (Cable B capture end) and VYNEL_CALL_OUTPUT_DEVICE ' +
+          '(Cable A playback end) to the installed virtual-cable device names',
       )
     }
-    const heldPairIndexes = new Set([...this.#calls.values()].map((call) => call.pairIndex))
-    const pairIndex = this.#pairs.findIndex((_pair, index) => !heldPairIndexes.has(index))
-    if (pairIndex === -1) {
+    const heldKeys = new Set([...this.#calls.values()].map((call) => call.pairKey))
+    const pair = inventory.find((candidate) => !heldKeys.has(cablePairKey(candidate)))
+    if (pair === undefined) {
       const holders = [...this.#calls.values()]
         .map((call) => `${call.descriptor.callId} ("${call.descriptor.label}")`)
         .join(', ')
       throw new CallRegistryError(
         'pair-busy',
-        `all ${this.#pairs.length} cable pair(s) are in use — by ${holders} — end one first`,
+        `all ${inventory.length} cable pair(s) are in use — by ${holders} — end one first`,
       )
     }
-    const pair = this.#pairs[pairIndex]!
 
-    const devices = cpal.getDevices()
     const input = this.#resolveCableEnd('input', pair.inputName, devices)
     const output = this.#resolveCableEnd('output', pair.outputName, devices)
 
@@ -143,8 +158,11 @@ export class CallRegistry {
           (error instanceof Error ? error.message : String(error)),
       )
     }
-    this.#calls.set(callId, { descriptor, capture, sink, pairIndex })
-    this.#logger.info({ callId, label: request.label, mode: request.mode, pairIndex }, 'call started')
+    this.#calls.set(callId, { descriptor, capture, sink, pairKey: cablePairKey(pair) })
+    this.#logger.info(
+      { callId, label: request.label, mode: request.mode, pair: `${pair.inputName} → ${pair.outputName}` },
+      'call started',
+    )
     this.#loopHooks?.onCallStarted(descriptor)
     return descriptor
   }
@@ -177,6 +195,41 @@ export class CallRegistry {
 
   stopAll(): void {
     for (const callId of [...this.#calls.keys()]) this.endCall(callId)
+  }
+
+  // Discovered pairs come first — once Vynel's own devices exist, env config
+  // is dead weight; env stays as the fallback (and the only Windows path until
+  // the driver ships). Dedupe keeps a doubled entry from doubling capacity.
+  #buildPairInventory(devices: ReturnType<typeof cpal.getDevices>): CallCablePair[] {
+    const discovered = discoverVynelCallPairs(devices)
+    if (discovered.orphanNames.length > 0) {
+      this.#logger.warn(
+        { orphanNames: discovered.orphanNames },
+        'vynel call devices missing their partner end — not claimable as pairs',
+      )
+    }
+    const inventory: CallCablePair[] = []
+    const seenPairKeys = new Set<string>()
+    const seenEndNames = new Set<string>()
+    for (const pair of [...discovered.pairs, ...this.#envPairs]) {
+      if (seenPairKeys.has(cablePairKey(pair))) continue // env naming a discovered pair — expected, silent
+      const inputEnd = normalizeDeviceName(pair.inputName)
+      const outputEnd = normalizeDeviceName(pair.outputName)
+      if (seenEndNames.has(inputEnd) || seenEndNames.has(outputEnd)) {
+        // A physical end carries ONE call — a pair reusing an earlier pair's
+        // end would cross-bleed audio between two live calls.
+        this.#logger.warn(
+          { inputName: pair.inputName, outputName: pair.outputName },
+          'cable pair shares a device end with an earlier pair — skipped',
+        )
+        continue
+      }
+      seenPairKeys.add(cablePairKey(pair))
+      seenEndNames.add(inputEnd)
+      seenEndNames.add(outputEnd)
+      inventory.push(pair)
+    }
+    return inventory
   }
 
   // Strict: a call NEVER falls back to a default device (that would be the

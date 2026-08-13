@@ -140,6 +140,32 @@ UAC-prompt hang risk unattended, no system mutation, deletable when done. Lives 
 `E:\KLONE\Toolchains\`. Fallback if samples fight the VS2026 toolset: the samples repo's
 per-WDK release tags, or EWDK 26100.6584 (VS2022 era) from Other WDK Downloads.
 
+## The cross-OS device-naming contract (settled this run)
+
+One convention everywhere — the registry's auto-discovery (P4), the Linux null-sink pool (P2),
+and the Windows driver endpoints (P1) all speak it:
+
+| End | Name | Who uses it |
+|---|---|---|
+| Vynel records participants (capture) | `Vynel Call <n> Ears` | registry `inputName` |
+| Vynel speaks into the call (render) | `Vynel Call <n> Voice` | registry `outputName` |
+| the call app's microphone (capture) | `Vynel Call <n> Microphone` | user picks it in Zoom/Teams |
+| the call app's speaker (render) | `Vynel Call <n> Speaker` | user picks it in Zoom/Teams |
+
+Discovery matches `^vynel call (\d+) (ears|voice)\b` case-insensitively (Windows enumerates
+"<endpoint> (<adapter>)", so matching is prefix-shaped), claims complete pairs only, and never
+touches the app-facing ends. The P1 spike driver brands the two APP-facing names only (codec
+shape: one speaker + one mic, unlooped) — it deliberately does NOT trip discovery; the endgame
+looped driver adds the Ears/Voice ends. On Linux the pool publishes all four per pair via two
+null-sinks + two remap-sources (`apps/voice/src/call/linux-null-sink-cables.ts`).
+
+**Later-improves recorded (from the P4 review):** per-call create/destroy on Linux needs an
+async `startCall` reshape — the boot-time pool ships first · real-Linux-box validation that
+pulse device descriptions surface through cpal's ALSA enumeration (THE integration unknown,
+marked) · held-pair identity per END by resolved deviceId (mid-call rename hole) ·
+try-next-free-pair when the first free pair fails direction resolution (faithful pre-existing
+semantics; discovery adds a new trigger surface).
+
 **Needs humans/Chad:** Partner Center account + EV certificate (cost + identity — pairs with
 the deferred Azure signing work), macOS hardware, the eventual bundle-vs-guided-install call
 for OUR driver (ours = no third-party license, so bundling becomes purely a signing question).

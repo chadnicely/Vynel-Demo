@@ -85,7 +85,7 @@ export function selectDeviceConfig(
   return { device, config: getConfig(device.deviceId) }
 }
 
-function normalizeDeviceName(name: string): string {
+export function normalizeDeviceName(name: string): string {
   return name.trim().toLowerCase()
 }
 

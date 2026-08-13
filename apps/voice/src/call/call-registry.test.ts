@@ -313,4 +313,108 @@ describe('CallRegistry', () => {
     expect(sink.stop).toHaveBeenCalledTimes(1)
     expect(registry.listCalls()).toEqual([])
   })
+
+  describe('auto-discovered Vynel Call pairs', () => {
+    const vynelEars = {
+      name: 'Vynel Call 1 Ears (Vynel Virtual Audio)',
+      deviceId: 'id:vynel-1-ears',
+      hostId: 'WASAPI',
+      isDefaultInput: false,
+      isDefaultOutput: false,
+    }
+    const vynelVoice = {
+      name: 'Vynel Call 1 Voice (Vynel Virtual Audio)',
+      deviceId: 'id:vynel-1-voice',
+      hostId: 'WASAPI',
+      isDefaultInput: false,
+      isDefaultOutput: false,
+    }
+
+    it('claims a discovered pair with zero env config', () => {
+      getDevices.mockReturnValue([vynelEars, vynelVoice])
+      const registry = registryWith([])
+
+      const descriptor = registry.startCall({ label: 'standup', mode: 'notetaker' })
+
+      expect(descriptor.label).toBe('standup')
+      expect(getDefaultInputConfig).toHaveBeenCalledWith('id:vynel-1-ears')
+      expect(getDefaultOutputConfig).toHaveBeenCalledWith('id:vynel-1-voice')
+    })
+
+    it('prefers the discovered pair over the env inventory — env stays the fallback', () => {
+      getDevices.mockReturnValue([cableBOut, cableAIn, vynelEars, vynelVoice])
+      const registry = registryWith([PAIR_ONE])
+
+      registry.startCall({ label: 'first', mode: 'notetaker' })
+      expect(getDefaultInputConfig).toHaveBeenLastCalledWith('id:vynel-1-ears')
+
+      registry.startCall({ label: 'second', mode: 'participant' })
+      expect(getDefaultInputConfig).toHaveBeenLastCalledWith('id:cable-b-out')
+      expect(registry.listCalls()).toHaveLength(2)
+    })
+
+    it('an env pair duplicating a discovered pair does not double capacity', () => {
+      getDevices.mockReturnValue([vynelEars, vynelVoice])
+      const registry = registryWith([{ inputName: vynelEars.name, outputName: vynelVoice.name }])
+
+      registry.startCall({ label: 'first', mode: 'notetaker' })
+      expectRegistryError(
+        () => registry.startCall({ label: 'second', mode: 'participant' }),
+        'pair-busy',
+        'all 1 cable pair(s)',
+      )
+    })
+
+    it('devices installed between starts are claimed without a restart', () => {
+      getDevices.mockReturnValueOnce([cableBOut, cableAIn])
+      const registry = registryWith([PAIR_ONE])
+      registry.startCall({ label: 'first', mode: 'notetaker' })
+
+      getDevices.mockReturnValue([cableBOut, cableAIn, vynelEars, vynelVoice])
+      registry.startCall({ label: 'second', mode: 'participant' })
+
+      expect(getDefaultInputConfig).toHaveBeenLastCalledWith('id:vynel-1-ears')
+      expect(registry.listCalls()).toHaveLength(2)
+    })
+
+    it('a lone orphan end is not an inventory — still not-configured', () => {
+      getDevices.mockReturnValue([vynelEars])
+      expectRegistryError(
+        () => registryWith([]).startCall({ label: 'standup', mode: 'notetaker' }),
+        'not-configured',
+        'VYNEL_CALL_INPUT_DEVICE',
+      )
+    })
+
+    it('a pair reusing an end of an earlier pair is skipped — one call per physical end', () => {
+      getDevices.mockReturnValue([vynelEars, vynelVoice, cableAIn])
+      const registry = registryWith([{ inputName: vynelEars.name, outputName: cableAIn.name }])
+
+      registry.startCall({ label: 'first', mode: 'notetaker' })
+      expectRegistryError(
+        () => registry.startCall({ label: 'second', mode: 'participant' }),
+        'pair-busy',
+        'all 1 cable pair(s)',
+      )
+    })
+
+    it('a held pair vanishing between starts blocks nothing and cannot be double-claimed', () => {
+      const vynelEars2 = { ...vynelEars, name: 'Vynel Call 2 Ears', deviceId: 'id:vynel-2-ears' }
+      const vynelVoice2 = { ...vynelVoice, name: 'Vynel Call 2 Voice', deviceId: 'id:vynel-2-voice' }
+      getDevices.mockReturnValueOnce([vynelEars, vynelVoice])
+      const registry = registryWith([])
+      registry.startCall({ label: 'first', mode: 'notetaker' })
+
+      getDevices.mockReturnValue([vynelEars2, vynelVoice2])
+      registry.startCall({ label: 'second', mode: 'participant' })
+
+      expect(registry.listCalls()).toHaveLength(2)
+      expect(getDefaultInputConfig).toHaveBeenLastCalledWith('id:vynel-2-ears')
+      expectRegistryError(
+        () => registry.startCall({ label: 'third', mode: 'notetaker' }),
+        'pair-busy',
+        'all 1 cable pair(s)',
+      )
+    })
+  })
 })
