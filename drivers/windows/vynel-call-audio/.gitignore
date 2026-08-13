@@ -1,0 +1,6 @@
+# Build outputs — the package is rebuilt from source with the EWDK (README.md);
+# test-signed binaries never enter history.
+**/x64/
+**/ARM64/
+**/.vs/
+*.log
