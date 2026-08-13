@@ -14,12 +14,12 @@ import { createServer } from 'node:net'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  VYNEL_PORT_BAND_STRIDE,
   VYNEL_PORT_BASE_DEFAULT,
   VYNEL_PORT_OFFSETS,
   resolveVynelPorts,
 } from '@vynel/contracts/network/ports'
 
-const BAND_STRIDE = 10
 const WORKTREES_SEGMENT = join('.claude', 'worktrees')
 
 /** The `VYNEL_PORT_BASE` a `.env` text claims (its own or the canonical default). */
@@ -48,9 +48,9 @@ export async function findFreeBand(
   const highestOffset = Math.max(...Object.values(VYNEL_PORT_OFFSETS))
   const highestBase = 65_535 - highestOffset
   for (
-    let candidate = VYNEL_PORT_BASE_DEFAULT + BAND_STRIDE;
+    let candidate = VYNEL_PORT_BASE_DEFAULT + VYNEL_PORT_BAND_STRIDE;
     candidate <= highestBase;
-    candidate += BAND_STRIDE
+    candidate += VYNEL_PORT_BAND_STRIDE
   ) {
     if (claimedBases.has(candidate)) continue
     if (await isBandFree(candidate)) return candidate

@@ -1,10 +1,11 @@
 // Port-parity guard. The ports' ONE home is
 // `packages/contracts/src/network/ports.ts`; every TypeScript consumer
 // derives from it. Copies live where TypeScript can't reach — the Tauri
-// shell's CANONICAL_ENGINE_PORT (daemon.rs, the PREFERRED first candidate of
-// its per-boot allocation) and `tauri.conf.json`'s frontendDist/devUrl — so
-// this check fails `pnpm test` the moment they drift. Changing a canonical
-// port = edit the contracts literals, chase the failures this check names.
+// shell's CANONICAL_ENGINE_PORT + PORT_SCAN_STRIDE (engine_port.rs, the
+// preferred first candidate + stride of its per-boot allocation) and
+// `tauri.conf.json`'s frontendDist/devUrl — so this check fails `pnpm test`
+// the moment they drift. Changing a canonical port = edit the contracts
+// literals, chase the failures this check names.
 //
 // Wired into `pnpm test` via `pnpm test:parity`.
 
@@ -29,15 +30,24 @@ const contractsSource = readFileSync(
 )
 const enginePort = extract(/VYNEL_ENGINE_PORT = (\d+)/, contractsSource, 'contracts ports.ts')
 const localWebPort = extract(/VYNEL_LOCAL_WEB_PORT = (\d+)/, contractsSource, 'contracts ports.ts')
+const bandStride = extract(/VYNEL_PORT_BAND_STRIDE = (\d+)/, contractsSource, 'contracts ports.ts')
 
-const daemonRs = readFileSync(join(repoRoot, 'apps', 'desktop', 'src-tauri', 'src', 'daemon.rs'), 'utf8')
+const enginePortRs = readFileSync(
+  join(repoRoot, 'apps', 'desktop', 'src-tauri', 'src', 'engine_port.rs'),
+  'utf8',
+)
 const tauriConf = readFileSync(join(repoRoot, 'apps', 'desktop', 'src-tauri', 'tauri.conf.json'), 'utf8')
 
 const copies = [
   {
-    label: 'daemon.rs CANONICAL_ENGINE_PORT',
+    label: 'engine_port.rs CANONICAL_ENGINE_PORT',
     expected: enginePort,
-    value: extract(/CANONICAL_ENGINE_PORT: u16 = (\d+)/, daemonRs, 'daemon.rs CANONICAL_ENGINE_PORT'),
+    value: extract(/CANONICAL_ENGINE_PORT: u16 = (\d+)/, enginePortRs, 'engine_port.rs CANONICAL_ENGINE_PORT'),
+  },
+  {
+    label: 'engine_port.rs PORT_SCAN_STRIDE',
+    expected: bandStride,
+    value: extract(/PORT_SCAN_STRIDE: u16 = (\d+)/, enginePortRs, 'engine_port.rs PORT_SCAN_STRIDE'),
   },
   {
     label: 'tauri.conf.json frontendDist',

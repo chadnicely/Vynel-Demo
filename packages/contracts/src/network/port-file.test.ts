@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  enginePortFilePath,
   readLivePort,
   removePortFile,
+  removePortFileIfOwn,
   resolveEngineUrl,
   writePortFile,
 } from './port-file.js'
@@ -54,6 +56,30 @@ describe('readLivePort', () => {
     writePortFile(filePath, { port: 28_892, pid: process.pid })
     removePortFile(filePath)
     expect(readLivePort(filePath)).toBeNull()
+  })
+})
+
+describe('enginePortFilePath', () => {
+  it('the canonical band keeps the bare name; shifted bands get their own file', () => {
+    expect(enginePortFilePath(18_890, '/data')).toMatch(/engine\.port$/)
+    expect(enginePortFilePath(18_890, '/data')).not.toContain('18890')
+    expect(enginePortFilePath(28_890, '/data')).toMatch(/engine\.28890\.port$/)
+  })
+})
+
+describe('removePortFileIfOwn', () => {
+  it('removes its own advertisement', () => {
+    const filePath = tempPortFilePath()
+    writePortFile(filePath, { port: 28_892, pid: process.pid })
+    removePortFileIfOwn(filePath)
+    expect(existsSync(filePath)).toBe(false)
+  })
+
+  it('never removes a successor instance\'s file', () => {
+    const filePath = tempPortFilePath()
+    writePortFile(filePath, { port: 28_893, pid: process.pid + 1 })
+    removePortFileIfOwn(filePath)
+    expect(existsSync(filePath)).toBe(true)
   })
 })
 

@@ -20,9 +20,9 @@ import { fileURLToPath } from 'node:url'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { z } from 'zod'
 import {
+  VYNEL_PORT_BASE_DEFAULT,
   parseVynelPortBase,
   resolveVynelPorts,
-  type VynelPorts,
 } from '@vynel/contracts/network/ports'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -36,8 +36,12 @@ function resolveAgainstRepoRoot(raw: string | undefined): string | undefined {
 // Port and URL defaults derive from the band (`VYNEL_PORT_BASE`), so ONE
 // `.env` var shifts a whole instance — the worktree story. Explicit vars
 // still win over the derived defaults.
-function buildEnvSchema(ports: VynelPorts) {
+function buildEnvSchema(portBase: number) {
+  const ports = resolveVynelPorts(portBase)
   return z.object({
+  // The instance's band base — surfaced as a field so consumers (the engine
+  // port file) can name which band this instance belongs to.
+  VYNEL_PORT_BASE: z.coerce.number().int().positive().default(portBase),
   DB_DIALECT: z.enum(['sqlite', 'postgres']).default('sqlite'),
   // Defaults to the one canonical dev DB at the repo root, so a launch without
   // an `.env` still lands on the single shared file (not a per-CWD stray). `.env`
@@ -163,7 +167,7 @@ function buildEnvSchema(ports: VynelPorts) {
 
 // Canonical-band schema — the shape (and type) every consumer sees; loadEnv
 // parses with the instance's actual band.
-export const EnvSchema = buildEnvSchema(resolveVynelPorts())
+export const EnvSchema = buildEnvSchema(VYNEL_PORT_BASE_DEFAULT)
 
 export type Env = z.infer<typeof EnvSchema>
 
@@ -171,7 +175,7 @@ let cachedEnv: Env | undefined
 
 export function loadEnv(): Env {
   if (cachedEnv !== undefined) return cachedEnv
-  const ports = resolveVynelPorts(parseVynelPortBase(process.env['VYNEL_PORT_BASE']))
-  cachedEnv = buildEnvSchema(ports).parse(process.env)
+  const portBase = parseVynelPortBase(process.env['VYNEL_PORT_BASE'])
+  cachedEnv = buildEnvSchema(portBase).parse(process.env)
   return cachedEnv
 }

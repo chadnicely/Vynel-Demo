@@ -37,7 +37,7 @@ import {
 import {
   defaultUserDataDir,
   enginePortFilePath,
-  removePortFile,
+  removePortFileIfOwn,
   writePortFile,
 } from '@vynel/contracts/network/port-file'
 import { loadEnv } from './env.js'
@@ -374,7 +374,10 @@ export async function boot(): Promise<void> {
   // Loopback only, always — local mode by design (Phase 1), and in remote
   // mode the SSH tunnel is the sole door (the bearer gate covers other local
   // users on the server). Never widen this bind.
-  const portFilePath = enginePortFilePath(env.VYNEL_USER_DATA_DIR ?? defaultUserDataDir())
+  const portFilePath = enginePortFilePath(
+    env.VYNEL_PORT_BASE,
+    env.VYNEL_USER_DATA_DIR ?? defaultUserDataDir(),
+  )
   const server = serve({ fetch: gateway.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
     logger.info({ port: info.port }, 'api listening')
     // Advertise where we ACTUALLY bound — clients (cli/mcp/voice/shell)
@@ -393,7 +396,7 @@ export async function boot(): Promise<void> {
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'api shutdown initiated')
-    removePortFile(portFilePath)
+    removePortFileIfOwn(portFilePath)
     server.close(() => {
       schedulesService.stop()
       knowledgeIndexingService.stop()

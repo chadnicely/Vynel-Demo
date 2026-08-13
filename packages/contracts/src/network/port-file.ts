@@ -7,6 +7,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { VYNEL_PORT_BASE_DEFAULT } from './ports.js'
 
 export interface PortFileRecord {
   port: number
@@ -19,8 +20,16 @@ export function defaultUserDataDir(): string {
   return join(homedir(), '.vynel')
 }
 
-export function enginePortFilePath(userDataDir: string = defaultUserDataDir()): string {
-  return join(userDataDir, 'engine.port')
+/** The canonical band keeps the bare name (the packaged app and the Rust
+ *  shell read `engine.port`); a shifted band (a worktree) gets its own file
+ *  so parallel instances never steer each other's clients. */
+export function enginePortFilePath(
+  portBase: number = VYNEL_PORT_BASE_DEFAULT,
+  userDataDir: string = defaultUserDataDir(),
+): string {
+  const fileName =
+    portBase === VYNEL_PORT_BASE_DEFAULT ? 'engine.port' : `engine.${portBase}.port`
+  return join(userDataDir, fileName)
 }
 
 export function writePortFile(filePath: string, record: PortFileRecord): void {
@@ -29,6 +38,26 @@ export function writePortFile(filePath: string, record: PortFileRecord): void {
 }
 
 export function removePortFile(filePath: string): void {
+  rmSync(filePath, { force: true })
+}
+
+/** Shutdown removal that only deletes the CALLER'S advertisement — a second
+ *  instance may have overwritten the file since; deleting its live record
+ *  would strand that instance's clients. */
+export function removePortFileIfOwn(filePath: string): void {
+  let rawText: string
+  try {
+    rawText = readFileSync(filePath, 'utf8')
+  } catch {
+    return // already gone — nothing to remove
+  }
+  try {
+    const parsed: unknown = JSON.parse(rawText)
+    const pid = (parsed as Partial<PortFileRecord>).pid
+    if (pid !== process.pid) return
+  } catch {
+    // Unparseable = not a record any live instance relies on — clean it up.
+  }
   rmSync(filePath, { force: true })
 }
 

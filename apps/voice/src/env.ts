@@ -6,11 +6,15 @@
 import { fileURLToPath } from 'node:url'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { z } from 'zod'
-import { resolveEngineUrl } from '@vynel/contracts/network/port-file'
 import {
+  defaultUserDataDir,
+  enginePortFilePath,
+  resolveEngineUrl,
+} from '@vynel/contracts/network/port-file'
+import {
+  VYNEL_PORT_BASE_DEFAULT,
   parseVynelPortBase,
   resolveVynelPorts,
-  type VynelPorts,
 } from '@vynel/contracts/network/ports'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -23,8 +27,13 @@ function resolveAgainstRepoRoot(raw: string): string {
 // Port and URL defaults derive from the band (`VYNEL_PORT_BASE`) so one
 // `.env` var shifts a whole instance — the worktree story. Explicit vars
 // still win.
-function buildEnvSchema(ports: VynelPorts) {
+function buildEnvSchema(portBase: number) {
+  const ports = resolveVynelPorts(portBase)
   return z.object({
+  VYNEL_PORT_BASE: z.coerce.number().int().positive().default(portBase),
+  // Where the engine advertises its port file — must mirror the engine's own
+  // VYNEL_USER_DATA_DIR or discovery silently misses it.
+  VYNEL_USER_DATA_DIR: z.string().optional(),
   // The local-api daemon the sidecar sends turns to (loopback, unauthenticated in Phase 1).
   VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${ports.engine}`),
   // Where the downloaded voice models live (gitignored) — `pnpm voice:fetch-models`.
@@ -92,7 +101,7 @@ function buildEnvSchema(ports: VynelPorts) {
 
 // Canonical-band schema — the shape (and type) every consumer sees; loadEnv
 // parses with the instance's actual band.
-export const EnvSchema = buildEnvSchema(resolveVynelPorts())
+export const EnvSchema = buildEnvSchema(VYNEL_PORT_BASE_DEFAULT)
 
 export type Env = z.infer<typeof EnvSchema>
 
@@ -100,12 +109,14 @@ let cachedEnv: Env | undefined
 
 export function loadEnv(): Env {
   if (cachedEnv !== undefined) return cachedEnv
-  const ports = resolveVynelPorts(parseVynelPortBase(process.env['VYNEL_PORT_BASE']))
-  const env = buildEnvSchema(ports).parse(process.env)
-  // No explicit URL → prefer the port a LIVE engine advertises (the desktop
-  // shell may have allocated a non-default one), then the band default.
+  const portBase = parseVynelPortBase(process.env['VYNEL_PORT_BASE'])
+  const env = buildEnvSchema(portBase).parse(process.env)
+  // No explicit URL → prefer the port a LIVE engine of OUR band advertises
+  // (the desktop shell may have allocated a non-default one), then the band
+  // default.
   const explicitUrl = process.env['VYNEL_API_URL'] === undefined ? undefined : env.VYNEL_API_URL
-  env.VYNEL_API_URL = resolveEngineUrl(explicitUrl, ports.engine)
+  const portFilePath = enginePortFilePath(portBase, env.VYNEL_USER_DATA_DIR ?? defaultUserDataDir())
+  env.VYNEL_API_URL = resolveEngineUrl(explicitUrl, resolveVynelPorts(portBase).engine, portFilePath)
   cachedEnv = env
   return cachedEnv
 }

@@ -13,6 +13,11 @@ import { z } from 'zod'
 
 export const VYNEL_PORT_BASE_DEFAULT = 18890
 
+/** Band spacing: allocators (the worktree script, the shell's fallback scan)
+ *  step by this so a chosen port never lands on another component's slot.
+ *  The Rust shell's PORT_SCAN_STRIDE mirrors it (parity-guarded). */
+export const VYNEL_PORT_BAND_STRIDE = 10
+
 export const VYNEL_PORT_OFFSETS = {
   cloudApi: 0,
   cloudAdminWeb: 1,
