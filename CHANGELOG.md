@@ -9,6 +9,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Vynel finds its own call cables.** Virtual audio devices named
+  `Vynel Call <n> Ears/Voice` are now claimed as call cable pairs
+  automatically, checked fresh at every call start — install a device and
+  the next call just uses it, no settings, no restart. The env-var cable
+  setup keeps working as the fallback, and two calls can never grab the
+  same cable end.
+
+- **On Linux, calls need zero audio setup.** The voice daemon now creates
+  its own virtual cable pairs when it starts (plain PipeWire/PulseAudio
+  null sinks — no driver, nothing installed) and removes them when it
+  exits; leftovers from a crash are cleaned up at the next start. Pick the
+  pair count with `VYNEL_CALL_LINUX_PAIRS` (default 2, `0` turns it off).
+  Real-Linux-box verification is still pending — recorded in the module
+  note.
+
 - **Vynel can sit in your meetings.** Ask it to join a call (Zoom, Meet,
   Teams, Discord — anything whose audio you point at the virtual cable) and
   it opens a dedicated call session you can watch live in Sessions. In a

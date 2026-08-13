@@ -1,7 +1,21 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-11.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-13.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ 2026-08-13 VIRTUAL-AUDIO-DRIVER NIGHT RUN — P0/P1/P2/P4 landed (branch worktree-virtual-audio-driver)
+
+Autonomous overnight arc commissioned off the voice-in-calls brief. **Read
+`docs/module-notes/virtual-audio-driver.md`** (P0 findings + night-run results + the cross-OS
+naming contract) — it is the whole story. Four commits on the branch: `99edb5f` P0 findings ·
+`dc8fffc` P4 registry auto-discovery ("Vynel Call <n> Ears/Voice" pairs, keyed inventory,
+reviewer-clean, 13 tests) · `6560067` P2 Linux runtime null-sink pool (reviewer-clean, 10
+tests) · `c129217` P1 branded ACX driver `drivers/windows/vynel-call-audio` (builds green with
+the EWDK at `E:\KLONE\Toolchains\`, test-signed, InfVerif /h VALID, VM-only LOADING.md).
+Voice-daemon suite 156 green; full `pnpm test` gate NOT run (CPU rule — Kafi's call).
+**Needs Chad:** Partner Center + EV cert (attestation signing) · Mac hardware (P3) ·
+bundle-vs-guided for our own driver. Next engineering milestone: driver loopback wiring
+(render→capture ring) — effort read in the module note.
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

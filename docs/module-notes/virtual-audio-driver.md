@@ -140,6 +140,33 @@ UAC-prompt hang risk unattended, no system mutation, deletable when done. Lives 
 `E:\KLONE\Toolchains\`. Fallback if samples fight the VS2026 toolset: the samples repo's
 per-WDK release tags, or EWDK 26100.6584 (VS2022 era) from Other WDK Downloads.
 
+## Night-run results (2026-08-13, autonomous — branch worktree-virtual-audio-driver)
+
+- **P0 — DONE** (findings above; `99edb5f`).
+- **P1 — DONE as a spike.** Toolchain: EWDK 26H1 (28000.2526) at `E:\KLONE\Toolchains\`
+  (mount-and-run ISO; the machine itself unmutated). Release x64 builds: sysvad kernel driver +
+  libs GREEN — only the three wil-dependent user-mode APO effect samples fail (the EWDK's
+  msbuild cannot NuGet-restore PackageReference; irrelevant to our path) · ACX AudioCodec
+  unmodified GREEN, zero errors · **the branded fork GREEN** (`drivers/windows/
+  vynel-call-audio`, `c129217`): `VynelCallAudio.sys` + catalog **test-signed** (WDKTestCert,
+  `.cer` exported by the build), **InfVerif `/h` VALID**, endpoints "Vynel Call 1
+  Speaker/Microphone" on `ROOT\VynelCallAudio`, every `.cpp` byte-identical to the MIT sample
+  (mechanically diffed). VM-only loading recipe: `drivers/windows/vynel-call-audio/LOADING.md`;
+  nothing was loaded on this machine (hard rule kept). **Effort read:** loopback wiring (makes
+  it a real cable, adds the Ears/Voice ends) = weeks-scale — both ACX circuits share one WDF
+  device context, the ring is plain kernel code, format/clock matching is the care point ·
+  N static pairs = days (INF models, same binary) · dynamic per-call pairs = ACX-supported
+  (post-start `AcxDeviceAddCircuit` + a control IOCTL) — size it after loopback lands.
+- **P2 — DONE in code; real-box integration marked.** `linux-null-sink-cables.ts` (`6560067`):
+  boot-time pool behind `VYNEL_CALL_LINUX_PAIRS` (default 2), four pactl modules per pair named
+  by the contract below, bounded destroy at shutdown, crash-reap at next boot; 10 tests on a
+  scripted fake runner; reviewer clean (boot now hard-exits on failure — no half-booted daemon).
+  OPEN on a real Linux box: does cpal's ALSA enumeration surface pulse device descriptions?
+  (WSLg here has no pactl.) Worst case is a loud `device-missing` — never cross-bleed.
+- **P4 — DONE.** `call-cable-discovery.ts` + keyed registry inventory (`dc8fffc`); reviewer
+  clean; 13 new tests. Contract below.
+- **P3 — untouched (needs Mac hardware), as briefed.**
+
 ## The cross-OS device-naming contract (settled this run)
 
 One convention everywhere — the registry's auto-discovery (P4), the Linux null-sink pool (P2),
