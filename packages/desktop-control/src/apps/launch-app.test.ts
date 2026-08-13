@@ -1,7 +1,53 @@
 import { describe, it, expect } from 'vitest'
-import { isLaunchableAppId, launchApp } from './launch-app.js'
+import {
+  buildLaunchInvocation,
+  isLaunchableAppId,
+  launchApp,
+  selectAppearedWindow,
+} from './launch-app.js'
 
 const chrome = { name: 'Google Chrome', appId: 'Chrome' }
+
+/**
+ * What PowerShell would actually resolve `-FilePath` to.
+ *
+ * This mirrors PowerShell's most dangerous habit: a variable the command
+ * dereferences but the invocation never supplies resolves to the EMPTY STRING,
+ * silently. That is how the original bug hid — `-Args` is only honoured by
+ * `-File`, so under `-Command` the id vanished and the path became bare
+ * `shell:AppsFolder\`, which is a real folder, so the launch "succeeded" and
+ * opened the Applications window instead of the app. Asserting on the resolved
+ * path is the only test shape that catches that class; asserting on the argument
+ * array would have passed the whole time.
+ */
+function resolvedFilePath(appId: string): string {
+  const invocation = buildLaunchInvocation(appId)
+  const command = invocation.args[invocation.args.length - 1] ?? ''
+  const concatenation = /\("([^"]*)"\s*\+\s*([^)]+)\)/.exec(command)
+  if (concatenation === null) throw new Error(`unrecognised command shape: ${command}`)
+  const literal = concatenation[1] ?? ''
+  const reference = /^\$env:(\w+)$/.exec((concatenation[2] ?? '').trim())
+  const substituted = reference === null ? '' : (invocation.env[reference[1] ?? ''] ?? '')
+  return literal + substituted
+}
+
+describe('buildLaunchInvocation', () => {
+  it('resolves to the app itself', () => {
+    expect(resolvedFilePath('Docker.DockerForWindows.Settings')).toBe(
+      'shell:AppsFolder\\Docker.DockerForWindows.Settings',
+    )
+  })
+
+  it('never resolves to the bare Applications folder — that opens Explorer and REPORTS SUCCESS', () => {
+    expect(resolvedFilePath('Chrome')).not.toBe('shell:AppsFolder\\')
+  })
+
+  it('keeps the id out of the command text so it cannot become a statement', () => {
+    const invocation = buildLaunchInvocation('Some.App.Id')
+    expect(invocation.args.join(' ')).not.toContain('Some.App.Id')
+    expect(Object.values(invocation.env)).toContain('Some.App.Id')
+  })
+})
 
 function harness(windowsOverTime: string[][]) {
   let clock = 0
@@ -29,9 +75,9 @@ describe('isLaunchableAppId', () => {
   })
 
   it('refuses shell metacharacters, newlines, and absurd lengths', () => {
-    // Belt-and-braces with argument-array passing: an id also reaches
-    // PowerShell's own parser, so a quote or a statement separator in one is
-    // never legitimate.
+    // Belt-and-braces with env-var passing: the id no longer reaches
+    // PowerShell's parser, but it still reaches the SHELL, and a quote or a
+    // statement separator in a real Get-StartApps id is never legitimate.
     for (const bad of [
       'app"; Remove-Item C:\\',
       "app'; rm -rf /",
@@ -69,8 +115,32 @@ describe('launchApp', () => {
   })
 
   it('matches a window named differently from the Start-menu entry', async () => {
-    const { deps } = harness([['chrome.exe']])
+    const { deps } = harness([[], ['chrome.exe']])
     expect(await launchApp(chrome, deps)).toEqual({ kind: 'launched', appName: 'chrome.exe' })
+  })
+
+  // Kafi, live 2026-08-12. Tray recovery means launch_app now gets called on
+  // apps that ARE running, so "launch it anyway" stopped being free: Docker
+  // answers a second activation with an "acquiring launcher lock" error dialog,
+  // which then sits on screen looking exactly like the app.
+  it('starts NOTHING when a window is already open, and says so', async () => {
+    const { started, deps } = harness([['Google Chrome']])
+    expect(await launchApp(chrome, deps)).toEqual({
+      kind: 'already-open',
+      appName: 'Google Chrome',
+    })
+    expect(started).toEqual([])
+  })
+
+  it('still launches a TRAY-hidden app — no window is what makes recovery legal', async () => {
+    // The tray case and the already-open case are the same call; only the
+    // window roster tells them apart, so this is the line that must not blur.
+    const { started, deps } = harness([[], ['Docker Desktop']])
+    expect(await launchApp({ name: 'Docker Desktop', appId: 'Docker.X' }, deps)).toEqual({
+      kind: 'launched',
+      appName: 'Docker Desktop',
+    })
+    expect(started).toEqual(['Docker.X'])
   })
 
   it('reports started-no-window at the deadline instead of hanging', async () => {
@@ -80,7 +150,43 @@ describe('launchApp', () => {
       appName: 'Google Chrome',
     })
   })
+})
 
+describe('selectAppearedWindow', () => {
+  it('prefers the app over a look-alike that EXTENDS its name', () => {
+    // The live failure: a leftover "Docker Desktop Launcher" error dialog was
+    // reported AS Docker, and the model spent the turn screenshotting an error
+    // box. Order reversed here because first-hit matching is what broke.
+    expect(selectAppearedWindow(['Docker Desktop Launcher', 'Docker Desktop'], 'Docker Desktop')).toBe(
+      'Docker Desktop',
+    )
+  })
+
+  it('takes the CLOSEST look-alike when the app itself has no window yet', () => {
+    expect(
+      selectAppearedWindow(['Docker Desktop Installer', 'Docker Desktop Launcher'], 'Docker Desktop'),
+    ).toBe('Docker Desktop Launcher')
+  })
+
+  it('still matches a window reporting a plainer name than the Start-menu entry', () => {
+    expect(selectAppearedWindow(['chrome.exe'], 'Google Chrome')).toBe('chrome.exe')
+    expect(selectAppearedWindow(['Firefox'], 'Firefox Developer Edition')).toBe('Firefox')
+  })
+
+  it('ranks the plainer name ABOVE a suffixed one', () => {
+    // "Firefox" is the app; "Firefox Installer" merely contains what was asked.
+    expect(selectAppearedWindow(['Firefox Installer', 'Firefox'], 'Firefox Developer Edition')).toBe(
+      'Firefox',
+    )
+  })
+
+  it('returns null rather than guessing when nothing relates', () => {
+    expect(selectAppearedWindow(['Discord', 'Slack'], 'Google Chrome')).toBeNull()
+    expect(selectAppearedWindow(['Discord'], '  ')).toBeNull()
+  })
+})
+
+describe('launchApp resilience', () => {
   it('keeps polling when the window source throws mid-wait', async () => {
     let poll = 0
     let clock = 0
@@ -97,5 +203,81 @@ describe('launchApp', () => {
       },
     })
     expect(result).toEqual({ kind: 'launched', appName: 'Google Chrome' })
+  })
+})
+
+// Kafi hit the launcher-lock dialog TWICE, live 2026-08-12. Docker answers an
+// activation it dislikes with an error dialog whose window is "Docker Desktop
+// Launcher" — which contains "Docker Desktop", so ranking alone still handed it
+// back as the app and the model spent the turn screenshotting an error box.
+describe('a look-alike is never reported AS the app', () => {
+  const docker = { name: 'Docker Desktop', appId: 'Docker.X' }
+
+  it('reports look-alike-only rather than naming the dialog as the app', async () => {
+    const { deps } = harness([[], ['Docker Desktop Launcher']])
+    expect(await launchApp(docker, deps)).toEqual({
+      kind: 'look-alike-only',
+      appName: 'Docker Desktop',
+      lookAlikeName: 'Docker Desktop Launcher',
+    })
+  })
+
+  it('still returns the REAL window when it follows the look-alike', async () => {
+    // A splash or installer legitimately precedes the app, so a look-alike must
+    // never end the wait early.
+    const { deps } = harness([[], ['Docker Desktop Launcher'], ['Docker Desktop']])
+    expect(await launchApp(docker, deps)).toEqual({
+      kind: 'launched',
+      appName: 'Docker Desktop',
+    })
+  })
+
+  it('does not let a leftover dialog count as already-open and block a launch', async () => {
+    const { started, deps } = harness([['Docker Desktop Launcher'], ['Docker Desktop']])
+    expect(await launchApp(docker, deps)).toEqual({ kind: 'launched', appName: 'Docker Desktop' })
+    expect(started).toEqual(['Docker.X'])
+  })
+})
+
+// The correction. The first look-alike rule treated ANY name that extended the
+// request as a helper, and within hours it called a good launch a failure:
+// qBittorrent's real main window is "qBittorrent - A Bittorrent Client"
+// (Kafi, live 2026-08-12 — "it shows failed but it was opened").
+describe('a longer TITLE is the app; a bare helper word is not', () => {
+  const opened = async (requested: string, windowName: string) =>
+    launchApp(
+      { name: requested, appId: 'X' },
+      harness([[], [windowName]]).deps,
+    )
+
+  it('accepts a window that adds a DESCRIPTOR after a separator', async () => {
+    expect(await opened('qBittorrent', 'qBittorrent - A Bittorrent Client')).toEqual({
+      kind: 'launched',
+      appName: 'qBittorrent - A Bittorrent Client',
+    })
+  })
+
+  it('still refuses a bare helper word', async () => {
+    expect(await opened('Docker Desktop', 'Docker Desktop Launcher')).toEqual({
+      kind: 'look-alike-only',
+      appName: 'Docker Desktop',
+      lookAlikeName: 'Docker Desktop Launcher',
+    })
+  })
+
+  it('does not trip on an app whose real name ENDS in a helper word', async () => {
+    // launch_app is given the Start-menu name, so Epic is asked for in full and
+    // matches exactly — the helper check is never even reached.
+    expect(await opened('Epic Games Launcher', 'Epic Games Launcher')).toEqual({
+      kind: 'launched',
+      appName: 'Epic Games Launcher',
+    })
+  })
+
+  it('treats the other helper words the same way', async () => {
+    for (const suffix of ['Installer', 'Setup', 'Updater', 'Helper']) {
+      const result = await opened('Telegram', `Telegram ${suffix}`)
+      expect(result.kind).toBe('look-alike-only')
+    }
   })
 })

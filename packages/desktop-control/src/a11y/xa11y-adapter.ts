@@ -3,11 +3,18 @@
 // point, `electron-wake.ts` owns app resolution + the Chromium tree wake, and
 // this file composes them into the operations the MCP tools call.
 
-import { loadXa11y, dumpApp, withTimeout } from './xa11y-loader.js'
+import {
+  loadXa11y,
+  dumpApp,
+  withTimeout,
+  resolveDesktopTimeout,
+  MAX_DESKTOP_TIMEOUT_MS,
+} from './xa11y-loader.js'
 import { resolveAppWithFallback } from './electron-wake.js'
 import { isAppNameMatch } from './app-name-match.js'
 import { isPasswordControl, passwordControlRefusal } from './password-control-guard.js'
 import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import { verifyTypedValue, type ActVerification } from './act-verification.js'
 
 // Re-exported so the public surface (index.ts) and the MCP tools keep one
 // import point for the a11y operations.
@@ -24,6 +31,7 @@ const MAX_SNAPSHOT_MAX_DEPTH = 40
 
 const ACT_TIMEOUT_MS = 15000
 const SNAPSHOT_TIMEOUT_MS = 25000
+
 // App enumeration is normally sub-second; a long bound here means one wedged
 // provider, not a slow desktop.
 const LIST_TIMEOUT_MS = 10000
@@ -48,6 +56,8 @@ export async function listOpenApps(): Promise<OpenApp[]> {
 
 export type SnapshotAppOptions = {
   maxDepth?: number
+  /** Raise the read timeout for a slow app; clamped to MAX_DESKTOP_TIMEOUT_MS. */
+  timeoutMs?: number
 }
 
 export type AppSnapshot = {
@@ -70,25 +80,26 @@ export type AppSnapshot = {
 export async function snapshotApp(
   query: string,
   options: SnapshotAppOptions = {},
-  authorize?: DesktopAccessAuthorizer,
 ): Promise<AppSnapshot> {
   const trimmedQuery = query.trim()
   if (trimmedQuery.length === 0) {
     throw new Error('snapshotApp: an app name (or part of it) is required — name the app to look at.')
   }
   const { App } = loadXa11y()
-  // Enforcement rides the resolution seam: it fires on the RESOLVED identity
-  // (never the fuzzy query) and BEFORE the Electron wake actuates anything —
-  // a denied app must not be foregrounded or woken.
-  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read', undefined, (appName) =>
-    authorize?.(appName, 'read'),
-  )
+  // Reading is ungated: no per-app grant to enforce, so resolution no longer
+  // carries an identity callback. The identity work it does still matters —
+  // it is what the plan envelope and the activity log name — but nothing is
+  // refused on the way in.
+  const resolved = await resolveAppWithFallback(App, trimmedQuery, 'read')
   // Electron renderer trees are deep — use the deeper default only on that path;
   // keep enumerated apps (incl. Chromium browsers) shallow. Explicit maxDepth wins.
   const defaultDepth = resolved.viaElectronWake ? ELECTRON_SNAPSHOT_MAX_DEPTH : DEFAULT_SNAPSHOT_MAX_DEPTH
   const maxDepth = Math.min(options.maxDepth ?? defaultDepth, MAX_SNAPSHOT_MAX_DEPTH)
   try {
-    const tree = await withTimeout(dumpApp(resolved.app, maxDepth), SNAPSHOT_TIMEOUT_MS, 'snapshot')
+    const timeoutMs = resolveDesktopTimeout(options.timeoutMs, SNAPSHOT_TIMEOUT_MS)
+    const tree = await withTimeout(dumpApp(resolved.app, maxDepth), timeoutMs, 'snapshot', {
+      retryUpToMs: MAX_DESKTOP_TIMEOUT_MS,
+    })
     return {
       tree,
       wakeIncomplete: resolved.wakeIncomplete,
@@ -99,6 +110,7 @@ export async function snapshotApp(
     resolved.dispose()
   }
 }
+
 
 // The PROVEN minimal action set (each live-verified before shipping — xa11y's
 // types alone don't tell us a method actually fires). Extend deliberately, one
@@ -114,10 +126,60 @@ export function actionRequiresValue(action: DesktopAction): boolean {
 
 export type ActCandidate = { stableId: string | null; role: string; name: string | null }
 export type ActOnAppResult =
-  | { kind: 'done'; action: DesktopAction; selector: string }
+  | {
+      kind: 'done'
+      action: DesktopAction
+      selector: string
+      /** Present for the VALUE actions only — a press cannot be verified in
+       *  general, and claiming otherwise would be worse than saying nothing. */
+      verification?: ActVerification
+    }
   | { kind: 'ambiguous'; selector: string; matchCount: number; candidates: ActCandidate[] }
 
 const MAX_AMBIGUITY_CANDIDATES = 15
+/** How often to re-read while waiting for the input to appear, and how long to
+ *  keep trying. A single fixed sleep was the first version and was the very risk
+ *  its own comment warned about: a slow Electron or web-view field had not
+ *  applied the text yet, so the read-back reported a false MISMATCH — and that
+ *  now writes `failed` into an append-only row, so the wrong answer is permanent.
+ *  Polling stops at the first match, so the common case is still one read. */
+const VERIFY_POLL_MS = 100
+const VERIFY_DEADLINE_MS = 1200
+
+/** Re-read the element and compare. Any failure to read is reported as
+ *  UNVERIFIABLE rather than swallowed — the whole point is to stop claiming
+ *  outcomes we have not seen. */
+async function readBackValue(
+  locator: { elements(): Promise<Array<{ value: string | null }>> },
+  action: 'type_text' | 'set_value',
+  intended: string,
+  valueBefore: string | null,
+): Promise<ActVerification> {
+  try {
+    const deadline = Date.now() + VERIFY_DEADLINE_MS
+    let latest: ActVerification = {
+      kind: 'unverifiable',
+      reason: 'the element was gone by the time it was re-read',
+    }
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, VERIFY_POLL_MS))
+      const [element] = await withTimeout(locator.elements(), ACT_TIMEOUT_MS, 'verify')
+      if (element !== undefined) {
+        latest = verifyTypedValue(action, intended, element.value, valueBefore)
+        // Confirmed is final; so is "we cannot tell" (re-reading a control that
+        // exposes no value, or a field that already held the text, will never
+        // start telling us more).
+        if (latest.kind !== 'mismatch') return latest
+      }
+      if (Date.now() >= deadline) return latest
+    }
+  } catch (cause) {
+    return {
+      kind: 'unverifiable',
+      reason: `re-reading the element failed (${cause instanceof Error ? cause.message : String(cause)})`,
+    }
+  }
+}
 
 /**
  * Perform an element action on a named app. The element is addressed by a
@@ -184,6 +246,10 @@ export async function actOnApp(
     // the single-match element BEFORE any typing action fires; detection has no
     // override. (Pressing a password field — e.g. to focus it FOR the user — is
     // deliberately allowed; entering the value is not.)
+    // Captured for the password wall AND for verification: knowing what the
+    // field held BEFORE is what stops a read-back confirming text that was
+    // already there.
+    let valueBefore: string | null = null
     if (actionRequiresValue(action)) {
       const [element] = await withTimeout(locator.elements(), ACT_TIMEOUT_MS, 'inspect')
       if (element === undefined) {
@@ -197,6 +263,7 @@ export async function actOnApp(
       if (isPasswordControl(element)) {
         throw new Error(passwordControlRefusal(appName))
       }
+      valueBefore = element.value
     }
 
     switch (action) {
@@ -215,6 +282,22 @@ export async function actOnApp(
         // the mutating surface). This makes that a compile error.
         const unhandled: never = action
         throw new Error(`Unsupported desktop action: ${String(unhandled)}`)
+      }
+    }
+    // Read the value BACK. The action returning means the keystrokes were
+    // sent, not that they landed where they were aimed — see
+    // `act-verification.ts`. Only the value actions can be checked this way.
+    if (actionRequiresValue(action)) {
+      return {
+        kind: 'done',
+        action,
+        selector,
+        verification: await readBackValue(
+          locator,
+          action as 'type_text' | 'set_value',
+          value ?? '',
+          valueBefore,
+        ),
       }
     }
     return { kind: 'done', action, selector }

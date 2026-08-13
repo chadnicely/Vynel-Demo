@@ -85,3 +85,108 @@ export async function findWindowedPidByName(query: string): Promise<number | nul
     return null
   }
 }
+
+/**
+ * Is a process with this name running AT ALL — window or not?
+ *
+ * WHY this exists separately from `findWindowedPidByName`. An app minimized to
+ * the SYSTEM TRAY is *hidden*, not minimized: Windows reports
+ * `MainWindowHandle = 0` for it, so the windowed lookup above filters it out and
+ * every caller concludes "not open". That is false — it is running — and it sent
+ * the model down the wrong recovery (launch it? give up?) instead of the one
+ * that works. Verified live with Docker Desktop, 2026-08-11: every one of its
+ * processes reports handle 0 while the app is plainly running in the tray.
+ *
+ * Windows genuinely has no restore-from-tray API — a tray icon is a
+ * notification-area icon with an app-defined click handler — so knowing the
+ * difference is the whole fix: it turns a dead end into "re-launch it".
+ */
+export async function isProcessRunningByName(query: string): Promise<boolean> {
+  if (process.platform !== 'win32') {
+    return false
+  }
+  const trimmed = query.trim()
+  if (trimmed.length === 0) return false
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        // NO MainWindowHandle filter — that omission IS the point. Names only:
+        // this answers "is it running", never "what is it doing".
+        'Get-Process | Select-Object ProcessName | ConvertTo-Json -Compress',
+      ],
+      { windowsHide: true, maxBuffer: POWERSHELL_MAX_BUFFER, timeout: 10_000 },
+    )
+    const parsed: unknown = JSON.parse(stdout.trim().length > 0 ? stdout : 'null')
+    const rows: RawProcessRow[] = Array.isArray(parsed)
+      ? parsed
+      : parsed
+        ? [parsed as RawProcessRow]
+        : []
+    return rows.some((row) => matchesProcessName(String(row.ProcessName ?? ''), trimmed))
+  } catch {
+    // Same resilient posture as above: a failed probe must not upgrade a real
+    // "not open" into a confident "it's in the tray".
+    return false
+  }
+}
+
+/** Loose name match for the running-at-all probe: a process name has no .exe and
+ *  often differs from the display name ("Docker Desktop" -> "Docker Desktop"),
+ *  so compare case-insensitively in both directions. Pure. */
+export function matchesProcessName(processName: string, query: string): boolean {
+  const left = processName.trim().toLowerCase()
+  const right = query.trim().toLowerCase().replace(/\.exe$/, '')
+  // A short fragment must not match half the machine. Bidirectional containment
+  // is what makes "Docker Desktop" find process "Docker Desktop" AND query
+  // "Docker" find it — but unguarded it also lets "a" match everything, and
+  // lets a running `chrome` answer for "Chrome Remote Desktop". The floor is
+  // the cheap fix: a confident but WRONG "it's in the system tray" is worse
+  // than an honest "not open", because it sends the user hunting a tray icon
+  // that isn't there.
+  if (left.length < MIN_PROCESS_MATCH_LENGTH || right.length < MIN_PROCESS_MATCH_LENGTH) {
+    return false
+  }
+  return left === right || left.includes(right) || right.includes(left)
+}
+
+/** Shortest fragment allowed to claim a process match. Four covers real names
+ *  ("Code", "Slack") while rejecting the one- and two-letter queries that would
+ *  match nearly any process list. */
+export const MIN_PROCESS_MATCH_LENGTH = 4
+
+/**
+ * What to tell the model when an app is running but has no window.
+ *
+ * ONE home because three tools say it (snapshot/act resolution, set_window_state,
+ * set_window_bounds) and they must not drift.
+ *
+ * A previous version of this message declared tray recovery impossible — "for
+ * many apps a second launch does nothing because the window was destroyed". That
+ * was WRONG, and the way it was wrong is worth keeping. It was inferred from a
+ * `launch_app` that ran for 21s and surfaced nothing, and concluded the app was
+ * unreachable. The real cause was in `launch-app.ts`: the AppID never reached
+ * PowerShell, so the launch opened the Applications folder and reported success.
+ * The measurement was of our own bug, not of Windows.
+ *
+ * Measured again once that was fixed, 2026-08-12: Docker Desktop, hidden in the
+ * tray with every process reporting `MainWindowHandle = 0`, came back in ~1
+ * second. Shell activation of an already-running app is exactly what clicking
+ * its Start-menu entry does, and the app's own handler restores its window.
+ *
+ * The lesson, not just the fix: never let a tool's silence become a claim about
+ * the platform.
+ */
+export function trayHiddenMessage(query: string, verb: string): string {
+  return (
+    `"${query}" IS running, but it has no window right now — it is minimized to the system tray ` +
+    `(the notification area by the clock), so there is nothing to ${verb} yet. Call launch_app ` +
+    'with its installed name: activating an app that is already running is what clicking its ' +
+    'Start-menu entry does, and it brings a tray app back. Then retry this call with the window ' +
+    'name launch_app reports. If launch_app comes back without a window, STOP and ask the user to ' +
+    'click the tray icon — do not keep retrying.'
+  )
+}

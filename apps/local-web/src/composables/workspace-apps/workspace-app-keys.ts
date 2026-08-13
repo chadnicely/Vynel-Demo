@@ -6,6 +6,8 @@ export const workspaceAppKeys = {
     [...workspaceAppKeys.all, workspaceId, "list"] as const,
   logs: (workspaceId: string, appId: string) =>
     [...workspaceAppKeys.all, workspaceId, "logs", appId] as const,
+  env: (workspaceId: string, appId: string) =>
+    [...workspaceAppKeys.all, workspaceId, "env", appId] as const,
 };
 
 // Every apps mutation settles into a list refresh — success and failure alike,

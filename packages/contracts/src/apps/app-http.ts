@@ -22,10 +22,26 @@ export interface WorkspaceAppResponse {
   name: string
   command: string
   cwdRelative: string
+  /** The app's env file, relative to its own folder (default '.env'). */
+  envFileRelative: string
   port: number | null
   runtime: WorkspaceAppRuntime | null
   /** ISO-8601 */
   createdAt: string
   /** ISO-8601 */
   updatedAt: string
+}
+
+// ── The env editor (user-only surface; never an MCP tool) ─────────────
+
+export interface AppEnvEntry {
+  key: string
+  value: string
+}
+
+export interface AppEnvResponse {
+  envFileRelative: string
+  /** false = the file does not exist yet (saving creates it). */
+  exists: boolean
+  entries: AppEnvEntry[]
 }

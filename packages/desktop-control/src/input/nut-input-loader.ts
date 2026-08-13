@@ -22,6 +22,12 @@ export interface NutModule {
   mouse: {
     config: { autoDelayMs: number }
     setPosition(target: NutPoint): Promise<unknown>
+    /** Where the cursor is. ⚠ MIS-REPORTS on a fractionally-scaled monitor
+     *  (measured 2026-08-11 against Win32 GetCursorPos): it answers in a
+     *  different space than `setPosition` accepts. Exposed only because a
+     *  relative gesture needs a starting point on the PRIMARY display — never
+     *  use it to verify where a click landed. */
+    getPosition(): Promise<NutPoint>
     leftClick(): Promise<unknown>
     rightClick(): Promise<unknown>
     click(button: number): Promise<unknown>
@@ -31,12 +37,24 @@ export interface NutModule {
     scrollLeft(amount: number): Promise<unknown>
     scrollRight(amount: number): Promise<unknown>
     drag(path: NutPoint[]): Promise<unknown>
+    /** Hold a button down / let it go — the two halves a stepped drag needs
+     *  (`drag()` alone jumps A→B, which most drop targets ignore). */
+    pressButton(button: number): Promise<unknown>
+    releaseButton(button: number): Promise<unknown>
+    /** Move along an explicit path — the intermediate motion events that make
+     *  OLE/XDND drag-and-drop actually register. */
+    move(path: NutPoint[]): Promise<unknown>
   }
   keyboard: {
     config: { autoDelayMs: number }
     type(...input: Array<string | number>): Promise<unknown>
     pressKey(...keys: number[]): Promise<unknown>
     releaseKey(...keys: number[]): Promise<unknown>
+  }
+  /** The OS clipboard. nut.js ships it, so no second clipboard dependency. */
+  clipboard: {
+    getContent(): Promise<string>
+    setContent(content: string): Promise<unknown>
   }
   Point: new (x: number, y: number) => NutPoint
   Button: { LEFT: number; MIDDLE: number; RIGHT: number }

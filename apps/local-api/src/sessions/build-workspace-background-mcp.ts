@@ -80,6 +80,32 @@ export async function buildWorkspaceBackgroundMcpComposer(
 // agent-session kind so reports/updates resolve the colleague's requester.
 export type DelegatedTurnTarget = 'workspace-root' | 'spawned-session' | 'agent-session'
 
+// WHICH delegated targets may drive the DESKTOP (Kafi, 2026-08-11: "the global
+// primary session and his spawned session for now"). The global root already
+// carries the feature at both its own turn sites; this is the spawned half —
+// and it is what makes desktop autopilot possible at all, since a task handed
+// to a spawned session is the only way it runs while the user does something
+// else (a global-root turn holds the per-user root lock for its whole life).
+//
+// Deliberately a NAMED SET rather than an inline condition: Kafi asked that
+// "where to use" stay easy to adjust, so widening this to 'agent-session' (the
+// persona colleague) or 'workspace-root' is a one-line edit here, with no
+// other site to find. Schedule fires deliberately stay out — they run through
+// `buildWorkspaceBackgroundMcpComposer` and are workspace-scoped, so giving
+// them desktop needs a real bridge, not a list entry.
+export const DESKTOP_CAPABLE_DELEGATED_TARGETS: ReadonlySet<DelegatedTurnTarget> = new Set([
+  'spawned-session',
+])
+
+/** Process-wide desktop wiring, resolved once at boot and handed to the
+ *  composer. Absent (tests, off-Windows, listener idle) ⇒ the descriptor
+ *  excludes itself and nothing about the turn changes. */
+export interface DelegatedTurnDesktopContext {
+  /** `unknown` per the descriptor contract — desktop-control casts it at its own boundary. */
+  readonly desktopReader?: unknown
+  readonly enableDesktopActions?: boolean
+}
+
 export type DelegatedTurnMcpComposer = (input: {
   db: Database
   userId: string
@@ -102,15 +128,23 @@ export type DelegatedTurnMcpComposer = (input: {
    *  requester-override header so this turn's reports land in the chat that
    *  asked. Absent = the standing report topology. */
   requesterWorkspaceId?: string
+  /** The mode this turn runs under (stamped on the job at enqueue). Only the
+   *  desktop feature reads it, to decide how an approved plan acquires
+   *  authority. Absent = the conservative floor. */
+  permissionMode?: string
 }) => ComposedSessionMcpServers
 
 export async function buildDelegatedTurnMcpComposer(
   appRequest: HonoAppRequestFn,
+  desktop: DelegatedTurnDesktopContext = {},
 ): Promise<DelegatedTurnMcpComposer> {
   const { vynelWorkspaceInteractiveDescriptor, vynelRoutingDescriptor } = await import(
     '@vynel/mcp'
   )
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
+    '@vynel/desktop-control'
+  )
   return ({
     db,
     userId,
@@ -120,6 +154,7 @@ export async function buildDelegatedTurnMcpComposer(
     threadId,
     jobId,
     requesterWorkspaceId,
+    permissionMode,
   }) => {
     // The caller identity (session-comms): stamped server-side onto every
     // request this routed turn's tools make, so the report route resolves the
@@ -154,19 +189,69 @@ export async function buildDelegatedTurnMcpComposer(
       jobId !== undefined
         ? wrapAppRequestWithDelegationJob(threadAwareAppRequest, jobId)
         : threadAwareAppRequest
+    // The desktop half. Attached for eligible targets on BOTH branches: the
+    // desktop belongs to the USER'S MACHINE, not to a workspace, so a
+    // workspace-grounded spawned session is no less entitled than a global one.
+    // The descriptor self-excludes when no reader was wired (off-Windows,
+    // tests), so this stays safe everywhere.
+    //
+    // Consent is derived from THIS TURN'S mode, through the same one-home
+    // policy the global-root sites use — so the plan envelope and the approval
+    // floor can never disagree about what the turn may do.
+    //
+    // Kafi settled the fork (2026-08-11): **in auto/bypass, no card at all** —
+    // those modes ARE the standing consent, and that carries into work the user
+    // delegated during the turn. So an auto/bypass delegated turn's approved
+    // plan authorizes its own apps FOR THE TURN. That is strictly better than
+    // the alternative it replaces: with a display-only envelope the same turn
+    // still acted card-free (the floor stands down in auto/bypass), but had to
+    // mint PERMANENT `desktop_app_grants` rows to do it — silently growing the
+    // user's standing-access list as a side effect of one task. One-time
+    // authority was the original intent (Kafi, Arc 1).
+    //
+    // Everything else still falls to `display-only`: a channel-origin or
+    // pre-mode job carries no mode, the runner defaults it to
+    // `bypass-with-behavior-gate`, and there the floor HOLDS — the plan
+    // narrates, authority comes only from standing grants, and a new app parks
+    // a card. "A background turn can never self-grant" survives exactly where
+    // it was meant to.
+    const desktopDescriptors = DESKTOP_CAPABLE_DELEGATED_TARGETS.has(target)
+      ? [desktopFeatureDescriptor]
+      : []
+    // Conditional spreads, not possibly-undefined values: `exactOptionalPropertyTypes`
+    // distinguishes "absent" from "present and undefined", and the descriptor's
+    // applicability gate keys on the field being ABSENT.
+    const desktopContext =
+      desktopDescriptors.length > 0
+        ? {
+            ...(desktop.desktopReader !== undefined
+              ? { desktopReader: desktop.desktopReader }
+              : {}),
+            ...(desktop.enableDesktopActions !== undefined
+              ? { enableDesktopActions: desktop.enableDesktopActions }
+              : {}),
+            // The action record's task key — the spawned primary this delegated
+            // turn resumes (Vynel's stable id; the SDK id swaps on compaction).
+            ...(targetPrimarySessionId !== undefined
+              ? { sessionId: targetPrimarySessionId }
+              : {}),
+            desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),
+          }
+        : {}
+
     // A GLOBAL-grounded spawned session inherits the GLOBAL ROOT's toolset —
     // its parent's — because it has no workspace to inherit one from. It used to
     // get nothing at all, so it could not even report back. `send_message` rides
     // both surfaces, so reporting works either way.
     if (workspaceId === null) {
       return composeSessionMcpServers(
-        [vynelRoutingDescriptor, notebookFeatureDescriptor],
-        { db, userId, appRequest: jobAwareAppRequest },
+        [vynelRoutingDescriptor, notebookFeatureDescriptor, ...desktopDescriptors],
+        { db, userId, appRequest: jobAwareAppRequest, ...desktopContext },
       )
     }
     return composeSessionMcpServers(
-      [vynelWorkspaceInteractiveDescriptor, notebookFeatureDescriptor],
-      { db, userId, workspaceId, appRequest: jobAwareAppRequest },
+      [vynelWorkspaceInteractiveDescriptor, notebookFeatureDescriptor, ...desktopDescriptors],
+      { db, userId, workspaceId, appRequest: jobAwareAppRequest, ...desktopContext },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),

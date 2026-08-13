@@ -21,6 +21,7 @@ export interface RegisterAppInput {
   name: string
   command: string
   cwdRelative?: string
+  envFileRelative?: string // relative to the app's folder; defaults to '.env'
   port?: number
 }
 
@@ -32,9 +33,11 @@ export function validateAppFields(input: {
   name?: string
   command?: string
   cwdRelative?: string
+  envFileRelative?: string
   port?: number | null
-}): { name?: string; command?: string; cwdRelative?: string } {
-  const out: { name?: string; command?: string; cwdRelative?: string } = {}
+}): { name?: string; command?: string; cwdRelative?: string; envFileRelative?: string } {
+  const out: { name?: string; command?: string; cwdRelative?: string; envFileRelative?: string } =
+    {}
   if (input.name !== undefined) {
     const name = input.name.trim()
     if (name.length === 0) throw new ValidationError('An app needs a name.')
@@ -58,6 +61,18 @@ export function validateAppFields(input: {
     }
     out.cwdRelative = cwdRelative
   }
+  if (input.envFileRelative !== undefined) {
+    const envFileRelative = input.envFileRelative.trim().replace(/\\/g, '/')
+    if (envFileRelative.length === 0 || envFileRelative.endsWith('/')) {
+      throw new ValidationError('The env file needs a file name, e.g. ".env".')
+    }
+    // Same shape gate as the folder — the RESOLVED containment check runs in
+    // the env ops at read/write time.
+    if (/^([a-zA-Z]:|\/|\\)/.test(envFileRelative) || envFileRelative.split('/').includes('..')) {
+      throw new ValidationError("The env file must be inside the app's folder.")
+    }
+    out.envFileRelative = envFileRelative
+  }
   if (input.port !== undefined && input.port !== null) {
     if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535) {
       throw new ValidationError('The port must be a number between 1 and 65535.')
@@ -75,6 +90,7 @@ export function registerApp(
     name: input.name,
     command: input.command,
     cwdRelative: input.cwdRelative ?? '',
+    envFileRelative: input.envFileRelative ?? '.env',
     port: input.port ?? null,
   })
 
@@ -91,6 +107,7 @@ export function registerApp(
       name: fields.name!,
       command: fields.command!,
       cwdRelative: fields.cwdRelative ?? '',
+      envFileRelative: fields.envFileRelative ?? '.env',
       port: input.port ?? null,
       createdAt: now,
       updatedAt: now,

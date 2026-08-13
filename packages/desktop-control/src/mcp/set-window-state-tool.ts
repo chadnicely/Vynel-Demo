@@ -12,12 +12,17 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
-import { findWindowedPidByName } from '../a11y/windowed-process.js'
+import {
+  findWindowedPidByName,
+  isProcessRunningByName,
+  trayHiddenMessage,
+} from '../a11y/windowed-process.js'
 import { resolveAppIdentity } from '../a11y/window-identity.js'
+import { hostedAmbiguityMessage } from '../a11y/window-host-processes.js'
 import { setWindowState, windowStateVerb, WINDOW_STATES, isWindowState } from '../a11y/window-state.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 
 const TOOL_DESCRIPTION =
   'Arrange an app window: "maximized" (fill the screen — do this to make an app you launched usable), ' +
@@ -29,6 +34,7 @@ const TOOL_DESCRIPTION =
 
 export type SetWindowStateToolDeps = {
   findPid?: (query: string) => Promise<number | null>
+  isRunning?: (query: string) => Promise<boolean>
   /** Injectable so the tool's tests never load the capture binary (the
    *  `request_desktop_access` precedent) — the default reaches node-screenshots. */
   appNameByPid?: (pid: number) => string | null
@@ -39,11 +45,11 @@ export type SetWindowStateToolDeps = {
  *  Plan-gated by construction, exactly like the act tools. */
 export function makeSetWindowStateTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
   deps: SetWindowStateToolDeps = {},
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   const findPid = deps.findPid ?? findWindowedPidByName
+  const isRunning = deps.isRunning ?? isProcessRunningByName
   const apply = deps.apply ?? setWindowState
   const appNameByPid = deps.appNameByPid
   return (tool as unknown as McpToolFn)(
@@ -80,18 +86,33 @@ export function makeSetWindowStateTool(
             content: [
               {
                 type: 'text',
-                text: `No open window matches "${query}". Call list_open_apps to see what's open (the app must be running).`,
+                // Same tray distinction as set_window_bounds: findWindowedPidByName
+                // filters MainWindowHandle -ne 0, so a tray app reaches here even
+                // though it is running. "Not open" would be false.
+                text: (await isRunning(query))
+                  ? trayHiddenMessage(query, "arrange")
+                  : `No open window matches "${query}". Call list_open_apps to see what's open (the app must be running).`,
               },
             ],
             isError: true,
           }
         }
-        // Resolve the canonical grant identity, then enforce the click tier
-        // against it — never the fuzzy query — before touching the window.
+        // Resolve the canonical identity, then enforce the click tier against
+        // it — never the fuzzy query. The fallback is '' rather than `query`
+        // because the query is what the MODEL asked for, not what was found:
+        // packaged apps share one pid, and `apply` actuates that pid's
+        // MainWindowHandle, so trusting the query would let "minimize
+        // Calculator" authorize as Calculator and minimize Settings.
         const appName =
           appNameByPid !== undefined
-            ? resolveAppIdentity(pid, query, appNameByPid)
-            : resolveAppIdentity(pid, query)
+            ? resolveAppIdentity(pid, '', appNameByPid)
+            : resolveAppIdentity(pid, '')
+        if (appName.length === 0) {
+          return {
+            content: [{ type: 'text', text: hostedAmbiguityMessage(query, 'changed') }],
+            isError: true,
+          }
+        }
         effectiveAuthorize(appName, 'click')
         // Report the VERIFIED outcome — claiming a state the window never
         // reached would have the model build its next step on a fiction.
@@ -109,10 +130,21 @@ export function makeSetWindowStateTool(
             isError: true,
           }
         }
+        envelope.recordAct({
+          tool: 'set_window_state',
+          appName,
+          detail: `${windowStateVerb(state)} the window`,
+          outcome: 'ok',
+        })
         return {
           content: [{ type: 'text', text: `"${appName}" is ${windowStateVerb(state)}.` }],
         }
       } catch (err) {
+        recordFailedAct(
+          envelope,
+          { tool: 'set_window_state', appName: query, detail: 'arrange threw' },
+          err,
+        )
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

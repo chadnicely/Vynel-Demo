@@ -1,9 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ForbiddenError } from '@vynel/errors'
 import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { PLAN_REQUIRED_MESSAGE } from '../plan/plan-gated-authorization.js'
-import { makeLaunchAppTool } from './launch-app-tool.js'
+import { buildLaunchResponse, makeLaunchAppTool } from './launch-app-tool.js'
 import type { InstalledApp } from '../apps/installed-apps.js'
+
+// Spy on the shared observation helper so the launch → observe wiring is
+// assertable without a capture engine. The helper's own behavior (settle
+// ordering, never-throws) is covered in act-observation.test.ts.
+vi.mock('./act-observation.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('./act-observation.js')>('./act-observation.js')
+  return {
+    ...actual,
+    captureActObservation: vi.fn(async (app: string | undefined) => [
+      { type: 'text', text: `observed ${app ?? 'screen'}` },
+      { type: 'image', data: 'UEsK', mimeType: 'image/png' },
+    ]),
+  }
+})
+import { captureActObservation } from './act-observation.js'
 
 type BuiltTool = {
   name: string
@@ -36,10 +52,7 @@ function buildTool(
   } = {},
 ) {
   const launched = options.launched ?? []
-  const tool = makeLaunchAppTool(
-    envelope,
-    options.authorize as never,
-    {
+  const tool = makeLaunchAppTool(envelope, {
       listApps: async () => INSTALLED,
       launch: async (app) => {
         launched.push(app.name)
@@ -74,6 +87,23 @@ describe('makeLaunchAppTool', () => {
     expect(result.content[0]?.text).toContain('is open')
   })
 
+  it('observe: true appends the window screenshot to the SAME result — launch and see in one call', async () => {
+    const { tool } = buildTool()
+    const result = await tool.handler({ app: 'Google Chrome', observe: true, observeSettleMs: 2000 })
+    expect(result.isError).not.toBe(true)
+    // The observation targets the window that APPEARED (drift-safe), with the
+    // caller's settle threaded through.
+    expect(vi.mocked(captureActObservation)).toHaveBeenLastCalledWith('Google Chrome', 2000)
+    expect(result.content.map((block) => block.type)).toEqual(['text', 'text', 'image'])
+  })
+
+  it('without observe, no capture runs — the picture is opt-in and costs tokens', async () => {
+    vi.mocked(captureActObservation).mockClear()
+    const { tool } = buildTool()
+    await tool.handler({ app: 'Google Chrome' })
+    expect(vi.mocked(captureActObservation)).not.toHaveBeenCalled()
+  })
+
   it('calls out a window that opens under a DIFFERENT name than was authorized', async () => {
     // Enforcement runs against the window's own name, so a Start-menu name that
     // drifts ("Firefox Developer Edition" → "Firefox") leaves the plan entry
@@ -105,15 +135,12 @@ describe('makeLaunchAppTool', () => {
 
   it('requires the CLICK tier — "look only" never starts programs', async () => {
     // The read tier is a promise to observe and not touch; starting a program
-    // is touching. The standing authorizer is what denies it here.
-    const { tool, launched } = buildTool(armedEnvelope('Google Chrome', 'read'), {
-      authorize: (app, tier) => {
-        throw new ForbiddenError(`denied ${app} at ${tier}`)
-      },
-    })
+    // is touching. The PLAN denies it directly now — a plan asking for "read"
+    // does not authorize a launch, and there is no second door to fall through.
+    const { tool, launched } = buildTool(armedEnvelope('Google Chrome', 'read'))
     const result = await tool.handler({ app: 'Google Chrome' })
     expect(result.isError).toBe(true)
-    expect(result.content[0]?.text).toContain('denied Google Chrome at click')
+    expect(result.content[0]?.text).toMatch(/does not cover it at the "click" tier/)
     expect(launched).toEqual([])
   })
 
@@ -156,5 +183,28 @@ describe('makeLaunchAppTool', () => {
     const { tool } = buildTool()
     const result = await tool.handler({ app: '   ' })
     expect(result.isError).toBe(true)
+  })
+})
+
+// Packaged apps enter the window roster under their TITLE, which is dynamic —
+// so a document window can satisfy a loose match and be reported as the app.
+// The drift note is what stops the model targeting a document as the program.
+describe('buildLaunchResponse — drift on an app that was already open', () => {
+  it('flags a window whose name is not the app that was asked for', () => {
+    const text = buildLaunchResponse(
+      { kind: 'already-open', appName: 'Mail attachment.jpg - Photos' },
+      'Mail',
+    ).content[0]?.text
+    expect(text).toMatch(/not "Mail"/)
+    expect(text).toMatch(/document or helper window/i)
+  })
+
+  it('stays quiet when the window really is the app', () => {
+    const text = buildLaunchResponse(
+      { kind: 'already-open', appName: 'Calculator' },
+      'Calculator',
+    ).content[0]?.text
+    expect(text).not.toMatch(/NOTE:/)
+    expect(text).toMatch(/already has a window open/)
   })
 })

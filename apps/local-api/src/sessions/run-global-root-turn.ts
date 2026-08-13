@@ -207,18 +207,41 @@ export async function runGlobalRootTurn(
   const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
     '@vynel/desktop-control'
   )
+  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // record can key its rows by it (the SDK id is only assigned mid-stream).
+  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
+  // this early call cannot fight the authoritative in-lock `resolveTarget`.
+  const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
+    userId: input.userId,
+  })
   const composedMcp = composeSessionMcpServers(
     [vynelRoutingDescriptor, notebookFeatureDescriptor, desktopFeatureDescriptor],
     {
       db: deps.db,
       userId: input.userId,
+      sessionId: conversationTarget.primarySessionId,
       appRequest,
       desktopReader: deps.desktopReader,
       enableDesktopActions: deps.enableDesktopActions ?? false,
-      // Channel/unattended turns carry no user mode → 'display-only': the plan
-      // narrates on the overlay, but authority stays with standing grants (a
-      // background turn can never self-grant).
-      desktopPlanConsent: deriveDesktopPlanConsent(undefined),
+      // A channel turn carries no UI mode selector, so it runs under the
+      // brain's own bypass default (`routes/root/schemas.ts`) — and its desktop
+      // consent now says the same thing instead of contradicting it.
+      //
+      // It used to pass `undefined` → 'display-only', on the reasoning that
+      // authority stayed with standing per-app grants. Retiring those grants
+      // removed that authority, which left a channel turn able to do NOTHING on
+      // the desktop — breaking the whole point of asking Vynel to do something
+      // from your phone. Kafi, 2026-08-13: "auto mode means no matter schedule
+      // or remote it can do anything user asked, but will show that overlay".
+      //
+      // ⚠ DELIBERATE SECURITY DEBT, not an oversight. Anyone who reaches the
+      // channel drives the desktop with no approval anywhere — the overlay and
+      // the access log are the accountability. This is a knowing reversal of
+      // "a background turn can never self-grant" (Chad 2026-08-04), taken to get
+      // the functionality right first. The turn's ORIGIN is already known here,
+      // so the later tightening is a filter on this value — per-channel trust,
+      // Vynel's own mobile app trusted where Telegram is not — never a redesign.
+      desktopPlanConsent: deriveDesktopPlanConsent('bypass'),
     },
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,

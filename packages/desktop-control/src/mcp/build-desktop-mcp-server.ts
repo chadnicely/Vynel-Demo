@@ -2,41 +2,82 @@ import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/cla
 import type { Database } from '@vynel/db'
 import type { DesktopPlanConsent } from '@vynel/mcp-contract'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
-import { makeDesktopAccessAuthorizer } from '../access/assert-desktop-access.js'
-import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
-import { findDesktopAppGrant } from '../repositories/desktop-app-grants.js'
-import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
+import {
+  createDesktopPlanEnvelope,
+  type DesktopActWriter,
+} from '../plan/desktop-plan-envelope.js'
 import { makeListDesktopNotificationsTool } from './list-desktop-notifications-tool.js'
 import { makeListOpenAppsTool } from './list-open-apps-tool.js'
 import { makeListInstalledAppsTool } from './list-installed-apps-tool.js'
+import { makeListMonitorsTool } from './list-monitors-tool.js'
+import { makeSystemStatusTool } from './system-status-tool.js'
+import { makeGetAppTool } from './get-app-tool.js'
+import { makeMousePositionTool } from './mouse-position-tool.js'
+import { recordDesktopAction } from '../repositories/desktop-actions.js'
+import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools.js'
 import { makeLaunchAppTool } from './launch-app-tool.js'
+import { makeOpenUrlTool } from './open-url-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
+import { makeScreenshotDesktopTool } from './screenshot-desktop-tool.js'
+import { makeSendDesktopNotificationTool } from './send-desktop-notification-tool.js'
+import { makeSetVolumeTool } from './set-volume-tool.js'
 import { makeSnapshotAppTool } from './snapshot-app-tool.js'
+import { makeWaitForTool } from './wait-for-tool.js'
+import { makeSetWindowBoundsTool } from './set-window-bounds-tool.js'
 import { makeScreenshotAppTool } from './screenshot-app-tool.js'
 import { makeActOnAppTool } from './act-on-app-tool.js'
 import { makeActOnDesktopTool } from './act-on-desktop-tool.js'
 import { makeProposeDesktopPlanTool } from './propose-desktop-plan-tool.js'
-import { makeRequestDesktopAccessTool } from './request-desktop-access-tool.js'
 
 export type BuildDesktopMcpServerInput = {
   reader: DesktopNotificationReader
-  /** The session's db + user — the per-app access grants are enforced against these. */
+  /** The durable action record is written against these. */
   db: Database
   userId: string
+  /** VYNEL's own stable session id (the `primary_sessions` row id) an act
+   *  belongs to — what "how far did THAT task get" reads back by. NOT the SDK's
+   *  session id: that one is assigned mid-stream on the global-root path, after
+   *  this server is already built. Optional: a caller without one still gets a
+   *  user-level log. */
+  sessionId?: string
+  /** The workspace whose task drove the acts (a workspace-grounded spawned
+   *  session). Optional: global-root and global-grounded work has none. */
+  workspaceId?: string
   /**
    * Enable the MUTATING `act_on_app` / `act_on_desktop` tools. Default OFF — a
    * real off-switch so a stray merge or run can't silently act on the desktop.
-   * With actions ON, every action still passes the per-app access gate: no
-   * grant row (user consent via `request_desktop_access`) = no action.
+   * With actions ON, every action still passes the PLAN gate: no app named in
+   * the turn's approved plan = no action on it.
    */
   enableActions?: boolean
   /**
    * How this turn's proposed plan acquires authority (mode-derived by the
    * caller via `deriveDesktopPlanConsent`). Default 'display-only' — the
    * conservative floor: a caller that forgets to thread it gets a plan that
-   * narrates without authorizing anything beyond standing grants.
+   * narrates on the overlay but authorizes nothing at all.
    */
   planConsent?: DesktopPlanConsent
+}
+
+/** The one place an act record acquires its identity columns — every row this
+ *  server writes carries the SAME user/session/workspace, so the wiring is
+ *  testable without driving a native act. */
+export function buildDesktopActWriter(
+  input: Pick<BuildDesktopMcpServerInput, 'db' | 'userId' | 'sessionId' | 'workspaceId'>,
+): DesktopActWriter {
+  return (record) => {
+    recordDesktopAction(input.db, {
+      userId: input.userId,
+      sessionId: input.sessionId ?? null,
+      workspaceId: input.workspaceId ?? null,
+      goal: record.goal,
+      tool: record.tool,
+      appName: record.appName ?? null,
+      detail: record.detail,
+      outcome: record.outcome,
+      note: record.note ?? null,
+    })
+  }
 }
 
 // Builds the in-process `desktop` MCP server — tools become `mcp__desktop__*`.
@@ -46,43 +87,93 @@ export type BuildDesktopMcpServerInput = {
 // shape. Forwarded into the SDK session's `options.mcpServers` alongside the
 // other servers. See decision `[[desktop-control-mcp-server]]`.
 //
-// The access model (Claude-desktop-style per-app tiers): EVERY app-directed
-// tool — snapshot/screenshot (read) and the act tools (click/full) — resolves
-// its target app first and enforces the user's grant for THAT app via the
-// authorizer. `request_desktop_access` (registered always; carded in every
-// mode) is the only way a grant comes into being. `list_open_apps` (names
-// only) and `list_desktop_notifications` (redacted at ingest) stay ungated.
+// THE ACCESS MODEL, as of 2026-08-13 (Kafi's call): the PLAN is the only
+// authority, and it covers ACTING only.
+//
+//   looking  (list_*, snapshot, screenshot, wait_for)  -> ungated, no overlay
+//   acting   (act_*, launch, window state/bounds, clipboard) -> plan + overlay
+//
+// Per-app grants and `request_desktop_access` are gone. They asked a second
+// time for consent the plan already carries, in a vocabulary a non-technical
+// user cannot evaluate — the cards this package generated in practice said
+// "Docker Desktop Launcher" and "Application Frame Host". A plan that says
+// "open Docker and check whether the containers are running" is consent someone
+// can actually give, and the overlay narrates the acting as it happens.
 /** The turn's tool set — exported so tests can assert registration without
  *  reaching into the live McpServer instance. */
 export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown[] {
-  const authorize = makeDesktopAccessAuthorizer(input.db, input.userId)
-  const readGrantedTier = (appName: string) =>
-    findDesktopAppGrant(input.db, input.userId, normalizeDesktopAppKey(appName))?.tier ?? null
   const factories: unknown[] = [
     makeListDesktopNotificationsTool(input.reader),
-    makeListOpenAppsTool(readGrantedTier),
+    makeListOpenAppsTool(),
     // Names only, like list_open_apps — knowing an app exists grants nothing.
     makeListInstalledAppsTool(),
-    makeSnapshotAppTool(authorize),
-    makeScreenshotAppTool(authorize),
-    // Registered even with actions OFF — the read tools are grant-gated too,
-    // so the consent path must always exist.
-    makeRequestDesktopAccessTool(input.db, input.userId),
+    makeListMonitorsTool(),
+    // LOOKING is ungated. Reading needs no plan (you often have to look before
+    // you can plan), and per-app grants — its only other gate — are gone: they
+    // asked a second time for consent the plan already carries, in a vocabulary
+    // a non-technical user cannot evaluate. Nothing here changes the screen.
+    // The MACHINE's own vitals rather than any app's — no target to resolve,
+    // and the answer to "why is my computer slow" is several of these numbers
+    // together, which is why it is one tool and not four.
+    makeSystemStatusTool(),
+    // ONE app's state, and the only tool here that truly touches nothing —
+    // screenshot_app restores a minimized window to capture it, so this is how
+    // the model can find that out BEFORE it happens rather than after.
+    makeGetAppTool(),
+    // Reports in list_monitors' frame, so it answers "which screen is the user
+    // on". Reads via Win32 GetCursorPos, never nut's getPosition — see
+    // `input/cursor-position.ts` for why that distinction is load-bearing.
+    makeMousePositionTool(),
+    makeSnapshotAppTool(),
+    makeScreenshotAppTool(),
+    // A whole SCREEN, where screenshot_app is one window. Fully free by
+    // Kafi's ruling (2026-08-13): looking is ungated, and the privacy line
+    // lives in the tool description — answer what was asked, never browse.
+    makeScreenshotDesktopTool(),
+    makeWaitForTool(),
+    // A toast is its own accountability — visible by nature, reads nothing,
+    // changes no app — and its headline use is a background task saying "I'm
+    // done", which runs under display-only consent where every plan-gated act
+    // refuses. Gating it would disable it for exactly that turn. See the
+    // tool file's header.
+    makeSendDesktopNotificationTool(),
   ]
   if (input.enableActions === true) {
     // ONE envelope shared by the plan tool and both act tools — that shared
     // instance is the whole plan-approval mechanism: propose arms it, acts
     // refuse without it. Server instances are per-turn, so the plan (and
     // whatever its approval authorized) dies with the turn.
-    const envelope = createDesktopPlanEnvelope(input.planConsent ?? 'display-only')
+    // The recorder is wired ONCE, here, onto the envelope every act tool
+    // already shares — so no tool can be added later and quietly go unrecorded.
+    const envelope = createDesktopPlanEnvelope(input.planConsent ?? 'display-only', {
+      write: buildDesktopActWriter(input),
+    })
     factories.push(makeProposeDesktopPlanTool(envelope))
-    factories.push(makeActOnAppTool(envelope, authorize))
-    factories.push(makeActOnDesktopTool(envelope, authorize))
+    factories.push(makeActOnAppTool(envelope))
+    factories.push(makeActOnDesktopTool(envelope))
     // Starting a program is an action — same envelope, same authorizer.
-    factories.push(makeLaunchAppTool(envelope, authorize))
+    factories.push(makeLaunchAppTool(envelope))
+    // A URL opener is a LAUNCHER with no resolvable target app, so it takes
+    // the clipboard's consent gate (refuses unattended) plus a scheme
+    // allowlist — web + the two meeting deep-links; see open-url.ts for why
+    // everything else stays out.
+    factories.push(makeOpenUrlTool(envelope))
     // Arranging a window (maximize / minimize / restore) is a click-class
     // action — same envelope, same authorizer.
-    factories.push(makeSetWindowStateTool(envelope, authorize))
+    factories.push(makeSetWindowStateTool(envelope))
+    // Moving/resizing is the same click-class change as arranging state, and the
+    // correct primitive for "put this on my other screen" — dragging a title bar
+    // across a monitor boundary is slow and fails invisibly.
+    factories.push(makeSetWindowBoundsTool(envelope))
+    // The clipboard is GLOBAL, not app-scoped, so the per-app authorizer has
+    // nothing to check it against — the plan envelope is its only gate, which
+    // is why even the READ lives behind `enableActions` (it can surface a
+    // password the user copied moments ago). See `clipboard-tools.ts`.
+    factories.push(makeReadClipboardTool(envelope))
+    factories.push(makeWriteClipboardTool(envelope))
+    // The volume is machine-global like the clipboard — same gate, and the
+    // response is the device's own read-back, so 'ok' is honest there.
+    factories.push(makeSetVolumeTool(envelope))
   }
   return factories
 }

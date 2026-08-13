@@ -62,9 +62,12 @@ export async function streamSpawnedSessionTurn(
   }
 
   // The session's ground (locked decision 1): its workspace's folder + the
-  // PLAIN background set for a workspace-grounded session — byte-for-byte what
-  // its delegated turns attach — or the hidden global-root cwd + nothing for a
-  // global-grounded one (its delegated turns run bare too).
+  // PLAIN background set for a workspace-grounded session, or the hidden
+  // global-root cwd for a global-grounded one. NOTE: "byte-for-byte what its
+  // delegated turns attach" no longer holds literally — delegated turns compose
+  // the INTERACTIVE vynel descriptor and (since desktop-autopilot) the desktop
+  // server. The desktop half is matched below; the vynel delta is pre-existing
+  // and stays within ONE server name, so it never strips a server.
   const runCwdPath = resolveSpawnedSessionRunCwd(db, spawned)
   // The turn's own session identity — the segment it resumes (re-resolved
   // after the queue wait below, and again on a mid-turn compaction swap). The
@@ -78,7 +81,7 @@ export async function streamSpawnedSessionTurn(
   // agent-session caller identity its mention runs carry — so the colleague's
   // own send_message updates/reports resolve their requester correctly, and
   // its toolset never flip-flops by turn origin (the deferred-tool trap).
-  const backgroundMcp =
+  const composedBackgroundMcp =
     spawned.scope === 'agent'
       ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest))({
           db,
@@ -94,6 +97,56 @@ export async function streamSpawnedSessionTurn(
             workspaceId: spawned.workspaceId,
           })
         : null
+
+  // DESKTOP PARITY WITH THIS SESSION'S DELEGATED TURNS (desktop-autopilot).
+  // The delegated composer attaches the desktop server to a 'spawned-session'
+  // target, so this interactive path must too — otherwise the user hands a
+  // desktop task to a spawned session (server attached), then types into that
+  // same session and the resumed SDK session comes back with the server GONE.
+  // Stripping is the "MCP server disconnected" bug the whole one-toolset rule
+  // exists to prevent (see `delegate-to-spawned-session.ts`: adding is safe,
+  // stripping is not); adding it here keeps the set stable across turn origins.
+  //
+  // Merged rather than folded into the branches above so the pre-existing
+  // vynel/plain-vs-interactive delta is left exactly as it was — this change
+  // is about the desktop server only. An agent COLLEAGUE is deliberately
+  // excluded, matching `DESKTOP_CAPABLE_DELEGATED_TARGETS`.
+  const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
+    '@vynel/desktop-control'
+  )
+  const desktopMcp =
+    spawned.scope === 'agent'
+      ? null
+      : composeSessionMcpServers([desktopFeatureDescriptor], {
+          db,
+          userId,
+          // The action record's task key: Vynel's stable primary id (the SDK id
+          // swaps on compaction), plus the session's grounding workspace so the
+          // log can be filtered by workspace later.
+          sessionId: spawned.id,
+          ...(spawned.workspaceId !== null ? { workspaceId: spawned.workspaceId } : {}),
+          appRequest: turnSessionAppRequest,
+          ...(c.var.desktopNotifications !== undefined
+            ? { desktopReader: c.var.desktopNotifications }
+            : {}),
+          ...(c.var.desktopActionsEnabled !== undefined
+            ? { enableDesktopActions: c.var.desktopActionsEnabled }
+            : {}),
+          // The user IS here on this path — it is them typing into the session
+          // — so the turn's own mode decides plan authority, exactly as it does
+          // on the global-root chat.
+          desktopPlanConsent: deriveDesktopPlanConsent(
+            toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
+          ),
+        })
+  // `desktopMcp` composes to an EMPTY attachment off-Windows (the descriptor
+  // self-excludes), so merging it is a no-op there rather than a shape change.
+  const backgroundMcp =
+    desktopMcp === null || Object.keys(desktopMcp.mcpServers).length === 0
+      ? composedBackgroundMcp
+      : composedBackgroundMcp === null
+        ? desktopMcp
+        : mergeComposedSessionMcpServers(composedBackgroundMcp, desktopMcp)
 
   // Chat-mentions: re-parse the message server-side. @ dispatches ground in
   // the session's OWN ground (reports land at its grounding workspace's chat,

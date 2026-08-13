@@ -43,3 +43,4 @@ describe('actOnApp — fail-closed guards (run before xa11y loads)', () => {
     await expect(actOnApp('Calculator', 'edit', 'type_text')).rejects.toThrow(/requires a non-empty value/)
   })
 })
+

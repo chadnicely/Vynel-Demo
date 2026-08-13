@@ -788,6 +788,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/phases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the workspace's build-plan phases in order (previews only). */
+        get: operations["getWorkspacesByWorkspaceIdPhases"];
+        put?: never;
+        /** Append a phase to the workspace's build plan. */
+        post: operations["postWorkspacesByWorkspaceIdPhases"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/phases/{phaseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one phase with its full description. */
+        get: operations["getWorkspacesByWorkspaceIdPhasesByPhaseId"];
+        put?: never;
+        post?: never;
+        /** Remove a phase from the build plan. */
+        delete: operations["deleteWorkspacesByWorkspaceIdPhasesByPhaseId"];
+        options?: never;
+        head?: never;
+        /** Update a phase (title, description, status, or position). */
+        patch: operations["patchWorkspacesByWorkspaceIdPhasesByPhaseId"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/phases/{phaseId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a phase done. */
+        post: operations["postWorkspacesByWorkspaceIdPhasesByPhaseIdComplete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the workspace's features (previews only). */
+        get: operations["getWorkspacesByWorkspaceIdFeatures"];
+        put?: never;
+        /** Add a feature to the workspace's catalog. */
+        post: operations["postWorkspacesByWorkspaceIdFeatures"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/features/{featureId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one feature with its full description. */
+        get: operations["getWorkspacesByWorkspaceIdFeaturesByFeatureId"];
+        put?: never;
+        post?: never;
+        /** Remove a feature from the catalog. */
+        delete: operations["deleteWorkspacesByWorkspaceIdFeaturesByFeatureId"];
+        options?: never;
+        head?: never;
+        /** Update a feature (title, description, status, or phase link). */
+        patch: operations["patchWorkspacesByWorkspaceIdFeaturesByFeatureId"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/features/{featureId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a feature done. */
+        post: operations["postWorkspacesByWorkspaceIdFeaturesByFeatureIdComplete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/monitors": {
         parameters: {
             query?: never;
@@ -921,6 +1029,24 @@ export interface paths {
         /** Read an app's recent output (live ring buffer). */
         get: operations["getWorkspacesByWorkspaceIdAppsByAppIdLogs"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/apps/{appId}/env": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the app's env file as key/value entries. */
+        get: operations["getWorkspacesByWorkspaceIdAppsByAppIdEnv"];
+        /** Replace the app's env vars (line-preserving file rewrite). */
+        put: operations["putWorkspacesByWorkspaceIdAppsByAppIdEnv"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2155,40 +2281,6 @@ export interface paths {
         /** Give the server the code copied from the browser, finishing sign-in. */
         post: operations["postServer-installByInstallIdClaude-authCode"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/desktop/access": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List the desktop apps the user has granted Claude access to. */
-        get: operations["getDesktopAccess"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/desktop/access/{appName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Revoke Claude's access to a desktop app. */
-        delete: operations["deleteDesktopAccessByAppName"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6320,6 +6412,558 @@ export interface operations {
             };
         };
     };
+    getWorkspacesByWorkspaceIdPhases: {
+        parameters: {
+            query?: {
+                status?: "open" | "in-progress" | "done";
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of PhaseListItem (descriptionPreview, not the full text). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        orderIndex: number;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        descriptionPreview: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdPhases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title: string;
+                    description: string;
+                    sessionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Phase created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        orderIndex: number;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdPhasesByPhaseId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                phaseId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The phase, full description included. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        orderIndex: number;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description No such phase owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteWorkspacesByWorkspaceIdPhasesByPhaseId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                phaseId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Phase removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such phase owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchWorkspacesByWorkspaceIdPhasesByPhaseId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                phaseId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    description?: string;
+                    /** @enum {string} */
+                    status?: "open" | "in-progress" | "done";
+                    orderIndex?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Phase updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        orderIndex: number;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such phase owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdPhasesByPhaseIdComplete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                phaseId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Phase completed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        orderIndex: number;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description No such phase owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdFeatures: {
+        parameters: {
+            query?: {
+                status?: "open" | "in-progress" | "done";
+                phaseId?: string;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of FeatureListItem (descriptionPreview, not the full text). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        phaseId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        descriptionPreview: string;
+                    }[];
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdFeatures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title: string;
+                    description: string;
+                    phaseId?: string;
+                    sessionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Feature created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        phaseId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdFeaturesByFeatureId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                featureId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The feature, full description included. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        phaseId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description No such feature owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteWorkspacesByWorkspaceIdFeaturesByFeatureId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                featureId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feature removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such feature owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchWorkspacesByWorkspaceIdFeaturesByFeatureId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                featureId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    description?: string;
+                    /** @enum {string} */
+                    status?: "open" | "in-progress" | "done";
+                    phaseId?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Feature updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        phaseId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such feature owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdFeaturesByFeatureIdComplete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                featureId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feature completed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string;
+                        title: string;
+                        phaseId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        sessionId: string | null;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        description: string;
+                    };
+                };
+            };
+            /** @description No such feature owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getWorkspacesByWorkspaceIdMonitors: {
         parameters: {
             query?: {
@@ -6615,6 +7259,7 @@ export interface operations {
                         name: string;
                         command: string;
                         cwdRelative: string;
+                        envFileRelative: string;
                         port: number | null;
                         runtime: {
                             /** @enum {string} */
@@ -6652,6 +7297,7 @@ export interface operations {
                     name: string;
                     command: string;
                     cwdRelative?: string;
+                    envFileRelative?: string;
                     port?: number;
                 };
             };
@@ -6670,6 +7316,7 @@ export interface operations {
                         name: string;
                         command: string;
                         cwdRelative: string;
+                        envFileRelative: string;
                         port: number | null;
                         runtime: {
                             /** @enum {string} */
@@ -6750,6 +7397,7 @@ export interface operations {
                     name?: string;
                     command?: string;
                     cwdRelative?: string;
+                    envFileRelative?: string;
                     port?: number | null;
                 };
             };
@@ -6768,6 +7416,7 @@ export interface operations {
                         name: string;
                         command: string;
                         cwdRelative: string;
+                        envFileRelative: string;
                         port: number | null;
                         runtime: {
                             /** @enum {string} */
@@ -6829,6 +7478,7 @@ export interface operations {
                         name: string;
                         command: string;
                         cwdRelative: string;
+                        envFileRelative: string;
                         port: number | null;
                         runtime: {
                             /** @enum {string} */
@@ -6890,6 +7540,7 @@ export interface operations {
                         name: string;
                         command: string;
                         cwdRelative: string;
+                        envFileRelative: string;
                         port: number | null;
                         runtime: {
                             /** @enum {string} */
@@ -6936,6 +7587,103 @@ export interface operations {
                         lines: string[];
                     };
                 };
+            };
+            /** @description No such app in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdAppsByAppIdEnv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { envFileRelative, exists, entries } — parsed from the file on disk. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        envFileRelative: string;
+                        exists: boolean;
+                        entries: {
+                            key: string;
+                            value: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description The env file path escapes the workspace. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such app in this workspace. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putWorkspacesByWorkspaceIdAppsByAppIdEnv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    entries: {
+                        key: string;
+                        value: string;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description The saved state, re-parsed from the file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        envFileRelative: string;
+                        exists: boolean;
+                        entries: {
+                            key: string;
+                            value: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Validation error, or the app's folder does not exist. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description No such app in this workspace. */
             404: {
@@ -8489,7 +9237,7 @@ export interface operations {
                     "application/json": {
                         capabilities: {
                             /** @enum {string} */
-                            id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "journal";
+                            id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal";
                             displayName: string;
                             description: string;
                             /** @enum {string} */
@@ -8514,7 +9262,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                capabilityId: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "journal";
+                capabilityId: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal";
                 workspaceId: string;
             };
             cookie?: never;
@@ -8535,7 +9283,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "journal";
+                        id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal";
                         displayName: string;
                         description: string;
                         /** @enum {string} */
@@ -11520,60 +12268,6 @@ export interface operations {
                 content?: never;
             };
             /** @description Unknown install, or no sign-in in progress. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getDesktopAccess: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Array of desktop app grants (app + tier). */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        id: string;
-                        appName: string;
-                        /** @enum {string} */
-                        tier: "read" | "click" | "full";
-                        createdAt: string;
-                        updatedAt: string;
-                    }[];
-                };
-            };
-        };
-    };
-    deleteDesktopAccessByAppName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                appName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Grant revoked. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description No grant exists for that app. */
             404: {
                 headers: {
                     [name: string]: unknown;

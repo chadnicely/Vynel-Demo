@@ -1,6 +1,6 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn, McpToolContent } from './mcp-tool-fn.js'
 import {
   actOnDesktop,
   planDesktopAction,
@@ -8,10 +8,11 @@ import {
   type ActOnDesktopParams,
 } from '../input/desktop-input.js'
 import { waitForForegroundSettle } from '../input/foreground-settle.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 import { buildBatchResponse, runActionBatch, MAX_BATCH_ACTIONS } from './act-batch.js'
+import { captureActObservation, parseObserveRequest, OBSERVE_SETTLE_MAX_MS } from './act-observation.js'
 
 const TOOL_DESCRIPTION =
   "Control the desktop by COORDINATES — click, type, press keys, scroll, or drag at a pixel, the way a " +
@@ -21,7 +22,10 @@ const TOOL_DESCRIPTION =
   'element. Pass `app` = the window name so x/y are relative to THAT window\'s screenshot (top-left = 0,0); ' +
   'omit `app` for absolute screen coordinates. Actions: click {x,y,button?,double?} · type {text} (into ' +
   'whatever is focused — click first) · press {keys} (e.g. "enter", "ctrl+c", "alt+f4") · scroll ' +
-  '{x,y,direction?,amount?} · drag {x,y,toX,toY}. BATCH RELATED STEPS: pass `actions` = [{action, …}, …] ' +
+  '{x,y,direction?,amount?} · drag {x,y,toX,toY,via?} (stepped, so a real drag-and-drop actually ' +
+  'lands; `via` pauses on waypoints for targets that only open when hovered) · ' +
+  'move {x,y} (hover, to open a hover menu or reveal a tooltip). ' +
+  'BATCH RELATED STEPS: pass `actions` = [{action, …}, …] ' +
   'to run several in ONE call (e.g. click a field, type into it, press enter) — much faster than one call ' +
   'per step. They run in order and STOP at the first failure, which is reported with what did and did not ' +
   'run. Use the single form when you must see the result before choosing the next step. IMPORTANT: an ' +
@@ -61,6 +65,7 @@ export function parseActOnDesktopParams(
   const y = numberArg(bag, 'y')
   const toX = numberArg(bag, 'toX')
   const toY = numberArg(bag, 'toY')
+  const via = Array.isArray(bag['via']) ? (bag['via'] as unknown[]) : undefined
   const text = stringArg(bag, 'text')
   const keys = stringArg(bag, 'keys')
   const amount = numberArg(bag, 'amount')
@@ -81,6 +86,7 @@ export function parseActOnDesktopParams(
     ...(y !== undefined ? { y } : {}),
     ...(toX !== undefined ? { toX } : {}),
     ...(toY !== undefined ? { toY } : {}),
+    ...(via !== undefined ? { via } : {}),
     ...(text !== undefined ? { text } : {}),
     ...(keys !== undefined ? { keys } : {}),
     ...(app !== undefined ? { app } : {}),
@@ -132,13 +138,12 @@ const FOCUS_CHANGING_ACTIONS = new Set<ActOnDesktopParams['action']>(['click', '
 /** Construct the `act_on_desktop` SDK MCP tool (mutating — destructiveHint).
  *  The envelope is REQUIRED — acting is PLAN-GATED by construction: refused
  *  until the turn's plan is armed, and the armed plan authorizes its apps
- *  alongside standing grants. (An optional envelope would be a fail-open
+ *  and it is the ONLY authority. (An optional envelope would be a fail-open
  *  default waiting for a second construction site.) */
 export function makeActOnDesktopTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   return (tool as unknown as McpToolFn)(
     'act_on_desktop',
     TOOL_DESCRIPTION,
@@ -146,7 +151,8 @@ export function makeActOnDesktopTool(
       action: z
         .enum(DESKTOP_INPUT_ACTIONS)
         .optional()
-        .describe('Single action: click · type · press · scroll · drag.'),
+        .describe('Single action: click · type · press · scroll · drag · move.'),
+      // NOTE: `move` reuses x/y; no new parameter is needed.
       app: z
         .string()
         .optional()
@@ -155,6 +161,15 @@ export function makeActOnDesktopTool(
       y: z.number().optional().describe('Y coordinate (click/scroll/drag start).'),
       toX: z.number().optional().describe('Drag target X.'),
       toY: z.number().optional().describe('Drag target Y.'),
+      via: z
+        .array(z.object({ x: z.number(), y: z.number() }))
+        .optional()
+        .describe(
+          'Drag ONLY — points to travel through while the button is held, pausing at each. Use ' +
+            'when the drop target only appears mid-drag: a folder that springs open when hovered, ' +
+            'a tab you must cross to reach another window. Without these the pointer goes straight ' +
+            'there and never gives those targets a chance to react.',
+        ),
       text: z.string().optional().describe('Text to type (for the type action).'),
       keys: z.string().optional().describe('Key or combo to press, e.g. "enter" / "ctrl+c" (for press).'),
       button: z.enum(['left', 'right', 'middle']).optional().describe('Mouse button for click (default left).'),
@@ -164,11 +179,12 @@ export function makeActOnDesktopTool(
       actions: z
         .array(
           z.object({
-            action: z.enum(DESKTOP_INPUT_ACTIONS).describe('click · type · press · scroll · drag.'),
+            action: z.enum(DESKTOP_INPUT_ACTIONS).describe('click · type · press · scroll · drag · move.'),
             x: z.number().optional(),
             y: z.number().optional(),
             toX: z.number().optional(),
             toY: z.number().optional(),
+            via: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
             text: z.string().optional(),
             keys: z.string().optional(),
             button: z.enum(['left', 'right', 'middle']).optional(),
@@ -181,6 +197,24 @@ export function makeActOnDesktopTool(
         .max(MAX_BATCH_ACTIONS)
         .optional()
         .describe('Batch: several actions run in order, stopping at the first failure. `app` applies to all.'),
+      observe: z
+        .boolean()
+        .optional()
+        .describe(
+          'Return a fresh screenshot in THIS result (of `app`, or the primary screen without one) — ' +
+            'saves the separate screenshot call when your next step depends on what changed. For a ' +
+            'batch, taken after the last step (also after a failed one, so you see the part-way state).',
+        ),
+      observeSettleMs: z
+        .number()
+        .int()
+        .min(0)
+        .max(OBSERVE_SETTLE_MAX_MS)
+        .optional()
+        .describe(
+          'Wait this long before the observe screenshot (default 400). Use ~2000-4000 after opening ' +
+            'a page or app; for loads of unknown length use wait_for instead.',
+        ),
     },
     async (args: Record<string, unknown>) => {
       const planRefusal = planRequiredError(envelope)
@@ -188,6 +222,7 @@ export function makeActOnDesktopTool(
         return { content: [{ type: 'text', text: planRefusal }], isError: true }
       }
       const app = stringArg(args, 'app')
+      const observeRequest = parseObserveRequest(args)
 
       if (args['actions'] !== undefined) {
         if (args['action'] !== undefined) {
@@ -219,11 +254,33 @@ export function makeActOnDesktopTool(
         }
         // Each step re-resolves its target + re-authorizes inside actOnDesktop —
         // batching is a convenience over N calls, never a shortcut past the gate.
-        return buildBatchResponse(
+        const batchResponse = buildBatchResponse(
           await runActionBatch(
             steps,
             async (step) => {
-              const result = await actOnDesktop(step, effectiveAuthorize)
+              // The step that STOPS a batch has to leave a row too. runActionBatch
+              // catches the throw itself, so the tool's outer catch never sees it
+              // — without this the log shows the steps that worked and nothing
+              // about the one that didn't, which reads as "no problem".
+              let result
+              try {
+                result = await actOnDesktop(step, effectiveAuthorize)
+              } catch (stepError) {
+                recordFailedAct(
+                  envelope,
+                  { tool: 'act_on_desktop', appName: step.app ?? null, detail: `${step.action} threw` },
+                  stepError,
+                )
+                throw stepError
+              }
+              // Every step of a batch gets its own row: a batch that stopped
+              // half-way is exactly the case "how far did it get" must answer.
+              envelope.recordAct({
+                tool: 'act_on_desktop',
+                appName: step.app ?? null,
+                detail: result.recordDetail,
+                outcome: 'unverified',
+              })
               return { ok: true, detail: result.detail }
             },
             {
@@ -233,6 +290,12 @@ export function makeActOnDesktopTool(
             },
           ),
         )
+        // Observed on failure too — a stopped batch leaves the screen part-way,
+        // and seeing that state is exactly what the recovery needs.
+        if (observeRequest.observe) {
+          batchResponse.content.push(...(await captureActObservation(app, observeRequest.settleMs)))
+        }
+        return batchResponse
       }
 
       const params = parseActOnDesktopParams(args, app)
@@ -251,8 +314,28 @@ export function makeActOnDesktopTool(
       }
       try {
         const result = await actOnDesktop(params, effectiveAuthorize)
-        return { content: [{ type: 'text', text: `Done: ${result.detail}.` }] }
+        // 'unverified' is the honest outcome for every coordinate act — a click
+        // has no read-back, so the record says what was DONE, never that it
+        // worked. Claiming otherwise is the fiction this arc exists to remove.
+        envelope.recordAct({
+          tool: 'act_on_desktop',
+          appName: params.app ?? null,
+          // recordDetail, NOT detail: the record is append-only, and `type`'s
+          // detail carries what was typed.
+          detail: result.recordDetail,
+          outcome: 'unverified',
+        })
+        const content: McpToolContent[] = [{ type: 'text', text: `Done: ${result.detail}.` }]
+        if (observeRequest.observe) {
+          content.push(...(await captureActObservation(app, observeRequest.settleMs)))
+        }
+        return { content }
       } catch (err) {
+        recordFailedAct(
+          envelope,
+          { tool: 'act_on_desktop', appName: app ?? null, detail: 'act threw' },
+          err,
+        )
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

@@ -39,28 +39,63 @@ In this order:
 3. `launch_app({app})` — start it and wait for its window. Use the window name
    it returns for everything afterward.
 
-Don't relaunch something that's already open — you'll end up with two windows
-and act in the wrong one.
+Don't relaunch something that already has a window. `launch_app` won't let you —
+it says so and hands back the name — and that guard is there because a second
+activation isn't harmless: some apps answer one by popping their own error
+dialog (Docker's is "acquiring launcher lock"), and that dialog then sits on
+screen looking like the app.
 
 `launch_app` tells you the name the window actually reports. Use that name from
 then on — and if it differs from the one you asked for ("Firefox Developer
-Edition" opening as "Firefox"), your plan and any access grant don't cover it,
-so re-propose for the real name before acting. You can also ask for standing
-access to an app that isn't running yet: `request_desktop_access` resolves
-installed apps, not just open ones, which is how a background task gets
-permission to open something.
+Edition" opening as "Firefox"), your plan doesn't cover it, so propose an
+updated one naming what it actually reports before acting.
+
+Treat a name that **extends** what you asked for as a warning, not a win:
+"Docker Desktop Launcher" when you wanted "Docker Desktop" is a helper,
+installer or error dialog. `launch_app` ranks those last, so getting one back
+means the app's own window never appeared. Look at it with `screenshot_app`
+before you act on it — it's usually telling you why.
+
+**Windows Store apps under-report.** Calculator, Settings, Photos, Store and the
+current Notepad run their windows through one shared system process, so
+`launch_app` can tell you no window appeared when the app opened perfectly well,
+and it may come up behind whatever you were looking at. Don't relaunch on that
+report — `list_open_apps` and see what's actually there first.
+
+**Check the state before you assume it** — `get_app({app})` tells you whether an
+app is not running, hidden in the tray, open but minimized, or open and visible
+(and whether it's actually the window in front). It's the one tool that touches
+*nothing*, so it's always safe to call first.
 
 **Minimized is not a problem** — never ask the user to open a window, because
 they may not be there. `screenshot_app` restores a minimized window before it
-captures. `snapshot_app` can usually read one as it is; if its tree comes back
+captures, and tells you it did. That changes what's on the user's screen, so
+pass it on when you report back. `snapshot_app` can usually read one as it is; if its tree comes back
 empty, fall back to `screenshot_app`, which brings the window back. The one
 exception is pixel coordinates: a minimized window has no position on screen,
 so `screenshot_app` it first and take your coordinates from that fresh capture.
+
+**An app in the system tray is running, not closed.** When a tool tells you an
+app is running but has no window, it's tucked into the notification area by the
+clock — hidden rather than minimized, which is why nothing can find a window to
+act on. This is the one case where you launch something that's already running,
+and the missing window is exactly what makes it safe: nothing to duplicate,
+nothing to argue with. `launch_app` activates the running app, the app restores
+its own window, and you carry on with the name `launch_app` reports.
 
 Reach for `set_window_state({app, state})` when the window state is the *point*:
 `maximized` to make an app you just opened properly usable, `minimized` to tuck
 something away, `restored` for a normal window. Leave windows open when you're
 done unless the user asked otherwise — they'll want to see what happened.
+
+**A web page or a meeting opens by URL, not by driving the browser.**
+`open_url({url})` puts a page in front of the user in their default browser —
+one call, where launching the browser and typing into its address bar is four
+fragile ones. It also joins meetings: a `zoommtg://` link opens Zoom's join
+flow, `msteams://` opens Teams'. Name the site or meeting in your plan. It
+opens https/http/mailto and those two meeting schemes, nothing else — and
+`mailto:` only *composes*; the user sends. Opening a page does not read it:
+if you need the page's content, that's routing's job, not the desktop's.
 
 ## 3. The three ways to act — try them in this order
 
@@ -87,6 +122,71 @@ Only when there's no accessibility tree — `snapshot_app` came back empty or
 useless (some Electron, canvas, and custom-drawn apps). `screenshot_app` to
 see it, then click coordinates. Pass `app` so coordinates are relative to that
 window's screenshot, exactly as you saw it.
+
+### Moving text: use the clipboard
+
+Re-typing text you can see is slow, and it goes wrong in ways that are hard to
+spot — lost formatting, mangled accents, and a stray newline that submits the
+form before you meant to.
+
+- `ctrl+c`, then `read_clipboard` — gives you the text exactly, instead of you
+  reading it off a screenshot and hoping.
+- `write_clipboard({text})`, then `ctrl+v` — pastes long or formatted text in
+  one step.
+
+Name them in your plan; both need one. Two cautions:
+
+- The clipboard belongs to the **whole computer**. If what you read back looks
+  like a password, a card number or a one-time code, don't repeat it and don't
+  type it anywhere — tell the user you found credentials and stop.
+- Writing **replaces** whatever the user had copied. If that could matter, read
+  it first and put it back afterwards.
+
+### Files move by path, not by dragging
+
+"Drag this file into that folder" is really a filesystem operation. A file's
+location is a **path**, not a position on screen, so use file tools: instant,
+verifiable, and impossible to half-do. A dragged icon can silently fail and look
+exactly like success.
+
+Drag only when an app accepts something no other way — dropping onto a compose
+window or a media timeline. Even then, look for an **Attach** button and its file
+dialog first (`ctrl+l` in the dialog, type the path, `enter`), which is far more
+reliable. When you do drag, always look afterwards to confirm it landed.
+
+If the drop target only appears **during** the drag — a folder that springs open
+when you hover it, a tab you must cross to reach another window — pass `via`:
+points to travel through while the button is held, pausing at each. Without them
+the pointer goes straight to the destination and those targets never get the
+chance to react.
+
+```
+act_on_desktop({app: "File Explorer", action: "drag",
+  x: 120, y: 300, via: [{x: 400, y: 220}], toX: 640, toY: 260})
+```
+
+### Another screen
+
+Don't assume one screen. `list_monitors` tells you what's actually connected —
+position, size, scaling, orientation. A monitor to the left of or above the main
+one has **negative** coordinates, and those are correct, not a bug.
+
+"What's on my screen?" is `screenshot_desktop` — a whole monitor in one
+picture (omit `monitor` for the primary, or pass an id from `list_monitors`).
+Use it to get oriented; to read or act on one app, go back to `snapshot_app` /
+`screenshot_app`, which are sharper and their coordinates need no math. The
+caption tells you exactly how to aim an absolute click from a whole-screen
+image if you must. It sees *everything* on that screen, including apps the
+user never mentioned — capture it to answer what they asked, never to browse.
+
+Aim with the `bounds` it reports — never build a rectangle from `x`/`y` plus
+`physicalSize`, because on a scaled display those two are in different units.
+
+**Scaling does not apply to window work.** When you pass `app`, your coordinates
+are relative to that window's own screenshot, and those two always agree — on
+every monitor, at every scaling. Do **not** scale, divide, or "correct"
+window-relative coordinates because a display reports 125%. Doing so is what
+puts the click in the wrong place.
 
 ### The one naming trap
 
@@ -137,6 +237,28 @@ tab · `ctrl+f` find · `f5` reload · `enter` go.
 ⚠️ **`enter` sends the message.** That's irreversible — it must be in your
 approved plan before you press it.
 
+### Act and see in one call — the pipeline
+
+Every act tool (and `launch_app`) takes `observe: true`: the result comes back
+with a fresh screenshot, so you never spend a separate call just to look at
+what you did. `observeSettleMs` (~2000–4000) covers actions that load content;
+for loads of unknown length, `wait_for` is still the right tool.
+
+The pipeline for "open Chrome, go to a page, read it" is **two calls**:
+
+```
+launch_app({app: "Google Chrome", observe: true, observeSettleMs: 2500})
+act_on_desktop({app: "Google Chrome", observe: true, observeSettleMs: 3000,
+  actions: [{action: "press", keys: "ctrl+t"},
+            {action: "press", keys: "ctrl+l"},
+            {action: "type", text: "example.com"},
+            {action: "press", keys: "enter"}]})
+```
+
+The second result carries the loaded page — read your answer straight off it.
+A failed batch observes too: you see the part-way state without another call.
+Skip `observe` when you won't look at the picture; it costs tokens.
+
 ## 5. Do related steps in one call
 
 Both act tools take an `actions` array. Use it when steps belong together —
@@ -159,12 +281,45 @@ plan it (Chrome, `full`) → `list_open_apps` → `launch_app` if needed →
 the batch above → `screenshot_app` to confirm results loaded → tell the user
 what's on screen.
 
-## 6. Check that it worked
+## 6. Wait properly, then check that it worked
 
-An action isn't done because the tool returned. Look: `snapshot_app` (or
-`screenshot_app`) and confirm the thing you expected actually happened —
-the message sent, the file saved, the page loaded. Never stack a second
-unverified action on top of a first.
+**Waiting.** When something takes a moment — a page loading, a dialog opening,
+a spinner clearing, a file saving — use `wait_for`:
+
+```
+wait_for({app: "Google Chrome", until: "text_appears", text: "Results"})
+```
+
+It returns the instant the condition is true (including immediately, if it
+already was), so it's both faster and more reliable than screenshotting on a
+loop. Conditions: `text_appears` · `text_disappears` · `app_appears` ·
+`app_closes`. It's read-only, so it needs no plan.
+
+If it times out, **don't just wait again**. Look at the app and find out what
+actually happened — something needs a different step, or the user.
+
+**Checking.** An action isn't done because the tool returned; the tool returning
+means the action was *sent*. Look: `snapshot_app` (or `screenshot_app`) and
+confirm the thing you expected actually happened — the message sent, the file
+saved, the page loaded. Never stack a second unverified action on top of a
+first, and never tell the user something worked if you haven't seen it.
+
+**Typing checks itself.** `act_on_app` with `type_text` or `set_value` reads the
+field back and tells you what it now holds. Read that line before moving on:
+
+- *"Verified: the field now reads …"* — it landed.
+- *"⚠ NOT VERIFIED — the text did not land"* — it did **not**. The focus moved,
+  the field rejected it, or autocomplete rewrote it. Look at the app; do not
+  retype blindly, and do not press Send.
+- *"NOT confirmed — …"* — the control exposes no readable value, so nobody
+  checked. Treat it like a pixel click and look for yourself.
+
+Pressing a button can't be checked this way — there's no value to read — so for
+`press` the burden is still on you to look.
+
+**One note on batches.** While a batch runs the user can't interrupt it, so it
+has a time limit and will cut itself off, telling you how far it got. Don't put
+waiting inside a batch — finish the batch, then `wait_for`.
 
 ## 7. When something won't work
 
@@ -181,9 +336,9 @@ so plainly and hand it back to the user rather than trying to force it:
   coordinates; if that also fails, describe what you see and ask how to
   proceed.
 
-If an action is refused for missing access, the error tells you the recovery:
-propose an updated plan naming that app, or `request_desktop_access` for
-lasting access — the user decides.
+If an action is refused because your plan doesn't cover the app, the recovery is
+always the same: propose an updated plan naming it. There is no separate
+per-app permission to ask for — the plan *is* the permission.
 
 ## 8. Never
 
@@ -206,3 +361,17 @@ The user was away. Close the loop in their words, not tool names: "Chrome is
 open on YouTube's results for new songs — the top one is X." If something
 stopped you, say what and what you need from them. Never report success you
 haven't actually seen on screen.
+
+**If they may not be looking at the chat, say it as a toast.**
+`send_desktop_notification({title, message})` shows a Windows notification and
+lands in the notification center — right for a background task finishing or
+something needing their attention. A headline and one line, detail stays in
+chat. One per event: a task that toasts every step is an alarm, not an
+assistant. Titles come out as "Vynel — <your title>" and the toast attributes
+itself to "Windows PowerShell"; both are expected.
+
+**Sound**: `set_volume({level})` or `set_volume({mute: true})` changes the
+machine's master volume (it's an action — plan it). Prefer `mute` for
+"silence it": it keeps the user's chosen level for when they unmute. The
+reply is what the device *reports* afterwards, so trust it over what you
+asked for.

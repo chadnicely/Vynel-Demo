@@ -4,12 +4,11 @@ import type { McpToolFn } from './mcp-tool-fn.js'
 import { listInstalledApps, matchInstalledApps, type InstalledApp } from '../apps/installed-apps.js'
 import { launchApp, type LaunchAppResult } from '../apps/launch-app.js'
 import { listWindowAppNames } from '../a11y/window-identity.js'
-import {
-  normalizeDesktopAppKey,
-  type DesktopAccessAuthorizer,
-} from '../access/desktop-access-tiers.js'
+import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
+import { captureActObservation, parseObserveRequest, OBSERVE_SETTLE_MAX_MS } from './act-observation.js'
 
 // Starting a program is an ACTION, so it sits inside the same envelope every
 // other act does: plan first, then authorization against the RESOLVED app.
@@ -39,11 +38,52 @@ const TOOL_DESCRIPTION =
 export function buildLaunchResponse(
   result: LaunchAppResult,
   requestedName?: string,
-): { content: Array<{ type: 'text'; text: string }> } {
+): { content: Array<{ type: 'text'; text: string }>; isError?: boolean } {
+  // The SAME drift check both outcomes need. `already-open` needs it just as
+  // much as `launched`: packaged apps enter the window roster under their
+  // TITLE, so a document window ("Mail attachment.jpg - Photos") can satisfy a
+  // loose match for "Mail" and be reported as the app. Naming the mismatch is
+  // what stops the model targeting a document as though it were the program.
+  const drifted =
+    requestedName !== undefined &&
+    normalizeDesktopAppKey(requestedName) !== normalizeDesktopAppKey(result.appName)
+
+  if (result.kind === 'already-open') {
+    return {
+      content: [
+        {
+          type: 'text',
+          text:
+            `"${result.appName}" already has a window open — nothing was launched, which is what you ` +
+            'want: activating an app that is already showing can pop an error dialog that then sits ' +
+            `on screen looking like the app. Use "${result.appName}" for snapshot_app / screenshot_app ` +
+            'and the act tools.' +
+            (drifted
+              ? ` NOTE: that window reports as "${result.appName}", not "${requestedName}" — check ` +
+                'with list_open_apps that it really is the app you meant and not a document or ' +
+                `helper window, and re-propose your plan for "${result.appName}" before acting.`
+              : ' If it is not the window you expected, call list_open_apps.'),
+        },
+      ],
+    }
+  }
+  if (result.kind === 'look-alike-only') {
+    return {
+      content: [
+        {
+          type: 'text',
+          text:
+            `"${result.appName}" did NOT open. A window called "${result.lookAlikeName}" appeared ` +
+            'instead — a name that merely extends the app\'s, which is almost always the app ' +
+            'refusing to start and saying why in a dialog. Do NOT target it as if it were the app, ' +
+            `and do NOT just launch again. Read it — screenshot_app({ app: "${result.lookAlikeName}" }) ` +
+            '— then tell the user what it says, because the fix is usually theirs to make.',
+        },
+      ],
+      isError: true,
+    }
+  }
   if (result.kind === 'launched') {
-    const drifted =
-      requestedName !== undefined &&
-      normalizeDesktopAppKey(requestedName) !== normalizeDesktopAppKey(result.appName)
     return {
       content: [
         {
@@ -52,9 +92,9 @@ export function buildLaunchResponse(
             `"${result.appName}" is open. Use that exact name for snapshot_app / screenshot_app and ` +
             'the act tools.' +
             (drifted
-              ? ` NOTE: it reports as "${result.appName}", not "${requestedName}" — any plan entry or ` +
-                `access grant naming "${requestedName}" does NOT cover it. Propose an updated plan (or ` +
-                `request_desktop_access) for "${result.appName}" before acting.`
+              ? ` NOTE: it reports as "${result.appName}", not "${requestedName}" — a plan entry ` +
+                `naming "${requestedName}" does NOT cover it. Propose an updated plan for ` +
+                `"${result.appName}" before acting.`
               : ''),
         },
       ],
@@ -82,10 +122,9 @@ export type LaunchAppToolDeps = {
  *  Plan-gated by construction, exactly like the act tools. */
 export function makeLaunchAppTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
   deps: LaunchAppToolDeps = {},
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   const listApps = deps.listApps ?? (() => listInstalledApps())
   const launch = deps.launch ?? launchApp
   return (tool as unknown as McpToolFn)(
@@ -96,6 +135,23 @@ export function makeLaunchAppTool(
         .string()
         .min(1)
         .describe('The installed app to start — the name exactly as list_installed_apps shows it.'),
+      observe: z
+        .boolean()
+        .optional()
+        .describe(
+          'Return a screenshot of the window that appeared in THIS result — launch and see in one ' +
+            'call, instead of launching and then screenshotting separately.',
+        ),
+      observeSettleMs: z
+        .number()
+        .int()
+        .min(0)
+        .max(OBSERVE_SETTLE_MAX_MS)
+        .optional()
+        .describe(
+          'Wait this long before the observe screenshot (default 400). Use ~2000-4000 for an app ' +
+            'that paints its content after its window appears.',
+        ),
     },
     async (args: Record<string, unknown>) => {
       const planRefusal = planRequiredError(envelope)
@@ -139,13 +195,52 @@ export function makeLaunchAppTool(
         const target = exact ?? matches[0]!
         // Authorize the app the user actually approved, BEFORE starting it.
         effectiveAuthorize(target.name, 'click')
-        return buildLaunchResponse(
-          await launch(target, { listWindowAppNames }),
+        const launchResult = await launch(target, { listWindowAppNames })
+        envelope.recordAct({
+          tool: 'launch_app',
+          appName: target.name,
+          detail:
+            launchResult.kind === 'already-open'
+              ? 'was already open — nothing launched'
+              : `launched (${launchResult.kind})`,
+          // `started-no-window` is explicitly UNVERIFIED — the launch ran and
+          // no window appeared. Recording it as `ok` would be the same
+          // overstatement that let a launch which opened the Applications
+          // folder report success for a whole day.
+          outcome:
+            launchResult.kind === 'look-alike-only'
+              ? 'failed'
+              : launchResult.kind === 'started-no-window'
+                ? 'unverified'
+                : 'ok',
+          note: launchResult.kind === 'look-alike-only' ? launchResult.lookAlikeName : null,
+        })
+        const response = buildLaunchResponse(
+          launchResult,
           // The name the authorization was taken under — so a window that
           // opens reporting something else is called out immediately.
           target.name,
         )
+        const observeRequest = parseObserveRequest(args)
+        // A look-alike gets observed too — the response tells the model to
+        // READ that dialog, so handing it the pixels saves the very call it
+        // was about to make. `started-no-window` has nothing to capture.
+        const observable =
+          launchResult.kind === 'look-alike-only'
+            ? launchResult.lookAlikeName
+            : launchResult.kind === 'started-no-window'
+              ? undefined
+              : launchResult.appName
+        if (observeRequest.observe && observable !== undefined) {
+          const observation = await captureActObservation(observable, observeRequest.settleMs)
+          return {
+            content: [...response.content, ...observation],
+            ...(response.isError === true ? { isError: true } : {}),
+          }
+        }
+        return response
       } catch (err) {
+        recordFailedAct(envelope, { tool: 'launch_app', appName: query, detail: 'launch threw' }, err)
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

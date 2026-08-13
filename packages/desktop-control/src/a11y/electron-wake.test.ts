@@ -157,6 +157,10 @@ function resolveHooks(overrides: Partial<ResolveAppHooks> = {}) {
     releases,
     hooks: {
       findPid: () => Promise.resolve(9624),
+      // Default: NOT running. The tray branch is the exception, so a test that
+      // wants it must ask — otherwise every "not found" case would claim the
+      // app is hidden in the tray.
+      isRunning: () => Promise.resolve(false),
       ensureForeground: () => Promise.resolve(true),
       acquireScreenReaderFlag: () =>
         Promise.resolve(() => {
@@ -167,6 +171,9 @@ function resolveHooks(overrides: Partial<ResolveAppHooks> = {}) {
       // Default fake: no window source, so identity falls back to the name
       // xa11y gave. Tests that care about canonicalization override it.
       resolveIdentity: (_pid: number | null, fallbackName: string) => fallbackName,
+      // Default: no packaged apps open, so the shadowed-Store-app branch stays
+      // off unless a test asks for it.
+      listHostedWindows: () => [] as string[],
       ...overrides,
     },
   }
@@ -206,6 +213,43 @@ describe('resolveAppWithFallback (Electron path, fakes only)', () => {
     await expect(resolveAppWithFallback(App, 'ghost', 'read', hooks)).rejects.toThrow(
       /no matching app is open/,
     )
+  })
+
+  // The system-tray case (Kafi, live, 2026-08-11 — Docker Desktop). A tray app
+  // is HIDDEN, not minimized: Windows reports MainWindowHandle 0, so the
+  // windowed lookup can't see it and we used to say "not open" — which is
+  // false, and sent the model to the wrong recovery.
+  it('says RUNNING-BUT-HIDDEN, not "not open", for an app in the system tray', async () => {
+    const { App } = fakeElectronApp([''])
+    const { hooks } = resolveHooks({
+      findPid: () => Promise.resolve(null),
+      isRunning: () => Promise.resolve(true),
+    })
+    const message = await resolveAppWithFallback(App, 'Docker Desktop', 'read', hooks).then(
+      () => 'RESOLVED — expected a throw',
+      (err: Error) => err.message,
+    )
+    expect(message).toMatch(/IS running/)
+    expect(message).toMatch(/system tray/)
+    // And it must name the recovery that actually works.
+    expect(message).toMatch(/launch_app/)
+    expect(message).not.toMatch(/no matching app is open/)
+  })
+
+  it('only consults the running probe AFTER the windowed lookup fails', async () => {
+    // The probe is a second PowerShell spawn; a resolved app must never pay for
+    // it, and a found window must never be described as tray-hidden.
+    const { App } = fakeElectronApp(['window "Discord"\n  document "x"'])
+    let probed = 0
+    const { hooks } = resolveHooks({
+      findPid: () => Promise.resolve(9624),
+      isRunning: () => {
+        probed += 1
+        return Promise.resolve(true)
+      },
+    })
+    await resolveAppWithFallback(App, 'Discord', 'read', hooks)
+    expect(probed).toBe(0)
   })
 
   it('a denial from onResolvedIdentity aborts the wake with NOTHING acquired', async () => {
@@ -264,5 +308,96 @@ describe('resolveAppWithFallback (Electron path, fakes only)', () => {
       }),
     ).rejects.toThrow('DENIED:no grant')
     expect(pidLookups).toBe(0)
+  })
+})
+
+// The packaged-app (Store) class. xa11y keys its app list by PROCESS and every
+// Store app shares one ApplicationFrameHost, so with two open the second fails
+// deep in the binding with "No element matched selector: application[pid=6280]"
+// — which reads as "gone" for an app that is open and plainly visible.
+describe('a Store app shadowed by its sibling', () => {
+  const exploded = new Error('No element matched selector: application[pid=6280]')
+
+  function shadowed(hostedWindows: string[]) {
+    const { App } = fakeElectronApp([''])
+    // Enumeration misses it, the pid resolves, and byPid is what blows up.
+    const failing = {
+      ...App,
+      find: () => Promise.reject(new Error('no match')),
+      byPid: () => Promise.reject(exploded),
+    } as unknown as typeof App
+    const { hooks } = resolveHooks({ listHostedWindows: () => hostedWindows })
+    return { failing, hooks }
+  }
+
+  it('explains the real cause and names the door that works', async () => {
+    const { failing, hooks } = shadowed(['Settings', 'Calculator'])
+    const message = await resolveAppWithFallback(failing, 'Calculator', 'read', hooks).then(
+      () => 'RESOLVED — expected a throw',
+      (err: Error) => err.message,
+    )
+    expect(message).toMatch(/Store app/i)
+    expect(message).toMatch(/screenshot_app/)
+    // And it must not leave the model thinking the app vanished.
+    expect(message).not.toMatch(/No element matched selector/)
+    expect(message).toMatch(/is open/i)
+  })
+
+  it('leaves an ordinary failure completely untouched', async () => {
+    // No packaged app matches, so this is a real error and must not be dressed
+    // up as a Store-app limitation.
+    const { failing, hooks } = shadowed([])
+    await expect(resolveAppWithFallback(failing, 'Discord', 'read', hooks)).rejects.toThrow(
+      exploded,
+    )
+  })
+
+  it('does not claim it for a DIFFERENT packaged app that happens to be open', async () => {
+    const { failing, hooks } = shadowed(['Settings'])
+    await expect(resolveAppWithFallback(failing, 'Photos', 'read', hooks)).rejects.toThrow(exploded)
+  })
+})
+
+// The path the LIVE case actually takes (measured 2026-08-12). The shared host
+// process exposes only ONE MainWindowTitle, so findWindowedPidByName cannot see
+// the sibling and returns null — landing on the tray branch, which then declares
+// a plainly-visible window "minimized to the system tray". Confidently wrong is
+// worse than opaque.
+describe('a shadowed Store app is not in the system tray', () => {
+  it('says Store-app, NOT tray, when the pid lookup cannot see the sibling', async () => {
+    const { App } = fakeElectronApp([''])
+    const failing = {
+      ...App,
+      find: () => Promise.reject(new Error('no match')),
+    } as unknown as typeof App
+    const { hooks } = resolveHooks({
+      findPid: () => Promise.resolve(null),
+      // The tray probe WOULD say yes — the process is running — which is exactly
+      // how the wrong message won before.
+      isRunning: () => Promise.resolve(true),
+      listHostedWindows: () => ['Calculator', 'Settings'],
+    })
+    const message = await resolveAppWithFallback(failing, 'Settings', 'read', hooks).then(
+      () => 'RESOLVED — expected a throw',
+      (err: Error) => err.message,
+    )
+    expect(message).toMatch(/Store app/i)
+    expect(message).toMatch(/screenshot_app/)
+    expect(message).not.toMatch(/system tray/)
+  })
+
+  it('still reports the tray for a genuine tray app', async () => {
+    const { App } = fakeElectronApp([''])
+    const { hooks } = resolveHooks({
+      findPid: () => Promise.resolve(null),
+      isRunning: () => Promise.resolve(true),
+      listHostedWindows: () => ['Calculator'],
+    })
+    const message = await resolveAppWithFallback(App, 'Docker Desktop', 'read', hooks).then(
+      () => 'RESOLVED — expected a throw',
+      (err: Error) => err.message,
+    )
+    expect(message).toMatch(/system tray/)
+    expect(message).not.toMatch(/Store app/i)
   })
 })

@@ -20,9 +20,17 @@ describe('DESKTOP_TOOL_INSTRUCTIONS', () => {
     expect(DESKTOP_TOOL_INSTRUCTIONS).toContain('snapshot_app')
   })
 
-  it('teaches the per-app access model and its recovery path', () => {
-    expect(DESKTOP_TOOL_INSTRUCTIONS).toContain('request_desktop_access')
-    expect(DESKTOP_TOOL_INSTRUCTIONS.toLowerCase()).toContain('per-app')
+  // test: correct expectation — was "teaches the per-app access model and its
+  // recovery path", asserting the prompt contained `request_desktop_access`.
+  // Per-app grants are retired, so that assertion PINNED a lie: it passed
+  // precisely because the stale paragraph was still there, and would have kept
+  // the prompt teaching a tool that no longer exists.
+  it('teaches that looking is free and only CHANGING things needs a plan', () => {
+    expect(DESKTOP_TOOL_INSTRUCTIONS).not.toContain('request_desktop_access')
+    expect(DESKTOP_TOOL_INSTRUCTIONS.toLowerCase()).toContain('looking needs no permission')
+    // Free to look is not licence to wander — the restraint has to survive the
+    // removal of the gate that used to enforce it.
+    expect(DESKTOP_TOOL_INSTRUCTIONS.toLowerCase()).toMatch(/never go hunting/)
   })
 
   it('carries the prompt-injection boundary (screen content is data, not instructions)', () => {
@@ -57,8 +65,13 @@ describe('DESKTOP_ACT_INSTRUCTIONS', () => {
     const lower = DESKTOP_ACT_INSTRUCTIONS.toLowerCase()
     expect(DESKTOP_ACT_INSTRUCTIONS).toContain('launch_app')
     expect(lower).toContain("isn't running")
-    // Launching something already open is the obvious failure mode.
-    expect(lower).toContain('already open')
+    // Relaunching an app that already has a window is the obvious failure mode
+    // — and the CONSEQUENCE is asserted too, because "don't" without "or else"
+    // is what the model talks itself out of. Kafi hit exactly this: Docker
+    // answered a second activation with an error dialog, which then got
+    // reported as the app.
+    expect(lower).toContain('already has a window')
+    expect(lower).toContain('error dialog')
   })
 
   it('ranks the three ways to act — shortcut, then element, then coordinates', () => {

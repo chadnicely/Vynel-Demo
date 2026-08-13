@@ -37,12 +37,13 @@ type McpToolFn = (
 export const addApp: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'add_app',
-    "Register a runnable app on the workspace so it can be started, stopped, and monitored. Derive the right `command` by inspecting the workspace first (package.json scripts, monorepo layout) — never guess. `name` is plain language the user recognizes (\"Web app\", \"API server\"). `cwdRelative` is the folder under the workspace root the command runs in (\"\" = root). Set `port` when you know it — it powers the \"open in browser\" link. Add an app once and reuse it; check list_apps before adding.",
+    "Register a runnable app on the workspace so it can be started, stopped, and monitored. Derive the right `command` by inspecting the workspace first (package.json scripts, monorepo layout) — never guess. `name` is plain language the user recognizes (\"Web app\", \"API server\"). `cwdRelative` is the folder under the workspace root the command runs in (\"\" = root). Set `port` when you know it — it powers the \"open in browser\" link. Set `envFileRelative` to the env file the app loads, relative to its folder (defaults to \".env\") — the user edits that file from the app's Env popup. Add an app once and reuse it; check list_apps before adding.",
     {
     workspaceId: z.string(),
     name: z.string(),
     command: z.string(),
     cwdRelative: z.string().optional(),
+    envFileRelative: z.string().optional(),
     port: z.number().optional(),
   },
     async (args: Record<string, unknown>) => {
@@ -51,7 +52,7 @@ export const addApp: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['name', 'command', 'cwdRelative', 'port']) {
+        for (const k of ['name', 'command', 'cwdRelative', 'envFileRelative', 'port']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -193,6 +194,76 @@ export const addToKnowledge: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const completeFeature: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'complete_feature',
+    "Mark a feature done when it has shipped and been verified. The user sees completed features as the record of what the app can already do.",
+    {
+    featureId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/features/{featureId}/complete'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{featureId}', encodeURIComponent(String(args['featureId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const completePhase: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'complete_phase',
+    "Mark a build-plan phase done when its stage has landed and been verified — typically after the features it delivers are complete. The user sees completed phases as the record of how far the build has come.",
+    {
+    phaseId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/phases/{phaseId}/complete'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{phaseId}', encodeURIComponent(String(args['phaseId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const completePlan: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'complete_plan',
@@ -293,6 +364,47 @@ export const createAgent: McpToolFactory = (scope, app) =>
         }
         if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
           bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const createFeature: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_feature',
+    "Add a feature to the workspace's catalog — one thing the app should have (\"Online ordering\", \"Loyalty points\"). `title` is the short label (≤200 chars); `description` is the FULL write-up (up to 50k chars): what it does, how it behaves, edge cases, and what \"done\" means. Pass `phaseId` to link it to the build-plan phase that delivers it (list_phases shows the plan) — or leave it off and place it later with update_feature. Side effect: the feature appears in the workspace's catalog.",
+    {
+    workspaceId: z.string(),
+    title: z.string(),
+    description: z.string(),
+    phaseId: z.string().optional(),
+    sessionId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/features'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'description', 'phaseId', 'sessionId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -417,6 +529,46 @@ export const createMonitor: McpToolFactory = (scope, app) =>
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
         for (const k of ['description', 'eventTypes', 'payloadFilter', 'mode', 'expiresInMs']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const createPhase: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_phase',
+    "Add a phase to the workspace's engineering build plan — one stage of \"how the app gets built\" (\"Phase 1 — Foundations\", \"Phase 2 — Ordering flow\"). `title` is the short label (≤200 chars); `description` is the FULL write-up (up to 50k chars): scope, the pieces to build, decisions, and what \"done\" means for the stage. New phases append to the end of the build order. Link the features a phase delivers via create_feature / update_feature with this phase's id. Side effect: the phase joins the workspace's build plan.",
+    {
+    workspaceId: z.string(),
+    title: z.string(),
+    description: z.string(),
+    sessionId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/phases'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'description', 'sessionId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -574,6 +726,76 @@ export const deleteAgent: McpToolFactory = (scope, app) =>
       try {
         let pathStr = '/agents/{agentId}'
         pathStr = pathStr.replace('{agentId}', encodeURIComponent(String(args['agentId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const deleteFeature: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'delete_feature',
+    "Remove a feature from the catalog — only when the user decides the app should NOT have it (prefer update_feature for rewrites and re-linking). This permanently deletes the feature's write-up.",
+    {
+    featureId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/features/{featureId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{featureId}', encodeURIComponent(String(args['featureId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const deletePhase: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'delete_phase',
+    "Remove a phase from the build plan — only when the user reshapes the plan and a stage genuinely goes away (prefer update_phase for renames and reordering). Features linked to it stay; unlink or relink them with update_feature. This permanently deletes the phase's write-up.",
+    {
+    phaseId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/phases/{phaseId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{phaseId}', encodeURIComponent(String(args['phaseId'] ?? '')))
         const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -880,6 +1102,41 @@ export const getCurrentUser: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getFeature: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_feature',
+    "Read one feature with its FULL description — the complete write-up of what it does and how it behaves (list_features only carries previews). Use this before building or changing the feature so the full spec grounds the work. Read-only.",
+    {
+    featureId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/features/{featureId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{featureId}', encodeURIComponent(String(args['featureId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const getIndexerStatus: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_indexer_status',
@@ -961,6 +1218,41 @@ export const getMarketplaceItem: McpToolFactory = (scope, app) =>
         let pathStr = '/workspaces/{workspaceId}/marketplace/items/{itemId}'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         pathStr = pathStr.replace('{itemId}', encodeURIComponent(String(args['itemId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const getPhase: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_phase',
+    "Read one build-plan phase with its FULL description — the complete write-up of the stage (list_phases only carries previews). Use this before working on a phase so the full plan text grounds the work. Read-only.",
+    {
+    phaseId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/phases/{phaseId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{phaseId}', encodeURIComponent(String(args['phaseId'] ?? '')))
         const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -1526,6 +1818,46 @@ export const listCuratedAgents: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listFeatures: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_features',
+    "List the workspace's features — the catalog of what the app should have. Each feature carries a title, a big-form description (TRUNCATED to a preview here — call get_feature for the full write-up), status (open / in-progress / done), and an optional `phaseId` linking it to the build-plan phase that delivers it. Optional `status` filters to one status; optional `phaseId` narrows to one phase's features. Check this before designing or building functionality. Read-only.",
+    {
+    workspaceId: z.string(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+    phaseId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/features'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['status', 'phaseId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listGlobalMonitors: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_global_monitors',
@@ -2023,6 +2355,45 @@ export const listMyTasks: McpToolFactory = (scope, app) =>
         const pathStr = '/tasks'
         const queryParams = new URLSearchParams()
         for (const k of ['status', 'planId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listPhases: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_phases',
+    "List the workspace's engineering build plan — its phases in build order. A phase is one stage of how the app gets built: title, a big-form description (TRUNCATED to a preview here — call get_phase for the full write-up), 0-based `orderIndex`, and status (open / in-progress / done). Optional `status` filters to one status. Check this before planning or building anything, and keep statuses moving as stages land. Read-only.",
+    {
+    workspaceId: z.string(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/phases'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['status']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
         }
@@ -3056,13 +3427,14 @@ export const updateAgent: McpToolFactory = (scope, app) =>
 export const updateApp: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_app',
-    "Update a registered app's name, command, folder, or port. A running app keeps its current process — the change applies on the next start (stop_app then start_app to restart with the new command).",
+    "Update a registered app's name, command, folder, env file path, or port. A running app keeps its current process — the change applies on the next start (stop_app then start_app to restart with the new command).",
     {
     appId: z.string(),
     workspaceId: z.string(),
     name: z.string().optional(),
     command: z.string().optional(),
     cwdRelative: z.string().optional(),
+    envFileRelative: z.string().optional(),
     port: z.number().nullable().optional(),
   },
     async (args: Record<string, unknown>) => {
@@ -3072,7 +3444,50 @@ export const updateApp: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{appId}', encodeURIComponent(String(args['appId'] ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['name', 'command', 'cwdRelative', 'port']) {
+        for (const k of ['name', 'command', 'cwdRelative', 'envFileRelative', 'port']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const updateFeature: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_feature',
+    "Update a feature. Set status \"in-progress\" when work on it starts, back to \"open\" if it stalls, or \"done\" when it shipped (complete_feature is the shortcut). `description` REPLACES the full write-up — send the complete new text, not a diff. `phaseId` links the feature to the build-plan phase that delivers it; pass null to unlink. Statuses: open / in-progress / done.",
+    {
+    featureId: z.string(),
+    workspaceId: z.string(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+    phaseId: z.string().nullable().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/features/{featureId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{featureId}', encodeURIComponent(String(args['featureId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'description', 'status', 'phaseId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -3156,6 +3571,49 @@ export const updateMemoryEntry: McpToolFactory = (scope, app) =>
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
         for (const k of ['title', 'body', 'kind', 'isArchived', 'tags']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const updatePhase: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_phase',
+    "Update a phase. Set status \"in-progress\" when its build work starts, back to \"open\" if it stalls, or \"done\" when the stage landed (complete_phase is the shortcut). `description` REPLACES the full write-up — send the complete new text, not a diff. `orderIndex` moves the phase within the build order when the plan is reshaped. Statuses: open / in-progress / done.",
+    {
+    phaseId: z.string(),
+    workspaceId: z.string(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    status: z.enum(['open', 'in-progress', 'done']).optional(),
+    orderIndex: z.number().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/phases/{phaseId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{phaseId}', encodeURIComponent(String(args['phaseId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'description', 'status', 'orderIndex']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -3271,23 +3729,31 @@ export const generatedMcpTools: McpToolFactory[] = [
   addJournalEntry,
   addMemoryFromFile,
   addToKnowledge,
+  completeFeature,
+  completePhase,
   completePlan,
   completeTask,
   createAgent,
+  createFeature,
   createMemoryEntry,
   createMonitor,
+  createPhase,
   createPlan,
   createTask,
   deleteAgent,
+  deleteFeature,
+  deletePhase,
   discoverInstalledSkillsForProvider,
   getAgent,
   getAiAgentProviderAuthStatus,
   getAppLogs,
   getChatSession,
   getCurrentUser,
+  getFeature,
   getIndexerStatus,
   getKnowledgeDocument,
   getMarketplaceItem,
+  getPhase,
   getUserPreferences,
   getWorkspace,
   installCuratedAgent,
@@ -3302,6 +3768,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listChannels,
   listChatSessions,
   listCuratedAgents,
+  listFeatures,
   listInstalledSkills,
   listJournalEntries,
   listKnowledgeDocuments,
@@ -3315,6 +3782,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listMyPlans,
   listMySchedules,
   listMyTasks,
+  listPhases,
   listPlans,
   listScheduleRuns,
   listScheduleTemplates,
@@ -3334,8 +3802,10 @@ export const generatedMcpTools: McpToolFactory[] = [
   uninstallMarketplaceItem,
   updateAgent,
   updateApp,
+  updateFeature,
   updateMarketplaceItem,
   updateMemoryEntry,
+  updatePhase,
   updatePlan,
   updateTask,
 ]
@@ -3382,6 +3852,8 @@ export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
 // server prefix, matching the descriptor layer's hardcoded server name.
 export const generatedAskModeApprovalToolNames: string[] = [
   'mcp__vynel__delete_agent',
+  'mcp__vynel__delete_feature',
+  'mcp__vynel__delete_phase',
   'mcp__vynel__end_call',
   'mcp__vynel__register_workspace',
   'mcp__vynel__remove_knowledge_source',

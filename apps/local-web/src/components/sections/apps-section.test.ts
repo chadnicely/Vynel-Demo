@@ -14,6 +14,7 @@ function makeApp(overrides: Record<string, unknown> = {}) {
     name: "Web app",
     command: "pnpm --filter web dev",
     cwdRelative: "",
+    envFileRelative: ".env",
     port: null,
     runtime: null,
     createdAt: "2026-07-17T10:00:00.000Z",

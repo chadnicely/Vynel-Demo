@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import {
   ChevronRight,
   ExternalLink,
+  FileKey2,
   Pencil,
   Play,
   Square,
@@ -10,6 +11,7 @@ import {
   X,
 } from "lucide-vue-next";
 import type { WorkspaceAppResponse } from "@vynel/contracts/apps/app-http";
+import AppEnvDialog from "./AppEnvDialog.vue";
 import { useAppLogs } from "../../composables/workspace-apps/use-app-logs.js";
 import { useRemoveApp } from "../../composables/workspace-apps/use-remove-app.js";
 import { useStartApp } from "../../composables/workspace-apps/use-start-app.js";
@@ -66,6 +68,9 @@ const actionError = computed(() => {
     startApp.error.value ?? stopApp.error.value ?? removeApp.error.value;
   return error ? formatSdkError(error) : null;
 });
+
+// The env popup is per row (each app has its own file), so it lives here.
+const isEnvOpen = ref(false);
 
 const isLogsOpen = ref(false);
 const logsQuery = useAppLogs(
@@ -128,6 +133,15 @@ watch(logLines, async () => {
           {{ crashNote }}
         </p>
       </div>
+      <button
+        type="button"
+        class="env-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100"
+        :title="`Env for ${props.app.name}`"
+        :aria-label="`Env for ${props.app.name}`"
+        @click="isEnvOpen = true"
+      >
+        <FileKey2 :size="14" />
+      </button>
       <button
         type="button"
         class="edit-button shrink-0 cursor-default rounded-md p-1 text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100"
@@ -196,5 +210,12 @@ watch(logLines, async () => {
         Nothing printed yet.
       </p>
     </div>
+
+    <AppEnvDialog
+      :open="isEnvOpen"
+      :workspace-id="props.workspaceId"
+      :app="props.app"
+      @close="isEnvOpen = false"
+    />
   </div>
 </template>

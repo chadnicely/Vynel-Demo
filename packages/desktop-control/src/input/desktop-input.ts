@@ -12,6 +12,7 @@
 
 import { loadNutInput } from './nut-input-loader.js'
 import { parseKeyCombo } from './key-combo.js'
+import { performSteppedDrag } from './human-drag.js'
 import { withTimeout } from '../a11y/xa11y-loader.js'
 import {
   authorizeFocusedTarget,
@@ -23,7 +24,14 @@ import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 export type { DesktopInputProbes, ResolvedTargetFrame, FrameBounds } from './input-authorization.js'
 
-export const DESKTOP_INPUT_ACTIONS = ['click', 'type', 'press', 'scroll', 'drag'] as const
+export const DESKTOP_INPUT_ACTIONS = [
+  'click',
+  'type',
+  'press',
+  'scroll',
+  'drag',
+  'move',
+] as const
 export type DesktopInputAction = (typeof DESKTOP_INPUT_ACTIONS)[number]
 export type MouseButton = 'left' | 'right' | 'middle'
 export type ScrollDirection = 'up' | 'down' | 'left' | 'right'
@@ -34,6 +42,12 @@ export interface ActOnDesktopParams {
   y?: number
   toX?: number
   toY?: number
+  /** DRAG only — points to travel through while the button is held, pausing at
+   *  each. For drop targets that only appear mid-gesture (a folder that springs
+   *  open when hovered, a tab you must cross to reach another window).
+   *  Deliberately `unknown`: it arrives as raw MCP args, and `parseWaypoints`
+   *  is the ONE place that decides what a valid point is. */
+  via?: unknown
   text?: string
   keys?: string
   button?: MouseButton
@@ -46,8 +60,23 @@ export interface ActOnDesktopParams {
 
 export interface ActOnDesktopResult {
   action: DesktopInputAction
-  /** Human summary for the tool response + overlay narration. */
+  /** Human summary for the tool response + overlay narration. May contain what
+   *  was typed — the user watching their own screen should see it. */
   detail: string
+  /**
+   * The summary for the DURABLE RECORD: the shape of what happened, never its
+   * content.
+   *
+   * ⚠ These must stay separate. `desktop_actions` is append-only, so anything
+   * written there is on disk forever — and unlike `act_on_app`, this coordinate
+   * path has NO element-level password wall (`isPasswordControl` guards the a11y
+   * path only). Credentials typed here are prevented by the instruction layer
+   * alone, and instructions are not a wall. This package already holds the
+   * contrary posture as locked: `notifications/redact-one-time-codes.ts` never
+   * stores the raw code. Every other action's detail is already shape-only, so
+   * `type` was the lone leak.
+   */
+  recordDetail: string
 }
 
 const INPUT_TIMEOUT_MS = 15000
@@ -85,6 +114,24 @@ function requireNumber(value: number | undefined, name: string, action: string):
   return value
 }
 
+/** Waypoints for a drag — each must be a real point, because a malformed one
+ *  would silently steer the pointer somewhere the caller never asked for. */
+function parseWaypoints(value: unknown): Array<{ x: number; y: number }> {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) {
+    throw new Error('The "drag" action\'s "via" must be a list of {x, y} points.')
+  }
+  return value.map((point, index) => {
+    const candidate = point as { x?: unknown; y?: unknown }
+    const x = typeof candidate?.x === 'number' ? candidate.x : Number.NaN
+    const y = typeof candidate?.y === 'number' ? candidate.y : Number.NaN
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error(`The "drag" action's via[${index}] needs numeric "x" and "y".`)
+    }
+    return { x, y }
+  })
+}
+
 function mapButton(button: MouseButton | undefined, buttons: { LEFT: number; MIDDLE: number; RIGHT: number }): number {
   switch (button) {
     case 'right':
@@ -105,7 +152,8 @@ type ActionPlan =
   | { action: 'type'; text: string }
   | { action: 'press'; keys: string }
   | { action: 'scroll'; x: number; y: number }
-  | { action: 'drag'; x: number; y: number; toX: number; toY: number }
+  | { action: 'drag'; x: number; y: number; toX: number; toY: number; via: Array<{ x: number; y: number }> }
+  | { action: 'move'; x: number; y: number }
 
 export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
   switch (params.action) {
@@ -138,6 +186,13 @@ export function planDesktopAction(params: ActOnDesktopParams): ActionPlan {
         y: requireNumber(params.y, 'y', 'drag'),
         toX: requireNumber(params.toX, 'toX', 'drag'),
         toY: requireNumber(params.toY, 'toY', 'drag'),
+        via: parseWaypoints(params.via),
+      }
+    case 'move':
+      return {
+        action: 'move',
+        x: requireNumber(params.x, 'x', 'move'),
+        y: requireNumber(params.y, 'y', 'move'),
       }
     default: {
       // Exhaustiveness guard — a new action MUST add a case above.
@@ -180,13 +235,18 @@ export async function actOnDesktop(
         'click',
       )
       const kind = params.double === true ? 'double-click' : `${params.button ?? 'left'} click`
-      return { action: 'click', detail: `${kind} at (${point.x}, ${point.y})${where}` }
+      const clickDetail = `${kind} at (${point.x}, ${point.y})${where}`
+      return { action: 'click', detail: clickDetail, recordDetail: clickDetail }
     }
     case 'type': {
       authorizeFocusedTarget(authorize, probes, 'type')
       const { keyboard } = loadNutInput()
       await withTimeout(keyboard.type(plan.text), INPUT_TIMEOUT_MS, 'type')
-      return { action: 'type', detail: `typed "${plan.text}"${where}` }
+      return {
+        action: 'type',
+        detail: `typed "${plan.text}"${where}`,
+        recordDetail: `typed ${plan.text.length} characters${where}`,
+      }
     }
     case 'press': {
       authorizeFocusedTarget(authorize, probes, 'press')
@@ -195,7 +255,9 @@ export async function actOnDesktop(
       await withTimeout(keyboard.pressKey(...keyValues), INPUT_TIMEOUT_MS, 'press')
       // Release in reverse so a chord unwinds cleanly (modifier released last).
       await withTimeout(keyboard.releaseKey(...[...keyValues].reverse()), INPUT_TIMEOUT_MS, 'press')
-      return { action: 'press', detail: `pressed ${plan.keys}` }
+      // Key NAMES are shape, not content — "pressed ctrl+v" says nothing about
+      // what was pasted.
+      return { action: 'press', detail: `pressed ${plan.keys}`, recordDetail: `pressed ${plan.keys}` }
     }
     case 'scroll': {
       const resolved = probes.resolveTargetFrame(params.app)
@@ -214,26 +276,41 @@ export async function actOnDesktop(
               ? mouse.scrollRight(amount)
               : mouse.scrollDown(amount)
       await withTimeout(scroll, INPUT_TIMEOUT_MS, 'scroll')
-      return { action: 'scroll', detail: `scrolled ${direction} at (${point.x}, ${point.y})${where}` }
+      const scrollDetail = `scrolled ${direction} at (${point.x}, ${point.y})${where}`
+      return { action: 'scroll', detail: scrollDetail, recordDetail: scrollDetail }
     }
     case 'drag': {
       const resolved = probes.resolveTargetFrame(params.app)
       const from = translatePoint(resolved.frame, plan.x, plan.y)
       const to = translatePoint(resolved.frame, plan.toX, plan.toY)
-      // A drag has TWO ends — authorize both (an absolute drag can drop onto a
-      // different app than it grabbed from).
+      const via = plan.via.map((point) => translatePoint(resolved.frame, point.x, point.y))
+      // EVERY end is authorized, waypoints included — the pointer is held down
+      // as it crosses them, so a waypoint over another app is a drag through
+      // that app, not a fly-over.
       authorizeMouseTarget(authorize, probes, resolved, from, 'click')
-      authorizeMouseTarget(authorize, probes, resolved, to, 'click')
-      const { mouse, Point } = loadNutInput()
-      await withTimeout(
-        mouse.drag([new Point(from.x, from.y), new Point(to.x, to.y)]),
-        INPUT_TIMEOUT_MS,
-        'drag',
-      )
-      return {
-        action: 'drag',
-        detail: `dragged (${from.x}, ${from.y}) → (${to.x}, ${to.y})${where}`,
+      for (const point of via) {
+        authorizeMouseTarget(authorize, probes, resolved, point, 'click')
       }
+      authorizeMouseTarget(authorize, probes, resolved, to, 'click')
+      // Press → threshold nudge → stepped travel → dwell → guaranteed release,
+      // rather than nut's one-jump `drag()`. The whole gesture lives in
+      // `human-drag.ts`, next to the path it walks — see there for why a jump
+      // moves a slider but never completes a drop.
+      await performSteppedDrag(from, to, via)
+      const through = via.length > 0 ? ` via ${via.map((p) => `(${p.x}, ${p.y})`).join(' → ')}` : ''
+      const dragDetail = `dragged (${from.x}, ${from.y})${through} → (${to.x}, ${to.y})${where}`
+      return { action: 'drag', detail: dragDetail, recordDetail: dragDetail }
+    }
+    case 'move': {
+      const resolved = probes.resolveTargetFrame(params.app)
+      const point = translatePoint(resolved.frame, plan.x, plan.y)
+      // Moving the pointer is `click`-tier: it is how a hover menu opens or a
+      // tooltip appears, so it changes what is on screen.
+      authorizeMouseTarget(authorize, probes, resolved, point, 'click')
+      const { mouse, Point } = loadNutInput()
+      await withTimeout(mouse.setPosition(new Point(point.x, point.y)), INPUT_TIMEOUT_MS, 'move')
+      const moveDetail = `moved to (${point.x}, ${point.y})${where}`
+      return { action: 'move', detail: moveDetail, recordDetail: moveDetail }
     }
   }
 }

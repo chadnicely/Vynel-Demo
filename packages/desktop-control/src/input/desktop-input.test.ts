@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { translatePoint, actOnDesktop, type DesktopInputProbes } from './desktop-input.js'
+import {
+  translatePoint,
+  actOnDesktop,
+  planDesktopAction,
+  type DesktopInputProbes,
+} from './desktop-input.js'
 import type { DesktopAccessTier } from '../access/desktop-access-tiers.js'
 
 describe('translatePoint', () => {
@@ -135,6 +140,47 @@ describe('actOnDesktop — access enforcement (injected probes)', () => {
     expect(authorize).not.toHaveBeenCalled()
   })
 
+  // `move` is a hover, but it still CHANGES the screen (it opens hover menus and
+  // reveals tooltips), so it must pass the same two walls as a click rather
+  // than being treated as a free read.
+  it('move is CONFINED to the named window, like a click', async () => {
+    const calls: Array<[string, DesktopAccessTier]> = []
+    await expect(
+      actOnDesktop(
+        { action: 'move', app: 'Notepad', x: 5000, y: 5000 },
+        recordingAuthorize(calls),
+        notepadProbes,
+      ),
+    ).rejects.toThrow(/OUTSIDE the "Notepad" window/)
+    expect(calls).toEqual([])
+  })
+
+  it('move authorizes the HIT-TESTED app at the click tier, not the named frame', async () => {
+    const probes: DesktopInputProbes = { ...notepadProbes, windowAppNameAt: () => 'PasswordSafe' }
+    const calls: Array<[string, DesktopAccessTier]> = []
+    await expect(
+      actOnDesktop({ action: 'move', app: 'Notepad', x: 10, y: 10 }, recordingAuthorize(calls), probes),
+    ).rejects.toThrow('DENIED:PasswordSafe:click')
+    expect(calls).toEqual([['PasswordSafe', 'click']])
+  })
+
+  it('move fails CLOSED when the target cannot be identified', async () => {
+    const probes: DesktopInputProbes = {
+      ...notepadProbes,
+      resolveTargetFrame: () => ({ frame: { offsetX: 0, offsetY: 0 }, appName: null, bounds: null }),
+      windowAppNameAt: () => null,
+    }
+    const authorize = vi.fn()
+    await expect(actOnDesktop({ action: 'move', x: 10, y: 10 }, authorize, probes)).rejects.toThrow(
+      /Could not identify the app/,
+    )
+    expect(authorize).not.toHaveBeenCalled()
+  })
+
+  it('rejects a move with missing coordinates before any native load', async () => {
+    await expect(actOnDesktop({ action: 'move', x: 10 })).rejects.toThrow(/requires a numeric "y"/)
+  })
+
   it('a drag authorizes BOTH ends (the drop can land on a different app)', async () => {
     const targets = new Map([
       ['5,5', 'Notepad'],
@@ -157,5 +203,36 @@ describe('actOnDesktop — access enforcement (injected probes)', () => {
       ['Notepad', 'click'],
       ['PasswordSafe', 'click'],
     ])
+  })
+})
+
+// Waypoints let one call do what raw press/release would otherwise need two
+// for — and two calls means a tool-call boundary the button can be left down
+// across. Validation lives here so a malformed point can never steer the
+// pointer somewhere the caller never asked for.
+describe('planDesktopAction — drag waypoints', () => {
+  const base = { action: 'drag' as const, x: 0, y: 0, toX: 10, toY: 10 }
+
+  it('defaults to no waypoints — a plain drag is unchanged', () => {
+    expect(planDesktopAction(base)).toMatchObject({ via: [] })
+    expect(planDesktopAction({ ...base, via: undefined })).toMatchObject({ via: [] })
+  })
+
+  it('accepts a list of points', () => {
+    expect(planDesktopAction({ ...base, via: [{ x: 5, y: 5 }] })).toMatchObject({
+      via: [{ x: 5, y: 5 }],
+    })
+  })
+
+  it('refuses a malformed waypoint rather than steering somewhere unasked', () => {
+    for (const bad of [
+      [{ x: 1 }],
+      [{ x: 1, y: 'two' }],
+      [null],
+      [{ x: Number.NaN, y: 0 }],
+      'not-a-list',
+    ]) {
+      expect(() => planDesktopAction({ ...base, via: bad })).toThrow(/via|list of/i)
+    }
   })
 })

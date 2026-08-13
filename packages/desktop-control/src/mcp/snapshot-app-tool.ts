@@ -2,7 +2,6 @@ import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpToolFn } from './mcp-tool-fn.js'
 import { snapshotApp, type AppSnapshot } from '../a11y/xa11y-adapter.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 
 const TOOL_DESCRIPTION =
   "Read a desktop app's on-screen UI as an indented accessibility tree (roles, names, values) — your " +
@@ -49,7 +48,7 @@ export function buildSnapshotAppResponse(
 }
 
 /** Construct the read-only `snapshot_app` SDK MCP tool. */
-export function makeSnapshotAppTool(authorize?: DesktopAccessAuthorizer): unknown {
+export function makeSnapshotAppTool(): unknown {
   return (tool as unknown as McpToolFn)(
     'snapshot_app',
     TOOL_DESCRIPTION,
@@ -64,12 +63,29 @@ export function makeSnapshotAppTool(authorize?: DesktopAccessAuthorizer): unknow
         .max(40)
         .optional()
         .describe('Max accessibility-tree depth to read. Default 12 (25 for Electron apps), capped at 40.'),
+      timeoutMs: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Only after a timeout: retry the same call with a longer limit (default 25000, max ' +
+            '120000). A big window, a heavy page or a cold start can genuinely need it. If it ' +
+            'times out again at the higher limit, stop raising it and use screenshot_app instead.',
+        ),
     },
     async (args: Record<string, unknown>) => {
       try {
         const app = typeof args['app'] === 'string' ? args['app'] : ''
         const maxDepth = typeof args['maxDepth'] === 'number' ? args['maxDepth'] : undefined
-        const snapshot = await snapshotApp(app, maxDepth !== undefined ? { maxDepth } : {}, authorize)
+        const timeoutMs = typeof args['timeoutMs'] === 'number' ? args['timeoutMs'] : undefined
+        const snapshot = await snapshotApp(
+          app,
+          {
+            ...(maxDepth !== undefined ? { maxDepth } : {}),
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          },
+        )
         return buildSnapshotAppResponse(app, snapshot)
       } catch (err) {
         return {

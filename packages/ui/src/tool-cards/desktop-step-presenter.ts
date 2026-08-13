@@ -46,8 +46,21 @@ export function describeDesktopStep(toolName: string, toolInput: unknown): strin
       return `Opening ${inputString(toolInput, "app") ?? "an app"}`;
     case "set_window_state":
       return `${windowStateProgressive(inputString(toolInput, "state"))} ${inputString(toolInput, "app") ?? "a window"}`;
+    case "set_window_bounds":
+      return `Moving ${inputString(toolInput, "app") ?? "a window"}`;
     case "list_desktop_notifications":
       return "Checking your notifications";
+    case "list_monitors":
+      return "Checking your screens";
+    case "wait_for":
+      return `Waiting for ${inputString(toolInput, "app") ?? "an app"} to be ready`;
+    // Deliberately plain about the clipboard: it is shared by the whole
+    // computer and may hold something private, so the user should see it named
+    // rather than folded into a vaguer "reading".
+    case "read_clipboard":
+      return "Reading your clipboard";
+    case "write_clipboard":
+      return "Copying text to your clipboard";
     case "snapshot_app":
       return `Reading ${inputString(toolInput, "app") ?? "an app"}`;
     case "screenshot_app":
@@ -104,6 +117,34 @@ export function presentDesktopToolCall(
   switch (shortName) {
     case "list_open_apps":
       return { verb: "Looked at open apps", argument: null, subtitle: null, stats: null, body };
+    case "list_monitors":
+      return { verb: "Checked your screens", argument: null, subtitle: null, stats: null, body };
+    case "wait_for":
+      return {
+        verb: "Waited for",
+        argument: inputString(toolInput, "app"),
+        subtitle: "to be ready",
+        stats: null,
+        body,
+      };
+    case "read_clipboard":
+      // The clipboard's CONTENTS are the body, which is the point of the card:
+      // if something private was read, the user can see exactly what.
+      return {
+        verb: "Read your clipboard",
+        argument: null,
+        subtitle: "shared by the whole computer",
+        stats: null,
+        body,
+      };
+    case "write_clipboard":
+      return {
+        verb: "Copied text to your clipboard",
+        argument: null,
+        subtitle: "replacing what was there",
+        stats: null,
+        body,
+      };
     case "list_installed_apps":
       return {
         verb: "Looked for an app",
@@ -125,6 +166,14 @@ export function presentDesktopToolCall(
         verb: windowStatePast(inputString(toolInput, "state")),
         argument: inputString(toolInput, "app"),
         subtitle: "on your desktop",
+        stats: null,
+        body,
+      };
+    case "set_window_bounds":
+      return {
+        verb: "Moved",
+        argument: inputString(toolInput, "app"),
+        subtitle: "to a new position",
         stats: null,
         body,
       };

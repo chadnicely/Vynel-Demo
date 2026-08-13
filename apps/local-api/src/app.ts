@@ -41,6 +41,8 @@ import { tasksUserApp } from './routes/tasks/user-scoped.js'
 import { todosApp } from './routes/todos/index.js'
 import { plansApp } from './routes/plans/index.js'
 import { plansUserApp } from './routes/plans/user-scoped.js'
+import { phasesApp } from './routes/phases/index.js'
+import { featuresApp } from './routes/features/index.js'
 import { monitorsApp } from './routes/monitors/index.js'
 import { monitorsUserApp } from './routes/monitors/user-scoped.js'
 import { journalApp } from './routes/journal/index.js'
@@ -48,7 +50,6 @@ import { journalUserApp } from './routes/journal/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
 import { sshServersApp } from './routes/ssh-servers/index.js'
 import { serverInstallApp } from './routes/server-install/index.js'
-import { desktopAccessApp } from './routes/desktop-access/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
 import { workspaceAppsApp } from './routes/workspace-apps/index.js'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
@@ -298,6 +299,10 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // journal ride the same reasoning (the date-wise layer + the daily record).
   app.route('/workspaces/:workspaceId/tasks', tasksApp)
   app.route('/workspaces/:workspaceId/plans', plansApp)
+  // Phases + features are the engineering-plan layer (the build plan + the
+  // app's feature catalog) — core like tasks/plans, so not feature-gated.
+  app.route('/workspaces/:workspaceId/phases', phasesApp)
+  app.route('/workspaces/:workspaceId/features', featuresApp)
   app.route('/workspaces/:workspaceId/monitors', monitorsApp)
   app.route('/workspaces/:workspaceId/journal', journalApp)
   app.route('/workspaces/:workspaceId/apps', workspaceAppsApp)
@@ -335,9 +340,6 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface is the `vynel-ssh` descriptor). Gated pro above.
   app.route('/ssh-servers', sshServersApp)
   app.route('/server-install', serverInstallApp)
-  // `/desktop/access` — the user's window into the per-app desktop grants
-  // (list + revoke). Creation happens ONLY via the carded MCP tool.
-  app.route('/desktop/access', desktopAccessApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace/sources', marketplaceSourcesApp)

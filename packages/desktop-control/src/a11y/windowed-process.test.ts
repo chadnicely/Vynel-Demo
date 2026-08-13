@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { selectWindowedPid, type WindowedProcess } from './windowed-process.js'
+import {
+  selectWindowedPid,
+  matchesProcessName,
+  type WindowedProcess,
+} from './windowed-process.js'
 
 const processes: WindowedProcess[] = [
   { pid: 100, processName: 'chrome', windowTitle: 'Fast.com - Google Chrome' },
@@ -61,5 +65,29 @@ describe('selectWindowedPid', () => {
       { pid: 10, processName: 'App', windowTitle: 'Same' },
     ]
     expect(selectWindowedPid(twins, 'app')).toBe(10)
+  })
+})
+
+// The tray probe's matcher. A process name has no .exe and often differs from
+// the display name, so both directions matter.
+describe('matchesProcessName', () => {
+  it('matches a display name against the process name, case-insensitively', () => {
+    expect(matchesProcessName('Docker Desktop', 'docker desktop')).toBe(true)
+    expect(matchesProcessName('Docker Desktop', 'Docker')).toBe(true)
+    expect(matchesProcessName('chrome', 'Google Chrome')).toBe(true)
+  })
+
+  it('tolerates a .exe the caller carried in', () => {
+    expect(matchesProcessName('Discord', 'Discord.exe')).toBe(true)
+  })
+
+  it('does not match an unrelated process', () => {
+    expect(matchesProcessName('Notepad', 'Docker')).toBe(false)
+  })
+
+  it('never matches on an empty side — that would call everything running', () => {
+    expect(matchesProcessName('', 'Docker')).toBe(false)
+    expect(matchesProcessName('Docker', '   ')).toBe(false)
+    expect(matchesProcessName('Docker', '.exe')).toBe(false)
   })
 })

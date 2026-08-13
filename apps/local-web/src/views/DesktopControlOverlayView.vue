@@ -98,11 +98,43 @@ function decide(providerApprovalId: string, kind: "approved" | "denied") {
 }
 
 const isStopping = ref(false);
+
+// Desktop work no longer rides only the global root: a spawned session drives it
+// in the background (desktop-autopilot), and THAT turn is stopped through a
+// different route. Firing the root interrupt at a delegated turn would leave the
+// mouse moving while killing an unrelated root turn — and the route returns
+// `{ interrupted: true }` either way, so it would read as success.
+const trackedTurn = computed(() => desktopActivity.state.trackedTurn);
+// Stop is offered ONLY when the turn maps to a route that actually stops IT.
+// There are two, and everything else must refuse rather than fire the nearest
+// one and report success:
+//   • a delegated turn  -> root.stopDelegation(partialSessionId)
+//   • the global root   -> root.interruptTurn()
+// A turn running on its own continuing session (the UI's spawned-session
+// surface) announces `origin: 'web'` exactly like a root turn, so origin alone
+// cannot tell them apart — but it carries a primarySessionId, and the root
+// interrupt would resolve the GLOBAL primary and stop a different session
+// entirely while the mouse kept moving. That surface has no server-side
+// interrupt yet, so the honest answer there is a disabled button.
+const canStop = computed(() => {
+  const turn = trackedTurn.value;
+  // origin null = we attached mid-turn and never saw turn-started, so we do not
+  // know who is driving. Refusing beats stopping the wrong turn.
+  if (turn === null || turn.origin === null) return false;
+  if (turn.origin === "delegation") return turn.partialSessionId !== null;
+  return turn.primarySessionId === null;
+});
+
 async function stopTurn() {
-  // Desktop tools ride the global root — its server-side interrupt is the lever.
+  const turn = trackedTurn.value;
+  if (turn === null || !canStop.value) return;
   isStopping.value = true;
   try {
-    await vynel.root.interruptTurn();
+    if (turn.origin === "delegation" && turn.partialSessionId !== null) {
+      await vynel.root.stopDelegation(turn.partialSessionId);
+    } else {
+      await vynel.root.interruptTurn();
+    }
   } catch {
     // Best-effort: the turn may have just ended; the feed's turn-ended hides us.
   } finally {
@@ -205,7 +237,16 @@ onUnmounted(() => {
       </ul>
 
       <footer class="overlay-footer">
-        <button class="stop-button" :disabled="isStopping" @click="stopTurn">
+        <button
+          class="stop-button"
+          :disabled="isStopping || !canStop"
+          :title="
+            canStop
+              ? 'Stop what Claude is doing'
+              : 'Can\'t stop this from here — stop it from the conversation it\'s running in'
+          "
+          @click="stopTurn"
+        >
           {{ isStopping ? "Stopping…" : "Stop" }}
         </button>
       </footer>

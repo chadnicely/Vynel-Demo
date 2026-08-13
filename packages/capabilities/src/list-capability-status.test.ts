@@ -41,14 +41,16 @@ describe('listCapabilityStatusForWorkspace', () => {
     await withTestDatabase((db) => {
       const { workspace } = seed(db)
       const statuses = listCapabilityStatusForWorkspace(db, workspace.id)
-      // test: correct expectation — the catalog grew: 'plans' + 'journal'
-      // joined as defaultEnabled first-party capabilities (plans/journal
-      // modules, 2026-07-23; 'tasks' before them).
+      // test: correct expectation — the catalog grew: 'phases' + 'features'
+      // joined as defaultEnabled first-party capabilities (engineering-plan
+      // modules, 2026-08-11; 'plans'/'journal'/'tasks' before them).
       expect(statuses.map((s) => s.capability.id).sort()).toEqual([
+        'features',
         'journal',
         'knowledge',
         'memory',
         'notebook',
+        'phases',
         'plans',
         'tasks',
       ])

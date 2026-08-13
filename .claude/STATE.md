@@ -1,7 +1,33 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-09.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-11.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
+
+Requested by Kafi (autopilot: plan → code → reviewer gate → full gate → commit). Two moves,
+one commit (generated SDK/MCP artifacts + drizzle journal entangle them — a split would be
+parity-red mid-history):
+
+1. **`@vynel/phases` + `@vynel/features`** — the engineering-plan layer, built on the plans
+   template (NOT pulled): workspace-scoped NOT NULL, big-form required `description` (≤50k),
+   status vocab shared with tasks/plans, outbox events, hard delete. Phases are ordered
+   (`orderIndex`, append = max+1 in-transaction); features carry a loose `phaseId` ref
+   (tasks.planId precedent). Routes `/workspaces/:id/phases|features` (list/create/get/update/
+   complete/delete, all x-mcp; lists return `descriptionPreview` — full text via get_phase/
+   get_feature). New capabilities `phases` + `features` (catalog + union + route enum +
+   descriptor gates + prompt sections). Migration `0034_phases_features`. Module notes:
+   `docs/module-notes/phases.md` + `features.md`.
+2. **App env editor** — `workspace_apps.envFileRelative` (default '.env', settable via
+   add_app/update_app; migration `0035_app_env_file`), `packages/apps/src/env/` (line-
+   preserving parse/merge + containment-checked fs ops, taxonomy-free errors), user-only
+   GET/PUT `/apps/:appId/env` (deliberately NO x-mcp — secrets never transit chat), AppEnvDialog
+   popup per AppRow (masked values, add/edit/remove, full-state save; multi-line-quoted files
+   refuse writes). Live-verified against letterman's real 28-var `.env` (masked, no save).
+
+Reviewer verdict clean; 3 should-fixes applied (reopen stale-seed race · 20k value cap ·
+multi-line-file write guard). Deferred-improves noted in the review: single-item ops scope by
+userId only (plans precedent), ENV_KEY_PATTERN triple home, CRLF→LF normalization on rewrite.
 
 ## ✅ 2026-08-09 SIDEBAR + PARITY ARC — SHIPPED through `e4cf295`, Chad approved ("Great job")
 

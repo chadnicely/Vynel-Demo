@@ -7,7 +7,7 @@
 
 import { describe, expect, it, afterEach } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pino from 'pino'
@@ -203,6 +203,128 @@ describe('workspace-apps routes', () => {
         { method: 'POST' },
       )
       expect(crossWorkspace.status).toBe(404)
+    })
+  })
+
+  describe('the env editor (GET/PUT /:appId/env — user-only, no x-mcp)', () => {
+    it('reads a missing file as exists:false, then round-trips a PUT line-preservingly', async () => {
+      await withTestDatabase(async (db) => {
+        const app = createApp({ db, logger: silentLogger, appSupervisor: makeSupervisor() })
+        const user = insertUser(db, makeUser())
+        const workspace = seedWorkspace(db, user.id)
+        const row = insertApp(db, makeApp(user.id, workspace.id))
+
+        const empty = (await (
+          await app.request(`/workspaces/${workspace.id}/apps/${row.id}/env`)
+        ).json()) as { envFileRelative: string; exists: boolean; entries: unknown[] }
+        expect(empty).toEqual({ envFileRelative: '.env', exists: false, entries: [] })
+
+        // A pre-existing file with a comment — the PUT must keep it.
+        writeFileSync(join(workspace.path, '.env'), '# secrets live here\nOLD_KEY=gone\n')
+
+        const put = await app.request(
+          `/workspaces/${workspace.id}/apps/${row.id}/env`,
+          jsonBody('PUT', {
+            entries: [
+              { key: 'DATABASE_URL', value: 'postgres://localhost/dev' },
+              { key: 'API_KEY', value: 'abc123' },
+            ],
+          }),
+        )
+        expect(put.status).toBe(200)
+        const saved = (await put.json()) as { exists: boolean; entries: { key: string }[] }
+        expect(saved.exists).toBe(true)
+        expect(saved.entries.map((e) => e.key)).toEqual(['DATABASE_URL', 'API_KEY'])
+
+        // Comment preserved, removed key gone, on the REAL file.
+        expect(readFileSync(join(workspace.path, '.env'), 'utf8')).toBe(
+          '# secrets live here\nDATABASE_URL=postgres://localhost/dev\nAPI_KEY=abc123\n',
+        )
+      })
+    })
+
+    it("honors the app's folder + a custom envFileRelative set at registration", async () => {
+      await withTestDatabase(async (db) => {
+        const app = createApp({ db, logger: silentLogger, appSupervisor: makeSupervisor() })
+        const user = insertUser(db, makeUser())
+        const workspace = seedWorkspace(db, user.id)
+        mkdirSync(join(workspace.path, 'apps', 'web'), { recursive: true })
+
+        const created = (await (
+          await app.request(
+            `/workspaces/${workspace.id}/apps`,
+            jsonBody('POST', {
+              name: 'Web',
+              command: 'npm run dev',
+              cwdRelative: 'apps/web',
+              envFileRelative: '.env.local',
+            }),
+          )
+        ).json()) as { id: string; envFileRelative: string }
+        expect(created.envFileRelative).toBe('.env.local')
+
+        const put = await app.request(
+          `/workspaces/${workspace.id}/apps/${created.id}/env`,
+          jsonBody('PUT', { entries: [{ key: 'PORT', value: '3000' }] }),
+        )
+        expect(put.status).toBe(200)
+        expect(readFileSync(join(workspace.path, 'apps', 'web', '.env.local'), 'utf8')).toBe(
+          'PORT=3000\n',
+        )
+      })
+    })
+
+    it('rejects an escaping env path at registration and bad entries at PUT (400s)', async () => {
+      await withTestDatabase(async (db) => {
+        const app = createApp({ db, logger: silentLogger, appSupervisor: makeSupervisor() })
+        const user = insertUser(db, makeUser())
+        const workspace = seedWorkspace(db, user.id)
+
+        const escape = await app.request(
+          `/workspaces/${workspace.id}/apps`,
+          jsonBody('POST', { name: 'Sneaky', command: 'x', envFileRelative: '../outside.env' }),
+        )
+        expect(escape.status).toBe(400)
+
+        const row = insertApp(db, makeApp(user.id, workspace.id))
+        const badKey = await app.request(
+          `/workspaces/${workspace.id}/apps/${row.id}/env`,
+          jsonBody('PUT', { entries: [{ key: '1BAD', value: 'x' }] }),
+        )
+        expect(badKey.status).toBe(400)
+
+        const multiline = await app.request(
+          `/workspaces/${workspace.id}/apps/${row.id}/env`,
+          jsonBody('PUT', { entries: [{ key: 'A', value: 'x\ny' }] }),
+        )
+        expect(multiline.status).toBe(400)
+
+        // A registered folder that doesn't exist on disk — actionable 400, not a 500.
+        const ghost = insertApp(
+          db,
+          makeApp(user.id, workspace.id, { name: 'Ghost', cwdRelative: 'not/on/disk' }),
+        )
+        const folderMissing = await app.request(
+          `/workspaces/${workspace.id}/apps/${ghost.id}/env`,
+          jsonBody('PUT', { entries: [{ key: 'A', value: '1' }] }),
+        )
+        expect(folderMissing.status).toBe(400)
+      })
+    })
+
+    it("404s on another user's app (tenant boundary)", async () => {
+      await withTestDatabase(async (db) => {
+        const app = createApp({ db, logger: silentLogger, appSupervisor: makeSupervisor() })
+        const attacker = insertUser(db, makeUser())
+        const attackerWorkspace = seedWorkspace(db, attacker.id)
+        const victim = seedUserWorkspace(db)
+        const victimApp = insertApp(db, makeApp(victim.userId, victim.workspaceId))
+
+        const res = await app.request(
+          `/workspaces/${attackerWorkspace.id}/apps/${victimApp.id}/env`,
+        )
+        expect(res.status).toBe(404)
+      })
     })
   })
 })

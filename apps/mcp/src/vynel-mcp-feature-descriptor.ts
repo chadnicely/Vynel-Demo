@@ -67,6 +67,22 @@ const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> 
     'mcp__vynel__complete_plan',
     'mcp__vynel__list_my_plans',
   ],
+  phases: [
+    'mcp__vynel__list_phases',
+    'mcp__vynel__create_phase',
+    'mcp__vynel__get_phase',
+    'mcp__vynel__update_phase',
+    'mcp__vynel__complete_phase',
+    'mcp__vynel__delete_phase',
+  ],
+  features: [
+    'mcp__vynel__list_features',
+    'mcp__vynel__create_feature',
+    'mcp__vynel__get_feature',
+    'mcp__vynel__update_feature',
+    'mcp__vynel__complete_feature',
+    'mcp__vynel__delete_feature',
+  ],
   journal: [
     'mcp__vynel__list_journal_entries',
     'mcp__vynel__add_journal_entry',
@@ -116,6 +132,26 @@ const PLANS_PROMPT_INSTRUCTIONS = [
     'reply, where it reads naturally.',
 ].join('\n')
 
+const PHASES_PROMPT_INSTRUCTIONS = [
+  '## Build plan (phases)',
+  'The user keeps an engineering build plan (list_phases / get_phase / create_phase / ' +
+    'update_phase / complete_phase) — how the app gets built, stage by stage. When the user lays ' +
+    'out how to build something, capture each stage as a phase whose description is the FULL ' +
+    'write-up (scope, pieces, decisions, what "done" means) — not a one-liner. list_phases shows ' +
+    'previews only; read get_phase before working a stage so the full plan grounds the work. ' +
+    'Move statuses as stages land. Never narrate the bookkeeping.',
+].join('\n')
+
+const FEATURES_PROMPT_INSTRUCTIONS = [
+  '## Feature catalog',
+  'The user keeps a feature catalog (list_features / get_feature / create_feature / ' +
+    'update_feature / complete_feature) — what the app should have, each a FULL write-up of what ' +
+    'it does and how it behaves. When the user describes functionality, capture it as a feature ' +
+    "and link it to the build phase that delivers it via `phaseId`. list_features shows previews " +
+    'only; read get_feature before building one. Complete a feature when it shipped and was ' +
+    'verified. Never narrate the bookkeeping.',
+].join('\n')
+
 const JOURNAL_PROMPT_INSTRUCTIONS = [
   '## Work journal',
   'The user keeps a daily work journal (add_journal_entry / list_journal_entries). When you ' +
@@ -125,13 +161,16 @@ const JOURNAL_PROMPT_INSTRUCTIONS = [
     'entries as a faithful record; never narrate the bookkeeping.',
 ].join('\n')
 
-// Section order is stable (tasks → todos → plans → journal) so the composed
-// prompt never reshuffles between turns. Tasks and todos share the `tasks`
-// capability — the durable list and its step-level twin ride one toggle.
+// Section order is stable (tasks → todos → plans → phases → features →
+// journal) so the composed prompt never reshuffles between turns. Tasks and
+// todos share the `tasks` capability — the durable list and its step-level
+// twin ride one toggle.
 const CAPABILITY_PROMPT_SECTIONS: readonly { capabilityId: string; section: string }[] = [
   { capabilityId: 'tasks', section: TASKS_PROMPT_INSTRUCTIONS },
   { capabilityId: 'tasks', section: TODOS_PROMPT_INSTRUCTIONS },
   { capabilityId: 'plans', section: PLANS_PROMPT_INSTRUCTIONS },
+  { capabilityId: 'phases', section: PHASES_PROMPT_INSTRUCTIONS },
+  { capabilityId: 'features', section: FEATURES_PROMPT_INSTRUCTIONS },
   { capabilityId: 'journal', section: JOURNAL_PROMPT_INSTRUCTIONS },
 ]
 

@@ -87,19 +87,29 @@ import {
 //     defeats the gate), and the workspace marketplace (browse reads +
 //     install + uninstall, the latter ask-tier via x-mcp.askApproval — a skill
 //     uninstall hard-deletes files).
+// test: correct expectation — the engineering-plan modules (2026-08-11)
+// added phases + features (list/create/get/update/complete reads+writes,
+// mutatingApproved; delete_phase / delete_feature ride the ask tier via
+// their DELETE method).
 const EXPECTED_TOOL_NAMES = [
   'add_app',
   'add_journal_entry',
   'add_memory_from_file',
   'add_to_knowledge',
+  'complete_feature',
+  'complete_phase',
   'complete_plan',
   'complete_task',
   'create_agent',
+  'create_feature',
   'create_memory_entry',
   'create_monitor',
+  'create_phase',
   'create_plan',
   'create_task',
   'delete_agent',
+  'delete_feature',
+  'delete_phase',
   'discover_installed_skills_for_provider',
   'get_agent',
   'get_marketplace_item',
@@ -108,8 +118,10 @@ const EXPECTED_TOOL_NAMES = [
   'get_app_logs',
   'get_chat_session',
   'get_current_user',
+  'get_feature',
   'get_indexer_status',
   'get_knowledge_document',
+  'get_phase',
   'get_user_preferences',
   'get_workspace',
   'list_agents',
@@ -122,6 +134,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_channels',
   'list_chat_sessions',
   'list_curated_agents',
+  'list_features',
   'list_installed_skills',
   'list_journal_entries',
   'list_knowledge_documents',
@@ -135,6 +148,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_marketplace_items',
   'list_my_schedules',
   'list_my_tasks',
+  'list_phases',
   'list_plans',
   'list_schedule_runs',
   'list_schedule_templates',
@@ -158,8 +172,10 @@ const EXPECTED_TOOL_NAMES = [
   'uninstall_marketplace_item',
   'update_agent',
   'update_app',
+  'update_feature',
   'update_marketplace_item',
   'update_memory_entry',
+  'update_phase',
   'update_plan',
   'update_task',
 ] as const

@@ -163,6 +163,13 @@ export async function streamGlobalRootTurn(
   const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
     '@vynel/desktop-control'
   )
+  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // record can key its rows by it (the SDK id is only assigned mid-stream).
+  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
+  // this early call cannot fight the authoritative in-lock `resolveTarget`.
+  const conversationTarget = await resolveGlobalRootConversationTarget(c.var.db, {
+    userId: c.var.user.id,
+  })
   // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
   // (enqueued once the turn's session resolves) + the per-turn # study
   // descriptor. Never throws; null = a token-free turn. The global root
@@ -192,6 +199,7 @@ export async function streamGlobalRootTurn(
     {
       db: c.var.db,
       userId: c.var.user.id,
+      sessionId: conversationTarget.primarySessionId,
       appRequest,
       desktopReader: c.var.desktopNotifications,
       enableDesktopActions: c.var.desktopActionsEnabled,

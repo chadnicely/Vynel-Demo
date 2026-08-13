@@ -50,14 +50,60 @@ export function dumpApp(app: Xa11yAppInstance, maxDepth: number): Promise<string
 // background, but the caller returns instead of leaving the turn pending
 // forever. Lives here (the a11y boundary) so every xa11y-touching file — the
 // adapter's ops AND the wake loop's probes — bounds through the same guard.
-export function withTimeout<T>(operation: Promise<T>, ms: number, label: string): Promise<T> {
+/**
+ * The ceiling a caller may raise a desktop timeout to.
+ *
+ * WHY an override exists at all (Kafi, 2026-08-11): the defaults are tuned for a
+ * responsive app, and a genuinely slow one — a huge Electron tree, a cold start,
+ * a machine under load — failed with an error that blamed the CONTROL and sent
+ * the model looking for a different element. The honest recovery is "try again,
+ * with longer", so the timeout error names this limit and the model can spend it.
+ *
+ * WHY it is capped: an unbounded timeout is just a hang with extra steps. Two
+ * minutes is long enough for anything that is going to finish, and short enough
+ * that a wedged provider still returns to the user.
+ *
+ * Lives here, next to `withTimeout`, so the bound and the thing it bounds share
+ * one home.
+ */
+export const MAX_DESKTOP_TIMEOUT_MS = 120_000
+
+/** Clamp a requested timeout into [default, MAX]. A request BELOW the default is
+ *  ignored — the model raising its own floor is the useful direction, and
+ *  letting it shorten one only manufactures failures. Pure. */
+export function resolveDesktopTimeout(requestedMs: number | undefined, defaultMs: number): number {
+  if (requestedMs === undefined || !Number.isFinite(requestedMs) || requestedMs <= 0) {
+    return defaultMs
+  }
+  return Math.min(Math.max(Math.floor(requestedMs), defaultMs), MAX_DESKTOP_TIMEOUT_MS)
+}
+
+export function withTimeout<T>(
+  operation: Promise<T>,
+  ms: number,
+  label: string,
+  options: { retryUpToMs?: number } = {},
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
+      // Two very different causes wear the same symptom: an app that is merely
+      // SLOW (a huge window, a heavy Electron page, a cold start) and a control
+      // that will NEVER answer (custom-drawn Qt, some Electron widgets). The old
+      // message asserted the second and sent the model hunting for another
+      // element — so a slow-but-fine app looked broken. When a longer attempt is
+      // available, offer that FIRST and keep the dead-end as the fallback.
+      const retryFirst =
+        options.retryUpToMs !== undefined && options.retryUpToMs > ms
+          ? `If the app is just slow (a big window, a heavy page, a cold start), retry the SAME ` +
+            `call with timeoutMs up to ${options.retryUpToMs}. If it times out again at that limit, ` +
+            'the target is likely a control that never responds: '
+          : 'The target may be a custom-drawn control (e.g. Telegram/Qt) that does not respond to ' +
+            'accessibility actions: '
       reject(
         new Error(
-          `Desktop ${label} did not complete within ${ms / 1000}s — the target may be a custom-drawn ` +
-            'control (e.g. Telegram/Qt) that does not respond to accessibility actions. Try a different ' +
-            'element; some apps can only be read, not acted on this way.',
+          `Desktop ${label} did not complete within ${ms / 1000}s. ${retryFirst}` +
+            'try a different element, or fall back to screenshot_app — some apps can only be read ' +
+            'as pixels, not acted on this way.',
         ),
       )
     }, ms)

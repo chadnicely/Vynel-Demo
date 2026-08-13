@@ -20,7 +20,7 @@ import { createRequire } from 'node:module'
 import { downscalePngToFit } from './screenshot-scale.js'
 import { restoreIfMinimized } from './window-state.js'
 import { planScreenshotTarget, selectWindowId, type WindowInfo } from './window-selection.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
+import { readWindowIdentity } from './window-host-processes.js'
 
 // The pure selection layer lives in `window-selection.ts`; re-exported here so
 // the a11y folder keeps ONE import point for the capture path's vocabulary.
@@ -51,7 +51,28 @@ type NativeWindow = {
   height(): number
   captureImageSync(): NativeImage
 }
-type NodeScreenshotsModule = { Window: { all(): NativeWindow[] } }
+/** A display, as node-screenshots reports it. ⚠ MIXED UNITS: `x`/`y` are
+ *  virtual-desktop coordinates shared with the input engine, but `width`/
+ *  `height` are PHYSICAL pixels — on a scaled display the two differ by
+ *  `scaleFactor`. Measured 2026-08-11; see `monitors.ts`. */
+export type NativeMonitor = {
+  id(): number
+  name(): string
+  x(): number
+  y(): number
+  width(): number
+  height(): number
+  rotation(): number
+  scaleFactor(): number
+  isPrimary(): boolean
+  /** Whole-monitor capture — same 0.2.x method shape as Window's. */
+  captureImageSync(): NativeImage
+}
+
+type NodeScreenshotsModule = {
+  Window: { all(): NativeWindow[] }
+  Monitor: { all(): NativeMonitor[] }
+}
 
 let cachedModule: NodeScreenshotsModule | undefined
 
@@ -80,7 +101,12 @@ function readWindow(window: NativeWindow): WindowInfo {
   return {
     id: Number(window.id()),
     pid: Number(window.pid()),
-    appName: String(window.appName()),
+    // The IDENTITY, not the raw process name. This field is what
+    // `findAppWindowBounds` hands the coordinate input path to enforce against,
+    // and what `screenshot_app` authorizes and reports — so a packaged app must
+    // arrive here as "Calculator", never as the host it shares with Settings,
+    // Store and Photos. '' when unnameable, which matches nothing.
+    appName: readWindowIdentity(window) ?? '',
     title: String(window.title()),
     isMinimized: Boolean(window.isMinimized()),
     width: Number(window.width()),
@@ -144,6 +170,26 @@ export type AppScreenshot = {
   scale: number
   /** The zoomed region (window-relative, physical pixels), when one was asked for. */
   region: ZoomRegion | null
+  /** Whether this capture UN-MINIMIZED the window to get it. Reported rather
+   *  than silent: it changes what is on the user's screen, and a "read" that
+   *  quietly rearranges their desktop is the one thing a read must not be. */
+  restored: boolean
+}
+
+/** How long to let a just-restored window finish appearing before capturing it.
+ *  A window still animating back captures blank or half-drawn, and the model
+ *  reads that as "the app is empty". */
+export const RESTORE_SETTLE_MS = 250
+
+const settle = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+export type ScreenshotAppOptions = {
+  region?: ZoomRegion
+  /** Override the post-restore settle. Injectable so tests never really wait. */
+  settleMs?: number
 }
 
 /** A window-relative rectangle to zoom into (physical pixels, top-left origin). */
@@ -178,8 +224,7 @@ export function clampZoomRegion(
  */
 export async function screenshotApp(
   query: string,
-  authorize?: DesktopAccessAuthorizer,
-  options: { region?: ZoomRegion } = {},
+  options: ScreenshotAppOptions = {},
   // Internal: the auto-restore retry. A minimized window has no pixels, so the
   // first pass restores it (at the read tier — Kafi 2026-08-11) and re-enters
   // ONCE with `restore` disabled, so a window that refuses to restore ends in
@@ -208,10 +253,14 @@ export async function screenshotApp(
       `Could not screenshot "${trimmedQuery}": no matching window is open. Call list_open_apps to see available apps.`,
     )
   }
-  // ENFORCE FIRST, for every remaining branch — even "that window exists and is
-  // minimized" is information about an ungranted app, and restoring one is an
-  // action on it. Nothing below this line touches a window whose grant failed.
-  authorize?.(target.appName, 'read')
+  // ⚠ RESTORING IS AN ACTION, and it is no longer gated by anything. Capture
+  // itself only observes, but the branch below un-minimizes the user's window
+  // (`ShowWindow(SW_RESTORE)`) so there is something to capture — and reads are
+  // ungated now, so a plain screenshot can move a window on an unattended turn.
+  // Deliberate: `screenshot_app` restoring a minimized window is what makes
+  // "look at X" work without asking the user to do anything (Kafi 2026-08-11).
+  // Recorded here because a reader of this branch will otherwise assume, as the
+  // previous comment claimed, that a gate ran above it.
   if (target.kind === 'unrestorable') {
     throw new Error(
       `The "${target.appName}" window is minimized and couldn't be restored automatically — ` +
@@ -224,7 +273,11 @@ export async function screenshotApp(
     // 2026-08-11). The retry re-enters with `alreadyRestored`, so a window that
     // refuses to come back lands on `unrestorable` instead of looping.
     await restore(target.pid)
-    return screenshotApp(query, authorize, options, { restore, alreadyRestored: true })
+    // Let the window finish coming back before capturing it — an animating or
+    // still-painting window captures as a blank or half-drawn frame, which the
+    // model then reads as "the app is empty". One settle beats a retry loop.
+    await settle(options.settleMs ?? RESTORE_SETTLE_MS)
+    return screenshotApp(query, options, { restore, alreadyRestored: true })
   }
   const winner = windows.find((entry) => entry.info.id === target.windowId)
   if (winner === undefined) {
@@ -248,6 +301,9 @@ export async function screenshotApp(
       : await downscalePngToFit(png, image.width, image.height)
   return {
     pngBase64: fitted.png.toString('base64'),
+    // True only on the re-entry AFTER a restore — this is the branch that
+    // captured, so it is the one that knows.
+    restored: internal.alreadyRestored === true,
     appName: winner.info.appName,
     windowTitle: winner.info.title,
     width: fitted.width,

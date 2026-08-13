@@ -37,6 +37,57 @@ export type DesktopPlan = {
   apps: DesktopPlanApp[]
 }
 
+/**
+ * How long one desktop task may keep acting before it must stop and re-think.
+ *
+ * WHY a watchdog. Nothing bounds a turn today — no step cap, no wall clock, no
+ * cost ceiling — which is what makes long autopilot work possible AND what makes
+ * a stuck one dangerous: a model clicking a button that never responds runs
+ * until a human notices. That is fine when someone is watching; a spawned
+ * session working while the user is away is exactly when nobody is.
+ *
+ * Deliberately scoped to the DESKTOP task rather than the turn: it lives in the
+ * envelope that already dies with the turn, so it needs no session-backbone
+ * change, and it bounds the thing that actually touches the user's machine.
+ *
+ * Generous on purpose — a real task (open an app, log in, fill a form, save)
+ * lands well inside it, so hitting this means something is wrong, not that the
+ * work was big. The model is told to re-observe and re-plan, not merely retry:
+ * retrying is what got it here.
+ *
+ * ⚠ IT MUST STAY BELOW `DELEGATION_RUN_BUDGET_MS` (10 min, in
+ * `packages/session/.../run-delegation-claim-and-run-tick.ts`), AND BY A MARGIN.
+ * The two clocks start at different moments: the delegation budget runs from the
+ * job being CLAIMED, this one from the plan being FIRST ARMED — which is always
+ * later, because the model has to read the request and propose a plan before it
+ * can arm anything. At 10 minutes each, the delegation deadline therefore always
+ * arrived first and this watchdog could never fire on a delegated turn — exactly
+ * the unattended case it was written for. Identical numbers looked deliberate
+ * and were the bug.
+ *
+ * Six minutes of CONTINUOUS ACTING is still generous (a click or keystroke is
+ * milliseconds; even several `wait_for` calls at the 120s cap fit), and the four
+ * minutes of headroom are not slack — they are what lets the model do what the
+ * timeout message asks: stop, look at the screen, and TELL THE USER where it got
+ * to. A watchdog that fires with no time left to report is just a silent death.
+ */
+export const DESKTOP_TASK_BUDGET_MS = 6 * 60 * 1000
+
+/** One act, as the durable record wants it. The envelope supplies the goal, so
+ *  a caller only describes what it just did. */
+export type DesktopActRecord = {
+  tool: string
+  appName?: string | null
+  detail: string
+  outcome: 'ok' | 'failed' | 'unverified'
+  note?: string | null
+}
+
+/** Where an act gets written down. Injected, so the desktop package stays
+ *  db-free below the MCP builder — the same seam the per-app authorizer used
+ *  before it was retired, now serving accountability rather than consent. */
+export type DesktopActWriter = (record: DesktopActRecord & { goal: string | null }) => void
+
 export type DesktopPlanEnvelope = {
   readonly consent: DesktopPlanConsent
   /** Arm (or replace) the turn's plan. In ask mode the call that reaches this
@@ -48,14 +99,58 @@ export type DesktopPlanEnvelope = {
    *  required tier. Always false under 'display-only' consent — an unattended
    *  plan narrates but never grants. */
   authorizesApp(resolvedAppName: string, required: DesktopAccessTier): boolean
+  /** Milliseconds this task has been running, measured from when its plan was
+   *  first armed. Null before that — nothing is acting yet. */
+  elapsedMs(): number | null
+  /** True once the task has outrun its budget. The act tools refuse from here. */
+  hasOutrunBudget(): boolean
+  /**
+   * Write down one act that just happened.
+   *
+   * It lives on the ENVELOPE rather than being threaded through every act tool
+   * because the envelope is already the one thing all of them share, and it
+   * already holds the plan — so the record gets its goal for free and no tool
+   * signature changes. A recorder wired in one place cannot be forgotten in a
+   * seventh tool later.
+   *
+   * NEVER throws: a log that can break the act it is logging is worse than no
+   * log. A failed write is dropped, deliberately.
+   */
+  recordAct(record: DesktopActRecord): void
 }
 
-export function createDesktopPlanEnvelope(consent: DesktopPlanConsent): DesktopPlanEnvelope {
+export function createDesktopPlanEnvelope(
+  consent: DesktopPlanConsent,
+  options: { budgetMs?: number; now?: () => number; write?: DesktopActWriter } = {},
+): DesktopPlanEnvelope {
   let plan: DesktopPlan | null = null
+  let armedAtMs: number | null = null
+  const now = options.now ?? Date.now
+  const budgetMs = options.budgetMs ?? DESKTOP_TASK_BUDGET_MS
   return {
     consent,
     arm(next: DesktopPlan): void {
       plan = next
+      // The clock starts at the FIRST arming and is not reset by a re-plan —
+      // otherwise a stuck model could re-propose its way around the budget
+      // forever, which is precisely the loop this exists to end.
+      armedAtMs ??= now()
+    },
+    elapsedMs(): number | null {
+      return armedAtMs === null ? null : now() - armedAtMs
+    },
+    recordAct(record: DesktopActRecord): void {
+      if (options.write === undefined) return
+      try {
+        options.write({ ...record, goal: plan?.goal ?? null })
+      } catch {
+        // Swallowed ON PURPOSE. The act already happened; failing the tool call
+        // now would tell the model the act failed when it did not, which is a
+        // worse lie than a missing log line.
+      }
+    },
+    hasOutrunBudget(): boolean {
+      return armedAtMs !== null && now() - armedAtMs >= budgetMs
     },
     isArmed(): boolean {
       return plan !== null

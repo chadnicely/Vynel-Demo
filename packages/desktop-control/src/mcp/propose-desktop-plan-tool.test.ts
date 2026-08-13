@@ -84,8 +84,14 @@ describe('makeProposeDesktopPlanTool', () => {
     const displayText =
       (await (makeProposeDesktopPlanTool(displayOnly) as BuiltTool).handler(validArgs)).content[0]
         ?.text ?? ''
-    expect(displayText).toContain('cannot authorize new apps')
-    expect(displayText).toContain('request_desktop_access')
+    // test: correct expectation — was "cannot authorize new apps" + a pointer
+    // to `request_desktop_access`. With standing grants retired, display-only
+    // authorizes NOTHING rather than "nothing new", and the tool it named is
+    // gone — so the old text sent an unattended turn chasing a door that no
+    // longer exists instead of reporting back to the user.
+    expect(displayText).toMatch(/NO authority to act/)
+    expect(displayText).not.toContain('request_desktop_access')
+    expect(displayText).toMatch(/tell the user/i)
     expect(displayOnly.isArmed()).toBe(true)
     expect(displayOnly.authorizesApp('Google Chrome', 'read')).toBe(false)
   })

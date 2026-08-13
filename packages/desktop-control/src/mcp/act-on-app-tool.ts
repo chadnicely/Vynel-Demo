@@ -8,15 +8,17 @@ import {
   type ActOnAppResult,
   type DesktopAction,
 } from '../a11y/xa11y-adapter.js'
-import type { DesktopAccessAuthorizer } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
+import { recordFailedAct } from '../plan/record-failed-act.js'
 import {
   buildBatchResponse,
   runActionBatch,
   MAX_BATCH_ACTIONS,
   type BatchStepResult,
 } from './act-batch.js'
+import { describeVerification } from '../a11y/act-verification.js'
+import { captureActObservation, parseObserveRequest, OBSERVE_SETTLE_MAX_MS } from './act-observation.js'
 
 const TOOL_DESCRIPTION =
   "Act on elements in a desktop app — click, type, or set a value. This CHANGES things on the user's " +
@@ -77,6 +79,16 @@ export function toBatchStep(app: string, result: ActOnAppResult): BatchStepResul
   return { ok: result.kind !== 'ambiguous', detail: text }
 }
 
+/** The recorded outcome for an element act. A press carries no verification, so
+ *  it is `unverified` — saying "we did not look" rather than implying we did. */
+function verificationOutcome(
+  verification: { kind: 'confirmed' | 'mismatch' | 'unverifiable' } | undefined,
+): 'ok' | 'failed' | 'unverified' {
+  if (verification === undefined) return 'unverified'
+  if (verification.kind === 'confirmed') return 'ok'
+  return verification.kind === 'mismatch' ? 'failed' : 'unverified'
+}
+
 export function buildActResponse(
   app: string,
   result: ActOnAppResult,
@@ -99,19 +111,27 @@ export function buildActResponse(
       ],
     }
   }
-  return { content: [{ type: 'text', text: `Done: ${result.action} on ${result.selector} in "${app}".` }] }
+  // "Done" used to mean only that the action was SENT. For the value actions it
+  // now carries what the field actually reads back — the difference between
+  // reporting an outcome and asserting one.
+  const verified =
+    result.verification !== undefined ? describeVerification(result.verification) : ''
+  return {
+    content: [
+      { type: 'text', text: `Done: ${result.action} on ${result.selector} in "${app}".${verified}` },
+    ],
+  }
 }
 
 /** Construct the `act_on_app` SDK MCP tool (mutating — destructiveHint).
  *  The envelope is REQUIRED — acting is PLAN-GATED by construction: refused
  *  until the turn's plan is armed, and the armed plan authorizes its apps
- *  alongside standing grants. (An optional envelope would be a fail-open
+ *  and it is the ONLY authority. (An optional envelope would be a fail-open
  *  default waiting for a second construction site.) */
 export function makeActOnAppTool(
   envelope: DesktopPlanEnvelope,
-  authorize?: DesktopAccessAuthorizer,
 ): unknown {
-  const effectiveAuthorize = makePlanGatedAuthorizer(envelope, authorize)
+  const effectiveAuthorize = makePlanGatedAuthorizer(envelope)
   return (tool as unknown as McpToolFn)(
     'act_on_app',
     TOOL_DESCRIPTION,
@@ -139,6 +159,24 @@ export function makeActOnAppTool(
         .max(MAX_BATCH_ACTIONS)
         .optional()
         .describe('Batch: several actions in this app, run in order, stopping at the first failure.'),
+      observe: z
+        .boolean()
+        .optional()
+        .describe(
+          'Return a fresh screenshot of the app in THIS result — saves the separate screenshot ' +
+            'call when your next step depends on what changed. For a batch, taken after the last ' +
+            'step (also after a failed one, so you see the part-way state).',
+        ),
+      observeSettleMs: z
+        .number()
+        .int()
+        .min(0)
+        .max(OBSERVE_SETTLE_MAX_MS)
+        .optional()
+        .describe(
+          'Wait this long before the observe screenshot (default 400). Use ~2000-4000 after an ' +
+            'action that loads content; for loads of unknown length use wait_for instead.',
+        ),
     },
     async (args: Record<string, unknown>) => {
       const planRefusal = planRequiredError(envelope)
@@ -146,6 +184,7 @@ export function makeActOnAppTool(
         return { content: [{ type: 'text', text: planRefusal }], isError: true }
       }
       const app = typeof args['app'] === 'string' ? args['app'] : ''
+      const observeRequest = parseObserveRequest(args)
       const batched = args['actions'] !== undefined
 
       if (batched) {
@@ -177,11 +216,47 @@ export function makeActOnAppTool(
         }
         // Each step re-resolves + re-authorizes inside actOnApp — batching is a
         // convenience over N calls, never a shortcut past the gate.
-        return buildBatchResponse(
-          await runActionBatch(steps, async (step) =>
-            toBatchStep(app, await actOnApp(app, step.selector, step.action, step.value, effectiveAuthorize)),
-          ),
+        const batchResponse = buildBatchResponse(
+          await runActionBatch(steps, async (step) => {
+            // The step that STOPS a batch leaves a row too — runActionBatch
+            // catches the throw, so the outer catch never sees it.
+            let stepResult
+            try {
+              stepResult = await actOnApp(
+                app,
+                step.selector,
+                step.action,
+                step.value,
+                effectiveAuthorize,
+              )
+            } catch (stepError) {
+              recordFailedAct(
+                envelope,
+                { tool: 'act_on_app', appName: app, detail: `${step.action} on ${step.selector} threw` },
+                stepError,
+              )
+              throw stepError
+            }
+            // Every step gets its own row, exactly as act_on_desktop's batch
+            // does. The verification is computed here either way — discarding
+            // it from the record was an omission, not a decision.
+            if (stepResult.kind === 'done') {
+              envelope.recordAct({
+                tool: 'act_on_app',
+                appName: app,
+                detail: `${stepResult.action} on ${stepResult.selector}`,
+                outcome: verificationOutcome(stepResult.verification),
+              })
+            }
+            return toBatchStep(app, stepResult)
+          }),
         )
+        // Observed on failure too — a stopped batch leaves the app part-way,
+        // and seeing that state is exactly what the recovery needs.
+        if (observeRequest.observe) {
+          batchResponse.content.push(...(await captureActObservation(app, observeRequest.settleMs)))
+        }
+        return batchResponse
       }
 
       const action = parseAction(args['action'])
@@ -201,8 +276,32 @@ export function makeActOnAppTool(
       }
       try {
         const value = typeof args['value'] === 'string' ? args['value'] : undefined
-        return buildActResponse(app, await actOnApp(app, selector, action, value, effectiveAuthorize))
+        const result = await actOnApp(app, selector, action, value, effectiveAuthorize)
+        if (result.kind === 'done') {
+          // The recorded outcome mirrors the VERIFICATION, not the fact that the
+          // call returned — a log that says "ok" for text that never landed is
+          // exactly the fiction this whole arc exists to remove.
+          envelope.recordAct({
+            tool: 'act_on_app',
+            appName: app,
+            detail: `${result.action} on ${result.selector}`,
+            outcome: verificationOutcome(result.verification),
+            note: result.verification?.kind === 'mismatch'
+              ? `field reads ${JSON.stringify(result.verification.actual)}`
+              : null,
+          })
+        }
+        const response = buildActResponse(app, result)
+        // Ambiguous means NOTHING ran — the screen is unchanged, so an
+        // observation would spend image tokens showing the model what it
+        // already saw. Only a landed act earns one.
+        if (observeRequest.observe && result.kind === 'done') {
+          const observation = await captureActObservation(app, observeRequest.settleMs)
+          return { content: [...response.content, ...observation] }
+        }
+        return response
       } catch (err) {
+        recordFailedAct(envelope, { tool: 'act_on_app', appName: app, detail: 'act threw' }, err)
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
           isError: true,

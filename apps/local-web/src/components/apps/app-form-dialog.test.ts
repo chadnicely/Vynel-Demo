@@ -16,6 +16,7 @@ function makeApp(
     name: "Web app",
     command: "pnpm --filter web dev",
     cwdRelative: "apps/web",
+    envFileRelative: ".env",
     port: 5173,
     runtime: null,
     createdAt: "2026-07-17T10:00:00.000Z",
