@@ -43,7 +43,6 @@ function fakeOptions() {
     activityFeed: {} as unknown as SessionActivityFeed,
     composeWorkspaceMcpServers: vi.fn(() => ({
       mcpServers: {},
-      allowedMcpToolPatterns: [],
       deniedMcpToolPatterns: [],
       mutatingToolNames: [],
       askModeApprovalToolNames: [],

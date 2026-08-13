@@ -44,6 +44,9 @@ vi.mock('@vynel/instructions', () => ({
 }))
 vi.mock('@vynel/capabilities', () => ({
   listEnabledCapabilities: () => [],
+  // The global-grounded branch has no workspace row to read — it falls back
+  // to the catalog defaults (the same fallback the global-root sites use).
+  defaultEnabledCapabilityIds: () => new Set<string>(['notebook']),
 }))
 // Mirrors the real descriptor's applicability gate: it excludes ITSELF when no
 // reader was wired at boot, which is what keeps composition safe off-Windows.

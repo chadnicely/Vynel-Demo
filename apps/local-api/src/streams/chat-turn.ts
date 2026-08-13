@@ -47,11 +47,12 @@ export async function streamChatTurn(
   // Compose THIS chat session's MCP attachment. An INTERACTIVE workspace turn
   // gets the full route-derived `vynel` server PLUS the session-spawning tools
   // (Slice ④b — the interactive descriptor; background workspace turns compose
-  // `vynelWorkspaceDescriptor` and never see them), auto-allowed via the
-  // `mcp__vynel__*` wildcard; a disabled capability's tools are DENIED via the
-  // descriptor's capabilityGatedTools + the enabled-capability set. The composer
-  // is the single per-turn step for servers + allow + deny; the system prompt
-  // still comes from composeSessionCapabilities below (memory snapshot etc.).
+  // `vynelWorkspaceDescriptor` and never see them). Registration alone offers
+  // the tools — each call gates through the provider's canUseTool policy map;
+  // a disabled capability's tools are DENIED via the descriptor's
+  // capabilityGatedTools + the enabled-capability set. The composer is the
+  // single per-turn step for servers + deny; the system prompt still comes
+  // from composeSessionCapabilities below (memory snapshot etc.).
   // Dynamic import keeps the heavy SDK out of module load.
   const { vynelWorkspaceInteractiveDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
@@ -202,7 +203,6 @@ export async function streamChatTurn(
         // classifier, bypass never asks (2026-07-30 stance).
         permissionMode: turnPermissionMode,
         mcpServers: composedMcp.mcpServers,
-        allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         // Deny a disabled capability's tools (from the composer); the system prompt
         // joins composeSessionCapabilities (Vynel operating-rules + memory snapshot
         // etc.) with the MCP composer's per-feature prompt sections (notebook /

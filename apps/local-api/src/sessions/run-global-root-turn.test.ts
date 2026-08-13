@@ -106,10 +106,10 @@ describe('runGlobalRootTurn', () => {
     expect(coreMock).toHaveBeenCalledTimes(1)
     const coreInput = coreMock.mock.calls[0]?.[1] as {
       mcpServers: Record<string, unknown>
-      allowedMcpToolPatterns: string[]
+      deniedMcpToolPatterns: string[]
     }
     expect(coreInput.mcpServers).toEqual({})
-    expect(coreInput.allowedMcpToolPatterns).toEqual([])
+    expect(coreInput.deniedMcpToolPatterns).toEqual([])
   })
 
   it('forwards approval-requested to onApprovalRequested (the channel card push, surface-up)', async () => {

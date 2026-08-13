@@ -297,7 +297,6 @@ describe('runDelegationClaimAndRunTick', () => {
       const globalSessionId = await setUpGlobalRoot(db, user.id)
       const attachment = {
         mcpServers: { vynel: { name: 'vynel' } },
-        allowedMcpToolPatterns: ['mcp__vynel__*'],
         deniedMcpToolPatterns: [],
         mutatingToolNames: [],
         askModeApprovalToolNames: [],
@@ -341,7 +340,7 @@ describe('runDelegationClaimAndRunTick', () => {
         jobId: expect.any(String),
       })
       expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
-      expect(workspaceInputs[0]!.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      expect('allowedMcpToolPatterns' in workspaceInputs[0]!).toBe(false)
       await drainPendingReportDeliveries(db)
 
       // WORKSPACE-GROUNDED session target (Slice ④b): composed with the spawned

@@ -205,6 +205,26 @@ describe('runClaudeChatSession', () => {
     expect(typeof queryArg?.options?.canUseTool).toBe('function')
   })
 
+  it('does NOT bind canUseTool under the user bypass — the callback is genuinely dead there', async () => {
+    // bypassPermissions auto-approves before consulting the callback and the
+    // policy would allow everything anyway; leaving it unbound is what keeps
+    // the SDK's shadowed-callback warning from firing on bypass turns. The
+    // PreToolUse hook stays wired (it owns the forced-sync Agent rewrite).
+    installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
+    await collect(
+      runClaudeChatSession({
+        input: { ...BASE_INPUT, permissionMode: 'bypass' },
+        activeSessionRegistry: new ActiveSessionRegistry(),
+        pendingApprovalRegistry: new PendingApprovalRegistry(),
+      }),
+    )
+
+    const queryArg = mockQuery.mock.calls.at(-1)?.[0]
+    expect(queryArg?.options?.canUseTool).toBeUndefined()
+    expect(queryArg?.options?.permissionMode).toBe('bypassPermissions')
+    expect(queryArg?.options?.hooks?.PreToolUse).toBeDefined()
+  })
+
   it('binds a PostCompact capture hook into query() when onCompaction is provided (Q2)', async () => {
     installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
     const captured: Array<{ sdkSessionId: string; summary: string }> = []

@@ -12,17 +12,22 @@ export type ChatMessageImage = {
 
 /**
  * Permission mode for a session. Maps to the Agent SDK `permissionMode`.
- * - `ask` — every tool use triggers an approval card (SDK `default`).
+ * - `ask` — carding tools raise an approval card (SDK `default`); every MCP
+ *   tool outside the declared card tiers resolves allow from the policy map
+ *   in `canUseTool` (`tool-approval-policy.ts`).
  * - `auto` — NOTHING cards (SDK `auto`): no Vynel floor, and `canUseTool`
  *   allows outright, so not even a classifier escalation can park a turn
  *   (Kafi 2026-08-11). Still not SDK `bypassPermissions`, so an outright
  *   provider refusal stands.
- * - `bypass` — nothing cards, ever (SDK `bypassPermissions`). The USER's
- *   explicit composer pick only (Chad, 2026-07-30: bypass means bypass).
+ * - `bypass` — nothing cards, ever (SDK `bypassPermissions`; `canUseTool` is
+ *   not even bound). The USER's explicit composer pick only (Chad,
+ *   2026-07-30: bypass means bypass).
  * - `bypass-with-behavior-gate` — tools run silently except the irreversible
- *   floor, which still cards (SDK `bypassPermissions` + the backstop). The
- *   UNATTENDED default (schedules, delegated leaves, report delivery) — a
- *   background turn carries no user trust pick, so the floor holds.
+ *   floor + declared mutating set, which card via `canUseTool` (SDK
+ *   `default` + the policy map; the PreToolUse backstop still rescues
+ *   skip-mode subagents). The UNATTENDED default (schedules, delegated
+ *   leaves, report delivery) — a background turn carries no user trust pick,
+ *   so the floor holds.
  * - `plan-only` — the agent plans but does not execute tools (SDK `plan`).
  *
  * The single source of truth for the session permission mode — the SDK-options
@@ -88,15 +93,6 @@ export type StartChatSessionInput = {
   mcpServers?: Record<string, unknown>
 
   /**
-   * Tool-name patterns (e.g. `'mcp__vynel__*'`) added to the SDK's
-   * `allowedTools` list alongside `allowedToolNames`. Lets the
-   * caller auto-allow an entire MCP server's tools without listing
-   * each one. Per `docs/blueprints/mcp/blueprint.md` Q3 resolution +
-   * the Claude Agent SDK MCP docs.
-   */
-  allowedMcpToolPatterns?: string[]
-
-  /**
    * Text appended to the Claude Code preset system prompt
    * (`systemPrompt.append`). Carries Vynel's always-on operating rules plus,
    * per enabled capability, its "how to use" instruction + context snapshot.
@@ -131,11 +127,11 @@ export type StartChatSessionInput = {
 
   /**
    * Tool names that card ONLY in `ask` mode — the destructive tier (deletes and
-   * purges) of a feature's MCP surface. In `ask` these are forced through the
-   * approval card even though the MCP wildcard pre-approves them in the SDK's
-   * `allowedTools` (a PreToolUse `'ask'` overrides that pre-approval — live
-   * smoke 2026-07-26); in auto/bypass they run uncarded, per the approval
-   * stance. Composed by the caller (`composeSessionMcpServers`).
+   * purges) of a feature's MCP surface. Enforced by the `canUseTool` policy map
+   * (every MCP call reaches the callback now that no wildcard pre-approves
+   * them) and by the PreToolUse backstop for skip-mode subagents; in
+   * auto/bypass they run uncarded, per the approval stance. Composed by the
+   * caller (`composeSessionMcpServers`).
    */
   askModeApprovalToolNames?: string[]
 

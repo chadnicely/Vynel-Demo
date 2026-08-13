@@ -336,7 +336,7 @@ export async function runGlobalRootTurn(
           ? { steerPromptAppend: input.steerPromptAppend }
           : {}),
         mcpServers: composedMcp.mcpServers,
-        allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
+        deniedMcpToolPatterns: composedMcp.deniedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,
         askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
         mcpSystemPromptAppend: composedMcp.systemPromptAppend,

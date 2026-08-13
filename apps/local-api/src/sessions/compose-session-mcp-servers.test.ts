@@ -22,10 +22,13 @@ function fakeDescriptor(overrides: Partial<McpFeatureDescriptor> = {}): McpFeatu
 }
 
 describe('composeSessionMcpServers', () => {
-  it('collects each descriptor into mcpServers + an allow pattern per server', () => {
+  it('collects each descriptor into mcpServers — with NO allow patterns emitted', () => {
+    // REGRESSION PIN (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED): the composer used to
+    // mint `mcp__<server>__*` allowedTools wildcards, auto-approving whole
+    // servers upstream of canUseTool. Registration alone offers the tools.
     const composed = composeSessionMcpServers([fakeDescriptor()], context)
     expect(composed.mcpServers).toHaveProperty('vynel')
-    expect(composed.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+    expect('allowedMcpToolPatterns' in composed).toBe(false)
   })
 
   it('skips a descriptor whose build() returns null or isApplicable is false', () => {
@@ -33,7 +36,6 @@ describe('composeSessionMcpServers', () => {
     const notApplicable = fakeDescriptor({ serverName: 'b', isApplicable: () => false })
     const composed = composeSessionMcpServers([nullBuild, notApplicable], context)
     expect(Object.keys(composed.mcpServers)).toEqual([])
-    expect(composed.allowedMcpToolPatterns).toEqual([])
   })
 
   it('denies a capability-gated tool only when its capability is absent', () => {
@@ -162,7 +164,6 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
   it('excludes the whole feature when no reader was wired at boot', () => {
     const composed = composeSessionMcpServers([desktopFeatureDescriptor], context)
     expect(composed.mcpServers).not.toHaveProperty('desktop')
-    expect(composed.allowedMcpToolPatterns).toEqual([])
     expect(composed.askModeApprovalToolNames).toEqual([])
     expect(composed.systemPromptAppend).toBe('')
   })
@@ -174,7 +175,6 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
       enableDesktopActions: false,
     })
     expect(composed.mcpServers).toHaveProperty('desktop')
-    expect(composed.allowedMcpToolPatterns).toContain('mcp__desktop__*')
     // The declaration is unconditional (descriptor contract) — the tier is
     // additive, so declaring an unregistered tool is harmless.
     // test: correct expectation — plan-level approval (Kafi 2026-08-11): the

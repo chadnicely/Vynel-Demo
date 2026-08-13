@@ -12,7 +12,6 @@ import {
 
 const attachmentWithPrompt: RoutedTurnMcpAttachment = {
   mcpServers: {},
-  allowedMcpToolPatterns: [],
   deniedMcpToolPatterns: [],
   mutatingToolNames: [],
   askModeApprovalToolNames: [],

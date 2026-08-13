@@ -177,7 +177,6 @@ describe('delegateToWorkspaceRoot', () => {
         providerId: 'claude',
         mcpAttachment: {
           mcpServers: { vynel: vynelServer },
-          allowedMcpToolPatterns: ['mcp__vynel__*'],
           deniedMcpToolPatterns: ['mcp__vynel__search_knowledge'],
           mutatingToolNames: ['mcp__vynel__register_workspace'],
           askModeApprovalToolNames: ['mcp__vynel__remove_knowledge_source'],
@@ -189,7 +188,9 @@ describe('delegateToWorkspaceRoot', () => {
       // The resumed session keeps the SAME background toolset a schedule fire
       // attaches — a bare turn would strip its deferred tools ("disconnected").
       expect(turnInput.mcpServers).toEqual({ vynel: vynelServer })
-      expect(turnInput.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      // No wildcard patterns ride to the provider — registration alone offers
+      // the tools; the canUseTool policy map gates each call (SHADOWED fix).
+      expect('allowedMcpToolPatterns' in turnInput).toBe(false)
       expect(turnInput.deniedToolNames).toEqual(['mcp__vynel__search_knowledge'])
       expect(turnInput.alwaysRequireApprovalToolNames).toEqual(['mcp__vynel__register_workspace'])
       expect(turnInput.askModeApprovalToolNames).toEqual(['mcp__vynel__remove_knowledge_source'])

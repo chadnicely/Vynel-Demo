@@ -17,7 +17,7 @@
 // keeps the static build graph light until a background turn actually needs it.
 
 import type { Database } from '@vynel/db'
-import { listEnabledCapabilities } from '@vynel/capabilities'
+import { defaultEnabledCapabilityIds, listEnabledCapabilities } from '@vynel/capabilities'
 import type { HonoAppRequestFn } from '../factory.js'
 import {
   composeSessionMcpServers,
@@ -242,11 +242,15 @@ export async function buildDelegatedTurnMcpComposer(
     // A GLOBAL-grounded spawned session inherits the GLOBAL ROOT's toolset —
     // its parent's — because it has no workspace to inherit one from. It used to
     // get nothing at all, so it could not even report back. `send_message` rides
-    // both surfaces, so reporting works either way.
+    // both surfaces, so reporting works either way. Capabilities: no workspace
+    // row to read, so the catalog defaults apply — the same fallback both
+    // global-root turn sites use (omitting the set entirely read as "all
+    // disabled" and silently denied the notebook's gated tools here).
     if (workspaceId === null) {
       return composeSessionMcpServers(
         [vynelRoutingDescriptor, notebookFeatureDescriptor, ...desktopDescriptors],
         { db, userId, appRequest: jobAwareAppRequest, ...desktopContext },
+        { enabledCapabilityIds: defaultEnabledCapabilityIds() },
       )
     }
     return composeSessionMcpServers(

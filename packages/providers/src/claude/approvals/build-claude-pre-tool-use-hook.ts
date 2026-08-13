@@ -1,25 +1,9 @@
 // `buildClaudePreToolUseHook` — the can't-be-skipped half of Vynel's
-// safety invariant: in ASK (and plan-only) mode, every irreversible tool
-// call from a (sub)agent that would otherwise skip `canUseTool` (a
-// `bypassPermissions` / `dontAsk` subagent mode, or an MCP allowedTools
-// pre-approval) still produces a Vynel approval card.
-//
-// MODE SEMANTICS (Chad's 2026-07-30 directive — the session mode is the
-// user's trust level for the WHOLE turn, subagents included):
-// - `ask` / `plan-only`: the floor + per-turn mutating set + destructive
-//   tier all card, main session AND subagents (a subagent keeps its own
-//   permission mode — the SDK does NOT clamp it to the parent's, proven by
-//   the 2026-06-21 live smoke — so the hook is what holds the line here).
-// - `auto`: NO card, ever — auto means no approval needed (Kafi 2026-08-11,
-//   superseding "the classifier's uncertain escalations card via canUseTool":
-//   an escalation parked a desktop turn on a card the user never expected in a
-//   mode that promises not to ask). No Vynel floor here, and `canUseTool`
-//   allows outright — see `build-claude-can-use-tool-callback.ts`.
-// - `bypass` (the user's composer pick): nothing cards, ever.
-// - `bypass-with-behavior-gate` (the UNATTENDED default — schedules,
-//   delegated leaves, report delivery): the floor + per-turn mutating set
-//   still card and park for the user (surface-up approval). A background
-//   turn carries no user trust pick, so the floor holds.
+// safety invariant: every irreversible tool call from a (sub)agent that
+// would otherwise skip `canUseTool` (a `bypassPermissions` / `dontAsk`
+// subagent mode) still produces a Vynel approval card. The mode × tool
+// matrix itself lives in `tool-approval-policy.ts` (with the dated
+// directives); this file owns only the hook mechanics.
 //
 // WHY a hook (not just `canUseTool`): a `PreToolUse` hook fires for EVERY
 // tool call, unconditionally, regardless of the (sub)agent's permission
@@ -28,27 +12,18 @@
 // 2026-06-21). So `canUseTool` is the primary card mechanism and this
 // hook is the backstop that guarantees it runs.
 //
-// MECHANISM (Design A — confirmed by a live smoke 2026-06-21): for a
-// tool in `TOOLS_ALWAYS_REQUIRING_APPROVAL` we return
-// `permissionDecision: 'ask'`, which routes the call INTO the existing
-// `canUseTool` approval flow (the smoke showed a `bypassPermissions`
-// subagent's `Write` + a PreToolUse `'ask'` triggered `canUseTool`,
-// which then denied/carded it; a `'deny'` blocked it inline). For every
-// other tool we return `{}` (no opinion) so the normal permission flow
-// and the `canUseTool` behavior gate are UNCHANGED — zero regression to
-// the shipped main-session path. `canUseTool` stays the SOLE card
-// mechanism; this hook only ensures it is reached.
-//
-// The policy is the static floor (`tools-always-requiring-approval.ts`) UNIONED
-// with the per-turn `alwaysRequireApprovalToolNames` (a feature's declared mutating tools,
-// e.g. desktop `request_desktop_access`). The floor is imported here directly — ADDITIVE, so
-// the backstop cards the floor even when no per-turn set is passed — and the
-// SAME effective check is used by `buildClaudeCanUseToolCallback`, so gate and
-// backstop can't drift.
+// MECHANISM (Design A — confirmed by a live smoke 2026-06-21): for a tool
+// the backstop covers we return `permissionDecision: 'ask'`, which routes
+// the call INTO the existing `canUseTool` approval flow (the smoke showed a
+// `bypassPermissions` subagent's `Write` + a PreToolUse `'ask'` triggered
+// `canUseTool`, which then denied/carded it; a `'deny'` blocked it inline).
+// For every other tool we return `{}` (no opinion) so the normal permission
+// flow and the `canUseTool` gate are UNCHANGED. `canUseTool` stays the SOLE
+// card mechanism; this hook only ensures it is reached.
 
 import type { HookCallback } from '../base/claude-agent-sdk.js'
 import type { ClaudePermissionMode } from '../../shared/start-chat-session-input.js'
-import { TOOLS_ALWAYS_REQUIRING_APPROVAL } from './tools-always-requiring-approval.js'
+import { requiresApprovalCardBackstop } from './tool-approval-policy.js'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -78,22 +53,14 @@ export function buildClaudePreToolUseHook(
         ? { ...input.tool_input, run_in_background: false }
         : undefined
 
-    // In auto and in the user's bypass NOTHING cards (auto: Kafi 2026-08-11;
-    // bypass: 2026-07-30) — the floor holds everywhere else. The
-    // `'ask'` decision is what pulls a call OUT of the MCP wildcard's
-    // `allowedTools` pre-approval (or a subagent's own skip-mode) and into
-    // `canUseTool` (live smoke 2026-07-26 — bare allowedTools entries
-    // otherwise shadow the callback entirely). `plan-only` is included in the
-    // destructive tier DEFENSIVELY: nothing routes it today, but a card there
-    // is strictly safer than an uncarded delete from a mode documented as
-    // non-executing.
-    const floorStandsDown = permissionMode === 'auto' || permissionMode === 'bypass'
-    const destructiveTierApplies = permissionMode === 'ask' || permissionMode === 'plan-only'
-    const requiresApprovalCard =
-      (!floorStandsDown &&
-        (TOOLS_ALWAYS_REQUIRING_APPROVAL.has(input.tool_name) ||
-          (alwaysRequireApprovalToolNames?.has(input.tool_name) ?? false))) ||
-      (destructiveTierApplies && (askModeApprovalToolNames?.has(input.tool_name) ?? false))
+    // The floor + declared tiers, from the one policy home. Deliberately
+    // NARROWER than the callback's own card matrix — the backstop rescues
+    // declared tiers from skip-modes, it never widens what cards (see
+    // `requiresApprovalCardBackstop`).
+    const requiresApprovalCard = requiresApprovalCardBackstop(input.tool_name, permissionMode, {
+      alwaysRequireApprovalToolNames,
+      askModeApprovalToolNames,
+    })
 
     if (forcedSyncInput === undefined && !requiresApprovalCard) {
       // No opinion — let the normal permission flow + canUseTool gate decide.

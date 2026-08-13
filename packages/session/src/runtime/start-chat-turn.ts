@@ -62,11 +62,9 @@ export type StartChatTurnInput = {
    * Optional MCP servers to register with the underlying SDK call.
    * Per `docs/blueprints/mcp/` D2 + D5: caller (apps/api chat route)
    * constructs the in-process server via `@vynel/mcp.buildInProcessMcpServer`
-   * and passes the pre-built instance — chat just forwards. Same pattern
-   * for `allowedMcpToolPatterns`.
+   * and passes the pre-built instance — chat just forwards.
    */
   mcpServers?: Record<string, unknown>
-  allowedMcpToolPatterns?: string[]
   /** Composed system-prompt append (Vynel rules + enabled-capability contributions). Forwarded to the provider. */
   systemPromptAppend?: string
   /** MCP tool names to deny — a disabled capability's tools. Forwarded to the provider's deniedToolNames -> SDK disallowedTools (removed from the agent). */
@@ -148,9 +146,6 @@ export async function* startChatTurn(
     deniedToolNames: input.deniedToolNames ?? [],
     ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
     ...(input.mcpServers !== undefined ? { mcpServers: input.mcpServers } : {}),
-    ...(input.allowedMcpToolPatterns !== undefined
-      ? { allowedMcpToolPatterns: input.allowedMcpToolPatterns }
-      : {}),
     ...(input.systemPromptAppend !== undefined
       ? { systemPromptAppend: input.systemPromptAppend }
       : {}),

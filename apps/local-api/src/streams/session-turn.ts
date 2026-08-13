@@ -239,7 +239,6 @@ export async function streamSpawnedSessionTurn(
           ...(composedMcp !== null
             ? {
                 mcpServers: composedMcp.mcpServers,
-                allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
                 deniedToolNames: composedMcp.deniedMcpToolPatterns,
                 ...(composedMcp.mutatingToolNames.length > 0
                   ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }

@@ -457,7 +457,10 @@ describe('POST /root/turn (SSE)', () => {
       // turns; ask module 2026-07-17); was: empty.
       expect(startChatSessionInputs).toHaveLength(1)
       const input = startChatSessionInputs[0]!
-      expect(input.allowedMcpToolPatterns).toEqual(['mcp__vynel-ask__*'])
+      // The ask server registers; no wildcard rides to the provider — the
+      // canUseTool policy map gates each call (SHADOWED fix).
+      expect(input.mcpServers).toHaveProperty('vynel-ask')
+      expect('allowedMcpToolPatterns' in input).toBe(false)
       expect(input.workspacePath).toBe(path.join(dataDir, 'global-root'))
 
       // The transcript now hydrates the turn's messages (cold-start read).

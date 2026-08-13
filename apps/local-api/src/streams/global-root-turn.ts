@@ -273,7 +273,7 @@ export async function streamGlobalRootTurn(
           // A voice turn also RECORDS its origin — the transcript shows "via Voice".
           ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),
           mcpServers: composedMcp.mcpServers,
-          allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
+          deniedMcpToolPatterns: composedMcp.deniedMcpToolPatterns,
           mutatingToolNames: composedMcp.mutatingToolNames,
           askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
           // The mention-dispatch note (chat-mentions) rides the same seam as

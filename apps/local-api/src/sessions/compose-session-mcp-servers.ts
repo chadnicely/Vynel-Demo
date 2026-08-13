@@ -22,9 +22,12 @@ export interface ComposedSessionMcpServers {
   // Server key → built in-process server, for the SDK's `options.mcpServers`.
   // `unknown` keeps the SDK type out of the api turn layer (the provider casts at
   // the edge, per the chat contract's `Record<string, unknown>` precedent).
+  // Deliberately NO `mcp__<serverName>__*` allow patterns: a bare allowedTools
+  // entry auto-approves the whole server upstream of `canUseTool`
+  // (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED), which silently un-gated every MCP tool
+  // in ask mode. Registration alone is what offers the tools; the provider's
+  // policy map decides allow-vs-card per call.
   mcpServers: Record<string, unknown>
-  // `mcp__<serverName>__*` for each included feature.
-  allowedMcpToolPatterns: string[]
   // Tools denied because their gating capability is disabled (an `alwaysOn` core
   // feature is never denied).
   deniedMcpToolPatterns: string[]
@@ -46,7 +49,6 @@ export function composeSessionMcpServers(
 ): ComposedSessionMcpServers {
   const enabledCapabilityIds = options.enabledCapabilityIds ?? new Set<string>()
   const mcpServers: Record<string, unknown> = {}
-  const allowedMcpToolPatterns: string[] = []
   const deniedMcpToolPatterns: string[] = []
   const mutatingToolNames: string[] = []
   const askModeApprovalToolNames: string[] = []
@@ -59,8 +61,6 @@ export function composeSessionMcpServers(
     if (server === null) continue
 
     mcpServers[descriptor.serverName] = server
-    const allowPattern = `mcp__${descriptor.serverName}__*`
-    if (!allowedMcpToolPatterns.includes(allowPattern)) allowedMcpToolPatterns.push(allowPattern)
 
     // A core-tier (`alwaysOn`) feature is always-on + no-approval: never
     // capability-denied, never carded — regardless of permission mode.
@@ -96,7 +96,6 @@ export function composeSessionMcpServers(
 
   return {
     mcpServers,
-    allowedMcpToolPatterns,
     deniedMcpToolPatterns,
     mutatingToolNames,
     askModeApprovalToolNames,
@@ -114,7 +113,6 @@ export function mergeComposedSessionMcpServers(
 ): ComposedSessionMcpServers {
   return {
     mcpServers: { ...base.mcpServers, ...extra.mcpServers },
-    allowedMcpToolPatterns: [...base.allowedMcpToolPatterns, ...extra.allowedMcpToolPatterns],
     deniedMcpToolPatterns: [...base.deniedMcpToolPatterns, ...extra.deniedMcpToolPatterns],
     mutatingToolNames: [...base.mutatingToolNames, ...extra.mutatingToolNames],
     askModeApprovalToolNames: [

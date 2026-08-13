@@ -89,7 +89,10 @@ export interface RunGlobalRootTurnCoreInput {
   /** Pre-composed MCP servers (composed by the apps/api caller — composition stays
    *  at the api edge per `api-side-turn-execution-with-mcp`). Opaque to the core. */
   mcpServers: Record<string, unknown>
-  allowedMcpToolPatterns: string[]
+  /** The composer's capability denials — forwarded to the provider's
+   *  deniedToolNames → SDK disallowedTools (removed from the agent). Was
+   *  silently dropped on this path before the tool-policy re-plumb. */
+  deniedMcpToolPatterns: string[]
   /** Feature-declared mutating tools that card even under bypass (additive to the floor). */
   mutatingToolNames: string[]
   /** The destructive tier — cards ONLY when the root turn runs in ask mode. */
@@ -201,14 +204,14 @@ export async function runGlobalRootTurnCore(
         ...(input.model !== undefined ? { model: input.model } : {}),
         ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
         permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
-        // Empty native allowlist + the MCP wildcards => the routing tools (+ the
-        // read-only desktop tools when present). The manager has no native tools.
+        // Empty native allowlist; the MCP servers register below and their
+        // calls gate through the provider's canUseTool policy map. The
+        // manager has no native tools.
         allowedToolNames: [],
-        deniedToolNames: [],
+        deniedToolNames: input.deniedMcpToolPatterns,
         // SDK widening at the chat boundary — `StartChatSessionInput.mcpServers` is
         // `Record<string, unknown>`; the provider casts back at the SDK edge.
         mcpServers: input.mcpServers,
-        allowedMcpToolPatterns: input.allowedMcpToolPatterns,
         // A feature's declared mutating tools card even under bypass (additive to
         // the static floor) — what makes the desktop act_on_app card once enabled.
         ...(input.mutatingToolNames.length > 0

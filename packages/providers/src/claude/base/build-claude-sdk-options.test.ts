@@ -21,10 +21,20 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.forwardSubagentText).toBe(true)
   })
 
-  it('maps "bypass-with-behavior-gate" to bypassPermissions + the acknowledgement flag', () => {
-    const options = buildClaudeSdkOptions({ ...base, permissionMode: 'bypass-with-behavior-gate' })
+  it('maps the user "bypass" to bypassPermissions + the acknowledgement flag', () => {
+    const options = buildClaudeSdkOptions({ ...base, permissionMode: 'bypass' })
     expect(options.permissionMode).toBe('bypassPermissions')
     expect(options.allowDangerouslySkipPermissions).toBe(true)
+  })
+
+  it('maps "bypass-with-behavior-gate" to the SDK "default" mode — canUseTool live, no ack flag', () => {
+    // Was bypassPermissions + the backstop rescue. With no MCP wildcards in
+    // allowedTools, `default` + the canUseTool policy map produces the same
+    // net behavior (floor ∪ mutating card, everything else allows) without
+    // the SDK's shadowed-callback warning.
+    const options = buildClaudeSdkOptions({ ...base, permissionMode: 'bypass-with-behavior-gate' })
+    expect(options.permissionMode).toBe('default')
+    expect(options.allowDangerouslySkipPermissions).toBeUndefined()
   })
 
   it('maps "plan-only" to the SDK "plan" mode', () => {
@@ -75,21 +85,21 @@ describe('buildClaudeSdkOptions', () => {
     expect(withTools.disallowedTools).toEqual(['Bash'])
   })
 
-  it('forwards mcpServers + merges allowedMcpToolPatterns into allowedTools', () => {
-    // Per docs/blueprints/mcp/ D2 + D5 + D12 wire-in. The pre-built
-    // server instance is forwarded verbatim; the wildcard is appended
-    // to the existing allowedToolNames so the LLM can call any
-    // `mcp__vynel__*` tool the in-process server registered.
+  it('forwards mcpServers verbatim with NO mcp__ entries in allowedTools', () => {
+    // REGRESSION PIN for CLAUDE_SDK_CAN_USE_TOOL_SHADOWED: a bare
+    // `mcp__<server>__*` entry in allowedTools auto-approves the whole server
+    // before `canUseTool`, silently un-gating every MCP tool in ask mode.
+    // Registration alone offers the tools; the policy map gates each call.
     const fakeServer = { type: 'mcp', name: 'vynel', instance: {} } as never
     const options = buildClaudeSdkOptions({
       ...base,
       permissionMode: 'ask',
       allowedToolNames: ['Read', 'Grep'],
       mcpServers: { vynel: fakeServer },
-      allowedMcpToolPatterns: ['mcp__vynel__*'],
     })
     expect(options.mcpServers).toEqual({ vynel: fakeServer })
-    expect(options.allowedTools).toEqual(['Read', 'Grep', 'mcp__vynel__*'])
+    expect(options.allowedTools).toEqual(['Read', 'Grep'])
+    expect(options.allowedTools?.some((name) => name.startsWith('mcp__'))).toBe(false)
   })
 
   it('omits mcpServers when not provided (regression — existing chat flows unchanged)', () => {
@@ -97,15 +107,16 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.mcpServers).toBeUndefined()
   })
 
-  it('merges only allowedMcpToolPatterns when mcpServers is absent (chat without MCP)', () => {
+  it('leaves allowedTools absent when only MCP servers register (the composed-turn shape)', () => {
+    // Every turn entry passes an empty native allowlist, so a composed turn
+    // now emits NO allowedTools at all — nothing left to shadow the callback.
+    const fakeServer = { type: 'mcp', name: 'vynel', instance: {} } as never
     const options = buildClaudeSdkOptions({
       ...base,
       permissionMode: 'ask',
-      allowedToolNames: ['Read'],
-      allowedMcpToolPatterns: ['mcp__future__*'],
+      mcpServers: { vynel: fakeServer },
     })
-    expect(options.mcpServers).toBeUndefined()
-    expect(options.allowedTools).toEqual(['Read', 'mcp__future__*'])
+    expect(options.allowedTools).toBeUndefined()
   })
 
   it('appends systemPromptAppend to the Claude Code preset system prompt', () => {

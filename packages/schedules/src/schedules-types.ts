@@ -36,7 +36,6 @@ export interface FireScheduleDeps {
       userMessageText: string
       permissionMode: string
       mcpServers: Record<string, unknown>
-      allowedMcpToolPatterns: string[]
       deniedToolNames: string[]
       systemPromptAppend: string
       alwaysRequireApprovalToolNames?: string[]
@@ -44,18 +43,17 @@ export interface FireScheduleDeps {
     deps?: { logger?: StructuralLogger },
   ) => AsyncIterable<ChatTurnEvent>
   // The workspace MCP attachment for a fired turn — the route-derived `vynel`
-  // server + its allow pattern + the deny of a disabled capability's tools. The
-  // api-side service binds it to composeSessionMcpServers([vynelWorkspaceDescriptor],
-  // …) with the workspace's enabled-capability set, closing over the app.request
-  // dispatcher; core never imports @vynel/mcp or the composer. Returns only what
-  // the fired turn forwards to startChatTurn.
+  // server + the deny of a disabled capability's tools. The api-side service
+  // binds it to composeSessionMcpServers([vynelWorkspaceDescriptor], …) with
+  // the workspace's enabled-capability set, closing over the app.request
+  // dispatcher; core never imports @vynel/mcp or the composer. Returns only
+  // what the fired turn forwards to startChatTurn.
   composeWorkspaceMcpServers: (input: {
     db: Database
     userId: string
     workspaceId: string
   }) => {
     mcpServers: Record<string, unknown>
-    allowedMcpToolPatterns: string[]
     deniedMcpToolPatterns: string[]
     // The feature mutating tools to card even under bypass (additive to the
     // provider's static floor) — forwarded to startChatTurn's alwaysRequireApprovalToolNames.

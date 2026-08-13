@@ -18,7 +18,6 @@ export type GetSessionContextReportInput = {
   sessionId: string
   /** Pre-built MCP servers so the report counts MCP tools accurately. */
   mcpServers?: Record<string, unknown>
-  allowedMcpToolPatterns?: string[]
 }
 
 export async function getSessionContextReport(
@@ -36,9 +35,6 @@ export async function getSessionContextReport(
     allowedToolNames: [],
     deniedToolNames: [],
     ...(input.mcpServers !== undefined ? { mcpServers: input.mcpServers } : {}),
-    ...(input.allowedMcpToolPatterns !== undefined
-      ? { allowedMcpToolPatterns: input.allowedMcpToolPatterns }
-      : {}),
     ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
   })
 }

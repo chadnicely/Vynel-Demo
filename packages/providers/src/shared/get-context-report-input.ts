@@ -30,9 +30,6 @@ export type GetContextReportInput = {
   /** Pre-built MCP servers (so MCP tools are counted in the report). */
   mcpServers?: Record<string, unknown>
 
-  /** MCP tool-name patterns (e.g. `'mcp__vynel__*'`). */
-  allowedMcpToolPatterns?: string[]
-
   /** Optional structural logger (a failed read is logged, not thrown). */
   logger?: ProviderLogger
 }

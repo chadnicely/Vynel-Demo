@@ -39,7 +39,6 @@ export async function fetchSessionContextReport(c: Context<AppEnv>): Promise<str
       workspacePath: c.var.workspace!.path,
       sessionId: c.var.chatSession!.id,
       mcpServers: composedMcp.mcpServers,
-      allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
     },
     { logger: c.var.logger },
   )
