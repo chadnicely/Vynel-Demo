@@ -49,8 +49,13 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__delete_agent',
       'mcp__vynel__delete_feature',
       'mcp__vynel__delete_phase',
+      // Voice-in-calls (merged 2026-08-13): joining and leaving a live call
+      // are carded in ask mode — entering or hanging up on a meeting is not a
+      // silent act.
+      'mcp__vynel__end_call',
       'mcp__vynel__register_workspace',
       'mcp__vynel__remove_knowledge_source',
+      'mcp__vynel__start_call',
       'mcp__vynel__uninstall_marketplace_item',
     ])
     expect(vynelWorkspaceInteractiveDescriptor.askModeApprovalToolNames).toEqual(

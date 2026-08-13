@@ -192,12 +192,16 @@ const EXPECTED_TOOL_NAMES = [
 const EXPECTED_ROUTING_TOOL_NAMES = [
   'create_global_monitor',
   'create_session',
+  // Voice-in-calls (merged 2026-08-13): the call lifecycle rides the ROOT
+  // surface — the brain joins, lists and leaves calls; speak predates them.
+  'end_call',
   'get_background_run',
   // The cross-session conversation reads (2026-08-10): rootSurface +
   // workspaceSurface — every tier reads any owned session's messages through
   // ONE tool pair; the global root's own thread is walled off route-side.
   'get_chat_session',
   'list_background_runs',
+  'list_calls',
   'list_global_monitors',
   'list_routing_channels',
   'list_routing_workspaces',
@@ -214,6 +218,7 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   // the global chat is a session with a dock like any other.
   'set_todos',
   'speak',
+  'start_call',
   'stop_global_monitor',
 ] as const
 
