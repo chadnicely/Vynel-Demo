@@ -201,11 +201,26 @@ Two milestones past the spike, both on `worktree-virtual-audio-driver`:
   DriverVer"), documented in the driver README — not a code issue.
 
 **The Windows call shape now:** ONE voice cable (this driver) + device-less ears (the addon) —
-not two cables. Next seam: wire both into the call registry as the Windows ears/voice sources
-(the current auto-discovery claims Ears/Voice device PAIRS — the env two-cable model; Windows
-needs a distinct "this driver's Voice→Mic + process-loopback ears" wiring). v1 driver
-constraint: both endpoints must share one PCM format (daemon opens both; mismatch = wrong-rate
-audio, not a crash) — in-driver resample is the recorded next driver improve.
+not two cables. v1 driver constraint: both endpoints must share one PCM format (daemon opens
+both; mismatch = wrong-rate audio, not a crash) — in-driver resample is the recorded next
+driver improve.
+
+### Registry integration LANDED — a call's ears is a device OR a pid
+
+The call registry now understands both models. A `CallCablePair`'s `inputName` (the capture
+device) is **optional**: present = a two-device cable (env / Linux null-sinks); absent = the
+Windows driver path, where the call is HEARD by **process-loopback of the call app's pid** and
+the pair carries only its Voice render device. Discovery turns a "Vynel Call <n> Voice" device
+with no matching Ears device into a loopback pair; `startCall` takes an optional `capturePid`
+(required for a loopback pair, checked before the sink so a miss never orphans it) and opens the
+process-loopback capture instead of a device stream. The voice sink was already
+format-agnostic — it opens the driver's "Vynel Call 1 Voice" like any output device. The daemon
+`POST /calls` surface accepts `capturePid`. 169 daemon tests green; reviewer-checked.
+
+**The last mile (next):** the conductor MCP tool (`start_call`) must learn the call app's pid to
+pass `capturePid` — app→pid resolution is the conductor's job (a deliberate tool-schema move,
+plus wherever app detection lives). Until then the Windows loopback path is reachable only by a
+direct `POST /calls` with a pid; the env/Linux device-cable path is unaffected.
 
 ## The cross-OS device-naming contract (settled this run)
 

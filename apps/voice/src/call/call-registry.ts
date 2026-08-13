@@ -5,6 +5,7 @@ import { cpal } from '../audio/cpal.js'
 import { findDeviceByName, normalizeDeviceName } from '../audio/device-selection.js'
 import type { SelectedDeviceConfig } from '../audio/device-selection.js'
 import { openCaptureStream, type CaptureStream } from '../audio/capture-stream.js'
+import { openProcessLoopbackCapture } from '../audio/process-loopback-capture.js'
 import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
 import { discoverVynelCallPairs } from './call-cable-discovery.js'
 import type { CallMode } from '@vynel/voice'
@@ -52,9 +53,12 @@ export class CallRegistryError extends Error {
 }
 
 export interface CallCablePair {
-  /** Cable B's capture end — what the call app plays INTO (participants' audio). */
-  readonly inputName: string
-  /** Cable A's playback end — what the call app uses as its microphone. */
+  /** The capture end — what the call app plays INTO (participants' audio). When
+   *  absent the call is HEARD via process-loopback of the call app's process
+   *  (Windows driver path: no capture device, a `capturePid` is required at
+   *  start). */
+  readonly inputName?: string
+  /** The render device Vynel plays its voice into (the call app's microphone). */
   readonly outputName: string
 }
 
@@ -62,6 +66,9 @@ export interface StartCallRequest {
   readonly label: string
   readonly mode: CallMode
   readonly sessionId?: string | undefined
+  /** The call app's process id to capture, for a loopback-ears pair (one with
+   *  no `inputName`). Ignored by device-cable pairs. */
+  readonly capturePid?: number | undefined
 }
 
 interface LiveCall {
@@ -77,7 +84,8 @@ interface LiveCall {
 // Inventory identity — an env entry duplicating a discovered pair must not
 // double capacity, and a held pair must stay held across re-discovery.
 function cablePairKey(pair: CallCablePair): string {
-  return `${normalizeDeviceName(pair.inputName)}::${normalizeDeviceName(pair.outputName)}`
+  const ears = pair.inputName !== undefined ? normalizeDeviceName(pair.inputName) : '(loopback)'
+  return `${ears}::${normalizeDeviceName(pair.outputName)}`
 }
 
 /** The seams the call loop claims — lifecycle + both directions of a live
@@ -129,7 +137,17 @@ export class CallRegistry {
       )
     }
 
-    const input = this.#resolveCableEnd('input', pair.inputName, devices)
+    // A loopback-ears pair hears the call app by process-loopback — it needs
+    // the target pid, checked BEFORE the sink so a miss never orphans it.
+    const earsByLoopback = pair.inputName === undefined
+    if (earsByLoopback && request.capturePid === undefined) {
+      throw new CallRegistryError(
+        'device-missing',
+        `call pair "${pair.outputName}" hears via process-loopback and needs the call app's ` +
+          `process id — start_call must pass capturePid`,
+      )
+    }
+    const input = earsByLoopback ? undefined : this.#resolveCableEnd('input', pair.inputName!, devices)
     const output = this.#resolveCableEnd('output', pair.outputName, devices)
 
     const callId = randomUUID()
@@ -143,24 +161,37 @@ export class CallRegistry {
     const sink = openOutputSink(this.#logger, `call:${callId}`, output, () =>
       this.#loopHooks?.onCallDrained(callId),
     )
+    const onCallAudio = (audio: PcmAudio): void => this.#loopHooks?.onCallAudio(callId, audio)
     let capture: CaptureStream
     try {
-      capture = openCaptureStream(this.#logger, `call:${callId}`, input, (audio) => {
-        this.#loopHooks?.onCallAudio(callId, audio)
-      })
+      capture =
+        input !== undefined
+          ? openCaptureStream(this.#logger, `call:${callId}`, input, onCallAudio)
+          : openProcessLoopbackCapture(
+              this.#logger,
+              `call:${callId}`,
+              { processId: request.capturePid! },
+              onCallAudio,
+            )
     } catch (error) {
       // The sink is live already (stream + keepalive interval) — an orphan here
       // would leak both forever, unreachable by endCall/stopAll.
       sink.stop()
       throw new CallRegistryError(
         'device-missing',
-        `call input stream failed to open on "${pair.inputName}" — ` +
+        `call ears failed to open (${earsByLoopback ? `process-loopback pid ${request.capturePid}` : `capture device "${pair.inputName}"`}) — ` +
           (error instanceof Error ? error.message : String(error)),
       )
     }
     this.#calls.set(callId, { descriptor, capture, sink, pairKey: cablePairKey(pair) })
     this.#logger.info(
-      { callId, label: request.label, mode: request.mode, pair: `${pair.inputName} → ${pair.outputName}` },
+      {
+        callId,
+        label: request.label,
+        mode: request.mode,
+        ears: earsByLoopback ? `loopback:${request.capturePid}` : pair.inputName,
+        voice: pair.outputName,
+      },
       'call started',
     )
     this.#loopHooks?.onCallStarted(descriptor)
@@ -213,11 +244,13 @@ export class CallRegistry {
     const seenEndNames = new Set<string>()
     for (const pair of [...discovered.pairs, ...this.#envPairs]) {
       if (seenPairKeys.has(cablePairKey(pair))) continue // env naming a discovered pair — expected, silent
-      const inputEnd = normalizeDeviceName(pair.inputName)
-      const outputEnd = normalizeDeviceName(pair.outputName)
-      if (seenEndNames.has(inputEnd) || seenEndNames.has(outputEnd)) {
-        // A physical end carries ONE call — a pair reusing an earlier pair's
-        // end would cross-bleed audio between two live calls.
+      // A physical device end carries ONE call — a pair reusing an earlier
+      // pair's end would cross-bleed audio. Loopback ears has no capture
+      // device, so only its Voice end takes a slot.
+      const ends = [pair.outputName, ...(pair.inputName !== undefined ? [pair.inputName] : [])].map(
+        normalizeDeviceName,
+      )
+      if (ends.some((end) => seenEndNames.has(end))) {
         this.#logger.warn(
           { inputName: pair.inputName, outputName: pair.outputName },
           'cable pair shares a device end with an earlier pair — skipped',
@@ -225,8 +258,7 @@ export class CallRegistry {
         continue
       }
       seenPairKeys.add(cablePairKey(pair))
-      seenEndNames.add(inputEnd)
-      seenEndNames.add(outputEnd)
+      for (const end of ends) seenEndNames.add(end)
       inventory.push(pair)
     }
     return inventory

@@ -61,6 +61,22 @@ describe('call endpoints', () => {
     expect(invalid.status).toBe(400)
   })
 
+  it('POST passes a capturePid through and rejects a non-positive-integer one', async () => {
+    const roster = fakeRoster()
+    const ok = await appWith(roster).request('/', post({ label: 'zoom', mode: 'participant', capturePid: 4321 }))
+    expect(ok.status).toBe(200)
+    expect(roster.startCall).toHaveBeenCalledWith({
+      label: 'zoom',
+      mode: 'participant',
+      capturePid: 4321,
+    })
+
+    for (const bad of [0, -3, 1.5, 'nope']) {
+      const rejected = await appWith(fakeRoster()).request('/', post({ capturePid: bad }))
+      expect(rejected.status).toBe(400)
+    }
+  })
+
   it('POST rejects an oversized label before touching the registry', async () => {
     const roster = fakeRoster()
     const response = await appWith(roster).request('/', post({ label: 'x'.repeat(121) }))

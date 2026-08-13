@@ -62,10 +62,16 @@ describe('discoverVynelCallPairs', () => {
     ])
   })
 
-  it('surfaces a partnerless end as an orphan instead of claiming it', () => {
+  it('an Ears with no Voice is an orphan — nothing to speak into', () => {
     const discovered = discoverVynelCallPairs([device('Vynel Call 1 Ears')])
     expect(discovered.pairs).toEqual([])
     expect(discovered.orphanNames).toEqual(['Vynel Call 1 Ears'])
+  })
+
+  it('a Voice with no Ears is a loopback pair — the Windows driver path', () => {
+    const discovered = discoverVynelCallPairs([device('Vynel Call 1 Voice (Vynel Virtual Audio)')])
+    expect(discovered.pairs).toEqual([{ outputName: 'Vynel Call 1 Voice (Vynel Virtual Audio)' }])
+    expect(discovered.orphanNames).toEqual([])
   })
 
   it('keeps the first of two devices claiming the same end, orphaning the extra', () => {
@@ -80,12 +86,13 @@ describe('discoverVynelCallPairs', () => {
     expect(discovered.orphanNames).toEqual(['Vynel Call 1 Ears (B)'])
   })
 
-  it('requires a word boundary after the direction — "Earsplitter" is not an end', () => {
+  it('requires a word boundary after the direction — "Earsplitter" is not an Ears', () => {
     const discovered = discoverVynelCallPairs([
       device('Vynel Call 1 Earsplitter'),
       device('Vynel Call 1 Voice'),
     ])
-    expect(discovered.pairs).toEqual([])
-    expect(discovered.orphanNames).toEqual(['Vynel Call 1 Voice'])
+    // "Earsplitter" doesn't match, so the Voice stands alone → a loopback pair.
+    expect(discovered.pairs).toEqual([{ outputName: 'Vynel Call 1 Voice' }])
+    expect(discovered.orphanNames).toEqual([])
   })
 })

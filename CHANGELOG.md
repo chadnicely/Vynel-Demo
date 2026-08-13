@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A call can now hear its app directly, no capture cable.** The call system
+  learned a second way to listen: instead of a capture device, a call can hear
+  a specific app by its process (the Windows path, using per-app capture). When
+  Vynel's own audio device is installed, that plus its voice cable is all a
+  Windows call needs — no second cable. The existing device-cable setup
+  (VB-Cable, Linux null-sinks) is unchanged.
+
 - **Vynel's own Windows call cable is now a real cable.** The virtual-audio
   driver went from a silent placeholder to a working one-way loopback: audio
   played into its "Vynel Call 1 Voice" endpoint comes back out "Vynel Call 1

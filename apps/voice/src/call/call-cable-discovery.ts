@@ -56,12 +56,21 @@ export function discoverVynelCallPairs(
   const pairs: CallCablePair[] = []
   for (const pairNumber of [...endsByPairNumber.keys()].sort((left, right) => left - right)) {
     const ends = endsByPairNumber.get(pairNumber)!
-    if (ends.ears !== undefined && ends.voice !== undefined) {
-      pairs.push({ inputName: ends.ears.name, outputName: ends.voice.name })
+    if (ends.voice !== undefined) {
+      // Voice is the render device Vynel MUST have to speak into the call. Ears
+      // is optional: present = a two-device cable (env / Linux null-sinks);
+      // absent = our own Windows driver (it publishes only Voice + the
+      // app-facing Microphone), so the call is HEARD via process-loopback and
+      // the pair carries no capture device.
+      pairs.push(
+        ends.ears !== undefined
+          ? { inputName: ends.ears.name, outputName: ends.voice.name }
+          : { outputName: ends.voice.name },
+      )
       continue
     }
-    const lonelyEnd = ends.ears ?? ends.voice
-    if (lonelyEnd !== undefined) orphanNames.push(lonelyEnd.name)
+    // An Ears with no Voice can't carry a call (nothing to speak into).
+    if (ends.ears !== undefined) orphanNames.push(ends.ears.name)
   }
   return { pairs, orphanNames }
 }

@@ -3,6 +3,7 @@ import pino from 'pino'
 import type { PcmAudio } from '@vynel/voice-engine'
 import { cpal } from '../audio/cpal.js'
 import { openCaptureStream } from '../audio/capture-stream.js'
+import { openProcessLoopbackCapture } from '../audio/process-loopback-capture.js'
 import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
 import {
   CallRegistry,
@@ -19,12 +20,14 @@ vi.mock('../audio/cpal.js', () => ({
   },
 }))
 vi.mock('../audio/capture-stream.js', () => ({ openCaptureStream: vi.fn() }))
+vi.mock('../audio/process-loopback-capture.js', () => ({ openProcessLoopbackCapture: vi.fn() }))
 vi.mock('../audio/output-sink.js', () => ({ openOutputSink: vi.fn() }))
 
 const getDevices = vi.mocked(cpal.getDevices)
 const getDefaultInputConfig = vi.mocked(cpal.getDefaultInputConfig)
 const getDefaultOutputConfig = vi.mocked(cpal.getDefaultOutputConfig)
 const openCapture = vi.mocked(openCaptureStream)
+const openLoopbackCapture = vi.mocked(openProcessLoopbackCapture)
 const openSink = vi.mocked(openOutputSink)
 
 const cableBOut = {
@@ -70,6 +73,7 @@ describe('CallRegistry', () => {
     getDefaultInputConfig.mockReturnValue({ sampleRate: 16_000, channels: 1 })
     getDefaultOutputConfig.mockReturnValue({ sampleRate: 48_000, channels: 2 })
     openCapture.mockReturnValue({ stop: vi.fn() })
+    openLoopbackCapture.mockReturnValue({ stop: vi.fn() })
     openSink.mockReturnValue(fakeSink())
   })
 
@@ -412,6 +416,99 @@ describe('CallRegistry', () => {
       expect(getDefaultInputConfig).toHaveBeenLastCalledWith('id:vynel-2-ears')
       expectRegistryError(
         () => registry.startCall({ label: 'third', mode: 'notetaker' }),
+        'pair-busy',
+        'all 1 cable pair(s)',
+      )
+    })
+  })
+
+  describe('loopback-ears pairs (the Windows driver path)', () => {
+    // The driver publishes only a Voice render device (+ the app-facing
+    // Microphone), so discovery yields a pair with no capture device — the call
+    // is heard via process-loopback of the call app's pid.
+    const vynelVoiceOnly = {
+      name: 'Vynel Call 1 Voice (Vynel Virtual Audio)',
+      deviceId: 'id:vynel-1-voice',
+      hostId: 'WASAPI',
+      isDefaultInput: false,
+      isDefaultOutput: false,
+    }
+
+    it('hears the call app by process-loopback and speaks into the Voice device', () => {
+      getDevices.mockReturnValue([vynelVoiceOnly])
+      const registry = registryWith([])
+
+      const descriptor = registry.startCall({ label: 'zoom', mode: 'participant', capturePid: 4321 })
+
+      expect(descriptor.label).toBe('zoom')
+      // Voice resolves as the output sink; ears open via loopback, not a device.
+      expect(getDefaultOutputConfig).toHaveBeenCalledWith('id:vynel-1-voice')
+      expect(getDefaultInputConfig).not.toHaveBeenCalled()
+      expect(openCapture).not.toHaveBeenCalled()
+      expect(openLoopbackCapture).toHaveBeenCalledWith(
+        expect.anything(),
+        `call:${descriptor.callId}`,
+        { processId: 4321 },
+        expect.any(Function),
+      )
+    })
+
+    it('delivers loopback audio to the bound loop', () => {
+      let deliver: ((audio: PcmAudio) => void) | undefined
+      openLoopbackCapture.mockImplementation((_logger, _label, _source, onAudio) => {
+        deliver = onAudio
+        return { stop: vi.fn() }
+      })
+      getDevices.mockReturnValue([vynelVoiceOnly])
+      const registry = registryWith([])
+      const onCallAudio = vi.fn()
+      registry.bindCallLoop({
+        onCallStarted: vi.fn(),
+        onCallAudio,
+        onCallDrained: vi.fn(),
+        onCallEnded: vi.fn(),
+      })
+      const { callId } = registry.startCall({ label: 'zoom', mode: 'participant', capturePid: 99 })
+
+      const pcm: PcmAudio = { samples: new Float32Array([0.2]), sampleRate: 16_000 }
+      deliver?.(pcm)
+      expect(onCallAudio).toHaveBeenCalledWith(callId, pcm)
+    })
+
+    it('refuses a loopback pair with no capturePid — before opening the sink', () => {
+      getDevices.mockReturnValue([vynelVoiceOnly])
+      expectRegistryError(
+        () => registryWith([]).startCall({ label: 'zoom', mode: 'participant' }),
+        'device-missing',
+        'capturePid',
+      )
+      expect(openSink).not.toHaveBeenCalled()
+    })
+
+    it('a loopback capture that fails to open stops the already-live sink', () => {
+      const sink = fakeSink()
+      openSink.mockReturnValue(sink)
+      openLoopbackCapture.mockImplementation(() => {
+        throw new Error('addon unavailable')
+      })
+      getDevices.mockReturnValue([vynelVoiceOnly])
+      const registry = registryWith([])
+
+      expectRegistryError(
+        () => registry.startCall({ label: 'zoom', mode: 'participant', capturePid: 7 }),
+        'device-missing',
+        'process-loopback pid 7',
+      )
+      expect(sink.stop).toHaveBeenCalledTimes(1)
+      expect(registry.listCalls()).toEqual([])
+    })
+
+    it('holds one call per Voice device — a second start on the same pair is pair-busy', () => {
+      getDevices.mockReturnValue([vynelVoiceOnly])
+      const registry = registryWith([])
+      registry.startCall({ label: 'zoom', mode: 'participant', capturePid: 1 })
+      expectRegistryError(
+        () => registry.startCall({ label: 'meet', mode: 'participant', capturePid: 2 }),
         'pair-busy',
         'all 1 cable pair(s)',
       )
