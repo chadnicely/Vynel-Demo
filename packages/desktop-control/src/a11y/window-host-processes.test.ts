@@ -54,5 +54,46 @@ describe('readWindowIdentity', () => {
       }),
     ).toBeNull()
   })
+
+  it('reduces a PATH-shaped app name to its display half — measured on the packaged Notepad', () => {
+    // The window source reported the full WindowsApps exe path as the app name,
+    // which then rode the plan, the authorizer and the durable record verbatim.
+    expect(
+      readWindowIdentity({
+        appName: () =>
+          'C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2606.15.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe',
+      }),
+    ).toBe('Notepad')
+    expect(readWindowIdentity({ appName: () => '/usr/bin/some-app' })).toBe('some-app')
+    // The .exe strip is case-insensitive — Windows paths are.
+    expect(readWindowIdentity({ appName: () => 'D:\\Tools\\Editor.EXE' })).toBe('Editor')
+  })
+
+  it('leaves BARE names untouched, even exe-suffixed ones — nothing that worked changes key', () => {
+    expect(readWindowIdentity({ appName: () => 'chrome.exe' })).toBe('chrome.exe')
+    expect(readWindowIdentity({ appName: () => 'Discord' })).toBe('Discord')
+  })
+
+  it('falls back to the original string when a path has no usable basename', () => {
+    // Trailing separator or a bare ".exe" basename — a broken path must never
+    // reduce to an EMPTY identity, which would read as unnameable.
+    expect(readWindowIdentity({ appName: () => 'C:\\Dir\\App\\' })).toBe('C:\\Dir\\App\\')
+    expect(readWindowIdentity({ appName: () => 'C:\\Dir\\.exe' })).toBe('C:\\Dir\\.exe')
+  })
+
+  it('a host arriving as a raw exe PATH still counts as a host — no dodge via reduction', () => {
+    // The consent-widening this file exists to prevent: reduced to
+    // "ApplicationFrameHost", the name must hit the host rule, so the window
+    // is named by its TITLE like every hosted window.
+    expect(
+      readWindowIdentity({
+        appName: () => 'C:\\Windows\\System32\\ApplicationFrameHost.exe',
+        title: () => 'Calculator',
+      }),
+    ).toBe('Calculator')
+    expect(
+      readWindowIdentity({ appName: () => 'C:\\Windows\\System32\\ApplicationFrameHost.exe' }),
+    ).toBeNull()
+  })
 })
 
