@@ -5,7 +5,7 @@ import { cpal } from '../audio/cpal.js'
 import { findDeviceByName, normalizeDeviceName } from '../audio/device-selection.js'
 import type { SelectedDeviceConfig } from '../audio/device-selection.js'
 import { openCaptureStream, type CaptureStream } from '../audio/capture-stream.js'
-import { openProcessLoopbackCapture } from '../audio/process-loopback-capture.js'
+import { openProcessLoopbackCapture, type ProcessLoopbackSource } from '../audio/process-loopback-capture.js'
 import { openOutputSink, type OutputSink } from '../audio/output-sink.js'
 import { discoverVynelCallPairs } from './call-cable-discovery.js'
 import type { CallMode } from '@vynel/voice'
@@ -137,16 +137,18 @@ export class CallRegistry {
       )
     }
 
-    // A loopback-ears pair hears the call app by process-loopback — it needs
-    // the target pid, checked BEFORE the sink so a miss never orphans it.
+    // A loopback-ears pair hears the call by process-loopback — no capture
+    // device. With a capturePid it captures that app (+ children); WITHOUT one
+    // it captures ALL system audio EXCEPT the daemon's own process (exclude
+    // mode on our own pid) — which is the call participants, echo-free (Vynel's
+    // own voice, rendered by this process, is the one thing excluded), and
+    // needs no app detection.
     const earsByLoopback = pair.inputName === undefined
-    if (earsByLoopback && request.capturePid === undefined) {
-      throw new CallRegistryError(
-        'device-missing',
-        `call pair "${pair.outputName}" hears via process-loopback and needs the call app's ` +
-          `process id — start_call must pass capturePid`,
-      )
-    }
+    const loopbackSource: ProcessLoopbackSource | undefined = !earsByLoopback
+      ? undefined
+      : request.capturePid !== undefined
+        ? { processId: request.capturePid, includeProcessTree: true }
+        : { processId: process.pid, includeProcessTree: false }
     const input = earsByLoopback ? undefined : this.#resolveCableEnd('input', pair.inputName!, devices)
     const output = this.#resolveCableEnd('output', pair.outputName, devices)
 
@@ -165,21 +167,22 @@ export class CallRegistry {
     let capture: CaptureStream
     try {
       capture =
-        input !== undefined
-          ? openCaptureStream(this.#logger, `call:${callId}`, input, onCallAudio)
-          : openProcessLoopbackCapture(
-              this.#logger,
-              `call:${callId}`,
-              { processId: request.capturePid! },
-              onCallAudio,
-            )
+        loopbackSource !== undefined
+          ? openProcessLoopbackCapture(this.#logger, `call:${callId}`, loopbackSource, onCallAudio)
+          : openCaptureStream(this.#logger, `call:${callId}`, input!, onCallAudio)
     } catch (error) {
       // The sink is live already (stream + keepalive interval) — an orphan here
       // would leak both forever, unreachable by endCall/stopAll.
       sink.stop()
+      const earsLabel =
+        loopbackSource === undefined
+          ? `capture device "${pair.inputName}"`
+          : loopbackSource.includeProcessTree
+            ? `process-loopback pid ${loopbackSource.processId}`
+            : 'process-loopback (system audio except self)'
       throw new CallRegistryError(
         'device-missing',
-        `call ears failed to open (${earsByLoopback ? `process-loopback pid ${request.capturePid}` : `capture device "${pair.inputName}"`}) — ` +
+        `call ears failed to open (${earsLabel}) — ` +
           (error instanceof Error ? error.message : String(error)),
       )
     }
@@ -189,7 +192,12 @@ export class CallRegistry {
         callId,
         label: request.label,
         mode: request.mode,
-        ears: earsByLoopback ? `loopback:${request.capturePid}` : pair.inputName,
+        ears:
+          loopbackSource === undefined
+            ? pair.inputName
+            : loopbackSource.includeProcessTree
+              ? `loopback:pid ${loopbackSource.processId}`
+              : 'loopback:system-except-self',
         voice: pair.outputName,
       },
       'call started',

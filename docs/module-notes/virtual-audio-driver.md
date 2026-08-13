@@ -217,10 +217,19 @@ process-loopback capture instead of a device stream. The voice sink was already
 format-agnostic — it opens the driver's "Vynel Call 1 Voice" like any output device. The daemon
 `POST /calls` surface accepts `capturePid`. 169 daemon tests green; reviewer-checked.
 
-**The last mile (next):** the conductor MCP tool (`start_call`) must learn the call app's pid to
-pass `capturePid` — app→pid resolution is the conductor's job (a deliberate tool-schema move,
-plus wherever app detection lives). Until then the Windows loopback path is reachable only by a
-direct `POST /calls` with a pid; the env/Linux device-cable path is unaffected.
+**No app detection needed (2026-08-14):** a loopback pair with NO `capturePid` now captures all
+system audio EXCEPT the daemon's own process (process-loopback exclude-mode on our own pid) —
+that IS the call participants, **echo-free** (Vynel's own voice, rendered by this process, is the
+one thing excluded), with zero app detection. `capturePid` stays as a precise-targeting
+refinement (that one app + its children, include-mode). **Live-verified on the dev box**:
+exclude-self capture returned the tone from another process (peak 0.46) while excluding itself.
+So the Windows call works out of the box — driver + addon, no cable, no pid.
+
+Behavior flag for Chad: capturing "all system audio except Vynel" during a call is within the
+call arc's consent envelope (explicit join + the disclosure line), but it does capture non-call
+audio too (music, notifications). If that's not wanted, `capturePid` scopes it to the call app —
+which needs the conductor to know the app's pid (a picker / app-detection, now OPTIONAL rather
+than required).
 
 ## The cross-OS device-naming contract (settled this run)
 

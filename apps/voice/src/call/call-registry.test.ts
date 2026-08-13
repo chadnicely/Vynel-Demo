@@ -448,7 +448,7 @@ describe('CallRegistry', () => {
       expect(openLoopbackCapture).toHaveBeenCalledWith(
         expect.anything(),
         `call:${descriptor.callId}`,
-        { processId: 4321 },
+        { processId: 4321, includeProcessTree: true },
         expect.any(Function),
       )
     })
@@ -475,14 +475,31 @@ describe('CallRegistry', () => {
       expect(onCallAudio).toHaveBeenCalledWith(callId, pcm)
     })
 
-    it('refuses a loopback pair with no capturePid — before opening the sink', () => {
+    it('with no capturePid captures all system audio EXCEPT the daemon (echo-free)', () => {
       getDevices.mockReturnValue([vynelVoiceOnly])
-      expectRegistryError(
-        () => registryWith([]).startCall({ label: 'zoom', mode: 'participant' }),
-        'device-missing',
-        'capturePid',
+      const registry = registryWith([])
+
+      const descriptor = registry.startCall({ label: 'zoom', mode: 'participant' })
+
+      expect(getDefaultOutputConfig).toHaveBeenCalledWith('id:vynel-1-voice')
+      // Exclude mode on our OWN pid = everything playing except Vynel's voice.
+      expect(openLoopbackCapture).toHaveBeenCalledWith(
+        expect.anything(),
+        `call:${descriptor.callId}`,
+        { processId: process.pid, includeProcessTree: false },
+        expect.any(Function),
       )
-      expect(openSink).not.toHaveBeenCalled()
+    })
+
+    it('a capturePid captures that app with its process tree', () => {
+      getDevices.mockReturnValue([vynelVoiceOnly])
+      registryWith([]).startCall({ label: 'zoom', mode: 'participant', capturePid: 4321 })
+      expect(openLoopbackCapture).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(String),
+        { processId: 4321, includeProcessTree: true },
+        expect.any(Function),
+      )
     })
 
     it('a loopback capture that fails to open stops the already-live sink', () => {
