@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Folders for your projects.** In Menu navigation the workspace tree now
+  has real folders: make one with the new-folder button, drag projects in and
+  out (or back to the top level), right-click to rename or delete. Deleting a
+  folder never touches the projects inside — they just move back to the top.
+  Folders live in Vynel's database, so they follow you across restarts.
+
 - **Two ways to move between your projects: Tabs or Menu.** A new switch in
   the title bar picks how workspaces are navigated. Tabs keeps the familiar
   browser-style strip. Menu tucks the strip away and roots the sidebar at a

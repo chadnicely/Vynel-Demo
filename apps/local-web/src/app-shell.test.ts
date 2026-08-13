@@ -15,7 +15,10 @@ const DEMO_WORKSPACE = {
   kind: "project",
   managerName: "Sage",
   isArchived: false,
+  groupId: null as string | null,
 };
+
+type DemoGroup = { id: string; name: string };
 
 // A complete pending-approval row (the notifier renders what the presence
 // derivation counts, so the fake must satisfy both).
@@ -43,6 +46,7 @@ function makePendingApproval(workspaceId: string | null) {
 function makeFakeVynelClient(
   workspaces: (typeof DEMO_WORKSPACE)[] = [],
   pendingApprovals: ReturnType<typeof makePendingApproval>[] = [],
+  workspaceGroups: DemoGroup[] = [],
 ): VynelClient {
   const noConversation = async () => ({
     rootSessionId: null,
@@ -55,7 +59,10 @@ function makeFakeVynelClient(
     approvals: { listPending: async () => pendingApprovals },
     // The ask notifier polls alongside approvals from the shell.
     asks: { listPending: async () => [] },
-    workspaces: { list: async () => workspaces },
+    workspaces: {
+      list: async () => workspaces,
+      listGroups: async () => workspaceGroups,
+    },
     channelsUser: { list: async () => [] },
     // The shell reads the tasks list for the title-bar badge.
     tasksUser: { list: async () => [] },
@@ -109,6 +116,7 @@ async function mountShell(
   {
     settleRouterBeforeMount = true,
     pendingApprovals = [] as ReturnType<typeof makePendingApproval>[],
+    workspaceGroups = [] as DemoGroup[],
   } = {},
 ) {
   window.history.replaceState(null, "", initialPath);
@@ -135,6 +143,7 @@ async function mountShell(
         [vynelClientKey as symbol]: makeFakeVynelClient(
           workspaces,
           pendingApprovals,
+          workspaceGroups,
         ),
       },
     },
@@ -505,6 +514,36 @@ describe("app shell", () => {
       wrapper.find('[aria-label="Marketing is waiting on you"]').exists(),
     ).toBe(true);
     expect(wrapper.find('[aria-label="Waiting on you"]').exists()).toBe(true);
+  });
+
+  it("folders group their member workspaces in the tree", async () => {
+    const grouped = { ...DEMO_WORKSPACE, groupId: "grp-clients" };
+    const rootWorkspace = {
+      ...DEMO_WORKSPACE,
+      id: "ws-blog",
+      name: "Blog",
+      groupId: null,
+    };
+    const { wrapper } = await mountShell("/", [grouped, rootWorkspace], {
+      workspaceGroups: [{ id: "grp-clients", name: "Clients" }],
+    });
+
+    await wrapper.find('[title="Menu navigation"]').trigger("click");
+    await flushPromises();
+
+    // The folder header renders with its member count; the member row sits
+    // under it while the ungrouped row stays at the root.
+    const folderHeader = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Clients"));
+    expect(folderHeader).toBeTruthy();
+    expect(folderHeader!.text()).toContain("1");
+    // The tree rows (not the title-bar nav): member + root workspace both render.
+    const rowLabels = wrapper
+      .findAll("nav ul button .truncate")
+      .map((node) => node.text());
+    expect(rowLabels).toContain("Marketing");
+    expect(rowLabels).toContain("Blog");
   });
 
   it("selecting a tree row switches scope and stays on the tree", async () => {

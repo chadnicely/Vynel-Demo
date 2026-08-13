@@ -32,9 +32,17 @@
    `use-workspace-presence`: server turns + workspace-scoped approvals/asks), menu mode roots
    the sidebar at NEW `WorkspaceTree.vue` (pinned Global row, workspace rows, drill-in → section
    menu with back row) over the SAME ShellTab state (treeSelect/treeDrill ride useScopeTabs).
-   Deliberate deferrals in `docs/module-notes/workspace-redesign.md` (folders → Arc 2b engine
-   slice; NOT-RUNNING group + progress + problem state → Arc 5 status vocabulary; hover card →
-   rail arc). **NEXT: Arc 2b workspace-groups slice (folders), then Arc 3 chat pair.**
+   Deliberate deferrals in `docs/module-notes/workspace-redesign.md` (NOT-RUNNING group +
+   progress + problem state → Arc 5 status vocabulary; hover card → rail arc).
+7. **Arc 2b LANDED (gate green 4782, 18 new tests, live drag-drop verified):** the
+   `workspace_groups` engine slice, built fresh — schema in the db kernel + migration
+   `0039_workspace_groups` (loose `workspaces.group_id`, tasks.planId precedent), functional
+   repos + `detachWorkspacesFromGroup`, five leaf ops (created/deleted outbox pair; rename/move
+   event-less per D14 selectivity; owner-scoped 404s, one shared name normalizer),
+   `/workspaces/groups` routes + `PUT /:workspaceId/group`, regenerated SDK (listGroups/
+   createGroup/renameGroup/deleteGroup/setGroup) + MCP `list_workspace_groups` (roster test +1),
+   tree folders UI (drag-drop, dashed drop targets, ContextMenu inline rename, root-zone
+   detach, persisted folds). **NEXT: Arc 3 — patch the shared chat pair** (per the plan).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

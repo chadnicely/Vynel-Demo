@@ -60,6 +60,10 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import {
+  useWorkspaceGroups,
+  useWorkspaceGroupMutations,
+} from "../../composables/workspaces/use-workspace-groups.js";
 import { useWorkspacePresence } from "../../composables/workspaces/use-workspace-presence.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
@@ -107,8 +111,23 @@ const activeWorkspaces = computed(() =>
   allWorkspaces.value.filter((w) => !w.isArchived),
 );
 const workspaceOptions = computed(() =>
-  activeWorkspaces.value.map((w) => ({ id: w.id, name: w.name })),
+  activeWorkspaces.value.map((w) => ({
+    id: w.id,
+    name: w.name,
+    groupId: w.groupId ?? null,
+  })),
 );
+
+// Menu-tree folders (Arc 2b) — the tree renders them; the mutations answer
+// its create/rename/delete/move events.
+const workspaceGroupsQuery = useWorkspaceGroups();
+const workspaceGroupOptions = computed(() =>
+  (workspaceGroupsQuery.data.value ?? []).map((group) => ({
+    id: group.id,
+    name: group.name,
+  })),
+);
+const groupMutations = useWorkspaceGroupMutations();
 const activeWorkspaceName = computed(
   () =>
     allWorkspaces.value.find((w) => w.id === ui.activeWorkspaceId)?.name ??
@@ -607,6 +626,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
         <WorkspaceTree
           v-if="ui.navMode === 'menu' && ui.isWorkspaceTreeOpen"
           :workspaces="workspaceOptions"
+          :groups="workspaceGroupOptions"
           :active-workspace-id="ui.activeWorkspaceId"
           :presence-by-workspace-id="presenceByWorkspaceId"
           :global-presence="globalPresence"
@@ -615,6 +635,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           @select="treeSelect"
           @drill="treeDrill"
           @create-workspace="isCreateWorkspaceOpen = true"
+          @create-group="groupMutations.createGroup.mutate('New folder')"
+          @rename-group="(groupId, name) => groupMutations.renameGroup.mutate({ groupId, name })"
+          @delete-group="(groupId) => groupMutations.deleteGroup.mutate(groupId)"
+          @move-workspace="
+            (workspaceId, groupId) =>
+              groupMutations.moveWorkspace.mutate({ workspaceId, groupId })
+          "
           @open-account="openAccount"
         />
         <AppSidebar

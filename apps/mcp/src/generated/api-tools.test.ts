@@ -155,6 +155,8 @@ const EXPECTED_TOOL_NAMES = [
   'list_schedules',
   'list_tasks',
   'list_workspaces',
+  // Menu-tree folders (workspace redesign Arc 2b) — read-only list.
+  'list_workspace_groups',
   'install_marketplace_item',
   'remove_knowledge_source',
   'search_chat_messages',

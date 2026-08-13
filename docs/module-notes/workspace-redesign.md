@@ -22,11 +22,15 @@ arcs, settled decisions). This note carries the per-move advice the build discip
   (`use-workspace-presence` derives working/attention/idle from server turns + pending
   approvals/asks — both workspace-scoped).
 
+- **Arc 2b**: the `workspace_groups` engine slice — schema in the db kernel (workspaces is a
+  hub), migration `0039_workspace_groups` (CREATE TABLE + loose `workspaces.group_id`), repos,
+  five ops (create/list/rename/delete/set — created/deleted outbox pair, rename/move event-less
+  per the D14 selectivity precedent), `/workspaces/groups` routes (+ `PUT /:id/group`),
+  regenerated SDK (5 methods) + MCP (`list_workspace_groups` read-only), and the tree UI:
+  folders with drag-drop, inline rename via context menu, root-zone detach.
+
 ## Known deferrals (deliberate, not forgotten)
 
-- **Folders** (design: DEVELOPMENT header, drag-drop rows, dashed drop targets) → Arc 2b: a
-  fresh `workspace_groups` slice in the workspaces leaf (same-leaf FK is fine; outbox events;
-  migration; tests) + tree drag-drop. The boss's `project-groups-store` is reference only.
 - **NOT RUNNING group + n/m progress** in the tree → needs the long-lived workspace lifecycle
   (build-session state), which main doesn't carry yet — Arc 5 territory. Presence today is the
   honest signal set: in-flight turns + pending approvals/asks.

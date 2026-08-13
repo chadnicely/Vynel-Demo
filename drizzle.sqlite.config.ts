@@ -23,6 +23,7 @@ export default defineConfig({
     './src/schema/users/users.ts',
     './src/schema/users/user-preferences.ts',
     './src/schema/workspaces/workspaces.ts',
+    './src/schema/workspaces/workspace-groups.ts',
     './src/schema/providers/provider-preferences.ts',
     '../chat/src/schema/chat-sessions.ts',
     '../chat/src/schema/chat-messages.ts',

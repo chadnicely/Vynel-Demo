@@ -3589,6 +3589,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's workspace folders (menu-tree groups), creation order. */
+        get: operations["getWorkspacesGroups"];
+        put?: never;
+        /** Create a workspace folder. */
+        post: operations["postWorkspacesGroups"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a workspace folder. Member workspaces detach to the tree root — never deleted. */
+        delete: operations["deleteWorkspacesGroupsByGroupId"];
+        options?: never;
+        head?: never;
+        /** Rename a workspace folder (owner-scoped — 404 if not owned). */
+        patch: operations["patchWorkspacesGroupsByGroupId"];
+        trace?: never;
+    };
     "/workspaces/{workspaceId}": {
         parameters: {
             query?: never;
@@ -3606,6 +3642,23 @@ export interface paths {
         head?: never;
         /** Update workspace metadata (name + manager persona + continue-mode toggle; path and kind are immutable). */
         patch: operations["patchWorkspacesByWorkspaceId"];
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Move a workspace into a folder (or to the tree root with null). */
+        put: operations["putWorkspacesByWorkspaceIdGroup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/workspaces/{workspaceId}/archive": {
@@ -15592,6 +15645,7 @@ export interface operations {
                             path: string;
                             isArchived: boolean;
                             continueEnabled: boolean;
+                            groupId: string | null;
                             createdAt: string;
                             updatedAt: string;
                             lastAccessedAt: string;
@@ -16260,6 +16314,7 @@ export interface operations {
                         path: string;
                         isArchived: boolean;
                         continueEnabled: boolean;
+                        groupId: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16302,6 +16357,7 @@ export interface operations {
                         path: string;
                         isArchived: boolean;
                         continueEnabled: boolean;
+                        groupId: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16366,6 +16422,139 @@ export interface operations {
             };
         };
     };
+    getWorkspacesGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of workspace folders. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        name: string;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    postWorkspacesGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Folder created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        name: string;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Empty or over-long folder name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteWorkspacesGroupsByGroupId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Folder deleted; members detached. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Folder not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchWorkspacesGroupsByGroupId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Renamed folder. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        name: string;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Folder not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getWorkspacesByWorkspaceId: {
         parameters: {
             query?: never;
@@ -16393,6 +16582,7 @@ export interface operations {
                         path: string;
                         isArchived: boolean;
                         continueEnabled: boolean;
+                        groupId: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16476,6 +16666,7 @@ export interface operations {
                         path: string;
                         isArchived: boolean;
                         continueEnabled: boolean;
+                        groupId: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16483,6 +16674,55 @@ export interface operations {
                 };
             };
             /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putWorkspacesByWorkspaceIdGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    groupId: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated workspace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        name: string;
+                        managerName: string | null;
+                        /** @enum {string} */
+                        kind: "small-business" | "personal" | "project" | "custom";
+                        path: string;
+                        isArchived: boolean;
+                        continueEnabled: boolean;
+                        groupId: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        lastAccessedAt: string;
+                    };
+                };
+            };
+            /** @description Workspace or folder not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16518,6 +16758,7 @@ export interface operations {
                         path: string;
                         isArchived: boolean;
                         continueEnabled: boolean;
+                        groupId: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16560,6 +16801,7 @@ export interface operations {
                         path: string;
                         isArchived: boolean;
                         continueEnabled: boolean;
+                        groupId: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;

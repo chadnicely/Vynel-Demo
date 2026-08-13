@@ -116,3 +116,15 @@ export function hardDeleteWorkspace(db: Database, workspaceId: string): boolean 
   const result = db.delete(workspaces).where(eq(workspaces.id, workspaceId)).run()
   return (result.changes ?? 0) > 0
 }
+
+// Bulk-detach for group deletion (workspace redesign Arc 2b): `groupId` is a
+// LOOSE ref with no DB FK, so the delete op clears members explicitly inside
+// its transaction. Returns how many workspaces moved back to the tree root.
+export function detachWorkspacesFromGroup(db: Database, groupId: string): number {
+  const result = db
+    .update(workspaces)
+    .set({ groupId: null, updatedAt: new Date() })
+    .where(eq(workspaces.groupId, groupId))
+    .run()
+  return result.changes ?? 0
+}

@@ -8,4 +8,4 @@
 // ConflictError, ValidationError). Per `.claude/rules/error-handling.md`
 // "Taxonomy".
 
-export type { Workspace, NewWorkspace, WorkspaceKind } from '@vynel/db/repositories/workspaces'
+export type { Workspace, NewWorkspace, WorkspaceKind, WorkspaceGroup, NewWorkspaceGroup } from '@vynel/db/repositories/workspaces'

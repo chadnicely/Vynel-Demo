@@ -1,10 +1,15 @@
-// The `workspaces` HTTP surface — eight routes mounted at `/workspaces`
+// The `workspaces` HTTP surface — thirteen routes mounted at `/workspaces`
 // (USER-scoped, no `:workspaceId` prefix) from `apps/local-api/src/app.ts`:
 //   - GET    /workspaces                        -> listWorkspacesForUser  [x-mcp]
 //   - POST   /workspaces                        -> createWorkspace
 //   - GET    /workspaces/directories             -> listChildDirectories
+//   - GET    /workspaces/groups                 -> listWorkspaceGroups    [x-mcp]
+//   - POST   /workspaces/groups                 -> createWorkspaceGroup
+//   - PATCH  /workspaces/groups/:groupId        -> renameWorkspaceGroup
+//   - DELETE /workspaces/groups/:groupId        -> deleteWorkspaceGroup
 //   - GET    /workspaces/:workspaceId           -> c.var.workspace        [x-mcp]
 //   - PATCH  /workspaces/:workspaceId           -> updateWorkspaceMetadata
+//   - PUT    /workspaces/:workspaceId/group     -> setWorkspaceGroup
 //   - POST   /workspaces/:workspaceId/archive   -> archiveWorkspace
 //   - POST   /workspaces/:workspaceId/unarchive -> unarchiveWorkspace
 //   - DELETE /workspaces/:workspaceId           -> hardDeleteWorkspace
@@ -31,7 +36,10 @@
 // `instanceof VynelError` check per `error-handling.md` "Layering".
 
 import { resolver, validator } from 'hono-openapi/zod'
-import type { WorkspaceResponse } from '@vynel/contracts/workspaces/workspace-http'
+import type {
+  WorkspaceGroupResponse,
+  WorkspaceResponse,
+} from '@vynel/contracts/workspaces/workspace-http'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -44,8 +52,13 @@ import {
   unarchiveWorkspace,
   hardDeleteWorkspace,
   listChildDirectories,
+  createWorkspaceGroup,
+  listWorkspaceGroups,
+  renameWorkspaceGroup,
+  deleteWorkspaceGroup,
+  setWorkspaceGroup,
 } from '@vynel/workspaces'
-import type { Workspace } from '@vynel/workspaces'
+import type { Workspace, WorkspaceGroup } from '@vynel/workspaces'
 import {
   CreateWorkspaceRequestSchema,
   UpdateWorkspaceRequestSchema,
@@ -55,6 +68,11 @@ import {
   WorkspaceResponseSchema,
   ListWorkspacesResponseSchema,
   DirectoryListingResponseSchema,
+  CreateWorkspaceGroupRequestSchema,
+  RenameWorkspaceGroupRequestSchema,
+  SetWorkspaceGroupRequestSchema,
+  WorkspaceGroupResponseSchema,
+  ListWorkspaceGroupsResponseSchema,
 } from './schemas.js'
 
 export const workspacesApp = factory
@@ -169,6 +187,107 @@ export const workspacesApp = factory
       )
     },
   )
+  // ── Menu-tree folders (workspace redesign Arc 2b). Registered before
+  // `/:workspaceId` so the static `groups` segment wins (the `/directories`
+  // precedent). Mutations defer MCP exposure like the workspace mutations. ──
+  .get(
+    '/groups',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: "List the user's workspace folders (menu-tree groups), creation order.",
+      'x-sdk-name': 'workspaces.listGroups',
+      responses: {
+        200: {
+          description: 'Array of workspace folders.',
+          content: { 'application/json': { schema: resolver(ListWorkspaceGroupsResponseSchema) } },
+        },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'list_workspace_groups',
+        description:
+          "List the authenticated user's workspace folders — the groups that organize " +
+          'workspaces in the navigation tree. Membership is each workspace\'s groupId. Read-only.',
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      const groups = await listWorkspaceGroups(c.var.db, c.var.user.id)
+      return c.json(groups.map(serializeWorkspaceGroupForResponse))
+    },
+  )
+  .post(
+    '/groups',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Create a workspace folder.',
+      'x-sdk-name': 'workspaces.createGroup',
+      responses: {
+        201: {
+          description: 'Folder created.',
+          content: { 'application/json': { schema: resolver(WorkspaceGroupResponseSchema) } },
+        },
+        400: { description: 'Empty or over-long folder name.' },
+      },
+    }),
+    validator('json', CreateWorkspaceGroupRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const group = await createWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        name: input.name,
+      })
+      return c.json(serializeWorkspaceGroupForResponse(group), 201)
+    },
+  )
+  .patch(
+    '/groups/:groupId',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Rename a workspace folder (owner-scoped — 404 if not owned).',
+      'x-sdk-name': 'workspaces.renameGroup',
+      responses: {
+        200: {
+          description: 'Renamed folder.',
+          content: { 'application/json': { schema: resolver(WorkspaceGroupResponseSchema) } },
+        },
+        404: { description: 'Folder not found.' },
+      },
+    }),
+    validator('json', RenameWorkspaceGroupRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const group = await renameWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        groupId: c.req.param('groupId'),
+        name: input.name,
+      })
+      return c.json(serializeWorkspaceGroupForResponse(group))
+    },
+  )
+  .delete(
+    '/groups/:groupId',
+    describeRoute({
+      tags: ['workspaces'],
+      summary:
+        'Delete a workspace folder. Member workspaces detach to the tree root — never deleted.',
+      'x-sdk-name': 'workspaces.deleteGroup',
+      responses: {
+        204: { description: 'Folder deleted; members detached.' },
+        404: { description: 'Folder not found.' },
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      await deleteWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        groupId: c.req.param('groupId'),
+      })
+      return c.body(null, 204)
+    },
+  )
   .get(
     '/:workspaceId',
     describeRoute({
@@ -218,6 +337,32 @@ export const workspacesApp = factory
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.managerName !== undefined ? { managerName: input.managerName } : {}),
         ...(input.continueEnabled !== undefined ? { continueEnabled: input.continueEnabled } : {}),
+      })
+      return c.json(serializeWorkspaceForResponse(updated))
+    },
+  )
+  .put(
+    '/:workspaceId/group',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Move a workspace into a folder (or to the tree root with null).',
+      'x-sdk-name': 'workspaces.setGroup',
+      responses: {
+        200: {
+          description: 'Updated workspace.',
+          content: { 'application/json': { schema: resolver(WorkspaceResponseSchema) } },
+        },
+        404: { description: 'Workspace or folder not found.' },
+      },
+    }),
+    validator('json', SetWorkspaceGroupRequestSchema),
+    ...workspaceScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const updated = await setWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+        groupId: input.groupId,
       })
       return c.json(serializeWorkspaceForResponse(updated))
     },
@@ -297,8 +442,19 @@ function serializeWorkspaceForResponse(workspace: Workspace): WorkspaceResponse 
     path: workspace.path,
     isArchived: workspace.isArchived,
     continueEnabled: workspace.continueEnabled,
+    groupId: workspace.groupId,
     createdAt: workspace.createdAt.toISOString(),
     updatedAt: workspace.updatedAt.toISOString(),
     lastAccessedAt: workspace.lastAccessedAt.toISOString(),
+  }
+}
+
+function serializeWorkspaceGroupForResponse(group: WorkspaceGroup): WorkspaceGroupResponse {
+  return {
+    id: group.id,
+    userId: group.userId,
+    name: group.name,
+    createdAt: group.createdAt.toISOString(),
+    updatedAt: group.updatedAt.toISOString(),
   }
 }

@@ -37,6 +37,7 @@ function makeWorkspace(
     path: "E:/spaces/vynel",
     isArchived: false,
     continueEnabled: true,
+    groupId: null,
     createdAt: "2026-07-05T10:00:00.000Z",
     updatedAt: "2026-07-05T10:00:00.000Z",
     lastAccessedAt: "2026-07-05T10:00:00.000Z",

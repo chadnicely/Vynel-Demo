@@ -25,6 +25,9 @@ export interface WorkspaceResponse {
   /** Continue-mode toggle (Slice 2) — true = the landing conversation follows
    *  the root + swaps invisibly; false = classic per-topic sessions. */
   continueEnabled: boolean
+  /** Menu-tree folder membership (workspace redesign Arc 2b) — the owning
+   *  `WorkspaceGroupResponse.id`, or null at the tree root. */
+  groupId: string | null
   /** ISO-8601 */
   createdAt: string
   /** ISO-8601 */
@@ -49,4 +52,17 @@ export interface DirectoryListingResponse {
   entries: DirectoryEntryResponse[]
   /** Drive/volume roots the user can jump to (Windows drive letters; POSIX root). */
   drives: string[]
+}
+
+/** A menu-tree folder (workspace redesign Arc 2b) — the serialized shape
+ *  every `/workspaces/groups` route returns. Membership is
+ *  `WorkspaceResponse.groupId`. */
+export interface WorkspaceGroupResponse {
+  id: string
+  userId: string
+  name: string
+  /** ISO-8601 */
+  createdAt: string
+  /** ISO-8601 */
+  updatedAt: string
 }

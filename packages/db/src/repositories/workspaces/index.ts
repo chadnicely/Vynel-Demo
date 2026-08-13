@@ -4,3 +4,4 @@
 // `packages/db/package.json`.
 
 export * from './workspaces.js'
+export * from './workspace-groups.js'
