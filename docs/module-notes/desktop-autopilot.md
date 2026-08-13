@@ -626,14 +626,26 @@ distinguishes them.
       machine-global); returns the device's own read-back, so its `ok` outcome is honest. Kafi's
       standing rule from this round: **prefer a cross-platform library when a SAFE one exists;
       otherwise build Windows-only** — the seam (`setSystemVolume`) is where darwin/linux slot in.
-    - **`tesseract.js`** (OCR) — explained to Kafi 2026-08-13 (~11–15MB model download per
-      language, WASM CPU-bound, seconds per image, redundant while snapshot_app reads real text).
-      Recommendation stands: skip until a real canvas-only app forces it. Awaiting his call.
+    - **`tesseract.js`** (OCR) — **DECLINED by Kafi 2026-08-13** ("we can skip that") after the
+      cost read: ~11–15MB model download per language, WASM CPU-bound, seconds per image — and the
+      model's own vision already reads every screenshot we return, so capture→model *is* the OCR.
+      Reopen only on evidence of vision misreading exact text that matters.
 12. ~~**Deep-link joining** (`zoommtg://`, `msteams:`)~~ ✅ **DONE 2026-08-13, Kafi's call.** The
     scheme-allowlisted primitive it needed had just shipped as `open_url`, so this became two
     entries in that allowlist rather than a new surface: `zoommtg:` and `msteams:` open their
     apps' join flows, same consent gate (armed plan + real consent, refuses unattended). Every
     other app scheme stays refused. The notebook teaches "join by link, don't drive the browser".
+
+13. **Pipeline observe — ✅ DONE 2026-08-13 (Kafi's ask: "action + screenshot at a time").** Both
+    act tools and `launch_app` take `observe: true` (Kafi picked OPT-IN over always-on): the result
+    carries a fresh screenshot — the app's window, or the primary screen for app-less coordinate
+    work, with the same aiming math `screenshot_desktop` teaches — so act-then-look is ONE
+    round-trip, and "open Chrome, go to a URL, read it" is TWO calls (launch+observe, then one nav
+    batch + observe with `observeSettleMs` for the load). A failed batch observes too — the
+    part-way state is what recovery needs. One home (`mcp/act-observation.ts`): settle-then-capture,
+    clamped settle (5s ceiling — unknown-length loads stay `wait_for`'s job), and capture NEVER
+    throws (the act already happened; a failed picture is a note, not a tool error — the recorder's
+    rule). Ambiguous-selector results skip the observation: nothing ran, the screen is unchanged.
 
 ---
 

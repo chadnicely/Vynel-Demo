@@ -14,6 +14,8 @@
 // exactly which steps ran, which one stopped it, and which never ran, so the
 // model can re-observe and resume rather than guess.
 
+import type { McpToolContent } from './mcp-tool-fn.js'
+
 export type BatchStepResult = { ok: boolean; detail: string }
 
 /** Why a batch stopped early — a failure is the model's problem to recover from,
@@ -121,9 +123,10 @@ export async function runActionBatch<T>(
 }
 
 /** The model-facing report: numbered per-step outcomes, then the resume hint
- *  when the batch stopped early. */
+ *  when the batch stopped early. `McpToolContent[]` (not text-only) so a
+ *  caller can append an observe screenshot to the same response. */
 export function buildBatchResponse(outcome: ActionBatchOutcome): {
-  content: Array<{ type: 'text'; text: string }>
+  content: McpToolContent[]
   isError?: boolean
 } {
   const lines = outcome.results.map(

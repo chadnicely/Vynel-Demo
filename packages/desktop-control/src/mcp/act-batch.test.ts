@@ -3,6 +3,13 @@ import { buildBatchResponse, runActionBatch, type BatchStepResult } from './act-
 
 const ok = (detail: string): BatchStepResult => ({ ok: true, detail })
 
+// The response content is McpToolContent[] since observe screenshots can ride
+// it — narrow the first block back to its text for the assertions here.
+const firstText = (response: { content: Array<{ type: string }> }): string => {
+  const first = response.content[0]
+  return first !== undefined && 'text' in first ? String((first as { text: unknown }).text) : ''
+}
+
 describe('runActionBatch', () => {
   it('runs every step in order when all succeed', async () => {
     const ran: number[] = []
@@ -94,7 +101,7 @@ describe('buildBatchResponse', () => {
       skipped: 0,
     })
     expect(response.isError).toBeUndefined()
-    const text = response.content[0]?.text ?? ''
+    const text = firstText(response)
     expect(text).toContain('All 2 actions ran')
     expect(text).toContain('1. OK — clicked the box')
     expect(text).toContain('2. OK — typed "hello"')
@@ -107,7 +114,7 @@ describe('buildBatchResponse', () => {
       skipped: 2,
     })
     expect(response.isError).toBe(true)
-    const text = response.content[0]?.text ?? ''
+    const text = firstText(response)
     expect(text).toContain('Stopped at action 2')
     expect(text).toContain('remaining 2 actions did NOT run')
     expect(text).toContain('snapshot_app')
@@ -117,22 +124,24 @@ describe('buildBatchResponse', () => {
   })
 
   it('singularizes a lone skipped action', () => {
-    const text =
+    const text = firstText(
       buildBatchResponse({
         results: [{ ok: false, detail: 'denied' }],
         failedAt: 0,
         skipped: 1,
-      }).content[0]?.text ?? ''
+      }),
+    )
     expect(text).toContain('remaining 1 action did NOT run')
   })
 
   it('omits the skip note when the LAST action was the one that failed', () => {
-    const text =
+    const text = firstText(
       buildBatchResponse({
         results: [ok('a'), { ok: false, detail: 'denied' }],
         failedAt: 1,
         skipped: 0,
-      }).content[0]?.text ?? ''
+      }),
+    )
     expect(text).not.toContain('did NOT run')
     expect(text).toContain('Stopped at action 2')
   })
@@ -243,7 +252,7 @@ describe('buildBatchResponse — a deadline reads differently from a failure', (
       skipped: 3,
       stopReason: 'deadline',
     })
-    const text = response.content[0]!.text
+    const text = firstText(response)
     // Saying "stopped at action 2" would send the model hunting for a fault in
     // a step that worked perfectly.
     expect(text).not.toMatch(/Stopped at action/)
@@ -260,6 +269,6 @@ describe('buildBatchResponse — a deadline reads differently from a failure', (
       skipped: 0,
       stopReason: 'step-failed',
     })
-    expect(response.content[0]!.text).toMatch(/Stopped at action 2/)
+    expect(firstText(response)).toMatch(/Stopped at action 2/)
   })
 })

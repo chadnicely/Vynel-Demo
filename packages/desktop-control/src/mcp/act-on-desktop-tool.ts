@@ -1,6 +1,6 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn, McpToolContent } from './mcp-tool-fn.js'
 import {
   actOnDesktop,
   planDesktopAction,
@@ -12,6 +12,7 @@ import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 import { recordFailedAct } from '../plan/record-failed-act.js'
 import { buildBatchResponse, runActionBatch, MAX_BATCH_ACTIONS } from './act-batch.js'
+import { captureActObservation, parseObserveRequest, OBSERVE_SETTLE_MAX_MS } from './act-observation.js'
 
 const TOOL_DESCRIPTION =
   "Control the desktop by COORDINATES — click, type, press keys, scroll, or drag at a pixel, the way a " +
@@ -196,6 +197,24 @@ export function makeActOnDesktopTool(
         .max(MAX_BATCH_ACTIONS)
         .optional()
         .describe('Batch: several actions run in order, stopping at the first failure. `app` applies to all.'),
+      observe: z
+        .boolean()
+        .optional()
+        .describe(
+          'Return a fresh screenshot in THIS result (of `app`, or the primary screen without one) — ' +
+            'saves the separate screenshot call when your next step depends on what changed. For a ' +
+            'batch, taken after the last step (also after a failed one, so you see the part-way state).',
+        ),
+      observeSettleMs: z
+        .number()
+        .int()
+        .min(0)
+        .max(OBSERVE_SETTLE_MAX_MS)
+        .optional()
+        .describe(
+          'Wait this long before the observe screenshot (default 400). Use ~2000-4000 after opening ' +
+            'a page or app; for loads of unknown length use wait_for instead.',
+        ),
     },
     async (args: Record<string, unknown>) => {
       const planRefusal = planRequiredError(envelope)
@@ -203,6 +222,7 @@ export function makeActOnDesktopTool(
         return { content: [{ type: 'text', text: planRefusal }], isError: true }
       }
       const app = stringArg(args, 'app')
+      const observeRequest = parseObserveRequest(args)
 
       if (args['actions'] !== undefined) {
         if (args['action'] !== undefined) {
@@ -234,7 +254,7 @@ export function makeActOnDesktopTool(
         }
         // Each step re-resolves its target + re-authorizes inside actOnDesktop —
         // batching is a convenience over N calls, never a shortcut past the gate.
-        return buildBatchResponse(
+        const batchResponse = buildBatchResponse(
           await runActionBatch(
             steps,
             async (step) => {
@@ -270,6 +290,12 @@ export function makeActOnDesktopTool(
             },
           ),
         )
+        // Observed on failure too — a stopped batch leaves the screen part-way,
+        // and seeing that state is exactly what the recovery needs.
+        if (observeRequest.observe) {
+          batchResponse.content.push(...(await captureActObservation(app, observeRequest.settleMs)))
+        }
+        return batchResponse
       }
 
       const params = parseActOnDesktopParams(args, app)
@@ -299,7 +325,11 @@ export function makeActOnDesktopTool(
           detail: result.recordDetail,
           outcome: 'unverified',
         })
-        return { content: [{ type: 'text', text: `Done: ${result.detail}.` }] }
+        const content: McpToolContent[] = [{ type: 'text', text: `Done: ${result.detail}.` }]
+        if (observeRequest.observe) {
+          content.push(...(await captureActObservation(app, observeRequest.settleMs)))
+        }
+        return { content }
       } catch (err) {
         recordFailedAct(
           envelope,

@@ -237,6 +237,28 @@ tab · `ctrl+f` find · `f5` reload · `enter` go.
 ⚠️ **`enter` sends the message.** That's irreversible — it must be in your
 approved plan before you press it.
 
+### Act and see in one call — the pipeline
+
+Every act tool (and `launch_app`) takes `observe: true`: the result comes back
+with a fresh screenshot, so you never spend a separate call just to look at
+what you did. `observeSettleMs` (~2000–4000) covers actions that load content;
+for loads of unknown length, `wait_for` is still the right tool.
+
+The pipeline for "open Chrome, go to a page, read it" is **two calls**:
+
+```
+launch_app({app: "Google Chrome", observe: true, observeSettleMs: 2500})
+act_on_desktop({app: "Google Chrome", observe: true, observeSettleMs: 3000,
+  actions: [{action: "press", keys: "ctrl+t"},
+            {action: "press", keys: "ctrl+l"},
+            {action: "type", text: "example.com"},
+            {action: "press", keys: "enter"}]})
+```
+
+The second result carries the loaded page — read your answer straight off it.
+A failed batch observes too: you see the part-way state without another call.
+Skip `observe` when you won't look at the picture; it costs tokens.
+
 ## 5. Do related steps in one call
 
 Both act tools take an `actions` array. Use it when steps belong together —

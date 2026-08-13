@@ -8,6 +8,7 @@ import { normalizeDesktopAppKey } from '../access/desktop-access-tiers.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { makePlanGatedAuthorizer, planRequiredError } from '../plan/plan-gated-authorization.js'
 import { recordFailedAct } from '../plan/record-failed-act.js'
+import { captureActObservation, parseObserveRequest, OBSERVE_SETTLE_MAX_MS } from './act-observation.js'
 
 // Starting a program is an ACTION, so it sits inside the same envelope every
 // other act does: plan first, then authorization against the RESOLVED app.
@@ -134,6 +135,23 @@ export function makeLaunchAppTool(
         .string()
         .min(1)
         .describe('The installed app to start — the name exactly as list_installed_apps shows it.'),
+      observe: z
+        .boolean()
+        .optional()
+        .describe(
+          'Return a screenshot of the window that appeared in THIS result — launch and see in one ' +
+            'call, instead of launching and then screenshotting separately.',
+        ),
+      observeSettleMs: z
+        .number()
+        .int()
+        .min(0)
+        .max(OBSERVE_SETTLE_MAX_MS)
+        .optional()
+        .describe(
+          'Wait this long before the observe screenshot (default 400). Use ~2000-4000 for an app ' +
+            'that paints its content after its window appears.',
+        ),
     },
     async (args: Record<string, unknown>) => {
       const planRefusal = planRequiredError(envelope)
@@ -197,12 +215,30 @@ export function makeLaunchAppTool(
                 : 'ok',
           note: launchResult.kind === 'look-alike-only' ? launchResult.lookAlikeName : null,
         })
-        return buildLaunchResponse(
+        const response = buildLaunchResponse(
           launchResult,
           // The name the authorization was taken under — so a window that
           // opens reporting something else is called out immediately.
           target.name,
         )
+        const observeRequest = parseObserveRequest(args)
+        // A look-alike gets observed too — the response tells the model to
+        // READ that dialog, so handing it the pixels saves the very call it
+        // was about to make. `started-no-window` has nothing to capture.
+        const observable =
+          launchResult.kind === 'look-alike-only'
+            ? launchResult.lookAlikeName
+            : launchResult.kind === 'started-no-window'
+              ? undefined
+              : launchResult.appName
+        if (observeRequest.observe && observable !== undefined) {
+          const observation = await captureActObservation(observable, observeRequest.settleMs)
+          return {
+            content: [...response.content, ...observation],
+            ...(response.isError === true ? { isError: true } : {}),
+          }
+        }
+        return response
       } catch (err) {
         recordFailedAct(envelope, { tool: 'launch_app', appName: query, detail: 'launch threw' }, err)
         return {

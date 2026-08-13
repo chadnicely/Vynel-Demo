@@ -1,9 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ForbiddenError } from '@vynel/errors'
 import { createDesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { PLAN_REQUIRED_MESSAGE } from '../plan/plan-gated-authorization.js'
 import { buildLaunchResponse, makeLaunchAppTool } from './launch-app-tool.js'
 import type { InstalledApp } from '../apps/installed-apps.js'
+
+// Spy on the shared observation helper so the launch → observe wiring is
+// assertable without a capture engine. The helper's own behavior (settle
+// ordering, never-throws) is covered in act-observation.test.ts.
+vi.mock('./act-observation.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('./act-observation.js')>('./act-observation.js')
+  return {
+    ...actual,
+    captureActObservation: vi.fn(async (app: string | undefined) => [
+      { type: 'text', text: `observed ${app ?? 'screen'}` },
+      { type: 'image', data: 'UEsK', mimeType: 'image/png' },
+    ]),
+  }
+})
+import { captureActObservation } from './act-observation.js'
 
 type BuiltTool = {
   name: string
@@ -69,6 +85,23 @@ describe('makeLaunchAppTool', () => {
     expect(result.isError).not.toBe(true)
     expect(launched).toEqual(['Google Chrome'])
     expect(result.content[0]?.text).toContain('is open')
+  })
+
+  it('observe: true appends the window screenshot to the SAME result — launch and see in one call', async () => {
+    const { tool } = buildTool()
+    const result = await tool.handler({ app: 'Google Chrome', observe: true, observeSettleMs: 2000 })
+    expect(result.isError).not.toBe(true)
+    // The observation targets the window that APPEARED (drift-safe), with the
+    // caller's settle threaded through.
+    expect(vi.mocked(captureActObservation)).toHaveBeenLastCalledWith('Google Chrome', 2000)
+    expect(result.content.map((block) => block.type)).toEqual(['text', 'text', 'image'])
+  })
+
+  it('without observe, no capture runs — the picture is opt-in and costs tokens', async () => {
+    vi.mocked(captureActObservation).mockClear()
+    const { tool } = buildTool()
+    await tool.handler({ app: 'Google Chrome' })
+    expect(vi.mocked(captureActObservation)).not.toHaveBeenCalled()
   })
 
   it('calls out a window that opens under a DIFFERENT name than was authorized', async () => {

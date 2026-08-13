@@ -18,6 +18,7 @@ import {
   type BatchStepResult,
 } from './act-batch.js'
 import { describeVerification } from '../a11y/act-verification.js'
+import { captureActObservation, parseObserveRequest, OBSERVE_SETTLE_MAX_MS } from './act-observation.js'
 
 const TOOL_DESCRIPTION =
   "Act on elements in a desktop app — click, type, or set a value. This CHANGES things on the user's " +
@@ -158,6 +159,24 @@ export function makeActOnAppTool(
         .max(MAX_BATCH_ACTIONS)
         .optional()
         .describe('Batch: several actions in this app, run in order, stopping at the first failure.'),
+      observe: z
+        .boolean()
+        .optional()
+        .describe(
+          'Return a fresh screenshot of the app in THIS result — saves the separate screenshot ' +
+            'call when your next step depends on what changed. For a batch, taken after the last ' +
+            'step (also after a failed one, so you see the part-way state).',
+        ),
+      observeSettleMs: z
+        .number()
+        .int()
+        .min(0)
+        .max(OBSERVE_SETTLE_MAX_MS)
+        .optional()
+        .describe(
+          'Wait this long before the observe screenshot (default 400). Use ~2000-4000 after an ' +
+            'action that loads content; for loads of unknown length use wait_for instead.',
+        ),
     },
     async (args: Record<string, unknown>) => {
       const planRefusal = planRequiredError(envelope)
@@ -165,6 +184,7 @@ export function makeActOnAppTool(
         return { content: [{ type: 'text', text: planRefusal }], isError: true }
       }
       const app = typeof args['app'] === 'string' ? args['app'] : ''
+      const observeRequest = parseObserveRequest(args)
       const batched = args['actions'] !== undefined
 
       if (batched) {
@@ -196,7 +216,7 @@ export function makeActOnAppTool(
         }
         // Each step re-resolves + re-authorizes inside actOnApp — batching is a
         // convenience over N calls, never a shortcut past the gate.
-        return buildBatchResponse(
+        const batchResponse = buildBatchResponse(
           await runActionBatch(steps, async (step) => {
             // The step that STOPS a batch leaves a row too — runActionBatch
             // catches the throw, so the outer catch never sees it.
@@ -231,6 +251,12 @@ export function makeActOnAppTool(
             return toBatchStep(app, stepResult)
           }),
         )
+        // Observed on failure too — a stopped batch leaves the app part-way,
+        // and seeing that state is exactly what the recovery needs.
+        if (observeRequest.observe) {
+          batchResponse.content.push(...(await captureActObservation(app, observeRequest.settleMs)))
+        }
+        return batchResponse
       }
 
       const action = parseAction(args['action'])
@@ -265,7 +291,15 @@ export function makeActOnAppTool(
               : null,
           })
         }
-        return buildActResponse(app, result)
+        const response = buildActResponse(app, result)
+        // Ambiguous means NOTHING ran — the screen is unchanged, so an
+        // observation would spend image tokens showing the model what it
+        // already saw. Only a landed act earns one.
+        if (observeRequest.observe && result.kind === 'done') {
+          const observation = await captureActObservation(app, observeRequest.settleMs)
+          return { content: [...response.content, ...observation] }
+        }
+        return response
       } catch (err) {
         recordFailedAct(envelope, { tool: 'act_on_app', appName: app, detail: 'act threw' }, err)
         return {
