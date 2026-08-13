@@ -9,7 +9,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     name: "node",
-    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+    include: ["apps/**/*.test.ts", "packages/**/*.test.ts", "scripts/**/*.test.ts"],
     // `apps/local-web/**`, `apps/cloud-admin-web/**` + `packages/ui/**` are
     // owned by their DOM-env projects — exclude them here so tests aren't
     // run twice.

@@ -6,17 +6,39 @@
 
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { PayloadTarget } from './payload-targets.js'
 
-export const SMOKE_PORT = 8996
+// No fixed test port. Docker Desktop / Hyper-V reserve whole port blocks and
+// a hardcoded number (the old 8996) eventually lands inside one, failing the
+// build for a reason that has nothing to do with the payload. Each run asks
+// the OS for a free ephemeral port instead — the dynamic allocator skips
+// reserved ranges by construction. The tiny close-then-rebind race is covered
+// by one retry on an EADDRINUSE boot failure.
 
-async function fetchProbe(): Promise<boolean> {
+export async function allocateSmokePort(): Promise<number> {
+  return await new Promise((resolvePort, rejectPort) => {
+    const probe = createServer()
+    probe.once('error', rejectPort)
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address()
+      if (address === null || typeof address === 'string') {
+        probe.close()
+        rejectPort(new Error('smoke-boot: the OS did not hand back a port for the probe listener.'))
+        return
+      }
+      probe.close(() => resolvePort(address.port))
+    })
+  })
+}
+
+async function fetchProbe(smokePort: number): Promise<boolean> {
   try {
     // Root serves the web UI in sidecar mode; /api/health may not exist —
     // any HTTP answer proves boot + migrations + gateway wiring.
-    const response = await fetch(`http://127.0.0.1:${SMOKE_PORT}/`)
+    const response = await fetch(`http://127.0.0.1:${smokePort}/`)
     return response.status < 500
   } catch {
     return false
@@ -24,19 +46,34 @@ async function fetchProbe(): Promise<boolean> {
 }
 
 async function pollUntilReady(
+  smokePort: number,
   isDead: () => boolean,
   deadlineMs: number,
 ): Promise<{ ready: boolean; elapsedMs: number }> {
   const startedAt = Date.now()
   while (Date.now() - startedAt < deadlineMs) {
     if (isDead()) break
-    if (await fetchProbe()) return { ready: true, elapsedMs: Date.now() - startedAt }
+    if (await fetchProbe(smokePort)) return { ready: true, elapsedMs: Date.now() - startedAt }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 250))
   }
   return { ready: false, elapsedMs: Date.now() - startedAt }
 }
 
+function lostThePortRace(failures: string[]): boolean {
+  return failures.some((message) => message.includes('EADDRINUSE'))
+}
+
 export async function smokeBootNative(payloadDir: string, stagedNodePath: string): Promise<string[]> {
+  const failures = await smokeBootNativeOnce(payloadDir, stagedNodePath, await allocateSmokePort())
+  if (!lostThePortRace(failures)) return failures
+  return await smokeBootNativeOnce(payloadDir, stagedNodePath, await allocateSmokePort())
+}
+
+async function smokeBootNativeOnce(
+  payloadDir: string,
+  stagedNodePath: string,
+  smokePort: number,
+): Promise<string[]> {
   const failures: string[] = []
   const backendDir = join(payloadDir, 'backend')
   const appDataDir = mkdtempSync(join(tmpdir(), 'vynel-payload-smoke-'))
@@ -47,7 +84,7 @@ export async function smokeBootNative(payloadDir: string, stagedNodePath: string
       // from a dev machine. Keyring/OS vars stay so native deps behave.
       SystemRoot: process.env['SystemRoot'] ?? '',
       PATH: dirname(stagedNodePath),
-      PORT: String(SMOKE_PORT),
+      PORT: String(smokePort),
       DB_PATH: join(appDataDir, 'vynel.db'),
       VYNEL_ASSETS_DIR: join(backendDir, 'assets'),
       VYNEL_WEB_UI_DIST: join(payloadDir, 'web'),
@@ -62,12 +99,12 @@ export async function smokeBootNative(payloadDir: string, stagedNodePath: string
   child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()))
 
   try {
-    const { ready, elapsedMs } = await pollUntilReady(() => child.exitCode !== null, 60_000)
+    const { ready, elapsedMs } = await pollUntilReady(smokePort, () => child.exitCode !== null, 60_000)
     if (!ready) {
-      failures.push(`payload did not answer on :${SMOKE_PORT} within 60s.\n--- output ---\n${output}`)
+      failures.push(`payload did not answer on :${smokePort} within 60s.\n--- output ---\n${output}`)
       return failures
     }
-    const index = await fetch(`http://127.0.0.1:${SMOKE_PORT}/`)
+    const index = await fetch(`http://127.0.0.1:${smokePort}/`)
     if (!index.ok) failures.push(`web UI root returned ${index.status}`)
     else console.log(`verify-payload: smoke boot OK — cold start ${elapsedMs}ms`)
     return failures
@@ -107,10 +144,42 @@ export function detectWslDistro(requested: string | undefined): string | null {
   return names[0] ?? null
 }
 
+// The WSL boot binds inside the distro's network namespace (NAT mode), so the
+// free port has to be found THERE, not on the Windows side — the staged node
+// asks the distro's OS for one.
+function allocateSmokePortInWsl(distro: string, nodeWsl: string): number | null {
+  const result = runInWsl(distro, [
+    nodeWsl,
+    '-e',
+    `const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})`,
+  ])
+  const port = Number(result.output.trim())
+  return result.status === 0 && Number.isInteger(port) && port > 0 ? port : null
+}
+
 export async function smokeBootViaWsl(
   payloadDir: string,
   target: PayloadTarget,
   distro: string,
+): Promise<string[]> {
+  const payloadWsl = toWslPath(payloadDir)
+  const nodeWsl = `${payloadWsl}/${target.stagedNodeName}`
+  const smokePort = allocateSmokePortInWsl(distro, nodeWsl)
+  if (smokePort === null) {
+    return [`WSL smoke prep failed in ${distro}: could not allocate a free port with the staged node.`]
+  }
+  const failures = await smokeBootViaWslOnce(payloadDir, target, distro, smokePort)
+  if (!lostThePortRace(failures)) return failures
+  const retryPort = allocateSmokePortInWsl(distro, nodeWsl)
+  if (retryPort === null) return failures
+  return await smokeBootViaWslOnce(payloadDir, target, distro, retryPort)
+}
+
+async function smokeBootViaWslOnce(
+  payloadDir: string,
+  target: PayloadTarget,
+  distro: string,
+  smokePort: number,
 ): Promise<string[]> {
   const failures: string[] = []
   const payloadWsl = toWslPath(payloadDir)
@@ -129,7 +198,7 @@ export async function smokeBootViaWsl(
   const smokeEnv: Record<string, string> = {
     PATH: '/usr/local/bin:/usr/bin:/bin',
     HOME: `${smokeBase}/home`,
-    PORT: String(SMOKE_PORT),
+    PORT: String(smokePort),
     DB_PATH: `${smokeBase}/vynel.db`,
     VYNEL_ASSETS_DIR: `${backendWsl}/assets`,
     VYNEL_WEB_UI_DIST: `${payloadWsl}/web`,
@@ -151,23 +220,23 @@ export async function smokeBootViaWsl(
   try {
     // 9p-mounted node_modules make the first module walk slow — give the
     // cross-boundary boot five minutes rather than the native 60s.
-    const { ready, elapsedMs } = await pollUntilReady(() => child.exitCode !== null, 300_000)
+    const { ready, elapsedMs } = await pollUntilReady(smokePort, () => child.exitCode !== null, 300_000)
     if (!ready) {
       // Disambiguate "never booted" from "booted but the WSL localhost relay
       // didn't surface it on the Windows side".
       const inWslProbe = runInWsl(distro, [
         nodeWsl,
         '-e',
-        `fetch('http://127.0.0.1:${SMOKE_PORT}/').then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))`,
+        `fetch('http://127.0.0.1:${smokePort}/').then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))`,
       ])
       failures.push(
         inWslProbe.status === 0
           ? `payload answers inside WSL but not through the localhost relay — check WSL networking mode.`
-          : `payload did not answer on :${SMOKE_PORT} within 300s (WSL ${distro}).\n--- output ---\n${output}`,
+          : `payload did not answer on :${smokePort} within 300s (WSL ${distro}).\n--- output ---\n${output}`,
       )
       return failures
     }
-    const index = await fetch(`http://127.0.0.1:${SMOKE_PORT}/`)
+    const index = await fetch(`http://127.0.0.1:${smokePort}/`)
     if (!index.ok) failures.push(`web UI root returned ${index.status}`)
     else console.log(`verify-payload: WSL smoke boot OK (${distro}) — cold start ${elapsedMs}ms`)
     return failures
