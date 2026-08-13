@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Check, Circle, CircleDotDashed } from "lucide-vue-next";
+import {
+  PhCheck as Check,
+  PhCircle as Circle,
+  PhCircleDashed as CircleDotDashed,
+} from "@phosphor-icons/vue";
 import type { TaskStatus } from "@vynel/contracts/tasks/task-http";
 
 // The one home for the status cycle: every click walks open → in-progress →

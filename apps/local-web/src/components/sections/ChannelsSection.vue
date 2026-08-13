@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Plus, Radio, Settings2, X } from "lucide-vue-next";
+import {
+  PhPlus as Plus,
+  PhBroadcast as Radio,
+  PhGearFine as Settings2,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useChannels } from "../../composables/channels/use-channels.js";
 import { useDisconnectChannel } from "../../composables/channels/use-disconnect-channel.js";

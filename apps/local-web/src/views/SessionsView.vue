@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { History } from "lucide-vue-next";
+import { PhClockCounterClockwise as History } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type {
   SessionsOverviewEntry,

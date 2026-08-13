@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { BarChart3 } from "lucide-vue-next";
+import { PhChartBar as BarChart3 } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useUsageStats } from "../../composables/dashboard/use-usage-stats.js";
 import {

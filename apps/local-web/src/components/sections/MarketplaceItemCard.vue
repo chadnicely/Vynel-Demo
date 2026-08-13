@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { BadgeCheck, Check } from "lucide-vue-next";
+import { PhSealCheck as BadgeCheck, PhCheck as Check } from "@phosphor-icons/vue";
 import { workspaceMonogram } from "@vynel/ui";
 import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-item";
 import { isCatalogIconName } from "@vynel/contracts/marketplace/catalog-icons";

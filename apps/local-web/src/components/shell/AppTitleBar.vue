@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  Command,
-  FolderPlus,
-  ListChecks,
-  Moon,
-  PanelLeft,
-  Power,
-  Settings2,
-  Sun,
-  UserRound,
-} from "lucide-vue-next";
+  PhCommand as Command,
+  PhFolderPlus as FolderPlus,
+  PhListChecks as ListChecks,
+  PhMoon as Moon,
+  PhSidebarSimple as PanelLeft,
+  PhPower as Power,
+  PhGearFine as Settings2,
+  PhSun as Sun,
+  PhUser as UserRound,
+} from "@phosphor-icons/vue";
 import { DropdownMenu, PresenceDot } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";

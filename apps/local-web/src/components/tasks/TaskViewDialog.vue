@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { CalendarRange } from "lucide-vue-next";
+import { PhCalendarBlank as CalendarRange } from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 import type { TaskStatus } from "@vynel/contracts/tasks/task-http";
 import { useTasks } from "../../composables/tasks/use-tasks.js";

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, h } from "vue";
 import type { Component } from "vue";
-import { ChevronDown, House, Plus, X } from "lucide-vue-next";
+import {
+  PhCaretDown as ChevronDown,
+  PhHouse as House,
+  PhPlus as Plus,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import {
   DropdownMenu,
   WorkspaceColorSwatches,

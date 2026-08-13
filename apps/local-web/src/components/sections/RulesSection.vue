@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Eye, ScrollText } from "lucide-vue-next";
+import { PhEye as Eye, PhScroll as ScrollText } from "@phosphor-icons/vue";
 import { EmptyState, MarkdownText, Modal } from "@vynel/ui";
 import { useRules } from "../../composables/rules/use-rules.js";
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";

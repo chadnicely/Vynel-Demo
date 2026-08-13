@@ -315,6 +315,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Every icon in the app speaks Phosphor now.** The interface's whole icon
+  vocabulary moved from lucide to Phosphor — the set the Nocturne design
+  language is drawn in — so glyphs match the design screens exactly: the
+  gear-six settings, the circle-notch spinner, the robot for agents, the
+  scroll for rules, carets instead of chevrons. Marketplace catalog icon
+  names are untouched (they're stored data); only the artwork behind them
+  changed.
+
 - **Vynel wears its new look: Nocturne.** The whole app moved from the old
   near-black palette to the Nocturne design system — a quiet blue-grey ground,
   one violet accent used as a line and a glow rather than a flood, Inter as

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import {
-  ExternalLink,
-  Globe,
-  MessageSquarePlus,
-  Plus,
-  RotateCw,
-  X,
-} from "lucide-vue-next";
+  PhArrowSquareOut as ExternalLink,
+  PhGlobe as Globe,
+  PhChatCircleText as MessageSquarePlus,
+  PhPlus as Plus,
+  PhArrowClockwise as RotateCw,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import { DropdownMenu, EmptyState, IconButton } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useBrowserStore } from "../../stores/browser-store.js";

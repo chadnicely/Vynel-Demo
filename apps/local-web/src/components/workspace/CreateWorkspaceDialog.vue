@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { ArrowUp, Folder, HardDrive } from "lucide-vue-next";
+import {
+  PhArrowUp as ArrowUp,
+  PhFolder as Folder,
+  PhHardDrive as HardDrive,
+} from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";

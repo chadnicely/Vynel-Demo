@@ -21,7 +21,12 @@
    (new: --bg-chrome/--bg-inset/--needs-input; --ok/--danger re-pointed; row hovers per canvas);
    Inter variable fonts vendored in `packages/ui/src/styles/fonts/`; Tailwind bridge + 6px
    scrollbars; six components' on-gold ink → `var(--color-bg)`; index.html flash → #161826.
-   **NEXT: Arc 1b Phosphor icon sweep, then Arc 2 tabs/menu view** (per the plan).
+5. **Arc 1b LANDED (gate green again):** lucide → `@phosphor-icons/vue` across all 61 local-web
+   files — codemod aliased each Phosphor export to the file's existing local name
+   (`PhGearSix as Settings`), so usage sites are byte-identical; 123-name mapping pre-verified
+   against the package's 1512 exports; catalog icon NAMES untouched (contracts data);
+   `lucide-vue-next` removed from local-web (cloud-admin-web keeps its copy — deferred surface).
+   **NEXT: Arc 2 tabs/menu view** (per the plan).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

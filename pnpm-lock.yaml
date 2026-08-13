@@ -354,6 +354,9 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.0
         version: 1.2.3
+      '@phosphor-icons/vue':
+        specifier: ^2.2.1
+        version: 2.2.1(vue@3.5.39(typescript@5.9.3))
       '@tanstack/vue-query':
         specifier: ^5.59.0
         version: 5.101.2(vue@3.5.39(typescript@5.9.3))
@@ -378,9 +381,6 @@ importers:
       codemirror:
         specifier: ^6.0.1
         version: 6.0.2
-      lucide-vue-next:
-        specifier: ^0.468.0
-        version: 0.468.0(vue@3.5.39(typescript@5.9.3))
       pinia:
         specifier: ^3.0.0
         version: 3.0.4(typescript@5.9.3)(vue@3.5.39(typescript@5.9.3))
@@ -483,6 +483,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      node-api-headers:
+        specifier: ^1.9.0
+        version: 1.9.0
       tsx:
         specifier: ^4.19.0
         version: 4.22.4
@@ -3164,6 +3167,12 @@ packages:
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
 
+  '@phosphor-icons/vue@2.2.1':
+    resolution: {integrity: sha512-3RNg1utc2Z5RwPKWFkW3eXI/0BfQAwXgtFxPUPeSzi55jGYUq16b+UqcgbKLazWFlwg5R92OCLKjDiJjeiJcnA==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      vue: '>=3.2.39'
+
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
@@ -5418,6 +5427,9 @@ packages:
 
   node-addon-api@5.0.0:
     resolution: {integrity: sha512-CvkDw2OEnme7ybCykJpVcKH+uAOLV2qLqiyla128dN9TkEWfrYmxG6C2boDe5KcNQqZF3orkqzGgOMvZ/JNekA==}
+
+  node-api-headers@1.9.0:
+    resolution: {integrity: sha512-2oNILP4jXwRB4ywnYKjVk1YyJ96n2D4EOVJO6S3oYZ5PtbJrw3Yt9TpAuX3nBLMuzn74rnfGQrv13pS9vC+YiA==}
 
   node-cpal@0.1.1:
     resolution: {integrity: sha512-ENjac9jLGqp6hb+zn2ioPEhKCN+ctDlP4omP52cNukFrerD2olXUQjfLFoRXeZRVuBrT44chDgcPEpnckQmUVw==}
@@ -7830,6 +7842,10 @@ snapshots:
 
   '@one-ini/wasm@0.1.1': {}
 
+  '@phosphor-icons/vue@2.2.1(vue@3.5.39(typescript@5.9.3))':
+    dependencies:
+      vue: 3.5.39(typescript@5.9.3)
+
   '@pinojs/redact@0.4.0': {}
 
   '@pkgjs/parseargs@0.11.0':
@@ -9981,6 +9997,8 @@ snapshots:
 
   node-addon-api@5.0.0:
     optional: true
+
+  node-api-headers@1.9.0: {}
 
   node-cpal@0.1.1: {}
 

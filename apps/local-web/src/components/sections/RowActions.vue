@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, Pencil, X } from "lucide-vue-next";
+import { PhEye as Eye, PhPencilSimple as Pencil, PhX as X } from "@phosphor-icons/vue";
 
 // The one home for a list row's action cluster: View · Edit · Delete, in a
 // FIXED-width slot so every row's text column ends at the same edge (tasks,

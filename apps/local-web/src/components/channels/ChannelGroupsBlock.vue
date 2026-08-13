@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Users } from "lucide-vue-next";
+import { PhUsers as Users } from "@phosphor-icons/vue";
 import type { ChannelChatGroupResponse } from "@vynel/contracts/channels/channel-http";
 import { useChannelGroups } from "../../composables/channels/use-channel-groups.js";
 import { useSetGroupStatus } from "../../composables/channels/use-set-group-status.js";

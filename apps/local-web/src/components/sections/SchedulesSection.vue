@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { CalendarClock, Plus, Repeat, Timer } from "lucide-vue-next";
+import {
+  PhCalendarDots as CalendarClock,
+  PhPlus as Plus,
+  PhRepeat as Repeat,
+  PhTimer as Timer,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useSchedules } from "../../composables/schedules/use-schedules.js";
 import { useToggleSchedule } from "../../composables/schedules/use-toggle-schedule.js";

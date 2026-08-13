@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Check, ChevronDown, ChevronUp, X } from "lucide-vue-next";
+import {
+  PhCheck as Check,
+  PhCaretDown as ChevronDown,
+  PhCaretUp as ChevronUp,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import type { SessionTodoResponse } from "@vynel/contracts/tasks/session-todo-http";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useUpdateTodoStatus } from "../../composables/todos/use-update-todo-status.js";

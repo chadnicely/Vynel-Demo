@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import {
-  CalendarClock,
-  FolderTree,
-  History,
-  Radio,
-  Sparkles,
-} from "lucide-vue-next";
+  PhCalendarDots as CalendarClock,
+  PhTreeView as FolderTree,
+  PhClockCounterClockwise as History,
+  PhBroadcast as Radio,
+  PhSparkle as Sparkles,
+} from "@phosphor-icons/vue";
 import {
   CommandPalette,
   EmptyState,

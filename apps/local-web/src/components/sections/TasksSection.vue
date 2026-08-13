@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ChevronRight, ListChecks, Plus } from "lucide-vue-next";
+import {
+  PhCaretRight as ChevronRight,
+  PhListChecks as ListChecks,
+  PhPlus as Plus,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
 import { useTasksInScope } from "../../composables/tasks/use-tasks-in-scope.js";

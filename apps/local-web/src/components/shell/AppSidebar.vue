@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Component } from "vue";
-import { ChevronRight, ChevronsUpDown } from "lucide-vue-next";
+import { PhCaretRight as ChevronRight, PhCaretUpDown as ChevronsUpDown } from "@phosphor-icons/vue";
 import { workspaceMonogram } from "@vynel/ui";
 
 export interface SidebarItem {

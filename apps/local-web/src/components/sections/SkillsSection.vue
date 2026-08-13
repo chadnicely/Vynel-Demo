@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Wrench } from "lucide-vue-next";
+import { PhWrench as Wrench } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useInstalledSkills } from "../../composables/skills/use-installed-skills.js";
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";

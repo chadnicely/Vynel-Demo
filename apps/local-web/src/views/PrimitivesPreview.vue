@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import {
-  Bell,
-  Copy,
-  FilePlus,
-  FolderTree,
-  Moon,
-  Pencil,
-  Search,
-  Settings,
-  Sun,
-  Trash2,
-} from "lucide-vue-next";
+  PhBell as Bell,
+  PhCopy as Copy,
+  PhFilePlus as FilePlus,
+  PhTreeView as FolderTree,
+  PhMoon as Moon,
+  PhPencilSimple as Pencil,
+  PhMagnifyingGlass as Search,
+  PhGearSix as Settings,
+  PhSun as Sun,
+  PhTrash as Trash2,
+} from "@phosphor-icons/vue";
 import {
   CommandPalette,
   ConfirmButton,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { SquareSlash } from "lucide-vue-next";
+import { PhTerminalWindow as SquareSlash } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useCommands } from "../../composables/commands/use-commands.js";
 import { useScopeLabel } from "../../composables/workspaces/use-scope-label.js";
