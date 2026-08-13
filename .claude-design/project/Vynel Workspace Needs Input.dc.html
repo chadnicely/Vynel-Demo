@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-b5bce991-eb34-4501-ad3f-5b877cebcabe/styles.css">
+<script src="_ds/nocturne-b5bce991-eb34-4501-ad3f-5b877cebcabe/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; background: var(--color-bg); overflow: hidden; }
+  a { color: var(--color-accent); text-decoration: none; }
+  a:hover { color: var(--color-accent-400); }
+  * { scrollbar-width: thin; scrollbar-color: var(--color-neutral-700) transparent; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--color-neutral-700); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-neutral-600); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  @keyframes vw-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.72); } }
+  @keyframes vw-spin { to { transform: rotate(360deg); } }
+  @keyframes vw-spine { 0% { background-position: 0 -140%; } 100% { background-position: 0 240%; } }
+</style>
+</helmet>
+<div style="height: 100vh; display: grid; grid-template-rows: 34px auto 1fr; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); overflow: hidden;">
+
+  <sc-if value="{{ taskCard }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; z-index: 60; right: 288px; top: {{ taskTop }}; width: 268px; display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-6); border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); pointer-events: none;">
+      <span style="display: flex; flex-direction: column; gap: 3px;">
+        <span style="font-size: 13px; font-weight: 500; line-height: 1.3; color: var(--color-text); text-wrap: pretty;">{{ taskCard.name }}</span>
+        <span style="font-size: 11px; color: {{ taskCard.statusColor }};">{{ taskCard.status }}</span>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 6px;">
+        <sc-for list="{{ taskCard.rows }}" as="r" hint-placeholder-count="4">
+          <span style="display: flex; align-items: baseline; gap: var(--space-4); font-size: 11.5px;">
+            <span style="width: 74px; flex: none; color: var(--color-neutral-600);">{{ r.label }}</span>
+            <span style="min-width: 0; color: var(--color-neutral-300);">{{ r.value }}</span>
+          </span>
+        </sc-for>
+      </span>
+      <sc-if value="{{ taskCard.hasSteps }}" hint-placeholder-val="{{ false }}">
+      <span style="display: flex; flex-direction: column; gap: 5px; padding-top: 9px; border-top: 1px solid var(--color-divider);">
+        <sc-for list="{{ taskCard.steps }}" as="p" hint-placeholder-count="5">
+          <span style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: {{ p.color }};">
+            <i class="{{ p.icon }}" style="font-size: 11px; flex: none; color: {{ p.iconColor }};"></i>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.label }}</span>
+          </span>
+        </sc-for>
+        <sc-if value="{{ taskCard.hasMore }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size: 11px; color: var(--color-neutral-600); padding-left: 19px;">{{ taskCard.moreLabel }}</span>
+        </sc-if>
+      </span>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hoverCard }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; z-index: 60; left: 214px; top: {{ hoverTop }}px; width: 324px; display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-6); border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-lg); pointer-events: none;">
+      <span style="display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-family: var(--font-heading); font-size: 14px;">{{ hoverCard.name }}</span>
+        <span style="font-size: 11px; color: var(--color-accent-300);">{{ hoverCard.status }}</span>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 6px;">
+        <sc-for list="{{ hoverCard.rows }}" as="r" hint-placeholder-count="8">
+          <span style="display: flex; align-items: baseline; gap: var(--space-4); font-size: 11.5px;">
+            <span style="width: 62px; flex: none; color: var(--color-neutral-600);">{{ r.label }}</span>
+            <code style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-neutral-300);">{{ r.value }}</code>
+          </span>
+        </sc-for>
+      </span>
+    </div>
+  </sc-if>
+
+  <div style="display: flex; align-items: center; gap: 14px; padding: 0 10px; font-size: 12px; color: var(--color-neutral-500); background: #12141f;">
+    <i class="ph ph-diamonds-four" style="font-size: 15px; color: var(--color-accent);"></i>
+    <span style="color: var(--color-neutral-300);">Vynel</span>
+    <sc-if value="{{ tabsMode }}" hint-placeholder-val="{{ true }}">
+      <span style="display: flex; align-items: center; gap: 8px; padding-left: var(--space-6); margin-left: var(--space-4); border-left: 1px solid var(--color-divider);">
+        <i class="ph ph-folder-open" style="font-size: 13px; color: var(--color-accent);"></i>
+        <span style="font-size: 11px; letter-spacing: 0.1em; color: var(--color-neutral-300);">DEVELOPMENT</span>
+      </span>
+    </sc-if>
+    <span style="flex: 1;"></span>
+    <span style="display: flex; align-items: center; gap: 5px;">
+      <sc-for list="{{ navModes }}" as="m" hint-placeholder-count="2">
+        <button type="button" onClick="{{ m.onClick }}" style-hover="color: var(--color-accent-200)" title="{{ m.title }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid {{ m.border }}; background: {{ m.bg }}; color: {{ m.color }}; cursor: pointer; font: inherit; font-size: 11px;"><i class="{{ m.icon }}" style="font-size: 12px;"></i>{{ m.label }}</button>
+      </sc-for>
+    </span>
+    <span style="display: flex; align-items: center; gap: 7px; margin: 0 20px 0 24px;">
+      <sc-for list="{{ connections }}" as="c" hint-placeholder-count="4">
+        <span title="{{ c.tip }}" style="width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: {{ c.bg }}; border: 1px solid {{ c.border }}; color: {{ c.color }}; box-shadow: {{ c.glow }};"><i class="{{ c.icon }}" style="font-size: 11px;"></i></span>
+      </sc-for>
+    </span>
+    <span style="display: flex; gap: 18px; font-size: 13px; padding-left: 6px;"><i class="ph ph-list-checks"></i><i class="ph ph-minus"></i><i class="ph ph-square"></i><i class="ph ph-x"></i></span>
+  </div>
+
+  <sc-if value="{{ tabsMode }}" hint-placeholder-val="{{ true }}">
+  <div style="display: flex; align-items: stretch; padding: var(--space-6) 8px 0 216px; background: #12141f; border-bottom: 1px solid var(--color-divider); font-size: 12.5px; color: var(--color-neutral-400); overflow-x: auto;">
+    <sc-for list="{{ appTabs }}" as="t" hint-placeholder-count="4">
+      <button type="button" onClick="{{ t.onClick }}" style-hover="color: var(--color-accent-200)" style="display: flex; align-items: center; gap: 9px; padding: 9px var(--space-6); margin-right: 5px; border: 0; cursor: pointer; font: inherit; font-size: 12.5px; white-space: nowrap; border-radius: var(--radius-md) var(--radius-md) 0 0; background: {{ t.bg }}; color: {{ t.color }}; border-bottom: 2px solid {{ t.edge }}; opacity: {{ t.opacity }};">
+        <span style="width: 16px; height: 16px; border-radius: var(--radius-sm); display: grid; place-items: center; background: {{ t.chipBg }}; color: {{ t.chipColor }};"><i class="{{ t.chipIcon }}" style="font-size: 9px; animation: {{ t.chipSpin }};"></i></span>
+        {{ t.name }}
+        <sc-if value="{{ t.alert }}" hint-placeholder-val="{{ false }}">
+          <span style="width: 8px; height: 8px; border-radius: 50%; display: grid; place-items: center; background: {{ t.alertBg }}; color: transparent; animation: {{ t.alertPulse }};"><i class="{{ t.alertIcon }}" style="font-size: 8px;"></i></span>
+        </sc-if>
+      </button>
+    </sc-for>
+    <div style="display: flex; align-items: center; padding: 0 var(--space-4);"><i class="ph ph-plus"></i></div>
+  </div>
+  </sc-if>
+
+  <div style="display: grid; grid-template-columns: {{ gridCols }}; overflow: hidden; min-height: 0;">
+
+    <div style="padding: var(--space-6) var(--space-3); font-size: 12.5px; color: var(--color-neutral-400); border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; gap: 2px; overflow: visible;">
+      <sc-if value="{{ drilled }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; min-height: 0;">
+          <sc-if value="{{ showBackToFolder }}" hint-placeholder-val="{{ true }}">
+          <button type="button" onClick="{{ leaveDrill }}" style-hover="color: var(--color-accent)" style="display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 5px var(--space-4); background: transparent; font-size: 11.5px; color: var(--color-neutral-500);">
+            <i class="ph ph-arrow-left" style="font-size: 12px;"></i>DEVELOPMENT
+          </button>
+          </sc-if>
+
+          <div style="display: flex; align-items: center; gap: 9px; padding: 7px var(--space-4); margin: 2px 0 var(--space-3); border-radius: var(--radius-sm); background: var(--color-accent-900);">
+            <span style="width: 20px; height: 20px; border-radius: var(--radius-sm); background: var(--color-accent-600); display: grid; place-items: center; font-size: 9px; color: var(--color-accent-100);">{{ drillInitials }}</span>
+            <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+              <span style="font-size: 13px; color: var(--color-accent-100); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ drillName }}</span>
+              <span style="font-size: 10.5px; color: {{ drillMetaColor }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ drillMeta }}</span>
+            </span>
+          </div>
+
+          <sc-for list="{{ drillSections }}" as="d" hint-placeholder-count="8">
+            <button type="button" onClick="{{ d.onClick }}" style-hover="background: color-mix(in srgb, var(--color-text) 6%, transparent)" style="display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 8px var(--space-4); border-radius: var(--radius-sm); font-size: 12.5px; background: {{ d.bg }}; color: {{ d.color }};">
+              <i class="{{ d.icon }}" style="font-size: 13px; color: {{ d.iconColor }};"></i>{{ d.label }}
+              <span style="flex: 1;"></span>
+              <span style="font-size: 10.5px; color: var(--color-neutral-600);">{{ d.meta }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ notDrilled }}" hint-placeholder-val="{{ true }}">
+      <div onMouseLeave="{{ clearHover }}" style="display: flex; flex-direction: column; gap: 5px; overflow-y: auto; overflow-x: visible; min-height: 0;">
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px var(--space-4); margin-bottom: var(--space-3);">
+          <i class="ph ph-folder-open" style="font-size: 14px; color: var(--color-accent);"></i>
+          <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+            <span style="font-size: 12.5px; color: var(--color-neutral-200);">DEVELOPMENT</span>
+            <code style="font-size: 10px; color: var(--color-neutral-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">~/DEVELOPMENT</code>
+          </span>
+          <span style="flex: 1;"></span>
+          <i class="ph ph-folder-plus" onClick="{{ newFolder }}" style="font-size: 13px; color: var(--color-neutral-500); cursor: pointer; margin-right: 7px;" title="New folder"></i>
+          <i class="ph ph-plus" style="font-size: 12px; color: var(--color-neutral-500); cursor: pointer;" title="New app in this folder"></i>
+        </div>
+
+        <sc-for list="{{ folders }}" as="f" hint-placeholder-count="0">
+          <div onDragOver="{{ f.onDragOver }}" onDragLeave="{{ f.onDragLeave }}" onDrop="{{ f.onDrop }}" style="display: flex; flex-direction: column; gap: 4px; padding: 3px; border-radius: var(--radius-sm); background: {{ f.bg }}; border: 1px dashed {{ f.edge }};">
+            <button type="button" onClick="{{ f.onToggle }}" style-hover="color: var(--color-accent-200)" style="display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 5px var(--space-4) 5px 7px; background: transparent; font-size: 12px; color: var(--color-neutral-300);">
+              <i class="{{ f.caret }}" style="font-size: 10px; color: var(--color-neutral-600);"></i>
+              <i class="{{ f.icon }}" style="font-size: 13px; color: var(--color-neutral-500);"></i>{{ f.name }}
+              <span style="flex: 1;"></span>
+              <span style="font-size: 10.5px; color: var(--color-neutral-600);">{{ f.count }}</span>
+            </button>
+            <sc-if value="{{ f.open }}" hint-placeholder-val="{{ true }}">
+              <sc-for list="{{ f.apps }}" as="w" hint-placeholder-count="0">
+                <button type="button" draggable="{{ w.draggable }}" onDragStart="{{ w.onDragStart }}" onDragEnd="{{ w.onDragEnd }}" onClick="{{ w.onClick }}" onMouseEnter="{{ w.onEnter }}" onMouseLeave="{{ w.onLeave }}" title="{{ w.tip }}" style-hover="background: color-mix(in srgb, var(--color-text) 6%, transparent)" style="display: grid; grid-template-columns: 12px 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 6px var(--space-4) 6px 24px; border-radius: var(--radius-sm); background: {{ w.bg }}; color: {{ w.color }}; min-height: 30px;">
+                  <i class="{{ w.caret }}" onClick="{{ w.onOpen }}" style="font-size: 10px; color: var(--color-neutral-600); cursor: pointer; padding: 2px;"></i>
+                  <span style="width: 16px; height: 16px; border-radius: var(--radius-sm); display: grid; place-items: center; background: {{ w.chipBg }}; color: {{ w.chipColor }};"><i class="{{ w.chipIcon }}" style="font-size: 10px; animation: {{ w.chipSpin }};"></i></span>
+                  <span style="font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ w.name }}</span>
+                  <span style="font-size: 10.5px; color: {{ w.progressColor }};">{{ w.progress }}</span>
+                </button>
+              </sc-for>
+            </sc-if>
+          </div>
+        </sc-for>
+
+        <div onDragOver="{{ rootDragOver }}" onDrop="{{ rootDrop }}" style="display: flex; flex-direction: column; gap: 5px; padding: 2px; border-radius: var(--radius-sm); background: {{ rootBg }};">
+          <sc-for list="{{ activeWorkspaces }}" as="w" hint-placeholder-count="4">
+            <div style="position: relative;">
+              <button type="button" draggable="{{ w.draggable }}" onDragStart="{{ w.onDragStart }}" onDragEnd="{{ w.onDragEnd }}" onClick="{{ w.onClick }}" onMouseEnter="{{ w.onEnter }}" onMouseLeave="{{ w.onLeave }}" style-hover="background: color-mix(in srgb, var(--color-text) 6%, transparent)" style="display: grid; grid-template-columns: 12px 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 6px var(--space-4) 6px 10px; border-radius: var(--radius-sm); background: {{ w.bg }}; color: {{ w.color }}; opacity: {{ w.rowOpacity }}; min-height: 32px;">
+                <i class="{{ w.caret }}" onClick="{{ w.onOpen }}" title="Open {{ w.name }}" style="font-size: 10px; color: var(--color-neutral-600); cursor: pointer; padding: 2px;"></i>
+                <span style="width: 16px; height: 16px; border-radius: var(--radius-sm); display: grid; place-items: center; font-size: 8px; background: {{ w.chipBg }}; color: {{ w.chipColor }}; opacity: {{ w.chipOpacity }};"><i class="{{ w.chipIcon }}" style="font-size: 10px; animation: {{ w.chipSpin }};"></i></span>
+                <span style="font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ w.name }}</span>
+                <span style="display: flex; align-items: center; gap: 7px;">
+                  <span style="font-size: 10.5px; color: {{ w.progressColor }}; white-space: nowrap;">{{ w.progress }}</span>
+                  <sc-if value="{{ w.waiting }}" hint-placeholder-val="{{ false }}">
+                    <span title="{{ w.markLabel }}" style="width: 8px; height: 8px; flex: none; display: grid; place-items: center; border-radius: 50%; background: {{ w.alertBg }}; color: transparent; animation: vw-pulse 1.4s ease-in-out infinite;"><i class="{{ w.alertIcon }}" style="font-size: 9px;"></i></span>
+                  </sc-if>
+                </span>
+              </button>
+
+            </div>
+          </sc-for>
+        </div>
+
+        <button type="button" onClick="{{ toggleOff }}" style-hover="color: var(--color-accent)" style="display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 7px var(--space-4) 5px 10px; margin-top: var(--space-3); background: transparent; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-600);">
+          <i class="{{ offCaret }}" style="font-size: 10px;"></i>NOT RUNNING
+          <span style="flex: 1;"></span>
+          <span style="letter-spacing: 0; font-size: 10.5px;">{{ offCount }}</span>
+        </button>
+
+        <sc-if value="{{ offOpen }}" hint-placeholder-val="{{ false }}">
+          <sc-for list="{{ offWorkspaces }}" as="w" hint-placeholder-count="4">
+            <button type="button" draggable="{{ w.draggable }}" onDragStart="{{ w.onDragStart }}" onDragEnd="{{ w.onDragEnd }}" onMouseEnter="{{ w.onEnter }}" onMouseLeave="{{ w.onLeave }}" title="{{ w.tip }}" onClick="{{ w.onClick }}" style-hover="background: color-mix(in srgb, var(--color-text) 6%, transparent)" style="display: grid; grid-template-columns: 12px 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 6px var(--space-4) 6px 10px; border-radius: var(--radius-sm); background: {{ w.bg }}; color: {{ w.color }}; opacity: {{ w.rowOpacity }};">
+              <i class="{{ w.caret }}" onClick="{{ w.onOpen }}" title="Open {{ w.name }}" style="font-size: 10px; color: var(--color-neutral-700); cursor: pointer; padding: 2px;"></i>
+              <span style="width: 16px; height: 16px; border-radius: var(--radius-sm); display: grid; place-items: center; background: {{ w.chipBg }}; color: {{ w.chipColor }}; opacity: {{ w.chipOpacity }};"><i class="{{ w.chipIcon }}" style="font-size: 10px;"></i></span>
+              <span style="font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ w.name }}</span>
+              <i class="ph ph-play" style="font-size: 11px; color: var(--color-neutral-600);" title="Pick up where it left off"></i>
+            </button>
+          </sc-for>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <div style="flex: 1;"></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: var(--space-4) var(--space-4) 4px; border-top: 1px solid var(--color-divider);"><span style="width: 19px; height: 19px; border-radius: var(--radius-sm); background: var(--color-accent-700); display: grid; place-items: center; font-size: 9px; color: var(--color-accent-100);">KL</span>KLONE<span style="font-size: 11px; color: var(--color-neutral-600);">· Max</span><span style="flex: 1;"></span><i class="ph ph-caret-up-down"></i></div>
+    </div>
+
+    <div style="display: grid; grid-template-rows: 40px minmax(0, 1fr) auto; min-height: 0; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-8); border-bottom: 1px solid var(--color-divider);">
+        <span style="font-size: 13.5px;">{{ appName }}</span>
+        <span class="tag tag-neutral" style="font-size: 11px;">{{ sessionBadge }}</span>
+        <span style="flex: 1;"></span>
+        <span style="display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--color-neutral-600);"><i class="ph ph-terminal"></i><i class="ph ph-layout"></i><i class="ph ph-dots-three-vertical"></i></span>
+      </div>
+
+      <div ref="{{ threadRef }}" style="min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 16px var(--space-8) var(--space-4); display: flex; flex-direction: column; gap: 12px;">
+        <span style="margin-top: auto;"></span>
+        <sc-for list="{{ convos }}" as="m" hint-placeholder-count="5">
+          <div onClick="{{ m.onClick }}" style-hover="border-color: {{ m.hoverEdge }}; opacity: 0.75; filter: grayscale(0.25); background: {{ m.hoverBg }}" style="position: relative; display: flex; flex-direction: column; gap: {{ m.cardGap }}; padding: {{ m.cardPad }}; border-radius: var(--radius-md); cursor: pointer; background: {{ m.cardBg }}; border: 1px solid {{ m.edge }}; border-left: {{ m.cardBorderLeft }}; margin-top: {{ m.cardTop }}; opacity: {{ m.cardOpacity }}; filter: {{ m.cardFilter }};">
+            <sc-if value="{{ m.isLive }}" hint-placeholder-val="{{ false }}">
+              <span style="position: absolute; top: 0; bottom: 0; left: -2px; width: 2px; overflow: hidden; pointer-events: none;"><span style="position: absolute; inset: 0; background: #5cc4ff;"></span></span>
+            </sc-if>
+            <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 7px 7px; column-gap: 7px;">
+              <img src="uploads/ChadProfileRound.png" alt="Chad" style="width: 20px; height: 20px; flex: none; border-radius: 50%; object-fit: cover;" />
+              <span style="font-size: 12px; line-height: 1; font-weight: 600; color: {{ m.nameColor }};">{{ m.who }}</span>
+              <span style="width: 1px; height: 10px; background: color-mix(in srgb, var(--color-text) 16%, transparent);"></span>
+              <span style="font-size: 11px; line-height: 1; font-variant-numeric: tabular-nums; color: {{ m.createdColor }}; white-space: nowrap;">{{ m.createdAt }}</span>
+              <sc-if value="{{ m.isDone }}" hint-placeholder-val="{{ false }}">
+                <span style="margin-left: auto; display: flex; flex: none; align-items: center; gap: 10px;">
+                  <span style="font-size: 10.5px; color: var(--color-neutral-500); white-space: nowrap;">{{ m.stepLabel }}</span>
+                  <i class="ph ph-chat-teardrop" onClick="{{ m.onComment }}" title="Reply to Vynel" style-hover="color: var(--color-accent)" style="font-size: 13px; color: {{ m.commentColor }}; cursor: pointer; transition: color 120ms;"></i>
+                  <i class="{{ m.expandIcon }}" onClick="{{ m.onExpand }}" title="{{ m.expandTitle }}" style-hover="color: var(--color-accent)" style="font-size: 13px; color: var(--color-neutral-500); cursor: pointer; transition: color 120ms;"></i>
+                </span>
+              </sc-if>
+              <sc-if value="{{ m.isLive }}" hint-placeholder-val="{{ false }}">
+                <span style="margin-left: auto; display: flex; flex: none; align-items: center; gap: 7px; padding: 2px 9px 2px 6px; border-radius: 999px; background: var(--color-neutral-900); border: 1px solid color-mix(in srgb, #5cc4ff 70%, transparent);">
+                <i class="ph ph-hand-tap" style="font-size: 13px; color: #38b6ff;"></i>
+                <span style="font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #8ad4ff;">Needs input</span>
+                <span style="width: 1px; height: 9px; background: color-mix(in srgb, #38b6ff 40%, transparent);"></span>
+                <span style="font-size: 9.5px; font-variant-numeric: tabular-nums; color: #8ad4ff;">{{ m.workingFor }}</span>
+              </span>
+              </sc-if>
+            </div>
+            <sc-if value="{{ m.collapsed }}" hint-placeholder-val="{{ false }}">
+              <span style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+                <span style="font-size: 14px; font-weight: 500; line-height: 1.35; color: {{ m.color }}; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ m.firstLine }}</span>
+                <span onClick="{{ m.onExpand }}" style-hover="color: var(--color-accent)" style="flex: none; font-size: 11.5px; color: var(--color-neutral-500); cursor: pointer; transition: color 120ms;">read more</span>
+              </span>
+            </sc-if>
+            <sc-if value="{{ m.showLines }}" hint-placeholder-val="{{ true }}">
+              <sc-for list="{{ m.lines }}" as="l" hint-placeholder-count="2">
+                <span style="font-size: 14px; font-weight: 500; line-height: 1.35; color: {{ m.color }}; text-wrap: pretty;">{{ l }}</span>
+              </sc-for>
+            </sc-if>
+            <sc-if value="{{ m.showBody }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 9px; border-top: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);">
+                <div onClick="{{ m.onToggleReply }}" style="display: flex; flex-direction: column; gap: 7px; cursor: pointer;">
+                  <span style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; row-gap: 6px;">
+                    <i class="ph ph-disc" title="Vynel" style="font-size: 14px; color: #38b6ff;"></i>
+                    <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-400);">Vynel</span>
+                    <sc-if value="{{ m.isLive }}" hint-placeholder-val="{{ false }}">
+                      <span style="display: inline-flex; align-items: center; gap: 5px; height: 17px; padding: 0 9px; border-radius: 999px; background: color-mix(in srgb, #38b6ff 9%, var(--color-bg)); border: 1px solid color-mix(in srgb, #38b6ff 40%, transparent); font-size: 11px; line-height: 1; color: #8ad4ff; white-space: nowrap;">waiting<span style="font-variant-numeric: tabular-nums;">{{ m.waitingFor }}</span></span>
+                    </sc-if>
+                    <sc-if value="{{ m.isLive }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size: 10.5px; color: #8ad4ff; white-space: nowrap;">{{ m.stepLabel }}</span>
+                    </sc-if>
+                    <span style="display: flex; align-items: center; gap: 9px; margin-left: auto; font-size: 10.5px; color: var(--color-neutral-600); white-space: nowrap;">{{ m.replyAt }}<i class="{{ m.replyCaret }}" style="font-size: 10px;"></i><i class="ph ph-chat-teardrop" onClick="{{ m.onComment }}" title="Reply to Vynel" style-hover="color: var(--color-accent); transform: scale(1.15)" style="font-size: 12px; cursor: pointer; color: {{ m.commentColor }}; transition: color 120ms, transform 120ms;"></i></span>
+                  </span>
+                  <span style="display: flex; align-items: baseline; gap: 7px;">
+                    <i class="ph ph-info" style="font-size: 11px; color: var(--color-neutral-600); flex: none;"></i>
+                    <span style="flex: 1 1 auto; min-width: 0; font-size: 12.5px; line-height: 1.4; color: var(--color-neutral-200); text-wrap: pretty;">{{ m.replyLead }}</span>
+                  </span>
+                </div>
+                <sc-if value="{{ m.replyOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 7px;">
+                    <sc-for list="{{ m.blocks }}" as="b" hint-placeholder-count="3">
+                      <div style="display: flex; gap: 8px; padding-left: {{ b.indent }};">
+                        <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-neutral-600); flex: none;">{{ b.marker }}</span>
+                        <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-neutral-300); min-width: 0; text-wrap: pretty;"><sc-for list="{{ b.parts }}" as="p" hint-placeholder-count="1"><span style="font-weight: {{ p.weight }}; color: {{ p.color }}; background: {{ p.bg }}; padding: {{ p.pad }}; border-radius: 4px; font-family: {{ p.font }}; font-size: {{ p.size }};">{{ p.text }}</span></sc-for></span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.commentOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 7px; padding: 8px 11px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--color-text) 4%, transparent); border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);">
+                <textarea placeholder="Reply to Vynel — what should change?" value="{{ m.commentText }}" onChange="{{ m.onCommentText }}" onClick="{{ m.stop }}" style="font: inherit; font-size: 13px; line-height: 1.4; color: var(--color-text); background: transparent; border: none; outline: none; resize: none; height: 30px; min-height: 30px; width: 100%;"></textarea>
+                <div style="display: flex; align-items: center; gap: 9px;">
+                  <i class="ph ph-paperclip" title="Attach" style="font-size: 14px; color: var(--color-neutral-500); cursor: pointer;"></i>
+                  <span style="flex: 1;"></span>
+                  <button type="button" onClick="{{ m.onCommentCancel }}" class="btn btn-ghost" style="font-size: 12px; padding: 4px 12px;">Cancel</button>
+                  <button type="button" onClick="{{ m.onCommentSend }}" class="btn btn-primary" style="font-size: 12px; padding: 4px 14px;">Send</button>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.showShot }}" hint-placeholder-val="{{ false }}">
+              <span style="width: 150px; height: 66px; border-radius: 4px; background: var(--color-neutral-900); border: 1px solid var(--color-divider); display: grid; place-items: center; color: var(--color-neutral-700); font-size: 14px; opacity: {{ m.shotOpacity }};"><i class="ph ph-image"></i></span>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="min-width: 0; padding: 10px var(--space-8) 12px; display: flex; flex-direction: column; gap: 9px;">
+        <sc-if value="{{ hasQueued }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; gap: 9px; min-width: 0; width: 100%;">
+            <span style="flex: none; font-size: 9.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-neutral-700);">Queued</span>
+            <div style="display: flex; gap: 8px; min-width: 0;">
+              <sc-for list="{{ queuedMsgs }}" as="q" hint-placeholder-count="2">
+                <span style="display: flex; align-items: center; gap: 9px; flex: 0 1 auto; min-width: 0; max-width: 260px; padding: 4px 9px 4px 11px; border-radius: 999px; background: transparent; border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+                  <span style="font-size: 11px; font-weight: 400; color: var(--color-neutral-600); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ q.text }}</span>
+                  <i class="ph ph-x" onClick="{{ q.onRemove }}" title="Remove" style-hover="color: var(--color-accent)" style="font-size: 10px; color: var(--color-neutral-700); cursor: pointer; transition: color 120ms;"></i>
+                </span>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <div style="display: flex; align-items: center; padding: 14px 16px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-divider);">
+          <input value="{{ draft }}" onChange="{{ setDraft }}" placeholder="Create a task..." style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 13.5px; color: var(--color-text); outline: none;">
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; row-gap: 10px;">
+          <i class="ph ph-plus" title="Attach" style="font-size: 15px; color: var(--color-neutral-500); cursor: pointer;"></i>
+          <sc-for list="{{ actions }}" as="a" hint-placeholder-count="3">
+            <button type="button" style-hover="background: color-mix(in srgb, var(--color-text) 7%, transparent)" style="display: flex; align-items: center; gap: 7px; padding: 5px 12px; font: inherit; font-size: 12px; border-radius: 999px; cursor: pointer; border: 1px solid {{ a.edge }}; background: transparent; color: {{ a.color }}; white-space: nowrap;">
+              <i class="{{ a.icon }}" style="font-size: 12px;"></i>{{ a.label }}
+            </button>
+          </sc-for>
+          <span style="flex: 1;"></span>
+          <span style="display: flex; align-items: center; gap: 11px; min-width: 0; font-size: 12px; color: var(--color-neutral-500);">
+            <sc-for list="{{ picks }}" as="p" hint-placeholder-count="3">
+              <span style="display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap;">{{ p }}<i class="ph ph-caret-down" style="font-size: 9px; color: var(--color-neutral-600);"></i></span>
+            </sc-for>
+            <i class="ph ph-git-branch" style="font-size: 13px; cursor: pointer;"></i>
+            <i class="ph ph-microphone" style="font-size: 13px; cursor: pointer;"></i>
+            <span style="width: 25px; height: 25px; flex: none; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--color-accent-700); color: var(--color-accent-100); cursor: pointer;"><i class="ph ph-arrow-up" style="font-size: 12px;"></i></span>
+          </span>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; min-width: 0;">
+        <button type="button" onClick="{{ toggleExplain }}" style="display: flex; align-items: center; gap: 10px; width: fit-content; font: inherit; border: 0; background: transparent; cursor: pointer; padding: 0;">
+          <span style="width: 30px; height: 17px; flex: none; border-radius: 999px; padding: 2px; background: {{ explainTrack }}; display: flex; justify-content: {{ explainJustify }};">
+            <span style="width: 13px; height: 13px; border-radius: 50%; background: {{ explainKnob }};"></span>
+          </span>
+          <span style="font-size: 12.5px; color: {{ explainColor }};">Clarify before build</span>
+        </button>
+        <button type="button" onClick="{{ toggleAuto }}" style="display: flex; align-items: center; gap: 10px; width: fit-content; font: inherit; border: 0; background: transparent; cursor: pointer; padding: 0;">
+          <span style="width: 30px; height: 17px; flex: none; border-radius: 999px; padding: 2px; background: {{ autoTrack }}; display: flex; justify-content: {{ autoJustify }};">
+            <span style="width: 13px; height: 13px; border-radius: 50%; background: {{ autoKnob }};"></span>
+          </span>
+          <span style="font-size: 12.5px; color: {{ autoColor }};">Auto buildout</span>
+        </button>
+        <button type="button" onClick="{{ toggleRewrite }}" style="display: flex; align-items: center; gap: 10px; width: fit-content; font: inherit; border: 0; background: transparent; cursor: pointer; padding: 0;">
+          <span style="width: 30px; height: 17px; flex: none; border-radius: 999px; padding: 2px; background: {{ rewriteTrack }}; display: flex; justify-content: {{ rewriteJustify }};">
+            <span style="width: 13px; height: 13px; border-radius: 50%; background: {{ rewriteKnob }};"></span>
+          </span>
+          <span style="font-size: 12.5px; color: {{ rewriteColor }};">Rewrite with AI</span>
+        </button>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ railShown }}" hint-placeholder-val="{{ true }}">
+    <div style="min-height: 0; border-left: 1px solid var(--color-divider); padding: var(--space-8) var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); overflow-y: auto; overflow-x: hidden;">
+      <div style="display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-md); background: color-mix(in srgb, #38b6ff 9%, var(--color-bg)); border: 1px solid color-mix(in srgb, #5cc4ff 72%, transparent); border-left: 2px solid #5cc4ff;">
+        <span style="display: flex; align-items: center; gap: 7px; font-size: 10px; color: #8ad4ff;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #38b6ff; box-shadow: 0 0 8px color-mix(in srgb, #38b6ff 60%, transparent);"></span>{{ railKicker }}
+        </span>
+        <span style="font-size: 13px; font-weight: 500; line-height: 1.35; color: #d6ecff;">{{ liveSessionTitle }}</span>
+        <span style="font-size: 10.5px; color: #8ad4ff;">{{ liveSessionMeta }}</span>
+        <span style="height: 3px; border-radius: 3px; background: rgba(0,0,0,0.35);"><span style="display: block; height: 3px; border-radius: 3px; background: #38b6ff; box-shadow: 0 0 10px var(--color-accent-600); width: {{ pct }}%;"></span></span>
+        <span style="font-size: 10px; color: #8ad4ff;">{{ progressLabel }}</span>
+      </div>
+
+      <span style="display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-neutral-600); padding: 2px 0;">Tasks<span style="color: var(--color-neutral-700);">{{ doneCount }}</span></span>
+
+      <div style="flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overflow-x: hidden;">
+        <sc-for list="{{ shownTasks }}" as="s" hint-placeholder-count="8">
+          <button type="button" onClick="{{ s.onClick }}" onMouseEnter="{{ s.onEnter }}" onMouseLeave="{{ s.onLeave }}" style-hover="background: color-mix(in srgb, var(--color-text) 6%, transparent)" style="display: grid; grid-template-columns: 15px minmax(0, 1fr) auto; gap: 9px; align-items: center; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 7px 9px; border-radius: var(--radius-sm); background: {{ s.bg }};">
+            <i class="{{ s.icon }}" style="font-size: 12px; color: {{ s.iconColor }};"></i>
+            <span title="{{ s.name }}" style="font-size: 12px; color: {{ s.color }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: {{ s.opacity }};">{{ s.name }}</span>
+            <span style="font-size: 10px; font-variant-numeric: tabular-nums; color: var(--color-neutral-600);">{{ s.steps }}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: var(--space-6); border-top: 1px solid var(--color-divider);">
+        <span style="font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-neutral-600); padding-bottom: 3px;">Open it</span>
+        <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+          <button type="button" onClick="{{ toggleLocal }}" class="btn btn-primary btn-block" style-hover="background: color-mix(in srgb, var(--color-accent) 16%, transparent)" style="justify-content: flex-start; gap: 10px; padding: 10px 12px; margin-top: 0; font-size: 12.5px;" title="{{ localValue }}">
+            <i class="ph ph-monitor" style="font-size: 15px;"></i>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ localLabel }}</span>
+            <span style="flex: 1;"></span>
+            <i class="{{ localCaret }}" style="font-size: 12px;"></i>
+          </button>
+          <sc-if value="{{ localOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; padding: 5px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-divider); box-shadow: var(--shadow-md);">
+              <sc-for list="{{ localTargets }}" as="t" hint-placeholder-count="3">
+                <button type="button" onClick="{{ t.onPick }}" style-hover="background: color-mix(in srgb, var(--color-text) 7%, transparent)" style="display: grid; grid-template-columns: 15px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; text-align: left; font: inherit; border: 0; cursor: pointer; padding: 7px 8px; border-radius: var(--radius-sm); background: {{ t.bg }};">
+                  <i class="{{ t.icon }}" style="font-size: 12px; color: {{ t.iconColor }};"></i>
+                  <span style="min-width: 0; display: flex; flex-direction: column; gap: 1px;">
+                    <span style="font-size: 12px; color: {{ t.color }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ t.label }}</span>
+                    <span style="font-size: 10px; color: var(--color-neutral-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ t.value }}</span>
+                  </span>
+                  <i class="ph ph-arrow-up-right" style="font-size: 11px; color: var(--color-neutral-600);"></i>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <button type="button" class="btn btn-primary btn-block" style-hover="background: color-mix(in srgb, var(--color-accent) 16%, transparent)" style="justify-content: flex-start; gap: 10px; padding: 10px 12px; margin-top: 0; font-size: 12.5px;" title="{{ repoValue }}">
+            <i class="ph ph-git-branch" style="font-size: 15px;"></i>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Open repository</span>
+            <span style="flex: 1;"></span>
+            <i class="ph ph-arrow-up-right" style="font-size: 12px;"></i>
+          </button>
+          <button type="button" onClick="{{ toggleAbort }}" style-hover="background: color-mix(in srgb, #f2564b 14%, transparent); color: #ff9a91" style="display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; font: inherit; font-size: 12.5px; padding: 10px 12px; border-radius: var(--radius-md); cursor: pointer; background: transparent; border: 1px solid color-mix(in srgb, #f2564b 38%, transparent); color: #f2564b; transition: background 120ms, color 120ms;">
+            <i class="ph ph-stop-circle" style="font-size: 15px;"></i>
+            <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Abort all tasks</span>
+          </button>
+          <sc-if value="{{ abortOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 9px; padding: 10px 11px; border-radius: var(--radius-md); background: color-mix(in srgb, #f2564b 9%, var(--color-bg)); border: 1px solid color-mix(in srgb, #f2564b 40%, transparent);">
+              <span style="font-size: 11.5px; line-height: 1.4; color: #ffdcd8; text-wrap: pretty;">{{ abortNote }}</span>
+              <span style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" onClick="{{ toggleAbort }}" class="btn btn-ghost" style="font-size: 11.5px; padding: 4px 11px;">Keep going</button>
+                <button type="button" onClick="{{ toggleAbort }}" style-hover="background: color-mix(in srgb, #f2564b 26%, transparent)" style="font: inherit; font-size: 11.5px; padding: 4px 12px; border-radius: var(--radius-sm); cursor: pointer; background: color-mix(in srgb, #f2564b 18%, transparent); border: 1px solid color-mix(in srgb, #f2564b 45%, transparent); color: #ffdcd8;">Abort everything</button>
+              </span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+    </div>
+    </sc-if>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;appName&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;Front Table&quot;, &quot;tsType&quot;: &quot;string&quot;}, &quot;navMode&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;menu&quot;, &quot;tabs&quot;], &quot;default&quot;: &quot;menu&quot;, &quot;tsType&quot;: &quot;\&quot;menu\&quot; | \&quot;tabs\&quot;&quot;, &quot;section&quot;: &quot;Navigation&quot;}}">
+const ACCENT = 'var(--color-accent)';
+
+const SESSIONS = [
+  'Make the folder', 'Put the skeleton up', 'Decide the look', 'The frame around every page',
+  'Setting up both dev servers', 'Somewhere to keep things', 'Let people in', 'The main thing it does',
+  'Saving what people enter', 'Seeing it all in a list', 'Looking at one of them', 'The calendar',
+  'Check it over and hand it to you'
+];
+const AFTER = ['Keeping people posted', 'Photos', 'The bits you liked elsewhere'];
+
+class Component extends DCLogic {
+  state = { current: 4, draft: '', nav: null, viewing: null, workspace: 0, loopOpen: false, drill: null, drillSection: 1, folders: [], assign: {}, dragging: null, hover: null };
+
+  stackFor(n) {
+    const TABLE = [
+      { front: 'Nuxt.js', back: 'Nitro', db: 'SQLite', model: 'Claude · Opus 5' },
+      { front: 'Next.js', back: 'API routes', db: 'Postgres', model: 'Claude · Sonnet' },
+      { front: 'Next.js', back: 'Node + Express', db: 'Postgres', model: 'Grok · 4' },
+      { front: 'Nuxt.js', back: 'Nitro', db: 'MongoDB', model: 'Claude · Opus 5' },
+      { front: 'Expo', back: 'Node + Express', db: 'SQLite', model: 'GPT · 5' },
+      { front: 'Next.js', back: 'API routes', db: 'SQLite', model: 'Claude · Sonnet' },
+      { front: 'Nuxt.js', back: 'Nitro', db: 'Postgres', model: 'Grok · 4' }
+    ];
+    return TABLE[n] || TABLE[0];
+  }
+
+  navMode() { return this.state.nav || this.props.navMode || 'menu'; }
+
+  appAt(n) {
+    const mine = this.props.appName ?? 'Front Table';
+    const GENERIC = [
+      'Make the folder', 'Put the skeleton up', 'Decide the look', 'The frame around every page',
+      'The front page', 'Somewhere to keep things', 'Let people in', 'The main thing it does',
+      'Saving what people enter', 'Taking payment', 'Seeing it all in a list', 'Check it over and hand it over'
+    ];
+    const table = [
+      { name: mine, sessions: SESSIONS, cur: SESSIONS.length - 1, waiting: true, alert: 'feedback' },
+      { name: 'Letterman', sessions: GENERIC.slice(0, 10), cur: 3, waiting: true, alert: 'feedback' },
+      { name: 'Sharebirdy', sessions: GENERIC.slice(0, 11), cur: 7, waiting: false, alert: 'problem' },
+      { name: 'Course Sprout', sessions: GENERIC.slice(0, 9), cur: 8, waiting: false, alert: 'completed' },
+      { name: 'Food Truck', sessions: GENERIC.slice(0, 8), cur: null, waiting: false },
+      { name: 'Page Sprout', sessions: GENERIC.slice(0, 9), cur: null, waiting: false },
+      { name: 'Nicely Community', sessions: GENERIC.slice(0, 7), cur: null, waiting: false }
+    ];
+    return table[n] || table[0];
+  }
+
+  activeApp() { return this.appAt(this.state.workspace || 0); }
+
+  drillIndex() {
+    if (this.navMode() === 'tabs') return this.state.workspace || 0;
+    return this.state.drill === null || this.state.drill === undefined ? 0 : this.state.drill;
+  }
+
+  slug(v) { return (v || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+  componentDidUpdate() { this.pinThread(); }
+
+  pinThread() {
+    const el = this._thread;
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+
+  componentDidMount() {
+    setTimeout(() => this.pinThread(), 60);
+    this._onResize = () => this.setState({ vw: window.innerWidth });
+    window.addEventListener('resize', this._onResize);
+    this._onResize();
+  }
+
+  componentWillUnmount() { window.removeEventListener('resize', this._onResize); }
+
+  tickElapsed() {}
+  componentWillUnmount() { if (this._tick) clearInterval(this._tick); }
+  componentDidMount() { if (this._thread) this._thread.scrollTop = this._thread.scrollHeight; }
+  queueList(s, all, stage) {
+    const dropped = s.dropped || [];
+    return all
+      .filter((x) => !x.after && stage(x.n) === 'queued')
+      .map((x) => (x.n + 1) + '. ' + x.name)
+      .filter((t) => dropped.indexOf(t) < 0)
+      .slice(0, 2);
+  }
+  renderVals() {
+    this.tickElapsed();
+    const s = this.state;
+    const app = this.activeApp();
+    const LIST = app.sessions;
+    const running = app.cur !== null && app.cur !== undefined;
+    const cur = running ? app.cur : 0;
+    const all = LIST.map((name, n) => ({ name: name, after: false, n: n }))
+      .concat(AFTER.map((name, n) => ({ name: name, after: true, n: LIST.length + n })));
+
+    const stage = (n) => !running ? 'queued' : n < cur ? 'done' : n === cur ? 'live' : 'queued';
+
+    return {
+      appName: app.name,
+      appRunning: running, appIdle: !running,
+      tabsMode: this.navMode() === 'tabs', menuMode: this.navMode() === 'menu',
+      leftCol: '208px',
+      gridCols: '208px minmax(320px, 1fr) minmax(0, 272px)',
+      railShown: true,
+      previewTitle: app.name + ' — preview',
+      previewUrl: 'localhost:' + (3000 + (s.workspace || 0)) + '/',
+      urlDraft: s.urlDraft === undefined ? 'google.com' : s.urlDraft,
+      previewSrc: s.previewSrc || 'https://www.google.com/webhp?igu=1',
+      blockedTitle: 'Cannot show ' + (s.urlDraft === undefined ? 'google.com' : s.urlDraft || 'this page'),
+      setUrl: (e) => this.setState({ urlDraft: e.target.value }),
+      goUrl: (e) => {
+        if (e.key !== 'Enter') return;
+        const v = (e.target.value || '').trim();
+        if (!v) return;
+        const url = /^https?:\/\//.test(v) ? v : 'https://' + v;
+        this.setState({ previewSrc: /google\.com\/?$/.test(url) ? 'https://www.google.com/webhp?igu=1' : url });
+      },
+      previewInitials: app.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
+      previewDevices: [
+        { key: 'desktop', icon: 'ph ph-monitor', title: 'Desktop' },
+        { key: 'phone', icon: 'ph ph-device-mobile', title: 'Phone' }
+      ].map((d) => ({
+        icon: d.icon, title: d.title,
+        color: (s.previewDevice || 'desktop') === d.key ? ACCENT : 'var(--color-neutral-600)',
+        onClick: () => this.setState({ previewDevice: d.key })
+      })),
+      previewWidth: (s.previewDevice === 'phone') ? '260px' : '100%',
+      previewRadius: (s.previewDevice === 'phone') ? '20px' : 'var(--radius-md)',
+      previewPad: (s.previewDevice === 'phone') ? 'var(--space-6)' : 'var(--space-4)',
+      siteNav: ['Menu', 'Tonight', 'About'],
+      siteKicker: running ? 'Built in session ' + (cur + 1) : 'Last build',
+      siteHeadline: 'A table for you at ' + app.name,
+      siteSub: 'See what is free tonight, hold a table in a few taps, and we will text you when it is ready.',
+      siteFeatures: [
+        { icon: 'ph ph-armchair', title: 'See what is free', note: 'Tonight at a glance, updated as tables turn.' },
+        { icon: 'ph ph-clock', title: 'Hold in seconds', note: 'Pick a time, leave a name, done.' },
+        { icon: 'ph ph-chat-circle', title: 'We text you', note: 'A message when your table is ready.' }
+      ],
+      previewKicker: running ? 'Session ' + (cur + 1) + ' · just built' : 'Last build',
+      previewHeadline: 'Tonight at ' + app.name,
+      previewRows: [
+        { icon: 'ph ph-armchair', title: 'Table 4 · window', note: '7:00pm · party of 2', tag: 'Held' },
+        { icon: 'ph ph-armchair', title: 'Table 9 · booth', note: '7:30pm · party of 4', tag: 'Seated' },
+        { icon: 'ph ph-armchair', title: 'Table 2 · bar', note: '8:15pm · party of 3', tag: 'Free' },
+        { icon: 'ph ph-armchair', title: 'Table 11 · patio', note: '8:45pm · party of 6', tag: 'Held' }
+      ],
+      previewFoot: running ? 'Reloads by itself as each session lands' : 'Showing the last build',
+      navModes: [
+        { key: 'tabs', label: 'Tabs', icon: 'ph ph-browsers', title: 'Workspaces as tabs along the top' },
+        { key: 'menu', label: 'Menu', icon: 'ph ph-list', title: 'Workspaces listed down the side' }
+      ].map((m) => ({
+        label: m.label, icon: m.icon, title: m.title,
+        onClick: () => this.setState({ nav: m.key }),
+        border: this.navMode() === m.key ? ACCENT : 'transparent',
+        bg: this.navMode() === m.key ? 'var(--color-accent-900)' : 'transparent',
+        color: this.navMode() === m.key ? 'var(--color-accent-100)' : 'var(--color-neutral-500)'
+      })),
+      liveSession: running ? 'Session ' + (cur + 1) + ' — ' + LIST[cur].toLowerCase() : 'Not running',
+      sessionBadge: 'Waiting on your answer',
+      projects: ['Letterman', 'Sharebirdy', 'Course Sprout', 'Food Truck', 'Page Sprout', 'Nicely Community'],
+      drilled: this.navMode() === 'tabs' || (s.drill !== null && s.drill !== undefined),
+      notDrilled: this.navMode() !== 'tabs' && (s.drill === null || s.drill === undefined),
+      showBackToFolder: this.navMode() !== 'tabs',
+      leaveDrill: () => this.setState({ drill: null }),
+      drillName: (() => {
+        const names = [(this.props.appName ?? 'Front Table'), 'Letterman', 'Sharebirdy', 'Course Sprout', 'Food Truck', 'Page Sprout', 'Nicely Community'];
+        return names[this.drillIndex()];
+      })(),
+      drillInitials: (() => {
+        const names = [(this.props.appName ?? 'Front Table'), 'Letterman', 'Sharebirdy', 'Course Sprout', 'Food Truck', 'Page Sprout', 'Nicely Community'];
+        return (names[this.drillIndex()] || '').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+      })(),
+      drillMeta: (() => {
+        const a = this.appAt(this.drillIndex());
+        if (a.cur === null || a.cur === undefined) return 'Nothing running';
+        return 'Session ' + (a.cur + 1) + ' of ' + a.sessions.length + ' · ' + a.sessions[a.cur] + (a.waiting ? ' — needs you' : '');
+      })(),
+      drillMetaColor: this.appAt(this.drillIndex()).waiting ? 'var(--color-accent-200)' : 'var(--color-accent-300)',
+      drillSections: [
+        { label: 'Chat', icon: 'ph ph-chat-circle', meta: '' },
+        { label: 'Sessions', icon: 'ph ph-clock-counter-clockwise', meta: String(this.appAt(this.drillIndex()).sessions.length) },
+        { label: 'Agents', icon: 'ph ph-robot', meta: '3' },
+        { label: 'Skills', icon: 'ph ph-wrench', meta: '7' },
+        { label: 'Rules', icon: 'ph ph-scroll', meta: '2' },
+        { label: 'Apps', icon: 'ph ph-play-circle', meta: '1' },
+        { label: 'Memory', icon: 'ph ph-brain', meta: '' },
+        { label: 'Knowledge', icon: 'ph ph-books', meta: '' },
+        { label: 'Settings', icon: 'ph ph-gear-six', meta: '' }
+      ].map((x, i) => ({
+        label: x.label, icon: x.icon, meta: x.meta,
+        bg: i === (s.drillSection || 0) ? 'var(--color-accent-900)' : 'transparent',
+        color: i === (s.drillSection || 0) ? 'var(--color-accent-100)' : 'var(--color-neutral-400)',
+        iconColor: i === (s.drillSection || 0) ? ACCENT : 'var(--color-neutral-600)',
+        onClick: () => this.setState({ drillSection: i })
+      })),
+
+      offOpen: !!s.offOpen,
+      offCaret: s.offOpen ? 'ph ph-caret-down' : 'ph ph-caret-right',
+      toggleOff: () => this.setState((p) => ({ offOpen: !p.offOpen })),
+
+      workspaces: (() => {
+        const mine = (this.props.appName ?? 'Front Table');
+        const names = [mine, 'Letterman', 'Sharebirdy', 'Course Sprout', 'Food Truck', 'Page Sprout', 'Nicely Community'];
+        const active = s.workspace === null || s.workspace === undefined ? 0 : s.workspace;
+        const RUNNING = { 0: [this.state.current, SESSIONS.length], 2: [7, 11], 3: [2, 9] };
+        const WAITING = { 0: true, 3: true };
+        const rows = names.map((name, n) => {
+          const on = active === n;
+          const data = this.appAt(n);
+          const run = data.cur === null || data.cur === undefined ? null : [data.cur, data.sessions.length];
+          const alert = data.alert;
+          const waiting = alert === 'feedback';
+          const state = run ? (alert ? 'flagged' : 'running') : 'off';
+          const MARKS = {
+            feedback: { color: '#e08243', label: 'requires help' },
+            problem: { color: '#d3564f', label: 'hit a problem' },
+            completed: { color: '#38b6ff', label: 'completed' }
+          };
+          const mark = MARKS[alert];
+          return {
+            name: name,
+            initials: name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
+            live: n === 0,
+            running: !!run,
+            waiting: !!mark,
+            alertIcon: '',
+            markLabel: mark ? name + ' — ' + mark.label : '',
+            alertBg: mark ? mark.color : 'transparent',
+            alertColor: 'var(--color-bg)',
+            alertPulse: 'none',
+            chipIcon: (!mark && run) ? 'ph ph-circle-notch' : run ? 'ph ph-cube' : 'ph ph-moon',
+            chipSpin: (!mark && run) ? 'vw-spin 1.1s linear infinite' : 'none',
+            chipOpacity: state === 'off' ? '0.55' : '1',
+            rowOpacity: state === 'off' && !on ? '0.5' : '1',
+            progress: run ? (alert === 'completed' ? (n === active ? all.length : run[1]) + '/' + (n === active ? all.length : run[1]) : run[0] + '/' + run[1]) : '',
+            progressColor: mark ? 'var(--color-neutral-500)' : 'var(--color-neutral-600)',
+            tip: mark
+              ? name + ' — ' + mark.label + ' — task ' + (run[0] + 1) + ' of ' + run[1]
+              : run
+                ? name + ' is building — task ' + (run[0] + 1) + ' of ' + run[1]
+                : name + ' is not running',
+            pct: run ? Math.round(100 * run[0] / run[1]) : 0,
+            bg: on ? (alert === 'completed' ? 'color-mix(in srgb, #38b6ff 9%, var(--color-bg))' : 'var(--color-accent-900)') : 'transparent',
+            color: on ? (alert === 'completed' ? '#d6ecff' : 'var(--color-accent-100)') : 'var(--color-neutral-400)',
+            chipBg: state === 'off' ? 'var(--color-neutral-900)' : (alert === 'completed' ? 'color-mix(in srgb, #38b6ff 9%, var(--color-bg))' : 'var(--color-accent-900)'),
+            chipColor: state === 'off' ? 'var(--color-neutral-600)' : alert === 'completed' ? '#38b6ff' : mark ? 'var(--color-neutral-500)' : 'var(--color-accent-200)',
+            caret: 'ph ph-caret-right',
+            onClick: () => this.setState({ workspace: n, viewing: null, loopOpen: false }),
+            onOpen: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ workspace: n, drill: n, viewing: null, loopOpen: false }); },
+            off: state === 'off',
+            selected: on,
+            index: n,
+            hovered: s.hover === n,
+            onEnter: (e) => {
+              const box = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+              this.setState({ hover: n, hoverTop: box ? Math.max(44, Math.min(box.top - 6, window.innerHeight - 300)) : 120 });
+            },
+            onLeave: () => this.setState({ hover: null }),
+            card: (() => {
+              const st = this.stackFor(n);
+              const slug = this.slug(name);
+              return {
+                name: name,
+                status: run ? (mark ? name + ' — ' + mark.label : 'Building task ' + (run[0] + 1) + ' of ' + run[1]) : 'Not running',
+                rows: [
+                  { label: 'Front end', value: st.front },
+                  { label: 'Back end', value: st.back },
+                  { label: 'Database', value: st.db },
+                  { label: 'Model', value: st.model },
+                  { label: 'Folder', value: '~/DEVELOPMENT/' + name },
+                  { label: 'Repository', value: 'github.com/klone/' + slug },
+                  { label: 'Local', value: 'localhost:' + (3000 + n) },
+                  { label: 'Shared', value: slug + '.ngrok.app' }
+                ]
+              };
+            })(),
+            draggable: true,
+            onDragStart: (e) => { this.setState({ dragging: n }); if (e && e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; },
+            onDragEnd: () => this.setState({ dragging: null, dropTarget: undefined })
+          };
+        });
+        this._rows = rows;
+        return rows;
+      })(),
+
+      hoverCard: (() => {
+        if (s.hover === null || s.hover === undefined) return null;
+        const row = (this._rows || []).find((r) => r.index === s.hover);
+        return row ? row.card : null;
+      })(),
+      hoverTop: s.hoverTop || 120,
+      clearHover: () => this.setState({ hover: null }),
+
+      folders: (s.folders || []).map((f) => {
+        const apps = (this._rows || []).filter((r) => !r.off && (s.assign || {})[r.index] === f.id);
+        return {
+          name: f.name, count: String(apps.length), apps: apps,
+          open: f.open !== false,
+          caret: f.open !== false ? 'ph ph-caret-down' : 'ph ph-caret-right',
+          icon: f.open !== false ? 'ph ph-folder-open' : 'ph ph-folder',
+          bg: s.dropTarget === f.id ? 'var(--color-accent-900)' : 'transparent',
+          edge: s.dropTarget === f.id ? ACCENT : 'transparent',
+          onToggle: () => this.setState((p) => ({
+            folders: (p.folders || []).map((x) => x.id === f.id ? Object.assign({}, x, { open: x.open === false }) : x)
+          })),
+          onDragOver: (e) => { if (e) e.preventDefault(); if (s.dropTarget !== f.id) this.setState({ dropTarget: f.id }); },
+          onDragLeave: () => this.setState({ dropTarget: undefined }),
+          onDrop: (e) => {
+            if (e) e.preventDefault();
+            this.setState((p) => ({
+              assign: Object.assign({}, p.assign, { [p.dragging]: f.id }),
+              dragging: null, dropTarget: undefined
+            }));
+          }
+        };
+      }),
+      hasFolders: (s.folders || []).length > 0,
+      newFolder: () => this.setState((p) => {
+        const id = 'f' + ((p.folders || []).length + 1);
+        return { folders: (p.folders || []).concat([{ id: id, name: 'New folder', open: true }]) };
+      }),
+      rootBg: s.dropTarget === 'root' ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)' : 'transparent',
+      rootDragOver: (e) => { if (e) e.preventDefault(); if (s.dropTarget !== 'root') this.setState({ dropTarget: 'root' }); },
+      rootDrop: (e) => {
+        if (e) e.preventDefault();
+        this.setState((p) => {
+          const next = Object.assign({}, p.assign);
+          delete next[p.dragging];
+          return { assign: next, dragging: null, dropTarget: undefined };
+        });
+      },
+
+      activeWorkspaces: (this._rows || [])
+        .filter((r) => !r.off && (s.assign || {})[r.index] == null)
+        .slice()
+        .sort((a, b) => (a.waiting ? 1 : 0) - (b.waiting ? 1 : 0)),
+      offWorkspaces: (this._rows || []).filter((r) => r.off),
+      offCount: String((this._rows || []).filter((r) => r.off).length),
+
+      pct: 92,
+      progressLabel: (all.length - 1) + ' of ' + all.length + ' tasks done · 1 waiting on you',
+      appTabs: (this._rows || []).map((r, n) => ({
+        name: r.name,
+        onClick: r.onClick,
+        bg: r.selected ? 'var(--color-bg)' : 'transparent',
+        color: r.selected ? 'var(--color-text)' : 'var(--color-neutral-400)',
+        edge: r.selected ? ACCENT : 'transparent',
+        opacity: r.off && !r.selected ? '0.55' : '1',
+        chipBg: r.chipBg, chipColor: r.chipColor, chipIcon: r.chipIcon, chipSpin: r.chipSpin,
+        alert: r.waiting, alertBg: r.alertBg, alertColor: r.alertColor,
+        alertIcon: r.alertIcon, alertPulse: r.alertPulse, markLabel: r.markLabel
+      })),
+      connections: [
+        { name: 'GitHub', icon: 'ph ph-github-logo', on: true },
+        { name: 'Vercel', icon: 'ph ph-triangle', on: true },
+        { name: 'Claude', icon: 'ph ph-sparkle', on: true },
+        { name: 'Grok', icon: 'ph ph-lightning', on: false }
+      ].map((c) => ({
+        icon: c.icon,
+        tip: c.name + (c.on ? ' — connected' : ' — not connected'),
+        bg: c.on ? 'var(--color-accent-900)' : 'transparent',
+        border: c.on ? 'var(--color-accent-600)' : 'var(--color-neutral-800)',
+        color: c.on ? 'var(--color-accent-200)' : 'var(--color-neutral-700)',
+        glow: c.on ? '0 0 8px var(--color-accent-900)' : 'none'
+      })),
+      railKicker: 'Waiting on you',
+      liveSessionTitle: all[all.length - 1].name,
+      liveSessionMeta: 'Task ' + all.length + ' · paused · needs your input',
+
+      sessions: all.map((x) => {
+        const st = x.after ? 'after' : stage(x.n);
+        const here = (s.viewing === null ? cur : s.viewing) === x.n;
+        return {
+          name: (x.n + 1) + '. ' + x.name,
+          icon: st === 'done' ? 'ph ph-check-circle' : st === 'live' ? 'ph ph-circle-half' : st === 'after' ? 'ph ph-moon' : 'ph ph-circle-dashed',
+          iconColor: st === 'done' ? ACCENT : st === 'live' ? 'var(--color-accent-200)' : 'var(--color-neutral-700)',
+          bg: here ? 'var(--color-accent-900)' : 'transparent',
+          color: here ? 'var(--color-accent-100)' : st === 'done' ? 'var(--color-neutral-500)' : st === 'after' ? 'var(--color-neutral-700)' : 'var(--color-neutral-400)',
+          strike: st === 'done' ? 'line-through' : 'none',
+          opacity: st === 'done' ? '0.55' : '1',
+          showLoop: here && st === 'live' && s.loopOpen,
+          onClick: () => this.setState((p) => ({
+            viewing: x.n,
+            loopOpen: p.viewing === x.n ? !p.loopOpen : false
+          }))
+        };
+      }),
+
+      queuedTasks: all.filter((x) => x.after).map((x) => {
+        const here = (s.viewing === null ? -1 : s.viewing) === x.n;
+        const tot = [6, 4, 9, 5, 7, 8][x.n % 6];
+        return {
+          name: (x.n + 1) + '. ' + x.name,
+          icon: x.after ? 'ph ph-moon' : 'ph ph-circle-dashed',
+          iconColor: 'var(--color-neutral-700)',
+          bg: here ? 'var(--color-accent-900)' : 'transparent',
+          color: here ? 'var(--color-accent-100)' : x.after ? 'var(--color-neutral-700)' : 'var(--color-neutral-400)',
+          opacity: '1',
+          steps: x.after ? 'later' : tot + ' steps',
+          onClick: () => this.setState({ viewing: x.n, loopOpen: false })
+        };
+      }),
+      doneTasks: all.filter((x) => !x.after).map((x) => {
+        const here = (s.viewing === null ? -1 : s.viewing) === x.n;
+        const tot = [5, 7, 4, 9, 6, 8][x.n % 6];
+        return {
+          name: (x.n + 1) + '. ' + x.name,
+          icon: 'ph ph-check-circle',
+          iconColor: 'var(--color-neutral-600)',
+          bg: here ? 'var(--color-accent-900)' : 'transparent',
+          color: here ? 'var(--color-accent-100)' : 'var(--color-neutral-500)',
+          opacity: '0.6',
+          steps: tot + ' of ' + tot,
+          onClick: () => this.setState({ viewing: x.n, loopOpen: false })
+        };
+      }),
+      listTabs: [
+        { key: 'queue', label: 'Later', count: String(all.filter((x) => x.after).length) },
+        { key: 'done', label: 'Completed', count: String(all.filter((x) => !x.after).length) }
+      ].map((t) => {
+        const on = (s.listTab || 'done') === t.key;
+        return {
+          label: t.label, count: t.count,
+          bg: on ? 'var(--color-accent-900)' : 'transparent',
+          color: on ? 'var(--color-accent-100)' : 'var(--color-neutral-500)',
+          countColor: on ? 'var(--color-accent-300)' : 'var(--color-neutral-700)',
+          onClick: () => this.setState({ listTab: t.key })
+        };
+      }),
+      queuedCount: String(all.filter((x) => x.after || stage(x.n) === 'queued').length),
+      doneCount: String(all.length),
+
+      shownTasks: all.map((x) => {
+        const here = (s.viewing === null ? -1 : s.viewing) === x.n;
+        const isDone = true;
+        const tot = [5, 7, 4, 9, 6, 8][x.n % 6];
+        return {
+          name: (x.n + 1) + '. ' + x.name,
+          icon: 'ph ph-check-circle',
+          iconColor: 'var(--color-neutral-600)',
+          bg: here ? 'var(--color-accent-900)' : 'transparent',
+          color: here ? 'var(--color-accent-100)' : isDone ? 'var(--color-neutral-500)' : x.after ? 'var(--color-neutral-700)' : 'var(--color-neutral-400)',
+          opacity: isDone ? '0.6' : '1',
+          steps: isDone ? tot + ' of ' + tot : x.after ? 'later' : tot + ' steps',
+          onClick: () => this.setState({ viewing: x.n, loopOpen: false }),
+          onEnter: (e) => {
+            const box = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+            this.setState({
+              taskHover: x.n,
+              taskTop: box ? Math.max(12, Math.min(box.top - 8, window.innerHeight - 348)) : 120
+            });
+          },
+          onLeave: () => this.setState({ taskHover: null })
+        };
+      }),
+
+      taskTop: (s.taskTop || 120) + 'px',
+      taskCard: (() => {
+        const n = s.taskHover;
+        if (n === null || n === undefined) return null;
+        const x = all[n];
+        if (!x) return null;
+        const isDone = true;
+        const tot = [5, 7, 4, 9, 6, 8][x.n % 6];
+        const DAYS = ['Sat Aug 8', 'Sun Aug 9', 'Sun Aug 9', 'Mon Aug 10', 'Mon Aug 10'];
+        const TIMES = ['11:42 AM', '2:18 PM', '5:36 PM', '7:02 PM', '9:58 AM'];
+        const STEP_NAMES = [
+          'Read what is there', 'Sketch the shape', 'Write the code', 'Wire it up', 'Style it',
+          'Try it locally', 'Fix what broke', 'Commit and push', 'Note it for you'
+        ];
+        return {
+          name: (x.n + 1) + '. ' + x.name,
+          hasSteps: true,
+          hasMore: tot > 5,
+          moreLabel: '+' + Math.max(0, tot - 5) + ' more',
+          steps: STEP_NAMES.slice(0, Math.min(tot, 5)).map((label, k) => {
+            const st = isDone ? 'done' : 'queued';
+            return {
+              label: label,
+              icon: st === 'done' ? 'ph ph-check' : st === 'later' ? 'ph ph-moon' : 'ph ph-circle-dashed',
+              iconColor: 'var(--color-neutral-600)',
+              color: st === 'done' ? 'var(--color-neutral-400)' : 'var(--color-neutral-500)'
+            };
+          }),
+          status: 'Completed',
+          statusColor: '#8ad4ff',
+          rows: isDone
+            ? [
+                { label: 'Steps', value: tot + ' of ' + tot + ' done' },
+                { label: 'Completed', value: DAYS[x.n % 5] + ' · ' + TIMES[x.n % 5] },
+                { label: 'Took', value: [18, 34, 52, 26, 41][x.n % 5] + ' min' },
+                { label: 'Approved by', value: 'Chad' }
+              ]
+            : [
+                { label: 'Steps', value: x.after ? 'not planned yet' : tot + ' planned' },
+                { label: 'Starts', value: x.after ? 'after the first version ships' : 'when task ' + (cur + 1) + ' is approved' },
+                { label: 'Estimate', value: x.after ? '—' : [20, 30, 45, 25, 35][x.n % 5] + ' min' }
+              ]
+        };
+      })(),
+
+      localOpen: !!s.localOpen,
+      localCaret: s.localOpen ? 'ph ph-caret-up' : 'ph ph-caret-down',
+      toggleLocal: () => this.setState((p) => ({ localOpen: !p.localOpen, abortOpen: false })),
+      localLabel: 'Open locally',
+      localValue: (s.localPick || 'localhost:3000'),
+      localTargets: [
+        { label: 'In the browser', value: 'localhost:3000', icon: 'ph ph-browser' },
+        { label: 'In the desktop app', value: app.name + '.app', icon: 'ph ph-app-window' },
+        { label: 'Shared link', value: this.slug(app.name) + '.ngrok.app', icon: 'ph ph-share-network' }
+      ].map((t) => {
+        const on = (s.localPick || 'localhost:3000') === t.value;
+        return {
+          label: t.label, value: t.value, icon: t.icon,
+          bg: on ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'transparent',
+          color: on ? 'var(--color-accent-100)' : 'var(--color-neutral-300)',
+          iconColor: on ? 'var(--color-accent-200)' : 'var(--color-neutral-600)',
+          onPick: () => this.setState({ localPick: t.value, localOpen: false })
+        };
+      }),
+      repoValue: 'github.com/chad/' + this.slug(app.name),
+      abortOpen: !!s.abortOpen,
+      abortNote: 'Stops every task on ' + app.name + ' where it stands. Work already pushed stays; anything mid-step is dropped.',
+      toggleAbort: () => this.setState((p) => ({ abortOpen: !p.abortOpen, localOpen: false })),
+
+      loop: [
+        { label: 'Build', icon: 'ph ph-hammer', state: 'done' },
+        { label: 'Test', icon: 'ph ph-flask', state: 'done' },
+        { label: 'Feedback', icon: 'ph ph-chat-teardrop-text', state: 'now' },
+        { label: 'Check', icon: 'ph ph-magnifying-glass', state: 'next' },
+        { label: 'Approval', icon: 'ph ph-thumbs-up', state: 'next' }
+      ].map((l) => ({
+        label: l.label,
+        icon: l.state === 'done' ? 'ph ph-check-circle' : l.state === 'now' ? l.icon : 'ph ph-circle-dashed',
+        iconColor: l.state === 'done' ? ACCENT : l.state === 'now' ? 'var(--color-accent-200)' : 'var(--color-neutral-700)',
+        color: l.state === 'now' ? 'var(--color-accent-100)' : l.state === 'done' ? 'var(--color-neutral-500)' : 'var(--color-neutral-600)',
+        state: l.state === 'done' ? 'done' : l.state === 'now' ? 'now' : ''
+      })),
+
+      thread: (() => {
+        const n = s.viewing === null || s.viewing === undefined ? cur : s.viewing;
+        const name = LIST[n] || AFTER[n - LIST.length] || 'Session';
+        const st = n < cur ? 'done' : n === cur ? 'live' : 'queued';
+        if (st === 'done') return [{
+          kicker: 'Session ' + (n + 1) + ' · ' + name, icon: 'ph ph-check-circle',
+          kickerColor: 'var(--color-neutral-500)', color: 'var(--color-neutral-400)',
+          lines: [
+            'Done and approved by you. Everything from it is committed and pushed.',
+            'Say the word and we can revisit any of it — nothing here is set in stone.'
+          ],
+          hasFile: false
+        }];
+        if (!running) return [{
+          kicker: app.name + ' · not running', icon: 'ph ph-moon',
+          kickerColor: 'var(--color-neutral-600)', color: 'var(--color-neutral-400)',
+          lines: [
+            'Nothing is being built here right now. Its sessions are waiting where you left them.',
+            'Say what you want next and it picks up from there.'
+          ],
+          hasFile: false
+        }];
+        if (st === 'live') return [{
+          kicker: 'Session ' + (n + 1) + ' · ' + name, icon: 'ph ph-diamonds-four',
+          kickerColor: ACCENT, color: 'var(--color-neutral-300)',
+          lines: [
+            'Building this one now — the page people land on, with the one thing they came to do sitting at the top.',
+            'It will be on http://localhost:3000 when it is ready. Nothing goes public until you say so.'
+          ],
+          hasFile: true, fileName: 'plan.md', fileNote: 'Your MVP, the goals and the sessions'
+        }];
+        return [{
+          kicker: 'Session ' + (n + 1) + ' · ' + name, icon: 'ph ph-circle-dashed',
+          kickerColor: 'var(--color-neutral-600)', color: 'var(--color-neutral-400)',
+          lines: [
+            'Not started yet — it begins once the sessions before it are approved.',
+            'Ask for anything to be added to it, or moved to another session, while it is still waiting.'
+          ],
+          hasFile: false
+        }];
+      })(),
+
+      convos: [
+        { at: 'Sun Aug 9 · 4:02 PM', lines: ['Kick this off — the folder and the skeleton'],
+          reply: 'Folder made, skeleton up, first commit pushed.', replyAt: '04:11 PM',
+          blocks: [
+            ['p', 'Repo ', ['c', 'front-table'], ' created and pushed to your GitHub.'],
+            ['li', 'Local copy at ', ['c', '~/DEVELOPMENT/front-table'], '.']
+          ] },
+        { at: 'Sun Aug 9 · 5:20 PM', lines: ['Lets lock the look — dark, tight, not fussy'],
+          reply: 'Type and color set, applied everywhere.', replyAt: '05:36 PM',
+          blocks: [
+            ['p', 'One accent, dark ground, compact spacing.'],
+            ['li', 'Every page reads from the same tokens now.']
+          ] },
+        { at: 'Sun Aug 9 · 6:44 PM', lines: ['The frame around every page — header, side, footer'],
+          reply: 'Frame is in and every page sits inside it.', replyAt: '07:02 PM',
+          blocks: [
+            ['p', 'Header, sidebar and footer live in one layout file.'],
+            ['li', 'Narrow screens collapse the sidebar to a button.']
+          ] },
+        { at: 'Mon Aug 10 · 8:31 AM', lines: ['Drag and drop feels wrong when the list is long'],
+          reply: 'Fixed — long lists now scroll while you drag.', replyAt: '08:52 AM',
+          blocks: [
+            ['p', 'Auto-scroll kicks in near the edges of the list.'],
+            ['li', 'Drop target highlights only the row under the cursor.']
+          ] },
+        { at: 'Mon Aug 10 · 9:14 AM', lines: ['alright let\'s fix some things in the editor', 'When you drag in a blank section it works', 'When I try to drag in one of the templates nothing happens'], shot: true,
+          reply: 'Found it — the template drop never registered a target.', replyAt: '09:22 AM',
+          blocks: [
+            ['p', 'Reproduced it. Blank sections register a drop target on mount; templates build theirs ', ['b', 'after'], ' the drag starts, so the first drop lands on nothing.'],
+            ['p', 'Fix is in ', ['c', 'useDropTarget.ts'], ' — targets now register before the drag image is taken.']
+          ] },
+        { at: 'Mon Aug 10 · 9:38 AM', lines: ['Whenever you hover over an element...', 'The orange highlight appears with an orange node', 'When you click that it should open up the elements menu'],
+          reply: 'Node is now a button, not just a marker.', replyAt: '09:47 AM',
+          blocks: [
+            ['p', 'The node was decorative. It now opens the elements menu anchored to the hovered element.'],
+            ['li', 'Click opens, click-away or ', ['c', 'Esc'], ' closes.'],
+            ['li', 'Keyboard reachable — ', ['b', 'Tab'], ' lands on the node while the element is focused.']
+          ] },
+        { at: 'Mon Aug 10 · 9:58 AM', lines: ['Lets move the elements to the right side'],
+          reply: 'Moved. Layers stayed on the left.', replyAt: '10:05 AM',
+          blocks: [
+            ['p', 'Elements is on the right rail now and remembers its width between sessions.'],
+            ['p', 'Layers stayed left on purpose — say the word and it follows.']
+          ] },
+        { at: 'Mon Aug 10 · 6:02 PM', lines: ['Setting up both dev servers'],
+          reply: 'I need one answer from you before I can finish this task.', replyAt: '06:43 PM',
+          blocks: [
+            ['p', 'Everything else on this task is built. One decision is yours to make, and I have stopped rather than guess.'],
+            ['p', 'Quick recap of where things stand: both dev servers and the desktop app are running in their own windows, and all the status-color work is pushed to the branch (', ['c', '9d4e3b58'], ').'],
+            ['p', 'If you\'re still seeing the ', ['b', 'orange indicator + green stroke while it\'s stopped'], ' thing, that\'s almost certainly the app running an ', ['b', 'old build'], ' — the fix is in the code, but the window you\'re looking at needs to reload to pick it up.'],
+            ['p', 'Tell me which one you\'re looking at and I\'ll sort it:'],
+            ['li', 'The ', ['b', 'desktop app'], ' (the magenta window\'s ', ['c', 'tauri dev'], ') — has it finished compiling and opened yet?'],
+            ['li', 'Or the ', ['b', 'browser'], ' at localhost:18894 — try a hard refresh (Ctrl+Shift+R)?'],
+            ['p', 'What are you seeing right now?']
+          ] }
+      ].map((c, i, arr) => {
+        const at = (s.convo === null || s.convo === undefined ? arr.length - 1 : s.convo);
+        const live = at === i;
+        const done = i < at;
+        const awake = s.commentAt === i || !!(s.openDone || {})[i];
+        return {
+          who: 'Chad', lines: c.lines, hasShot: !!c.shot,
+          hasReply: !!c.reply, replyLead: c.reply, replyAt: c.replyAt,
+          replyOpen: s.replyAt === i,
+          replyCaret: s.replyAt === i ? 'ph ph-caret-up' : 'ph ph-caret-down',
+          onToggleReply: (e) => { e.stopPropagation(); this.setState((p) => ({ replyAt: p.replyAt === i ? null : i, convo: i })); },
+          blocks: (c.blocks || []).map((b) => ({
+            marker: b[0] === 'li' ? '•' : '',
+            indent: b[0] === 'li' ? '10px' : '0px',
+            parts: b.slice(1).map((seg) => {
+              const kind = Array.isArray(seg) ? seg[0] : 'p';
+              const text = Array.isArray(seg) ? seg[1] : seg;
+              if (kind === 'b') return { text: text, weight: '600', color: 'var(--color-neutral-100)', bg: 'transparent', pad: '0', font: 'inherit', size: 'inherit' };
+              if (kind === 'c') return { text: text, weight: '400', color: 'var(--color-accent-200)', bg: 'color-mix(in srgb, var(--color-accent) 12%, transparent)', pad: '1px 5px', font: 'ui-monospace, monospace', size: '11.5px' };
+              return { text: text, weight: '400', color: 'inherit', bg: 'transparent', pad: '0', font: 'inherit', size: 'inherit' };
+            })
+          })),
+          isLive: live,
+          isDone: done,
+          cardTop: live ? '20px' : '0',
+          stepLabel: live ? 'waiting on your answer' : (() => { const tot = [5, 7, 4, 9, 6, 8][i % 6]; return tot + ' of ' + tot + ' steps completed'; })(),
+          createdColor: live ? '#8ad4ff' : 'var(--color-neutral-400)',
+          stop: (e) => e.stopPropagation(),
+          showShot: !!c.shot && (!done || !!(s.openDone || {})[i]),
+          cardGap: (done && !(s.openDone || {})[i]) ? '8px' : '14px',
+          cardPad: (done && !(s.openDone || {})[i]) ? '11px 22px 12px' : '14px 22px 18px',
+          collapsed: done && !(s.openDone || {})[i],
+          showLines: !done || !!(s.openDone || {})[i],
+          showBody: !!c.reply && (!done || !!(s.openDone || {})[i]),
+          firstLine: (c.lines && c.lines[0]) || '',
+          expandIcon: (s.openDone || {})[i] ? 'ph ph-arrows-in-simple' : 'ph ph-arrows-out-simple',
+          expandTitle: (s.openDone || {})[i] ? 'Collapse' : 'Expand',
+          onExpand: (e) => { e.stopPropagation(); this.setState((p) => ({ openDone: Object.assign({}, p.openDone, { [i]: !(p.openDone || {})[i] }) })); },
+          createdAt: c.at || '',
+          workingFor: 'asked 6m ago',
+          waitingFor: '6m 12s',
+          commentOpen: s.commentAt === i,
+          cardShadow: 'none',
+          cardBorderLeft: live ? '2px solid #5cc4ff' : '1px solid transparent',
+          cardBg: live ? 'color-mix(in srgb, #38b6ff 14%, var(--color-bg))' : (done ? 'transparent' : 'var(--color-surface)'),
+          commentColor: s.commentAt === i ? '#38b6ff' : 'var(--color-neutral-600)',
+          commentText: s.commentText || '',
+          onComment: (e) => { e.stopPropagation(); this.setState((p) => ({ commentAt: p.commentAt === i ? null : i })); },
+          onCommentText: (e) => this.setState({ commentText: e.target.value }),
+          onCommentCancel: (e) => { e.stopPropagation(); this.setState({ commentAt: null, commentText: '' }); },
+          onCommentSend: (e) => { e.stopPropagation(); this.setState({ commentAt: null, commentText: '' }); },
+          caret: 'ph ph-caret-down',
+          bg: live ? 'var(--color-surface)' : done ? 'transparent' : 'var(--color-surface)',
+          edge: live ? 'color-mix(in srgb, #5cc4ff 72%, transparent)' : done ? 'color-mix(in srgb, var(--color-divider) 55%, transparent)' : 'var(--color-divider)',
+          live: live,
+          glow: live ? '0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent)' : 'none',
+          hoverEdge: live ? ACCENT : 'var(--color-neutral-700)',
+          hoverBg: live ? 'color-mix(in srgb, #38b6ff 14%, var(--color-bg))' : 'color-mix(in srgb, var(--color-text) 4%, var(--color-surface))',
+          nameColor: live ? '#38b6ff' : done ? 'var(--color-neutral-700)' : 'var(--color-neutral-400)',
+          color: live ? '#d6ecff' : done ? 'var(--color-neutral-600)' : 'var(--color-neutral-400)',
+          shotOpacity: done ? '0.45' : '1',
+          cardOpacity: (done && !awake) ? '0.3' : '1',
+          cardFilter: (done && !awake) ? 'grayscale(1)' : 'none',
+          onClick: () => this.setState({ convo: i })
+        };
+      }),
+
+      hasQueued: false,
+      queuedMsgs: this.queueList(s, all, stage).map((t, n) => ({
+        text: t,
+        onRemove: () => this.setState((p) => ({ dropped: (p.dropped || []).concat(t) }))
+      })),
+      picks: ['Opus 4.8', 'Auto', 'High'],
+      threadRef: (el) => { this._thread = el; },
+
+      actions: [
+        { label: 'Push Local', icon: 'ph ph-play', edge: 'var(--color-neutral-700)', color: 'var(--color-neutral-300)' },
+        { label: 'Send Git', icon: 'ph ph-git-branch', edge: 'var(--color-neutral-700)', color: 'var(--color-neutral-300)' },
+        { label: 'Resort Back', icon: 'ph ph-arrow-counter-clockwise', edge: '#e08243', color: '#e08243' }
+      ],
+
+      explainOn: !!s.explain,
+      explainTrack: s.explain ? 'var(--color-accent-700)' : 'var(--color-neutral-800)',
+      explainKnob: s.explain ? 'var(--color-accent-100)' : 'var(--color-neutral-500)',
+      explainJustify: s.explain ? 'flex-end' : 'flex-start',
+      explainColor: s.explain ? 'var(--color-accent-200)' : 'var(--color-neutral-500)',
+      toggleExplain: () => this.setState((p) => ({ explain: !p.explain })),
+
+      autoTrack: s.auto ? 'var(--color-accent-700)' : 'var(--color-neutral-800)',
+      autoKnob: s.auto ? 'var(--color-accent-100)' : 'var(--color-neutral-500)',
+      autoJustify: s.auto ? 'flex-end' : 'flex-start',
+      autoColor: s.auto ? 'var(--color-accent-200)' : 'var(--color-neutral-500)',
+      toggleAuto: () => this.setState((p) => ({ auto: !p.auto })),
+
+      rewriteTrack: s.rewrite ? 'var(--color-accent-700)' : 'var(--color-neutral-800)',
+      rewriteKnob: s.rewrite ? 'var(--color-accent-100)' : 'var(--color-neutral-500)',
+      rewriteJustify: s.rewrite ? 'flex-end' : 'flex-start',
+      rewriteColor: s.rewrite ? 'var(--color-accent-200)' : 'var(--color-neutral-500)',
+      toggleRewrite: () => this.setState((p) => ({ rewrite: !p.rewrite })),
+
+      draft: s.draft,
+      setDraft: (e) => this.setState({ draft: e.target.value })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

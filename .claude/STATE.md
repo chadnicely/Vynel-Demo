@@ -1,7 +1,17 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-11.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ 2026-08-14 DESIGN MIRROR SEEDED — the letterman pattern, first pack in
+
+`.claude-design/project/` now mirrors Chad's Claude Design project (claude.ai/design), synced
+byte-clean from export zips via the new `/sync-design` command (`.claude/commands/`) — every sync
+is one commit, so `git diff .claude-design/` between syncs is the upstream design-change worklist
+(same convention as letterman's `.claude-design/`). First pack: the **"New app" onboarding wizard**
+(13-step modal flow — `Onboarding Wizard.dc.html`, read `.claude-design/README.md` first) + six
+**Vynel Workspace** screen states, all on the **Nocturne** design system (`_ds/nocturne-*/`,
+tokens in `styles.css`). Implementation of the wizard in the real UI is the NEXT arc — not started.
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

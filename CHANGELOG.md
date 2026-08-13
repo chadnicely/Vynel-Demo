@@ -9,6 +9,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Design changes are now traceable.** Vynel's UI designs from claude.ai/design
+  live in the repo as a git-tracked mirror (`.claude-design/`), refreshed
+  wholesale from each export zip by the new `/sync-design` command — so every
+  design iteration is one commit and `git diff .claude-design/` shows exactly
+  what changed upstream. Seeded with the first design pack: the "New app"
+  onboarding wizard modal flow plus six Vynel Workspace screen states, built on
+  the Nocturne design system.
+
 - **Pick what you run: `pnpm dev` now takes app names and a port band.**
   `pnpm dev api web` starts just the engine and the UI; `pnpm dev cloud admin
   api web voice` is the full stack; `--base 28890` (or `--port 28892`, named
