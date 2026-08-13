@@ -219,6 +219,12 @@ disclosureSpoken response field, sentinel quote-strip watch, primary-line barge-
 - **`/calls` inherits the overlay channel's open CORS** (loopback-bound, Phase-1 unauthenticated —
   same standing posture as `/speak`). Any local page can read call labels/ids and POST. Recorded
   here so the Phase-2 auth sweep covers the call surface too.
+- **Cables product path (settled with Kafi 2026-08-11):** FREE stack only — base VB-Cable (free)
+  + VoiceMeeter (free) via GUIDED onboarding (user installs from VB's site; Vynel detects via
+  enumeration and configures itself). The paid A+B pack is dev-convenience only. Bundling any
+  VB driver needs a VB-Audio license — don't. The endgame that deletes the install entirely is
+  Vynel's OWN virtual devices: `docs/module-notes/virtual-audio-driver.md` (night-automation
+  handover brief).
 - **Virtual cables are install/config, not code.** Windows: VB-Cable (Cable A) + VoiceMeeter or the
   A+B pack (Cable B). The guide's §2.2 call-app settings (disable AGC / noise suppression;
   Discord = Voice Activity, not Push-to-Talk) are real and worth following — AGC mangling TTS
