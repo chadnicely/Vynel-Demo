@@ -239,6 +239,19 @@ state, batching, and every safety layer.
 
 ## STATE OF PLAY — 2026-08-13, all smoke-tested by Kafi
 
+**GAUNTLET PASSED (2026-08-13, second session).** Everything below plus item 6 phase 2, items
+10/11/12/13 and the continuation prompt ran live in a four-part gauntlet: (A) Notepad — verified
+typing, real-keystroke copy, exact clipboard readback, and the model spontaneously avoided a
+credentials tab it noticed; (B) deliberate failure — clean stop, no blind retry, honest `failed`
+row; (C) the rotated 125% portrait screen — pixel-exact `set_window_bounds` at negative origin
+with whole-screen photographic proof; (D) **autopilot** — the root delegated to a spawned session,
+stayed free, the background run's `desktop_actions` rows carry the SPAWNED primary's session id
+(the phase-2 tracing proven in production), and the completion toast landed. Kafi then confirmed
+Stop-mid-task → next turn opened with the continuation prompt. Two small follow-ups noted, not
+taken: `set_window_bounds` records the full exe path as `app_name` where every other tool records
+the clean identity, and Windows shrinks a window by 1/scale when moved OFF a 125% monitor (a
+second SetWindowPos pass would counter it — the tool already reports the real rect honestly).
+
 **The access model is settled and shipped.** Looking is ungated and silent; acting rides the turn's
 approved plan and narrates on the overlay. Per-app grants, `request_desktop_access`, the
 `/desktop/access` route, the grants table and the "Desktop access" UI section are all gone. Kafi's
