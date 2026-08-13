@@ -6,6 +6,7 @@
 import { fileURLToPath } from 'node:url'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { z } from 'zod'
+import { resolveEngineUrl } from '@vynel/contracts/network/port-file'
 import {
   parseVynelPortBase,
   resolveVynelPorts,
@@ -100,6 +101,11 @@ let cachedEnv: Env | undefined
 export function loadEnv(): Env {
   if (cachedEnv !== undefined) return cachedEnv
   const ports = resolveVynelPorts(parseVynelPortBase(process.env['VYNEL_PORT_BASE']))
-  cachedEnv = buildEnvSchema(ports).parse(process.env)
+  const env = buildEnvSchema(ports).parse(process.env)
+  // No explicit URL → prefer the port a LIVE engine advertises (the desktop
+  // shell may have allocated a non-default one), then the band default.
+  const explicitUrl = process.env['VYNEL_API_URL'] === undefined ? undefined : env.VYNEL_API_URL
+  env.VYNEL_API_URL = resolveEngineUrl(explicitUrl, ports.engine)
+  cachedEnv = env
   return cachedEnv
 }

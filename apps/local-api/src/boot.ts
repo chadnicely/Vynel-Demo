@@ -34,6 +34,12 @@ import {
   createKeyringRefreshTokenVault,
   type HubSession,
 } from '@vynel/hub-account'
+import {
+  defaultUserDataDir,
+  enginePortFilePath,
+  removePortFile,
+  writePortFile,
+} from '@vynel/contracts/network/port-file'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
 import { resolveServerPayloadArchive } from './server-payload-archive.js'
@@ -368,12 +374,26 @@ export async function boot(): Promise<void> {
   // Loopback only, always — local mode by design (Phase 1), and in remote
   // mode the SSH tunnel is the sole door (the bearer gate covers other local
   // users on the server). Never widen this bind.
+  const portFilePath = enginePortFilePath(env.VYNEL_USER_DATA_DIR ?? defaultUserDataDir())
   const server = serve({ fetch: gateway.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
     logger.info({ port: info.port }, 'api listening')
+    // Advertise where we ACTUALLY bound — clients (cli/mcp/voice/shell)
+    // resolve through this when no explicit URL is set, which is what makes
+    // per-boot port allocation safe. Best-effort: discovery degrades to the
+    // band default, the daemon itself is fine.
+    try {
+      writePortFile(portFilePath, { port: info.port, pid: process.pid })
+    } catch (error) {
+      logger.warn(
+        { portFilePath, error: error instanceof Error ? error.message : String(error) },
+        'could not write the engine port file — clients fall back to the band default port',
+      )
+    }
   })
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'api shutdown initiated')
+    removePortFile(portFilePath)
     server.close(() => {
       schedulesService.stop()
       knowledgeIndexingService.stop()

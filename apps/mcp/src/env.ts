@@ -9,6 +9,7 @@
 // a Phase-2 bearer relay would add `VYNEL_API_TOKEN` here.
 
 import { z } from 'zod'
+import { resolveEngineUrl } from '@vynel/contracts/network/port-file'
 import {
   parseVynelPortBase,
   resolveVynelPorts,
@@ -31,5 +32,10 @@ export type Env = z.infer<typeof EnvSchema>
 
 export function loadEnv(): Env {
   const ports = resolveVynelPorts(parseVynelPortBase(process.env['VYNEL_PORT_BASE']))
-  return buildEnvSchema(ports).parse(process.env)
+  const env = buildEnvSchema(ports).parse(process.env)
+  // No explicit URL → prefer the port a LIVE engine advertises (the desktop
+  // shell may have allocated a non-default one), then the band default.
+  const explicitUrl = process.env['VYNEL_API_URL'] === undefined ? undefined : env.VYNEL_API_URL
+  env.VYNEL_API_URL = resolveEngineUrl(explicitUrl, ports.engine)
+  return env
 }

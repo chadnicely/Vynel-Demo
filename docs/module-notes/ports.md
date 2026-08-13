@@ -40,9 +40,13 @@ assume any port — on an end user's machine the port is allocated at every star
    write `VYNEL_PORT_BASE=<free band>` into the worktree `.env`. Claude runs it whenever a
    worktree is created. One variable moves the whole instance coherently.
 4. **Port-file discovery.** The engine writes the port it *actually* bound (plus pid) to
-   `<user data dir>/engine.port` at boot; the voice daemon writes `voice.port`. Clients
-   resolve: env override → live port file → canonical default. This is what makes dynamic
-   ports safe — nothing trusts a constant when a daemon is actually running.
+   `<user data dir>/engine.port` at boot; clients (cli/mcp/voice/shell) resolve:
+   env override → live port file → band default (`resolveEngineUrl`, one home in
+   contracts `network/port-file.ts`). Stale files (dead pid) are ignored. This is what
+   makes dynamic ports safe — nothing trusts a constant when a daemon is running.
+   *Voice deferred:* the voice daemon never allocates dynamically (it fails fast on an
+   occupied port), so a `voice.port` file would only mirror its env — add it when the
+   daemon learns dynamic binding.
 5. **Desktop shell allocates per boot.** `daemon.rs` stops hardcoding: candidates are
    env `VYNEL_ENGINE_PORT` → sticky last-used port → canonical → upward scan. It spawns the
    daemon with the chosen `PORT` and opens windows at the runtime URL. Sticky-first keeps the
