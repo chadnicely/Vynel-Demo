@@ -35,6 +35,7 @@ import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import type { z } from 'zod'
 import type { StartChatTurnRequestSchema } from '../routes/chat/schemas.js'
@@ -83,6 +84,8 @@ export async function streamChatTurn(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
   )
   const enabledFeatureKeys = resolveEnabledFeatureKeys(c.var.hubSession)
+  // The admin's per-tool overrides (no desktop on this surface → []).
+  const toolPolicies = resolveSessionToolPolicies(c.var.db, { userId: c.var.user.id })
   // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
   // (enqueued once the turn's session resolves) + the per-turn # study
   // descriptor. Never throws; null = a token-free turn.
@@ -122,6 +125,8 @@ export async function streamChatTurn(
     {
       enabledCapabilityIds,
       ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+      toolPolicies,
+      surfaceKind: 'workspace-interactive',
     },
   )
 

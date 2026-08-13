@@ -29,3 +29,7 @@ export {
   vynelWorkspaceInteractiveDescriptor,
   vynelRoutingDescriptor,
 } from './vynel-mcp-feature-descriptor.js'
+// The declared inventories + gate maps live on the `@vynel/mcp/tool-gates`
+// subpath (vynel-tool-gates.ts) — deliberately NOT re-exported here, so the
+// catalog assembler can import them without pulling this index's SDK-laden
+// descriptor graph at boot.

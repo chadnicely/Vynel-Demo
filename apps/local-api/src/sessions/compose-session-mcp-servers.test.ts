@@ -258,6 +258,68 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
       expect(composed.systemPromptAppend).toBe('CAPABILITY_PROMPT')
     })
 
+    it('applies admin overrides: disable, surface-exclude, and AUTHORITATIVE cardClass', () => {
+      const descriptor = fakeDescriptor({
+        askModeApprovalToolNames: ['mcp__vynel__delete_agent'],
+      })
+      const policies = new Map([
+        [
+          'mcp__vynel__list_tasks',
+          {
+            toolName: 'mcp__vynel__list_tasks',
+            serverName: 'vynel',
+            enabled: false,
+            surfaces: ['workspace-interactive' as const],
+            cardClass: 'never' as const,
+            hasOverride: true,
+          },
+        ],
+        [
+          'mcp__vynel__send_message',
+          {
+            toolName: 'mcp__vynel__send_message',
+            serverName: 'vynel',
+            enabled: true,
+            surfaces: ['global-interactive' as const], // NOT this turn's surface
+            cardClass: 'always' as const, // promoted to every-mode carding
+            hasOverride: true,
+          },
+        ],
+        [
+          'mcp__vynel__delete_agent',
+          {
+            toolName: 'mcp__vynel__delete_agent',
+            serverName: 'vynel',
+            enabled: true,
+            surfaces: ['workspace-interactive' as const],
+            cardClass: 'never' as const, // demoted OUT of the curated ask tier
+            hasOverride: true,
+          },
+        ],
+        [
+          'mcp__gmail__send_email',
+          {
+            toolName: 'mcp__gmail__send_email',
+            serverName: 'gmail', // NOT registered this turn → inert
+            enabled: false,
+            surfaces: [],
+            cardClass: 'never' as const,
+            hasOverride: true,
+          },
+        ],
+      ])
+      const composed = composeSessionMcpServers([descriptor], context, {
+        toolPolicies: policies,
+        surfaceKind: 'workspace-interactive',
+      })
+      expect(composed.deniedMcpToolPatterns).toContain('mcp__vynel__list_tasks')
+      expect(composed.deniedMcpToolPatterns).toContain('mcp__vynel__send_message')
+      expect(composed.deniedMcpToolPatterns).not.toContain('mcp__gmail__send_email')
+      expect(composed.mutatingToolNames).toContain('mcp__vynel__send_message')
+      // The demote stripped the curated ask-tier membership.
+      expect(composed.askModeApprovalToolNames).not.toContain('mcp__vynel__delete_agent')
+    })
+
     it('an alwaysOn core feature is never tier-denied', () => {
       const core = fakeDescriptor({
         alwaysOn: true,

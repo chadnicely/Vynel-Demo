@@ -16,6 +16,7 @@
 //   - workspace turn  → [vynelWorkspaceDescriptor]   (full tools, capability-gated)
 //   - global-root turn → [vynelRoutingDescriptor, ...]
 
+import type { EffectiveToolPolicies, SessionSurfaceKind } from '@vynel/capabilities'
 import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
 
 export interface ComposedSessionMcpServers {
@@ -54,6 +55,14 @@ export function composeSessionMcpServers(
      *  (Capabilities differ on purpose: absent set = default-deny — a
      *  capability read always exists; an entitlement may genuinely not.) */
     enabledFeatureKeys?: ReadonlySet<string>
+    /** The admin's resolved per-tool policies + which surface this turn IS.
+     *  When both are present, overrides apply ON TOP of the declared gates:
+     *  disabled or surface-excluded tools deny; an override-set tier or
+     *  capability gates through the same enabled sets; a cardClass override
+     *  is AUTHORITATIVE for that tool's membership in the card sets (an
+     *  admin can demote a curated ask-tool or promote a read to always). */
+    toolPolicies?: EffectiveToolPolicies
+    surfaceKind?: SessionSurfaceKind
   } = {},
 ): ComposedSessionMcpServers {
   const enabledCapabilityIds = options.enabledCapabilityIds ?? new Set<string>()
@@ -117,6 +126,31 @@ export function composeSessionMcpServers(
     const contribution = descriptor.contributePrompt?.(context, enabledCapabilityIds)
     if (contribution !== undefined && contribution !== null && contribution !== '') {
       promptSections.push(contribution)
+    }
+  }
+
+  // The admin overrides, applied on top of the declared gates — only for
+  // tools of servers this turn actually registered.
+  if (options.toolPolicies !== undefined) {
+    for (const policy of options.toolPolicies.values()) {
+      if (!(policy.serverName in mcpServers)) continue
+      const denied =
+        !policy.enabled ||
+        (options.surfaceKind !== undefined && !policy.surfaces.includes(options.surfaceKind)) ||
+        (policy.featureKey !== undefined &&
+          options.enabledFeatureKeys !== undefined &&
+          !options.enabledFeatureKeys.has(policy.featureKey)) ||
+        (policy.capabilityId !== undefined && !enabledCapabilityIds.has(policy.capabilityId))
+      if (denied && !deniedMcpToolPatterns.includes(policy.toolName)) {
+        deniedMcpToolPatterns.push(policy.toolName)
+      }
+      // cardClass is authoritative where a policy exists: strip, then re-add.
+      const inMutating = mutatingToolNames.indexOf(policy.toolName)
+      if (inMutating !== -1) mutatingToolNames.splice(inMutating, 1)
+      const inAskTier = askModeApprovalToolNames.indexOf(policy.toolName)
+      if (inAskTier !== -1) askModeApprovalToolNames.splice(inAskTier, 1)
+      if (policy.cardClass === 'always') mutatingToolNames.push(policy.toolName)
+      if (policy.cardClass === 'ask') askModeApprovalToolNames.push(policy.toolName)
     }
   }
 
