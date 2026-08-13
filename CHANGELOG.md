@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Two ways to move between your projects: Tabs or Menu.** A new switch in
+  the title bar picks how workspaces are navigated. Tabs keeps the familiar
+  browser-style strip. Menu tucks the strip away and roots the sidebar at a
+  workspace tree — every project in one list with a pinned Global entry;
+  click a row to switch rooms while you watch the canvas, or drill in to open
+  that room's menu (and step back out with one click). Both views share the
+  same open tabs underneath, so flipping modes never loses your place. Either
+  way, the navigation now shows live presence: a room's chip spins while the
+  assistant works there, and a soft blue dot pulses when it's waiting on you.
+
 - **Design changes are now traceable.** Vynel's UI designs from claude.ai/design
   live in the repo as a git-tracked mirror (`.claude-design/`), refreshed
   wholesale from each export zip by the new `/sync-design` command — so every

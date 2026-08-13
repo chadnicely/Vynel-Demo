@@ -3,6 +3,7 @@ import { computed, h } from "vue";
 import type { Component } from "vue";
 import {
   PhCaretDown as ChevronDown,
+  PhCircleNotch as CircleNotch,
   PhHouse as House,
   PhPlus as Plus,
   PhX as X,
@@ -14,8 +15,10 @@ import {
   workspaceMonogram,
 } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
+import type { WorkspacePresence } from "../../composables/workspaces/use-workspace-presence.js";
 
-// The scope tab strip (below the title bar) — the ONLY workspace navigation.
+// The scope tab strip (below the title bar) — tabs mode's workspace
+// navigation (menu mode collapses it for the sidebar workspace tree).
 // Tab one is the pinned Global tab; every other tab is a workspace room.
 // Uniform browser-style tabs: same width, the tab's accent underlines the
 // active one, and the switch/close controls reveal on hover so resting tabs
@@ -35,6 +38,10 @@ const props = defineProps<{
   // A workspace's customized accent slot (Customize section) — the default a
   // tab starts from; a per-tab pick still overrides it.
   workspaceColorSlots?: Record<string, number | null>;
+  // Live presence per scope: a working tab's chip spins, a waiting tab wears
+  // the needs-input dot — the strip tells you where to look without a click.
+  workspacePresence?: Record<string, WorkspacePresence>;
+  globalPresence?: WorkspacePresence;
 }>();
 
 const emit = defineEmits<{
@@ -52,6 +59,11 @@ function workspaceName(workspaceId: string | null): string {
     props.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     "Workspace"
   );
+}
+
+function tabPresence(tab: ShellTabItem): WorkspacePresence {
+  if (tab.workspaceId === null) return props.globalPresence ?? "idle";
+  return props.workspacePresence?.[tab.workspaceId] ?? "idle";
 }
 
 /** The tab's accent: the user's per-tab pick wins, then the workspace's
@@ -134,21 +146,26 @@ function onAddMenuSelect(itemId: string) {
         class="flex h-full min-w-0 flex-1 items-center gap-2 py-1 pl-2 pr-1 text-sm"
         @click="emit('select-tab', tab.id)"
       >
+        <!-- Chip = identity at rest, liveness while working (the spinner
+             replaces the monogram; the accent keeps saying which room). -->
         <span
-          v-if="tab.workspaceId === null"
-          class="grid size-5 shrink-0 place-items-center rounded-[4px] text-white"
-          :style="{ background: tabAccent(tab) }"
-        >
-          <House :size="12" />
-        </span>
-        <span
-          v-else
           class="grid size-5 shrink-0 place-items-center rounded-[4px] text-[10px] font-semibold text-white"
           :style="{ background: tabAccent(tab) }"
         >
-          {{ workspaceMonogram(workspaceName(tab.workspaceId)) }}
+          <CircleNotch
+            v-if="tabPresence(tab) === 'working'"
+            :size="12"
+            class="animate-spin"
+          />
+          <House v-else-if="tab.workspaceId === null" :size="12" />
+          <template v-else>{{ workspaceMonogram(workspaceName(tab.workspaceId)) }}</template>
         </span>
         <span class="truncate">{{ workspaceName(tab.workspaceId) }}</span>
+        <span
+          v-if="tabPresence(tab) === 'attention'"
+          :aria-label="`${workspaceName(tab.workspaceId)} is waiting on you`"
+          class="size-2 shrink-0 animate-pulse rounded-full bg-needs-input"
+        />
       </button>
 
       <template v-if="tab.workspaceId !== null">

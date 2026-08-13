@@ -160,6 +160,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :presence-state="presenceState"
       presence-label="assistant idle"
       :theme="ui.theme"
+      nav-mode="tabs"
       :sidebar-open="sidebarOpen"
       :tasks-open="false"
       :open-task-count="3"

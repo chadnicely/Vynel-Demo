@@ -26,7 +26,15 @@
    (`PhGearSix as Settings`), so usage sites are byte-identical; 123-name mapping pre-verified
    against the package's 1512 exports; catalog icon NAMES untouched (contracts data);
    `lucide-vue-next` removed from local-web (cloud-admin-web keeps its copy — deferred surface).
-   **NEXT: Arc 2 tabs/menu view** (per the plan).
+6. **Arc 2a LANDED (gate green, 3 new shell tests, live-verified both modes):** the tabs/menu
+   view — `navMode` in ui-store (persisted `vynel.nav-mode`, tabs default), title-bar Tabs|Menu
+   segment, presence-aware strip (spinner chip / needs-input dot via NEW
+   `use-workspace-presence`: server turns + workspace-scoped approvals/asks), menu mode roots
+   the sidebar at NEW `WorkspaceTree.vue` (pinned Global row, workspace rows, drill-in → section
+   menu with back row) over the SAME ShellTab state (treeSelect/treeDrill ride useScopeTabs).
+   Deliberate deferrals in `docs/module-notes/workspace-redesign.md` (folders → Arc 2b engine
+   slice; NOT-RUNNING group + progress + problem state → Arc 5 status vocabulary; hover card →
+   rail arc). **NEXT: Arc 2b workspace-groups slice (folders), then Arc 3 chat pair.**
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 
