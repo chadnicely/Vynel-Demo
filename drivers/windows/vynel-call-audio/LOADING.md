@@ -22,17 +22,23 @@ panel to show the endpoints).
 
 ## Copy in the driver package + the build's test certificate
 
-From the build machine take the package folder
+First sign the built package with Vynel's own test certificate (`sign/README.md`):
+
+```powershell
+sign\New-VynelTestCert.ps1   # once per build machine
+sign\Sign-Driver.ps1         # after each build — stamps, catalogs, signs .sys + .cat
+```
+
+Then from the build machine take the package folder
 `drivers\windows\vynel-call-audio\VynelCallAudio\Driver\x64\Release\VynelCallAudio\`
 (`VynelCallAudio.sys` + `VynelCallAudio.inf` + `vynelcallaudio.cat`) **plus**
-`VynelCallAudio.cer` from the folder one level up — the build exports the signing test
-certificate (`WDKTestCert KLONE`) there automatically.
+`sign\VynelDriverTest.cer` — the public half of the cert that signed it.
 
 In the VM (elevated), trust that certificate for kernel code:
 
 ```bat
-certutil -addstore Root VynelCallAudio.cer
-certutil -addstore TrustedPublisher VynelCallAudio.cer
+certutil -addstore Root VynelDriverTest.cer
+certutil -addstore TrustedPublisher VynelDriverTest.cer
 ```
 
 ## Install the root-enumerated device

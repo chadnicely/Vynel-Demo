@@ -248,9 +248,23 @@ marked) · held-pair identity per END by resolved deviceId (mid-call rename hole
 try-next-free-pair when the first free pair fails direction resolution (faithful pre-existing
 semantics; discovery adds a new trigger surface).
 
-**Needs humans/Chad:** Partner Center account + EV certificate (cost + identity — pairs with
-the deferred Azure signing work), macOS hardware, the eventual bundle-vs-guided-install call
-for OUR driver (ours = no third-party license, so bundling becomes purely a signing question).
+## Signing: local now, attestation later (Chad 2026-08-14)
+
+Attestation (Partner Center + EV) is DEFERRED — it's the signature for public/community
+distribution. For our own build → load → test → improve loop we sign with **Vynel's own
+self-signed cert**: `drivers/windows/vynel-call-audio/sign/` (`New-VynelTestCert.ps1` makes the
+cert once per machine; `Sign-Driver.ps1` stamps a fixed past DriverVer — dodging the UTC
+clock-skew — builds the catalog, signs `.sys` + `.cat`, verifies the signer is ours). Verified
+this run: both files signed by `CN=Vynel Driver Test`, 0 errors; "untrusted root" off-VM is
+expected (only a VM that imports `VynelDriverTest.cer` with test-signing on trusts it —
+test-signed drivers never load on a normal machine, which is exactly why this can't ship to
+users). The cert is per-machine; its public `.cer` is a gitignored artifact (no private key ever
+committed). Attestation later just REPLACES the signtool step — the build/stamp/catalog stay.
+
+**Needs humans/Chad:** Partner Center account + EV certificate — ONLY for community distribution
+(our local signing above unblocks build/test now), macOS hardware, the eventual
+bundle-vs-guided-install call for OUR driver (ours = no third-party license, so bundling becomes
+purely a signing question).
 
 ## Never
 

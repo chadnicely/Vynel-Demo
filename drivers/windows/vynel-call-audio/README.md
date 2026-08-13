@@ -67,8 +67,9 @@ Virtual-Audio-Driver` (SimpleAudioSample-family branding precedent).
 2. `F:\LaunchBuildEnv.cmd`
 3. In that shell:
    `msbuild E:\...\drivers\windows\vynel-call-audio\VynelCallAudio\Driver\VynelCallAudio.sln /p:Configuration=Release /p:Platform=x64`
-4. Output: `VynelCallAudio\Driver\x64\Release\` → `VynelCallAudio.sys` + `VynelCallAudio.inf`
-   + catalog, test-signed by the WDK's generated `WDKTestCert` (export the `.cer` for the VM).
+4. Output: `VynelCallAudio\Driver\x64\Release\VynelCallAudio\` → `VynelCallAudio.sys` +
+   `VynelCallAudio.inf` + catalog. Sign it with Vynel's own cert via `sign/Sign-Driver.ps1`
+   (`sign/README.md`) — that also sidesteps the DriverVer clock-skew below.
 
 > **Build-clock note:** the WDK auto-stamps `DriverVer` with the build machine's LOCAL date, and
 > `inf2cat` rejects it as "postdated" if that local date is ahead of UTC (a machine a few hours
