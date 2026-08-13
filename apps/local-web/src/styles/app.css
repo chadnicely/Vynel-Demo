@@ -22,8 +22,10 @@
 @source "../../../../packages/ui/src";
 
 @theme inline {
-  /* Surfaces → bg-shell / bg-panel / bg-raised / bg-overlay */
+  /* Surfaces → bg-shell / bg-chrome / bg-inset / bg-panel / bg-raised / bg-overlay */
   --color-shell: var(--bg-shell);
+  --color-chrome: var(--bg-chrome);
+  --color-inset: var(--bg-inset);
   --color-panel: var(--bg-panel);
   --color-raised: var(--bg-raised);
   --color-overlay: var(--bg-overlay);
@@ -48,9 +50,11 @@
   --color-claude: var(--claude-mark);
   --color-claude-soft: var(--claude-mark-soft);
 
-  /* Status */
+  /* Status — one status, one colour (ok / danger / needs-input / info) */
   --color-ok: var(--ok);
   --color-danger: var(--danger);
+  --color-needs-input: var(--needs-input);
+  --color-needs-input-soft: var(--needs-input-soft);
   --color-info: var(--info);
 
   /* File-type colors → text-file-doc / … */
@@ -68,7 +72,7 @@
   --color-ws-5: var(--ws-5);
   --color-ws-6: var(--ws-6);
 
-  /* Type — native system stack; the display face is hero-scale only */
+  /* Type — Inter throughout; the display face is hero-scale only */
   --font-sans: var(--font-ui);
   --font-display: var(--font-display);
   --font-mono: var(--font-mono);
@@ -202,24 +206,35 @@ body {
   background: var(--gold-soft);
 }
 
-/* Quiet desktop scrollbars */
+/* Quiet desktop scrollbars — Nocturne's thin neutral bars (the canvases'
+   exact spec: 6px, neutral-700 thumb, neutral-600 on hover). The standard
+   properties are a Firefox-only fallback: in Chromium, declaring them would
+   make every ::-webkit-scrollbar rule below inert. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-neutral-700) transparent;
+  }
+}
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--hair-strong);
-  border-radius: 5px;
-  border: 2px solid transparent;
-  background-clip: content-box;
+  background: var(--color-neutral-700);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-3);
-  background-clip: content-box;
+  background: var(--color-neutral-600);
 }
 
 ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-corner {
   background: transparent;
 }

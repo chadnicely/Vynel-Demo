@@ -3,15 +3,25 @@
 **Updated 2026-08-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-14 DESIGN MIRROR SEEDED — the letterman pattern, first pack in
+## 🔥 2026-08-14 WORKSPACE REDESIGN ARC — mirror seeded, plan settled, theme LANDED
 
-`.claude-design/project/` now mirrors Chad's Claude Design project (claude.ai/design), synced
-byte-clean from export zips via the new `/sync-design` command (`.claude/commands/`) — every sync
-is one commit, so `git diff .claude-design/` between syncs is the upstream design-change worklist
-(same convention as letterman's `.claude-design/`). First pack: the **"New app" onboarding wizard**
-(13-step modal flow — `Onboarding Wizard.dc.html`, read `.claude-design/README.md` first) + six
-**Vynel Workspace** screen states, all on the **Nocturne** design system (`_ds/nocturne-*/`,
-tokens in `styles.css`). Implementation of the wizard in the real UI is the NEXT arc — not started.
+1. **Design mirror seeded** (`6f46e6c`): `.claude-design/project/` mirrors Chad's Claude Design
+   project, synced byte-clean from export zips via `/sync-design` — every sync is one commit, so
+   `git diff .claude-design/` is the upstream design-change worklist. First pack: the 13-step
+   **"New app" onboarding wizard** + six **Vynel Workspace** screen states on **Nocturne**.
+2. **THE PLAN (read it): `.claude/plan/workspace-redesign.md`** — research findings, canvas
+   inventory, lifecycles, arcs 0–5, settled decisions. **Critical standing rule:** the
+   `design/mission-control-prototype` worktree is the BOSS's AI-built prototype — UI reference
+   only, code unverified, never adopt its API/label changes, build new functionality fresh on
+   main (memory: mission-control-worktree-boss-reference).
+3. **Settled by Chad:** main is home · Phosphor swap (worktree never migrated icons — verified) ·
+   needs-input blue #38b6ff · completed oklch(0.70 0.105 158) · Inter vendored.
+4. **Arc 1a LANDED (gate green 773 files/4759 tests, live-verified dark+light at 18894):**
+   `tokens.css` rewritten — raw Nocturne verbatim from the DS source + semantic aliases
+   (new: --bg-chrome/--bg-inset/--needs-input; --ok/--danger re-pointed; row hovers per canvas);
+   Inter variable fonts vendored in `packages/ui/src/styles/fonts/`; Tailwind bridge + 6px
+   scrollbars; six components' on-gold ink → `var(--color-bg)`; index.html flash → #161826.
+   **NEXT: Arc 1b Phosphor icon sweep, then Arc 2 tabs/menu view** (per the plan).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

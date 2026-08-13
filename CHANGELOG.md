@@ -315,6 +315,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Vynel wears its new look: Nocturne.** The whole app moved from the old
+  near-black palette to the Nocturne design system — a quiet blue-grey ground,
+  one violet accent used as a line and a glow rather than a flood, Inter as
+  the interface typeface (bundled with the app, no font CDN at boot), thinner
+  scrollbars, and ring-edged elevation. Light mode follows as a mirrored
+  inversion of the same ramps. The tokens are lifted verbatim from the design
+  mirror (`.claude-design/`), so future design retunes land as one reviewable
+  token diff.
+
 - **The installed app is unmistakably Vynel now.** The program is `Vynel.exe`
   (no more `vynel-desktop.exe`), the engine runs as `vynel-engine.exe` instead
   of a mysterious `node.exe` in Task Manager, and the install folder is two

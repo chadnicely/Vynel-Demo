@@ -582,7 +582,7 @@ function onDrop(event: DragEvent) {
   height: 28px;
   border-radius: var(--radius-s);
   background: var(--gold);
-  color: #14171c;
+  color: var(--color-bg);
   cursor: default;
   transition: background var(--t-fast) var(--ease-out);
 }
