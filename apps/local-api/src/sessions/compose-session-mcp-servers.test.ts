@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { withTestDatabase } from '@vynel/testing'
 import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
 import { desktopFeatureDescriptor } from '@vynel/desktop-control'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
+import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 
 const context: SessionToolContext = {
   db: {} as unknown,
@@ -329,6 +331,30 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
         enabledFeatureKeys: new Set<string>(),
       })
       expect(composed.deniedMcpToolPatterns).toEqual([])
+    })
+  })
+
+  // Default policies from the REAL catalog + resolver, no admin overrides —
+  // the layer the pure-Map tests above bypass. This is the pin that catches
+  // "a turn site attaches a server the catalog's surfaces don't grant".
+  describe('real default policies per surface', () => {
+    it("leaves ask_user UN-denied on 'global-channel' (the bounded channel ask)", async () => {
+      await withTestDatabase(async (db) => {
+        const askDescriptor = fakeDescriptor({ serverName: 'vynel-ask' })
+        const policies = resolveSessionToolPolicies(db, { userId: 'user-1' })
+        const composed = composeSessionMcpServers([askDescriptor], context, {
+          toolPolicies: policies,
+          surfaceKind: 'global-channel',
+        })
+        expect(composed.deniedMcpToolPatterns).not.toContain('mcp__vynel-ask__ask_user')
+        // Control: a surface the ask does NOT ride denies it — proves this
+        // pin actually exercises the surface check.
+        const offSurface = composeSessionMcpServers([askDescriptor], context, {
+          toolPolicies: policies,
+          surfaceKind: 'schedule',
+        })
+        expect(offSurface.deniedMcpToolPatterns).toContain('mcp__vynel-ask__ask_user')
+      })
     })
   })
 })

@@ -44,6 +44,17 @@ describe('buildSessionToolCatalog', () => {
     expect(catalog.find((e) => e.toolName === 'mcp__vynel__list_tasks')!.cardClass).toBe('never')
   })
 
+  it("ask_user's surfaces match the map — interactive + the bounded channel turn", () => {
+    // The regression that shipped inert: the ask slice attached the server to
+    // channel turns while the catalog still excluded the surface, so the
+    // policy layer denied the very tool the turn composed.
+    const askUser = catalog.find((entry) => entry.toolName === 'mcp__vynel-ask__ask_user')!
+    expect([...askUser.surfaces].sort()).toEqual(
+      ['global-channel', 'global-interactive', 'workspace-interactive'].sort(),
+    )
+    expect(SURFACE_DESCRIPTOR_SETS['global-channel']).toContain('vynel-ask')
+  })
+
   it('covers every server the surface map names', () => {
     const serversInMap = new Set(Object.values(SURFACE_DESCRIPTOR_SETS).flat())
     const serversInCatalog = new Set(catalog.map((entry) => entry.serverName))

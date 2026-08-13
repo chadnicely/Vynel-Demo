@@ -19,7 +19,7 @@ import {
 } from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
-import { expireAskRequests } from '@vynel/asks'
+import { expireAskRequests, PendingAskRegistry } from '@vynel/asks'
 import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { reapAllStartedChatToolCalls } from '@vynel/chat'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
@@ -214,6 +214,7 @@ export async function boot(): Promise<void> {
 
   const serverPayloadArchive = resolveServerPayloadArchive(env.VYNEL_SERVER_PAYLOAD_ARCHIVE, logger)
 
+  const askWaiters = new PendingAskRegistry()
   const app = createApp({
     db,
     logger,
@@ -231,6 +232,10 @@ export async function boot(): Promise<void> {
     ...(serverPayloadArchive !== null ? { serverPayloadArchive } : {}),
     ...(desktopNotifications !== undefined ? { desktopNotifications } : {}),
     ...(hubSession !== undefined ? { hubSession } : {}),
+    // ONE parked-ask registry shared by the routes (answer/dismiss resolve)
+    // and the channel runner (ask_user on channel turns) — a runner-parked
+    // ask must be resolvable by the route the app answers through.
+    askWaiters,
   })
 
   // The in-process Hono dispatcher for headless turns (the schedule fire path's
@@ -296,6 +301,7 @@ export async function boot(): Promise<void> {
     desktopReader: desktopNotifications,
     enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
     readEnabledFeatureKeys,
+    askWaiters,
   })
   // The delegation claim-and-run tick — claims one pending routing job per tick,
   // runs it as a workspace turn, records the terminal state; at startup it fails

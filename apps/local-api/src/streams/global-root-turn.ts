@@ -138,9 +138,9 @@ export async function streamGlobalRootTurn(
   // streamChatTurn precedent).
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  // ask_user attaches to INTERACTIVE app turns only — this stream is the app's
-  // global chat; the background channel runner (`runGlobalRootTurn`) stays
-  // ask-free (docs/module-notes/ask.md fork #2).
+  // ask_user here waits UNBOUNDED — this stream is the app's global chat, the
+  // user is present. The background channel runner (`runGlobalRootTurn`)
+  // attaches it too, with a bounded timeout.
   const { buildAskFeatureDescriptor } = await import('@vynel/asks/mcp')
   // This turn's key — turn-end cleanup cancels exactly the asks THIS turn parked.
   const askTurnKey = crypto.randomUUID()

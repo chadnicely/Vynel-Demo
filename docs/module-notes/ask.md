@@ -86,6 +86,11 @@ dismissing, or ignoring (timeout).
      a zombie wizard.
 2. **App turns only in v1** — headless turns (schedule fires, channel inbound) don't get the
    tool; the prompt tells Claude to use sensible defaults there. Channel Q&A is a later arc.
+   *Revised by the tool-policy arc (2026-08-14):* channel turns now DO attach `ask_user` with a
+   bounded `timeoutMs` (10 min — the approvals-reaper bound); an unanswered form resolves
+   `expired` and the turn proceeds on judgment. The Telegram nudge makes the unattended ask
+   answerable; answering still happens in the app. Schedule/delegated turns stay ask-free
+   (deferred — needs the turnKey lifecycle threaded through the session leaf).
 3. **Notifier + Modal wizard** (one question per step + "View as form" switch).
 
 ## As-built notes (2026-07-17)
@@ -112,11 +117,11 @@ dismissing, or ignoring (timeout).
 
 - **The Telegram nudge + wiring the outbox relay** (see as-built note above) — next slice
   candidate; benefits schedules delivery too.
-- **`ask_requests.sessionId` is stored-but-unpopulated** (reviewer S1): the descriptor composes
-  before the SDK session id exists, so no turn identity reaches the tool today. Turn-end
-  cleanup instead keys on a per-turn `turnKey` minted by each stream (reviewer S2 fix — two
-  concurrent same-workspace turns can never cancel each other's asks). Populate `sessionId`
-  when session identity is threaded into `SessionToolContext`.
+- ~~**`ask_requests.sessionId` is stored-but-unpopulated**~~ *Closed by the tool-policy arc
+  (2026-08-14):* the compose contexts now pass Vynel's stable primary-session id and the tool
+  stamps it on the row (a loose ref, no FK). Turn-end cleanup still keys on the per-turn
+  `turnKey` (reviewer S2 — two concurrent same-workspace turns can never cancel each other's
+  asks).
 - Channel delivery of the Q&A itself (Telegram sequential questions, voice read-aloud) — the
   contract is channel-agnostic so this bolts on later.
 - File-picker / date question types.

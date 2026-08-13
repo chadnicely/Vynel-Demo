@@ -45,4 +45,77 @@ describe('runAskUserBridge', () => {
       await expect(bridge).resolves.toEqual({ answered: false, reason: 'cancelled' })
     })
   })
+
+  it('a bounded wait EXPIRES: resolves expired + the row leaves pending (unattended surfaces)', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const waiters = new PendingAskRegistry()
+
+      const bridge = runAskUserBridge(
+        db,
+        { userId, workspaceId },
+        { waiters, turnKey: 'turn-1', timeoutMs: 20 },
+        makeQuestions(),
+      )
+      await expect(bridge).resolves.toEqual({ answered: false, reason: 'expired' })
+      // The row expired with the waiter — nothing pending survives the wait.
+      expect(listPendingAskRequestsForUser(db, userId)).toHaveLength(0)
+    })
+  })
+
+  it('an answer beats the timer: the bounded wait resolves the ANSWER and the timer is inert', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const waiters = new PendingAskRegistry()
+
+      const bridge = runAskUserBridge(
+        db,
+        { userId, workspaceId },
+        { waiters, turnKey: 'turn-1', timeoutMs: 60_000 },
+        makeQuestions(),
+      )
+      const [pending] = listPendingAskRequestsForUser(db, userId)
+      waiters.resolve(pending!.id, { answered: true, answers: { audience: 'Regulars' } })
+      await expect(bridge).resolves.toEqual({ answered: true, answers: { audience: 'Regulars' } })
+    })
+  })
+
+  it('cancel with a live timer: resolves cancelled and the timer never expires the row', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const waiters = new PendingAskRegistry()
+
+      const bridge = runAskUserBridge(
+        db,
+        { userId, workspaceId },
+        { waiters, turnKey: 'turn-1', timeoutMs: 20 },
+        makeQuestions(),
+      )
+      expect(waiters.cancelForTurn('turn-1')).toHaveLength(1)
+      await expect(bridge).resolves.toEqual({ answered: false, reason: 'cancelled' })
+      // Outwait the timer window: cancel cleared it, so the row is still
+      // PENDING — expiring a cancelled turn's rows is the owning stream's
+      // cleanup, never the timer's.
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      expect(listPendingAskRequestsForUser(db, userId)).toHaveLength(1)
+    })
+  })
+
+  it('stamps the asking session on the row when the turn knows it', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const waiters = new PendingAskRegistry()
+
+      const bridge = runAskUserBridge(
+        db,
+        { userId, workspaceId, sessionId: 'primary-1' },
+        { waiters, turnKey: 'turn-1' },
+        makeQuestions(),
+      )
+      const [pending] = listPendingAskRequestsForUser(db, userId)
+      expect(pending!.sessionId).toBe('primary-1')
+      waiters.cancelForTurn('turn-1')
+      await bridge
+    })
+  })
 })

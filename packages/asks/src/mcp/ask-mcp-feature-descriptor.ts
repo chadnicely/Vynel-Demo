@@ -1,8 +1,9 @@
 // The `vynel-ask` MCP feature descriptor — `ask_user` expressed as the shared
 // `McpFeatureDescriptor` so the apps/local-api composer attaches it like every
-// other feature. Attached to the INTERACTIVE app turns ONLY (workspace chat +
-// global chat streams) — never schedule fires or channel turns, where nobody
-// is looking at the app to answer (module notes fork #2).
+// other feature. Attached to the interactive app turns (unbounded wait — the
+// user is present) AND to channel turns with a bounded `timeoutMs` (module
+// notes fork #2, revised by the tool-policy arc: the Telegram nudge makes an
+// unattended ask answerable, and expiry keeps it from parking the job).
 //
 // A FACTORY, not a static export (the notebook precedent doesn't fit): the
 // tool must park on the process-wide waiter registry, which the composer's
@@ -24,7 +25,11 @@ export const ASK_PROMPT_INSTRUCTIONS =
   'When you are genuinely blocked on the user\'s preference or information you cannot find ' +
   'yourself, use ask_user to show them a short form instead of asking questions in chat — ' +
   'bundle related questions into one call. Never use it for what you can look up, and never ' +
-  're-ask what memory already knows.'
+  're-ask what memory already knows. This works in EVERY mode, auto and bypass included: those ' +
+  'modes mean "don\'t ask permission", not "never check a preference" — when a consequential ' +
+  'choice is genuinely ambiguous and getting it wrong would waste the user\'s work, asking is ' +
+  'your call to make. If the result comes back unanswered or expired, proceed with your best ' +
+  'judgment and say what you assumed.'
 
 export function buildAskFeatureDescriptor(deps: AskUserToolDeps): McpFeatureDescriptor {
   return {
@@ -34,7 +39,11 @@ export function buildAskFeatureDescriptor(deps: AskUserToolDeps): McpFeatureDesc
       buildAskMcpServer(
         // The one documented producer-boundary cast — see file header.
         context.db as Database,
-        { userId: context.userId, workspaceId: context.workspaceId ?? null },
+        {
+          userId: context.userId,
+          workspaceId: context.workspaceId ?? null,
+          ...(context.sessionId !== undefined ? { sessionId: context.sessionId } : {}),
+        },
         deps,
       ),
     // Asking is reversible plumbing — never carded.

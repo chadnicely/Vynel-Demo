@@ -37,7 +37,10 @@ import {
 /** The servers a surface kind composes (the read model; see file header). */
 export const SURFACE_DESCRIPTOR_SETS: Readonly<Record<SessionSurfaceKind, readonly string[]>> = {
   'global-interactive': ['vynel', 'vynel-notebook', 'vynel-ask', 'desktop', 'vynel-ssh'],
-  'global-channel': ['vynel', 'vynel-notebook', 'desktop'],
+  // vynel-ask rides channel turns BOUNDED (the ask slice): the Telegram
+  // nudge exists, and a 10-min expiry keeps an unanswered form from parking
+  // the background job forever.
+  'global-channel': ['vynel', 'vynel-notebook', 'vynel-ask', 'desktop'],
   'workspace-interactive': ['vynel', 'vynel-notebook', 'vynel-ask', 'vynel-ssh'],
   'workspace-background': ['vynel', 'vynel-notebook'],
   // Desktop never composes here: DESKTOP_CAPABLE_DELEGATED_TARGETS is
@@ -114,7 +117,7 @@ const FIXED_SERVERS: readonly FixedServer[] = [
   {
     serverName: 'vynel-ask',
     toolNames: ['mcp__vynel-ask__ask_user'],
-    surfaces: ['global-interactive', 'workspace-interactive'],
+    surfaces: ['global-interactive', 'workspace-interactive', 'global-channel'],
   },
   {
     serverName: 'desktop',

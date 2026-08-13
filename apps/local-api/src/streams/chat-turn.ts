@@ -58,9 +58,9 @@ export async function streamChatTurn(
   // Dynamic import keeps the heavy SDK out of module load.
   const { vynelWorkspaceInteractiveDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  // ask_user attaches to INTERACTIVE app turns only (this stream + the global
-  // chat stream) — never schedule fires or channel turns, where nobody is
-  // looking at the app to answer (docs/module-notes/ask.md fork #2).
+  // ask_user here waits UNBOUNDED — an interactive stream means the user is
+  // present (docs/module-notes/ask.md fork #1). Channel turns attach it too,
+  // but with a timeout (see runGlobalRootTurn).
   const { buildAskFeatureDescriptor } = await import('@vynel/asks/mcp')
   // This turn's key — turn-end cleanup cancels exactly the asks THIS turn
   // parked (never a concurrent sibling turn's in the same workspace).
