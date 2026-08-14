@@ -237,6 +237,7 @@ async function onSend(text: string, files: File[]) {
     :mode-id="ui.composerMode"
     :efforts="effortOptions"
     :effort-id="ui.composerThinkingEffort"
+    :auto-buildout="ui.composerAutoBuildout"
     :context-fraction="props.contextFraction ?? null"
     :context-tooltip="props.contextTooltip ?? undefined"
     :allow-attachments="props.allowAttachments"
@@ -246,6 +247,7 @@ async function onSend(text: string, files: File[]) {
     show-voice
     :voice-active="dictation.isDictating.value"
     :notice="notice"
+    @update:auto-buildout="(on) => (ui.composerAutoBuildout = on)"
     @update:model-id="(id) => (ui.composerModelId = id)"
     @update:mode-id="(id) => (ui.composerMode = id as SessionMode)"
     @update:effort-id="

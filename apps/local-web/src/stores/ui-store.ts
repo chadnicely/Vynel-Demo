@@ -72,6 +72,7 @@ const LEGACY_WORKSPACE_STORAGE_KEY = "vynel.active-workspace";
 const COMPOSER_MODE_STORAGE_KEY = "vynel.composer-mode";
 const COMPOSER_MODEL_STORAGE_KEY = "vynel.composer-model";
 const COMPOSER_THINKING_EFFORT_STORAGE_KEY = "vynel.composer-thinking-effort";
+const COMPOSER_AUTO_BUILDOUT_STORAGE_KEY = "vynel.composer-auto-buildout";
 
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -108,6 +109,14 @@ function readStoredThinkingEffort(): ComposerThinkingEffort {
   return THINKING_EFFORT_OPTIONS.some((option) => option.id === stored)
     ? (stored as ComposerThinkingEffort)
     : DEFAULT_THINKING_EFFORT;
+}
+
+// Auto buildout — the canvas's composer toggle. NOTHING READS IT YET (Kafi,
+// 2026-08-15: "we don't have functions yet but add that"): it is a persisted
+// preference waiting for the build engine, deliberately not a dead switch that
+// forgets itself. Off by default — a build that runs itself is opt-in.
+function readStoredAutoBuildout(): boolean {
+  return localStorage.getItem(COMPOSER_AUTO_BUILDOUT_STORAGE_KEY) === "on";
 }
 
 function freshShell(): ChatShellState {
@@ -351,7 +360,11 @@ export const useUiStore = defineStore("ui", () => {
   const composerThinkingEffort = ref<ComposerThinkingEffort>(
     readStoredThinkingEffort(),
   );
+  const composerAutoBuildout = ref<boolean>(readStoredAutoBuildout());
 
+  watch(composerAutoBuildout, (value) =>
+    localStorage.setItem(COMPOSER_AUTO_BUILDOUT_STORAGE_KEY, value ? "on" : "off"),
+  );
   watch(composerMode, (value) =>
     localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, value),
   );
@@ -393,6 +406,7 @@ export const useUiStore = defineStore("ui", () => {
     composerModelId,
     composerMode,
     composerThinkingEffort,
+    composerAutoBuildout,
     composerSeed,
     isVoiceOverlayOpen,
   };

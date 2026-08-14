@@ -57,8 +57,15 @@ const props = withDefaults(
   mentionSuggestions?: ComposerSuggestItem[] | undefined;
   workspaceSuggestions?: ComposerSuggestItem[] | undefined;
   slashSuggestions?: ComposerSuggestItem[] | undefined;
+  /** Auto buildout — the canvas's composer toggle. Undefined hides it, so a
+   *  surface opts in by binding state. NOTHING CONSUMES IT YET: it is a
+   *  persisted preference waiting on the build engine (Kafi, 2026-08-15). */
+  autoBuildout?: boolean | undefined;
   }>(),
-  { allowAttachments: true },
+  // Both defaults are explicit for the SAME reason: Vue casts an absent
+  // boolean prop to false, so "not passed" would otherwise be indistinguishable
+  // from "passed as off" — and the switch would appear on every surface.
+  { allowAttachments: true, autoBuildout: undefined },
 );
 
 const emit = defineEmits<{
@@ -67,6 +74,7 @@ const emit = defineEmits<{
   voice: [];
   "update:modelId": [id: string];
   "update:modeId": [id: string];
+  "update:autoBuildout": [enabled: boolean];
   "update:effortId": [id: string];
 }>();
 
@@ -286,6 +294,33 @@ function onDrop(event: DragEvent) {
         </svg>
       </button>
 
+      <!-- Auto buildout (the canvas's composer toggle) sits right after the
+           attach affordance — Kafi's placement; the canvas stacks it on a
+           second row we do not carry. -->
+      <button
+        v-if="props.autoBuildout !== undefined"
+        type="button"
+        class="auto-toggle"
+        :class="{ 'is-on': props.autoBuildout }"
+        role="switch"
+        :aria-checked="props.autoBuildout"
+        @click="emit('update:autoBuildout', !props.autoBuildout)"
+      >
+        <span class="auto-track" aria-hidden="true">
+          <span class="auto-knob" />
+        </span>
+        Auto buildout
+      </button>
+
+      <!-- The context ring reads as a property OF the model, so it leads the
+           model chip (Kafi, 2026-08-15) rather than sitting by the send key. -->
+      <ContextRing
+        v-if="props.contextFraction != null"
+        class="context-slot"
+        :fraction="props.contextFraction"
+        :tooltip="props.contextTooltip"
+      />
+
       <SelectChip
         :options="props.models"
         :more-options="props.moreModels"
@@ -352,13 +387,6 @@ function onDrop(event: DragEvent) {
       </button>
 
       <span class="spacer" />
-
-      <ContextRing
-        v-if="props.contextFraction != null"
-        class="context-slot"
-        :fraction="props.contextFraction"
-        :tooltip="props.contextTooltip"
-      />
 
       <button
         v-if="props.streaming"
@@ -569,8 +597,67 @@ function onDrop(event: DragEvent) {
   flex: 1;
 }
 
+/* Leading the model chip now, not trailing the send key. */
 .context-slot {
-  margin-right: 4px;
+  margin: 0 2px 0 4px;
+}
+
+/* The canvas's composer switch (30x17 track, 13px knob), sized down a step so
+   it sits in a row of 14px icons instead of towering over them. */
+.auto-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-neutral-500);
+  font: 400 11.5px/1 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--t-fast, 120ms) ease;
+}
+
+.auto-toggle.is-on {
+  color: var(--color-accent-200);
+}
+
+.auto-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
+.auto-track {
+  display: flex;
+  justify-content: flex-start;
+  width: 26px;
+  height: 15px;
+  flex: none;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--color-neutral-800);
+  transition: background var(--t-fast, 120ms) ease;
+}
+
+.auto-toggle.is-on .auto-track {
+  justify-content: flex-end;
+  background: var(--color-accent-700);
+}
+
+.auto-knob {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--color-neutral-500);
+  transition: background var(--t-fast, 120ms) ease;
+}
+
+.auto-toggle.is-on .auto-knob {
+  background: var(--color-accent-100);
 }
 
 .send-button {

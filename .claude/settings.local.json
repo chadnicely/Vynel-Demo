@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -f toolbar.png toolbar-final.png toggle-on.png)",
+      "Bash(git commit *)"
+    ]
+  }
+}
