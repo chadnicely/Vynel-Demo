@@ -44,9 +44,14 @@ back (silence on underrun). One direction only — this is the VOICE half. The E
 participants) is device-less on Windows via the process-loopback addon
 (`apps/voice/native/process-loopback`), so a Windows call needs just this one cable.
 
-**Format constraint (v1):** both endpoints must run the same PCM format; Vynel's daemon opens
-both ends and picks matching formats. A mismatch produces wrong-rate audio, not a crash.
-In-driver resampling is a recorded later-improve.
+**Format tolerance:** the ring stores canonical mono 16-bit samples — the render side folds
+its frames to mono (integer average), the capture side replicates to its channel count — so
+the shipped stereo-Voice/mono-Microphone shape carries audio faithfully. Sample rate is never
+converted: both circuits advertise **48 kHz only**, making a rate mismatch impossible by
+construction (Windows converts shared-mode audio to the endpoint format; exclusive mode can
+only pick advertised formats). Before this, the raw byte ring played stereo-into-mono at the
+wrong pitch (`smoke-cable.mjs` measured ~40 Hz for a 440 Hz tone — overflow chop on top of
+the half-pitch fold); the smoke now checks pitch, not just amplitude.
 
 This device does NOT publish the `Vynel Call 1 Ears/Voice` PAIR the registry auto-discovers
 (that pattern is for the two-cable env model); the Windows integration claims this single voice
@@ -70,7 +75,7 @@ the endpoint-naming registration above, changes are branding (fresh GUIDs + name
 
 - `VynelCallAudio/Driver/VynelCallAudio.inf` — hardware id `ROOT\VynelCallAudio`, service +
   binary `VynelCallAudio.sys`, provider "Vynel", endpoint friendly names above,
-  `DriverVer` 0.1.0.3 (bumped per package change; `sign/Sign-Driver.ps1` stamps the
+  `DriverVer` 0.1.0.4 (bumped per package change; `sign/Sign-Driver.ps1` stamps the
   authoritative version with a fixed past date)
 - `VynelCallAudio/Driver/DriverSettings.h` — fresh render/capture component GUIDs + mic pin
   GUID (a machine running the MS sample must never collide with ours), pool tag `uaCV`
@@ -116,8 +121,9 @@ accepted). Sessions never install/update the driver unattended. See `LOADING.md`
   line-connector render category (mechanism + speaker hardcode above). **Runtime-VERIFIED
   2026-08-14 (0.1.0.3)**: both endpoints show the contract names and the smoke passes through
   them at the generated amplitude.
-- [ ] **In-driver format tolerance**: v1 assumes both ends share one PCM format; add a format
-  check + resample so a mismatch degrades gracefully instead of playing wrong-rate audio.
+- [x] **In-driver format tolerance** — mono ring + channel fold/replicate + 48 kHz-only
+  format lists (see "Format tolerance" above). Compile + InfVerif VALID at 0.1.0.4; runtime
+  pass pending (fresh install + the pitch-checking smoke, which FAILs on 0.1.0.3).
 - [ ] **N static pairs**: INF-models change (N device nodes, per-model friendly names, same
   binary) — days-scale, mostly INF + install UX.
 - [ ] **Dynamic pairs** (create per call on demand): ACX supports post-start

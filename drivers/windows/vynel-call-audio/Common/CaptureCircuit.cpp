@@ -301,7 +301,6 @@ Capture_AllocateSupportedFormats(
     UNREFERENCED_PARAMETER(CodecCapturePinCount);
 
     NTSTATUS status = STATUS_SUCCESS;
-    ACXDATAFORMAT formatPcm44100c1;
     ACXDATAFORMAT formatPcm48000c1;
     ACXDATAFORMATLIST formatList;
 
@@ -312,8 +311,10 @@ Capture_AllocateSupportedFormats(
     //
     // Allocate the formats this circuit supports.
     //
+    // 48 kHz ONLY — same rationale as Render_AllocateSupportedFormats: one
+    // shared rate on both circuits means the ring never has to resample.
+    //
 
-    RETURN_NTSTATUS_IF_FAILED(AllocateFormat(Pcm44100c1, Circuit, Device, &formatPcm44100c1));
     RETURN_NTSTATUS_IF_FAILED(AllocateFormat(Pcm48000c1, Circuit, Device, &formatPcm48000c1));
 
     ///////////////////////////////////////////////////////////
@@ -334,7 +335,6 @@ Capture_AllocateSupportedFormats(
     // The driver uses this DDI to add data formats to the raw
     // processing mode list associated with the current circuit.
     //
-    RETURN_NTSTATUS_IF_FAILED(AcxDataFormatListAddDataFormat(formatList, formatPcm44100c1));
     RETURN_NTSTATUS_IF_FAILED(AcxDataFormatListAddDataFormat(formatList, formatPcm48000c1));
 
     return status;

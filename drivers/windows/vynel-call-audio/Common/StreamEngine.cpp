@@ -49,6 +49,7 @@ CStreamEngine::CStreamEngine(
     m_Position(0),
     m_Stream(Stream),
     m_StreamFormat(StreamFormat),
+    m_RingChannels(0),
     m_StartTime(0),
     m_StartPosition(0),
     m_GlitchAdjust(0),
@@ -258,6 +259,15 @@ CStreamEngine::PrepareHardware()
 
     timerCtx = GetStreamTimerContext(m_NotificationTimer);
     timerCtx->StreamEngine = this;
+
+    // Cache the frame shape for the DISPATCH-level loopback-ring path — the
+    // ring folds/replicates 16-bit samples only, so anything else parks it.
+    {
+        PWAVEFORMATEXTENSIBLE pwfext =
+            (PWAVEFORMATEXTENSIBLE)AcxDataFormatGetWaveFormatExtensible(m_StreamFormat);
+        m_RingChannels =
+            (pwfext != NULL && pwfext->Format.wBitsPerSample == 16) ? pwfext->Format.nChannels : 0;
+    }
 
     m_CurrentState = AcxStreamStatePause;
     status = STATUS_SUCCESS;
@@ -868,10 +878,12 @@ CRenderStreamEngine::ProcessPacket()
 
     m_SaveData.WriteData(packetBuffer, m_PacketSize);
 
-    // The virtual cable: hand the just-played audio to the capture endpoint.
-    if (m_LoopbackRing != nullptr)
+    // The virtual cable: fold the just-played frames to mono for the capture
+    // endpoint. An unfoldable format (m_RingChannels 0) writes nothing — the
+    // capture side then reads silence rather than garble.
+    if (m_LoopbackRing != nullptr && m_RingChannels != 0)
     {
-        m_LoopbackRing->Write(packetBuffer, m_PacketSize);
+        m_LoopbackRing->WriteFrames(packetBuffer, m_PacketSize, m_RingChannels);
     }
 }
 
@@ -1017,11 +1029,13 @@ CCaptureStreamEngine::ProcessPacket()
         packetBuffer += m_FirstPacketOffset;
     }
 
-    // The virtual cable: the mic outputs whatever the render endpoint played.
-    // Falls back to the sample's tone/wave only when no ring is wired.
+    // The virtual cable: the mic outputs whatever the render endpoint played,
+    // each mono ring sample replicated across this stream's channels. Falls
+    // back to the sample's tone/wave only when no ring is wired; an
+    // unfoldable format keeps the cable but outputs silence.
     if (m_LoopbackRing != nullptr)
     {
-        m_LoopbackRing->Read(packetBuffer, m_PacketSize);
+        m_LoopbackRing->ReadFrames(packetBuffer, m_PacketSize, m_RingChannels);
     }
     else if (m_EnableWaveCapture)
     {

@@ -242,6 +242,11 @@ protected:
     ULONGLONG           m_Position;
     ACXSTREAM           m_Stream;
     ACXDATAFORMAT       m_StreamFormat;
+    // Channels per frame of this stream's format, cached at PrepareHardware
+    // (PASSIVE) for the DISPATCH-level loopback-ring packet path. 0 = a
+    // format the ring can't fold (non-16-bit) — the cable parks (silence)
+    // instead of garbling.
+    ULONG               m_RingChannels;
     ULONGLONG           m_StartTime;
     ULONGLONG           m_StartPosition;
     ULONGLONG           m_GlitchAdjust;
@@ -336,9 +341,10 @@ public:
 
 protected:
     CSaveData m_SaveData;
-    // The virtual cable's write side — the audio an app plays is copied here
-    // for the capture endpoint to read. Device-owned; may be null (then the
-    // render endpoint just discards, the pre-cable behavior).
+    // The virtual cable's write side — the audio an app plays is folded to
+    // mono into the ring for the capture endpoint to read. Device-owned; may
+    // be null (then the render endpoint just discards, the pre-cable
+    // behavior).
     CLoopbackRing* m_LoopbackRing;
 
     virtual
@@ -391,8 +397,9 @@ protected:
     UNICODE_STRING  m_HostCaptureFileName;
     UNICODE_STRING  m_LoopbackCaptureFileName;
     // The virtual cable's read side — the mic outputs whatever the render
-    // endpoint played (silence on underrun). Device-owned; when null the
-    // engine falls back to the sample's tone/wave generator.
+    // endpoint played, each mono ring sample replicated to this stream's
+    // channels (silence on underrun). Device-owned; when null the engine
+    // falls back to the sample's tone/wave generator.
     CLoopbackRing*  m_LoopbackRing;
 
     virtual

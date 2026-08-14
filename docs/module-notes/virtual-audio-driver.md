@@ -341,6 +341,35 @@ at endpoint creation and cached in `MMDevices` — purge Vynel entries to force 
 access-denied key BEFORE restarting Audiosrv and left the machine mute (delete failures are
 per-key warnings now).
 
+## 2026-08-15 — in-driver format tolerance (0.1.0.4; built + InfVerif VALID; runtime pending)
+
+Follow-up #3 of the naming run (the old "(3) in-driver format tolerance"). The raw byte ring
+was actively wrong in the SHIPPED shape — render advertises stereo, capture mono, so stereo
+frames were being read as a mono stream. The upgraded `smoke-cable.mjs` (pitch check via
+zero-crossings with hysteresis, not just amplitude) proved it red-first on installed 0.1.0.3:
+"audio looped but at ~40Hz instead of 440Hz" — overflow chop (stereo fills the ring at 2× the
+mono drain) on top of the half-pitch fold. Amplitude-only smoke had called that a PASS.
+
+The fix, two halves:
+
+- **Channel tolerance in the ring** (`LoopbackRing` rewritten): canonical mono 16-bit sample
+  store (`SHORT[128K]` ≈ 2.7 s @48 kHz); `WriteFrames` folds N-channel frames by integer
+  average, `ReadFrames` replicates each sample to the reader's channel count; underrun and
+  partial frames are silence; overflow still drops oldest. Engines cache `m_RingChannels`
+  once in `CStreamEngine::PrepareHardware` (PASSIVE) from their own stream format — one home
+  in the base class — and the DISPATCH packet paths stay integer + spinlock. Non-16-bit
+  formats park the cable (write drops / read silences), never fold garbage.
+- **Rate mismatch made impossible, not handled**: both circuits advertise **48 kHz only**
+  (44100 entries dropped). Windows' engine converts all shared-mode audio to the endpoint
+  format, and exclusive mode can only pick advertised formats — so no kernel resampler
+  exists at all. This was the deliberate fork: a fixed shared rate over weeks of integer
+  resampler risk.
+
+0.1.0.4 built (compile+link clean; inf2cat hit the documented UTC clock-skew — local date
+rolled past UTC midnight — and `Sign-Driver.ps1` rebuilt the catalog as designed), InfVerif
+`/h` VALID, signed. **Runtime with Chad:** fresh install, then the smoke must flip to PASS at
+~440 Hz — and both endpoints should now open at 48000.
+
 ### Runtime round 2 (0.1.0.3): VERIFIED — naming closed
 
 Fresh install on Chad's machine: **"Vynel Call 1 Voice (Vynel Audio)"** +

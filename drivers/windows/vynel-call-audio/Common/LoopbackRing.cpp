@@ -6,7 +6,7 @@ Module Name:
 
 Abstract:
 
-    Implementation of the render->capture PCM ring (see LoopbackRing.h).
+    Implementation of the render->capture mono ring (see LoopbackRing.h).
 
 Environment:
 
@@ -33,52 +33,64 @@ CLoopbackRing::Reset()
     KeAcquireSpinLock(&m_Lock, &oldIrql);
     m_WritePosition = 0;
     m_ReadPosition = 0;
-    m_BytesAvailable = 0;
+    m_SamplesAvailable = 0;
     KeReleaseSpinLock(&m_Lock, oldIrql);
 }
 
 _Use_decl_annotations_
 VOID
-CLoopbackRing::Write(
+CLoopbackRing::WriteFrames(
     PBYTE Source,
-    ULONG Length
+    ULONG Length,
+    ULONG Channels
 )
 {
-    if (Length == 0)
+    if (Channels == 0)
     {
         return;
     }
 
+    ULONG frames = Length / (Channels * sizeof(SHORT));
+    if (frames == 0)
+    {
+        return;
+    }
+
+    const SHORT* samples = (const SHORT*)Source;
+
     KIRQL oldIrql;
     KeAcquireSpinLock(&m_Lock, &oldIrql);
 
-    // A single Write longer than the whole ring can only keep its final
-    // LOOPBACK_RING_BYTES — copy just that tail, freshest audio.
-    if (Length >= LOOPBACK_RING_BYTES)
+    // A single write longer than the whole ring can only keep its final
+    // LOOPBACK_RING_SAMPLES frames — fold just that tail, freshest audio.
+    if (frames >= LOOPBACK_RING_SAMPLES)
     {
-        Source += (Length - LOOPBACK_RING_BYTES);
-        Length = LOOPBACK_RING_BYTES;
+        samples += (ULONG_PTR)(frames - LOOPBACK_RING_SAMPLES) * Channels;
+        frames = LOOPBACK_RING_SAMPLES;
         m_WritePosition = 0;
         m_ReadPosition = 0;
-        m_BytesAvailable = 0;
+        m_SamplesAvailable = 0;
     }
 
-    ULONG firstChunk = min(Length, LOOPBACK_RING_BYTES - m_WritePosition);
-    RtlCopyMemory(&m_Buffer[m_WritePosition], Source, firstChunk);
-    if (Length > firstChunk)
+    for (ULONG frame = 0; frame < frames; frame++)
     {
-        RtlCopyMemory(&m_Buffer[0], Source + firstChunk, Length - firstChunk);
+        LONG sum = 0;
+        for (ULONG channel = 0; channel < Channels; channel++)
+        {
+            sum += samples[(ULONG_PTR)frame * Channels + channel];
+        }
+        m_Buffer[m_WritePosition] = (SHORT)(sum / (LONG)Channels);
+        m_WritePosition = (m_WritePosition + 1) % LOOPBACK_RING_SAMPLES;
     }
-    m_WritePosition = (m_WritePosition + Length) % LOOPBACK_RING_BYTES;
 
-    m_BytesAvailable += Length;
-    if (m_BytesAvailable > LOOPBACK_RING_BYTES)
+    m_SamplesAvailable += frames;
+    if (m_SamplesAvailable > LOOPBACK_RING_SAMPLES)
     {
         // Overflow: the writer lapped the reader. Drop the oldest audio by
         // pulling the read cursor up to the write cursor's tail.
-        ULONG overrun = m_BytesAvailable - LOOPBACK_RING_BYTES;
-        m_ReadPosition = (m_ReadPosition + overrun) % LOOPBACK_RING_BYTES;
-        m_BytesAvailable = LOOPBACK_RING_BYTES;
+        ULONG overrun = m_SamplesAvailable - LOOPBACK_RING_SAMPLES;
+        m_ReadPosition = (m_ReadPosition + overrun) % LOOPBACK_RING_SAMPLES;
+        m_SamplesAvailable = LOOPBACK_RING_SAMPLES;
     }
 
     KeReleaseSpinLock(&m_Lock, oldIrql);
@@ -86,9 +98,10 @@ CLoopbackRing::Write(
 
 _Use_decl_annotations_
 VOID
-CLoopbackRing::Read(
+CLoopbackRing::ReadFrames(
     PBYTE Destination,
-    ULONG Length
+    ULONG Length,
+    ULONG Channels
 )
 {
     if (Length == 0)
@@ -96,27 +109,37 @@ CLoopbackRing::Read(
         return;
     }
 
+    if (Channels == 0)
+    {
+        RtlZeroMemory(Destination, Length);
+        return;
+    }
+
+    ULONG frames = Length / (Channels * sizeof(SHORT));
+    SHORT* out = (SHORT*)Destination;
+
     KIRQL oldIrql;
     KeAcquireSpinLock(&m_Lock, &oldIrql);
 
-    ULONG toCopy = min(Length, m_BytesAvailable);
-    if (toCopy > 0)
+    ULONG toCopy = min(frames, m_SamplesAvailable);
+    for (ULONG frame = 0; frame < toCopy; frame++)
     {
-        ULONG firstChunk = min(toCopy, LOOPBACK_RING_BYTES - m_ReadPosition);
-        RtlCopyMemory(Destination, &m_Buffer[m_ReadPosition], firstChunk);
-        if (toCopy > firstChunk)
+        SHORT sample = m_Buffer[m_ReadPosition];
+        m_ReadPosition = (m_ReadPosition + 1) % LOOPBACK_RING_SAMPLES;
+        for (ULONG channel = 0; channel < Channels; channel++)
         {
-            RtlCopyMemory(Destination + firstChunk, &m_Buffer[0], toCopy - firstChunk);
+            out[(ULONG_PTR)frame * Channels + channel] = sample;
         }
-        m_ReadPosition = (m_ReadPosition + toCopy) % LOOPBACK_RING_BYTES;
-        m_BytesAvailable -= toCopy;
     }
-
-    // Underrun (nothing played, or the reader outpaced the writer) is silence.
-    if (toCopy < Length)
-    {
-        RtlZeroMemory(Destination + toCopy, Length - toCopy);
-    }
+    m_SamplesAvailable -= toCopy;
 
     KeReleaseSpinLock(&m_Lock, oldIrql);
+
+    // Underrun (nothing played, or the reader outpaced the writer) is
+    // silence — as is any trailing partial frame.
+    ULONG written = toCopy * Channels * sizeof(SHORT);
+    if (written < Length)
+    {
+        RtlZeroMemory(Destination + written, Length - written);
+    }
 }

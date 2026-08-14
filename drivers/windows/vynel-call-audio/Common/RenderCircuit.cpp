@@ -303,7 +303,6 @@ Render_AllocateSupportedFormats(
     UNREFERENCED_PARAMETER(CodecRenderPinCount);
 
     NTSTATUS status = STATUS_SUCCESS;
-    ACXDATAFORMAT formatPcm44100c2;
     ACXDATAFORMAT formatPcm48000c2;
     ACXDATAFORMATLIST formatList;
 
@@ -314,8 +313,12 @@ Render_AllocateSupportedFormats(
     //
     // Allocate the formats this circuit supports.
     //
+    // 48 kHz ONLY, on both circuits: the loopback ring converts channels but
+    // not rate, so a single shared rate makes a rate mismatch impossible by
+    // construction (Windows converts shared-mode audio to the endpoint
+    // format; exclusive mode can only pick advertised formats).
+    //
 
-    RETURN_NTSTATUS_IF_FAILED(AllocateFormat(Pcm44100c2, Circuit, Device, &formatPcm44100c2));
     RETURN_NTSTATUS_IF_FAILED(AllocateFormat(Pcm48000c2, Circuit, Device, &formatPcm48000c2));
 
     ///////////////////////////////////////////////////////////
@@ -336,7 +339,6 @@ Render_AllocateSupportedFormats(
     // The driver uses this DDI to add data formats to the raw
     // processing mode list associated with the current circuit.
     //
-    RETURN_NTSTATUS_IF_FAILED(AcxDataFormatListAddDataFormat(formatList, formatPcm44100c2));
     RETURN_NTSTATUS_IF_FAILED(AcxDataFormatListAddDataFormat(formatList, formatPcm48000c2));
 
     return status;

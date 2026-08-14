@@ -1,8 +1,9 @@
-// VM smoke for the Vynel Call Audio loopback cable: play a tone INTO the render
+// Smoke for the Vynel Call Audio loopback cable: play a tone INTO the render
 // endpoint ("Vynel Call 1 Voice") and record it back OUT of the capture endpoint
-// ("Vynel Call 1 Microphone"). If the driver's render->capture ring works, the
-// recording is non-silent. Run in the VM (Windows node) after loading + signing
-// the driver per LOADING.md:
+// ("Vynel Call 1 Microphone"). PASS needs the recording non-silent AND at the
+// played pitch — the pitch check catches format-folding bugs (raw byte copy of
+// stereo frames into a mono stream halves the frequency; amplitude alone can't
+// see that). Run on Windows node after loading + signing per LOADING.md:
 //   node drivers\windows\vynel-call-audio\smoke-cable.mjs [seconds]
 //
 // It reuses node-cpal from the voice app (same binding the daemon uses), so a
@@ -61,6 +62,14 @@ let frames = 0
 let samples = 0
 let peak = 0
 let sumSquares = 0
+// Pitch estimate via zero crossings on channel 0, with hysteresis so leading
+// silence and noise contribute nothing: crossings / 2 / active-span ≈ Hz.
+let crossings = 0
+let lastSign = 0
+let monoIndex = 0
+let firstActive = -1
+let lastActive = -1
+const ACTIVE_LEVEL = 0.05
 const micHandle = cpal.createStream(mic.deviceId, true, inConfig, (data) => {
   frames += 1
   samples += data.length
@@ -68,6 +77,17 @@ const micHandle = cpal.createStream(mic.deviceId, true, inConfig, (data) => {
     const a = Math.abs(s)
     if (a > peak) peak = a
     sumSquares += s * s
+  }
+  for (let f = 0; f < data.length; f += inConfig.channels) {
+    const s = data[f]
+    if (Math.abs(s) >= ACTIVE_LEVEL) {
+      if (firstActive < 0) firstActive = monoIndex
+      lastActive = monoIndex
+      const sign = s > 0 ? 1 : -1
+      if (lastSign !== 0 && sign !== lastSign) crossings += 1
+      lastSign = sign
+    }
+    monoIndex += 1
   }
 })
 const voiceHandle = cpal.createStream(voice.deviceId, false, outConfig, () => {})
@@ -79,9 +99,29 @@ setTimeout(() => {
   cpal.closeStream(micHandle)
   const rms = Math.sqrt(sumSquares / Math.max(1, samples))
   const nonSilent = peak > 0.01
+  const activeSpanSeconds = firstActive >= 0 ? (lastActive - firstActive) / inConfig.sampleRate : 0
+  const estimatedHz = activeSpanSeconds > 0 ? crossings / 2 / activeSpanSeconds : 0
+  const pitchOk = activeSpanSeconds > 1 && Math.abs(estimatedHz - TONE_HZ) / TONE_HZ < 0.1
   console.log(
-    JSON.stringify({ frames, samples, peak: Number(peak.toFixed(4)), rms: Number(rms.toFixed(4)), nonSilent }),
+    JSON.stringify({
+      frames,
+      samples,
+      peak: Number(peak.toFixed(4)),
+      rms: Number(rms.toFixed(4)),
+      nonSilent,
+      estimatedHz: Number(estimatedHz.toFixed(1)),
+      pitchOk,
+    }),
   )
-  console.log(nonSilent ? 'PASS — audio looped render->capture through the driver.' : 'FAIL — capture was silent.')
-  process.exit(nonSilent ? 0 : 1)
+  if (nonSilent && pitchOk) {
+    console.log('PASS — audio looped render->capture through the driver at the played pitch.')
+  } else if (!nonSilent) {
+    console.log('FAIL — capture was silent.')
+  } else {
+    console.log(
+      `FAIL — audio looped but at ~${estimatedHz.toFixed(0)}Hz instead of ${TONE_HZ}Hz — ` +
+        `the ring is mangling the format (channel/rate fold bug).`,
+    )
+  }
+  process.exit(nonSilent && pitchOk ? 0 : 1)
 }, seconds * 1000)
