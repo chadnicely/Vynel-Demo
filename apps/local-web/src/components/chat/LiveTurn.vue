@@ -75,7 +75,9 @@ const elapsedLabel = useTickingElapsed(
       />
 
       <div v-if="segment.text" class="answer">
-        <MarkdownText :source="segment.text" />
+        <!-- The SAME reply voice MessageRow gives the settled row: the thread
+             must not reformat when the turn completes. -->
+        <MarkdownText variant="reply" :source="segment.text" />
         <span
           v-if="
             props.view.status === 'streaming' &&
@@ -219,8 +221,11 @@ const elapsedLabel = useTickingElapsed(
   }
 }
 
+/* Ink to match the settled reply's lead — MarkdownText's `reply` variant owns
+   the metrics, the caller owns the colour. */
 .answer {
   position: relative;
+  color: var(--color-neutral-200);
 }
 
 .stream-cursor {

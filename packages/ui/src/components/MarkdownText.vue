@@ -47,7 +47,14 @@ function renderTaskCheckboxes(html: string): string {
 import { computed, ref } from "vue";
 import { loadHighlighter } from "../lib/shiki-highlighter.js";
 
-const props = defineProps<{ source: string }>();
+// `reply` is the canvas's chat-answer typography (its `blocks` renderer):
+// tighter type, blocks 7px apart, accent-tinted inline code. It lives HERE so
+// the streaming answer and the settled one cannot drift — the thread must not
+// reformat when a turn completes.
+const props = withDefaults(
+  defineProps<{ source: string; variant?: "default" | "reply" }>(),
+  { variant: "default" },
+);
 
 // Re-render once the highlighter arrives so code fences pick up colors.
 const isHighlighterReady = ref(getLoadedHighlighter() !== null);
@@ -56,6 +63,12 @@ if (!isHighlighterReady.value) {
     isHighlighterReady.value = true;
   });
 }
+
+// Built here rather than bound inline so the element stays one line — the
+// `vue/no-v-html` disable comment has to sit directly above the v-html.
+const rootClass = computed(() =>
+  props.variant === "reply" ? "markdown-text is-reply" : "markdown-text",
+);
 
 const rendered = computed(() => {
   void isHighlighterReady.value;
@@ -76,7 +89,7 @@ const rendered = computed(() => {
 <template>
   <!-- DOMPurify-sanitized above, so v-html is safe here -->
   <!-- eslint-disable-next-line vue/no-v-html -->
-  <div class="markdown-text" v-html="rendered" />
+  <div :class="rootClass" v-html="rendered" />
 </template>
 
 <style scoped>
@@ -84,6 +97,51 @@ const rendered = computed(() => {
   color: var(--ink-1);
   font: 400 13.5px/1.65 var(--font-ui);
   overflow-wrap: break-word;
+}
+
+/* THE REPLY VOICE — the canvas's chat answer, one home for the streaming and
+   the settled render. The caller still owns the ink (a lead reads brighter
+   than the detail under it); this owns metrics and inline treatments. */
+.markdown-text.is-reply {
+  font: 400 12.5px/1.5 var(--font-ui);
+}
+
+.markdown-text.is-reply :deep(p),
+.markdown-text.is-reply :deep(ul),
+.markdown-text.is-reply :deep(ol) {
+  margin: 0 0 7px;
+}
+
+.markdown-text.is-reply :deep(p:last-child),
+.markdown-text.is-reply :deep(ul:last-child),
+.markdown-text.is-reply :deep(ol:last-child) {
+  margin-bottom: 0;
+}
+
+/* The canvas's 10px list indent plus the 8px it gaps marker to text. */
+.markdown-text.is-reply :deep(ul),
+.markdown-text.is-reply :deep(ol) {
+  padding-left: 18px;
+}
+
+.markdown-text.is-reply :deep(li) {
+  margin: 0;
+}
+
+.markdown-text.is-reply :deep(li)::marker {
+  color: var(--color-neutral-600);
+}
+
+.markdown-text.is-reply :deep(strong) {
+  color: var(--color-neutral-100);
+  font-weight: 600;
+}
+
+.markdown-text.is-reply :deep(code) {
+  padding: 1px 5px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent-200);
+  font-size: 11.5px;
 }
 
 .markdown-text :deep(p) {

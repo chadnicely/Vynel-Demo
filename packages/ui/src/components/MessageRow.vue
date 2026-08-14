@@ -714,11 +714,16 @@ const collapsedPreview = computed(() => {
               :served="props.message.runStats != null"
             />
           </span>
-          <MarkdownText class="reply-lead-text" :source="assistantLeadParts.lead" />
+          <MarkdownText
+            class="reply-lead-text"
+            variant="reply"
+            :source="assistantLeadParts.lead"
+          />
         </div>
         <MarkdownText
           v-if="!props.replyCollapsed && assistantLeadParts.detail"
           class="reply-detail"
+          variant="reply"
           :source="assistantLeadParts.detail"
         />
       </template>
@@ -1047,12 +1052,15 @@ const collapsedPreview = computed(() => {
 }
 
 /* The rest of the answer, once the caret opens it — a step quieter than the
-   lead, indented under it so the lead stays the thing you read first. */
+   lead. The canvas sets its blocks 8px in from the glyph COLUMN, not under the
+   lead's text: the detail is the reply's own body, not a continuation of the
+   first line. */
 .message-row .reply-detail {
-  padding-left: 19px;
+  padding-left: 8px;
   color: var(--color-neutral-300);
   font: 400 12.5px/1.5 var(--font-ui);
 }
+
 
 .author-avatar {
   display: grid;
