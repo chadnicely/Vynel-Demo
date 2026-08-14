@@ -660,8 +660,22 @@ describe("MessageRow turn folding (collapsible header)", () => {
     });
     expect(marked.find(".reference-toggle.is-marked").exists()).toBe(true);
 
-    const plain = mount(MessageRow, { props: { message: makeMessage() } });
-    expect(plain.find(".reference-toggle").exists()).toBe(false);
+    // The canvas reaches the icon from both ends of a card — the header and
+    // the reply's own line — so a headed reply carries one too.
+    const reply = mount(MessageRow, { props: { message: makeMessage() } });
+    expect(reply.find(".reference-toggle").exists()).toBe(true);
+
+    // A grouped continuation is not a row you can point at on its own.
+    const continuation = mount(MessageRow, {
+      props: { message: makeMessage(), showHeader: false },
+    });
+    expect(continuation.find(".reference-toggle").exists()).toBe(false);
+
+    // Nor is an ask that is not a card header.
+    const plainAsk = mount(MessageRow, {
+      props: { message: makeMessage({ role: "user", body: "hi" }) },
+    });
+    expect(plainAsk.find(".reference-toggle").exists()).toBe(false);
   });
 
   it("a body-less header shows the host's fallback preview; own text wins over it", () => {

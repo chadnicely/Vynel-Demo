@@ -88,7 +88,7 @@ const durationLabel = computed(() => {
       </span>
     </template>
     <span class="lead-glyph run-info" aria-label="run details">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
         <path
           d="M8 7.4v3.1M8 5.3v.2"
@@ -100,7 +100,7 @@ const durationLabel = computed(() => {
     </span>
   </Tooltip>
   <span v-else class="lead-glyph" aria-hidden="true">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
       <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
       <path
         d="M8 7.4v3.1M8 5.3v.2"

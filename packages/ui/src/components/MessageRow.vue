@@ -345,6 +345,13 @@ const showsInlineTime = computed(
   () => props.message.role === "user" && !isInboundReport.value,
 );
 
+// The canvas reaches its chat icon from both ends of a card — the header's
+// top-right cluster and the reply's own line. Each row marks ITSELF, so
+// pointing at the ask and pointing at the answer stay different things.
+const showsReferenceToggle = computed(
+  () => props.collapsible || (isAssistant.value && props.showHeader),
+);
+
 // The folded strip's one-line preview — the first non-empty line of the
 // display body (marker already stripped), the card-title cleanup applied.
 // A body-less header row (a turn opening with tool calls) shows the host's
@@ -593,7 +600,7 @@ const collapsedPreview = computed(() => {
              a reply box behind this icon; Kafi's call is a MARK instead — no
              per-card composer, just a pointer the next send carries. -->
         <button
-          v-if="props.collapsible"
+          v-if="showsReferenceToggle"
           type="button"
           class="reference-toggle"
           :class="{ 'is-marked': props.referenced }"
@@ -606,7 +613,13 @@ const collapsedPreview = computed(() => {
           aria-label="mark this turn as the next message's reference"
           @click.stop="emit('toggleReference')"
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+          <!-- 13px heading a card, 12px on a reply line — the canvas's two sizes. -->
+          <svg
+            :width="props.collapsible ? 13 : 12"
+            :height="props.collapsible ? 13 : 12"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
             <path
               d="M13.5 8a5.5 5.5 0 0 1-5.5 5.5H2.5V8a5.5 5.5 0 0 1 11 0Z"
               :fill="props.referenced ? 'currentColor' : 'none'"
@@ -881,7 +894,9 @@ const collapsedPreview = computed(() => {
    treatment (they speak as a persona). */
 .role-user:not(.is-report) .role-label {
   color: var(--ink-2);
-  font: 600 12px/1.5 var(--font-ui);
+  /* Line-height 1, the canvas's: the name and the time beside it are set on
+     the same tight box so they read as one line, not two stacked ones. */
+  font: 600 12px/1 var(--font-ui);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -969,7 +984,9 @@ const collapsedPreview = computed(() => {
   padding: 2px;
   display: inline-flex;
   background: transparent;
-  color: var(--ink-3);
+  /* The canvas's card controls sit a step brighter than the meta text they
+     stand beside — they are the things you reach for. */
+  color: var(--color-neutral-500);
   cursor: pointer;
   border-radius: var(--radius-s);
   transition: color var(--t-fast, 120ms) ease;
