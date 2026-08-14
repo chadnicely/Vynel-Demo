@@ -1,14 +1,14 @@
-// Tests for the global-root transcript resolver. The session unification made the
-// brain persist tool calls; this asserts the transcript carries them (keyed by
-// message) so the brain chat renders them on reload — the backend half of the
-// "tool calls flash and gone" fix. The third test covers the inlined swap-chain
-// reconstruction (the source monitor's `reconstructRootThread`, ported into the
-// resolver until the monitor package lands): a swapped primary's transcript spans
-// BOTH segments, chronologically.
+// Tests for the primary-transcript resolver — the chain-walking read behind
+// BOTH continuing threads (the global brain and each workspace's main chat).
+// The swap-chain cases pin the tester-DB incident shape (2026-08-14): a
+// context-pressure swap must never empty the visible conversation — the
+// transcript spans every chain segment, chronologically. The walk-safety cases
+// (cycle, foreign link) carry over from the global-root resolver this replaced.
 
 import { describe, expect, it } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
@@ -21,7 +21,7 @@ import {
   type NewChatMessage,
 } from '@vynel/chat/repositories'
 import type { Database } from '@vynel/db'
-import { resolveGlobalRootTranscript } from './resolve-global-root-transcript.js'
+import { resolvePrimaryTranscript } from './resolve-primary-transcript.js'
 
 function makeUser(id: string) {
   const now = new Date()
@@ -37,21 +37,36 @@ function makeUser(id: string) {
   }
 }
 
-function seedBrainSegment(
+function makeWorkspace(id: string, userId: string) {
+  const now = new Date()
+  return {
+    id,
+    userId,
+    name: `W ${id}`,
+    kind: 'personal' as const,
+    path: `/tmp/vynel/${id}`,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+    lastAccessedAt: now,
+  }
+}
+
+function seedSegment(
   db: Database,
   userId: string,
   sessionId: string,
   startedAt: Date,
-  options: { continuedFrom?: string } = {},
+  options: { continuedFrom?: string; workspaceId?: string | null } = {},
 ) {
   insertChatSession(db, {
     ...buildNewChatSessionRow({
       sessionId,
       userId,
-      workspaceId: null,
+      workspaceId: options.workspaceId ?? null,
       providerId: 'claude',
       startedAt,
-      title: 'Global brain',
+      title: 'Primary segment',
       visibility: 'hidden',
     }),
     // The chain link stays off the shared builder — only a continuation
@@ -84,20 +99,18 @@ function makeMessage(
   }
 }
 
-describe('resolveGlobalRootTranscript', () => {
-  it('returns the brain transcript with persisted tool calls keyed by message', async () => {
+describe('resolvePrimaryTranscript', () => {
+  it('returns the transcript with persisted tool calls keyed by message', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser('user-1'))
       const primary = await getOrCreatePrimarySession(db, { userId: user.id })
       const now = new Date()
-      // A brain session segment (workspaceId null → scope 'global'), linked as current.
-      seedBrainSegment(db, user.id, 'g-1', now)
+      seedSegment(db, user.id, 'g-1', now)
       linkPrimarySessionToSdkSession(db, {
         primarySessionId: primary.id,
         userId: user.id,
         sdkSessionId: 'g-1',
       })
-      // An assistant message + a tool call attached to it.
       insertChatMessage(
         db,
         makeMessage('g-1', { id: 'asst-1', role: 'assistant', body: 'on it', startedAt: now }),
@@ -116,17 +129,19 @@ describe('resolveGlobalRootTranscript', () => {
         completedAt: now,
       })
 
-      const transcript = resolveGlobalRootTranscript(db, user.id)
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
+      expect(transcript.session?.id).toBe('g-1')
       expect(transcript.messages.map((message) => message.id)).toContain('asst-1')
       expect(transcript.toolCallsByMessageId['asst-1']).toHaveLength(1)
       expect(transcript.toolCallsByMessageId['asst-1']?.[0]?.toolName).toBe('send_task_to_workspace')
     })
   })
 
-  it('returns an empty transcript for a user with no root', async () => {
+  it('returns an empty transcript (null session) for a scope with no primary', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser('user-2'))
-      expect(resolveGlobalRootTranscript(db, user.id)).toEqual({
+      expect(resolvePrimaryTranscript(db, { userId: user.id })).toEqual({
+        session: null,
         messages: [],
         toolCallsByMessageId: {},
       })
@@ -139,13 +154,8 @@ describe('resolveGlobalRootTranscript', () => {
       const primary = await getOrCreatePrimarySession(db, { userId: user.id })
       const earlier = new Date('2026-06-01T00:00:00Z')
       const later = new Date('2026-06-02T00:00:00Z')
-      // Two brain segments: the original (g-old) swapped into the current
-      // (g-new). The segment ROW carries the chain (`continuedFromSessionId` —
-      // both swap writers stamp it); no outbox event exists, exactly the
-      // mid-turn provider-swap shape that used to lose all pre-swap history
-      // on reload (session-review B4).
-      seedBrainSegment(db, user.id, 'g-old', earlier)
-      seedBrainSegment(db, user.id, 'g-new', later, { continuedFrom: 'g-old' })
+      seedSegment(db, user.id, 'g-old', earlier)
+      seedSegment(db, user.id, 'g-new', later, { continuedFrom: 'g-old' })
       linkPrimarySessionToSdkSession(db, {
         primarySessionId: primary.id,
         userId: user.id,
@@ -160,8 +170,91 @@ describe('resolveGlobalRootTranscript', () => {
         makeMessage('g-new', { id: 'm-new', role: 'user', body: 'second', startedAt: later }),
       )
 
-      const transcript = resolveGlobalRootTranscript(db, user.id)
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
+      expect(transcript.session?.id).toBe('g-new')
       expect(transcript.messages.map((message) => message.id)).toEqual(['m-old', 'm-new'])
+    })
+  })
+
+  it('a WORKSPACE primary spans its swap chain — even when the fresh segment is empty', async () => {
+    await withTestDatabase(async (db) => {
+      // The tester-DB incident shape: the swap just repointed the primary at a
+      // fresh segment with ZERO persisted messages (the priming exchange lives
+      // only in SDK storage). The transcript must still show the whole thread.
+      const user = insertUser(db, makeUser('user-ws'))
+      const workspace = insertWorkspace(db, makeWorkspace('ws-1', user.id))
+      const primary = await getOrCreatePrimarySession(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      const earlier = new Date('2026-08-01T00:00:00Z')
+      const later = new Date('2026-08-02T00:00:00Z')
+      seedSegment(db, user.id, 'ws-old', earlier, { workspaceId: workspace.id })
+      seedSegment(db, user.id, 'ws-new', later, {
+        workspaceId: workspace.id,
+        continuedFrom: 'ws-old',
+      })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'ws-new',
+      })
+      insertChatMessage(
+        db,
+        makeMessage('ws-old', { id: 'm-1', body: 'pre-swap', startedAt: earlier }),
+      )
+      insertChatMessage(
+        db,
+        makeMessage('ws-old', {
+          id: 'm-2',
+          role: 'assistant',
+          body: 'pre-swap reply',
+          startedAt: earlier,
+        }),
+      )
+
+      const transcript = resolvePrimaryTranscript(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      expect(transcript.session?.id).toBe('ws-new')
+      expect(transcript.messages.map((message) => message.id)).toEqual(['m-1', 'm-2'])
+    })
+  })
+
+  it('workspace and global primaries resolve independently', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser('user-iso'))
+      const workspace = insertWorkspace(db, makeWorkspace('ws-2', user.id))
+      const globalPrimary = await getOrCreatePrimarySession(db, { userId: user.id })
+      const workspacePrimary = await getOrCreatePrimarySession(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      const at = new Date('2026-08-01T00:00:00Z')
+      seedSegment(db, user.id, 'g-seg', at)
+      seedSegment(db, user.id, 'ws-seg', at, { workspaceId: workspace.id })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: globalPrimary.id,
+        userId: user.id,
+        sdkSessionId: 'g-seg',
+      })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: workspacePrimary.id,
+        userId: user.id,
+        sdkSessionId: 'ws-seg',
+      })
+      insertChatMessage(db, makeMessage('g-seg', { id: 'm-global', body: 'brain', startedAt: at }))
+      insertChatMessage(db, makeMessage('ws-seg', { id: 'm-ws', body: 'work', startedAt: at }))
+
+      expect(
+        resolvePrimaryTranscript(db, { userId: user.id }).messages.map((m) => m.id),
+      ).toEqual(['m-global'])
+      expect(
+        resolvePrimaryTranscript(db, { userId: user.id, workspaceId: workspace.id }).messages.map(
+          (m) => m.id,
+        ),
+      ).toEqual(['m-ws'])
     })
   })
 
@@ -171,8 +264,8 @@ describe('resolveGlobalRootTranscript', () => {
       const primary = await getOrCreatePrimarySession(db, { userId: user.id })
       const at = new Date('2026-06-01T00:00:00Z')
       // Corrupt two-cycle: a ↔ b. The walk must stop at the first revisit.
-      seedBrainSegment(db, user.id, 'g-a', at, { continuedFrom: 'g-b' })
-      seedBrainSegment(db, user.id, 'g-b', at, { continuedFrom: 'g-a' })
+      seedSegment(db, user.id, 'g-a', at, { continuedFrom: 'g-b' })
+      seedSegment(db, user.id, 'g-b', at, { continuedFrom: 'g-a' })
       linkPrimarySessionToSdkSession(db, {
         primarySessionId: primary.id,
         userId: user.id,
@@ -180,7 +273,7 @@ describe('resolveGlobalRootTranscript', () => {
       })
       insertChatMessage(db, makeMessage('g-a', { id: 'm-a', body: 'a', startedAt: at }))
 
-      const transcript = resolveGlobalRootTranscript(db, user.id)
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
       expect(transcript.messages.map((message) => message.id)).toEqual(['m-a'])
     })
   })
@@ -192,13 +285,13 @@ describe('resolveGlobalRootTranscript', () => {
       const primary = await getOrCreatePrimarySession(db, { userId: owner.id })
       const at = new Date('2026-06-01T00:00:00Z')
       // The foreign segment (with a message that must never surface).
-      seedBrainSegment(db, other.id, 'g-foreign', at)
+      seedSegment(db, other.id, 'g-foreign', at)
       insertChatMessage(
         db,
         makeMessage('g-foreign', { id: 'm-foreign', body: 'private', startedAt: at }),
       )
       // The owner's current segment carries a corrupt link into it.
-      seedBrainSegment(db, owner.id, 'g-mine', at, { continuedFrom: 'g-foreign' })
+      seedSegment(db, owner.id, 'g-mine', at, { continuedFrom: 'g-foreign' })
       insertChatMessage(db, makeMessage('g-mine', { id: 'm-mine', body: 'mine', startedAt: at }))
       linkPrimarySessionToSdkSession(db, {
         primarySessionId: primary.id,
@@ -206,7 +299,7 @@ describe('resolveGlobalRootTranscript', () => {
         sdkSessionId: 'g-mine',
       })
 
-      const transcript = resolveGlobalRootTranscript(db, owner.id)
+      const transcript = resolvePrimaryTranscript(db, { userId: owner.id })
       expect(transcript.messages.map((message) => message.id)).toEqual(['m-mine'])
     })
   })

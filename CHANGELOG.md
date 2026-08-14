@@ -441,6 +441,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A workspace's main chat no longer empties when a long conversation rolls
+  over.** When the assistant quietly continues onto a fresh session because the
+  old one filled up, the main chat previously showed a blank conversation —
+  the assistant still remembered everything, but every earlier message
+  disappeared from view with no way to reach it. The main chat (workspace and
+  global alike, including the sidebar thread) now reads the whole continued
+  chain as one story, so a rollover is invisible: all your messages stay right
+  where they were. This also restores history retroactively — conversations
+  that already hit this show their full thread again after updating.
 - **Your own MCP servers are safe from the marketplace.** A connector you
   added by hand can share a name with a marketplace item — previously that
   made the item's card claim "Installed", and removing it from the

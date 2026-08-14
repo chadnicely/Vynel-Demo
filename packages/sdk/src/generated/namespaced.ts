@@ -388,6 +388,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getContinuingTranscript: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/continuing/transcript"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/continuing/transcript", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   getSession: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["get"]['parameters']>['path']["workspaceId"], sessionId: NonNullable<paths["/workspaces/{workspaceId}/chat/sessions/{sessionId}"]["get"]['parameters']>['path']["sessionId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/chat/sessions/{sessionId}", {
       params: { path: { workspaceId: workspaceId, sessionId: sessionId } },

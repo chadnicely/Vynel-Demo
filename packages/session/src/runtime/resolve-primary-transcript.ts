@@ -1,10 +1,10 @@
-// Reconstruct the GLOBAL root's full conversation history — the messages across its
-// swap-segment chain — for cold-start hydration (P0.1: the global-chat home shows
-// history on reload, not just the in-memory live turn). Composed at the api layer
-// from the primary resolver (session continuity), the swap-chain reconstruction
-// (inlined below — the monitor package has not been pulled into KLONE yet), and the
-// chat message reads — so no core domain takes a new cross-domain dependency (the
-// api already orchestrates reads like this).
+// Reconstruct a primary conversation's full history — the messages across its
+// swap-segment chain — for the continuing-thread views (the global brain AND
+// each workspace's main chat). One resolver for every scope: the tester-DB
+// incident (2026-08-14) showed the workspace thread binding to the CURRENT
+// segment only, so a context-pressure swap emptied the visible conversation
+// while all pre-swap rows sat one chain-link away. The chain walk that fixed
+// this for the global root (session-review B4) now serves both scopes.
 //
 // The segment chain is derived from the ROWS themselves (`continuedFromSessionId`,
 // walked back from the current session) — every swap writer stamps the link, so
@@ -13,10 +13,11 @@
 // of the window, and mid-turn provider swaps never emitted an event at all —
 // reload then showed only post-swap rows).
 //
-// Returns a LEAN, attributed DTO (not the raw chat_messages row): the transcript UI
-// needs only id + role + body + the brain-tree source identity + the user row's
-// attachment references. Keeping the row shape out of the API boundary avoids
-// leaking the full schema (tokens, timestamps) over the wire.
+// Returns the session-detail envelope (`session` + full message rows + tool
+// calls keyed by parent message) — the SAME shape `getChatSessionDetail`
+// serves — so the continuing views render through the exact pipeline the
+// single-session reads use. `session` is the CURRENT segment's row (the meter's
+// model source); null when the scope has no continuing conversation yet.
 
 import { findPrimaryConversation } from '../continuity/index.js'
 import {
@@ -24,55 +25,14 @@ import {
   listRecentChatMessagesForSession,
   listChatToolCallsForSession,
 } from '@vynel/chat/repositories'
-import type {
-  ChatMessage,
-  ChatMessageRole,
-  ChatMessageSourceKind,
-  ChatMessageOriginChannel,
-  ChatToolCall,
-  AttachedImageMetadata,
-} from '@vynel/chat/repositories'
+import type { ChatSession, ChatMessage, ChatToolCall } from '@vynel/chat/repositories'
 import type { Database } from '@vynel/db'
 
-// Defensive cap on the hydration read — the global root is one ever-growing thread,
+// Defensive cap on the hydration read — a primary is one ever-growing thread,
 // so the transcript is a growth-scaling list (D16: cap in Phase 1, keyset cursor
 // defers to 1.5). 200 is a generous cold-start window (well past a normal thread);
 // older history loads when paging lands.
 const MAX_TRANSCRIPT_MESSAGES = 200
-
-export type GlobalRootTranscriptMessage = {
-  id: string
-  role: ChatMessageRole
-  body: string
-  /** Brain-tree attribution — null on rows persisted before P0.1; else the origin. */
-  sourceKind: ChatMessageSourceKind | null
-  /** The workspace / agent name for 'workspace-manager' / 'agent' rows. */
-  sourceLabel: string | null
-  /** Brain-tree Chapter 3 — the delegation request's correlation key on a bubbled-up
-   *  report row; lets the /global bubble open its condensed trace. Null on ordinary rows. */
-  partialSessionId: string | null
-  /** The delegation CHAIN key (persona-sessions) — the settle-match key. */
-  threadId: string | null
-  /** The inbound channel a USER row arrived through ("via Voice"); null = composer. */
-  originChannel: ChatMessageOriginChannel | null
-  /** Attachment references on a USER row (filename/mimeType/sizeBytes) — the
-   *  transcript renders their chips on reload; null = no attachments. */
-  attachedImagesMetadata: AttachedImageMetadata[] | null
-}
-
-function toTranscriptMessage(message: ChatMessage): GlobalRootTranscriptMessage {
-  return {
-    id: message.id,
-    role: message.role,
-    body: message.body,
-    sourceKind: message.sourceKind,
-    sourceLabel: message.sourceLabel,
-    partialSessionId: message.partialSessionId,
-    threadId: message.threadId,
-    originChannel: message.originChannel,
-    attachedImagesMetadata: message.attachedImagesMetadata,
-  }
-}
 
 // Defensive cap on the backward segment walk — matches the transcript's own
 // message cap in spirit (a chain past this depth predates any readable window).
@@ -112,38 +72,55 @@ function reconstructPrimaryThread(
   return chain.reverse()
 }
 
-export type GlobalRootTranscript = {
-  messages: GlobalRootTranscriptMessage[]
+export type PrimaryTranscript = {
+  /** The CURRENT segment's row (model / meter denominator). Null when the
+   *  scope has no continuing conversation yet (or its segment row is gone). */
+  session: ChatSession | null
+  /** Chronological across ALL chain segments, capped to the newest window. */
+  messages: ChatMessage[]
   /** Tool calls keyed by the assistant message they belong to (parentMessageId) —
-   *  mirrors the workspace `GET /sessions/{id}`. The brain persists tool calls now
-   *  (session unification), so the transcript carries them; the brain chat renders
-   *  them on reload via the same `ToolCallCard` the workspace + the live turn use. */
+   *  mirrors `getChatSessionDetail`, so the thread renders them via the same
+   *  `ToolCallCard` on reload. */
   toolCallsByMessageId: Record<string, ChatToolCall[]>
 }
 
-export function resolveGlobalRootTranscript(
-  db: Database,
-  userId: string,
-  limit: number = MAX_TRANSCRIPT_MESSAGES,
-): GlobalRootTranscript {
-  // workspaceId omitted → the global primary.
-  const root = findPrimaryConversation(db, { userId })
-  if (!root) return { messages: [], toolCallsByMessageId: {} }
+export type ResolvePrimaryTranscriptInput = {
+  userId: string
+  /** Omit for the global root; set for one workspace's continuing primary. */
+  workspaceId?: string
+  limit?: number
+}
 
-  const sessionIds = root.currentSdkSessionId
-    ? reconstructPrimaryThread(db, { currentSdkSessionId: root.currentSdkSessionId, userId })
-    : []
+export function resolvePrimaryTranscript(
+  db: Database,
+  input: ResolvePrimaryTranscriptInput,
+): PrimaryTranscript {
+  const limit = input.limit ?? MAX_TRANSCRIPT_MESSAGES
+  const primary = findPrimaryConversation(db, {
+    userId: input.userId,
+    ...(input.workspaceId !== undefined ? { workspaceId: input.workspaceId } : {}),
+  })
+  if (!primary || primary.currentSdkSessionId === null) {
+    return { session: null, messages: [], toolCallsByMessageId: {} }
+  }
+
+  const headRow = findChatSessionById(db, primary.currentSdkSessionId)
+  const session = headRow !== null && headRow.userId === input.userId ? headRow : null
+  const sessionIds = reconstructPrimaryThread(db, {
+    currentSdkSessionId: primary.currentSdkSessionId,
+    userId: input.userId,
+  })
 
   // Walk segments newest-first, pulling each segment's latest messages until the
   // cap is filled — bounds the DB read AND the response. unshift keeps the result
   // chronological (older segments prepend before newer ones). Tool calls for each
   // walked segment are grouped by parentMessageId (mirrors get-chat-session-detail).
-  const messages: GlobalRootTranscriptMessage[] = []
+  const messages: ChatMessage[] = []
   const toolCallsByMessageId: Record<string, ChatToolCall[]> = {}
   for (let index = sessionIds.length - 1; index >= 0 && messages.length < limit; index--) {
     const remaining = limit - messages.length
     const recent = listRecentChatMessagesForSession(db, sessionIds[index]!, remaining)
-    messages.unshift(...recent.map(toTranscriptMessage))
+    messages.unshift(...recent)
     for (const toolCall of listChatToolCallsForSession(db, sessionIds[index]!)) {
       if (!toolCallsByMessageId[toolCall.parentMessageId]) {
         toolCallsByMessageId[toolCall.parentMessageId] = []
@@ -151,5 +128,5 @@ export function resolveGlobalRootTranscript(
       toolCallsByMessageId[toolCall.parentMessageId]!.push(toolCall)
     }
   }
-  return { messages, toolCallsByMessageId }
+  return { session, messages, toolCallsByMessageId }
 }

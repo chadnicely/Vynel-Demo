@@ -93,7 +93,7 @@ const detailQuery = useSessionDetail(
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(
-  () => detailQuery.data.value?.session.model ?? null,
+  () => detailQuery.data.value?.session?.model ?? null,
 );
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
@@ -134,7 +134,7 @@ watch(
 // global-grounded one the user scope) — mirroring where the server grounds
 // this thread's @ dispatches.
 const composerScope = computed(() => {
-  const workspaceId = detailQuery.data.value?.session.workspaceId ?? null;
+  const workspaceId = detailQuery.data.value?.session?.workspaceId ?? null;
   return workspaceId === null
     ? ({ kind: "global" } as const)
     : ({ kind: "workspace", workspaceId } as const);

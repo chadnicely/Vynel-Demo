@@ -30,16 +30,19 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
-import { resolveGlobalRootTranscript } from '@vynel/session/runtime'
+import { resolvePrimaryTranscript } from '@vynel/session/runtime'
 import { resolveDelegationTrace } from '@vynel/session/delegation'
 import { traceChannelKey, attachSpawnedSessionNames } from '@vynel/session/delegation'
-import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
+import {
+  enrichChatSessionDetail,
+  enrichPrimaryTranscript,
+} from '../../sessions/enrich-chat-session-detail.js'
 import {
   StartGlobalRootTurnRequestSchema,
   DelegationTraceParamSchema,
   RootSessionParamSchema,
   ContinuingConversationResponseSchema,
-  GlobalRootTranscriptResponseSchema,
+  ContinuingTranscriptResponseSchema,
   DelegationTraceResponseSchema,
   ChatSessionDetailResponseSchema,
   ListInFlightDelegationsResponseSchema,
@@ -84,7 +87,9 @@ export const rootApp = factory
   )
   // ──────────────────────────────────────────────────────────────────
   // GET /transcript — the global root conversation history (messages across
-  // the swap-segment chain), for cold-start hydration of the global chat
+  // the swap-segment chain), for the continuing global thread. Serves the
+  // session-detail envelope (session = the CURRENT segment, enriched like
+  // `root.getSession`) so the thread renders through the same pipeline.
   // ──────────────────────────────────────────────────────────────────
   .get(
     '/transcript',
@@ -95,15 +100,21 @@ export const rootApp = factory
       responses: {
         200: {
           description:
-            '{ messages, toolCallsByMessageId } — the ordered message history + persisted tool calls keyed by message (empty until the first turn).',
+            '{ session, messages, toolCallsByMessageId } — the current segment (null until the first turn) + the chain-spanning message history.',
           content: {
-            'application/json': { schema: resolver(GlobalRootTranscriptResponseSchema) },
+            'application/json': { schema: resolver(ContinuingTranscriptResponseSchema) },
           },
         },
       },
     }),
     ...userScoped,
-    (c) => c.json(resolveGlobalRootTranscript(c.var.db, c.var.user.id)),
+    (c) =>
+      c.json(
+        enrichPrimaryTranscript(
+          c.var.db,
+          resolvePrimaryTranscript(c.var.db, { userId: c.var.user.id }),
+        ),
+      ),
   )
   // ──────────────────────────────────────────────────────────────────
   // GET /trace/:partialSessionId — TIER 1: the condensed delegation trace

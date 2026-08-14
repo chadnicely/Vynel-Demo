@@ -299,6 +299,16 @@ export const ChatSessionDetailResponseSchema = z.object({
   toolCallsByMessageId: z.record(z.array(ChatToolCallSchema)),
 });
 
+// The continuing-thread transcript (`resolvePrimaryTranscript`) — the detail
+// envelope with messages spanning the primary's whole swap-segment chain.
+// `session` is the CURRENT segment (nullable: the scope may have no continuing
+// conversation yet). One home for both scopes — the root route re-exports it.
+export const ContinuingTranscriptResponseSchema = z.object({
+  session: ChatSessionSchema.nullable(),
+  messages: z.array(ChatMessageSchema),
+  toolCallsByMessageId: z.record(z.array(ChatToolCallSchema)),
+});
+
 export const SessionContextReportResponseSchema = z.object({
   report: z.string().nullable(),
 });

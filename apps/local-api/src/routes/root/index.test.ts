@@ -90,6 +90,7 @@ import {
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
   insertChatSession,
+  insertChatMessage,
   findChatSessionById,
   listChatMessagesForSession,
 } from '@vynel/chat/repositories'
@@ -204,7 +205,58 @@ describe('GET /root/transcript', () => {
       const app = makeHarness(db)
       const res = await app.request('/root/transcript')
       expect(res.status).toBe(200)
-      expect(await res.json()).toEqual({ messages: [], toolCallsByMessageId: {} })
+      expect(await res.json()).toEqual({ session: null, messages: [], toolCallsByMessageId: {} })
+    })
+  })
+
+  it('serves the current segment + chain-spanning messages once the root exists', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      // A swapped chain: g-old superseded into the (empty) current g-new.
+      seedGlobalSession(db, user.id, 'g-old')
+      insertChatSession(db, {
+        ...buildNewChatSessionRow({
+          sessionId: 'g-new',
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Continued conversation',
+          visibility: 'hidden',
+        }),
+        continuedFromSessionId: 'g-old',
+      })
+      insertChatMessage(db, {
+        id: 'm-old',
+        sessionId: 'g-old',
+        role: 'user',
+        body: 'pre-swap',
+        thinkingBody: null,
+        inputTokens: null,
+        outputTokens: null,
+        attachedImagesMetadata: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: new Date(),
+        completedAt: new Date(),
+        createdAt: new Date(),
+      })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'g-new',
+      })
+      const app = makeHarness(db)
+
+      const res = await app.request('/root/transcript')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        session: { id: string } | null
+        messages: { id: string }[]
+      }
+      expect(body.session?.id).toBe('g-new')
+      expect(body.messages.map((m) => m.id)).toEqual(['m-old'])
     })
   })
 })

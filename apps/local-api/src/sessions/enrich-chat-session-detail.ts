@@ -11,6 +11,7 @@
 
 import type { Database } from '@vynel/db'
 import type { ChatSessionDetail } from '@vynel/chat'
+import type { PrimaryTranscript } from '@vynel/session/runtime'
 import {
   attachDelegationTaskLabels,
   attachDeliveredRunStats,
@@ -23,4 +24,17 @@ export function enrichChatSessionDetail(db: Database, detail: ChatSessionDetail)
     messages: attachDeliveredRunStats(db, attachDelegationTaskLabels(db, detail.messages)),
     toolCallsByMessageId: attachDelegationToolOutcomes(db, detail.toolCallsByMessageId),
   }
+}
+
+// The continuing-thread variant: the transcript's `session` is nullable (the
+// scope may have no continuing conversation yet) — an empty transcript has
+// nothing to enrich, a settled one rides the exact same stack above.
+export function enrichPrimaryTranscript(db: Database, transcript: PrimaryTranscript) {
+  return transcript.session === null
+    ? transcript
+    : enrichChatSessionDetail(db, {
+        session: transcript.session,
+        messages: transcript.messages,
+        toolCallsByMessageId: transcript.toolCallsByMessageId,
+      })
 }
