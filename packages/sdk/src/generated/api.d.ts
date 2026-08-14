@@ -15520,6 +15520,7 @@ export interface operations {
                      */
                     mode?: "notetaker" | "participant";
                     goal?: string;
+                    capturePid?: number;
                 };
             };
         };

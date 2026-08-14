@@ -3198,18 +3198,19 @@ export const startApp: McpToolFactory = (scope, app) =>
 export const startCall: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'start_call',
-    "Join a live meeting/call with Vynel's voice — AFTER the user has the call app open with its audio pointed at the virtual cable pair. This creates a dedicated call session (visible in the user's Sessions panel), attaches call audio to it, and announces Vynel's presence aloud. Pick the mode the user asked for: 'notetaker' (group calls — listens and takes notes, speaks only when addressed by name or when something truly warrants it) or 'participant' (one-to-one — converses naturally). Pass the user's goal so the call session knows what matters. Returns { started, callId, sessionId } — use speak with that callId for announcements (note: an announcement can be cut off mid-sentence if a participant starts talking), end_call when the meeting is over, and read the call session afterwards for what happened. One call at a time in this version. This does NOT open the call app or click Join — the user (or desktop control) does that.",
+    "Join a live meeting/call with Vynel's voice — AFTER the user has the call app open with its audio pointed at the virtual cable pair. This creates a dedicated call session (visible in the user's Sessions panel), attaches call audio to it, and announces Vynel's presence aloud. Pick the mode the user asked for: 'notetaker' (group calls — listens and takes notes, speaks only when addressed by name or when something truly warrants it) or 'participant' (one-to-one — converses naturally). Pass the user's goal so the call session knows what matters. Returns { started, callId, sessionId } — use speak with that callId for announcements (note: an announcement can be cut off mid-sentence if a participant starts talking), end_call when the meeting is over, and read the call session afterwards for what happened. One call at a time in this version. This does NOT open the call app or click Join — the user (or desktop control) does that. Optional capturePid (Windows, when Vynel's own audio driver is installed): the call app's process id, so Vynel hears ONLY that app and its child processes instead of all system audio except itself. Omit it unless you actually know the pid — the default already excludes Vynel's own voice, but also hears music/notifications; scoping matters when the user plays other audio during calls.",
     {
     label: z.string(),
     mode: z.enum(['notetaker', 'participant']).optional(),
     goal: z.string().optional(),
+    capturePid: z.number().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/voice/calls'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['label', 'mode', 'goal']) {
+        for (const k of ['label', 'mode', 'goal', 'capturePid']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)

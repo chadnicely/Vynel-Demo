@@ -341,6 +341,19 @@ at endpoint creation and cached in `MMDevices` — purge Vynel entries to force 
 access-denied key BEFORE restarting Audiosrv and left the machine mute (delete failures are
 per-key warnings now).
 
+## 2026-08-15 — conductor capturePid through start_call (the last of the three follow-ups)
+
+`start_call` (the x-mcp `POST /voice/calls` route) now takes an optional `capturePid`:
+schema field (positive int, WHY-commented), route destructure → `startCallThroughDaemon`
+(spread only when present), relay body → the daemon's existing `POST /calls` validation →
+`startCall`'s include-mode process-loopback ears. Tool description teaches the model to omit
+it unless it actually knows the pid (the default exclude-self capture is already echo-free —
+scoping matters when the user plays other audio during calls). Regenerated SDK + MCP registry
+(no new tool name, census unchanged); all four parity guards green; +1 relay test pins the
+body pass-through (the existing exact-body test pins omission). The conductor still needs a
+pid SOURCE (app picker / desktop detection) — that's a product feature, deliberately out of
+this arc.
+
 ## 2026-08-15 — in-driver format tolerance (0.1.0.4; built + InfVerif VALID; runtime pending)
 
 Follow-up #3 of the naming run (the old "(3) in-driver format tolerance"). The raw byte ring

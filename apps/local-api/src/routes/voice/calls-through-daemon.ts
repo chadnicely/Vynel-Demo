@@ -19,7 +19,12 @@ const ListCallsWireSchema = z.object({ calls: z.array(CallDescriptorSchema) })
 
 export async function startCallThroughDaemon(
   daemonUrl: string,
-  request: { label: string; mode: 'notetaker' | 'participant'; sessionId: string },
+  request: {
+    label: string
+    mode: 'notetaker' | 'participant'
+    sessionId: string
+    capturePid?: number | undefined
+  },
 ): Promise<DaemonCallResult<CallDescriptorWire>> {
   return relay(
     `${daemonUrl}/calls`,

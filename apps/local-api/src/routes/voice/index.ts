@@ -128,7 +128,7 @@ export const voiceApp = factory
     validator('json', StartCallRequestSchema),
     ...userScoped,
     async (c) => {
-      const { label, mode, goal } = c.req.valid('json')
+      const { label, mode, goal, capturePid } = c.req.valid('json')
       if (c.var.remoteEngine) {
         return c.json({
           started: false,
@@ -147,6 +147,7 @@ export const voiceApp = factory
         label,
         mode,
         sessionId: created.sessionId,
+        ...(capturePid !== undefined ? { capturePid } : {}),
       })
       if (!started.ok) {
         return c.json({
