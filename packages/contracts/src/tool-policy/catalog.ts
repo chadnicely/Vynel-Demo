@@ -44,4 +44,7 @@ export type ToolCatalogEntry = {
   readonly cardClass: ToolCardClass;
   readonly featureKey?: string;
   readonly capabilityId?: string;
+  /** Set by the baked operator-defaults layer (absent = enabled). A user
+   *  override's `enabled` still wins over this in the effective resolve. */
+  readonly defaultEnabled?: boolean;
 };

@@ -27,12 +27,14 @@ import {
 } from '@vynel/mcp/tool-gates'
 import type { Database } from '@vynel/db'
 import {
+  applyToolPolicyDefaultsToCatalog,
   resolveEffectiveToolPolicies,
   type EffectiveToolPolicies,
   type SessionSurfaceKind,
   type ToolCatalogEntry,
   type ToolCardClass,
 } from '@vynel/capabilities'
+import { bakedToolPolicyDefaults } from './baked-tool-policy-defaults.js'
 
 /** The servers a surface kind composes (the read model; see file header). */
 export const SURFACE_DESCRIPTOR_SETS: Readonly<Record<SessionSurfaceKind, readonly string[]>> = {
@@ -161,9 +163,14 @@ export function resolveSessionToolPolicies(
   db: Database,
   input: { userId: string; desktopToolNames?: readonly string[] },
 ): EffectiveToolPolicies {
+  // Three layers: code catalog → baked operator map (boot-primed, empty in
+  // dev) → this user's override rows inside the resolver.
   return resolveEffectiveToolPolicies(db, {
     userId: input.userId,
-    catalog: buildSessionToolCatalog({ desktopToolNames: input.desktopToolNames ?? [] }),
+    catalog: applyToolPolicyDefaultsToCatalog(
+      buildSessionToolCatalog({ desktopToolNames: input.desktopToolNames ?? [] }),
+      bakedToolPolicyDefaults(),
+    ),
   })
 }
 

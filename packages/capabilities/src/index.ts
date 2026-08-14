@@ -22,6 +22,7 @@ export {
   resolveEffectiveToolPolicies,
   TOOL_POLICY_UNGATED,
 } from './tool-policy/resolve-effective-tool-policies.js'
+export { applyToolPolicyDefaultsToCatalog } from './tool-policy/apply-tool-policy-defaults.js'
 export {
   setToolPolicyOverride,
   type SetToolPolicyOverrideInput,

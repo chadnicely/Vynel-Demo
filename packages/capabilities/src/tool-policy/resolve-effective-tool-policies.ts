@@ -4,26 +4,35 @@
 // gate columns UNGATES; an unknown override row (a tool that left the
 // registry) is ignored rather than resurrected — the catalog is the roster.
 
-import type { Database } from '@vynel/db'
-import { listToolPolicies } from '../repositories/tool-policies.js'
+import type { Database } from "@vynel/db";
+import { listToolPolicies } from "../repositories/tool-policies.js";
 import {
   SESSION_SURFACE_KINDS,
   type EffectiveToolPolicies,
   type EffectiveToolPolicy,
   type SessionSurfaceKind,
   type ToolCatalogEntry,
-} from './tool-policy-types.js'
+} from "./tool-policy-types.js";
 
 /** 'none' on featureKey/capabilityId means "ungate" (NULL means inherit). */
-export const TOOL_POLICY_UNGATED = 'none'
+export const TOOL_POLICY_UNGATED = "none";
 
-function toSurfaces(stored: string[] | null): readonly SessionSurfaceKind[] | null {
-  if (stored === null) return null
-  // Tolerate rows written before a surface kind was renamed — keep only the
-  // kinds that still exist so a stale row narrows, never crashes, a turn.
+/** Keep only the surface kinds that still exist — a row written before a
+ *  kind was renamed narrows, never crashes, a turn. Shared with the baked
+ *  operator-defaults layer (same tolerance, one home). */
+export function filterKnownSurfaceKinds(
+  stored: readonly string[],
+): readonly SessionSurfaceKind[] {
   return stored.filter((kind): kind is SessionSurfaceKind =>
     (SESSION_SURFACE_KINDS as readonly string[]).includes(kind),
-  )
+  );
+}
+
+function toSurfaces(
+  stored: string[] | null,
+): readonly SessionSurfaceKind[] | null {
+  if (stored === null) return null;
+  return filterKnownSurfaceKinds(stored);
 }
 
 /** PRECONDITION on `catalog`: one entry per toolName. Several vynel tools
@@ -36,31 +45,35 @@ export function resolveEffectiveToolPolicies(
   input: { userId: string; catalog: readonly ToolCatalogEntry[] },
 ): EffectiveToolPolicies {
   const overrides = new Map(
-    listToolPolicies(db, input.userId).map((row) => [row.toolName, row] as const),
-  )
+    listToolPolicies(db, input.userId).map(
+      (row) => [row.toolName, row] as const,
+    ),
+  );
 
-  const effective = new Map<string, EffectiveToolPolicy>()
+  const effective = new Map<string, EffectiveToolPolicy>();
   for (const entry of input.catalog) {
-    const override = overrides.get(entry.toolName)
-    const surfacesOverride = override ? toSurfaces(override.surfacesJson) : null
+    const override = overrides.get(entry.toolName);
+    const surfacesOverride = override
+      ? toSurfaces(override.surfacesJson)
+      : null;
     const featureKey =
       override?.featureKey === TOOL_POLICY_UNGATED
         ? undefined
-        : (override?.featureKey ?? entry.featureKey)
+        : (override?.featureKey ?? entry.featureKey);
     const capabilityId =
       override?.capabilityId === TOOL_POLICY_UNGATED
         ? undefined
-        : (override?.capabilityId ?? entry.capabilityId)
+        : (override?.capabilityId ?? entry.capabilityId);
     effective.set(entry.toolName, {
       toolName: entry.toolName,
       serverName: entry.serverName,
-      enabled: override?.enabled ?? true,
+      enabled: override?.enabled ?? entry.defaultEnabled ?? true,
       surfaces: surfacesOverride ?? entry.surfaces,
       cardClass: override?.cardClass ?? entry.cardClass,
       ...(featureKey !== undefined ? { featureKey } : {}),
       ...(capabilityId !== undefined ? { capabilityId } : {}),
       hasOverride: override !== undefined,
-    })
+    });
   }
-  return effective
+  return effective;
 }

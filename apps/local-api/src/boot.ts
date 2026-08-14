@@ -52,6 +52,7 @@ import { startMemoryMaintenanceService } from './services/memory-maintenance-ser
 import { startChannelsService } from './services/channels-service.js'
 import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
+import { primeBakedToolPolicyDefaults } from './sessions/baked-tool-policy-defaults.js'
 import { buildDelegatedTurnMcpComposer } from './sessions/build-workspace-background-mcp.js'
 import { buildEnabledFeatureKeysReader } from './sessions/enabled-feature-keys.js'
 import { buildGlobalRootReportTurnRunner } from './sessions/run-global-root-turn.js'
@@ -87,6 +88,9 @@ export async function boot(): Promise<void> {
   // only surface the fact in the boot log.
   if (env.VYNEL_ASSETS_DIR !== undefined) {
     logger.info({ assetsDir: env.VYNEL_ASSETS_DIR }, 'api boot: bundled assets dir active')
+    // The baked operator tool-policy map rides the same assets dir — primed
+    // once here, read by every resolveSessionToolPolicies call thereafter.
+    primeBakedToolPolicyDefaults({ assetsDir: env.VYNEL_ASSETS_DIR, logger })
   }
 
   // Before any embedding tick can lazily load the model — the cache must live
