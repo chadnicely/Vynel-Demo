@@ -292,11 +292,11 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
   color: var(--danger);
 }
 
+/* A canvas chat surface like Workspace/Global — full-bleed on the thread's
+   own gutter. */
 .composer-dock {
-  padding: 0 24px 18px;
-  max-width: 968px;
+  padding: 10px 22.4px 12px;
   width: 100%;
-  margin: 0 auto;
 }
 
 .queued-note {

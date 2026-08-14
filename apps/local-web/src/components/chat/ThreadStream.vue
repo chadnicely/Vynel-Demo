@@ -904,11 +904,11 @@ watch(
 }
 
 /* The canvas's thread is FULL-BLEED in its column — 22.4px gutters, no
-   centred reading measure (Kafi, 2026-08-15). Every mount inherits it: the
-   conversation sidebar is narrower than the old cap ever was, so nothing
-   there changes. */
+   centred reading measure (Kafi, 2026-08-15). The gutter is a variable so a
+   narrow mount can tighten it: within one panel the composer and the messages
+   MUST share an edge, so whoever changes one sets both. */
 .thread-column {
-  padding: 16px 22.4px 11.2px;
+  padding: 16px var(--thread-gutter, 22.4px) 11.2px;
   display: grid;
   gap: 12px;
 }

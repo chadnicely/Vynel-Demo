@@ -208,6 +208,13 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 .state-note.is-error {
   color: var(--danger);
 }
+/* A narrow docked panel, not the canvas column: the canvas's 22.4px gutter
+   would eat a 320px width, so the thread follows the composer down to 12px
+   (one edge for both — see ThreadStream's `--thread-gutter`). */
+.thread-body {
+  --thread-gutter: 12px;
+}
+
 .composer-dock {
   padding: 8px 12px 12px;
   border-top: 1px solid var(--hair);
