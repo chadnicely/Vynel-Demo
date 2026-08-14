@@ -83,6 +83,7 @@ export { buildSessionTurnRecorder } from './session-turn-recorder.js'
 export {
   reapOrphanedSessionTurns,
   listRunningSessionTurnsForUser,
+  listLatestWorkspaceTurnsForUser,
   purgeEndedSessionTurnsBefore,
   type SessionTurnRow,
 } from '../repositories/index.js'

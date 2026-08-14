@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { PhDisc as Disc } from "@phosphor-icons/vue";
+import {
+  PhCheckCircle as CheckCircle,
+  PhDisc as Disc,
+  PhHandTap as HandTap,
+  PhWarningCircle as WarningCircle,
+} from "@phosphor-icons/vue";
+import type { WorkspaceEffectiveStatus } from "@vynel/contracts/workspaces/workspace-status";
 import type {
   ChatMessageResponse,
   ChatToolCallResponse,
@@ -54,6 +60,11 @@ const props = withDefaults(
     /** The displayed session's model — names the model in the per-turn
      *  run-stats card (messages don't carry one). Null/omitted = "default". */
     sessionModel?: string | null;
+    /** The scope's effective status (one status, one colour — Arc 5b): the
+     *  needs-input / problem / completed states re-tint the live pill and
+     *  stamp the latest card with the state treatment. Null/running/
+     *  not_running = the plain working look. */
+    workspaceStatus?: WorkspaceEffectiveStatus | null;
   }>(),
   {
     assistantName: "Assistant",
@@ -62,6 +73,7 @@ const props = withDefaults(
     scrollToTraceId: undefined,
     workspacesByName: undefined,
     sessionModel: null,
+    workspaceStatus: null,
   },
 );
 
@@ -292,15 +304,9 @@ const hiddenOlderCount = computed(() =>
   Math.max(0, settledMessages.value.length - visibleCount.value),
 );
 
-// TURN folding (Chad, 2026-08-09): every turn folds to its header strip —
-// author, first-line preview, time, chevron. Only the LATEST turn is open by
-// default; a manual toggle overrides its turn from then on (so an arriving
-// turn folds the previous one unless the user pinned it open). A turn = a
-// header row + its continuations (the startsNewTurn boundaries, rendered by
-// turnCardGroups), keyed by its first row's id.
-// Keys derive from the FULL settled history, not the window — revealing an
-// older page must never re-key a turn cut at the window boundary (that would
-// orphan a manual fold override, the Gate-3 catch).
+// AUTHOR-RUN keys — consecutive same-author assistant rows share one key, so
+// a reloaded multi-row turn reads under ONE author line (header/continuation
+// decisions only; the CARD boundary is the conversation grouping below).
 const turnKeyByMessageId = computed(() => {
   const keys = new Map<string, string>();
   let current: string | null = null;
@@ -315,57 +321,94 @@ const turnKeyByMessageId = computed(() => {
   });
   return keys;
 });
-const latestTurnKey = computed(() => {
+
+// CONVERSATION cards (workspace redesign Arc 5b — the canvas's "one card per
+// exchange"): a user's ask and the assistant's whole reply share ONE card.
+// Any user-authored row (an ask, a delivered report, a mention) starts a new
+// exchange; the assistant rows that follow ride along. An assistant-led turn
+// with no ask (a schedule fire, a channel reply) starts its own card via the
+// author-run boundary.
+function startsNewCard(
+  message: ChatMessageResponse,
+  previous: ChatMessageResponse | undefined,
+): boolean {
+  if (!previous) return true;
+  if (message.role === "user") return true;
+  if (previous.role === "user") return false;
+  return startsNewTurn(message, previous);
+}
+
+// Folding (Chad, 2026-08-09, re-grouped by the Arc 5b card): every card folds
+// to its header strip; only the LATEST card is open by default; a manual
+// toggle overrides its card from then on. Keys derive from the FULL settled
+// history, not the window — revealing an older page must never re-key a card
+// cut at the window boundary (that would orphan a manual fold override, the
+// Gate-3 catch).
+const cardKeyByMessageId = computed(() => {
+  const keys = new Map<string, string>();
+  let current: string | null = null;
+  settledMessages.value.forEach((message, index) => {
+    if (
+      current === null ||
+      startsNewCard(message, settledMessages.value[index - 1])
+    ) {
+      current = message.id;
+    }
+    keys.set(message.id, current);
+  });
+  return keys;
+});
+const latestCardKey = computed(() => {
   const last = settledMessages.value.at(-1);
   return last === undefined
     ? null
-    : (turnKeyByMessageId.value.get(last.id) ?? null);
+    : (cardKeyByMessageId.value.get(last.id) ?? null);
 });
 const collapseOverrides = ref(new Map<string, boolean>());
 
-function isTurnExpanded(turnKey: string): boolean {
+function isCardExpanded(cardKey: string): boolean {
   return (
-    collapseOverrides.value.get(turnKey) ?? turnKey === latestTurnKey.value
+    collapseOverrides.value.get(cardKey) ?? cardKey === latestCardKey.value
   );
 }
 
-function toggleTurn(turnKey: string) {
+function toggleCard(cardKey: string) {
   const next = new Map(collapseOverrides.value);
-  next.set(turnKey, !isTurnExpanded(turnKey));
+  next.set(cardKey, !isCardExpanded(cardKey));
   collapseOverrides.value = next;
 }
 
-function expandTurnOf(messageId: string) {
-  const key = turnKeyByMessageId.value.get(messageId);
-  if (key === undefined || isTurnExpanded(key)) return;
+function expandCardOf(messageId: string) {
+  const key = cardKeyByMessageId.value.get(messageId);
+  if (key === undefined || isCardExpanded(key)) return;
   const next = new Map(collapseOverrides.value);
   next.set(key, true);
   collapseOverrides.value = next;
 }
 
-// The folded strip's preview when the turn's HEADER row has no text (a turn
-// opening with tool calls): the first non-empty body among the turn's rows,
-// else the turn's first tool call as a one-line summary ("Read CLAUDE.md") —
-// an empty strip tells the user nothing about what's behind the chevron.
-const turnPreviewFallbacks = computed(() => {
+// The folded strip's preview when the card's HEADER row has no text (an
+// exchange opening with tool calls): the first non-empty body among the
+// card's rows, else its first tool call as a one-line summary
+// ("Read CLAUDE.md") — an empty strip tells the user nothing.
+const cardPreviewFallbacks = computed(() => {
   const bodyLines = new Map<string, string>();
   const toolLines = new Map<string, string>();
   for (const message of settledMessages.value) {
-    const turnKey = turnKeyByMessageId.value.get(message.id) ?? message.id;
-    if (!bodyLines.has(turnKey)) {
+    const cardKey = cardKeyByMessageId.value.get(message.id) ?? message.id;
+    if (!bodyLines.has(cardKey)) {
       // Marker-stripped, matching the row's own displayBody — the model-facing
       // "[Report from …]" line must never surface as a strip preview.
       const firstLine = stripReportMessageMarker(message.body)
         .split("\n")
         .find((line) => line.trim() !== "");
-      if (firstLine !== undefined) bodyLines.set(turnKey, firstLine);
+      if (firstLine !== undefined) bodyLines.set(cardKey, firstLine);
     }
-    if (!toolLines.has(turnKey)) {
+    if (!toolLines.has(cardKey)) {
       const firstCall = props.toolCallsByMessageId[message.id]?.[0];
       if (firstCall !== undefined) {
         const { verb, argument } = presentToolCall(firstCall);
         toolLines.set(
-          turnKey,
+          cardKey,
           argument === null ? verb : `${verb} ${argument}`,
         );
       }
@@ -374,27 +417,60 @@ const turnPreviewFallbacks = computed(() => {
   return { bodyLines, toolLines };
 });
 
-function turnPreviewFallbackFor(turnKey: string): string | null {
-  const { bodyLines, toolLines } = turnPreviewFallbacks.value;
-  return bodyLines.get(turnKey) ?? toolLines.get(turnKey) ?? null;
+function cardPreviewFallbackFor(cardKey: string): string | null {
+  const { bodyLines, toolLines } = cardPreviewFallbacks.value;
+  return bodyLines.get(cardKey) ?? toolLines.get(cardKey) ?? null;
 }
 
-// The visible window grouped into TURN CARDS (workspace redesign Arc 3): one
-// wrapper per turn, so the card lifecycle — folded past turns dim to
-// grayscale strips, the expanded turn reads as a quiet card, the live turn
-// glows — is one class on one element. A window-cut turn's first visible row
-// acts as its header (same behavior the flat list had when the previous row
-// was off-window).
+// The visible window grouped into CONVERSATION CARDS (workspace redesign
+// Arc 3 + 5b): one wrapper per exchange, so the card lifecycle — folded past
+// exchanges dim to grayscale strips, the expanded one reads as a quiet card,
+// the live one glows — is one class on one element. A window-cut card's first
+// visible row acts as its header (same behavior the flat list had when the
+// previous row was off-window).
 const turnCardGroups = computed(() => {
   const groups: { key: string; messages: ChatMessageResponse[] }[] = [];
   for (const message of visibleMessages.value) {
-    const key = turnKeyByMessageId.value.get(message.id) ?? message.id;
+    const key = cardKeyByMessageId.value.get(message.id) ?? message.id;
     const last = groups.at(-1);
     if (last !== undefined && last.key === key) last.messages.push(message);
     else groups.push({ key, messages: [message] });
   }
   return groups;
 });
+
+// Header/continuation decisions inside a card ride the AUTHOR-RUN keys: the
+// reply's first row shows its author line under the ask; its further rows
+// continue headerless. The reply's first row also wears the canvas's
+// hairline divider (`is-reply-start`).
+function memberShowsHeader(
+  group: { messages: ChatMessageResponse[] },
+  memberIndex: number,
+): boolean {
+  if (memberIndex === 0) return true;
+  const message = group.messages[memberIndex]!;
+  const previous = group.messages[memberIndex - 1]!;
+  return (
+    turnKeyByMessageId.value.get(message.id) !==
+    turnKeyByMessageId.value.get(previous.id)
+  );
+}
+
+function memberStartsReply(
+  group: { messages: ChatMessageResponse[] },
+  memberIndex: number,
+): boolean {
+  if (memberIndex === 0) return false;
+  const message = group.messages[memberIndex]!;
+  const previous = group.messages[memberIndex - 1]!;
+  return message.role === "assistant" && previous.role === "user";
+}
+
+// The run-stats door sits on the REPLY's author line (the canvas's info
+// icon beside VYNEL), never on the ask.
+function statsMemberIndexOf(group: { messages: ChatMessageResponse[] }): number {
+  return group.messages.findIndex((message) => message.role === "assistant");
+}
 
 // The live card's top-right working pill — the canvas's "working · 8m 15s"
 // signature. Same composable as LiveTurn's chip (independent 1s ticks, so a
@@ -403,6 +479,31 @@ const workingElapsed = useTickingElapsed(
   () => props.activeTurn?.startedAtMs ?? null,
   () => props.activeTurn?.status === "streaming",
 );
+
+// The state treatments (the Needs Input / Problem / Completed canvases): the
+// scope's status swaps the pill's icon/label/hue and, when no turn streams,
+// stamps the LATEST card with the state chrome + a solid state spine.
+const STATE_PILLS = {
+  needs_input: { label: "Needs input", icon: HandTap },
+  problem: { label: "Hit a problem", icon: WarningCircle },
+  completed: { label: "Completed", icon: CheckCircle },
+} as const;
+
+const stateVariant = computed<keyof typeof STATE_PILLS | null>(() => {
+  const status = props.workspaceStatus;
+  return status === "needs_input" || status === "problem" || status === "completed"
+    ? status
+    : null;
+});
+
+function isStatedCard(cardKey: string): boolean {
+  return (
+    stateVariant.value !== null &&
+    props.activeTurn === null &&
+    cardKey === latestCardKey.value &&
+    isCardExpanded(cardKey)
+  );
+}
 
 // The per-turn run stats (Chad, 2026-08-09: EVERY assistant turn wears the
 // info door, not just delivered rows): tool calls, tokens, and duration
@@ -428,7 +529,7 @@ const turnRunStats = computed(() => {
   let runningOccupancy: number | null = null;
   for (const message of settledMessages.value) {
     if (message.role !== "assistant") continue;
-    const turnKey = turnKeyByMessageId.value.get(message.id) ?? message.id;
+    const turnKey = cardKeyByMessageId.value.get(message.id) ?? message.id;
     const entry = byTurn.get(turnKey) ?? {
       toolCallCount: 0,
       baseline: runningOccupancy,
@@ -589,12 +690,12 @@ watch(
   () => [props.scrollToTraceId, visibleMessages.value.length] as const,
   async ([traceId]) => {
     if (traceId == null || landedTraceId === traceId) return;
-    // A folded turn hides its rows — unfold the anchor's turn first so the
+    // A folded card hides its rows — unfold the anchor's card first so the
     // landing has a row to land on.
     const anchorRow = visibleMessages.value.find(
       (message) => message.partialSessionId === traceId,
     );
-    if (anchorRow !== undefined) expandTurnOf(anchorRow.id);
+    if (anchorRow !== undefined) expandCardOf(anchorRow.id);
     await nextTick();
     const row = scroller.value?.querySelector(`[data-trace-id="${traceId}"]`);
     if (!(row instanceof HTMLElement)) {
@@ -621,36 +722,63 @@ watch(
           load
         </p>
 
-        <!-- The task cards (workspace redesign Arc 3): one card per turn.
-             Folded past turns dim to grayscale strips and wake on hover; the
-             expanded turn is a quiet hairline card. A folded turn renders
-             only its header row; pointers render regardless — a tracker
-             never hides with its turn. -->
+        <!-- The conversation cards (workspace redesign Arc 3 + 5b): ONE card
+             per exchange — the ask and its whole reply together, the canvas's
+             chat shape. Folded past cards dim to grayscale strips and wake on
+             hover; the expanded card is a quiet hairline card. A folded card
+             renders only its header row; pointers render regardless — a
+             tracker never hides with its card. -->
         <section
           v-for="group in turnCardGroups"
           :key="group.key"
           class="turn-card"
-          :class="isTurnExpanded(group.key) ? 'is-open' : 'is-folded'"
+          :class="[
+            isCardExpanded(group.key) ? 'is-open' : 'is-folded',
+            isStatedCard(group.key) ? `is-stated is-state-${stateVariant}` : '',
+          ]"
         >
+          <!-- The state pill (Needs Input / Problem / Completed canvases) —
+               the latest exchange wears the scope's status verdict. -->
+          <span
+            v-if="isStatedCard(group.key) && stateVariant"
+            class="state-spine"
+            aria-hidden="true"
+          />
+          <span
+            v-if="isStatedCard(group.key) && stateVariant"
+            class="status-pill"
+            :data-status="stateVariant"
+          >
+            <component :is="STATE_PILLS[stateVariant].icon" :size="13" class="status-pill-icon" />
+            <span class="status-pill-label">{{ STATE_PILLS[stateVariant].label }}</span>
+          </span>
           <template
             v-for="(message, memberIndex) in group.messages"
             :key="message.id"
           >
             <MessageRow
-              v-if="memberIndex === 0 || isTurnExpanded(group.key)"
+              v-if="memberIndex === 0 || isCardExpanded(group.key)"
               :message="message"
               :data-trace-id="message.partialSessionId ?? undefined"
-              :class="{ 'is-continuation': memberIndex > 0 }"
+              :class="{
+                'is-continuation':
+                  memberIndex > 0 && !memberShowsHeader(group, memberIndex),
+                'is-reply-start': memberStartsReply(group, memberIndex),
+              }"
               :assistant-name="props.assistantName"
               :assistant-icon-url="props.assistantIconUrl"
               :author-persona="authorPersonaFor(message)"
               :workspace-badge="workspaceBadgeFor(message)"
-              :show-header="memberIndex === 0"
+              :show-header="memberShowsHeader(group, memberIndex)"
               :collapsible="memberIndex === 0"
-              :collapsed="!isTurnExpanded(group.key)"
-              :preview-fallback="turnPreviewFallbackFor(group.key)"
-              :run-stats="memberIndex === 0 ? turnRunStatsFor(group.key) : null"
-              @toggle-collapse="toggleTurn(group.key)"
+              :collapsed="!isCardExpanded(group.key)"
+              :preview-fallback="cardPreviewFallbackFor(group.key)"
+              :run-stats="
+                memberIndex === statsMemberIndexOf(group)
+                  ? turnRunStatsFor(group.key)
+                  : null
+              "
+              @toggle-collapse="toggleCard(group.key)"
             >
               <template
                 v-if="props.toolCallsByMessageId[message.id]?.length"
@@ -673,18 +801,40 @@ watch(
 
         <!-- The live card — the canvas's glowing accent treatment: tinted
              ground, accent spine sweeping the left edge, the working pill
-             ticking top-right. -->
-        <section v-if="props.activeTurn" class="turn-card is-live">
+             ticking top-right. A pending approval/ask (needs_input) or a
+             set problem re-tints the pill per the state canvases. -->
+        <section
+          v-if="props.activeTurn"
+          class="turn-card is-live"
+          :class="stateVariant ? `is-state-${stateVariant}` : ''"
+        >
           <!-- Motion only while genuinely streaming — the settle window keeps
                the tinted ground with LiveTurn's quiet done chip, and an error
                note must not sit beside a sweeping light. -->
           <span
-            v-if="props.activeTurn.status === 'streaming'"
+            v-if="props.activeTurn.status === 'streaming' && !stateVariant"
             class="live-spine"
             aria-hidden="true"
           />
           <span
-            v-if="props.activeTurn.status === 'streaming' && workingElapsed"
+            v-if="props.activeTurn.status === 'streaming' && stateVariant"
+            class="state-spine"
+            aria-hidden="true"
+          />
+          <span
+            v-if="props.activeTurn.status === 'streaming' && stateVariant"
+            class="status-pill"
+            :data-status="stateVariant"
+          >
+            <component :is="STATE_PILLS[stateVariant].icon" :size="13" class="status-pill-icon" />
+            <span class="status-pill-label">{{ STATE_PILLS[stateVariant].label }}</span>
+            <template v-if="workingElapsed">
+              <span class="status-pill-sep" aria-hidden="true" />
+              <span class="status-pill-time">{{ workingElapsed }}</span>
+            </template>
+          </span>
+          <span
+            v-else-if="props.activeTurn.status === 'streaming' && workingElapsed"
             class="working-pill"
           >
             <Disc :size="13" class="working-disc" aria-hidden="true" />
@@ -761,19 +911,21 @@ watch(
   gap: 12px;
 }
 
-/* ── The task cards (workspace redesign Arc 3). One element per turn; the
-   lifecycle is a class swap: folded past turns are dim grayscale strips that
-   wake on hover, the open turn is a quiet hairline card, the live turn glows
-   on the accent ground with the spine + working pill. ── */
+/* ── The conversation cards (workspace redesign Arc 3 + 5b). One element per
+   exchange; the lifecycle is a class swap: folded past cards are dim
+   grayscale strips that wake on hover, the open card sits on the surface
+   ground, the live card glows on the accent ground with the spine + working
+   pill. Paddings/gaps are the canvas's values verbatim. ── */
 .turn-card {
   display: grid;
-  gap: 20px;
+  gap: 14px;
   border: 1px solid transparent;
   border-radius: var(--radius-m);
-  padding: 12px 16px;
+  padding: 14px 22px 18px;
   transition:
     border-color var(--t-fast) var(--ease-out),
-    background var(--t-fast) var(--ease-out);
+    background var(--t-fast) var(--ease-out),
+    opacity var(--t-fast) var(--ease-out);
 }
 
 /* The rows moved one grid level deeper — the card re-applies the column's
@@ -784,19 +936,27 @@ watch(
 }
 
 .turn-card.is-open {
-  border-color: color-mix(in srgb, var(--hair) 80%, transparent);
-  background: color-mix(in srgb, var(--color-text) 2%, transparent);
+  border-color: var(--hair);
+  background: var(--bg-raised);
 }
 
 .turn-card.is-folded {
-  padding: 6px 16px;
+  gap: 8px;
+  padding: 11px 22px 12px;
+  border-color: color-mix(in srgb, var(--hair) 55%, transparent);
+}
+
+.turn-card.is-folded:hover {
+  border-color: var(--color-neutral-700);
+  background: color-mix(in srgb, var(--color-text) 4%, var(--bg-raised));
 }
 
 /* The dim rides the MEMBERS, not the card — an ancestor filter would also
    grayscale a live tracker's gold presence dot (PointerRow renders under
-   folded turns on purpose; gold = presence, the one rule). */
+   folded cards on purpose; gold = presence, the one rule). Canvas values:
+   0.3 + grayscale(1) at rest, 0.75 + grayscale(0.25) awake. */
 .turn-card.is-folded > :deep(.message-row) {
-  opacity: 0.4;
+  opacity: 0.3;
   filter: grayscale(1);
   transition:
     opacity var(--t-slow) var(--ease-out),
@@ -805,17 +965,144 @@ watch(
 
 .turn-card.is-folded:hover > :deep(.message-row),
 .turn-card.is-folded:focus-within > :deep(.message-row) {
-  opacity: 0.85;
+  opacity: 0.75;
   filter: grayscale(0.25);
 }
 
 .turn-card.is-live {
   position: relative;
-  border-color: color-mix(in srgb, var(--gold) 45%, transparent);
-  background: color-mix(in srgb, var(--gold) 9%, transparent);
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+  border-left: 2px solid var(--gold);
+  background: var(--color-accent-900);
   /* Room for the working pill so the first row never collides with it. */
   padding-top: 16px;
   overflow: hidden;
+}
+
+/* The reply's first row — the canvas's hairline between the ask and the
+   reply block inside one card. */
+:deep(.is-reply-start) {
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+  padding-top: 12px;
+}
+
+/* ── The state treatments (Needs Input / Problem / Completed canvases): the
+   latest card keeps the live ground, swaps the sweep for a SOLID state
+   spine, and wears the state pill. One hue per state, everywhere:
+   needs-input #38b6ff · problem #f2564b · completed oklch(0.70 0.105 158)
+   (Chad's settled decisions, 2026-08-14). ── */
+.turn-card.is-stated {
+  position: relative;
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+  background: var(--color-accent-900);
+  padding-top: 16px;
+  overflow: hidden;
+}
+
+.state-spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  pointer-events: none;
+}
+
+.is-state-needs_input .state-spine {
+  background: var(--needs-input);
+}
+
+.is-state-problem .state-spine {
+  background: var(--danger);
+}
+
+.is-state-completed .state-spine {
+  background: var(--ok);
+}
+
+.status-pill {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 9px 2px 6px;
+  border-radius: 999px;
+  background: var(--color-neutral-900);
+  max-width: calc(100% - 28px);
+}
+
+.status-pill-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 9.5px/1.5 var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.status-pill-sep {
+  width: 1px;
+  height: 9px;
+}
+
+.status-pill-time {
+  font: 500 9.5px/1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-pill[data-status="needs_input"] {
+  border: 1px solid color-mix(in srgb, var(--needs-input) 70%, transparent);
+}
+
+.status-pill[data-status="needs_input"] .status-pill-icon {
+  color: var(--needs-input);
+}
+
+.status-pill[data-status="needs_input"] .status-pill-label,
+.status-pill[data-status="needs_input"] .status-pill-time {
+  color: var(--needs-input);
+}
+
+.status-pill[data-status="needs_input"] .status-pill-sep {
+  background: color-mix(in srgb, var(--needs-input) 40%, transparent);
+}
+
+.status-pill[data-status="problem"] {
+  border: 1px solid color-mix(in srgb, var(--danger) 70%, transparent);
+}
+
+.status-pill[data-status="problem"] .status-pill-icon {
+  color: var(--danger);
+}
+
+.status-pill[data-status="problem"] .status-pill-label,
+.status-pill[data-status="problem"] .status-pill-time {
+  color: var(--danger);
+}
+
+.status-pill[data-status="problem"] .status-pill-sep {
+  background: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+.status-pill[data-status="completed"] {
+  border: 1px solid color-mix(in srgb, var(--ok) 70%, transparent);
+}
+
+.status-pill[data-status="completed"] .status-pill-icon {
+  color: var(--ok);
+}
+
+.status-pill[data-status="completed"] .status-pill-label,
+.status-pill[data-status="completed"] .status-pill-time {
+  color: var(--ok);
+}
+
+.status-pill[data-status="completed"] .status-pill-sep {
+  background: color-mix(in srgb, var(--ok) 40%, transparent);
 }
 
 /* The spine — a light sweeping the live card's left edge (the canvas's
@@ -829,8 +1116,8 @@ watch(
   background: linear-gradient(
     180deg,
     transparent 0%,
-    var(--gold-bright) 45%,
-    var(--gold-bright) 55%,
+    var(--color-accent-100) 45%,
+    var(--color-accent-100) 55%,
     transparent 100%
   );
   background-size: 100% 55%;
@@ -858,10 +1145,10 @@ watch(
   gap: 7px;
   padding: 2px 9px 2px 6px;
   border-radius: 999px;
-  background: var(--bg-raised);
+  background: var(--color-neutral-900);
   border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
-  /* A long persona name must never outgrow the card or sit on the user
-     bubble — the label ellipsizes inside the capped pill. */
+  /* A long persona name must never outgrow the card or sit on the ask's
+     header — the label ellipsizes inside the capped pill. */
   max-width: calc(100% - 28px);
 }
 
@@ -884,7 +1171,7 @@ watch(
   font: 600 9.5px/1.5 var(--font-ui);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--gold-bright);
+  color: var(--color-accent-200);
 }
 
 .working-sep {
@@ -896,7 +1183,7 @@ watch(
 .working-time {
   font: 500 9.5px/1.5 var(--font-ui);
   font-variant-numeric: tabular-nums;
-  color: var(--gold-bright);
+  color: var(--color-accent-300);
 }
 
 /* The live card's user row leaves room for the pill on narrow hosts. */
@@ -925,9 +1212,9 @@ watch(
 }
 
 /* A headerless continuation row sits close to the row it extends — the same
-   8px rhythm the live overlay gives its segments (grid gap is 20px). */
+   8px rhythm the live overlay gives its segments (grid gap is 14px). */
 .is-continuation {
-  margin-top: -12px;
+  margin-top: -6px;
 }
 
 .tool-list {

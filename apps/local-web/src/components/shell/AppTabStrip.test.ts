@@ -72,17 +72,18 @@ describe("AppTabStrip", () => {
     expect(tabName(wrapper.findAll('[role="tab"]')[1]!)).toBe("Workspace");
   });
 
-  it("tabs are uniform width — Global and rooms alike", () => {
-    const wrapper = mountStrip();
+  // test: correct expectation (Arc 5b browser tabs) — tabs size to their
+  // name (max-width capped in CSS); the active one wears the canvas ground.
+  it("the active tab wears is-active; resting tabs stay plain", () => {
+    const wrapper = mountStrip({ activeTabId: "t1" });
 
-    const containers = wrapper.findAll('[role="tablist"] > .group');
+    const containers = wrapper.findAll('[role="tablist"] > .app-tab');
     expect(containers).toHaveLength(2);
-    for (const container of containers) {
-      expect(container.classes()).toContain("w-44");
-    }
+    expect(containers[1]!.classes()).toContain("is-active");
+    expect(containers[0]!.classes()).not.toContain("is-active");
   });
 
-  it("a user-picked color slot paints the tab over the auto accent", () => {
+  it("a user-picked color slot paints the active tab's bottom edge", () => {
     const wrapper = mountStrip({
       tabs: [
         { id: "global", workspaceId: null, colorSlot: null },
@@ -91,8 +92,31 @@ describe("AppTabStrip", () => {
       activeTabId: "t1",
     });
 
-    const roomTab = wrapper.findAll('[role="tab"]')[1]!;
-    expect(roomTab.find("span").attributes("style")).toContain("--ws-3");
+    const roomTab = wrapper.findAll('[role="tablist"] > .app-tab')[1]!;
+    expect(roomTab.attributes("style")).toContain("--ws-3");
+  });
+
+  // The status vocabulary on the strip (Arc 5b): running spins the chip, a
+  // set state wears the pulsing one-colour mark, parked tabs dim.
+  it("status views drive the chip, the mark dot, and the parked dim", () => {
+    const wrapper = mountStrip({
+      tabs: [
+        { id: "global", workspaceId: null, colorSlot: null },
+        { id: "t1", workspaceId: "w1", colorSlot: null },
+        { id: "t2", workspaceId: "w2", colorSlot: null },
+      ],
+      activeTabId: "t1",
+      statusByWorkspaceId: {
+        w1: { status: "running", note: null, tasksDone: 1, tasksTotal: 3 },
+        w2: { status: "problem", note: null, tasksDone: 1, tasksTotal: 3 },
+      },
+    });
+
+    const tabs = wrapper.findAll('[role="tablist"] > .app-tab');
+    expect(tabs[1]!.find(".animate-spin").exists()).toBe(true);
+    expect(tabs[2]!.find('.tab-mark[data-status="problem"]').exists()).toBe(true);
+    // The inactive Global tab (nothing running there) reads parked and dims.
+    expect(tabs[0]!.classes()).toContain("is-parked");
   });
 
   it("offers the add-tab menu trigger and a per-tab workspace switcher", () => {

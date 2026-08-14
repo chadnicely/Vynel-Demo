@@ -29,6 +29,8 @@ export {
 export { updateTask, type UpdateTaskInput } from './lifecycle/update-task.js'
 export { deleteTask } from './lifecycle/delete-task.js'
 export { listTasks, listTasksForUser } from './queries/list-tasks.js'
+export { countTasksByWorkspace } from './queries/count-tasks-by-workspace.js'
+export type { WorkspaceTaskCounts } from './repositories/index.js'
 
 // The WORKING-STEPS half of the leaf (`session_todos`) — the dock above the
 // chat composer. Separate rows, separate ops, one leaf

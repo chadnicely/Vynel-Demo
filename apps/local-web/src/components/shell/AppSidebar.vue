@@ -25,6 +25,16 @@ const props = defineProps<{
   /** Menu mode renders the sidebar as a drill-in — the back row returns to
    *  the workspace tree. Absent in tabs mode. */
   showBack?: boolean;
+  /** The drilled workspace's header card (the canvas's app card): identity
+   *  chip + name + the live status line. Null = the plain section title. */
+  workspaceCard?: {
+    name: string;
+    initials: string;
+    statusLine: string;
+    /** The status vocabulary key — colours the meta line (one status one
+     *  colour). */
+    statusTone: "running" | "needs_input" | "problem" | "completed" | "not_running";
+  } | null;
 }>();
 
 const emit = defineEmits<{
@@ -116,7 +126,34 @@ watch(
         <ArrowLeft :size="11" class="shrink-0" />
         <span class="truncate">Workspaces</span>
       </button>
-      <p class="px-4 pb-0.5 pt-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-3">
+      <!-- The drilled app's header card (the canvas): identity chip + name +
+           the live status line, on the accent ground. -->
+      <div
+        v-if="props.workspaceCard"
+        class="mx-2 mb-1.5 mt-0.5 flex items-center gap-2 rounded-sm bg-[var(--color-accent-900)] px-2 py-1.5"
+        data-testid="sidebar-workspace-card"
+      >
+        <span
+          class="grid size-5 shrink-0 place-items-center rounded-[4px] bg-[var(--color-accent-600)] text-[9px] font-semibold text-[var(--color-accent-100)]"
+        >
+          {{ props.workspaceCard.initials }}
+        </span>
+        <span class="flex min-w-0 flex-col">
+          <span class="truncate text-[13px] leading-tight text-[var(--color-accent-100)]">
+            {{ props.workspaceCard.name }}
+          </span>
+          <span
+            class="workspace-card-meta truncate text-[10.5px] leading-snug"
+            :data-status="props.workspaceCard.statusTone"
+          >
+            {{ props.workspaceCard.statusLine }}
+          </span>
+        </span>
+      </div>
+      <p
+        v-else
+        class="px-4 pb-0.5 pt-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-3"
+      >
         {{ props.sectionTitle }}
       </p>
       <template v-for="(block, index) in blocks" :key="index">
@@ -165,3 +202,22 @@ watch(
     />
   </nav>
 </template>
+
+<style scoped>
+/* One status, one colour — the header card's meta line. */
+.workspace-card-meta {
+  color: var(--color-accent-300);
+}
+
+.workspace-card-meta[data-status="needs_input"] {
+  color: var(--needs-input);
+}
+
+.workspace-card-meta[data-status="problem"] {
+  color: var(--danger);
+}
+
+.workspace-card-meta[data-status="completed"] {
+  color: var(--ok);
+}
+</style>

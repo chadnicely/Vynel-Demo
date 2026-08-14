@@ -54,6 +54,11 @@ export interface SessionTurnActivity {
 /** A settled tool call's terminal status (mirrors the chat stream's vocabulary). */
 export type SessionTurnStepStatus = 'completed' | 'failed' | 'denied' | 'cancelled'
 
+/** How a turn ended: 'failed' = the drain saw a terminal `session-errored` or
+ *  threw (the workspace status vocabulary's "stuck on an error" signal); a
+ *  user interrupt is a clean 'ended'. */
+export type SessionTurnOutcome = 'ended' | 'failed'
+
 /** One narration step inside a turn — published by the turn producer, stamped
  *  with the `turnId` by the feed. Transient (never stored) — the snapshot
  *  replays only each in-flight turn's LAST step, right after its
@@ -74,4 +79,4 @@ export type SessionActivityEvent =
   | ({ kind: 'turn-started' } & SessionTurnActivity)
   | { kind: 'turn-updated'; turnId: string; sessionId: string }
   | ({ turnId: string } & SessionTurnStep)
-  | { kind: 'turn-ended'; turnId: string; sessionId: string | null }
+  | { kind: 'turn-ended'; turnId: string; sessionId: string | null; outcome: SessionTurnOutcome }

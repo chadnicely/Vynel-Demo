@@ -32341,6 +32341,30 @@
                               "null"
                             ]
                           },
+                          "status": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "completed",
+                              "problem",
+                              "needs_input",
+                              null
+                            ]
+                          },
+                          "statusNote": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "statusSetAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "createdAt": {
                             "type": "string"
                           },
@@ -32361,6 +32385,9 @@
                           "isArchived",
                           "continueEnabled",
                           "groupId",
+                          "status",
+                          "statusNote",
+                          "statusSetAt",
                           "createdAt",
                           "updatedAt",
                           "lastAccessedAt"
@@ -34411,6 +34438,30 @@
                           "null"
                         ]
                       },
+                      "status": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "completed",
+                          "problem",
+                          "needs_input",
+                          null
+                        ]
+                      },
+                      "statusNote": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "statusSetAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "createdAt": {
                         "type": "string"
                       },
@@ -34431,6 +34482,9 @@
                       "isArchived",
                       "continueEnabled",
                       "groupId",
+                      "status",
+                      "statusNote",
+                      "statusSetAt",
                       "createdAt",
                       "updatedAt",
                       "lastAccessedAt"
@@ -34519,6 +34573,30 @@
                         "null"
                       ]
                     },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -34539,6 +34617,9 @@
                     "isArchived",
                     "continueEnabled",
                     "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -34930,6 +35011,110 @@
         "x-sdk-name": "workspaces.deleteGroup"
       }
     },
+    "/workspaces/statuses": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "One status report per workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "setStatus": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "completed",
+                          "problem",
+                          "needs_input",
+                          null
+                        ]
+                      },
+                      "statusNote": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "statusSetAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "latestTurn": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "endedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "endedReason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "ended",
+                              "orphaned",
+                              "failed",
+                              null
+                            ]
+                          }
+                        },
+                        "required": [
+                          "startedAt",
+                          "endedAt",
+                          "endedReason"
+                        ]
+                      },
+                      "tasksTotal": {
+                        "type": "number"
+                      },
+                      "tasksDone": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "workspaceId",
+                      "setStatus",
+                      "statusNote",
+                      "statusSetAt",
+                      "latestTurn",
+                      "tasksTotal",
+                      "tasksDone"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getWorkspacesStatuses",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Per-workspace status facts: set state, latest turn, task counts.",
+        "x-sdk-name": "workspaces.listStatuses"
+      }
+    },
     "/workspaces/{workspaceId}": {
       "get": {
         "responses": {
@@ -34979,6 +35164,30 @@
                         "null"
                       ]
                     },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -34999,6 +35208,9 @@
                     "isArchived",
                     "continueEnabled",
                     "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -35081,6 +35293,30 @@
                         "null"
                       ]
                     },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -35101,6 +35337,9 @@
                     "isArchived",
                     "continueEnabled",
                     "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -35247,6 +35486,30 @@
                         "null"
                       ]
                     },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -35267,6 +35530,9 @@
                     "isArchived",
                     "continueEnabled",
                     "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -35311,6 +35577,164 @@
                 },
                 "required": [
                   "groupId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/status": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "Updated workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "managerName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "small-business",
+                        "personal",
+                        "project",
+                        "custom"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "continueEnabled": {
+                      "type": "boolean"
+                    },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastAccessedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "managerName",
+                    "kind",
+                    "path",
+                    "isArchived",
+                    "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
+                    "createdAt",
+                    "updatedAt",
+                    "lastAccessedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "putWorkspacesByWorkspaceIdStatus",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Set the workspace status (completed / problem / needs_input).",
+        "x-sdk-name": "workspaces.setStatus",
+        "x-mcp": {
+          "exposed": true,
+          "name": "set_workspace_status",
+          "mutatingApproved": true,
+          "description": "Set this workspace's status light — the state the user sees on every navigation surface. Set `completed` when EVERY task on the list is done (do it before finishing your reply, so the user sees it before their next message). Set `problem` when you are stuck and cannot proceed without help. Set `needs_input` when you reached a conclusion or decision that needs the user's attention (approvals and questions are detected automatically — this is for conclusions). Include a short `note` saying why. The status clears itself when the user sends the next message."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "completed",
+                      "problem",
+                      "needs_input"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "status"
                 ]
               }
             }
@@ -35367,6 +35791,30 @@
                         "null"
                       ]
                     },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -35387,6 +35835,9 @@
                     "isArchived",
                     "continueEnabled",
                     "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -35466,6 +35917,30 @@
                         "null"
                       ]
                     },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -35486,6 +35961,9 @@
                     "isArchived",
                     "continueEnabled",
                     "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"

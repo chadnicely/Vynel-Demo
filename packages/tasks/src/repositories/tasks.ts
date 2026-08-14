@@ -1,7 +1,7 @@
 // Functional repository for the `tasks` table. `db` is the first argument;
 // Phase 1 SYNC returns. No raw SQL or Drizzle queries outside this repo.
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import { tasks, type Task, type NewTask, type TaskStatus } from '../schema/tasks.js'
 
@@ -53,6 +53,28 @@ export function listTasksForUser(
     .where(and(...filters))
     .orderBy(desc(tasks.createdAt))
     .limit(limit)
+    .all()
+}
+
+// Per-workspace done/total rollup (workspace redesign Arc 5b) — the tree
+// rows' `4/13` progress and the rail's task-count lines, in one grouped
+// read. The null-workspace (global) bucket rides along keyed null.
+export type WorkspaceTaskCounts = {
+  workspaceId: string | null
+  total: number
+  done: number
+}
+
+export function countTasksByWorkspace(db: Database, userId: string): WorkspaceTaskCounts[] {
+  return db
+    .select({
+      workspaceId: tasks.workspaceId,
+      total: sql<number>`count(*)`,
+      done: sql<number>`sum(case when ${tasks.status} = 'done' then 1 else 0 end)`,
+    })
+    .from(tasks)
+    .where(eq(tasks.userId, userId))
+    .groupBy(tasks.workspaceId)
     .all()
 }
 

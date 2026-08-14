@@ -10,7 +10,14 @@
 // force every feature to import `@vynel/workspaces` (cross-feature coupling
 // we forbid). Leaf features (knowledge, …) own their schema; hubs don't.
 
-export type { Workspace, NewWorkspace, WorkspaceKind, WorkspaceGroup, NewWorkspaceGroup } from './workspaces-types.js'
+export type {
+  Workspace,
+  NewWorkspace,
+  WorkspaceKind,
+  WorkspaceStatusKind,
+  WorkspaceGroup,
+  NewWorkspaceGroup,
+} from './workspaces-types.js'
 
 export {
   WORKSPACE_CREATED_EVENT,
@@ -18,6 +25,7 @@ export {
   WORKSPACE_DELETED_EVENT,
   WORKSPACE_GROUP_CREATED_EVENT,
   WORKSPACE_GROUP_DELETED_EVENT,
+  WORKSPACE_STATUS_SET_EVENT,
 } from './workspaces-events.js'
 
 export type {
@@ -26,7 +34,12 @@ export type {
   WorkspaceDeletedPayload,
   WorkspaceGroupCreatedPayload,
   WorkspaceGroupDeletedPayload,
+  WorkspaceStatusSetPayload,
 } from './workspaces-events.js'
+
+// Status vocabulary (workspace redesign Arc 5b).
+export { setWorkspaceStatus } from './status/set-workspace-status.js'
+export type { SetWorkspaceStatusInput } from './status/set-workspace-status.js'
 
 // Menu-tree folders (workspace redesign Arc 2b).
 export { createWorkspaceGroup } from './groups/create-workspace-group.js'

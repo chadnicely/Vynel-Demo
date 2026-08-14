@@ -63,11 +63,15 @@ export async function buildScheduleFireDeps(
       ...(input.resumeSessionId !== undefined ? { sessionId: input.resumeSessionId } : {}),
       origin: 'schedule',
     })
+    // 'failed' on a terminal session-errored or a thrown drain — the status
+    // vocabulary's problem signal (a schedule fire has no other witness).
+    let turnOutcome: 'ended' | 'failed' = 'ended'
     try {
       for await (const event of startChatTurn(turnDb, input, {
         ...turnDeps,
         ...(turnEvents !== undefined ? { turnEvents } : {}),
       })) {
+        if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
         if (event.kind === 'session-created') activity.sessionResolved(event.session.id)
         else if (event.kind === 'user-message-persisted')
           activity.sessionResolved(event.message.sessionId)
@@ -75,8 +79,11 @@ export async function buildScheduleFireDeps(
         publishTurnActivityStep(activity, event)
         yield event
       }
+    } catch (err) {
+      turnOutcome = 'failed'
+      throw err
     } finally {
-      activity.end()
+      activity.end(turnOutcome)
     }
   }
 

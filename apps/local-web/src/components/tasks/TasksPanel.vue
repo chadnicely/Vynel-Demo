@@ -15,7 +15,7 @@ import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
 import TaskViewDialog from "./TaskViewDialog.vue";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
-import { useWorkspacePresence } from "../../composables/workspaces/use-workspace-presence.js";
+import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useVynel } from "../../composables/use-vynel.js";
 import type { SectionScope } from "../sections/section-scope.js";
@@ -40,16 +40,22 @@ const vynel = useVynel();
 const activity = useActivityStore();
 const tasksQuery = useTasksInScope(() => props.scope);
 const updateTask = useUpdateTask();
-const { presenceByWorkspaceId, globalPresence } = useWorkspacePresence();
+const { statusByWorkspaceId, globalStatus } = useWorkspaceStatuses();
 
 const scopeWorkspaceId = computed(() =>
   props.scope.kind === "workspace" ? props.scope.workspaceId : null,
 );
 
-const presence = computed(() =>
+// The scope's effective status — one status, one colour (Arc 5b).
+const statusView = computed(() =>
   scopeWorkspaceId.value === null
-    ? globalPresence.value
-    : (presenceByWorkspaceId.value[scopeWorkspaceId.value] ?? "idle"),
+    ? null
+    : (statusByWorkspaceId.value[scopeWorkspaceId.value] ?? null),
+);
+const scopeStatus = computed(() =>
+  scopeWorkspaceId.value === null
+    ? globalStatus.value
+    : (statusView.value?.status ?? "not_running"),
 );
 
 const tasksInScope = computed(() => tasksQuery.data.value ?? []);
@@ -100,24 +106,49 @@ const stepProgress = computed(() => {
   return { done, total: todos.length, pct: Math.round((100 * done) / todos.length) };
 });
 
+// The canvas's kicker vocabulary — one line per state.
 const liveKicker = computed(() => {
-  if (presence.value === "attention") return "Waiting on you";
-  if (presence.value === "working") return `${props.assistantName} working`;
-  return "All quiet";
+  if (scopeStatus.value === "needs_input") return "Waiting on you";
+  if (scopeStatus.value === "problem") return "Hit a problem";
+  if (scopeStatus.value === "completed") return "All tasks done";
+  if (scopeStatus.value === "running") return `${props.assistantName} working`;
+  return "Not running";
 });
 const liveTitle = computed(() => {
   if (liveTask.value !== null) return liveTask.value.title;
-  if (presence.value === "working") return "Working in the chat";
-  if (presence.value === "attention") return "Something needs your answer";
+  if (scopeStatus.value === "running") return "Working in the chat";
+  if (scopeStatus.value === "needs_input") return "Something needs your answer";
+  if (scopeStatus.value === "problem") return "Stopped on an error";
+  if (scopeStatus.value === "completed") return "Everything on the list is done";
   return "Nothing running";
 });
 const liveMeta = computed(() => {
-  if (presence.value === "attention") return "Open the chat to answer";
-  if (presence.value === "working") return "Building now";
+  // The assistant's own one-line why (set_workspace_status note) wins.
+  const note = statusView.value?.note;
+  if (note != null && note !== "") return note;
+  if (scopeStatus.value === "needs_input") return "Open the chat to answer";
+  if (scopeStatus.value === "problem") return "Open the chat to see what broke";
+  if (scopeStatus.value === "running") return "Building now";
   const open = queuedTasks.value.length;
   return open === 0
     ? "Pick it up when you are ready"
     : `${open} in the queue, waiting`;
+});
+// The end-state progress line — the canvas's "N of M tasks done" trio
+// (no invented counts: the state itself is the suffix's story).
+const taskProgressLabel = computed(() => {
+  const view = statusView.value;
+  if (view === null || view.tasksTotal === 0) return null;
+  if (scopeStatus.value === "completed")
+    return `${view.tasksTotal} of ${view.tasksTotal} tasks completed`;
+  if (scopeStatus.value === "needs_input" || scopeStatus.value === "problem")
+    return `${view.tasksDone} of ${view.tasksTotal} tasks done`;
+  return null;
+});
+const taskProgressPct = computed(() => {
+  const view = statusView.value;
+  if (view === null || view.tasksTotal === 0) return 0;
+  return Math.round((100 * view.tasksDone) / view.tasksTotal);
 });
 
 // ── OPEN IT — the workspace's running apps as plain anchors (the AppRow
@@ -202,27 +233,29 @@ function completedAtLabel(task: TaskResponse): string {
 
 <template>
   <aside class="work-rail">
-    <!-- The live card — presence, what's being worked, and its real steps. -->
-    <div
-      class="live-card"
-      :class="{
-        'is-working': presence === 'working',
-        'is-attention': presence === 'attention',
-      }"
-    >
+    <!-- The live card — the scope's status, what's being worked, and the
+         real numbers: session steps while running, the task rollup in the
+         end states. One status, one colour. -->
+    <div class="live-card" :data-status="scopeStatus">
       <p class="live-kicker">
         <span class="live-dot" aria-hidden="true" />
         {{ liveKicker }}
       </p>
       <p class="live-title">{{ liveTitle }}</p>
       <p class="live-meta">{{ liveMeta }}</p>
-      <template v-if="stepProgress">
+      <template v-if="scopeStatus === 'running' && stepProgress">
         <span class="live-bar">
           <span class="live-bar-fill" :style="{ width: `${stepProgress.pct}%` }" />
         </span>
         <p class="live-bar-label">
           {{ stepProgress.done }} of {{ stepProgress.total }} steps completed
         </p>
+      </template>
+      <template v-else-if="taskProgressLabel">
+        <span class="live-bar">
+          <span class="live-bar-fill" :style="{ width: `${taskProgressPct}%` }" />
+        </span>
+        <p class="live-bar-label">{{ taskProgressLabel }}</p>
       </template>
     </div>
 
@@ -292,7 +325,7 @@ function completedAtLabel(task: TaskResponse): string {
       />
 
       <div
-        v-for="task in shownTasks"
+        v-for="(task, taskIndex) in shownTasks"
         :key="task.id"
         class="task-row"
         :class="{ 'is-done': task.status === 'done' }"
@@ -308,7 +341,7 @@ function completedAtLabel(task: TaskResponse): string {
           :title="task.title"
           @click="viewingTaskId = task.id"
         >
-          {{ task.title }}
+          {{ taskIndex + 1 }}. {{ task.title }}
         </button>
         <span v-if="task.status === 'done'" class="task-meta">
           {{ completedAtLabel(task) }}
@@ -342,7 +375,7 @@ function completedAtLabel(task: TaskResponse): string {
         Nothing running to open.
       </p>
 
-      <template v-if="presence === 'working' && liveSessionId !== null">
+      <template v-if="scopeStatus === 'running' && liveSessionId !== null">
         <button
           type="button"
           class="abort-button"
@@ -392,8 +425,8 @@ function completedAtLabel(task: TaskResponse): string {
   border-left: 1px solid var(--hair);
 }
 
-/* ── The live card. Presence carries the tint: gold while working, the
-   needs-input blue while waiting on the user, quiet otherwise. ── */
+/* ── The live card. The status carries the tint — one status, one colour:
+   accent while working, blue waiting on you, red problem, green done. ── */
 .live-card {
   display: grid;
   gap: 6px;
@@ -404,16 +437,28 @@ function completedAtLabel(task: TaskResponse): string {
   border-left: 2px solid var(--hair-strong);
 }
 
-.live-card.is-working {
-  background: color-mix(in srgb, var(--gold) 10%, transparent);
-  border-color: color-mix(in srgb, var(--gold) 45%, transparent);
+.live-card[data-status="running"] {
+  background: var(--color-accent-900);
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
   border-left-color: var(--gold);
 }
 
-.live-card.is-attention {
+.live-card[data-status="needs_input"] {
   background: var(--needs-input-soft);
   border-color: color-mix(in srgb, var(--needs-input) 45%, transparent);
   border-left-color: var(--needs-input);
+}
+
+.live-card[data-status="problem"] {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  border-left-color: var(--danger);
+}
+
+.live-card[data-status="completed"] {
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  border-left-color: var(--ok);
 }
 
 .live-kicker {
@@ -427,12 +472,20 @@ function completedAtLabel(task: TaskResponse): string {
   text-transform: uppercase;
 }
 
-.is-working .live-kicker {
-  color: var(--gold-bright);
+[data-status="running"] .live-kicker {
+  color: var(--color-accent-200);
 }
 
-.is-attention .live-kicker {
+[data-status="needs_input"] .live-kicker {
   color: var(--needs-input);
+}
+
+[data-status="problem"] .live-kicker {
+  color: var(--danger);
+}
+
+[data-status="completed"] .live-kicker {
+  color: var(--ok);
 }
 
 .live-dot {
@@ -442,14 +495,23 @@ function completedAtLabel(task: TaskResponse): string {
   background: var(--ink-3);
 }
 
-.is-working .live-dot {
+[data-status="running"] .live-dot {
   background: var(--gold);
   box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 60%, transparent);
 }
 
-.is-attention .live-dot {
+[data-status="needs_input"] .live-dot {
   background: var(--needs-input);
   animation: rail-dot-pulse 1.4s ease-in-out infinite;
+}
+
+[data-status="problem"] .live-dot {
+  background: var(--danger);
+  animation: rail-dot-pulse 1.4s ease-in-out infinite;
+}
+
+[data-status="completed"] .live-dot {
+  background: var(--ok);
 }
 
 @keyframes rail-dot-pulse {
@@ -489,6 +551,21 @@ function completedAtLabel(task: TaskResponse): string {
   background: var(--gold);
   box-shadow: 0 0 10px color-mix(in srgb, var(--gold) 60%, transparent);
   transition: width var(--t-slow) var(--ease-out);
+}
+
+[data-status="needs_input"] .live-bar-fill {
+  background: var(--needs-input);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--needs-input) 60%, transparent);
+}
+
+[data-status="problem"] .live-bar-fill {
+  background: var(--danger);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 60%, transparent);
+}
+
+[data-status="completed"] .live-bar-fill {
+  background: var(--ok);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ok) 60%, transparent);
 }
 
 .live-bar-label {

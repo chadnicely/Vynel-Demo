@@ -165,6 +165,9 @@ export async function runAgentRunJob(
             })
       resolved = { agentSlug, runCwdPath, agent, colleague }
     } catch (resolutionErr) {
+      // The workspace status vocabulary's problem signal — first call wins,
+      // the finally's clean end() no-ops after this.
+      activityHandle.end('failed')
       settleFailedDelegationAttempt(
         db,
         claimed,
@@ -300,6 +303,7 @@ export async function runAgentRunJob(
         'agent-run: completed — the colleague speaks for itself (no harvest)',
       )
     } else if (outcome.status === 'timed-out') {
+      activityHandle.end('failed')
       await approvalHandler.abandonParked()
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
       // A colleague that already SPOKE must not resurface as a failure through
@@ -325,6 +329,7 @@ export async function runAgentRunJob(
       failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
       deps.logger.warn({ jobId: claimed.id }, 'agent-run job stopped by the user')
     } else {
+      activityHandle.end('failed')
       await approvalHandler.abandonParked()
       settleFailedDelegationAttempt(db, claimed, outcome.message, {
         logger: deps.logger,
@@ -335,6 +340,7 @@ export async function runAgentRunJob(
     return true
   } catch (err) {
     // An unexpected throw must never leave the job stuck `claimed`.
+    activityHandle.end('failed')
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'agent-run job run threw unexpectedly')

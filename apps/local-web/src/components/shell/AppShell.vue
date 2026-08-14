@@ -27,7 +27,12 @@ import {
   PhUser as UserRound,
   PhWrench as Wrench,
 } from "@phosphor-icons/vue";
-import { CommandPalette, ResizablePanel, useOpenModalCount } from "@vynel/ui";
+import {
+  CommandPalette,
+  ResizablePanel,
+  useOpenModalCount,
+  workspaceMonogram,
+} from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
 import AppTabStrip from "./AppTabStrip.vue";
@@ -65,7 +70,7 @@ import {
   useWorkspaceGroups,
   useWorkspaceGroupMutations,
 } from "../../composables/workspaces/use-workspace-groups.js";
-import { useWorkspacePresence } from "../../composables/workspaces/use-workspace-presence.js";
+import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
@@ -292,9 +297,10 @@ const sectionItems = computed(() => {
   ];
 });
 
-// Live per-scope presence — the strip's chips/dots and the workspace tree
-// read the same derivation.
-const { presenceByWorkspaceId, globalPresence } = useWorkspacePresence();
+// Live per-scope status (one status one colour, Arc 5b) — the strip's
+// chips/dots, the workspace tree, and the title-bar presence all read the
+// same derivation.
+const { statusByWorkspaceId, globalStatus } = useWorkspaceStatuses();
 
 // The strip needs every workspace's customized accent, not just the active
 // tab's — each tab colors itself.
@@ -325,6 +331,38 @@ const sectionTitle = computed(() =>
     ? (activeWorkspaceName.value ?? "Workspace")
     : "Menu",
 );
+
+// The drilled sidebar's workspace header card (the canvas's app card):
+// identity + a live status line worded per the vocabulary.
+const sidebarWorkspaceCard = computed(() => {
+  const workspaceId = ui.activeTab.workspaceId;
+  if (workspaceId === null) return null;
+  const name = activeWorkspaceName.value ?? "Workspace";
+  const view = statusByWorkspaceId.value[workspaceId] ?? null;
+  const status = view?.status ?? "not_running";
+  const counts =
+    view !== null && view.tasksTotal > 0
+      ? `Task ${Math.min(view.tasksDone + 1, view.tasksTotal)} of ${view.tasksTotal}`
+      : null;
+  const statusLine =
+    status === "running"
+      ? (counts !== null ? `${counts} · building now` : "Working now")
+      : status === "needs_input"
+        ? (counts !== null ? `${counts} — needs you` : "Waiting on your answer")
+        : status === "problem"
+          ? "Hit a problem — needs a look"
+          : status === "completed"
+            ? (view !== null && view.tasksTotal > 0
+                ? `All ${view.tasksTotal} tasks done`
+                : "All done")
+            : "Nothing running";
+  return {
+    name,
+    initials: workspaceMonogram(name),
+    statusLine,
+    statusTone: status,
+  };
+});
 const activeSectionId = computed(() => {
   if (surface.value === "home") return "home";
   if (surface.value === "sessions") return "sessions";
@@ -577,15 +615,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
   <!-- Browser mode is a focus TAKEOVER: the scope strip and sidebar tuck
        away (their grid row collapses), chat keeps the left, the page takes
        the right. Closing restores every piece — nothing is torn down. -->
-  <div
-    class="app-shell"
-    :style="{
-      gridTemplateRows:
-        browser.isOpen || ui.navMode === 'menu'
-          ? '40px 1fr 22px'
-          : '40px 40px 1fr 22px',
-    }"
-  >
+  <div class="app-shell">
     <AppTitleBar
       :title="contextTitle"
       :presence-state="presenceState"
@@ -597,23 +627,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :open-task-count="openTaskCount"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
-    />
-
-    <!-- Menu mode collapses the strip row — the sidebar tree takes over. -->
-    <AppTabStrip
-      v-if="!browser.isOpen && ui.navMode === 'tabs'"
-      :tabs="ui.tabs"
-      :active-tab-id="ui.activeTabId"
-      :workspaces="workspaceOptions"
-      :workspace-color-slots="workspaceColorSlots"
-      :workspace-presence="presenceByWorkspaceId"
-      :global-presence="globalPresence"
-      @select-tab="selectTab"
-      @close-tab="closeTab"
-      @retarget-tab="retargetTab"
-      @color-tab="ui.setTabColor"
-      @add-tab="addTab"
-      @create-workspace="isCreateWorkspaceOpen = true"
     />
 
     <div class="app-body">
@@ -630,9 +643,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           :workspaces="workspaceOptions"
           :groups="workspaceGroupOptions"
           :active-workspace-id="ui.activeWorkspaceId"
-          :presence-by-workspace-id="presenceByWorkspaceId"
-          :global-presence="globalPresence"
-          :workspace-color-slots="workspaceColorSlots"
+          :status-by-workspace-id="statusByWorkspaceId"
+          :global-status="globalStatus"
           :account-name="accountName"
           @select="treeSelect"
           @drill="treeDrill"
@@ -653,17 +665,38 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           :active-section-id="activeSectionId"
           :account-name="accountName"
           :show-back="ui.navMode === 'menu'"
+          :workspace-card="sidebarWorkspaceCard"
           @select-section="selectSection"
           @open-account="openAccount"
           @back="ui.isWorkspaceTreeOpen = true"
         />
       </ResizablePanel>
 
-      <main class="canvas-wrap">
-        <!-- Keyed per tab: each tab is its own view instance, so a view can
-             safely bind to its tab's shell for its whole lifetime. -->
-        <RouterView :key="ui.activeTabId" />
-      </main>
+      <div class="canvas-stack">
+        <!-- The strip lives in the canvas column (the canvas's layout: tabs
+             start at the chat edge, the sidebar runs beside them). Menu mode
+             collapses it — the sidebar tree takes over. -->
+        <AppTabStrip
+          v-if="!browser.isOpen && ui.navMode === 'tabs'"
+          :tabs="ui.tabs"
+          :active-tab-id="ui.activeTabId"
+          :workspaces="workspaceOptions"
+          :workspace-color-slots="workspaceColorSlots"
+          :status-by-workspace-id="statusByWorkspaceId"
+          :global-status="globalStatus"
+          @select-tab="selectTab"
+          @close-tab="closeTab"
+          @retarget-tab="retargetTab"
+          @color-tab="ui.setTabColor"
+          @add-tab="addTab"
+          @create-workspace="isCreateWorkspaceOpen = true"
+        />
+        <main class="canvas-wrap">
+          <!-- Keyed per tab: each tab is its own view instance, so a view can
+               safely bind to its tab's shell for its whole lifetime. -->
+          <RouterView :key="ui.activeTabId" />
+        </main>
+      </div>
 
       <ResizablePanel
         v-if="browser.isOpen"
@@ -709,7 +742,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 <style scoped>
 .app-shell {
   display: grid;
-  /* Rows come from the template binding — browser mode collapses the strip. */
+  /* Title bar · body · status bar — the strip lives inside the canvas
+     column now (the canvas's layout), so the shell rows never change. */
+  grid-template-rows: 40px 1fr 22px;
   height: 100vh;
   background: var(--bg-shell);
   color: var(--ink-1);
@@ -721,9 +756,18 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
   overflow: hidden;
 }
 
+.canvas-stack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .canvas-wrap {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 </style>

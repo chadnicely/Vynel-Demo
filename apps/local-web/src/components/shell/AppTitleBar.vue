@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import {
   PhBrowsers as Browsers,
   PhCommand as Command,
+  PhDiamondsFour as DiamondsFour,
   PhFolderPlus as FolderPlus,
   PhList as List,
   PhListChecks as ListChecks,
@@ -123,19 +124,12 @@ function onMenuCommand(id: string) {
 
 <template>
   <header
-    class="flex h-10 shrink-0 items-center gap-0.5 border-b border-hair bg-shell pl-2 pr-0 select-none"
+    class="flex h-10 shrink-0 items-center gap-0.5 border-b border-hair bg-chrome pl-2 pr-0 select-none"
     data-tauri-drag-region
   >
-    <!-- Identity mark (neutral — gold stays reserved for presence) -->
-    <span class="mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-ink-2">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M12 2 22 12 12 22 2 12Z"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linejoin="round"
-        />
-      </svg>
+    <!-- Identity mark — the canvas's accent diamonds-four. -->
+    <span class="mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-[var(--color-accent)]">
+      <DiamondsFour :size="15" weight="regular" />
     </span>
 
     <!-- Menu bar -->

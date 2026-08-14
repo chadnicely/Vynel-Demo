@@ -3153,6 +3153,45 @@ export const setTodos: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const setWorkspaceStatus: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'set_workspace_status',
+    "Set this workspace's status light — the state the user sees on every navigation surface. Set `completed` when EVERY task on the list is done (do it before finishing your reply, so the user sees it before their next message). Set `problem` when you are stuck and cannot proceed without help. Set `needs_input` when you reached a conclusion or decision that needs the user's attention (approvals and questions are detected automatically — this is for conclusions). Include a short `note` saying why. The status clears itself when the user sends the next message.",
+    {
+    workspaceId: z.string(),
+    status: z.enum(['completed', 'problem', 'needs_input']),
+    note: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/status'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['status', 'note']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const speak: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'speak',
@@ -3827,6 +3866,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   sendMessage,
   setAgentEnabled,
   setTodos,
+  setWorkspaceStatus,
   startApp,
   stopApp,
   stopMonitor,

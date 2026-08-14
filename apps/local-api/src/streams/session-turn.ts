@@ -295,8 +295,11 @@ export async function streamSpawnedSessionTurn(
         // direct-send turn to the same session card a delegated run uses.
         primarySessionId: spawned.id,
       })
+      // 'failed' when the drain sees a terminal session-errored or throws.
+      let turnOutcome: 'ended' | 'failed' = 'ended'
       try {
         for await (const event of turnStream) {
+          if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
           if (event.kind === 'session-created') {
             // Mid-turn compaction swap — advance the primary's link so the
             // NEXT turn resumes the new head (event-driven, the
@@ -319,6 +322,7 @@ export async function streamSpawnedSessionTurn(
       } catch (err) {
         // A mid-stream throw must still reach the client as typed frames — a
         // bare socket close leaves the composer "working" forever.
+        turnOutcome = 'failed'
         logger.error({ err }, 'session turn stream failed mid-flight')
         await writeSseSafely(
           stream,
@@ -336,7 +340,7 @@ export async function streamSpawnedSessionTurn(
         // The terminal frame fires on EVERY exit (clean, thrown, disconnect).
         await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
         // Fires even on client disconnect (generator cleanup). Best-effort.
-        activity.end()
+        activity.end(turnOutcome)
       }
     } finally {
       // The single-writer hand-over: a queued delegated job (or user turn) on

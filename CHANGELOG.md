@@ -9,6 +9,34 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Every project wears one status light.** A workspace is now always in one
+  of five states — running, waiting on you, hit a problem, completed, or not
+  running — and the same colour tells the story on every surface: the
+  workspace tree's mark dots and `done/total` task counts, the tab strip's
+  chips and pulsing dots, the work rail's headline card, and the chat
+  header's badge. Claude sets the state itself (a new `set_workspace_status`
+  tool: "completed" once everything on the list is done, "problem" when it's
+  stuck, "needs input" when a conclusion needs your call — with a one-line
+  why that shows on the rail), and Vynel detects the rest: a crashed or
+  errored session turns the light red, a pending approval or question turns
+  it blue, and your next message clears a stale state automatically.
+
+- **The chat reads as one card per exchange.** Your ask and Claude's whole
+  reply now live in a single card — the newest exchange sits open on the
+  surface, older ones fold to a quiet one-line strip with "read more" and
+  wake on hover, and the live exchange keeps its glowing spine and working
+  timer. When a workspace is waiting on you, stuck, or done, the latest card
+  carries the verdict pill in that state's colour.
+
+- **Navigation looks the way the design says.** Tabs mode grew real
+  browser-style tabs that sit on the canvas edge (state chip + name + status
+  dot, parked rooms dimmed); menu mode's workspace tree shows each room's
+  state chip, task progress, and status mark, with quiet finished rooms
+  tucked under a collapsible NOT RUNNING group; the drilled sidebar leads
+  with the workspace's identity card and its live status line. The title bar
+  wears the accent Vynel mark on the chrome ground, and the composer's send
+  button matches the design's accent chip.
+
 - **You decide what Claude can touch.** A new "Tool access" panel in the
   workspace toolkit lists every tool Claude has — grouped by feature — and
   makes all of it editable: turn a tool off entirely, choose where it's

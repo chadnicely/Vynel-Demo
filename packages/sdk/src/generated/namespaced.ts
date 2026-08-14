@@ -2011,6 +2011,11 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  listStatuses: async () => {
+    const { data, error, response } = await client["GET"]("/workspaces/statuses")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   register: async (input: NonNullable<paths["/workspaces"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces", {
       body: input,
@@ -2028,6 +2033,14 @@ export function makeNamespaced(client: Client<paths>) {
   },
   setGroup: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/group"]["put"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/group"]["put"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/group", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  setStatus: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/status"]["put"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/status"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/status", {
       params: { path: { workspaceId: workspaceId } },
       body: input,
     })

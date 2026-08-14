@@ -69,6 +69,7 @@ describe('SessionActivityFeed', () => {
       kind: 'turn-ended',
       turnId: handle.turnId,
       sessionId: 'session-2',
+      outcome: 'ended',
     })
   })
 

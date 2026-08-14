@@ -16,6 +16,10 @@ export const WORKSPACE_DELETED_EVENT = 'workspace.deleted' as const
 // event-less metadata updates (the updateWorkspaceMetadata precedent).
 export const WORKSPACE_GROUP_CREATED_EVENT = 'workspace-group.created' as const
 export const WORKSPACE_GROUP_DELETED_EVENT = 'workspace-group.deleted' as const
+// Status vocabulary (redesign Arc 5b) — published when the assistant SETS a
+// workspace status (completed / problem / needs_input). Supersession by a
+// later turn is a read-time derivation, deliberately event-less.
+export const WORKSPACE_STATUS_SET_EVENT = 'workspace.status-set' as const
 
 export type WorkspaceCreatedPayload = {
   workspaceId: string
@@ -41,6 +45,14 @@ export type WorkspaceDeletedPayload = {
   path: string
   deleteFilesFromDisk: boolean
   deletedAt: string
+}
+
+export type WorkspaceStatusSetPayload = {
+  workspaceId: string
+  userId: string
+  status: 'completed' | 'problem' | 'needs_input'
+  note: string | null
+  setAt: string
 }
 
 export type WorkspaceGroupCreatedPayload = {

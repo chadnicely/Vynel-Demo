@@ -3694,6 +3694,23 @@ export interface paths {
         patch: operations["patchWorkspacesGroupsByGroupId"];
         trace?: never;
     };
+    "/workspaces/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-workspace status facts: set state, latest turn, task counts. */
+        get: operations["getWorkspacesStatuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}": {
         parameters: {
             query?: never;
@@ -3723,6 +3740,23 @@ export interface paths {
         get?: never;
         /** Move a workspace into a folder (or to the tree root with null). */
         put: operations["putWorkspacesByWorkspaceIdGroup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the workspace status (completed / problem / needs_input). */
+        put: operations["putWorkspacesByWorkspaceIdStatus"];
         post?: never;
         delete?: never;
         options?: never;
@@ -16133,6 +16167,10 @@ export interface operations {
                             isArchived: boolean;
                             continueEnabled: boolean;
                             groupId: string | null;
+                            /** @enum {string|null} */
+                            status: "completed" | "problem" | "needs_input" | null;
+                            statusNote: string | null;
+                            statusSetAt: string | null;
                             createdAt: string;
                             updatedAt: string;
                             lastAccessedAt: string;
@@ -16802,6 +16840,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16845,6 +16887,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -17042,6 +17088,40 @@ export interface operations {
             };
         };
     };
+    getWorkspacesStatuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One status report per workspace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        workspaceId: string;
+                        /** @enum {string|null} */
+                        setStatus: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
+                        latestTurn: {
+                            startedAt: string;
+                            endedAt: string | null;
+                            /** @enum {string|null} */
+                            endedReason: "ended" | "orphaned" | "failed" | null;
+                        } | null;
+                        tasksTotal: number;
+                        tasksDone: number;
+                    }[];
+                };
+            };
+        };
+    };
     getWorkspacesByWorkspaceId: {
         parameters: {
             query?: never;
@@ -17070,6 +17150,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -17154,6 +17238,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -17203,6 +17291,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -17210,6 +17302,61 @@ export interface operations {
                 };
             };
             /** @description Workspace or folder not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putWorkspacesByWorkspaceIdStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "completed" | "problem" | "needs_input";
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated workspace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        name: string;
+                        managerName: string | null;
+                        /** @enum {string} */
+                        kind: "small-business" | "personal" | "project" | "custom";
+                        path: string;
+                        isArchived: boolean;
+                        continueEnabled: boolean;
+                        groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        lastAccessedAt: string;
+                    };
+                };
+            };
+            /** @description Workspace not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17246,6 +17393,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -17289,6 +17440,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
