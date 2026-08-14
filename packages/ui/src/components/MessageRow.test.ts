@@ -226,7 +226,7 @@ describe("MessageRow author avatar", () => {
     expect(img.attributes("src")).toBe("data:image/png;base64,AAAA");
   });
 
-  it("rows NOT authored by the surface assistant keep the Claude mark, and user rows get no glyph", () => {
+  it("rows NOT authored by the surface assistant keep the Claude mark; a user row wears the person icon", () => {
     const globalRoot = mount(MessageRow, {
       props: {
         message: makeMessage({ sourceKind: "global-root" }),
@@ -236,13 +236,19 @@ describe("MessageRow author avatar", () => {
     expect(globalRoot.find(".author-avatar img").exists()).toBe(false);
     expect(globalRoot.find(".author-avatar svg").exists()).toBe(true);
 
+    // SPEC CHANGE (2026-08-15): the canvas puts the author's photo here, so
+    // the slot is filled with a person glyph rather than left empty. Was
+    // "user rows get no glyph".
     const user = mount(MessageRow, {
       props: {
         message: makeMessage({ role: "user", body: "hi" }),
         assistantIconUrl: "data:image/png;base64,AAAA",
       },
     });
-    expect(user.find(".author-avatar").exists()).toBe(false);
+    expect(user.find(".author-avatar").exists()).toBe(true);
+    // A glyph, never the assistant's photo — the user is not the assistant.
+    expect(user.find(".author-avatar img").exists()).toBe(false);
+    expect(user.find(".author-avatar svg").exists()).toBe(true);
   });
 
   // Persona-sessions B8: a persona-attributed row wears ITS persona — the

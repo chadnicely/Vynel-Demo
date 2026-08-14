@@ -149,10 +149,13 @@ const elapsedLabel = useTickingElapsed(
   /* 7px matches MessageRow's settled label — the author name must not shift
      when the turn completes. */
   gap: 7px;
-  color: var(--ink-3);
-  font: 600 10.5px/1.5 var(--font-ui);
+  /* Byte-identical to MessageRow's settled `.role-label` (canvas: 10px,
+     0.14em, weight 400, neutral-400) — the author must not shift when the
+     live turn becomes a settled row. Change both or neither. */
+  color: var(--color-neutral-400);
+  font: 400 10px/1.5 var(--font-ui);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.14em;
 }
 
 .author-avatar {
@@ -182,7 +185,7 @@ const elapsedLabel = useTickingElapsed(
 
 .live-chip {
   color: var(--gold);
-  font: 600 10px/1.4 var(--font-ui);
+  font: 400 10px/1.4 var(--font-ui);
   letter-spacing: 0.05em;
   padding: 1px 7px;
   border: 1px solid var(--gold-soft);
@@ -193,7 +196,7 @@ const elapsedLabel = useTickingElapsed(
 
 .done-chip {
   color: var(--ink-3);
-  font: 600 10px/1.4 var(--font-ui);
+  font: 400 10px/1.4 var(--font-ui);
   letter-spacing: 0.05em;
   padding: 1px 7px;
   border: 1px solid var(--hair);

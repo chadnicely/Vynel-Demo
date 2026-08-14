@@ -168,15 +168,20 @@ const isPersonaAuthor = computed(
 // The glyph beside authored lines: a persona row wears ITS persona (the
 // host-resolved image or monogram — B8), the surface's own assistant its
 // custom image, and everything else the Claude mark — it's all Claude
-// underneath. Plain user lines get no glyph.
+// underneath. A plain user line wears a person icon: the canvas puts the
+// author's PHOTO here, and we have no avatar to serve, so the slot is filled
+// with a glyph rather than left empty (the author line reads as a header
+// only when both speakers have a face).
 type AuthorGlyph =
   | { kind: "image"; imageUrl: string }
   | { kind: "monogram"; monogram: string; accentVar: string }
   | { kind: "claude" }
+  | { kind: "user" }
   | null;
 
 const authorGlyph = computed<AuthorGlyph>(() => {
-  if (props.message.role === "user" && !isInboundReport.value) return null;
+  if (props.message.role === "user" && !isInboundReport.value)
+    return { kind: "user" };
   if (isPersonaAuthor.value && props.authorPersona) {
     return props.authorPersona.imageUrl
       ? { kind: "image", imageUrl: props.authorPersona.imageUrl }
@@ -391,6 +396,22 @@ const collapsedPreview = computed(() => {
             class="monogram-text"
             >{{ authorGlyph.monogram }}</span
           >
+          <svg
+            v-else-if="authorGlyph.kind === 'user'"
+            width="11"
+            height="11"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle cx="8" cy="5.5" r="2.6" stroke="currentColor" stroke-width="1.4" />
+            <path
+              d="M2.9 14a5.1 5.1 0 0 1 10.2 0"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+            />
+          </svg>
           <ClaudeMark v-else :size="14" />
         </span>
         {{ roleLabel }}
@@ -765,8 +786,9 @@ const collapsedPreview = computed(() => {
   align-items: center;
   gap: 7px;
   color: var(--color-neutral-400);
-  /* The canvas's reply author line: small caps, wide tracking. */
-  font: 600 10px/1.5 var(--font-ui);
+  /* The canvas's reply author line: small caps, wide tracking, weight 400 —
+     the tracking carries it, not the weight. */
+  font: 400 10px/1.5 var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -886,8 +908,8 @@ const collapsedPreview = computed(() => {
 .author-avatar {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   border-radius: 9999px;
   overflow: hidden;
@@ -900,6 +922,13 @@ const collapsedPreview = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* The human's chip stays neutral — the coral tint above is Claude's identity
+   and must not read as the user's. */
+.role-user:not(.is-report) .author-avatar {
+  background: var(--color-neutral-900);
+  color: var(--color-neutral-400);
 }
 
 /* A persona monogram chip — the inline accent tint replaces the Claude coral

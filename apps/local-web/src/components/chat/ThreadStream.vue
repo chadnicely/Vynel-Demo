@@ -1001,6 +1001,21 @@ watch(
   overflow: hidden;
 }
 
+/* The RUNNING card lifts its ink onto the accent ground, exactly as the
+   canvas does (`nameColor`/`createdColor`/`color` all switch on `live`):
+   the author and the ask go accent-100, the timestamp accent-300. The
+   identity chip stays neutral — that is who is speaking, not what state the
+   card is in. Folded cards reach the canvas's dimmed inks through the
+   opacity+grayscale treatment above instead. */
+.turn-card.is-live :deep(.role-user:not(.is-report) .role-label),
+.turn-card.is-live :deep(.plain-body) {
+  color: var(--color-accent-100);
+}
+
+.turn-card.is-live :deep(.header-meta) {
+  color: var(--color-accent-300);
+}
+
 /* The canvas leaves the LEFT edge open on every card but the live one — the
    spine column is the live card's alone (a stated card paints it with the
    `.state-spine` overlay instead). Must follow the rules above: same
@@ -1178,7 +1193,8 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 600 9.5px/1.5 var(--font-ui);
+  /* Weight 400 like the canvas — the tracking does the work. */
+  font: 400 9.5px/1.5 var(--font-ui);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-accent-200);
@@ -1191,7 +1207,7 @@ watch(
 }
 
 .working-time {
-  font: 500 9.5px/1.5 var(--font-ui);
+  font: 400 9.5px/1.5 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--color-accent-300);
 }
