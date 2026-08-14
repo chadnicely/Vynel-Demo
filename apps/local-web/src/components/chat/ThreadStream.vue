@@ -540,6 +540,23 @@ function isReplyFoldable(group: {
   return group.messages[speakingIndex]!.body.includes("\n\n");
 }
 
+// The caret rides the row that DRAWS the reply's author line — the only row
+// with a meta cluster to hold it. Folded, that is the promoted speaking row.
+// OPEN, it is whichever row heads the reply, which on a tool-opening turn is
+// the tool-only row while the speaking row trails as a headerless
+// continuation: assigning the caret to the speaker there left an expanded
+// turn with no way back.
+function replyCaretMemberIndexOf(group: {
+  key: string;
+  messages: ChatMessageResponse[];
+}): number {
+  if (!isReplyOpen(group.key)) return speakingMemberIndexOf(group);
+  return group.messages.findIndex(
+    (message, index) =>
+      message.role === "assistant" && memberShowsHeaderFor(group, index),
+  );
+}
+
 // A folded reply promotes its speaking row to the reply's start: it wears the
 // author line and the hairline above it, whatever its position in the turn.
 function memberShowsHeaderFor(
@@ -871,7 +888,7 @@ watch(
               :referenced="markedMessageId === message.id"
               :reply-collapsed="!isReplyOpen(group.key)"
               :reply-foldable="
-                memberIndex === speakingMemberIndexOf(group) &&
+                memberIndex === replyCaretMemberIndexOf(group) &&
                 isReplyFoldable(group)
               "
               :run-stats="

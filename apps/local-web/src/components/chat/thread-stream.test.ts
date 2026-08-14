@@ -497,6 +497,37 @@ describe("ThreadStream", () => {
     expect(rows[1]!.classes()).toContain("is-reply-start");
   });
 
+  it("a tool-opening turn keeps its caret once expanded — the fold is never one-way", async () => {
+    // Folded, the SPEAKING row is promoted and draws the author line. Open,
+    // the tool-only row heads the reply and the speaker trails as a headerless
+    // continuation — so the caret has to follow the header, not the speaker,
+    // or an expanded turn can never be closed again.
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "" },
+      { ...makeMessage(2), id: "a2", role: "assistant", body: "Created the task." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: { a1: [makeToolCall("a1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    expect(wrapper.findAll(".reply-caret")).toHaveLength(1);
+    await wrapper.get(".reply-caret").trigger("click");
+
+    expect(wrapper.find(".tool-list").exists()).toBe(true);
+    expect(wrapper.findAll(".reply-caret")).toHaveLength(1);
+
+    // And it folds back.
+    await wrapper.get(".reply-caret").trigger("click");
+    expect(wrapper.find(".tool-list").exists()).toBe(false);
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
+  });
+
   it("does NOT group assistant rows separated by a long gap — two background turns keep their timestamps", () => {
     const messages: ChatMessageResponse[] = [
       { ...makeMessage(1), id: "a1", role: "assistant" },
