@@ -20,10 +20,19 @@ FACTS: the key names, numbers, decisions, file paths, and constraints that must 
 
 Prefer the user's own values verbatim over paraphrase. No preamble, no pleasantries — output only the labelled lines.`
 
+// The labelled lines the prompt mandates. A result carrying fewer than two of
+// them is a degenerate distill (a stub, a refusal, a truncated line), not a
+// hand-off — the tester-DB incident (2026-08-14) shipped exactly such a stub
+// as the carry and wiped the thread's conversational state. This file owns
+// the prompt, so it owns the shape check; a failed shape reads as a failed
+// summary (null), which aborts the swap upstream.
+const CARRY_LABELS = ['GOAL:', 'DONE:', 'IN PROGRESS:', 'NEXT:', 'FACTS:'] as const
+const MIN_CARRY_LABELS = 2
+
 export async function runClaudeSessionSummary(
   input: SummarizeSessionInput,
 ): Promise<string | null> {
-  return runClaudeDistillTurn({
+  const summary = await runClaudeDistillTurn({
     prompt: SESSION_SUMMARY_PROMPT,
     workspacePath: input.workspacePath,
     resumeSessionId: input.resumeSessionId,
@@ -31,4 +40,14 @@ export async function runClaudeSessionSummary(
     failureLogMessage: 'failed to summarize the session for the swap carry',
     logger: input.logger,
   })
+  if (summary === null) return null
+  const labelCount = CARRY_LABELS.filter((label) => summary.includes(label)).length
+  if (labelCount < MIN_CARRY_LABELS) {
+    input.logger?.warn(
+      { summaryLength: summary.length, labelCount },
+      'session summary missing the labelled hand-off shape — treated as failed',
+    )
+    return null
+  }
+  return summary
 }

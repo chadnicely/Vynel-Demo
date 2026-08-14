@@ -453,6 +453,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   fix covers conversations opened from the Sessions list: a continued chain
   opens with its whole history, not just the newest part (deliberately opening
   an earlier part still shows exactly that part).
+- **Rollovers now actually carry your conversation forward.** The hand-off
+  summary written at a rollover was produced by a small helper model that
+  couldn't fit a huge conversation in its head — at the exact moment it
+  mattered most, the summary could come out nearly empty and the new session
+  started with almost nothing. The summary now runs on the same model your
+  conversation used (which by definition fits it), and a summary that comes
+  back malformed or suspiciously short cancels the rollover instead of
+  shipping — the conversation simply continues as-is and tries again later.
 - **Your own MCP servers are safe from the marketplace.** A connector you
   added by hand can share a name with a marketplace item — previously that
   made the item's card claim "Installed", and removing it from the

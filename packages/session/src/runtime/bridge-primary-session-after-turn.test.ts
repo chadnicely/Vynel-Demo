@@ -18,7 +18,11 @@ import {
 } from '@vynel/chat/repositories'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SESSION_SWAPPED_EVENT_TYPE } from '../continuity/index.js'
-import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
+import {
+  FakeAiAgentProvider,
+  type SummarizeSessionCall,
+} from './test-support/fake-ai-agent-provider.js'
+import type { StartChatSessionInput } from '@vynel/providers'
 import { bridgePrimarySessionAfterTurn } from './bridge-primary-session-after-turn.js'
 import { applyPrimaryTurnContinuity } from './apply-primary-turn-continuity.js'
 
@@ -73,15 +77,23 @@ function seedPrimary(
 const HIGH_OCCUPANCY = { usedTokens: 190_000, contextWindow: 200_000 } // ratio 0.95 > 0.85
 const LOW_OCCUPANCY = { usedTokens: 10_000, contextWindow: 200_000 } // ratio 0.05
 
+// A carry that clears the fidelity floor (a stub under it aborts the swap).
+const USABLE_CARRY =
+  'GOAL: ship the launcher. DONE: test environment green end-to-end. NEXT: continue the migration rehearsal. FACTS: codename BLUEHERON.'
+
 describe('bridgePrimarySessionAfterTurn', () => {
   it('under pressure: swaps to a fresh seeded segment, repoints the primary, emits session.swapped', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const primary = seedPrimary(db, user.id, workspace.id, 'sdk-old')
+      const summarizeSessionInputs: SummarizeSessionCall[] = []
+      const startChatSessionInputs: StartChatSessionInput[] = []
       const provider = new FakeAiAgentProvider({
         seededSessionId: 'sdk-fresh',
-        summary: 'GOAL: ship. FACTS: codename BLUEHERON.',
+        summary: USABLE_CARRY,
+        summarizeSessionInputs,
+        startChatSessionInputs,
       })
 
       const result = await bridgePrimarySessionAfterTurn(
@@ -93,9 +105,18 @@ describe('bridgePrimarySessionAfterTurn', () => {
           workspacePath: workspace.path,
           providerId: 'claude',
           measurement: HIGH_OCCUPANCY,
+          model: 'claude-opus-4-8',
         },
         { provider },
       )
+
+      // The carry-fidelity rule: the SUMMARY distill resumes the session, so
+      // it runs on the turn's own model (window ≥ content by construction);
+      // the priming ack over the short carry stays on the cheap model.
+      expect(summarizeSessionInputs).toHaveLength(1)
+      expect(summarizeSessionInputs[0]?.model).toBe('claude-opus-4-8')
+      expect(startChatSessionInputs).toHaveLength(1)
+      expect(startChatSessionInputs[0]?.model).toBe('claude-haiku-4-5')
 
       expect(result?.fromSdkSessionId).toBe('sdk-old')
       expect(result?.toSdkSessionId).toBe('sdk-fresh')
@@ -140,6 +161,7 @@ describe('bridgePrimarySessionAfterTurn', () => {
           workspacePath: workspace.path,
           providerId: 'claude',
           measurement: LOW_OCCUPANCY,
+          model: null,
         },
         { provider },
       )
@@ -212,7 +234,7 @@ describe('applyPrimaryTurnContinuity', () => {
       const primary = seedPrimary(db, user.id, workspace.id, 'sdk-loaded')
       const provider = new FakeAiAgentProvider({
         seededSessionId: 'sdk-fresh',
-        summary: 'GOAL: continue. FACTS: x.',
+        summary: USABLE_CARRY,
       })
 
       const result = await applyPrimaryTurnContinuity(

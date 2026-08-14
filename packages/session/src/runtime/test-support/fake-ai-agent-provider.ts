@@ -20,6 +20,8 @@ export type FakeAiAgentProviderOptions = {
   seededSessionId?: string
   /** The carry `summarizeSession` returns (null aborts the swap). */
   summary?: string | null
+  /** Captures every `summarizeSession` input the test makes assertions on. */
+  summarizeSessionInputs?: SummarizeSessionCall[]
   /** Captures every `startChatSession` input the test makes assertions on. */
   startChatSessionInputs?: StartChatSessionInput[]
   /**
@@ -56,6 +58,8 @@ export type FakeAiAgentProviderOptions = {
  *  drift (`SummarizeReportInput` itself is barrel-omitted, like its
  *  summarize-session sibling). */
 export type SummarizeReportCall = Parameters<AiAgentProvider['summarizeReport']>[0]
+/** Same derivation for the swap-carry distill's input. */
+export type SummarizeSessionCall = Parameters<AiAgentProvider['summarizeSession']>[0]
 
 export class FakeAiAgentProvider extends AiAgentProvider {
   readonly providerId: AiAgentProviderId = 'claude'
@@ -140,9 +144,8 @@ export class FakeAiAgentProvider extends AiAgentProvider {
     return events()
   }
 
-  // Param omitted — a narrower override is assignable; the swap path only needs
-  // the configured carry back (the real distill is a live SDK read).
-  override summarizeSession(): Promise<string | null> {
+  override summarizeSession(input: SummarizeSessionCall): Promise<string | null> {
+    this.options.summarizeSessionInputs?.push(input)
     return Promise.resolve(this.options.summary ?? null)
   }
 

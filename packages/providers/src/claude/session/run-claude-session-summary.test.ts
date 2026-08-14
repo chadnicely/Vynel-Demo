@@ -50,6 +50,25 @@ describe('runClaudeSessionSummary', () => {
     expect(await runClaudeSessionSummary(BASE)).toBeNull()
   })
 
+  it('returns null and logs when the result lacks the labelled hand-off shape', async () => {
+    // The tester-DB incident shape (2026-08-14): a degenerate one-label stub
+    // "succeeded" and shipped as the carry. The shape check treats it as a
+    // failed summary instead.
+    const warnings: Array<{ payload: object; message: string | undefined }> = []
+    mockQuery.mockImplementation(
+      createFakeClaudeQuery([fakeSystemInitStep(), resultStep('GOAL: ClawLauncher')]),
+    )
+
+    const result = await runClaudeSessionSummary({
+      ...BASE,
+      logger: { info: () => {}, warn: (payload, message) => warnings.push({ payload, message }) },
+    })
+
+    expect(result).toBeNull()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]!.message).toContain('labelled hand-off shape')
+  })
+
   it('returns null and logs when the dispatch throws', async () => {
     const warnings: Array<{ payload: object; message: string | undefined }> = []
     mockQuery.mockImplementation(() => {

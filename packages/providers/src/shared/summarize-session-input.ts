@@ -16,8 +16,11 @@ export type SummarizeSessionInput = {
   resumeSessionId: string
 
   /**
-   * The model to summarize with. Omit for the CLI default; callers pass a
-   * cheap/small model (the summary is a short, mechanical read-and-distill).
+   * The model to summarize with. The distill RESUMES the session, so this
+   * model's context window must cover the session's content — pass the model
+   * the session itself ran on (a smaller-window "cheap" model overflows at
+   * exactly the moment a swap fires and degenerates the carry; tester-DB
+   * incident 2026-08-14). Omit for the CLI default.
    */
   model?: string
 
