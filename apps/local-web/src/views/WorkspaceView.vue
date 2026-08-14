@@ -121,7 +121,7 @@ const detailQuery = useSessionDetail(
       : false,
   // The continuous thread reads the chain-spanning transcript — a context
   // swap must never empty the visible conversation.
-  () => shell.target === "continuous",
+  () => (shell.target === "continuous" ? "continuing" : "segment"),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(

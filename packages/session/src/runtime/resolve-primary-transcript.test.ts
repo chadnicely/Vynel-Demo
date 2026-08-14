@@ -21,7 +21,11 @@ import {
   type NewChatMessage,
 } from '@vynel/chat/repositories'
 import type { Database } from '@vynel/db'
-import { resolvePrimaryTranscript } from './resolve-primary-transcript.js'
+import { NotFoundError } from '@vynel/errors'
+import {
+  resolvePrimaryTranscript,
+  resolveSessionChainTranscript,
+} from './resolve-primary-transcript.js'
 
 function makeUser(id: string) {
   const now = new Date()
@@ -275,6 +279,46 @@ describe('resolvePrimaryTranscript', () => {
 
       const transcript = resolvePrimaryTranscript(db, { userId: user.id })
       expect(transcript.messages.map((message) => message.id)).toEqual(['m-a'])
+    })
+  })
+
+  it('resolveSessionChainTranscript spans the chain from an arbitrary owned head', async () => {
+    await withTestDatabase(async (db) => {
+      // The panel shape: a spawned session's folded chain opened by its newest
+      // segment — no primary involved at all.
+      const user = insertUser(db, makeUser('user-head'))
+      const earlier = new Date('2026-08-01T00:00:00Z')
+      const later = new Date('2026-08-02T00:00:00Z')
+      seedSegment(db, user.id, 'sp-old', earlier)
+      seedSegment(db, user.id, 'sp-new', later, { continuedFrom: 'sp-old' })
+      insertChatMessage(
+        db,
+        makeMessage('sp-old', { id: 'm-old', body: 'before the swap', startedAt: earlier }),
+      )
+
+      const transcript = resolveSessionChainTranscript(db, {
+        userId: user.id,
+        headSessionId: 'sp-new',
+      })
+      expect(transcript.session.id).toBe('sp-new')
+      expect(transcript.messages.map((message) => message.id)).toEqual(['m-old'])
+    })
+  })
+
+  it('resolveSessionChainTranscript throws NotFound on unknown, foreign, and deleted heads', async () => {
+    await withTestDatabase(async (db) => {
+      const owner = insertUser(db, makeUser('user-own'))
+      const other = insertUser(db, makeUser('user-oth'))
+      const at = new Date('2026-08-01T00:00:00Z')
+      seedSegment(db, other.id, 'theirs', at)
+
+      expect(() =>
+        resolveSessionChainTranscript(db, { userId: owner.id, headSessionId: 'nope' }),
+      ).toThrow(NotFoundError)
+      // Same NotFound as unknown — no enumeration leak.
+      expect(() =>
+        resolveSessionChainTranscript(db, { userId: owner.id, headSessionId: 'theirs' }),
+      ).toThrow(NotFoundError)
     })
   })
 

@@ -1293,6 +1293,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getSessionTranscript: async (sessionId: NonNullable<paths["/root/sessions/{sessionId}/transcript"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/root/sessions/{sessionId}/transcript", {
+      params: { path: { sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   getTrace: async (partialSessionId: NonNullable<paths["/root/trace/{partialSessionId}"]["get"]['parameters']>['path']["partialSessionId"]) => {
     const { data, error, response } = await client["GET"]("/root/trace/{partialSessionId}", {
       params: { path: { partialSessionId: partialSessionId } },

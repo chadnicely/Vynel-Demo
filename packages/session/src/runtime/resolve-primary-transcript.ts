@@ -26,6 +26,7 @@ import {
   listChatToolCallsForSession,
 } from '@vynel/chat/repositories'
 import type { ChatSession, ChatMessage, ChatToolCall } from '@vynel/chat/repositories'
+import { NotFoundError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
 
 // Defensive cap on the hydration read — a primary is one ever-growing thread,
@@ -110,11 +111,58 @@ export function resolvePrimaryTranscript(
     currentSdkSessionId: primary.currentSdkSessionId,
     userId: input.userId,
   })
+  const pulled = pullChainMessages(db, sessionIds, limit)
+  return { session, ...pulled }
+}
 
-  // Walk segments newest-first, pulling each segment's latest messages until the
-  // cap is filled — bounds the DB read AND the response. unshift keeps the result
-  // chronological (older segments prepend before newer ones). Tool calls for each
-  // walked segment are grouped by parentMessageId (mirrors get-chat-session-detail).
+export type SessionChainTranscript = {
+  /** The chain's head segment — the row the caller opened. Never null: an
+   *  unknown / foreign / deleted head throws instead (no enumeration leak). */
+  session: ChatSession
+  messages: ChatMessage[]
+  toolCallsByMessageId: Record<string, ChatToolCall[]>
+}
+
+export type ResolveSessionChainTranscriptInput = {
+  userId: string
+  /** The chain's newest segment (the sessions overview keys every folded
+   *  chain by it). A chainless session is a one-segment chain — same read. */
+  headSessionId: string
+  limit?: number
+}
+
+// The panel-side sibling of `resolvePrimaryTranscript`: the same chain walk,
+// started from an arbitrary OWNED head instead of a scope's primary — the
+// Sessions list opens a folded chain by its newest segment, and a spawned
+// session's compaction swap must not empty that view either (the same
+// single-segment shape the continuing threads had). Owner-gated exactly like
+// `getChatSessionDetail`: missing, foreign, and soft-deleted heads all throw
+// the same NotFound.
+export function resolveSessionChainTranscript(
+  db: Database,
+  input: ResolveSessionChainTranscriptInput,
+): SessionChainTranscript {
+  const session = findChatSessionById(db, input.headSessionId)
+  if (!session || session.deletedAt || session.userId !== input.userId) {
+    throw new NotFoundError('chat-session', input.headSessionId)
+  }
+  const sessionIds = reconstructPrimaryThread(db, {
+    currentSdkSessionId: input.headSessionId,
+    userId: input.userId,
+  })
+  const pulled = pullChainMessages(db, sessionIds, input.limit ?? MAX_TRANSCRIPT_MESSAGES)
+  return { session, ...pulled }
+}
+
+// Walk segments newest-first, pulling each segment's latest messages until the
+// cap is filled — bounds the DB read AND the response. unshift keeps the result
+// chronological (older segments prepend before newer ones). Tool calls for each
+// walked segment are grouped by parentMessageId (mirrors get-chat-session-detail).
+function pullChainMessages(
+  db: Database,
+  sessionIds: string[],
+  limit: number,
+): { messages: ChatMessage[]; toolCallsByMessageId: Record<string, ChatToolCall[]> } {
   const messages: ChatMessage[] = []
   const toolCallsByMessageId: Record<string, ChatToolCall[]> = {}
   for (let index = sessionIds.length - 1; index >= 0 && messages.length < limit; index--) {
@@ -128,5 +176,5 @@ export function resolvePrimaryTranscript(
       toolCallsByMessageId[toolCall.parentMessageId]!.push(toolCall)
     }
   }
-  return { session, messages, toolCallsByMessageId }
+  return { messages, toolCallsByMessageId }
 }

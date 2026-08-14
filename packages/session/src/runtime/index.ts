@@ -59,8 +59,11 @@ export {
 // the visible conversation.
 export {
   resolvePrimaryTranscript,
+  resolveSessionChainTranscript,
   type PrimaryTranscript,
   type ResolvePrimaryTranscriptInput,
+  type SessionChainTranscript,
+  type ResolveSessionChainTranscriptInput,
 } from './resolve-primary-transcript.js'
 
 // The per-user turn-liveness registry behind `GET /activity/stream` — every

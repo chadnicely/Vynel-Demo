@@ -90,6 +90,10 @@ const detailQuery = useSessionDetail(
   { kind: "global" },
   () => activeSessionId.value,
   () => (hasBackgroundTurnHere.value && !turn.isStreaming.value ? 4000 : false),
+  // A followed chain reads the chain-spanning transcript (a compaction swap
+  // must never empty this view); a deliberately-opened earlier part stays
+  // put on its own segment.
+  () => (props.followChain ? "chain" : "segment"),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(

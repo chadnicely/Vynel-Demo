@@ -303,6 +303,62 @@ describe('GET /root/sessions/:sessionId', () => {
   })
 })
 
+describe('GET /root/sessions/:sessionId/transcript', () => {
+  it('spans the chain from the head, 404s on unknown AND cross-user (IDOR gate)', async () => {
+    await withTestDatabase(async (db) => {
+      const owner = seedUser(db)
+      const other = seedUser(db)
+      // A swapped chain: sp-old superseded into the (empty) head sp-new.
+      seedGlobalSession(db, owner.id, 'sp-old')
+      insertChatSession(db, {
+        ...buildNewChatSessionRow({
+          sessionId: 'sp-new',
+          userId: owner.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Continued conversation',
+          visibility: 'hidden',
+        }),
+        continuedFromSessionId: 'sp-old',
+      })
+      insertChatMessage(db, {
+        id: 'm-chain',
+        sessionId: 'sp-old',
+        role: 'user',
+        body: 'before the swap',
+        thinkingBody: null,
+        inputTokens: null,
+        outputTokens: null,
+        attachedImagesMetadata: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: new Date(),
+        completedAt: new Date(),
+        createdAt: new Date(),
+      })
+      seedGlobalSession(db, other.id, 'theirs-chain')
+      const app = makeHarness(db)
+
+      const owned = await app.request('/root/sessions/sp-new/transcript')
+      expect(owned.status).toBe(200)
+      const body = (await owned.json()) as {
+        session: { id: string }
+        messages: { id: string }[]
+      }
+      expect(body.session.id).toBe('sp-new')
+      expect(body.messages.map((m) => m.id)).toEqual(['m-chain'])
+
+      const unknown = await app.request('/root/sessions/nope/transcript')
+      expect(unknown.status).toBe(404)
+
+      // Same response as unknown — no enumeration leak.
+      const crossUser = await app.request('/root/sessions/theirs-chain/transcript')
+      expect(crossUser.status).toBe(404)
+    })
+  })
+})
+
 describe('GET /root/delegations', () => {
   it('returns the in-flight delegations (empty when idle)', async () => {
     await withTestDatabase(async (db) => {

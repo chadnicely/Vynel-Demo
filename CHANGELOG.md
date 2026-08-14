@@ -449,7 +449,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   global alike, including the sidebar thread) now reads the whole continued
   chain as one story, so a rollover is invisible: all your messages stay right
   where they were. This also restores history retroactively — conversations
-  that already hit this show their full thread again after updating.
+  that already hit this show their full thread again after updating. The same
+  fix covers conversations opened from the Sessions list: a continued chain
+  opens with its whole history, not just the newest part (deliberately opening
+  an earlier part still shows exactly that part).
 - **Your own MCP servers are safe from the marketplace.** A connector you
   added by hand can share a name with a marketplace item — previously that
   made the item's card claim "Installed", and removing it from the

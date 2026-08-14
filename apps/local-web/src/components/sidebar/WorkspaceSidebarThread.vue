@@ -71,7 +71,7 @@ const detailQuery = useSessionDetail(
     hasBackgroundTurnHere.value && !chatTurn.isStreaming.value ? 4000 : false,
   // The sidebar thread IS the continuing conversation — read the
   // chain-spanning transcript so a context swap never empties it.
-  () => true,
+  () => "continuing",
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(

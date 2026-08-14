@@ -7,6 +7,7 @@
 //   GET  /trace/:partialSessionId -> TIER 1: the condensed delegation trace
 //   GET  /trace/:partialSessionId/stream -> observe a LIVE delegation's turn (SSE)
 //   GET  /sessions/:sessionId   -> TIER 2: one owned session in full (trace drill-down)
+//   GET  /sessions/:sessionId/transcript -> a folded chain's full history (Sessions panel)
 //   GET  /delegations           -> the user's in-flight delegations (processing indicator)
 //   POST /turn                  -> start a global-root turn; SSE stream (LLM-native routing)
 //
@@ -30,7 +31,10 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
-import { resolvePrimaryTranscript } from '@vynel/session/runtime'
+import {
+  resolvePrimaryTranscript,
+  resolveSessionChainTranscript,
+} from '@vynel/session/runtime'
 import { resolveDelegationTrace } from '@vynel/session/delegation'
 import { traceChannelKey, attachSpawnedSessionNames } from '@vynel/session/delegation'
 import {
@@ -244,6 +248,41 @@ export const rootApp = factory
         ownerUserId: c.var.user.id,
       })
       return c.json(enrichChatSessionDetail(c.var.db, detail))
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /sessions/:sessionId/transcript — a folded chain's full history,
+  // opened by its newest segment (the id the sessions overview keys every
+  // chain by). The Sessions panel reads THIS for a followed chain: a spawned
+  // session's compaction swap repoints the chain at a fresh, empty segment —
+  // the single-segment read then showed an empty conversation (the same shape
+  // the continuing threads had). Owner-gated like /sessions/:sessionId.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/sessions/:sessionId/transcript',
+    describeRoute({
+      tags: ['root'],
+      summary: "Get one owned session's chain-spanning history (messages across swap segments).",
+      'x-sdk-name': 'root.getSessionTranscript',
+      responses: {
+        200: {
+          description:
+            '{ session, messages, toolCallsByMessageId } — the head segment + messages across its whole continuation chain.',
+          content: {
+            'application/json': { schema: resolver(ChatSessionDetailResponseSchema) },
+          },
+        },
+        404: { description: 'No such session, or not owned by the caller.' },
+      },
+    }),
+    validator('param', RootSessionParamSchema),
+    ...userScoped,
+    (c) => {
+      const transcript = resolveSessionChainTranscript(c.var.db, {
+        userId: c.var.user.id,
+        headSessionId: c.req.valid('param').sessionId,
+      })
+      return c.json(enrichChatSessionDetail(c.var.db, transcript))
     },
   )
   // ──────────────────────────────────────────────────────────────────
