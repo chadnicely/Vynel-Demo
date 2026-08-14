@@ -114,6 +114,67 @@ preference" (the ask prompt says so explicitly now).
 - `.claude/docs/_apps/mcp/structure.md` + `.claude/docs/capabilities/structure.md` carry drift
   banners pointing here — full remap on next module touch.
 
+## The cloud map arc (2026-08-14, branch `feature/tool-policy-cloud-map`)
+
+Chad's ask after the first arc landed: the tool × surface × tier × capability × card-class
+matrix is OPERATOR control — it belongs on cloud-admin-web, and the desktop build downloads
+the map and ships with it. Decisions locked: **bake at build only** (a change distributes
+through a new version; deliberately no runtime fetch) · **the local Tool access panel stays**
+(revisit later whether end-users keep it).
+
+### The shape (four slices, each gated + reviewed + committed)
+
+1. **Catalog snapshot in contracts** — the generator emits all 127 declared entries into
+   `packages/contracts/src/generated/tool-catalog-snapshot.ts` (prettier/eslint-ignored,
+   `check-tool-catalog-parity` in the gate); the tool-policy unions moved to
+   `@vynel/contracts/tool-policy/catalog` so hub + portal never import the product engine.
+2. **Hub** — `tool_policy_defaults` (cloud migration 0007; global per-tool rows, nullable =
+   inherit, 'none' = ungate, all-null save = delete) with a `@vynel/registry` core validating
+   writes against the snapshot; routes `/admin/tool-policy` GET/PUT/DELETE + `GET /map` — the
+   sha256-content-versioned export (surfaces canonicalized + JS codepoint sort, so only
+   semantic change flips the version; stale rows stay deletable after a catalog shrink).
+3. **Portal** — `ToolPolicyView` at `/tool-policy` (cloud-admin-web): matrix over
+   snapshot ⊕ hub overrides, tri-state inherit editor showing each declared default, map
+   version stamp.
+4. **Bake + engine** — `release:payload` downloads `/admin/tool-policy/map` into
+   `backend/assets/tool-policy-defaults.json` (both `VYNEL_HUB_URL` + `CLOUD_ADMIN_TOKEN`
+   set → download or FAIL the build; neither → dev skip); boot primes the file once
+   (missing = info, mangled = warn + code defaults — never brick a user's engine);
+   `resolveSessionToolPolicies` resolves **code catalog → baked map → user overrides**
+   (`applyToolPolicyDefaultsToCatalog`, pure; `ToolCatalogEntry.defaultEnabled` carries a
+   baked disable; a user override's `enabled` still wins).
+
+### Operational notes
+
+- **A hub-configured desktop release now requires `CLOUD_ADMIN_TOKEN` in the release env**
+  (it already sets `VYNEL_HUB_URL` for the public-key pin) — the bake fails the build loud
+  rather than shipping a stale/absent map.
+- The baked map lists OVERRIDE rows only — the app knows its own catalog; unknown tools in
+  an old map are inert in a newer build (the catalog is the roster, everywhere).
+
+### Deferred (cloud arc)
+
+- Local panel "origin" display (code default / shipped default / yours) — needs a
+  `hasBakedDefault` style marker on the wire; cut from C4 for scope.
+- `apps/local-web/src/composables/tool-policies/tool-policy-contract.ts` still hand-pins its
+  own kinds mirror — switch to `@vynel/contracts/tool-policy/catalog` imports.
+- Portal edit form: a free-form featureKey outside `ALL_FEATURE_KEYS` renders as empty
+  selection (wire permits, hub validates — cosmetic, unreachable today).
+- `admin.ts` at 317 lines — split on next touch. Pre-existing repo format drift:
+  `scripts/src/voice/voice-models.ts` + `vitest.config.ts` fail `format:check` (untouched by
+  either arc).
+- A second prime with an invalid file keeps the previous map (boot primes once — theoretical).
+
+### Live smokes (cloud arc)
+
+1. Hub up + portal: edit a tool on `/tool-policy` → PUT lands, map version flips; reset →
+   returns to declared.
+2. `VYNEL_HUB_URL`+`CLOUD_ADMIN_TOKEN` set → `pnpm release:payload` logs
+   `baked tool-policy map <hash>`; the JSON lands in `backend/assets/`.
+3. A packaged engine boot logs `baked tool-policy map active`; a turn composes with the
+   baked change (e.g. a demoted tool no longer cards); the local panel override still wins.
+4. Dev boot (no assets dir): behavior identical to before the arc.
+
 ## End-of-arc live smokes (band 18910; ask Chad for the rest)
 
 1. `pnpm dev api` boots with **no SHADOWED warning**; an Ask-mode turn cards `delete_agent`

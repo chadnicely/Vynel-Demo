@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Tool access is now set from mission control.** The cloud admin portal
+  grew a Tool policy page: every tool Claude ships with, editable in one
+  matrix — on/off, where it's available, when it needs approval, which plan
+  tier or capability it rides. Each desktop release bakes the current map
+  in at build time, so a policy change rolls out with the next version —
+  predictable, versioned, and visible (the page shows the exact map hash a
+  build would ship). Your own Tool access panel in the app still works on
+  top of the shipped defaults; anything you customize stays yours.
+
 - **You decide what Claude can touch.** A new "Tool access" panel in the
   workspace toolkit lists every tool Claude has — grouped by feature — and
   makes all of it editable: turn a tool off entirely, choose where it's
