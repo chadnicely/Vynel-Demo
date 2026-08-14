@@ -319,6 +319,28 @@ Vynel cert (0 errors). **Runtime pass with Chad:** devcon remove + FRESH install
 property stores persist per endpoint — an in-place update may keep the stale name), then check
 the sound-settings names and re-run `smoke-cable.mjs`.
 
+### Runtime round 1 (live, same day): mic renamed, render exposed the SPEAKER hardcode
+
+Fresh install on Chad's machine: **"Vynel Call 1 Microphone (Vynel Audio)" ✓** — the GUID
+mechanism works — but the render endpoint stayed **"Speakers (Vynel Audio)"** even after its
+`MMDevices` cache entry was deleted and rebuilt (both MediaCategories entries verified present
+in the device key; both GUIDs verified present in the .sys). Root cause, from Microsoft's
+audio-endpoint-builder-algorithm doc: **speaker endpoints are hardcoded to the name
+"Speakers" — "cannot be altered by your driver or a third-party application"**; the Name GUID
+is never consulted for `KSNODETYPE_SPEAKER` bridge pins. This is why VB-Cable's render end
+("CABLE Input") is not a speaker-category pin.
+
+Fix (0.1.0.3, built + InfVerif VALID + signed): render bridge pin category →
+`KSNODETYPE_LINE_CONNECTOR`. Consequences, both wanted: form factor "Line" (honest for a
+cable), and line-out ranks below Speakers in default-device selection so Windows never
+auto-prefers the cable. Daemon unaffected (it probes output-config, never the category).
+
+Ops learnings, both encoded in `Reset-EndpointCache.ps1`: (1) endpoint names are composed once
+at endpoint creation and cached in `MMDevices` — purge Vynel entries to force a re-compose;
+(2) the script's service restart lives in a `finally` because its first version died on one
+access-denied key BEFORE restarting Audiosrv and left the machine mute (delete failures are
+per-key warnings now).
+
 ## Signing: local now, attestation later (Chad 2026-08-14)
 
 Attestation (Partner Center + EV) is DEFERRED — it's the signature for public/community

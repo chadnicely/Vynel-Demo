@@ -566,7 +566,12 @@ Return Value:
         ACX_PIN_CONFIG_INIT(&pinCfg);
         pinCfg.Type = AcxPinTypeSource;
         pinCfg.Communication = AcxPinCommunicationNone;
-        pinCfg.Category = &KSNODETYPE_SPEAKER;
+        // NOT KSNODETYPE_SPEAKER: the endpoint builder hardcodes speaker
+        // endpoints to the name "Speakers" — no driver override exists (docs:
+        // audio-endpoint-builder-algorithm; proven live 2026-08-14). A line
+        // connector names normally, and its lower default-device rank means
+        // Windows never auto-prefers the cable over real speakers.
+        pinCfg.Category = &KSNODETYPE_LINE_CONNECTOR;
         pinCfg.PinCallbacks = &pinCallbacks;
         // The endpoint name Windows shows ("Vynel Call 1 Voice (Vynel Audio)")
         // resolves through this GUID: KS looks it up under the device software key's

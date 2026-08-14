@@ -22,7 +22,7 @@
 param(
     [string]$PackageDir = "$PSScriptRoot\..\VynelCallAudio\Driver\x64\Release\VynelCallAudio",
     [string]$Subject = 'CN=Vynel Driver Test',
-    [string]$DriverVer = '01/01/2026,0.1.0.2',
+    [string]$DriverVer = '01/01/2026,0.1.0.3',
     [string]$KitBin = ''
 )
 

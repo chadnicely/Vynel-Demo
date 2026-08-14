@@ -28,6 +28,16 @@ builder reads the registry, not `KSPROPERTY_PIN_NAME` strings (proven live on th
 build, which showed "Speakers (VynelCallAudio Device)"). GUIDs and INF entries must stay in
 sync; the daemon pins the composed names in `call-cable-discovery.test.ts`.
 
+**The speaker hardcode (proven live 2026-08-14):** a bridge pin categorized
+`KSNODETYPE_SPEAKER` is force-named "Speakers" — per Microsoft's endpoint-builder docs, "the
+name has been hardcoded … and cannot be altered by your driver or a third-party application";
+the Name GUID is never consulted. So the render bridge pin is `KSNODETYPE_LINE_CONNECTOR`
+instead (the VB-Cable-style shape): the custom name resolves, the form factor reads "Line",
+and the cable's lower default-device rank means Windows never auto-prefers it over real
+speakers — a property we want anyway (the calls arc never touches the user's defaults).
+Endpoint names are composed ONCE at endpoint creation and cached under `MMDevices`;
+`Reset-EndpointCache.ps1` purges Vynel endpoints so they rebuild after a naming change.
+
 The cable is the render→capture ring in `Common/LoopbackRing.{h,cpp}`: the render stream engine
 writes each played packet into a device-level spin-lock ring, the capture stream engine reads it
 back (silence on underrun). One direction only — this is the VOICE half. The EARS half (hearing
@@ -60,7 +70,7 @@ the endpoint-naming registration above, changes are branding (fresh GUIDs + name
 
 - `VynelCallAudio/Driver/VynelCallAudio.inf` — hardware id `ROOT\VynelCallAudio`, service +
   binary `VynelCallAudio.sys`, provider "Vynel", endpoint friendly names above,
-  `DriverVer` 0.1.0.2 (bumped per package change; `sign/Sign-Driver.ps1` stamps the
+  `DriverVer` 0.1.0.3 (bumped per package change; `sign/Sign-Driver.ps1` stamps the
   authoritative version with a fixed past date)
 - `VynelCallAudio/Driver/DriverSettings.h` — fresh render/capture component GUIDs + mic pin
   GUID (a machine running the MS sample must never collide with ours), pool tag `uaCV`
