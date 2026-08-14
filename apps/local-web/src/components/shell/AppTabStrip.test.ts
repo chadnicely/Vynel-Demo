@@ -119,12 +119,15 @@ describe("AppTabStrip", () => {
     expect(tabs[0]!.classes()).toContain("is-parked");
   });
 
-  it("offers the add-tab menu trigger and a per-tab workspace switcher", () => {
+  // test: correct expectation (2026-08-14 parity pass) — the per-tab
+  // workspace switcher retired; rooms open via `+`, close stays.
+  it("offers the add-tab menu; a tab has close but NO switcher", () => {
     const wrapper = mountStrip();
 
     expect(wrapper.find('[aria-label="New tab"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Close Marketing"]').exists()).toBe(true);
     expect(
       wrapper.find('[aria-label="Switch workspace for Marketing"]').exists(),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

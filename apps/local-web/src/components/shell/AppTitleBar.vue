@@ -154,30 +154,27 @@ function onMenuCommand(id: string) {
       </DropdownMenu>
     </nav>
 
-    <!-- Center: window title + presence (the drag region). The presence pair
-         is a BUTTON (no-drag island): it opens the Background overview —
-         the dot says something is running; the click shows what. -->
+    <!-- Center: the drag region. The presence dot stays PASSIVE (redesign
+         Q7d) — it survives because your OWN turn's approval can need you
+         while the rail is empty; the workspace TITLE retired (the canvas's
+         bar carries no room name — the tabs/tree say where you are). -->
     <div
       class="flex flex-1 items-center justify-center gap-2 px-4"
       data-tauri-drag-region
     >
-      <!-- The presence pair is PASSIVE now (redesign Q7d): the working rail
-           is the detail — the dot only says live / attention / idle. It
-           survives because your OWN turn's approval can need you while the
-           rail is empty. -->
       <span
         class="flex items-center gap-2 px-2 py-0.5"
         data-testid="titlebar-presence"
       >
         <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
-        <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
       </span>
     </div>
 
-    <!-- Workspace navigation mode (Tabs | Menu) — presentation only; the
-         scope-tab state underneath is shared, so flipping loses nothing. -->
+    <!-- Workspace navigation mode (Tabs | Menu) — the canvas's segment: the
+         active mode wears the accent border + tinted ground. Presentation
+         only; the scope-tab state underneath is shared. -->
     <div
-      class="mr-1.5 flex shrink-0 items-center gap-0.5 self-center rounded-sm p-0.5"
+      class="mr-2 flex shrink-0 items-center gap-[5px] self-center"
       role="group"
       aria-label="Navigation mode"
     >
@@ -187,15 +184,15 @@ function onMenuCommand(id: string) {
         type="button"
         :aria-pressed="props.navMode === entry.mode"
         :title="`${entry.label} navigation`"
-        class="flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs transition"
+        class="flex items-center gap-1.5 rounded-sm border px-2 py-[3px] text-[11px] transition"
         :class="
           props.navMode === entry.mode
-            ? 'bg-row-active text-ink-1'
-            : 'text-ink-3 hover:bg-row-hover hover:text-ink-1'
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
+            : 'border-transparent text-[var(--color-neutral-500)] hover:text-[var(--color-accent-200)]'
         "
         @click="emit('command', entry.id)"
       >
-        <component :is="entry.icon" :size="13" />
+        <component :is="entry.icon" :size="12" />
         {{ entry.label }}
       </button>
     </div>

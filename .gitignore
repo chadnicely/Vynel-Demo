@@ -53,3 +53,4 @@ dist-payloads/
 
 # scratch exports (e.g. frontend copy for design uploads)
 .tmp/
+.playwright/

@@ -2,7 +2,6 @@
 import { computed, h } from "vue";
 import type { Component } from "vue";
 import {
-  PhCaretDown as ChevronDown,
   PhCircleNotch as CircleNotch,
   PhCube as Cube,
   PhHouse as House,
@@ -10,11 +9,7 @@ import {
   PhPlus as Plus,
   PhX as X,
 } from "@phosphor-icons/vue";
-import {
-  DropdownMenu,
-  WorkspaceColorSwatches,
-  workspaceAccentVar,
-} from "@vynel/ui";
+import { DropdownMenu, workspaceAccentVar } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import type { WorkspaceEffectiveStatus } from "@vynel/contracts/workspaces/workspace-status";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
@@ -25,9 +20,10 @@ import type { WorkspaceStatusView } from "../../composables/workspaces/use-works
 // room. Each tab wears the canvas's 16px STATE chip (spinner = running,
 // cube = a state is set, moon = parked) and the pulsing status dot (one
 // status one colour); parked tabs dim. The active tab sits on the canvas
-// ground with its accent bottom edge. Switch/close controls reveal on hover
-// so resting tabs stay clean; `+` opens a new room tab. Data-blind like the
-// title bar: tabs + workspaces + status views in, events out.
+// ground with its accent bottom edge. A tab is just the room + a hover
+// close (the per-tab workspace SWITCHER retired — Kafi, 2026-08-14 parity
+// pass; rooms open via `+`). Data-blind like the title bar: tabs +
+// workspaces + status views in, events out.
 export interface ShellTabItem {
   id: string;
   workspaceId: string | null;
@@ -49,8 +45,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   "select-tab": [tabId: string];
   "close-tab": [tabId: string];
-  "retarget-tab": [tabId: string, workspaceId: string];
-  "color-tab": [tabId: string, colorSlot: number | null];
   "add-tab": [workspaceId: string];
   "create-workspace": [];
 }>();
@@ -123,16 +117,6 @@ const workspacePickMenu = computed<MenuItemModel[]>(() => [
   { id: "new-workspace", label: "New workspace" },
 ]);
 
-const tabMenu = computed<MenuItemModel[]>(() => [
-  { id: "switch-label", kind: "label", label: "Switch workspace" },
-  ...workspacePickMenu.value,
-]);
-
-function onTabMenuSelect(tabId: string, itemId: string) {
-  if (itemId === "new-workspace") emit("create-workspace");
-  else if (itemId.startsWith("ws:")) emit("retarget-tab", tabId, itemId.slice(3));
-}
-
 function onAddMenuSelect(itemId: string) {
   if (itemId === "new-workspace") emit("create-workspace");
   else if (itemId.startsWith("ws:")) emit("add-tab", itemId.slice(3));
@@ -164,7 +148,7 @@ function onAddMenuSelect(itemId: string) {
         type="button"
         role="tab"
         :aria-selected="tab.id === props.activeTabId"
-        class="flex h-full min-w-0 flex-1 items-center gap-2 pl-1 pr-0.5"
+        class="flex h-full min-w-0 flex-1 items-center gap-2.5 pr-1"
         @click="emit('select-tab', tab.id)"
       >
         <!-- The state chip — same vocabulary as the tree rows. -->
@@ -194,38 +178,15 @@ function onAddMenuSelect(itemId: string) {
         />
       </button>
 
-      <template v-if="tab.workspaceId !== null">
-        <DropdownMenu
-          :items="tabMenu"
-          align="start"
-          @select="(itemId) => onTabMenuSelect(tab.id, itemId)"
-        >
-          <template #trigger>
-            <button
-              type="button"
-              :aria-label="`Switch workspace for ${workspaceName(tab.workspaceId)}`"
-              class="grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:bg-row-hover data-[state=open]:text-ink-1 data-[state=open]:opacity-100"
-            >
-              <ChevronDown :size="12" />
-            </button>
-          </template>
-          <template #footer>
-            <WorkspaceColorSwatches
-              :selected-slot="tab.colorSlot"
-              label="Tab color"
-              @pick="(slot) => emit('color-tab', tab.id, slot)"
-            />
-          </template>
-        </DropdownMenu>
-        <button
-          type="button"
-          :aria-label="`Close ${workspaceName(tab.workspaceId)}`"
-          class="mr-0.5 grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
-          @click.stop="emit('close-tab', tab.id)"
-        >
-          <X :size="12" />
-        </button>
-      </template>
+      <button
+        v-if="tab.workspaceId !== null"
+        type="button"
+        :aria-label="`Close ${workspaceName(tab.workspaceId)}`"
+        class="mr-0.5 grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+        @click.stop="emit('close-tab', tab.id)"
+      >
+        <X :size="12" />
+      </button>
     </div>
 
     <DropdownMenu :items="workspacePickMenu" align="start" @select="onAddMenuSelect">
@@ -263,11 +224,13 @@ function onAddMenuSelect(itemId: string) {
   position: relative;
   display: flex;
   align-items: center;
-  max-width: 190px;
+  max-width: 210px;
   min-width: 0;
   flex: 0 1 auto;
   margin-right: 5px;
-  padding: 0 4px 0 8px;
+  /* The canvas's tab breathing room (9px / --space-6); the close affordance
+     borrows from the right pad on hover. */
+  padding: 0 6px 0 16px;
   border-radius: var(--radius-m) var(--radius-m) 0 0;
   border-bottom: 2px solid transparent;
   color: var(--ink-2);

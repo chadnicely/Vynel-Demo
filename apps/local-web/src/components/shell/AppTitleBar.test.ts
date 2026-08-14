@@ -36,9 +36,12 @@ describe("AppTitleBar", () => {
     }
   });
 
-  it("shows the window title", () => {
+  // test: correct expectation (2026-08-14 parity pass) — the workspace title
+  // retired from the bar; the tabs/tree say where you are.
+  it("carries NO workspace title — the presence dot stands alone", () => {
     const wrapper = mountTitleBar({ title: "Marketing" });
-    expect(wrapper.text()).toContain("Marketing");
+    expect(wrapper.text()).not.toContain("Marketing");
+    expect(wrapper.find('[data-testid="titlebar-presence"]').exists()).toBe(true);
   });
 
   // test: correct expectation — the presence pair is PASSIVE now (redesign

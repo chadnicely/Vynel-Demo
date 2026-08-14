@@ -376,7 +376,7 @@ const activeSectionId = computed(() => {
 
 // ── Tab lifecycle — store mutations, boot/route reconcile, and per-tab route
 // restoration all live in the composable (one home). ──
-const { selectTab, closeTab, addTab, retargetTab } = useScopeTabs(
+const { selectTab, closeTab, addTab } = useScopeTabs(
   allWorkspaces,
   () => workspacesQuery.isSuccess.value,
 );
@@ -686,8 +686,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           :global-status="globalStatus"
           @select-tab="selectTab"
           @close-tab="closeTab"
-          @retarget-tab="retargetTab"
-          @color-tab="ui.setTabColor"
           @add-tab="addTab"
           @create-workspace="isCreateWorkspaceOpen = true"
         />
