@@ -204,9 +204,27 @@ the state being compared, screenshot the SAME card region in both at the same sc
   State lives in `use-turn-reference.ts`; the prefix is applied in `AppComposer.onSend`, so every
   surface that composes through it gets the pointer with **zero host wiring**.
 
-**Consequence to watch:** a long answer collapses to its lead WHEN THE TURN SETTLES (LiveTurn
-streams it whole, MessageRow folds it). That is the canvas's model, and one `isReplyOpen` default
-flips it if Kafi wants the newest reply open.
+**SUPERSEDED SAME DAY — the fold is per TURN, not per message** (`b3839e9`). Kafi's rule: every
+chat works the way a child session's report already does — first paragraph is the title, details
+on expand. A settled turn shows ONE summary line; opening it shows the turn AS IT RAN (every
+message, every tool call, in order).
+
+- State moved to `ThreadStream` (`replyOverrides`, keyed by card key, beside `isCardExpanded`) —
+  a member cannot hide its siblings. MessageRow now takes `replyCollapsed` / `replyFoldable` and
+  emits `toggleReply`; its own `isReplyOpen` ref and the inline continuation caret are DELETED.
+  Exactly one caret per turn, on the reply eyebrow — where the canvas draws it.
+- `speakingMemberIndexOf` (was `statsMemberIndexOf`) is the shared finder: the first assistant row
+  with a non-empty body. A tool-only opening row is skipped for BOTH the summary and the stats
+  door. While folded that row is promoted to the reply's start (author line + hairline).
+- **TOOL CALLS FOLD TOO** — the `#tool-calls` slot is gated on the same state. Gating the row alone
+  leaves tool pills visible under a one-line summary; that is the easy miss here, and only an
+  element count or a screenshot catches it.
+- The length floor is gone: foldable = "is there anything behind this" (another row, any tool call,
+  more text than the summary paragraph). `FOLD_REMAINDER_MIN` stays for `inboundCardParts` only.
+
+**Consequence to watch:** a long answer collapses to its summary WHEN THE TURN SETTLES, and now
+swallows its tool cards too (LiveTurn streams everything, ThreadStream folds it). That is the
+canvas's model. Default the newest turn's `replyOverrides` entry to `true` if Kafi wants it open.
 
 **Still absent, and why** (unchanged from the last pass): `N of M steps completed` — no per-turn
 step history, and `runStats.toolCallCount` would be a plausible-looking lie; author PHOTO — no
