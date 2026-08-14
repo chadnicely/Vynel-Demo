@@ -132,6 +132,51 @@ workspace-redesign.md`. Commits `3f0896b`, `10a37b9`, `c5ce578`.
 Gate: typecheck 104/104 · 1853 tests / 284 files · all five parity guards · code-reviewer gate
 passed after fixes · live-verified dark + light, both nav modes.
 
+### Chat-card pass (2026-08-15, later) — running card done; READ THIS BEFORE CLAIMING PARITY
+
+Landed: `f440b6b` (running card) + `2123482` (folded cards).
+
+- **User rows wear a person glyph** where the canvas puts the author's PHOTO — inline SVG in the
+  house style (`@vynel/ui` carries no icon set; ClaudeMark + the Global house are drawn the same
+  way), neutral chip because the coral tint is Claude's identity. Avatar 22px → the canvas's 20px.
+- **The RUNNING card lifts its ink** onto the accent ground like the canvas (`nameColor` /
+  `createdColor` / `color` switch on `live`): author + ask → accent-100, time → accent-300,
+  scoped to `.is-live`.
+- **Weight 400 on every micro-label** (reply eyebrow, working-pill label + elapsed, live/done
+  chips). The user's NAME stays 600. `LiveTurn`'s author line is byte-identical to MessageRow's
+  by contract — its comment protects "no shift when the turn settles". **Change both or neither.**
+- **Folded turns were rendering as a stack of BOXES.** The canvas fades the whole card
+  (`cardOpacity .3` + grayscale) so its `divider x 55%` edge composites to ~2.6% alpha; we dim the
+  members instead (an ancestor opacity would grey out a live tracker's gold dot), which left the
+  edge at full 8.8%. The edge now carries the composite itself.
+
+**PROCESS LESSON — the reason Kafi had to correct this twice.** Verifying the canvas
+property-by-property and declaring "matches" is not verification: the folded-card edge was the
+SAME declared value in both files and rendered completely differently, and a property check can
+never surface an element that is simply absent. **Read the canvas source for the whole surface,
+enumerate every element, then compare screenshots side by side** — the `.dc.html` markup plus its
+`text/x-dc` script IS the spec (`.claude-design/README.md` says so).
+
+**Chat column, honest gap list** (canvas vs ours, after the above):
+
+| gap | why it is missing |
+| --- | --- |
+| done-card `N of M steps completed` + reply/expand icons | no per-turn step history stored |
+| composer pills (Push Local · Send Git · Resort Back) | **no engine behind them** |
+| composer toggles (Clarify before build · Auto buildout · Rewrite with AI) | **no engine behind them** |
+| `HANDED OFF` card | cross-project data not surfaced |
+| header `Task 5 of 13` + terminal/layout/⋮ icons | ours shows the status badge + 1 icon |
+| assistant body 12.5px (ours 13.5px) | **OPEN QUESTION — Kafi has not answered** |
+| title-bar connection dots | no connections engine |
+| sidebar `DEVELOPMENT` + `~/DEVELOPMENT` | Kafi said skip it this session |
+
+Five of those are "we chose not to build the feature", not styling — they are dead buttons until
+an engine exists. **Do not render them inert without Kafi asking.** He was asked which he wants
+built for real and had not answered when the session ended.
+
+**NEXT:** the pending / problem card states (`.status-pill` still carries 600/500 weights — the
+same weight-400 fix this pass applied to the running vocabulary).
+
 **Known bugs + accepted trade-offs now live in `.claude/bugs/`** (one file per issue, status in
 the file; `grep -l 'Status:\*\* open' .claude/bugs/*.md`). Seeded with the two this arc deferred:
 the rules count's full-file reads, and the Sessions library's silent 50-entry truncation.
