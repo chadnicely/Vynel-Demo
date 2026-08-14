@@ -17,7 +17,6 @@ import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "../components/shell/AppTitleBar.vue";
 import AppTabStrip from "../components/shell/AppTabStrip.vue";
 import AppSidebar from "../components/shell/AppSidebar.vue";
-import AppStatusBar from "../components/shell/AppStatusBar.vue";
 import { useUiStore } from "../stores/ui-store.js";
 
 // Wave B scaffold — the reinvented shell assembled from the real chrome
@@ -244,13 +243,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         </div>
       </ResizablePanel>
     </div>
-
-    <AppStatusBar
-      :presence-state="presenceState"
-      :context-label="contextLabel"
-      :pending-approvals="presenceState === 'attention' ? 2 : 0"
-      @open-approvals="lastAction = 'open-approvals'"
-    />
 
     <CommandPalette
       v-model:open="isPaletteOpen"

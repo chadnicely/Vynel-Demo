@@ -251,6 +251,18 @@ function onAddMenuSelect(itemId: string) {
   color: var(--ink-1);
 }
 
+/* A mouse click must never wear the UA focus ring (the canvas's tabs carry
+   none); keyboard focus keeps a quiet hairline instead. */
+.app-tab [role="tab"]:focus {
+  outline: none;
+}
+
+.app-tab [role="tab"]:focus-visible {
+  outline: 1px solid var(--hair-strong);
+  outline-offset: -2px;
+  border-radius: var(--radius-s);
+}
+
 /* Parked rooms dim — the canvas's 0.55. */
 .app-tab.is-parked {
   opacity: 0.55;

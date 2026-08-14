@@ -40,7 +40,6 @@ import AppSidebar from "./AppSidebar.vue";
 import WorkspaceTree from "./WorkspaceTree.vue";
 import BrowserPanel from "../browser/BrowserPanel.vue";
 import type { SidebarItem } from "./AppSidebar.vue";
-import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
 import UpdatePill from "./UpdatePill.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
@@ -162,10 +161,6 @@ const presenceLabel = computed(() => {
   if (activity.isTurnRunning) return "assistant working";
   return "assistant idle";
 });
-const statusContext = computed(
-  () => `${presenceLabel.value} · ${contextTitle.value}`,
-);
-
 const accountName = computed(
   () => currentUserQuery.data.value?.displayName ?? "Your account",
 );
@@ -634,7 +629,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
         v-if="isSidebarOpen && !browser.isOpen"
         side="left"
         storage-key="vynel.sidebar.width"
-        :default-width="240"
+        :default-width="208"
         :min-width="200"
         :max-width="380"
       >
@@ -708,13 +703,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       </ResizablePanel>
     </div>
 
-    <AppStatusBar
-      :presence-state="presenceState"
-      :context-label="statusContext"
-      :pending-approvals="pendingCount"
-      @open-approvals="selectSurface('chat')"
-    />
-
     <WorkingRail />
     <ConversationSidebar />
     <ApprovalNotifier />
@@ -740,9 +728,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 <style scoped>
 .app-shell {
   display: grid;
-  /* Title bar · body · status bar — the strip lives inside the canvas
-     column now (the canvas's layout), so the shell rows never change. */
-  grid-template-rows: 40px 1fr 22px;
+  /* Title bar · body — the canvas's rows (34px bar, no status bar; the
+     strip lives inside the canvas column). */
+  grid-template-rows: 34px 1fr;
   height: 100vh;
   background: var(--bg-shell);
   color: var(--ink-1);

@@ -176,18 +176,30 @@ watch(
           class="grid gap-px px-2"
         >
           <li v-for="item in block.items" :key="item.id">
+            <!-- The canvas's section row: 12.5px, 13px icon, accent-900
+                 ground + accent inks when active. -->
             <button
               type="button"
-              class="flex w-full cursor-default items-center gap-2.5 rounded-sm px-2.5 py-[3px] text-left text-sm transition"
+              class="flex w-full cursor-default items-center gap-3 rounded-sm px-2.5 py-[5px] text-left text-[12.5px] transition"
               :class="
                 item.id === props.activeSectionId
-                  ? 'bg-row-active font-medium text-ink-1'
-                  : 'text-ink-2 hover:bg-row-hover hover:text-ink-1'
+                  ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
+                  : 'text-[var(--color-neutral-400)] hover:bg-row-hover hover:text-ink-1'
               "
               :aria-current="item.id === props.activeSectionId ? 'page' : undefined"
               @click="emit('select-section', item.id)"
             >
-              <component :is="item.icon" v-if="item.icon" class="size-4 shrink-0 text-ink-3" />
+              <component
+                :is="item.icon"
+                v-if="item.icon"
+                :size="13"
+                class="shrink-0"
+                :class="
+                  item.id === props.activeSectionId
+                    ? 'text-[var(--color-accent)]'
+                    : 'text-[var(--color-neutral-600)]'
+                "
+              />
               <span class="flex-1 truncate">{{ item.label }}</span>
             </button>
           </li>

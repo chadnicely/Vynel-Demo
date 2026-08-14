@@ -516,8 +516,8 @@ function onDrop(event: DragEvent) {
   margin: 0;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--ink-2);
@@ -578,8 +578,8 @@ function onDrop(event: DragEvent) {
   border: 0;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
   border-radius: var(--radius-s);
   /* The canvas's send chip: accent-700 ground, accent-100 arrow. */
   background: var(--color-accent-700);

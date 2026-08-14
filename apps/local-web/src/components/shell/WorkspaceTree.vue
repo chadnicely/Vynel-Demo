@@ -186,7 +186,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
             class="group flex items-center rounded-sm transition"
             :class="
               props.activeWorkspaceId === null
-                ? 'bg-row-active text-ink-1'
+                ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
                 : 'text-ink-2 hover:bg-row-hover hover:text-ink-1'
             "
           >
@@ -200,7 +200,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
             </button>
             <button
               type="button"
-              class="flex h-8 min-w-0 flex-1 cursor-default items-center gap-2 pr-2 text-left text-sm"
+              class="flex h-8 min-w-0 flex-1 cursor-default items-center gap-2 pr-2 text-left text-[12.5px]"
               :aria-current="props.activeWorkspaceId === null ? 'page' : undefined"
               @click="emit('select', null)"
               @dblclick="emit('drill', null)"

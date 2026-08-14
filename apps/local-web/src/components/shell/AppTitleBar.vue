@@ -124,7 +124,7 @@ function onMenuCommand(id: string) {
 
 <template>
   <header
-    class="flex h-10 shrink-0 items-center gap-0.5 border-b border-hair bg-chrome pl-2 pr-0 select-none"
+    class="flex h-[34px] shrink-0 items-center gap-0.5 border-b border-hair bg-chrome pl-2 pr-0 select-none"
     data-tauri-drag-region
   >
     <!-- Identity mark — the canvas's accent diamonds-four. -->
@@ -146,7 +146,7 @@ function onMenuCommand(id: string) {
         <template #trigger>
           <button
             type="button"
-            class="rounded-sm px-2 py-1 text-sm text-ink-2 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
+            class="rounded-sm px-2 py-0.5 text-[12px] text-ink-2 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
           >
             {{ menu.label }}
           </button>
