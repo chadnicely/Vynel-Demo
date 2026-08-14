@@ -83,6 +83,20 @@
     failures), avatars, per-card step labels, composer actions/toggles, connection dots.
     **Module notes updated (docs/module-notes/workspace-redesign.md — the landed list + the
     worklist).**
+    **SAME-DAY PIXEL PASSES (Kafi's screenshot-driven sweep, commits `c9c36b0`→`efcd325`):**
+    tab strip = canvas exact (per-tab workspace SWITCHER retired — rooms open via `+`, close
+    stays hover; UA focus ring suppressed); title bar 34px on chrome ground, NO title/presence
+    dot in the center, right cluster = the canvas icon row (list-checks rail toggle badge-less +
+    minus/square/x, 13px/18px-gap); the 22px AppStatusBar REMOVED entirely (canvas has none;
+    component+test deleted); sidebar 208px default; tree = label-less header (icons only),
+    `list-none` sweep (stray li bullets), 5px row rhythm, 10.5px progress ink, play glyph on
+    parked rows; section rows 12.5px/13px-icon/accent-900-active; folded chat card = the
+    canvas's TWO lines (author+time / 14px ask + read-more); ask author 12px plain vs assistant
+    small-caps. Serve the design canvases via the memory recipe
+    (serve-design-canvases-recipe, port 18899). STILL OPEN for the next parity session:
+    connection dots + their modal (user: "add the modal later"), the DEVELOPMENT folder-path
+    tree header (needs a small endpoint over `makeDefaultWorkspaceParentDirectory`), composer
+    actions/toggles row, cross-project + handed-off cards, priority flow.
 10. **Arc 5a LANDED (gate green 4797 — +4 exact):** task detail + quick-add, pure composition —
     TaskViewDialog gains the Steps section (session todos sorted by orderIndex, honest N-of-M +
     gold bar, NO fabricated durations/outputs; fetch gated open && sessionId), rail rows open it
