@@ -61,6 +61,16 @@
    by gate count arithmetic (4790→4787), restored all 5 original pins adapted to the rail DOM
    + 2 new. Always Read before Write on test files.**
    **NEXT: Arc 5 — states + siblings** (status vocabulary, task detail, new-task modal).
+10. **Arc 5a LANDED (gate green 4797 — +4 exact):** task detail + quick-add, pure composition —
+    TaskViewDialog gains the Steps section (session todos sorted by orderIndex, honest N-of-M +
+    gold bar, NO fabricated durations/outputs; fetch gated open && sessionId), rail rows open it
+    (panel-local viewingTaskId, TasksSection precedent), rail + button quick-adds inline (exact
+    TasksSection create shape). Live-verified end-to-end with real events (the CLI driver's
+    fill/type raced HMR-stale refs — in-page event probe created + viewed a real task).
+    **REMAINING for 5b (engine work, plan deliberately):** per-workspace problem/error signal
+    (one-status red end-to-end), cross-project refs chips + turn rendering, handed-off card,
+    composer actions/toggles semantics. The canvases' AI-rewrite + priority flows also wait on
+    engine surfaces.
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

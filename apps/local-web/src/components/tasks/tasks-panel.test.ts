@@ -236,6 +236,58 @@ describe("TasksPanel (work rail)", () => {
     expect(wrapper.find(".abort-confirm").exists()).toBe(false);
   });
 
+  it("a row's title opens the full task view", async () => {
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [
+          makeTask({ detail: "All the fine print lives here." }),
+        ],
+      },
+    });
+
+    const wrapper = mountPanel(client);
+    await flushPromises();
+
+    await wrapper.get(".task-title").trigger("click");
+    await flushPromises();
+
+    // The Modal teleports to body — assert the portal, not the wrapper.
+    expect(document.body.textContent).toContain(
+      "All the fine print lives here.",
+    );
+    wrapper.unmount();
+  });
+
+  it("the + button quick-adds a task scoped to the rail", async () => {
+    const createCalls: unknown[] = [];
+    const client = makeClient({
+      tasks: { list: async () => [] },
+      tasksUser: {
+        list: async () => [],
+        create: async (input: unknown) => {
+          createCalls.push(input);
+          return makeTask({ id: "t-new", workspaceId: "w1", title: "Wire it" });
+        },
+      },
+    });
+
+    const wrapper = mountPanel(client, { kind: "workspace", workspaceId: "w1" });
+    await flushPromises();
+
+    await wrapper.get('[aria-label="Add a task"]').trigger("click");
+    const input = wrapper.get(".create-input");
+    await input.setValue("  Wire it  ");
+    // Form submit — the component uses implicit submission (IME-safe), which
+    // jsdom doesn't synthesize from a keydown.
+    await wrapper.get(".create-row").trigger("submit");
+    await flushPromises();
+
+    expect(createCalls).toEqual([
+      { scope: "workspace", workspaceId: "w1", title: "Wire it" },
+    ]);
+    expect(wrapper.find(".create-input").exists()).toBe(false);
+  });
+
   it("reads quiet when nothing is happening — no abort, no fake progress", async () => {
     const wrapper = mountPanel(makeClient(), {
       kind: "workspace",

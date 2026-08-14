@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Tasks open into a full view with their real steps.** Click any task in
+  the work rail to see everything about it — status, who added it, its
+  write-up, and (for tasks the assistant has actually worked) the genuine
+  step list from that session with a progress bar. A little + on the rail
+  quick-adds a task to whichever room you're in.
+
 - **The tasks dock grew into a work rail.** Toggle it from the title bar as
   before — it now leads with a live card that mirrors the room's presence
   (glowing while the assistant works, blue when something waits on you, quiet

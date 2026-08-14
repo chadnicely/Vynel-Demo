@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { nextTick } from "vue";
 import {
   PhArrowUpRight as ArrowUpRight,
   PhMonitor as Monitor,
+  PhPlus as Plus,
   PhStopCircle as StopCircle,
 } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
+import { useCreateTask } from "../../composables/tasks/use-create-task.js";
 import { useTasksInScope } from "../../composables/tasks/use-tasks-in-scope.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
+import TaskViewDialog from "./TaskViewDialog.vue";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
 import { useWorkspacePresence } from "../../composables/workspaces/use-workspace-presence.js";
@@ -149,6 +153,44 @@ function changeStatus(task: TaskResponse, status: TaskStatus) {
   updateTask.mutate({ taskId: task.id, status });
 }
 
+// A row opens the full task view (status, detail, the session's real steps).
+const viewingTaskId = ref<string | null>(null);
+
+// Quick add — the same create the Tasks section does, scoped to this rail.
+const createTask = useCreateTask();
+const isCreateOpen = ref(false);
+const newTaskTitle = ref("");
+const createInput = ref<HTMLInputElement | null>(null);
+
+function openCreate() {
+  listTab.value = "queue";
+  isCreateOpen.value = true;
+  void nextTick(() => createInput.value?.focus());
+}
+
+function cancelCreate(event: KeyboardEvent) {
+  // Esc mid-IME-composition cancels the COMPOSITION, not the draft.
+  if (event.isComposing) return;
+  isCreateOpen.value = false;
+  newTaskTitle.value = "";
+}
+
+function addTask() {
+  const title = newTaskTitle.value.trim();
+  if (title.length === 0 || createTask.isPending.value) return;
+  createTask.mutate(
+    props.scope.kind === "workspace"
+      ? { scope: "workspace", workspaceId: props.scope.workspaceId, title }
+      : { scope: "global", title },
+    {
+      onSuccess: () => {
+        newTaskTitle.value = "";
+        isCreateOpen.value = false;
+      },
+    },
+  );
+}
+
 function completedAtLabel(task: TaskResponse): string {
   if (task.completedAt === null) return "";
   return new Date(task.completedAt).toLocaleDateString(undefined, {
@@ -184,31 +226,61 @@ function completedAtLabel(task: TaskResponse): string {
       </template>
     </div>
 
-    <!-- Queue | Completed — the canvas's pill segment on the scoped query. -->
-    <div class="list-tabs" role="tablist" aria-label="Task lists">
+    <!-- Queue | Completed — the canvas's pill segment on the scoped query.
+         The tablist wraps ONLY the tabs; the add button shares the pill
+         visually but stays outside the tablist semantics (ARIA owned-
+         children rule). -->
+    <div class="list-tabs">
+      <div class="list-tabs-group" role="tablist" aria-label="Task lists">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="listTab === 'queue'"
+          class="list-tab"
+          :class="{ 'is-active': listTab === 'queue' }"
+          @click="listTab = 'queue'"
+        >
+          In the queue <span class="tab-count">{{ queuedTasks.length }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="listTab === 'done'"
+          class="list-tab"
+          :class="{ 'is-active': listTab === 'done' }"
+          @click="listTab = 'done'"
+        >
+          Completed <span class="tab-count">{{ completedTasks.length }}</span>
+        </button>
+      </div>
       <button
         type="button"
-        role="tab"
-        :aria-selected="listTab === 'queue'"
-        class="list-tab"
-        :class="{ 'is-active': listTab === 'queue' }"
-        @click="listTab = 'queue'"
+        aria-label="Add a task"
+        title="Add a task"
+        class="add-task"
+        @click="openCreate"
       >
-        In the queue <span class="tab-count">{{ queuedTasks.length }}</span>
-      </button>
-      <button
-        type="button"
-        role="tab"
-        :aria-selected="listTab === 'done'"
-        class="list-tab"
-        :class="{ 'is-active': listTab === 'done' }"
-        @click="listTab = 'done'"
-      >
-        Completed <span class="tab-count">{{ completedTasks.length }}</span>
+        <Plus :size="12" />
       </button>
     </div>
 
     <div class="task-list">
+      <!-- Form submit, not a keydown handler — implicit submission never
+           fires mid-IME-composition (the TasksSection precedent). -->
+      <form
+        v-if="isCreateOpen"
+        class="create-row"
+        @submit.prevent="addTask"
+      >
+        <input
+          ref="createInput"
+          v-model="newTaskTitle"
+          class="create-input"
+          placeholder="What needs doing?"
+          maxlength="200"
+          @keydown.esc="cancelCreate"
+        />
+      </form>
       <EmptyState
         v-if="shownTasks.length === 0"
         :title="listTab === 'done' ? 'Nothing finished yet' : 'Nothing on the list'"
@@ -230,7 +302,14 @@ function completedAtLabel(task: TaskResponse): string {
           :status="task.status"
           @change="changeStatus(task, $event)"
         />
-        <span class="task-title" :title="task.title">{{ task.title }}</span>
+        <button
+          type="button"
+          class="task-title"
+          :title="task.title"
+          @click="viewingTaskId = task.id"
+        >
+          {{ task.title }}
+        </button>
         <span v-if="task.status === 'done'" class="task-meta">
           {{ completedAtLabel(task) }}
         </span>
@@ -292,6 +371,12 @@ function completedAtLabel(task: TaskResponse): string {
         </div>
       </template>
     </div>
+
+    <TaskViewDialog
+      :open="viewingTaskId !== null"
+      :task-id="viewingTaskId"
+      @close="viewingTaskId = null"
+    />
   </aside>
 </template>
 
@@ -415,11 +500,19 @@ function completedAtLabel(task: TaskResponse): string {
 /* ── The queue/completed pill segment. ── */
 .list-tabs {
   display: flex;
+  align-items: center;
   gap: 3px;
   padding: 3px;
   border-radius: 999px;
   border: 1px solid var(--hair);
   background: var(--bg-inset);
+}
+
+.list-tabs-group {
+  display: flex;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
 }
 
 .list-tab {
@@ -449,6 +542,42 @@ function completedAtLabel(task: TaskResponse): string {
 .tab-count {
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
+}
+
+.add-task {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.add-task:hover {
+  background: var(--row-hover);
+  color: var(--ink-1);
+}
+
+.create-row {
+  padding: 2px 2px 6px;
+}
+
+.create-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  border-radius: var(--radius-s);
+  background: var(--bg-inset);
+  color: var(--ink-1);
+  font: 500 12px/1.5 var(--font-ui);
+}
+
+.create-input:focus-visible {
+  outline: none;
+  border-color: var(--gold);
 }
 
 .list-tab.is-active .tab-count {
@@ -482,6 +611,7 @@ function completedAtLabel(task: TaskResponse): string {
 .task-title {
   min-width: 0;
   flex: 1;
+  text-align: left;
   color: var(--ink-1);
   font: 500 12px/1.5 var(--font-ui);
   white-space: nowrap;
