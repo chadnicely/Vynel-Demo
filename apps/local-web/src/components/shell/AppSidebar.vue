@@ -173,7 +173,7 @@ watch(
         </button>
         <ul
           v-if="block.kind === 'plain' || !collapsedGroupIds.has(block.id)"
-          class="grid gap-px px-2"
+          class="grid list-none gap-px px-2"
         >
           <li v-for="item in block.items" :key="item.id">
             <!-- The canvas's section row: 12.5px, 13px icon, accent-900

@@ -179,7 +179,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 <template>
   <nav class="flex h-full flex-col bg-panel">
     <div class="min-h-0 flex-1 overflow-y-auto py-1.5">
-      <ul class="grid gap-px px-2">
+      <ul class="grid list-none gap-[5px] px-2">
         <!-- The pinned Global scope — the tree's anchor, like the strip's. -->
         <li>
           <div
@@ -225,10 +225,9 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
         </li>
       </ul>
 
-      <div class="flex items-center gap-1 px-4 pb-0.5 pt-3">
-        <p class="min-w-0 flex-1 truncate text-2xs font-semibold uppercase tracking-wider text-ink-3">
-          Workspaces
-        </p>
+      <!-- The canvas's header strip, label-less: just the new-folder /
+           new-workspace affordances riding the right edge. -->
+      <div class="flex items-center justify-end gap-1 px-3 pb-0.5 pt-2.5">
         <button
           type="button"
           aria-label="New folder"
@@ -236,7 +235,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
           class="grid size-5 shrink-0 place-items-center rounded-sm text-ink-3 transition hover:bg-row-hover hover:text-ink-1"
           @click="emit('create-group')"
         >
-          <FolderPlus :size="12" />
+          <FolderPlus :size="13" />
         </button>
         <button
           type="button"
@@ -309,7 +308,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
           </ContextMenu>
           <ul
             v-if="!collapsedFolderIds.has(group.id)"
-            class="grid gap-px pl-3"
+            class="grid list-none gap-1 pl-3"
           >
             <li v-for="workspace in membersByGroupId.get(group.id) ?? []" :key="workspace.id">
               <WorkspaceTreeRow
@@ -328,7 +327,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <!-- The root zone — ungrouped alive rows; a drop here detaches. -->
       <ul
-        class="mx-2 mt-1 grid gap-px rounded-sm border border-dashed p-0.5 transition"
+        class="mx-2 mt-1 grid list-none gap-[5px] rounded-sm border border-dashed p-0.5 transition"
         :class="dropTargetId === 'root' ? 'border-gold bg-gold-soft' : 'border-transparent'"
         @dragover="onRootDragOver"
         @dragleave="dropTargetId = dropTargetId === 'root' ? null : dropTargetId"
@@ -362,7 +361,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
           <span class="flex-1" />
           <span class="text-2xs normal-case tracking-normal">{{ parkedWorkspaces.length }}</span>
         </button>
-        <ul v-if="isParkedOpen" class="grid gap-px px-2">
+        <ul v-if="isParkedOpen" class="grid list-none gap-[5px] px-2">
           <li v-for="workspace in parkedWorkspaces" :key="workspace.id">
             <WorkspaceTreeRow
               :workspace="workspace"

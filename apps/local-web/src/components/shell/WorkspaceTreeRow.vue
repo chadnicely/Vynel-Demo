@@ -4,6 +4,7 @@ import {
   PhCircleNotch as CircleNotch,
   PhCube as Cube,
   PhMoon as Moon,
+  PhPlay as Play,
 } from "@phosphor-icons/vue";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
 
@@ -102,7 +103,7 @@ function progressLabel(): string | null {
       <span class="min-w-0 flex-1 truncate">{{ props.workspace.name }}</span>
       <span
         v-if="progressLabel()"
-        class="shrink-0 text-2xs tabular-nums text-ink-3"
+        class="shrink-0 text-[10.5px] tabular-nums text-[var(--color-neutral-600)]"
       >
         {{ progressLabel() }}
       </span>
@@ -111,6 +112,14 @@ function progressLabel(): string | null {
         :aria-label="`${props.workspace.name} ${MARK_LABELS[markStatus()!]}`"
         class="tree-mark size-2 shrink-0 rounded-full"
         :data-status="markStatus()"
+      />
+      <!-- The canvas's parked-row affordance: pick it up where it left off. -->
+      <Play
+        v-if="status() === 'not_running' && !progressLabel()"
+        :size="11"
+        class="shrink-0 text-[var(--color-neutral-600)]"
+        aria-hidden="true"
+        title="Pick up where it left off"
       />
     </button>
   </div>
