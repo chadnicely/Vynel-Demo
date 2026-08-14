@@ -132,6 +132,10 @@ workspace-redesign.md`. Commits `3f0896b`, `10a37b9`, `c5ce578`.
 Gate: typecheck 104/104 · 1853 tests / 284 files · all five parity guards · code-reviewer gate
 passed after fixes · live-verified dark + light, both nav modes.
 
+**Known bugs + accepted trade-offs now live in `.claude/bugs/`** (one file per issue, status in
+the file; `grep -l 'Status:\*\* open' .claude/bugs/*.md`). Seeded with the two this arc deferred:
+the rules count's full-file reads, and the Sessions library's silent 50-entry truncation.
+
 **STILL OPEN:** author-line timestamp position (canvas puts it inline after the name; ours
 rides the right edge per Chad 2026-08-09 — kept deliberately), the three extra chat-header
 icons, avatars, the account `· Max` plan suffix, and the tree-header folder path (needs an

@@ -266,8 +266,8 @@ was half the WCAG 2.5.8 floor — and growing it evenly would have painted over 
 label button, since a positioned `::after` beats an unpositioned sibling); a pin
 that fails if `ownedByWorkspaceOnly` is dropped; two stale geometry comments.
 
-Left as deferred-improves, knowingly: `listAllRuleFilesForScope` reads every rule
-file's full body to produce an integer (the cost of counting from the same source
-that renders the rows — a `countRuleFilesForScope` would be faster but would start
-counting unreadable files the list silently drops), and `getSessionsOverview`'s
-50-entry cap bounds the sessions count the same way it bounds the library.
+Left as deferred-improves, knowingly, and now TRACKED in `.claude/bugs/`:
+`rules-count-reads-every-file-body.md` (counting from the same source that renders
+the rows costs a full read per file — the cheap counter answers a different
+question) and `sessions-library-truncates-at-50.md` (the library's own 50-entry
+cap, which the count inherits identically — do not give the count its own limit).
