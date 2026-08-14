@@ -945,11 +945,20 @@ watch(
 .turn-card.is-folded {
   gap: 8px;
   padding: 11px 22px 12px;
-  border-color: color-mix(in srgb, var(--hair) 55%, transparent);
+  /* PRE-COMPOSITED, and that is the whole point: the canvas fades the entire
+     card (`cardOpacity: .3`), so its `divider x 55%` edge lands at ~2.6%
+     alpha — all but invisible, which is why settled turns read there as dim
+     floating text. We cannot copy that opacity (it rides the members instead,
+     so a live tracker's gold presence dot survives — see below), so the edge
+     carries the composite itself. Using the canvas's raw 55% here renders a
+     stack of boxes: same declared value, completely different picture. */
+  border-color: color-mix(in srgb, var(--hair) 16.5%, transparent);
 }
 
+/* Waking a card: the canvas lifts it to opacity .75 over a neutral-700 edge —
+   composited the same way. */
 .turn-card.is-folded:hover {
-  border-color: var(--color-neutral-700);
+  border-color: color-mix(in srgb, var(--color-neutral-700) 75%, transparent);
   background: color-mix(in srgb, var(--color-text) 4%, var(--bg-raised));
 }
 
