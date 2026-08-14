@@ -341,6 +341,16 @@ at endpoint creation and cached in `MMDevices` — purge Vynel entries to force 
 access-denied key BEFORE restarting Audiosrv and left the machine mute (delete failures are
 per-key warnings now).
 
+### Runtime round 2 (0.1.0.3): VERIFIED — naming closed
+
+Fresh install on Chad's machine: **"Vynel Call 1 Voice (Vynel Audio)"** +
+**"Vynel Call 1 Microphone (Vynel Audio)"**, both OK — and `smoke-cable.mjs` **PASS** (peak
+0.300 = the generated amplitude), finding both endpoints by contract name, so registry
+auto-discovery claims the voice cable with zero config. Follow-up #1 is done end to end.
+The smoke also live-demoed follow-up #2's gap: the ends opened at 44100 Hz ×2 (render) vs ×1
+(capture) and only passed because a tone is channel-symmetric — in-driver format tolerance is
+the next driver improve.
+
 ## Signing: local now, attestation later (Chad 2026-08-14)
 
 Attestation (Partner Center + EV) is DEFERRED — it's the signature for public/community

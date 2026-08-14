@@ -112,9 +112,10 @@ accepted). Sessions never install/update the driver unattended. See `LOADING.md`
 - [x] **Loopback wiring** — render→capture ring (`Common/LoopbackRing`). **Runtime-PROVEN
   2026-08-14 on real hardware**: a 440 Hz tone into "Vynel Call 1 Voice" came back out the
   capture endpoint at the generated amplitude (peak 0.300, 5 s) — `smoke-cable.mjs`.
-- [x] **Proper endpoint names** — MediaCategories pin-name GUIDs + DeviceDesc "Vynel Audio"
-  (mechanism above). Compile + InfVerif VALID; runtime pass pending (devcon remove + fresh
-  install so Windows rebuilds the endpoints, then eyeball sound settings + re-run the smoke).
+- [x] **Proper endpoint names** — MediaCategories pin-name GUIDs + DeviceDesc "Vynel Audio" +
+  line-connector render category (mechanism + speaker hardcode above). **Runtime-VERIFIED
+  2026-08-14 (0.1.0.3)**: both endpoints show the contract names and the smoke passes through
+  them at the generated amplitude.
 - [ ] **In-driver format tolerance**: v1 assumes both ends share one PCM format; add a format
   check + resample so a mismatch degrades gracefully instead of playing wrong-rate audio.
 - [ ] **N static pairs**: INF-models change (N device nodes, per-model friendly names, same
