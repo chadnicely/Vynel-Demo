@@ -257,6 +257,37 @@ marked) · held-pair identity per END by resolved deviceId (mid-call rename hole
 try-next-free-pair when the first free pair fails direction resolution (faithful pre-existing
 semantics; discovery adds a new trigger surface).
 
+## 2026-08-14 — the driver RAN on real hardware (loopback proven) + registry finds it
+
+Loaded the test-signed driver on Chad's machine (test-signing on, Secure Boot off) via
+`devcon install ... ROOT\VynelCallAudio`. **No BSOD; endpoints live; the loopback SMOKE PASSED** —
+a 440 Hz tone played into the render endpoint came back out the capture endpoint at peak 0.300
+(exactly the generated amplitude) sustained over 5 s. The `LoopbackRing` kernel code carries
+audio end-to-end on real hardware. `smoke-cable.mjs` is the one-command proof (though it keys on
+the pretty names — see below).
+
+**Endpoint naming — the one rough edge.** Windows enumerates the endpoints as
+`Speakers (VynelCallAudio Device)` / `Microphone (VynelCallAudio Device)`, NOT the contract
+`Vynel Call 1 Voice/Microphone`. Windows composes an audio endpoint name as `<role> (<device>)`;
+neither the INF `HKR,,FriendlyName` nor the ACX `EvtAcxPinRetrieveName` callback (both now set to
+the contract names — they name the KS pin, kept as the right intent) overrides the `<role>` half.
+Root-caused, not yet fixed — the proper mechanism (what VB-Cable uses for `CABLE Output`) is a
+focused follow-up.
+
+**So the registry recognizes the driver WITHOUT the pretty name** (`call-registry.ts`
+`#discoverDriverLoopbackPairs`): a device carrying the brand marker `vynelcallaudio`
+(whitespace-insensitive) whose render direction is confirmed by an output-config probe becomes a
+loopback voice pair (ears = process-loopback). Locale-proof (probe, not the word "Speakers");
+the app-facing capture endpoint shares the marker but fails the render probe, so it's never
+claimed. Verified live: the probe cleanly split the two endpoints (render out=YES, capture
+in=YES). 3 tests; 173 daemon tests green.
+
+**Follow-ups:** (1) proper endpoint friendly name so it shows "Vynel Call 1 Voice/Microphone" in
+Windows sound settings (UX for non-technical users; the marker+probe works regardless) ·
+(2) prettier DeviceDesc ("Vynel Call Audio" not "VynelCallAudio Device") · (3) in-driver format
+tolerance (the smoke passed only because a tone is channel-symmetric; real stereo→mono needs
+handling).
+
 ## Signing: local now, attestation later (Chad 2026-08-14)
 
 Attestation (Partner Center + EV) is DEFERRED — it's the signature for public/community

@@ -343,6 +343,29 @@ Render_AllocateSupportedFormats(
 
 PAGED_CODE_SEG
 NTSTATUS
+CodecR_EvtAcxPinRetrieveName(
+    _In_    ACXPIN              Pin,
+    _Out_   PUNICODE_STRING     Name
+)
+/*++
+
+Routine Description:
+
+    Names the render endpoint — what Vynel's daemon plays its voice INTO, and
+    the name the registry's auto-discovery keys on
+    (docs/module-notes/virtual-audio-driver.md).
+
+--*/
+{
+    UNREFERENCED_PARAMETER(Pin);
+
+    PAGED_CODE();
+
+    return RtlUnicodeStringPrintf(Name, L"Vynel Call 1 Voice");
+}
+
+PAGED_CODE_SEG
+NTSTATUS
 CodecR_CreateRenderCircuit(
     _In_     WDFDEVICE              Device,
     _In_     const GUID *           ComponentGuid,
@@ -559,10 +582,14 @@ Return Value:
         // Create Device Bridge Pin.
         //
 
+        ACX_PIN_CALLBACKS_INIT(&pinCallbacks);
+        pinCallbacks.EvtAcxPinRetrieveName = CodecR_EvtAcxPinRetrieveName;
+
         ACX_PIN_CONFIG_INIT(&pinCfg);
         pinCfg.Type = AcxPinTypeSource;
         pinCfg.Communication = AcxPinCommunicationNone;
         pinCfg.Category = &KSNODETYPE_SPEAKER;
+        pinCfg.PinCallbacks = &pinCallbacks;
 
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, CODEC_PIN_CONTEXT);
         attributes.EvtCleanupCallback = CodecR_EvtPinContextCleanup;

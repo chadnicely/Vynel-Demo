@@ -88,6 +88,17 @@ function cablePairKey(pair: CallCablePair): string {
   return `${ears}::${normalizeDeviceName(pair.outputName)}`
 }
 
+// Vynel's own virtual-audio driver names its device with this brand marker
+// (whitespace-insensitive). Windows composes an audio endpoint's name as
+// "<role> (<device>)" and won't let us cleanly rename the "<role>" half, so we
+// recognize the driver by the device marker + a render-direction probe rather
+// than by a pretty "Vynel Call 1 Voice" endpoint name (a driver-naming polish
+// tracked in docs/module-notes/virtual-audio-driver.md).
+const VYNEL_DRIVER_MARKER = 'vynelcallaudio'
+function isVynelDriverDevice(name: string): boolean {
+  return name.toLowerCase().replace(/\s+/g, '').includes(VYNEL_DRIVER_MARKER)
+}
+
 /** The seams the call loop claims — lifecycle + both directions of a live
  *  call's audio. Until bound, call audio is discarded and events go nowhere. */
 export interface CallLoopHooks {
@@ -247,10 +258,11 @@ export class CallRegistry {
         'vynel call devices missing their partner end — not claimable as pairs',
       )
     }
+    const driverPairs = this.#discoverDriverLoopbackPairs(devices)
     const inventory: CallCablePair[] = []
     const seenPairKeys = new Set<string>()
     const seenEndNames = new Set<string>()
-    for (const pair of [...discovered.pairs, ...this.#envPairs]) {
+    for (const pair of [...driverPairs, ...discovered.pairs, ...this.#envPairs]) {
       if (seenPairKeys.has(cablePairKey(pair))) continue // env naming a discovered pair — expected, silent
       // A physical device end carries ONE call — a pair reusing an earlier
       // pair's end would cross-bleed audio. Loopback ears has no capture
@@ -270,6 +282,25 @@ export class CallRegistry {
       inventory.push(pair)
     }
     return inventory
+  }
+
+  // The installed Vynel driver's RENDER endpoint is a voice cable (ears is
+  // process-loopback). Its device carries the brand marker; the render endpoint
+  // passes an output-config probe while the app-facing capture endpoint (same
+  // marker) fails it — so the probe classifies direction locale-proof, with no
+  // dependence on the composed "Speakers"/"Microphone" role word.
+  #discoverDriverLoopbackPairs(devices: ReturnType<typeof cpal.getDevices>): CallCablePair[] {
+    const pairs: CallCablePair[] = []
+    for (const device of devices) {
+      if (!isVynelDriverDevice(device.name)) continue
+      try {
+        cpal.getDefaultOutputConfig(device.deviceId)
+      } catch {
+        continue // the capture (mic) endpoint — app-facing, not the voice cable
+      }
+      pairs.push({ outputName: device.name })
+    }
+    return pairs
   }
 
   // Strict: a call NEVER falls back to a default device (that would be the

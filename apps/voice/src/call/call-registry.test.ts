@@ -531,4 +531,69 @@ describe('CallRegistry', () => {
       )
     })
   })
+
+  describe('installed Vynel driver recognition', () => {
+    // The driver publishes one device whose endpoints Windows names
+    // "Speakers/Microphone (VynelCallAudio Device)" — the pretty
+    // "Vynel Call N Voice" name doesn't apply, so the registry recognizes the
+    // brand marker and classifies direction by an output-config probe.
+    const driverRender = {
+      name: 'Speakers (VynelCallAudio Device)',
+      deviceId: 'id:drv-render',
+      hostId: 'WASAPI',
+      isDefaultInput: false,
+      isDefaultOutput: false,
+    }
+    const driverCapture = {
+      name: 'Microphone (VynelCallAudio Device)',
+      deviceId: 'id:drv-capture',
+      hostId: 'WASAPI',
+      isDefaultInput: false,
+      isDefaultOutput: false,
+    }
+
+    it('claims the driver render endpoint as a loopback voice pair (ears = exclude-self)', () => {
+      getDevices.mockReturnValue([driverRender, driverCapture])
+      // Only the render endpoint passes the output-config probe.
+      getDefaultOutputConfig.mockImplementation((id: string) => {
+        if (id === 'id:drv-render') return { sampleRate: 48_000, channels: 2 }
+        throw new Error('not a render device')
+      })
+      const registry = registryWith([])
+
+      const descriptor = registry.startCall({ label: 'zoom', mode: 'participant' })
+
+      expect(getDefaultOutputConfig).toHaveBeenCalledWith('id:drv-render')
+      expect(openCapture).not.toHaveBeenCalled()
+      expect(openLoopbackCapture).toHaveBeenCalledWith(
+        expect.anything(),
+        `call:${descriptor.callId}`,
+        { processId: process.pid, includeProcessTree: false },
+        expect.any(Function),
+      )
+    })
+
+    it('matches the brand marker whitespace-insensitively (e.g. "Vynel Call Audio")', () => {
+      getDevices.mockReturnValue([{ ...driverRender, name: 'Speakers (Vynel Call Audio)' }])
+      getDefaultOutputConfig.mockReturnValue({ sampleRate: 48_000, channels: 2 })
+      const registry = registryWith([])
+      const descriptor = registry.startCall({ label: 'zoom', mode: 'participant' })
+      expect(descriptor.label).toBe('zoom')
+      expect(openLoopbackCapture).toHaveBeenCalled()
+    })
+
+    it('never claims the app-facing capture endpoint as a pair', () => {
+      // Only the capture endpoint is present (render missing) — nothing to speak
+      // into, so the marker device is NOT an inventory entry.
+      getDevices.mockReturnValue([driverCapture])
+      getDefaultOutputConfig.mockImplementation(() => {
+        throw new Error('not a render device')
+      })
+      expectRegistryError(
+        () => registryWith([]).startCall({ label: 'zoom', mode: 'participant' }),
+        'not-configured',
+        'VYNEL_CALL_INPUT_DEVICE',
+      )
+    })
+  })
 })

@@ -37,10 +37,6 @@ Environment:
 #endif
 
 //
-// Controls how the custom name of the bridge pin is read.
-//
-BOOL g_UseCustomInfName = TRUE;
-
 PAGED_CODE_SEG
 NTSTATUS
 CodecC_EvtAcxPinSetDataFormat(
@@ -211,7 +207,9 @@ Return Value:
 
     PAGED_CODE();
 
-    return RtlUnicodeStringPrintf(Name, L"CustomName2");
+    // The endpoint name the app selects as its microphone, and the name the
+    // registry's auto-discovery keys on (docs/module-notes/virtual-audio-driver.md).
+    return RtlUnicodeStringPrintf(Name, L"Vynel Call 1 Microphone");
 }
 
 VOID
@@ -550,16 +548,11 @@ Return Value:
         pinCfg.Category = &KSNODETYPE_MICROPHONE;
         pinCfg.PinCallbacks = &pinCallbacks;
 
-        // Specify how to read the custom name.
-        if (g_UseCustomInfName)
-        {
-            pinCfg.Name = MicCustomName;
-        }
-        else
-        {
-            pinCallbacks.EvtAcxPinRetrieveName = CodecC_EvtAcxPinRetrieveName;
-        }
-        g_UseCustomInfName = !g_UseCustomInfName;
+        // Name the microphone endpoint via the pin-name callback — a literal
+        // string, no GUID→name registry lookup (which the sample's MicCustomName
+        // path relied on and which left the endpoint at its default "Microphone").
+        UNREFERENCED_PARAMETER(MicCustomName);
+        pinCallbacks.EvtAcxPinRetrieveName = CodecC_EvtAcxPinRetrieveName;
 
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
         attributes.ParentObject = circuit;
