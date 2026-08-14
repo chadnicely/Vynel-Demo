@@ -706,59 +706,86 @@ describe("MessageRow turn folding (collapsible header)", () => {
 describe("MessageRow reply fold", () => {
   const LONG_DETAIL = `Second paragraph that is comfortably past the fold floor so the caret is worth drawing at all. ${"more detail ".repeat(6)}`;
 
-  it("leads with the first paragraph and holds the rest behind the caret", async () => {
+  // test: correct expectation (2026-08-15) — the fold moved to the HOST: a
+  // turn folds as one, and a member cannot hide its siblings. This row now
+  // renders what it is told and reports the click.
+  it("collapsed: the summary paragraph only", () => {
     const wrapper = mount(MessageRow, {
-      props: { message: makeMessage({ body: `The verdict line.\n\n${LONG_DETAIL}` }) },
+      props: {
+        message: makeMessage({ body: `The verdict line.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: true,
+      },
     });
 
     expect(wrapper.get(".reply-lead").text()).toContain("The verdict line.");
     expect(wrapper.find(".reply-detail").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("Second paragraph");
+  });
 
-    await wrapper.get(".reply-caret").trigger("click");
+  it("open: the whole answer, summary first then the rest", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `The verdict line.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: false,
+      },
+    });
+
+    expect(wrapper.get(".reply-lead").text()).toContain("The verdict line.");
     expect(wrapper.get(".reply-detail").text()).toContain("Second paragraph");
   });
 
-  it("the lead line itself opens the fold — the whole line is the control", async () => {
-    const wrapper = mount(MessageRow, {
-      props: { message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }) },
+  it("the caret renders only when the host says something is behind it", () => {
+    const bare = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Done." }), replyCollapsed: true },
     });
+    expect(bare.find(".reply-caret").exists()).toBe(false);
 
-    await wrapper.get(".reply-lead").trigger("click");
-    expect(wrapper.find(".reply-detail").exists()).toBe(true);
-  });
-
-  it("a one-paragraph answer renders whole — no caret, nothing hidden", () => {
-    const wrapper = mount(MessageRow, {
-      props: { message: makeMessage({ body: "Short and done." }) },
-    });
-
-    expect(wrapper.text()).toContain("Short and done.");
-    expect(wrapper.find(".reply-caret").exists()).toBe(false);
-  });
-
-  it("a trivial remainder stays put — a two-line answer grows no caret", () => {
-    const wrapper = mount(MessageRow, {
-      props: { message: makeMessage({ body: "Done.\n\nNothing else." }) },
-    });
-
-    expect(wrapper.text()).toContain("Nothing else.");
-    expect(wrapper.find(".reply-caret").exists()).toBe(false);
-  });
-
-  it("a grouped continuation carries its caret inline — a fold is never invisible", () => {
-    const headed = mount(MessageRow, {
-      props: { message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }) },
-    });
-    expect(headed.find(".reply-caret.is-inline").exists()).toBe(false);
-
-    const continuation = mount(MessageRow, {
+    const foldable = mount(MessageRow, {
       props: {
-        message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }),
-        showHeader: false,
+        message: makeMessage({ body: "Done." }),
+        replyCollapsed: true,
+        replyFoldable: true,
       },
     });
-    expect(continuation.find(".reply-caret.is-inline").exists()).toBe(true);
+    expect(foldable.find(".reply-caret").exists()).toBe(true);
+  });
+
+  it("the caret and the lead line both report the toggle", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: true,
+        replyFoldable: true,
+      },
+    });
+
+    await wrapper.get(".reply-caret").trigger("click");
+    await wrapper.get(".reply-lead").trigger("click");
+    expect(wrapper.emitted("toggleReply")).toHaveLength(2);
+  });
+
+  it("no length floor — any second paragraph is detail", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Done.\n\nNothing else." }),
+        replyCollapsed: true,
+      },
+    });
+
+    expect(wrapper.text()).toContain("Done.");
+    expect(wrapper.text()).not.toContain("Nothing else.");
+  });
+
+  it("a one-paragraph answer renders whole even collapsed — nothing to hide", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Short and done." }),
+        replyCollapsed: true,
+      },
+    });
+
+    expect(wrapper.get(".reply-lead").text()).toContain("Short and done.");
+    expect(wrapper.find(".reply-detail").exists()).toBe(false);
   });
 
   it("the run-stats door moves to the lead glyph, and stays one door", () => {

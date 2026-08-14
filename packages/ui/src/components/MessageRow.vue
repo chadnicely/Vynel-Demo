@@ -78,6 +78,14 @@ const props = withDefaults(
     /** This turn is MARKED as the next message's reference (the header's chat
      *  icon) — the icon lights up so the mark is visible from the thread. */
     referenced?: boolean;
+    /** The reply shows its SUMMARY only — the first paragraph, no detail. The
+     *  host owns the fold (a turn folds as one, and one member cannot hide its
+     *  siblings), so this row only renders what it is told. */
+    replyCollapsed?: boolean;
+    /** There is something behind the fold — more text, another message, or a
+     *  tool call. Only then does the caret render; a control that opens
+     *  nothing is worse than no control. The host sees the whole turn. */
+    replyFoldable?: boolean;
   }>(),
   {
     assistantName: "Assistant",
@@ -90,6 +98,8 @@ const props = withDefaults(
     collapsed: false,
     previewFallback: null,
     referenced: false,
+    replyCollapsed: false,
+    replyFoldable: false,
   },
 );
 
@@ -100,6 +110,9 @@ const emit = defineEmits<{
   /** The chat icon: mark (or unmark) this turn as what the next message
    *  refers to. The host owns the mark; this row only reports the click. */
   toggleReference: [];
+  /** The reply caret: show the turn as it really ran, or fold it back to its
+   *  summary. The host owns the state — a turn folds as one. */
+  toggleReply: [];
 }>();
 
 // An inbound REPORT — a workspace's or agent's finished result arriving as
@@ -320,24 +333,18 @@ const isExpanded = ref(false);
 // serves both.
 const runStats = computed(() => props.message.runStats ?? props.runStats);
 
-// THE REPLY FOLD (canvas `Vynel Workspace.dc.html`, the `convos` card): the
-// assistant speaks ONE lead line and its detail waits behind a caret. The
-// canvas authors lead and detail as separate fields; a real message is a
-// single markdown body, so the lead is its FIRST PARAGRAPH — the same split
-// the delivered-message card already makes, sharing its floor so a two-line
-// answer never grows a pointless caret.
+// THE REPLY (Kafi, 2026-08-15 — ONE rule for every chat, the one the
+// delivered-report card already follows): the first paragraph is the summary,
+// everything else is detail. No length floor here — the host folds the whole
+// TURN, so tool calls and later messages sit behind the caret too and there
+// is essentially always something to open.
 const assistantLeadParts = computed(() => {
   if (!isAssistant.value || displayBody.value.trim() === "") return null;
   const body = displayBody.value;
   const splitAt = body.indexOf("\n\n");
   if (splitAt === -1) return { lead: body, detail: null };
-  const detail = body.slice(splitAt + 2);
-  if (detail.trim().length < FOLD_REMAINDER_MIN)
-    return { lead: body, detail: null };
-  return { lead: body.slice(0, splitAt), detail };
+  return { lead: body.slice(0, splitAt), detail: body.slice(splitAt + 2) };
 });
-
-const isReplyOpen = ref(false);
 
 // The ask wears its time INLINE beside the name (the canvas's card header);
 // every other row keeps it on the right, where the reply's caret joins it.
@@ -571,16 +578,16 @@ const collapsedPreview = computed(() => {
           timeLabel
         }}</span>
         <button
-          v-if="assistantLeadParts?.detail"
+          v-if="props.replyFoldable"
           type="button"
           class="reply-caret"
-          :aria-expanded="isReplyOpen"
-          aria-label="show or hide the rest of this reply"
-          @click.stop="isReplyOpen = !isReplyOpen"
+          :aria-expanded="!props.replyCollapsed"
+          aria-label="show or hide this turn as it ran"
+          @click.stop="emit('toggleReply')"
         >
           <svg
             class="collapse-chevron"
-            :class="{ 'is-open': isReplyOpen }"
+            :class="{ 'is-open': !props.replyCollapsed }"
             width="10"
             height="10"
             viewBox="0 0 16 16"
@@ -696,12 +703,8 @@ const collapsedPreview = computed(() => {
       <template v-if="assistantLeadParts">
         <div
           class="reply-lead"
-          :class="{ 'is-foldable': assistantLeadParts.detail !== null }"
-          @click="
-            assistantLeadParts.detail !== null
-              ? (isReplyOpen = !isReplyOpen)
-              : undefined
-          "
+          :class="{ 'is-foldable': props.replyFoldable }"
+          @click="props.replyFoldable ? emit('toggleReply') : undefined"
         >
           <!-- The glyph sits on the lead's first line; a flex baseline would
                sink an SVG to its box bottom, so the slot nudges it optically. -->
@@ -712,38 +715,9 @@ const collapsedPreview = computed(() => {
             />
           </span>
           <MarkdownText class="reply-lead-text" :source="assistantLeadParts.lead" />
-          <!-- A continuation row has no header to hold the caret (the host
-               groups a turn's replies under ONE author line), so its control
-               rides the end of the lead — a fold must never be invisible. -->
-          <button
-            v-if="assistantLeadParts.detail && !props.showHeader"
-            type="button"
-            class="reply-caret is-inline"
-            :aria-expanded="isReplyOpen"
-            aria-label="show or hide the rest of this reply"
-            @click.stop="isReplyOpen = !isReplyOpen"
-          >
-            <svg
-              class="collapse-chevron"
-              :class="{ 'is-open': isReplyOpen }"
-              width="10"
-              height="10"
-              viewBox="0 0 16 16"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M4 6l4 4 4-4"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
         </div>
         <MarkdownText
-          v-if="isReplyOpen && assistantLeadParts.detail"
+          v-if="!props.replyCollapsed && assistantLeadParts.detail"
           class="reply-detail"
           :source="assistantLeadParts.detail"
         />
@@ -1062,10 +1036,6 @@ const collapsedPreview = computed(() => {
   display: inline-flex;
   flex: none;
   margin-top: 3px;
-}
-
-.reply-caret.is-inline {
-  margin-top: 2px;
 }
 
 .reply-lead .reply-lead-text {

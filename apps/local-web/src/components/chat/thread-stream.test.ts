@@ -395,13 +395,19 @@ describe("ThreadStream", () => {
       global: { plugins: [createPinia()] },
     });
 
-    // test: correct expectation (Arc 5b cards) — the first exchange folds to
-    // ONE strip; opening it reveals the reply run under one author line.
+    // test: correct expectation (reply fold, 2026-08-15) — opening the CARD
+    // now shows the ask plus the reply's SUMMARY row; the continuation run is
+    // part of the real view and waits behind the reply caret. Was: one click
+    // revealed all six rows.
     const folded = wrapper.findAll(".message-row");
     expect(folded.map((row) => row.findAll(".row-header").length)).toEqual([
       1, 1, 1,
     ]);
     await folded[0]!.find(".collapse-toggle").trigger("click");
+
+    const summarised = wrapper.findAll(".message-row");
+    expect(summarised).toHaveLength(4);
+    await summarised[1]!.find(".reply-caret").trigger("click");
 
     const rows = wrapper.findAll(".message-row");
     const headerCounts = rows.map((row) => row.findAll(".row-header").length);
@@ -409,6 +415,85 @@ describe("ThreadStream", () => {
     expect(headerCounts).toEqual([1, 1, 0, 0, 1, 1]);
     expect(rows[2]!.classes()).toContain("is-continuation");
     // The reply's first row wears the canvas's divider inside the card.
+    expect(rows[1]!.classes()).toContain("is-reply-start");
+  });
+
+  // THE REPLY FOLD (Kafi, 2026-08-15): one rule for every chat — a settled
+  // turn shows its summary line; opening it shows the turn AS IT RAN.
+  function makeToolCall(parentMessageId: string): ChatToolCallResponse {
+    return {
+      id: `tc-${parentMessageId}`,
+      parentMessageId,
+      toolUseId: `tu-${parentMessageId}`,
+      toolName: "Read",
+      toolInput: { path: "CLAUDE.md" },
+      toolOutput: "ok",
+      status: "completed",
+      approvalStatus: null,
+      isErrorResult: false,
+      delegation: null,
+      startedAt: "2026-07-05T10:00:00.000Z",
+      completedAt: "2026-07-05T10:00:01.000Z",
+    };
+  }
+
+  it("a folded reply hides the tool calls AND the later rows; opening shows the turn as it ran", async () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      {
+        ...makeMessage(1),
+        id: "a1",
+        role: "assistant",
+        body: "Summary line.\n\nDetail paragraph.",
+      },
+      { ...makeMessage(2), id: "a2", role: "assistant", body: "Later message." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: { a1: [makeToolCall("a1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    // Folded: the ask and ONE summary row. Nothing else — the tool card is
+    // part of the real view, and gating the row alone would leave it on show.
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
+    expect(wrapper.find(".tool-list").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Summary line.");
+    expect(wrapper.text()).not.toContain("Detail paragraph.");
+    expect(wrapper.text()).not.toContain("Later message.");
+
+    await wrapper.get(".reply-caret").trigger("click");
+
+    expect(wrapper.findAll(".message-row")).toHaveLength(3);
+    expect(wrapper.find(".tool-list").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Detail paragraph.");
+    expect(wrapper.text()).toContain("Later message.");
+  });
+
+  it("the summary comes from the first row that SPEAKS — a tool-only opening row is skipped", () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "" },
+      { ...makeMessage(2), id: "a2", role: "assistant", body: "The real answer." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: { a1: [makeToolCall("a1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const rows = wrapper.findAll(".message-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[1]!.text()).toContain("The real answer.");
+    // Promoted to the reply's start, so it wears the author line and the
+    // hairline even though it is not the turn's first assistant row.
+    expect(rows[1]!.findAll(".row-header")).toHaveLength(1);
     expect(rows[1]!.classes()).toContain("is-reply-start");
   });
 

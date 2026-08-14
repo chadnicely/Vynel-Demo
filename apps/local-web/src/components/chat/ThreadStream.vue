@@ -479,16 +479,92 @@ function memberStartsReply(
 
 // The run-stats door sits on the REPLY's author line (the canvas's info
 // icon beside VYNEL), never on the ask.
-// The stats door rides the row that DRAWS the reply's lead glyph — the canvas
-// marks a card exactly once, at the head of the answer. A turn that opens with
-// tool calls has an empty first assistant row, so anchoring on that one leaves
-// the door in the header while a later row draws a second glyph beside it.
-function statsMemberIndexOf(group: { messages: ChatMessageResponse[] }): number {
-  const leadIndex = group.messages.findIndex(
+// The turn's SPEAKING row — the first assistant message that actually says
+// something. A turn can open with a tool-only row (empty body, tool calls
+// attached), and neither the summary line nor the stats door belongs there:
+// the canvas marks a card once, at the head of the answer.
+function speakingMemberIndexOf(group: {
+  messages: ChatMessageResponse[];
+}): number {
+  const speaking = group.messages.findIndex(
     (message) => message.role === "assistant" && message.body.trim() !== "",
   );
-  if (leadIndex !== -1) return leadIndex;
+  if (speaking !== -1) return speaking;
   return group.messages.findIndex((message) => message.role === "assistant");
+}
+
+// THE REPLY FOLD (Kafi, 2026-08-15): ONE rule for every chat, the one the
+// delivered-report card already follows — a settled turn shows its summary
+// line and nothing else; opening it reveals the turn AS IT RAN: every
+// message and every tool call, in order. The state is per TURN, not per
+// message — a member cannot hide its siblings.
+const replyOverrides = ref(new Map<string, boolean>());
+
+function isReplyOpen(cardKey: string): boolean {
+  return replyOverrides.value.get(cardKey) ?? false;
+}
+
+function toggleReply(cardKey: string) {
+  const next = new Map(replyOverrides.value);
+  next.set(cardKey, !isReplyOpen(cardKey));
+  replyOverrides.value = next;
+}
+
+// A folded reply is exactly two rows: the ask, then the speaking row wearing
+// the summary. Tool-only rows and later messages ARE the real view — they
+// wait behind the caret.
+function showsMember(
+  group: { key: string; messages: ChatMessageResponse[] },
+  memberIndex: number,
+): boolean {
+  if (!isCardExpanded(group.key)) return memberIndex === 0;
+  if (isReplyOpen(group.key)) return true;
+  return memberIndex === 0 || memberIndex === speakingMemberIndexOf(group);
+}
+
+// Draw the caret only when it opens something: another message, any tool
+// call, or more of the speaking row's own text than its summary paragraph.
+function isReplyFoldable(group: {
+  messages: ChatMessageResponse[];
+}): boolean {
+  const speakingIndex = speakingMemberIndexOf(group);
+  if (speakingIndex === -1) return false;
+  const hasOtherRows = group.messages.some(
+    (_, index) => index !== 0 && index !== speakingIndex,
+  );
+  if (hasOtherRows) return true;
+  const hasToolCalls = group.messages.some(
+    (message) => (props.toolCallsByMessageId[message.id]?.length ?? 0) > 0,
+  );
+  if (hasToolCalls) return true;
+  return group.messages[speakingIndex]!.body.includes("\n\n");
+}
+
+// A folded reply promotes its speaking row to the reply's start: it wears the
+// author line and the hairline above it, whatever its position in the turn.
+function memberShowsHeaderFor(
+  group: { key: string; messages: ChatMessageResponse[] },
+  memberIndex: number,
+): boolean {
+  if (isFoldedSpeakingMember(group, memberIndex)) return true;
+  return memberShowsHeader(group, memberIndex);
+}
+
+function memberStartsReplyFor(
+  group: { key: string; messages: ChatMessageResponse[] },
+  memberIndex: number,
+): boolean {
+  if (isFoldedSpeakingMember(group, memberIndex)) return memberIndex > 0;
+  return memberStartsReply(group, memberIndex);
+}
+
+function isFoldedSpeakingMember(
+  group: { key: string; messages: ChatMessageResponse[] },
+  memberIndex: number,
+): boolean {
+  return (
+    !isReplyOpen(group.key) && memberIndex === speakingMemberIndexOf(group)
+  );
 }
 
 // The live card's top-right working pill — the canvas's "working · 8m 15s"
@@ -776,25 +852,30 @@ watch(
             :key="message.id"
           >
             <MessageRow
-              v-if="memberIndex === 0 || isCardExpanded(group.key)"
+              v-if="showsMember(group, memberIndex)"
               :message="message"
               :data-trace-id="message.partialSessionId ?? undefined"
               :class="{
                 'is-continuation':
-                  memberIndex > 0 && !memberShowsHeader(group, memberIndex),
-                'is-reply-start': memberStartsReply(group, memberIndex),
+                  memberIndex > 0 && !memberShowsHeaderFor(group, memberIndex),
+                'is-reply-start': memberStartsReplyFor(group, memberIndex),
               }"
               :assistant-name="props.assistantName"
               :assistant-icon-url="props.assistantIconUrl"
               :author-persona="authorPersonaFor(message)"
               :workspace-badge="workspaceBadgeFor(message)"
-              :show-header="memberShowsHeader(group, memberIndex)"
+              :show-header="memberShowsHeaderFor(group, memberIndex)"
               :collapsible="memberIndex === 0"
               :collapsed="!isCardExpanded(group.key)"
               :preview-fallback="cardPreviewFallbackFor(group.key)"
               :referenced="markedMessageId === message.id"
+              :reply-collapsed="!isReplyOpen(group.key)"
+              :reply-foldable="
+                memberIndex === speakingMemberIndexOf(group) &&
+                isReplyFoldable(group)
+              "
               :run-stats="
-                memberIndex === statsMemberIndexOf(group)
+                memberIndex === speakingMemberIndexOf(group)
                   ? turnRunStatsFor(group.key)
                   : null
               "
@@ -802,9 +883,15 @@ watch(
               @toggle-reference="
                 markTurnReference(message, referenceAuthorFor(message))
               "
+              @toggle-reply="toggleReply(group.key)"
             >
+              <!-- Tool calls are part of the REAL VIEW — they wait behind the
+                   caret with everything else the turn did. -->
               <template
-                v-if="props.toolCallsByMessageId[message.id]?.length"
+                v-if="
+                  isReplyOpen(group.key) &&
+                  props.toolCallsByMessageId[message.id]?.length
+                "
                 #tool-calls
               >
                 <ToolCallList
