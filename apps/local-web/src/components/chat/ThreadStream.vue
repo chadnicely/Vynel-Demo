@@ -960,9 +960,13 @@ watch(
   min-width: 0;
 }
 
+/* An open card is the canvas's EXPANDED DONE card: no ground of its own, just
+   a hairline at `divider x 55%`. It reads as open because its members sit at
+   full opacity and the whole exchange is there — the raised panel was ours,
+   never the canvas's. Only the LIVE card earns a ground (its accent tint). */
 .turn-card.is-open {
-  border-color: var(--hair);
-  background: var(--bg-raised);
+  border-color: color-mix(in srgb, var(--hair) 55%, transparent);
+  background: transparent;
 }
 
 .turn-card.is-folded {
