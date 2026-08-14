@@ -1529,6 +1529,22 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  sectionCounts: {
+  getGlobal: async () => {
+    const { data, error, response } = await client["GET"]("/section-counts")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
+  sectionCountsWorkspace: {
+  get: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/section-counts"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/section-counts", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   serverInstall: {
   get: async (installId: NonNullable<paths["/server-install/{installId}"]["get"]['parameters']>['path']["installId"]) => {
     const { data, error, response } = await client["GET"]("/server-install/{installId}", {

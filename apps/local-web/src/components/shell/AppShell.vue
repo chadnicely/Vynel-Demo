@@ -69,6 +69,7 @@ import {
   useWorkspaceGroupMutations,
 } from "../../composables/workspaces/use-workspace-groups.js";
 import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
+import { useSectionCounts } from "../../composables/workspaces/use-section-counts.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
@@ -248,12 +249,21 @@ const GLOBAL_MENU_ITEMS: SidebarItem[] = [
   ...GLOBAL_SYSTEM_ITEMS,
   CUSTOMIZE_ITEM,
 ];
-const sectionItems = computed(() => {
+// The menu's right-hand numbers (the canvas's per-row counts) — one request
+// per scope, stamped onto whichever rows the engine can answer for.
+const { countBySectionId } = useSectionCounts(
+  computed(() => ui.activeTab.workspaceId),
+);
+const sectionItems = computed<SidebarItem[]>(() => {
   const workspaceId = ui.activeTab.workspaceId;
+  const counts = countBySectionId.value;
   return [
     ...SURFACE_ITEMS,
     ...customizedMenuItems(workspaceId ?? GLOBAL_SCOPE_KEY),
-  ];
+  ].map((item) => {
+    const count = counts[item.id];
+    return count === undefined ? item : { ...item, count };
+  });
 });
 
 // Live per-scope status (one status one colour, Arc 5b) — the strip's

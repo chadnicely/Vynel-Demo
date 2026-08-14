@@ -67,6 +67,23 @@ describe("AppSidebar", () => {
     expect(wrapper.emitted("select-section")).toEqual([["home"], ["channels"]]);
   });
 
+  it("shows a section's count when one is given, and NOTHING when it is absent", () => {
+    // The canvas's right-hand numbers. An absent count must not render a bare
+    // 0 — "no honest count" and "empty" are different facts.
+    const wrapper = mountSidebar({
+      sectionItems: [
+        { id: "sessions", label: "Sessions", count: 13 },
+        { id: "agents", label: "Agents", count: 0 },
+        { id: "memory", label: "Memory" },
+      ],
+    });
+    expect(menuButtons(wrapper).map((b) => b.text())).toEqual([
+      "Sessions13",
+      "Agents0",
+      "Memory",
+    ]);
+  });
+
   it("emits open-account from the account row", async () => {
     const wrapper = mountSidebar();
     const account = wrapper

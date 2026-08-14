@@ -18,6 +18,10 @@ const props = defineProps<{
   workspace: { id: string; name: string };
   isActive: boolean;
   statusView: WorkspaceStatusView | null;
+  /** A folder member — the canvas indents the CONTENT (pad-left 24px) and
+   *  keeps the row box full-width, so the active ground still spans the
+   *  folder. Root rows sit at 10px. */
+  indented?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -55,13 +59,17 @@ function progressLabel(): string | null {
 </script>
 
 <template>
+  <!-- Canvas geometry: pad `6px 11.2px 6px 10px`, a 12px caret column, a 16px
+       chip, then name + the meta cluster — so the name lands at x=64 from the
+       row's left edge, exactly as the canvas measures. -->
   <div
-    class="group flex items-center rounded-sm transition"
-    :class="
+    class="group flex items-center rounded-sm pr-[11.2px] transition"
+    :class="[
+      props.indented ? 'pl-[24px]' : 'pl-[10px]',
       props.isActive
         ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
-        : 'text-ink-2 hover:bg-row-hover hover:text-ink-1'
-    "
+        : 'text-ink-2 hover:bg-row-hover hover:text-ink-1',
+    ]"
     draggable="true"
     @dragstart="emit('drag-start')"
     @dragend="emit('drag-end')"
@@ -69,15 +77,18 @@ function progressLabel(): string | null {
     <button
       type="button"
       :aria-label="`Open the ${props.workspace.name} menu`"
-      class="grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 transition hover:text-ink-1"
+      class="grid w-3 shrink-0 self-stretch place-items-center rounded-sm text-[var(--color-neutral-600)] transition hover:text-ink-1"
       @click="emit('drill')"
     >
-      <CaretRight :size="11" />
+      <CaretRight :size="10" />
     </button>
     <button
       type="button"
-      class="flex h-8 min-w-0 flex-1 cursor-default items-center gap-2 pr-2 text-left text-[12.5px]"
-      :class="{ 'opacity-60': status() === 'not_running' && !props.isActive }"
+      class="ml-2 grid min-w-0 flex-1 cursor-default grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-left text-[12.5px]"
+      :class="[
+        props.indented ? 'min-h-[30px]' : 'min-h-8',
+        { 'opacity-50': status() === 'not_running' && !props.isActive },
+      ]"
       :aria-current="props.isActive ? 'page' : undefined"
       @click="emit('select')"
       @dblclick="emit('drill')"
@@ -100,27 +111,35 @@ function progressLabel(): string | null {
         <Moon v-else-if="status() === 'not_running'" :size="10" />
         <Cube v-else :size="10" class="text-[var(--color-neutral-500)]" />
       </span>
-      <span class="min-w-0 flex-1 truncate">{{ props.workspace.name }}</span>
-      <span
-        v-if="progressLabel()"
-        class="shrink-0 text-[10.5px] tabular-nums text-[var(--color-neutral-600)]"
-      >
-        {{ progressLabel() }}
+      <span class="min-w-0 truncate">{{ props.workspace.name }}</span>
+      <!-- The canvas's meta cluster: one `auto` column, 7px apart. -->
+      <span class="flex items-center gap-[7px]">
+        <span
+          v-if="progressLabel()"
+          class="whitespace-nowrap text-[10.5px] tabular-nums"
+          :class="
+            markStatus()
+              ? 'text-[var(--color-neutral-500)]'
+              : 'text-[var(--color-neutral-600)]'
+          "
+        >
+          {{ progressLabel() }}
+        </span>
+        <span
+          v-if="markStatus()"
+          :aria-label="`${props.workspace.name} ${MARK_LABELS[markStatus()!]}`"
+          class="tree-mark size-2 shrink-0 rounded-full"
+          :data-status="markStatus()"
+        />
+        <!-- The canvas's parked-row affordance: pick it up where it left off. -->
+        <Play
+          v-if="status() === 'not_running' && !progressLabel()"
+          :size="11"
+          class="shrink-0 text-[var(--color-neutral-600)]"
+          aria-hidden="true"
+          title="Pick up where it left off"
+        />
       </span>
-      <span
-        v-if="markStatus()"
-        :aria-label="`${props.workspace.name} ${MARK_LABELS[markStatus()!]}`"
-        class="tree-mark size-2 shrink-0 rounded-full"
-        :data-status="markStatus()"
-      />
-      <!-- The canvas's parked-row affordance: pick it up where it left off. -->
-      <Play
-        v-if="status() === 'not_running' && !progressLabel()"
-        :size="11"
-        class="shrink-0 text-[var(--color-neutral-600)]"
-        aria-hidden="true"
-        title="Pick up where it left off"
-      />
     </button>
   </div>
 </template>

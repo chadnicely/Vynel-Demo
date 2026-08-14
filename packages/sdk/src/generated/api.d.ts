@@ -1638,6 +1638,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/section-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one workspace menu's per-section counts. */
+        get: operations["getWorkspacesByWorkspaceIdSection-counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels": {
         parameters: {
             query?: never;
@@ -3428,6 +3445,23 @@ export interface paths {
         };
         /** Get token-usage statistics per model per day (all scopes). */
         get: operations["getDashboardUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/section-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the Global menu's per-section counts. */
+        get: operations["getSection-counts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9877,6 +9911,43 @@ export interface operations {
             };
         };
     };
+    "getWorkspacesByWorkspaceIdSection-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { counts: { sessions, agents, skills, rules, apps } }. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        counts: {
+                            sessions: number;
+                            agents: number;
+                            skills: number;
+                            rules: number;
+                            apps?: number;
+                        };
+                    };
+                };
+            };
+            /** @description No such workspace owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getChannels: {
         parameters: {
             query?: never;
@@ -16282,6 +16353,34 @@ export interface operations {
                             outputTokens: number;
                             assistantMessageCount: number;
                         }[];
+                    };
+                };
+            };
+        };
+    };
+    "getSection-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { counts: { sessions, agents, skills, rules } } — no `apps` at global scope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        counts: {
+                            sessions: number;
+                            agents: number;
+                            skills: number;
+                            rules: number;
+                            apps?: number;
+                        };
                     };
                 };
             };

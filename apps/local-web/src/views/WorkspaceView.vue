@@ -452,14 +452,14 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 .thread-header {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 22px 0 24px;
+  gap: 11.2px;
+  padding: 0 22.4px;
   border-bottom: 1px solid var(--hair);
 }
 
 .thread-title {
   color: var(--ink-1);
-  font: 500 13.5px/1.4 var(--font-ui);
+  font: 400 13.5px/1.55 var(--font-ui);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -469,15 +469,17 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
   flex: 1;
 }
 
-/* The status badge — the canvas's tag, one hue per state. */
+/* The status badge — the canvas's `.tag` geometry (3px/10px, radius 6px,
+   weight 400, 0.02em) carrying OUR status hue: one status, one colour. */
 .thread-badge {
   flex: none;
-  padding: 2px 9px;
-  border-radius: 999px;
+  padding: 3px 10px;
+  border-radius: 6px;
   border: 1px solid var(--hair);
   background: var(--bg-inset);
   color: var(--ink-2);
-  font: 500 11px/1.5 var(--font-ui);
+  font: 400 11px/1.55 var(--font-ui);
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -542,10 +544,9 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
   font: 400 12px/1.5 var(--font-ui);
 }
 
+/* Full-bleed with the thread — the canvas's composer region. */
 .composer-dock {
-  padding: 0 24px 18px;
-  max-width: 968px;
+  padding: 10px 22.4px 12px;
   width: 100%;
-  margin: 0 auto;
 }
 </style>

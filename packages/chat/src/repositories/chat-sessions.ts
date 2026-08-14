@@ -111,6 +111,36 @@ export function listChatSessionsForWorkspace(
 }
 
 /**
+ * How many sessions the library would list for a scope — the drilled menu's
+ * `Sessions 13` count. A count query rather than `list(...).length` because
+ * this list is the one unbounded set in the menu (the others are tens of
+ * rows); the filters mirror the list's curation exactly, so the number can
+ * never disagree with what opening the row shows.
+ *
+ * `workspaceId: null` = the Global tab, which lists every scope's sessions.
+ */
+export function countChatSessions(
+  db: Database,
+  input: { userId: string; workspaceId: string | null },
+): number {
+  const filters = [
+    eq(chatSessions.userId, input.userId),
+    eq(chatSessions.isArchived, false),
+    isNull(chatSessions.deletedAt),
+    eq(chatSessions.visibility, 'listed'),
+  ]
+  if (input.workspaceId !== null)
+    filters.push(eq(chatSessions.workspaceId, input.workspaceId))
+
+  const [row] = db
+    .select({ total: sql<number>`count(*)` })
+    .from(chatSessions)
+    .where(and(...filters))
+    .all()
+  return row?.total ?? 0
+}
+
+/**
  * Newest-first across EVERY scope (global root + every workspace) for one
  * user — the dashboard's recent-activity feed (added for the dashboard
  * aggregate; no prior op spans scopes). Same default filtering as

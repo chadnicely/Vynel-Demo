@@ -4,8 +4,7 @@ import {
   PhCaretDown as CaretDown,
   PhCaretRight as CaretRight,
   PhCircleNotch as CircleNotch,
-  PhFolder as Folder,
-  PhFolderOpen as FolderOpen,
+  PhFolders as Folders,
   PhFolderPlus as FolderPlus,
   PhHouse as House,
   PhPlus as Plus,
@@ -177,13 +176,18 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 </script>
 
 <template>
-  <nav class="flex h-full flex-col bg-panel">
-    <div class="min-h-0 flex-1 overflow-y-auto py-1.5">
-      <ul class="grid list-none gap-[5px] px-2">
-        <!-- The pinned Global scope — the tree's anchor, like the strip's. -->
+  <!-- The canvas's sidebar column: on `--color-bg` (flush with the canvas, a
+       hairline apart), the container itself padded `16.8px 8.4px` so every
+       child — the parked group and the account foot included — sits inset. -->
+  <nav class="flex h-full flex-col bg-[var(--color-bg)] px-[8.4px] py-[16.8px] text-[12.5px]">
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <ul class="grid list-none gap-[5px] pl-0">
+        <!-- The pinned Global scope — the tree's anchor, like the strip's. It
+             also carries the new-folder / new-workspace affordances, so the
+             tree starts at a real row with no header gutter above it. -->
         <li>
           <div
-            class="group flex items-center rounded-sm transition"
+            class="group flex items-center rounded-sm pl-[10px] pr-[7px] transition"
             :class="
               props.activeWorkspaceId === null
                 ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
@@ -193,64 +197,61 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
             <button
               type="button"
               aria-label="Open the Global menu"
-              class="grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 transition hover:text-ink-1"
+              class="grid w-3 shrink-0 self-stretch place-items-center rounded-sm text-[var(--color-neutral-600)] transition hover:text-ink-1"
               @click="emit('drill', null)"
             >
-              <CaretRight :size="11" />
+              <CaretRight :size="10" />
             </button>
             <button
               type="button"
-              class="flex h-8 min-w-0 flex-1 cursor-default items-center gap-2 pr-2 text-left text-[12.5px]"
+              class="ml-2 grid min-h-8 min-w-0 flex-1 cursor-default grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-left text-[12.5px]"
               :aria-current="props.activeWorkspaceId === null ? 'page' : undefined"
               @click="emit('select', null)"
               @dblclick="emit('drill', null)"
             >
-              <span class="grid size-4 shrink-0 place-items-center rounded-[4px] bg-[var(--ink-3)] text-white">
+              <span class="grid size-4 place-items-center rounded-[4px] bg-[var(--ink-3)] text-white">
                 <House :size="10" />
               </span>
-              <span class="min-w-0 flex-1 truncate">Global</span>
-              <span
-                v-if="props.globalStatus === 'needs_input'"
-                aria-label="Waiting on you"
-                class="size-2 shrink-0 animate-pulse rounded-full bg-needs-input"
-              />
-              <CircleNotch
-                v-else-if="props.globalStatus === 'running'"
-                aria-label="Working"
-                :size="12"
-                class="shrink-0 animate-spin text-gold"
-              />
+              <span class="min-w-0 truncate">Global</span>
+              <span class="flex items-center gap-[7px]">
+                <span
+                  v-if="props.globalStatus === 'needs_input'"
+                  aria-label="Waiting on you"
+                  class="size-2 shrink-0 animate-pulse rounded-full bg-needs-input"
+                />
+                <CircleNotch
+                  v-else-if="props.globalStatus === 'running'"
+                  aria-label="Working"
+                  :size="12"
+                  class="shrink-0 animate-spin text-gold"
+                />
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label="New folder"
+              title="New folder"
+              class="ml-2 grid size-5 shrink-0 place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:text-[var(--color-accent)]"
+              @click.stop="emit('create-group')"
+            >
+              <FolderPlus :size="13" />
+            </button>
+            <button
+              type="button"
+              aria-label="New workspace"
+              title="New workspace"
+              class="grid size-5 shrink-0 place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:text-[var(--color-accent)]"
+              @click.stop="emit('create-workspace')"
+            >
+              <Plus :size="12" />
             </button>
           </div>
         </li>
       </ul>
 
-      <!-- The canvas's header strip, label-less: just the new-folder /
-           new-workspace affordances riding the right edge. -->
-      <div class="flex items-center justify-end gap-1 px-3 pb-0.5 pt-2.5">
-        <button
-          type="button"
-          aria-label="New folder"
-          title="New folder"
-          class="grid size-5 shrink-0 place-items-center rounded-sm text-ink-3 transition hover:bg-row-hover hover:text-ink-1"
-          @click="emit('create-group')"
-        >
-          <FolderPlus :size="13" />
-        </button>
-        <button
-          type="button"
-          aria-label="New workspace"
-          title="New workspace"
-          class="grid size-5 shrink-0 place-items-center rounded-sm text-ink-3 transition hover:bg-row-hover hover:text-ink-1"
-          @click="emit('create-workspace')"
-        >
-          <Plus :size="12" />
-        </button>
-      </div>
-
       <!-- Folders (alive members). Dashed border only while a drag hovers —
            the canvas's drop-target treatment. -->
-      <div class="grid gap-1 px-2">
+      <div class="mt-[5px] grid gap-1">
         <div
           v-for="group in props.groups"
           :key="group.id"
@@ -265,30 +266,28 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
           @drop="onDrop(group.id)"
         >
           <ContextMenu :items="FOLDER_MENU" @select="(id) => onFolderMenu(group, id)">
-            <div class="flex w-full items-center gap-2 rounded-sm px-1.5 text-ink-2">
+            <div class="flex w-full items-center rounded-sm pl-[7px] pr-[11.2px] text-[var(--color-neutral-300)]">
               <button
                 type="button"
                 :aria-expanded="!collapsedFolderIds.has(group.id)"
-                class="flex h-7 min-w-0 flex-1 cursor-default items-center gap-2 text-left text-xs transition hover:text-ink-1"
+                class="flex min-w-0 flex-1 cursor-default items-center gap-2 py-[5px] text-left text-[12px] transition hover:text-ink-1"
                 @click="toggleFolder(group.id)"
               >
                 <component
                   :is="collapsedFolderIds.has(group.id) ? CaretRight : CaretDown"
                   :size="10"
-                  class="shrink-0 text-ink-3"
+                  class="shrink-0 text-[var(--color-neutral-600)]"
                 />
-                <component
-                  :is="collapsedFolderIds.has(group.id) ? Folder : FolderOpen"
-                  :size="13"
-                  class="shrink-0 text-ink-3"
-                />
+                <!-- A workspace GROUP, not a filesystem folder — the plural
+                     glyph keeps the two readings apart. -->
+                <Folders :size="13" class="shrink-0 text-[var(--color-neutral-500)]" />
                 <input
                   v-if="editingGroupId === group.id"
                   ref="renameInput"
                   v-model="editingName"
                   maxlength="60"
                   :aria-label="`Rename ${group.name}`"
-                  class="min-w-0 flex-1 rounded-sm bg-inset px-1 text-xs text-ink-1 outline-none"
+                  class="min-w-0 flex-1 rounded-sm bg-inset px-1 text-[12px] text-ink-1 outline-none"
                   @keydown.enter.prevent="commitRename"
                   @keydown.esc.prevent="editingGroupId = null"
                   @blur="commitRename"
@@ -300,21 +299,23 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
                   @dblclick.stop="startRename(group)"
                   >{{ group.name }}</span
                 >
-                <span class="shrink-0 text-2xs text-ink-3">
+                <span class="shrink-0 text-[10.5px] text-[var(--color-neutral-600)]">
                   {{ membersByGroupId.get(group.id)?.length ?? 0 }}
                 </span>
               </button>
             </div>
           </ContextMenu>
+          <!-- 14px here + the row's own 10px = the canvas's 24px child indent. -->
           <ul
             v-if="!collapsedFolderIds.has(group.id)"
-            class="grid list-none gap-1 pl-3"
+            class="grid list-none gap-[5px] pl-0"
           >
             <li v-for="workspace in membersByGroupId.get(group.id) ?? []" :key="workspace.id">
               <WorkspaceTreeRow
                 :workspace="workspace"
                 :is-active="props.activeWorkspaceId === workspace.id"
                 :status-view="statusViewOf(workspace.id)"
+                indented
                 @select="emit('select', workspace.id)"
                 @drill="emit('drill', workspace.id)"
                 @drag-start="draggingWorkspaceId = workspace.id"
@@ -327,7 +328,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <!-- The root zone — ungrouped alive rows; a drop here detaches. -->
       <ul
-        class="mx-2 mt-1 grid list-none gap-[5px] rounded-sm border border-dashed p-0.5 transition"
+        class="mt-1 grid list-none gap-[5px] rounded-sm border border-dashed p-0.5 pl-0.5 transition"
         :class="dropTargetId === 'root' ? 'border-gold bg-gold-soft' : 'border-transparent'"
         @dragover="onRootDragOver"
         @dragleave="dropTargetId = dropTargetId === 'root' ? null : dropTargetId"
@@ -352,16 +353,18 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
         <button
           type="button"
           :aria-expanded="isParkedOpen"
-          class="mt-2 flex w-full cursor-default items-center gap-2 px-4 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3 transition hover:text-ink-1"
+          class="mt-[8.4px] flex w-full cursor-default items-center gap-2 pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-left text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)] transition hover:text-[var(--color-accent)]"
           data-testid="tree-not-running"
           @click="toggleParked"
         >
           <component :is="isParkedOpen ? CaretDown : CaretRight" :size="10" class="shrink-0" />
           Not running
           <span class="flex-1" />
-          <span class="text-2xs normal-case tracking-normal">{{ parkedWorkspaces.length }}</span>
+          <span class="text-[10.5px] normal-case tracking-normal">{{
+            parkedWorkspaces.length
+          }}</span>
         </button>
-        <ul v-if="isParkedOpen" class="grid list-none gap-[5px] px-2">
+        <ul v-if="isParkedOpen" class="grid list-none gap-[5px] pl-0">
           <li v-for="workspace in parkedWorkspaces" :key="workspace.id">
             <WorkspaceTreeRow
               :workspace="workspace"
@@ -378,7 +381,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <p
         v-if="props.workspaces.length === 0"
-        class="px-4 py-2 text-xs text-ink-3"
+        class="px-[10px] py-2 text-[12px] text-[var(--color-neutral-600)]"
       >
         No workspaces yet — create one to get building.
       </p>

@@ -903,10 +903,12 @@ watch(
   overflow-x: hidden;
 }
 
+/* The canvas's thread is FULL-BLEED in its column — 22.4px gutters, no
+   centred reading measure (Kafi, 2026-08-15). Every mount inherits it: the
+   conversation sidebar is narrower than the old cap ever was, so nothing
+   there changes. */
 .thread-column {
-  max-width: 920px;
-  margin: 0 auto;
-  padding: 24px 24px 16px;
+  padding: 16px 22.4px 11.2px;
   display: grid;
   gap: 12px;
 }
@@ -997,6 +999,14 @@ watch(
   background: var(--color-accent-900);
   padding-top: 16px;
   overflow: hidden;
+}
+
+/* The canvas leaves the LEFT edge open on every card but the live one — the
+   spine column is the live card's alone (a stated card paints it with the
+   `.state-spine` overlay instead). Must follow the rules above: same
+   specificity, source order decides. */
+.turn-card:not(.is-live) {
+  border-left-color: transparent;
 }
 
 .state-spine {

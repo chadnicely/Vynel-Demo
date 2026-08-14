@@ -11,6 +11,9 @@ export interface SidebarItem {
   // header; ungrouped items are plain rows (Home / Chat / Sessions,
   // Marketplace, the system rows).
   group?: { id: string; label: string };
+  /** How much is in this section (the canvas's right-hand number). Absent =
+   *  no honest count for it — the row shows nothing rather than a bare 0. */
+  count?: number;
 }
 
 // The left navigation: plain rows at the top, then the feature sections
@@ -112,7 +115,9 @@ watch(
 </script>
 
 <template>
-  <nav class="flex h-full flex-col bg-panel">
+  <!-- Same column as the tree: `--color-bg` ground, container padded
+       `16.8px 8.4px` so every child sits inset on the hairline. -->
+  <nav class="flex h-full flex-col bg-[var(--color-bg)] px-[8.4px] py-[16.8px] text-[12.5px]">
     <div
       v-if="props.sectionItems.length > 0"
       class="min-h-0 flex-1 overflow-y-auto"
@@ -120,25 +125,25 @@ watch(
       <button
         v-if="props.showBack"
         type="button"
-        class="flex w-full cursor-default items-center gap-2 px-3 pb-0.5 pt-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-ink-3 transition hover:text-ink-1"
+        class="flex w-full cursor-default items-center gap-[9px] py-[5px] pl-[11.2px] pr-[11.2px] text-left text-[11.5px] text-[var(--color-neutral-500)] transition hover:text-[var(--color-accent)]"
         @click="emit('back')"
       >
-        <ArrowLeft :size="11" class="shrink-0" />
+        <ArrowLeft :size="12" class="shrink-0" />
         <span class="truncate">Workspaces</span>
       </button>
       <!-- The drilled app's header card (the canvas): identity chip + name +
            the live status line, on the accent ground. -->
       <div
         v-if="props.workspaceCard"
-        class="mx-2 mb-1.5 mt-0.5 flex items-center gap-2 rounded-sm bg-[var(--color-accent-900)] px-2 py-1.5"
+        class="mb-[8.4px] mt-0.5 flex items-center gap-[9px] rounded-sm bg-[var(--color-accent-900)] px-[11.2px] py-[7px]"
         data-testid="sidebar-workspace-card"
       >
         <span
-          class="grid size-5 shrink-0 place-items-center rounded-[4px] bg-[var(--color-accent-600)] text-[9px] font-semibold text-[var(--color-accent-100)]"
+          class="grid size-5 shrink-0 place-items-center rounded-[4px] bg-[var(--color-accent-600)] text-[9px] text-[var(--color-accent-100)]"
         >
           {{ props.workspaceCard.initials }}
         </span>
-        <span class="flex min-w-0 flex-col">
+        <span class="flex min-w-0 flex-col gap-px">
           <span class="truncate text-[13px] leading-tight text-[var(--color-accent-100)]">
             {{ props.workspaceCard.name }}
           </span>
@@ -152,20 +157,22 @@ watch(
       </div>
       <p
         v-else
-        class="px-4 pb-0.5 pt-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-3"
+        class="pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]"
       >
         {{ props.sectionTitle }}
       </p>
       <template v-for="(block, index) in blocks" :key="index">
+        <!-- Grouping stays (Chad, 2026-08-04) — the headers just wear the
+             canvas's quiet eyebrow: 10px, 0.12em, weight 400. -->
         <button
           v-if="block.kind === 'group'"
           type="button"
-          class="group-header flex w-full cursor-default items-center gap-1 px-3 pb-0 pt-1 text-left text-2xs font-semibold uppercase tracking-wider text-ink-3 transition hover:text-ink-2"
+          class="group-header flex w-full cursor-default items-center gap-2 pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-left text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)] transition hover:text-[var(--color-accent)]"
           :aria-expanded="!collapsedGroupIds.has(block.id)"
           @click="toggleGroup(block.id)"
         >
           <ChevronRight
-            :size="11"
+            :size="10"
             class="shrink-0 transition-transform"
             :class="collapsedGroupIds.has(block.id) ? '' : 'rotate-90'"
           />
@@ -173,14 +180,14 @@ watch(
         </button>
         <ul
           v-if="block.kind === 'plain' || !collapsedGroupIds.has(block.id)"
-          class="grid list-none gap-px px-2"
+          class="grid list-none gap-[2px] pl-0"
         >
           <li v-for="item in block.items" :key="item.id">
-            <!-- The canvas's section row: 12.5px, 13px icon, accent-900
-                 ground + accent inks when active. -->
+            <!-- The canvas's section row: 35px tall, pad `8px 11.2px`, 12px
+                 gap, 12.5px ink, 13px icon, accent-900 ground when active. -->
             <button
               type="button"
-              class="flex w-full cursor-default items-center gap-3 rounded-sm px-2.5 py-[5px] text-left text-[12.5px] transition"
+              class="flex w-full cursor-default items-center gap-3 rounded-sm px-[11.2px] py-2 text-left text-[12.5px] transition"
               :class="
                 item.id === props.activeSectionId
                   ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
@@ -201,6 +208,11 @@ watch(
                 "
               />
               <span class="flex-1 truncate">{{ item.label }}</span>
+              <span
+                v-if="item.count !== undefined"
+                class="shrink-0 text-[10.5px] tabular-nums text-[var(--color-neutral-600)]"
+                >{{ item.count }}</span
+              >
             </button>
           </li>
         </ul>

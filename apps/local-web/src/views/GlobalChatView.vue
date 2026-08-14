@@ -549,10 +549,9 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
   max-width: none;
 }
 
+/* Full-bleed with the thread — the canvas's composer region. */
 .composer-dock {
-  padding: 0 24px 18px;
-  max-width: 968px;
+  padding: 10px 22.4px 12px;
   width: 100%;
-  margin: 0 auto;
 }
 </style>

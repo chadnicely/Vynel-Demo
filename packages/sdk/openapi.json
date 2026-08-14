@@ -15558,6 +15558,72 @@
         "x-sdk-name": "dashboardWorkspace.getUsage"
       }
     },
+    "/workspaces/{workspaceId}/section-counts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ counts: { sessions, agents, skills, rules, apps } }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counts": {
+                      "type": "object",
+                      "properties": {
+                        "sessions": {
+                          "type": "integer"
+                        },
+                        "agents": {
+                          "type": "integer"
+                        },
+                        "skills": {
+                          "type": "integer"
+                        },
+                        "rules": {
+                          "type": "integer"
+                        },
+                        "apps": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sessions",
+                        "agents",
+                        "skills",
+                        "rules"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "counts"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such workspace owned by this user."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSection-counts",
+        "tags": [
+          "section-counts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Get one workspace menu's per-section counts.",
+        "x-sdk-name": "sectionCountsWorkspace.get"
+      }
+    },
     "/channels": {
       "get": {
         "responses": {
@@ -32868,6 +32934,60 @@
         ],
         "summary": "Get token-usage statistics per model per day (all scopes).",
         "x-sdk-name": "dashboard.getUsage"
+      }
+    },
+    "/section-counts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ counts: { sessions, agents, skills, rules } } — no `apps` at global scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counts": {
+                      "type": "object",
+                      "properties": {
+                        "sessions": {
+                          "type": "integer"
+                        },
+                        "agents": {
+                          "type": "integer"
+                        },
+                        "skills": {
+                          "type": "integer"
+                        },
+                        "rules": {
+                          "type": "integer"
+                        },
+                        "apps": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sessions",
+                        "agents",
+                        "skills",
+                        "rules"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "counts"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getSection-counts",
+        "tags": [
+          "section-counts"
+        ],
+        "parameters": [],
+        "summary": "Get the Global menu's per-section counts.",
+        "x-sdk-name": "sectionCounts.getGlobal"
       }
     },
     "/sessions/overview": {
