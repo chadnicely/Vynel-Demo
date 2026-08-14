@@ -479,7 +479,15 @@ function memberStartsReply(
 
 // The run-stats door sits on the REPLY's author line (the canvas's info
 // icon beside VYNEL), never on the ask.
+// The stats door rides the row that DRAWS the reply's lead glyph — the canvas
+// marks a card exactly once, at the head of the answer. A turn that opens with
+// tool calls has an empty first assistant row, so anchoring on that one leaves
+// the door in the header while a later row draws a second glyph beside it.
 function statsMemberIndexOf(group: { messages: ChatMessageResponse[] }): number {
+  const leadIndex = group.messages.findIndex(
+    (message) => message.role === "assistant" && message.body.trim() !== "",
+  );
+  if (leadIndex !== -1) return leadIndex;
   return group.messages.findIndex((message) => message.role === "assistant");
 }
 

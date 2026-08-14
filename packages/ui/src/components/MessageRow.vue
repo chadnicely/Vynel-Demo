@@ -13,7 +13,10 @@ import AttachmentChips from "./AttachmentChips.vue";
 import ClaudeMark from "./ClaudeMark.vue";
 import RunStatsDoor from "./RunStatsDoor.vue";
 import Tooltip from "./Tooltip.vue";
-import { formatMessageTimestamp } from "../lib/format-timestamp.js";
+import {
+  formatMessageTime,
+  formatMessageTimestamp,
+} from "../lib/format-timestamp.js";
 import { splitSourceLabel } from "../lib/source-label.js";
 
 // Watch chips retired with the live-tracking redesign: tracking is a POINTER
@@ -210,9 +213,13 @@ const authorGlyph = computed<AuthorGlyph>(() => {
 });
 
 // When this message happened — quiet meta beside the author, so a reopened
-// conversation reads as a timeline, not an undated wall.
+// conversation reads as a timeline, not an undated wall. A REPLY shows the
+// clock alone: it sits under an ask whose header already dated the exchange,
+// and the canvas drops the day there for exactly that reason.
 const timeLabel = computed(() =>
-  formatMessageTimestamp(props.message.createdAt),
+  isAssistant.value
+    ? formatMessageTime(props.message.createdAt)
+    : formatMessageTimestamp(props.message.createdAt),
 );
 
 // A delivered report carries a first-line attribution marker FOR THE MODEL

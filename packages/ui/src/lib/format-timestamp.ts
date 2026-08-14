@@ -2,10 +2,18 @@
 // once it isn't ("Jul 27 · 14:32"), year added across the boundary. Locale-
 // formatted via Intl so the user's clock convention (12h/24h) is respected.
 
+/** Clock time alone — for a reply inside a card, where the ask's header
+ *  already carries the day. */
+export function formatMessageTime(iso: string): string {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "";
+  return then.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export function formatMessageTimestamp(iso: string, now: Date = new Date()): string {
   const then = new Date(iso);
   if (Number.isNaN(then.getTime())) return "";
-  const time = then.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const time = formatMessageTime(iso);
   if (then.toDateString() === now.toDateString()) return time;
   const date = then.toLocaleDateString([], {
     month: "short",
