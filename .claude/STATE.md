@@ -3,19 +3,34 @@
 **Updated 2026-08-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-13 VIRTUAL-AUDIO-DRIVER NIGHT RUN — P0/P1/P2/P4 landed (branch worktree-virtual-audio-driver)
+## ✅ 2026-08-14 VIRTUAL-AUDIO-DRIVER — THE DRIVER RUNS ON REAL HARDWARE (branch worktree-virtual-audio-driver, tip e9febc4)
 
-Autonomous overnight arc commissioned off the voice-in-calls brief. **Read
-`docs/module-notes/virtual-audio-driver.md`** (P0 findings + night-run results + the cross-OS
-naming contract) — it is the whole story. Four commits on the branch: `99edb5f` P0 findings ·
-`dc8fffc` P4 registry auto-discovery ("Vynel Call <n> Ears/Voice" pairs, keyed inventory,
-reviewer-clean, 13 tests) · `6560067` P2 Linux runtime null-sink pool (reviewer-clean, 10
-tests) · `c129217` P1 branded ACX driver `drivers/windows/vynel-call-audio` (builds green with
-the EWDK at `E:\KLONE\Workspace\Toolchains\`, test-signed, InfVerif /h VALID, VM-only LOADING.md).
-Voice-daemon suite 156 green; full `pnpm test` gate NOT run (CPU rule — Kafi's call).
-**Needs Chad:** Partner Center + EV cert (attestation signing) · Mac hardware (P3) ·
-bundle-vs-guided for our own driver. Next engineering milestone: driver loopback wiring
-(render→capture ring) — effort read in the module note.
+**Read `docs/module-notes/virtual-audio-driver.md` — it is the whole story** (P0 research →
+driver → loopback cable → ears addon → registry integration → local signing → hardware smoke →
+driver recognition). 13 commits, all pushed, tree clean. Voice-daemon suite **173 green**; full
+`pnpm test` gate NOT run (CPU rule). Toolchain: EWDK ISO at `E:\KLONE\Workspace\Toolchains\`
+(mount to build; `sign/Sign-Driver.ps1` signs with our own cert; `devcon` copied there too).
+
+**Proven on Chad's machine (test-signing on):** the branded ACX driver loaded (`devcon install
+ROOT\VynelCallAudio`), no BSOD, and the **loopback smoke PASSED** — a tone played into the render
+endpoint came back out the capture endpoint (peak 0.300). The `LoopbackRing` kernel code carries
+audio for real. The daemon **recognizes the installed driver** by brand marker `vynelcallaudio` +
+a render-direction probe (`call-registry.ts#discoverDriverLoopbackPairs`) — the pretty endpoint
+name doesn't apply (Windows shows "Speakers/Microphone (VynelCallAudio Device)"), so recognition
+is name-independent. Windows ears = process-loopback exclude-self (no pid, no app detection,
+echo-free) — live-verified.
+
+**Driver still LOADED on Chad's machine** (functional). Remove: `devcon remove ROOT\VynelCallAudio`;
+turn test-signing back off + re-enable Secure Boot when done.
+
+**Open follow-ups (filed, none blocking):** (1) proper Windows endpoint friendly names
+"Vynel Call 1 Voice/Microphone" — INF FriendlyName + ACX pin callback don't override the role
+half; research the VB-Cable mechanism (UX polish) · (2) in-driver format tolerance (stereo→mono;
+the smoke passed only on a channel-symmetric tone) · (3) conductor start_call capturePid (optional
+— scope ears to one app) · **Needs Chad:** Partner Center + EV cert for community distribution
+(the driver + the app installer; ~$300-400/yr, registered business) — local self-signing covers
+our own build/test now · Mac hardware (P3). A real end-to-end call still needs the voice daemon
+running with fetched models.
 
 ## 🔥 2026-08-14 WORKSPACE REDESIGN ARC — mirror seeded, plan settled, theme LANDED
 
