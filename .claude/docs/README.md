@@ -144,6 +144,7 @@ The shared machinery every module stands on. Grouped: each folder covers several
 | `_platform/embeddings-and-indexing` | `embeddings` (MiniLM model) + `indexer` (document parsers + chunker) — the shared file→text→chunks→vector pipeline. | [overview](./_platform/embeddings-and-indexing/overview.md) · [structure](./_platform/embeddings-and-indexing/structure.md) |
 | `_platform/contracts-and-sdk` | `contracts` (Zod + value catalogs) + `sdk` (the generated `vynel.*` client) + `mcp-contract` (`McpFeatureDescriptor`) — the boundary seams; the routes→OpenAPI→SDK pipeline. | [overview](./_platform/contracts-and-sdk/overview.md) · [structure](./_platform/contracts-and-sdk/structure.md) |
 | `_platform/primitives` | `errors` (the `VynelError` taxonomy) + `logger` + `testing` (`withTestDatabase`) + `ui` (shared Vue components + tokens). | [overview](./_platform/primitives/overview.md) · [structure](./_platform/primitives/structure.md) |
+| `_platform/tool-policy` | The tool governance layer spanning both systems: the declared catalog + generated snapshot, surfaces/card classes/tier + capability gates, the three-layer resolve (code → baked operator map → user override), the release-build bake, and the two editing surfaces (portal matrix + Tool access panel). | [overview](./_platform/tool-policy/overview.md) · [structure](./_platform/tool-policy/structure.md) |
 
 ## Part 4 — App shells
 

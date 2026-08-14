@@ -6,7 +6,8 @@
 > `setToolPolicyOverride`), and a `TOOL_POLICY_UPDATED` outbox event — superseding this map's
 > "no schema, no events" framing. The capability toggles also gained their first web UI
 > (`CapabilityTogglesPanel` inside the Tool access section), superseding "Web surface: none".
-> See `docs/module-notes/tool-policy.md`.
+> Current map: [`_platform/tool-policy`](../_platform/tool-policy/structure.md) +
+> `docs/module-notes/tool-policy.md`.
 >
 > The code map and connections for the capabilities module. For the concepts behind it, see [overview.md](./overview.md).
 >

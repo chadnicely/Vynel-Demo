@@ -6,8 +6,8 @@
 > `toolPolicies` + a `surfaceKind` and tier `featureGatedTools` into denials. The gate arrays
 > moved to `src/vynel-tool-gates.ts` (subpath `@vynel/mcp/tool-gates`); the surface → server
 > map + per-tool catalog live in `apps/local-api/src/sessions/session-tool-catalog.ts`; the
-> external bin filters admin-disabled tools at startup. See
-> `docs/module-notes/tool-policy.md`.
+> external bin filters admin-disabled tools at startup. Current map:
+> [`_platform/tool-policy`](../../_platform/tool-policy/structure.md) + `docs/module-notes/tool-policy.md`.
 >
 > The code map and connections for the `apps/mcp` shell. For the concepts behind it, see [overview.md](./overview.md).
 >
