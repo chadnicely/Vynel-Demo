@@ -242,3 +242,32 @@ Still open from the diff list: the author line's time position (the canvas puts 
 name behind a hairline divider; ours rides the right edge per Chad's 2026-08-09 "one vertical line
 for every chevron" — kept deliberately, not overlooked), the three extra chat-header icons, user
 avatars, and the account foot's `· Max` plan suffix.
+
+### Reviewer gate (2026-08-15) — one must-fix, and the lesson
+
+The `sessions` count was the ONE count that broke this arc's own rule ("call the
+same core read the section's list route calls, take its length") — and it was the
+only count that drifted. The Global menu read `Sessions 5` beside a list of 2: it
+counted every scope's sessions while the Global library lists only the root's own
+spawned children, and overview entries collapse continuity chains, so no
+`chat_sessions` row count could have answered it at any scope.
+
+The fix made the rule real rather than patching the number: `selectSessionsForScope`
+now lives in `@vynel/contracts/chat/sessions-overview`, the library view and the
+count both call it, and `countChatSessions` is deleted. **If a count needs a
+predicate the section's own list doesn't already have, that predicate is in the
+wrong place — hoist it, don't copy it.**
+
+Also closed: counts refresh from the mutation cache (one rule, not a habit each
+new feature must learn); `--thread-gutter` moved to the sidebar panel ROOT so it
+reaches the composer and skeleton, which are the thread's siblings, not its
+children; the caret drill-in target grew to 24px into the row's own padding (12px
+was half the WCAG 2.5.8 floor — and growing it evenly would have painted over the
+label button, since a positioned `::after` beats an unpositioned sibling); a pin
+that fails if `ownedByWorkspaceOnly` is dropped; two stale geometry comments.
+
+Left as deferred-improves, knowingly: `listAllRuleFilesForScope` reads every rule
+file's full body to produce an integer (the cost of counting from the same source
+that renders the rows — a `countRuleFilesForScope` would be faster but would start
+counting unreadable files the list silently drops), and `getSessionsOverview`'s
+50-entry cap bounds the sessions count the same way it bounds the library.

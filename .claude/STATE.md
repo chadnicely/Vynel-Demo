@@ -1,6 +1,6 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-14.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-15.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
 ## 🔥 2026-08-14 WORKSPACE REDESIGN ARC — mirror seeded, plan settled, theme LANDED
@@ -106,6 +106,36 @@
     ~~REMAINING for 5b~~ → **5b LANDED, see item 11.** Still open after 5b: cross-project refs
     chips + turn rendering, handed-off card, composer actions/toggles semantics, AI-rewrite +
     priority flows (all wait on engine surfaces).
+
+## 🔥 2026-08-15 CANVAS PARITY PASS (Kafi) — tree · chat · section menu
+
+Three surfaces measured against the served canvases (`serve-design-canvases-recipe`, port
+18899) at a MATCHED 1120px column — measuring with the rail shut offsets every chat width by
+272px, which invalidated the first pass. Diff table + what landed: `docs/module-notes/
+workspace-redesign.md`. Commits `3f0896b`, `10a37b9`, `c5ce578`.
+
+- **Tree**: column on `--color-bg` (was `bg-panel` — the canvas keeps the sidebar flush with
+  the canvas, one hairline apart), container padded `16.8px 8.4px`, canvas row grid (name at
+  rowX+54), folder members indented INSIDE the row so the active ground spans the folder,
+  `font-semibold` swept off every micro-label. Header row REMOVED by Kafi's call — its icons
+  ride the Global row; groups wear `PhFolders`.
+- **Chat**: full-bleed at 22.4px gutters — header/column/dock all `1120@208`, card `1075@230`,
+  identical to the canvas. `--thread-gutter` lets the narrow docked sidebar tighten to 12px.
+- **Section menu**: canvas geometry, grouping KEPT (Chad 2026-08-04 — the canvas is flat; only
+  its type was adopted), plus per-row counts.
+- **Section counts (engine)**: `GET /section-counts` + `/workspaces/:id/section-counts`, no
+  x-mcp. **The rule: every count calls the SAME core read the section's list route calls.**
+  `sessions` broke it once with a bespoke query and was the only count that drifted (read 5
+  beside a list of 2) — fixed by hoisting the library's curation to
+  `selectSessionsForScope` in contracts, shared by the view and the count.
+
+Gate: typecheck 104/104 · 1853 tests / 284 files · all five parity guards · code-reviewer gate
+passed after fixes · live-verified dark + light, both nav modes.
+
+**STILL OPEN:** author-line timestamp position (canvas puts it inline after the name; ours
+rides the right edge per Chad 2026-08-09 — kept deliberately), the three extra chat-header
+icons, avatars, the account `· Max` plan suffix, and the tree-header folder path (needs an
+endpoint over `makeDefaultWorkspaceParentDirectory` — Kafi skipped it).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 
