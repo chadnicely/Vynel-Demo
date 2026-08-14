@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import {
-  CalendarClock,
-  FolderTree,
-  History,
-  Radio,
-  Sparkles,
-} from "lucide-vue-next";
+  PhCalendarDots as CalendarClock,
+  PhTreeView as FolderTree,
+  PhClockCounterClockwise as History,
+  PhBroadcast as Radio,
+  PhSparkle as Sparkles,
+} from "@phosphor-icons/vue";
 import {
   CommandPalette,
   EmptyState,
@@ -160,6 +160,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :presence-state="presenceState"
       presence-label="assistant idle"
       :theme="ui.theme"
+      nav-mode="tabs"
       :sidebar-open="sidebarOpen"
       :tasks-open="false"
       :open-task-count="3"

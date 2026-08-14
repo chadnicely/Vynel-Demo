@@ -142,7 +142,7 @@ const rendered = computed(() => {
   top: 1px;
   width: 3px;
   height: 7px;
-  border: solid #14171c;
+  border: solid var(--color-bg);
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(45deg);
 }

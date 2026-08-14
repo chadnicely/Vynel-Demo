@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Lock, Pencil } from "lucide-vue-next";
+import { PhLock as Lock, PhPencilSimple as Pencil } from "@phosphor-icons/vue";
 import { ConfirmButton } from "@vynel/ui";
 import type { EffectiveToolPolicy } from "../../../composables/tool-policies/tool-policy-contract.js";
 import { SESSION_SURFACE_KINDS } from "../../../composables/tool-policies/tool-policy-contract.js";

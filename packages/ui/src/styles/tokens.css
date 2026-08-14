@@ -2,62 +2,175 @@
  * Vynel design tokens — the one visual contract for every Vynel surface
  * (apps/local-web today, the cloud web view later).
  *
- * The system: cool slate depths, quiet hairlines, native type — and ONE warm
- * accent. Gold is reserved for assistant presence: something is running,
- * streaming, or waiting on the user (approvals). If it glows gold, the
- * assistant is alive there. Nothing else may use it.
+ * THE SYSTEM IS NOCTURNE. Every raw value below is lifted verbatim from the
+ * design system's canonical source in the git-tracked design mirror:
  *
- * Dark is the default theme; `[data-theme='light']` overrides.
+ *   .claude-design/project/_ds/nocturne-b5bce991-…/styles.css
+ *   (claude.ai/design project d2929de8-70c2-4aa9-aed6-22c0b7d5a7de)
+ *
+ * If the design system is retuned, /sync-design refreshes the mirror and this
+ * file is what changes — nowhere else. Two layers:
+ *
+ *   1. Raw Nocturne tokens (--color-*, --space-*, --radius-*, --shadow-*).
+ *      Components ported from the design canvases use these names directly,
+ *      so a port can be checked against its source line by line.
+ *   2. The app's semantic aliases (--bg-*, --ink-*, --hair, --gold, …) mapped
+ *      onto those raw values, so existing components inherit the system.
+ *
+ * Alias values that are NOT plain Nocturne derivations were read off the
+ * workspace canvases themselves (chrome #12141f, inset #101220, panel
+ * #1d1f2b, the rgba(9,10,16,.74) scrim, neutral text-mix row hover).
+ *
+ * NAMING DEBT: the presence aliases are still spelled --gold from the
+ * pre-Nocturne palette; their value is now the Nocturne accent (violet).
+ * Renaming them (plus the Tailwind bridge and every text-gold call site) is
+ * a follow-up sweep — values first so the look lands in one reviewable diff.
+ *
+ * Dark is the default theme; `[data-theme='light']` overrides. Nocturne is a
+ * dark system; light inverts the grounds and ramps and darkens the accent,
+ * keeping every hue in the same family.
  */
+
+/* Inter, vendored — the desktop app never depends on a CDN at boot.
+   Variable files cover every weight; fonts/OFL.txt carries the license. */
+@font-face {
+  font-family: "Inter";
+  src: url("./fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./fonts/InterVariable-Italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
 
 :root {
   color-scheme: dark;
 
-  /* Surfaces — shell < panel < raised, each one step lighter */
-  --bg-shell: #0f1115;
-  --bg-panel: #14171c;
-  --bg-raised: #1a1e24;
-  --bg-overlay: rgba(15, 17, 21, 0.72);
+  /* ── Raw Nocturne, verbatim ─────────────────────────────────────────── */
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9;
+  --color-accent-2: #a7a1db;
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
 
-  /* Ink ladder */
-  --ink-1: #eceef1;
-  --ink-2: #a7adb8;
-  --ink-3: #6b7280;
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
 
-  /* Hairlines + row states */
-  --hair: rgba(231, 235, 240, 0.07);
-  --hair-strong: rgba(231, 235, 240, 0.13);
-  --row-hover: rgba(231, 235, 240, 0.045);
-  --row-active: rgba(231, 235, 240, 0.08);
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
 
-  /* Presence — the signature. Assistant activity + attention only. */
-  --gold: #d9a03f;
-  --gold-bright: #e8b45c;
-  --gold-soft: rgba(217, 160, 63, 0.14);
+  --color-accent-2-100: #f5f4ff;
+  --color-accent-2-200: #e7e5fe;
+  --color-accent-2-300: #d2cefd;
+  --color-accent-2-400: #b5afe8;
+  --color-accent-2-500: #9690c9;
+  --color-accent-2-600: #7972a9;
+  --color-accent-2-700: #5c5783;
+  --color-accent-2-800: #423e5d;
+  --color-accent-2-900: #2b293a;
 
-  /* The assistant's identity mark — Claude's coral spark. Identity only
-     (the ClaudeMark glyph); presence stays gold. */
+  /* Deck section-divider ground — deck-scale fills only, never interface
+     colors; mirrored so canvas ports resolve. */
+  --color-section: #262a60;
+  --color-section-glow: #353b80;
+  --color-section-ghost: #4c5397;
+
+  --font-heading: "Inter", system-ui, sans-serif;
+  --font-heading-weight: 500;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  --space-1: 2.8px;
+  --space-2: 5.6px;
+  --space-3: 8.4px;
+  --space-4: 11.2px;
+  --space-6: 16.8px;
+  --space-8: 22.4px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  /* Ring-based, not soft drop shadows — Nocturne separates by edge. */
+  --shadow-sm: 0 0 0 1px #3f424d;
+  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
+
+  /* ── The app's semantic aliases, mapped onto Nocturne ───────────────── */
+
+  /* Surfaces. Nocturne names two grounds (bg, surface); the shell needs four
+     more, read off the workspace canvases: chrome (title bar + tab strip,
+     darker than the ground), inset (sunken boxes — logs, list headers),
+     panel (docked bars, the composer footer), and the modal scrim. */
+  --bg-shell: var(--color-bg);
+  --bg-chrome: #12141f;
+  --bg-inset: #101220;
+  --bg-panel: #1d1f2b;
+  --bg-raised: var(--color-surface);
+  --bg-overlay: rgba(9, 10, 16, 0.74);
+
+  /* Ink ladder — text, then two steps down the neutral ramp. */
+  --ink-1: var(--color-text);
+  --ink-2: var(--color-neutral-400);
+  --ink-3: var(--color-neutral-600);
+
+  /* Hairlines + row states. Hover is a quiet text tint (what the canvases
+     do); selection carries the accent. */
+  --hair: var(--color-divider);
+  --hair-strong: color-mix(in srgb, var(--color-text) 28%, transparent);
+  --row-hover: color-mix(in srgb, var(--color-text) 6%, transparent);
+  --row-active: color-mix(in srgb, var(--color-accent) 18%, transparent);
+
+  /* Presence — assistant activity + attention only (see NAMING DEBT). */
+  --gold: var(--color-accent);
+  --gold-bright: var(--color-accent-400);
+  --gold-soft: color-mix(in srgb, var(--color-accent) 14%, transparent);
+
+  /* The assistant's identity mark — Claude's coral spark. Identity only. */
   --claude-mark: #d97757;
   --claude-mark-soft: rgba(217, 119, 87, 0.14);
 
-  /* Status */
-  --ok: #4fb984;
-  --danger: #e5484d;
+  /* Status — one status, one colour, everywhere. Settled by Chad 2026-08-14:
+     completed green is the Completed canvas's OKLCH value; problem red and
+     needs-input blue are the state canvases' treatments. */
+  --ok: oklch(0.7 0.105 158);
+  --danger: #f2564b;
+  --needs-input: #38b6ff;
+  --needs-input-soft: color-mix(in srgb, #38b6ff 14%, transparent);
   --info: #5c9dd9;
 
-  /* File-type colors (tree + editor chrome). Folder tan is deliberately
-     muted — the vivid gold stays reserved for assistant presence. */
+  /* File-type colors (tree + editor chrome). Kept from the previous palette —
+     the canvases don't restyle the file tree; revisit with the file surfaces. */
   --file-folder: #b3925f;
   --file-doc: #5c9dd9;
   --file-data: #4fb984;
   --file-image: #a78bfa;
   --file-code: #e08543;
 
-  /* Workspace accent palette — a stable per-workspace color so a bubbled-up
-     report reads as belonging to its workspace at a glance. Deliberately
-     spread around the wheel and kept OFF amber/orange: gold stays reserved
-     for assistant presence, never workspace identity. Assigned by name-hash
-     (packages/ui/src/lib/workspace-color.ts), so it needs no stored column. */
+  /* Workspace accent palette — stable per-workspace identity, assigned by
+     name-hash (packages/ui/src/lib/workspace-color.ts). Spread around the
+     wheel and deliberately OFF the accent violet: that stays presence-only. */
   --ws-1: #45b8ac;
   --ws-2: #6a93e6;
   --ws-3: #8b8ff0;
@@ -65,34 +178,25 @@
   --ws-5: #e07b9a;
   --ws-6: #5cbf82;
 
-  /* Chart series — model identity on the usage statistics. Validated against
-     --bg-panel (dataviz six checks: lightness band, chroma, CVD separation,
-     normal-vision floor, contrast). Assigned to models in stable sorted
-     order, never by rank; overflow series fold into an ink-3 "Other". Gold
-     stays presence-only; status colors are never series colors. */
+  /* Chart series — model identity on the usage statistics. Fixed order. */
   --chart-1: #0fa78d;
   --chart-2: #6a93e6;
   --chart-3: #d15f83;
   --chart-4: #7d55c7;
 
-  /* Shape */
-  --radius-s: 6px;
-  --radius-m: 10px;
-  --radius-l: 14px;
+  /* Shape — the app's aliases point at Nocturne's three radii. */
+  --radius-s: var(--radius-sm);
+  --radius-m: var(--radius-md);
+  --radius-l: var(--radius-lg);
 
-  /* Type. The display face is Windows 11's optical cut for large sizes —
-     hero-scale text only (the welcome greeting); everything else is --font-ui. */
-  --font-ui:
-    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display:
-    "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI",
-    system-ui, -apple-system, sans-serif;
+  /* Type — Inter throughout, per the system. */
+  --font-ui: var(--font-body);
+  --font-display: var(--font-heading);
   --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
 
-  /* Elevation */
-  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
-  --shadow-overlay:
-    0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.35);
+  /* Elevation aliases. */
+  --shadow-raised: var(--shadow-md);
+  --shadow-overlay: var(--shadow-lg);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -103,33 +207,50 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-shell: #eef0f3;
-  --bg-panel: #f7f8fa;
-  --bg-raised: #ffffff;
-  /* A modal scrim must DIM, not bleach — a dark translucent wash in light mode
-     too, so dialogs/overlays read as raised above a dimmed page. */
-  --bg-overlay: rgba(17, 22, 30, 0.4);
+  --color-bg: #edeef6;
+  --color-surface: #ffffff;
+  --color-text: #1c1e2a;
+  --color-accent: #5d5294;
+  --color-accent-2: #6b6597;
+  --color-divider: color-mix(in srgb, #1c1e2a 14%, transparent);
 
-  --ink-1: #1b1e24;
-  --ink-2: #565c66;
-  --ink-3: #8b919b;
+  /* Ramps mirrored — step 100 stays "strongest against the ground". */
+  --color-neutral-100: #1c1e2a;
+  --color-neutral-200: #2b2d3a;
+  --color-neutral-300: #3f424d;
+  --color-neutral-400: #575c6e;
+  --color-neutral-500: #75798c;
+  --color-neutral-600: #8b8fa1;
+  --color-neutral-700: #b2b6ca;
+  --color-neutral-800: #d8dae6;
+  --color-neutral-900: #eceef6;
 
-  --hair: rgba(18, 22, 30, 0.09);
-  --hair-strong: rgba(18, 22, 30, 0.16);
-  --row-hover: rgba(18, 22, 30, 0.04);
-  --row-active: rgba(18, 22, 30, 0.07);
+  --color-accent-100: #2b2741;
+  --color-accent-200: #423a6a;
+  --color-accent-300: #5d5294;
+  --color-accent-400: #796cbf;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #b5abfc;
+  --color-accent-700: #d2cefd;
+  --color-accent-800: #e7e5fe;
+  --color-accent-900: #f5f4ff;
 
-  /* Darker gold for contrast on light surfaces — same meaning, same rule */
-  --gold: #b47f24;
-  --gold-bright: #96691c;
-  --gold-soft: rgba(180, 127, 36, 0.12);
+  --bg-chrome: #e5e7f0;
+  --bg-inset: #eef0f7;
+  --bg-panel: #f6f6fb;
+  /* A modal scrim must DIM, not bleach — a dark wash in light mode too. */
+  --bg-overlay: rgba(22, 24, 38, 0.4);
+
+  --hair-strong: color-mix(in srgb, var(--color-text) 26%, transparent);
+
+  --ok: oklch(0.55 0.105 158);
+  --danger: #d33f44;
+  --needs-input: #1583cd;
+  --needs-input-soft: color-mix(in srgb, #1583cd 12%, transparent);
+  --info: #3b82c4;
 
   --claude-mark: #bf5e3f;
   --claude-mark-soft: rgba(191, 94, 63, 0.12);
-
-  --ok: #1f9d67;
-  --danger: #d33f44;
-  --info: #3b82c4;
 
   --file-folder: #8f7340;
   --file-doc: #3b82c4;
@@ -137,7 +258,6 @@
   --file-image: #7c5fd3;
   --file-code: #c26a2b;
 
-  /* Workspace accents — darker on light surfaces for contrast, same meaning. */
   --ws-1: #1c8f86;
   --ws-2: #3f6fce;
   --ws-3: #5b60d6;
@@ -145,15 +265,12 @@
   --ws-5: #c94f74;
   --ws-6: #2b9463;
 
-  /* Chart series — darker steps of the same hues, validated against the
-     light --bg-panel. Same meaning, same fixed order. */
   --chart-1: #048a72;
   --chart-2: #3f6fce;
   --chart-3: #bf4d73;
   --chart-4: #7449bd;
 
-  --shadow-raised:
-    0 1px 2px rgba(24, 30, 40, 0.08), 0 4px 16px rgba(24, 30, 40, 0.07);
-  --shadow-overlay:
-    0 4px 12px rgba(24, 30, 40, 0.12), 0 16px 48px rgba(24, 30, 40, 0.14);
+  --shadow-sm: 0 0 0 1px #d8dae6;
+  --shadow-md: 0 0 0 1px #c4c7d6, 0 6px 18px rgba(24, 30, 40, 0.1);
+  --shadow-lg: 0 0 0 1px #b2b6ca, 0 16px 40px rgba(24, 30, 40, 0.16);
 }

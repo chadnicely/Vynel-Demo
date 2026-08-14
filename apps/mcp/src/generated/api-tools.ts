@@ -2698,6 +2698,36 @@ export const listTasks: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listWorkspaceGroups: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_workspace_groups',
+    "List the authenticated user's workspace folders — the groups that organize workspaces in the navigation tree. Membership is each workspace's groupId. Read-only.",
+    {},
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/workspaces/groups'
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listWorkspaces: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_workspaces',
@@ -3788,6 +3818,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listScheduleTemplates,
   listSchedules,
   listTasks,
+  listWorkspaceGroups,
   listWorkspaces,
   removeKnowledgeSource,
   searchChatMessages,

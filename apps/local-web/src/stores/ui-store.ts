@@ -13,6 +13,11 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 
 export type Theme = "dark" | "light";
 
+/** How workspaces are navigated: the browser-style tab strip, or the sidebar
+ *  workspace tree (the strip row collapses). One selection state under both —
+ *  the mode only changes presentation. */
+export type NavMode = "tabs" | "menu";
+
 /** What the chat surface is pointed at: the ongoing single conversation (the
  *  default — Vynel's "one brain"), a fresh topic, or one history session. */
 export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
@@ -62,6 +67,7 @@ export const GLOBAL_TAB_ID = "global";
 
 const THEME_STORAGE_KEY = "vynel.theme";
 const TABS_STORAGE_KEY = "vynel.tabs";
+const NAV_MODE_STORAGE_KEY = "vynel.nav-mode";
 const LEGACY_WORKSPACE_STORAGE_KEY = "vynel.active-workspace";
 const COMPOSER_MODE_STORAGE_KEY = "vynel.composer-mode";
 const COMPOSER_MODEL_STORAGE_KEY = "vynel.composer-model";
@@ -70,6 +76,12 @@ const COMPOSER_THINKING_EFFORT_STORAGE_KEY = "vynel.composer-thinking-effort";
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
   return stored === "light" ? "light" : "dark";
+}
+
+// Tabs is the default — it's the shell's long-standing behavior; menu is the
+// opt-in view. Junk storage falls back to tabs like every stored value.
+function readStoredNavMode(): NavMode {
+  return localStorage.getItem(NAV_MODE_STORAGE_KEY) === "menu" ? "menu" : "tabs";
 }
 
 // Fail-closed restores: an unknown stored value (a renamed mode, a retired
@@ -194,6 +206,22 @@ export const useUiStore = defineStore("ui", () => {
 
   function toggleTheme() {
     theme.value = theme.value === "dark" ? "light" : "dark";
+  }
+
+  // Navigation mode — persisted like the theme; the tab state underneath is
+  // shared, so flipping modes never loses a scope or its canvas.
+  const navMode = ref<NavMode>(readStoredNavMode());
+  watch(navMode, (value) => localStorage.setItem(NAV_MODE_STORAGE_KEY, value));
+
+  // Menu mode's sidebar shows the workspace tree (root) or the active scope's
+  // section menu (drilled). Ephemeral by design: entering menu mode always
+  // lands on the tree — that's the mode's whole point.
+  const isWorkspaceTreeOpen = ref(true);
+
+  function setNavMode(mode: NavMode) {
+    if (mode === navMode.value) return;
+    navMode.value = mode;
+    if (mode === "menu") isWorkspaceTreeOpen.value = true;
   }
 
   // The scope tabs — the pinned Global tab plus any open workspace rooms.
@@ -345,6 +373,9 @@ export const useUiStore = defineStore("ui", () => {
   return {
     theme,
     toggleTheme,
+    navMode,
+    setNavMode,
+    isWorkspaceTreeOpen,
     tabs,
     activeTabId,
     activeTab,

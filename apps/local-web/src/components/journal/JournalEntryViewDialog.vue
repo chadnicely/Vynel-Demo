@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NotebookPen } from "lucide-vue-next";
+import { PhNotePencil as NotebookPen } from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 import type { JournalEntryResponse } from "@vynel/contracts/journal/journal-http";
 import { formatDayLabel } from "../../utils/format-day-label.js";

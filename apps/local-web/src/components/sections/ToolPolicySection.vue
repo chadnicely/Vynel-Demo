@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ChevronRight, ShieldCheck } from "lucide-vue-next";
+import { PhCaretRight as ChevronRight, PhShieldCheck as ShieldCheck } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useHubFeatures } from "../../composables/hub/use-hub-features.js";
 import { useResetToolPolicy } from "../../composables/tool-policies/use-reset-tool-policy.js";

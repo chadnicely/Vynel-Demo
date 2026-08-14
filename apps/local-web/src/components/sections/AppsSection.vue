@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Plus, SquarePlay } from "lucide-vue-next";
+import { PhPlus as Plus, PhPlayCircle as SquarePlay } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type { WorkspaceAppResponse } from "@vynel/contracts/apps/app-http";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Component } from "vue";
-import { ChevronRight, ChevronsUpDown } from "lucide-vue-next";
-import { workspaceMonogram } from "@vynel/ui";
+import { PhArrowLeft as ArrowLeft, PhCaretRight as ChevronRight } from "@phosphor-icons/vue";
+import SidebarAccountRow from "./SidebarAccountRow.vue";
 
 export interface SidebarItem {
   id: string;
@@ -22,11 +22,15 @@ const props = defineProps<{
   sectionItems: SidebarItem[];
   activeSectionId: string | null;
   accountName: string;
+  /** Menu mode renders the sidebar as a drill-in — the back row returns to
+   *  the workspace tree. Absent in tabs mode. */
+  showBack?: boolean;
 }>();
 
 const emit = defineEmits<{
   "select-section": [id: string];
   "open-account": [];
+  back: [];
 }>();
 
 type SidebarBlock =
@@ -103,6 +107,15 @@ watch(
       v-if="props.sectionItems.length > 0"
       class="min-h-0 flex-1 overflow-y-auto"
     >
+      <button
+        v-if="props.showBack"
+        type="button"
+        class="flex w-full cursor-default items-center gap-2 px-3 pb-0.5 pt-1.5 text-left text-2xs font-semibold uppercase tracking-wider text-ink-3 transition hover:text-ink-1"
+        @click="emit('back')"
+      >
+        <ArrowLeft :size="11" class="shrink-0" />
+        <span class="truncate">Workspaces</span>
+      </button>
       <p class="px-4 pb-0.5 pt-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-3">
         {{ props.sectionTitle }}
       </p>
@@ -146,17 +159,9 @@ watch(
     </div>
     <div v-else class="flex-1" />
 
-    <!-- Account (pinned foot) -->
-    <button
-      type="button"
-      class="flex w-full cursor-default items-center gap-2.5 border-t border-hair px-3 py-2.5 text-left transition hover:bg-row-hover"
-      @click="emit('open-account')"
-    >
-      <span class="grid size-6 shrink-0 place-items-center rounded-full bg-claude-soft text-2xs font-semibold text-claude">
-        {{ workspaceMonogram(props.accountName) }}
-      </span>
-      <span class="min-w-0 flex-1 truncate text-sm text-ink-1">{{ props.accountName }}</span>
-      <ChevronsUpDown :size="14" class="shrink-0 text-ink-3" />
-    </button>
+    <SidebarAccountRow
+      :account-name="props.accountName"
+      @open-account="emit('open-account')"
+    />
   </nav>
 </template>

@@ -27,6 +27,45 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   judgment and tells you what it assumed. Questions asked in the app still
   wait for you as long as it takes.
 
+- **Tasks open into a full view with their real steps.** Click any task in
+  the work rail to see everything about it — status, who added it, its
+  write-up, and (for tasks the assistant has actually worked) the genuine
+  step list from that session with a progress bar. A little + on the rail
+  quick-adds a task to whichever room you're in.
+
+- **The tasks dock grew into a work rail.** Toggle it from the title bar as
+  before — it now leads with a live card that mirrors the room's presence
+  (glowing while the assistant works, blue when something waits on you, quiet
+  otherwise) with real step progress from the running session, splits tasks
+  into "In the queue" and "Completed" pill tabs, and — in a workspace — ends
+  with an OPEN IT block: one-click links to the apps actually running on
+  their ports, and a stop button (with a confirm) that interrupts the current
+  work without touching anything already finished.
+
+- **The conversation reads like a task list now.** Every chat surface groups
+  each exchange into its own card: past turns quiet down to dimmed one-line
+  strips that wake when you hover (click to reopen them), the latest turn
+  sits in a clean card, and while the assistant works its card glows with a
+  sweeping light along the edge and a live "working · 1m 32s" pill ticking in
+  the corner — you can tell at a glance what's history, what's current, and
+  what's in motion.
+
+- **Folders for your projects.** In Menu navigation the workspace tree now
+  has real folders: make one with the new-folder button, drag projects in and
+  out (or back to the top level), right-click to rename or delete. Deleting a
+  folder never touches the projects inside — they just move back to the top.
+  Folders live in Vynel's database, so they follow you across restarts.
+
+- **Two ways to move between your projects: Tabs or Menu.** A new switch in
+  the title bar picks how workspaces are navigated. Tabs keeps the familiar
+  browser-style strip. Menu tucks the strip away and roots the sidebar at a
+  workspace tree — every project in one list with a pinned Global entry;
+  click a row to switch rooms while you watch the canvas, or drill in to open
+  that room's menu (and step back out with one click). Both views share the
+  same open tabs underneath, so flipping modes never loses your place. Either
+  way, the navigation now shows live presence: a room's chip spins while the
+  assistant works there, and a soft blue dot pulses when it's waiting on you.
+
 - **Design changes are now traceable.** Vynel's UI designs from claude.ai/design
   live in the repo as a git-tracked mirror (`.claude-design/`), refreshed
   wholesale from each export zip by the new `/sync-design` command — so every
@@ -339,6 +378,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   passes through the real approval decision (the same curated set cards by
   default, so nothing feels different day to day), and the boot warning that
   hinted at the gap is gone. The Claude Agent SDK also moved up to 0.3.231.
+
+- **Every icon in the app speaks Phosphor now.** The interface's whole icon
+  vocabulary moved from lucide to Phosphor — the set the Nocturne design
+  language is drawn in — so glyphs match the design screens exactly: the
+  gear-six settings, the circle-notch spinner, the robot for agents, the
+  scroll for rules, carets instead of chevrons. Marketplace catalog icon
+  names are untouched (they're stored data); only the artwork behind them
+  changed.
+
+- **Vynel wears its new look: Nocturne.** The whole app moved from the old
+  near-black palette to the Nocturne design system — a quiet blue-grey ground,
+  one violet accent used as a line and a glow rather than a flood, Inter as
+  the interface typeface (bundled with the app, no font CDN at boot), thinner
+  scrollbars, and ring-edged elevation. Light mode follows as a mirrored
+  inversion of the same ramps. The tokens are lifted verbatim from the design
+  mirror (`.claude-design/`), so future design retunes land as one reviewable
+  token diff.
 
 - **The installed app is unmistakably Vynel now.** The program is `Vynel.exe`
   (no more `vynel-desktop.exe`), the engine runs as `vynel-engine.exe` instead

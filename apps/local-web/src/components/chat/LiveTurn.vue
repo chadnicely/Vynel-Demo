@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, watch } from "vue";
+import { computed } from "vue";
 import {
   ApprovalCard,
   ClaudeMark,
   ThinkingBlock,
   ToolCallList,
   MarkdownText,
-  formatElapsed,
 } from "@vynel/ui";
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
 import { deriveActionKind } from "@vynel/approvals/action-kind";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
+import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
 
 // The in-flight turn: everything the assistant is doing RIGHT NOW —
 // thinking, answer text typing in, tool cards appearing, approvals pausing
@@ -40,28 +40,11 @@ const lastSegmentId = computed(
 );
 
 // How long this turn has been running — ticks beside "working" so a long run
-// reads as alive, not frozen. The interval exists only while streaming.
-const nowMs = ref(Date.now());
-let elapsedTimer: ReturnType<typeof setInterval> | null = null;
-watch(
+// reads as alive, not frozen (shared clock: the thread's working pill reads
+// the same composable).
+const elapsedLabel = useTickingElapsed(
+  () => props.view.startedAtMs,
   () => props.view.status === "streaming",
-  (isStreaming) => {
-    if (isStreaming && elapsedTimer === null) {
-      elapsedTimer = setInterval(() => {
-        nowMs.value = Date.now();
-      }, 1000);
-    } else if (!isStreaming && elapsedTimer !== null) {
-      clearInterval(elapsedTimer);
-      elapsedTimer = null;
-    }
-  },
-  { immediate: true },
-);
-onScopeDispose(() => {
-  if (elapsedTimer !== null) clearInterval(elapsedTimer);
-});
-const elapsedLabel = computed(() =>
-  formatElapsed(props.view.startedAtMs, nowMs.value),
 );
 </script>
 

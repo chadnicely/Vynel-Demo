@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, X } from "lucide-vue-next";
+import {
+  PhArrowDown as ArrowDown,
+  PhArrowUp as ArrowUp,
+  PhEye as Eye,
+  PhEyeSlash as EyeOff,
+  PhPlus as Plus,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import {
   WORKSPACE_SECTIONS,
   type WorkspaceSectionId,

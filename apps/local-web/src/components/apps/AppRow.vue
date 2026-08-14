@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import {
-  ChevronRight,
-  ExternalLink,
-  FileKey2,
-  Pencil,
-  Play,
-  Square,
-  SquareTerminal,
-  X,
-} from "lucide-vue-next";
+  PhCaretRight as ChevronRight,
+  PhArrowSquareOut as ExternalLink,
+  PhFileLock as FileKey2,
+  PhPencilSimple as Pencil,
+  PhPlay as Play,
+  PhSquare as Square,
+  PhTerminalWindow as SquareTerminal,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import type { WorkspaceAppResponse } from "@vynel/contracts/apps/app-http";
 import AppEnvDialog from "./AppEnvDialog.vue";
 import { useAppLogs } from "../../composables/workspace-apps/use-app-logs.js";

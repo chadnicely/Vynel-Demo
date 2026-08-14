@@ -35,6 +35,11 @@ export const workspaces = table(
     // swap). NOT NULL DEFAULT true — purely additive; pre-existing workspaces
     // backfill to enabled (the product thesis is default-on).
     continueEnabled: boolean().notNull().default(true),
+    // Menu-tree folder membership (workspace redesign Arc 2b) — a LOOSE
+    // in-leaf ref to `workspace_groups.id` (`tasks.planId` precedent):
+    // nullable, no DB FK; deleting a group detaches members inside its
+    // transaction. Null = at the tree root.
+    groupId: text(),
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),
     lastAccessedAt: timestamp().notNull(),

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RefreshCw } from "lucide-vue-next";
+import { PhArrowsClockwise as RefreshCw } from "@phosphor-icons/vue";
 import { useShellUpdater } from "../../composables/shell/use-shell-updater.js";
 
 // The unobtrusive "restart to update" pill (gold update flow): the shell

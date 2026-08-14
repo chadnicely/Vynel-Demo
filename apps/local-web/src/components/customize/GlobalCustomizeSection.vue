@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SlidersHorizontal } from "lucide-vue-next";
+import { PhSlidersHorizontal as SlidersHorizontal } from "@phosphor-icons/vue";
 import { GLOBAL_SCOPE_KEY, useCustomizeStore } from "../../stores/customize-store.js";
 import SectionHeader from "../sections/SectionHeader.vue";
 import MenuEditor from "./MenuEditor.vue";

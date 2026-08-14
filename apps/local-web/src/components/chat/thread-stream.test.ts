@@ -330,6 +330,47 @@ describe("ThreadStream", () => {
     expect(wrapper.text()).toContain("streaming reply…");
   });
 
+  // The task cards (workspace redesign Arc 3): the turn lifecycle is a class
+  // on one wrapper per turn — folded past turns dim, the open turn is a card,
+  // the live turn glows with the working pill.
+  it("wraps each turn in a card — folded turns wear is-folded, the latest is-open", () => {
+    const wrapper = mountStream(3);
+    const cards = wrapper.findAll(".turn-card");
+    expect(cards).toHaveLength(3);
+    expect(cards[0]!.classes()).toContain("is-folded");
+    expect(cards[1]!.classes()).toContain("is-folded");
+    expect(cards[2]!.classes()).toContain("is-open");
+  });
+
+  it("a streaming turn renders the live card with the ticking working pill", () => {
+    const activeTurn: ActiveTurnView = {
+      ...createActiveTurnView(),
+      status: "streaming",
+      startedAtMs: Date.now() - 95_000,
+      segments: [
+        { messageId: "live-1", text: "on it…", thinking: "", toolCalls: [] },
+      ],
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [],
+        toolCallsByMessageId: {},
+        activeTurn,
+        assistantName: "Ryan",
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const liveCard = wrapper.find(".turn-card.is-live");
+    expect(liveCard.exists()).toBe(true);
+    expect(liveCard.find(".live-spine").exists()).toBe(true);
+    const pill = liveCard.find(".working-pill");
+    expect(pill.exists()).toBe(true);
+    expect(pill.text()).toContain("Ryan working");
+    // 95s ago → "1m 35s" (formatElapsed's m/s shape; the mount tick is <1s).
+    expect(pill.text()).toMatch(/1m 3[56]s/);
+  });
+
   it("groups consecutive assistant rows under ONE author line — a reloaded turn reads like the live overlay", async () => {
     // One turn persists as several assistant rows (one per provider message).
     // Only the first of a run shows the header; a user row breaks the group.

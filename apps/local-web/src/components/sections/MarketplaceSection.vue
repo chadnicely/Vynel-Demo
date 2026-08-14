@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Blocks, Check, Search, SearchX, Store } from "lucide-vue-next";
+import {
+  PhSquaresFour as Blocks,
+  PhCheck as Check,
+  PhMagnifyingGlass as Search,
+  PhMagnifyingGlass as SearchX,
+  PhStorefront as Store,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type { MarketplaceItem } from "@vynel/contracts/marketplace/marketplace-item";
 import type { SectionScope } from "./section-scope.js";

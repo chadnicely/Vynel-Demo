@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { Settings2 } from "lucide-vue-next";
+import { PhGearFine as Settings2 } from "@phosphor-icons/vue";
 import { EmptyState, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
@@ -460,7 +460,11 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       </footer>
     </section>
 
-    <TasksPanel v-if="ui.isTasksPanelOpen" :scope="{ kind: 'global' }" />
+    <TasksPanel
+      v-if="ui.isTasksPanelOpen"
+      :scope="{ kind: 'global' }"
+      :assistant-name="ASSISTANT_NAME"
+    />
   </div>
 </template>
 

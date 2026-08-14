@@ -4,3 +4,4 @@
 // `.claude/rules/structure-standard.md` "packages/db/src/schema/".
 
 export * from './workspaces.js'
+export * from './workspace-groups.js'

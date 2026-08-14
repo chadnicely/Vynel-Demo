@@ -9,6 +9,7 @@ function mountTitleBar(overrides: Record<string, unknown> = {}) {
       presenceState: "idle",
       presenceLabel: "assistant idle",
       theme: "dark",
+      navMode: "tabs",
       sidebarOpen: true,
       tasksOpen: false,
       openTaskCount: 0,

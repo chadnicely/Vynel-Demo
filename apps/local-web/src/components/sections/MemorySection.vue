@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Brain, Plus } from "lucide-vue-next";
+import { PhBrain as Brain, PhPlus as Plus } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useMemoryEntriesInScope } from "../../composables/memory/use-memory-entries-in-scope.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";

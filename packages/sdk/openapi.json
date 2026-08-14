@@ -31058,6 +31058,12 @@
                           "continueEnabled": {
                             "type": "boolean"
                           },
+                          "groupId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "createdAt": {
                             "type": "string"
                           },
@@ -31077,6 +31083,7 @@
                           "path",
                           "isArchived",
                           "continueEnabled",
+                          "groupId",
                           "createdAt",
                           "updatedAt",
                           "lastAccessedAt"
@@ -33121,6 +33128,12 @@
                       "continueEnabled": {
                         "type": "boolean"
                       },
+                      "groupId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "createdAt": {
                         "type": "string"
                       },
@@ -33140,6 +33153,7 @@
                       "path",
                       "isArchived",
                       "continueEnabled",
+                      "groupId",
                       "createdAt",
                       "updatedAt",
                       "lastAccessedAt"
@@ -33222,6 +33236,12 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33241,6 +33261,7 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33406,6 +33427,232 @@
         "x-sdk-name": "workspaces.listDirectories"
       }
     },
+    "/workspaces/groups": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of workspace folders.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "name",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getWorkspacesGroups",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "List the user's workspace folders (menu-tree groups), creation order.",
+        "x-sdk-name": "workspaces.listGroups",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_workspace_groups",
+          "description": "List the authenticated user's workspace folders — the groups that organize workspaces in the navigation tree. Membership is each workspace's groupId. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Folder created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or over-long folder name."
+          }
+        },
+        "operationId": "postWorkspacesGroups",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Create a workspace folder.",
+        "x-sdk-name": "workspaces.createGroup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/groups/{groupId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Renamed folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Folder not found."
+          }
+        },
+        "operationId": "patchWorkspacesGroupsByGroupId",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "groupId",
+            "required": true
+          }
+        ],
+        "summary": "Rename a workspace folder (owner-scoped — 404 if not owned).",
+        "x-sdk-name": "workspaces.renameGroup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Folder deleted; members detached."
+          },
+          "404": {
+            "description": "Folder not found."
+          }
+        },
+        "operationId": "deleteWorkspacesGroupsByGroupId",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "groupId",
+            "required": true
+          }
+        ],
+        "summary": "Delete a workspace folder. Member workspaces detach to the tree root — never deleted.",
+        "x-sdk-name": "workspaces.deleteGroup"
+      }
+    },
     "/workspaces/{workspaceId}": {
       "get": {
         "responses": {
@@ -33449,6 +33696,12 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33468,6 +33721,7 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33544,6 +33798,12 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33563,6 +33823,7 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33660,6 +33921,126 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/group": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "Updated workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "managerName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "small-business",
+                        "personal",
+                        "project",
+                        "custom"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "continueEnabled": {
+                      "type": "boolean"
+                    },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastAccessedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "managerName",
+                    "kind",
+                    "path",
+                    "isArchived",
+                    "continueEnabled",
+                    "groupId",
+                    "createdAt",
+                    "updatedAt",
+                    "lastAccessedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace or folder not found."
+          }
+        },
+        "operationId": "putWorkspacesByWorkspaceIdGroup",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Move a workspace into a folder (or to the tree root with null).",
+        "x-sdk-name": "workspaces.setGroup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "groupId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "groupId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/archive": {
       "post": {
         "responses": {
@@ -33703,6 +34084,12 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33722,6 +34109,7 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33795,6 +34183,12 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33814,6 +34208,7 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"

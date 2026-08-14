@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  ChevronRight,
-  File,
-  FileCode2,
-  FileJson,
-  FileText,
-  Folder,
-  FolderOpen,
-  Image,
-} from "lucide-vue-next";
+  PhCaretRight as ChevronRight,
+  PhFile as File,
+  PhFileCode as FileCode2,
+  PhBracketsCurly as FileJson,
+  PhFileText as FileText,
+  PhFolder as Folder,
+  PhFolderOpen as FolderOpen,
+  PhImage as Image,
+} from "@phosphor-icons/vue";
 import {
   useFileTree,
   type DirectoryEntry,

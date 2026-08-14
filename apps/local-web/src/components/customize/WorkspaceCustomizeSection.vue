@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { SlidersHorizontal } from "lucide-vue-next";
+import { PhSlidersHorizontal as SlidersHorizontal } from "@phosphor-icons/vue";
 import { WorkspaceColorPicker } from "@vynel/ui";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useUpdateWorkspace } from "../../composables/workspaces/use-update-workspace.js";

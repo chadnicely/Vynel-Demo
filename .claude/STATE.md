@@ -3,15 +3,74 @@
 **Updated 2026-08-14.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-14 DESIGN MIRROR SEEDED — the letterman pattern, first pack in
+## 🔥 2026-08-14 WORKSPACE REDESIGN ARC — mirror seeded, plan settled, theme LANDED
 
-`.claude-design/project/` now mirrors Chad's Claude Design project (claude.ai/design), synced
-byte-clean from export zips via the new `/sync-design` command (`.claude/commands/`) — every sync
-is one commit, so `git diff .claude-design/` between syncs is the upstream design-change worklist
-(same convention as letterman's `.claude-design/`). First pack: the **"New app" onboarding wizard**
-(13-step modal flow — `Onboarding Wizard.dc.html`, read `.claude-design/README.md` first) + six
-**Vynel Workspace** screen states, all on the **Nocturne** design system (`_ds/nocturne-*/`,
-tokens in `styles.css`). Implementation of the wizard in the real UI is the NEXT arc — not started.
+1. **Design mirror seeded** (`6f46e6c`): `.claude-design/project/` mirrors Chad's Claude Design
+   project, synced byte-clean from export zips via `/sync-design` — every sync is one commit, so
+   `git diff .claude-design/` is the upstream design-change worklist. First pack: the 13-step
+   **"New app" onboarding wizard** + six **Vynel Workspace** screen states on **Nocturne**.
+2. **THE PLAN (read it): `.claude/plan/workspace-redesign.md`** — research findings, canvas
+   inventory, lifecycles, arcs 0–5, settled decisions. **Critical standing rule:** the
+   `design/mission-control-prototype` worktree is the BOSS's AI-built prototype — UI reference
+   only, code unverified, never adopt its API/label changes, build new functionality fresh on
+   main (memory: mission-control-worktree-boss-reference).
+3. **Settled by Chad:** main is home · Phosphor swap (worktree never migrated icons — verified) ·
+   needs-input blue #38b6ff · completed oklch(0.70 0.105 158) · Inter vendored.
+4. **Arc 1a LANDED (gate green 773 files/4759 tests, live-verified dark+light at 18894):**
+   `tokens.css` rewritten — raw Nocturne verbatim from the DS source + semantic aliases
+   (new: --bg-chrome/--bg-inset/--needs-input; --ok/--danger re-pointed; row hovers per canvas);
+   Inter variable fonts vendored in `packages/ui/src/styles/fonts/`; Tailwind bridge + 6px
+   scrollbars; six components' on-gold ink → `var(--color-bg)`; index.html flash → #161826.
+5. **Arc 1b LANDED (gate green again):** lucide → `@phosphor-icons/vue` across all 61 local-web
+   files — codemod aliased each Phosphor export to the file's existing local name
+   (`PhGearSix as Settings`), so usage sites are byte-identical; 123-name mapping pre-verified
+   against the package's 1512 exports; catalog icon NAMES untouched (contracts data);
+   `lucide-vue-next` removed from local-web (cloud-admin-web keeps its copy — deferred surface).
+6. **Arc 2a LANDED (gate green, 3 new shell tests, live-verified both modes):** the tabs/menu
+   view — `navMode` in ui-store (persisted `vynel.nav-mode`, tabs default), title-bar Tabs|Menu
+   segment, presence-aware strip (spinner chip / needs-input dot via NEW
+   `use-workspace-presence`: server turns + workspace-scoped approvals/asks), menu mode roots
+   the sidebar at NEW `WorkspaceTree.vue` (pinned Global row, workspace rows, drill-in → section
+   menu with back row) over the SAME ShellTab state (treeSelect/treeDrill ride useScopeTabs).
+   Deliberate deferrals in `docs/module-notes/workspace-redesign.md` (NOT-RUNNING group +
+   progress + problem state → Arc 5 status vocabulary; hover card → rail arc).
+7. **Arc 2b LANDED (gate green 4782, 18 new tests, live drag-drop verified):** the
+   `workspace_groups` engine slice, built fresh — schema in the db kernel + migration
+   `0039_workspace_groups` (loose `workspaces.group_id`, tasks.planId precedent), functional
+   repos + `detachWorkspacesFromGroup`, five leaf ops (created/deleted outbox pair; rename/move
+   event-less per D14 selectivity; owner-scoped 404s, one shared name normalizer),
+   `/workspaces/groups` routes + `PUT /:workspaceId/group`, regenerated SDK (listGroups/
+   createGroup/renameGroup/deleteGroup/setGroup) + MCP `list_workspace_groups` (roster test +1),
+   tree folders UI (drag-drop, dashed drop targets, ContextMenu inline rename, root-zone
+   detach, persisted folds).
+8. **Arc 3a LANDED (gate green 4787, 29 chat-component tests):** the task-card lifecycle on the
+   shared ThreadStream — `turnCardGroups` wraps the EXISTING 2026-08-09 turn-fold machinery in
+   one `<section class="turn-card">` per turn (zero host changes; all four mounts inherit):
+   folded past turns dim to grayscale strips with hover wake, the open turn is a hairline card,
+   the live turn wears `.is-live` (gold-tinted ground + `.live-spine` sweep + `.working-pill`
+   with "{persona} working · elapsed" on the NEW shared `use-ticking-elapsed` clock — LiveTurn
+   refactored onto it). Canvas items still deferred: refs chips + handed-off card (cross-project
+   data), inline per-card comment, composer actions/toggles (engine semantics — plan Finding 4).
+9. **Arc 4 LANDED (gate green 4792 — count-arithmetic verified):** the work rail, EVOLVED from
+   TasksPanel (same mount + title-bar toggle): live card on scope presence + REAL step progress
+   (running session's todos via activity serverTurns → sessionId), queue/completed pill tabs
+   (in-progress leads), TaskStatusControl kept, OPEN IT = running apps as plain anchors (AppRow
+   pattern) + per-scope interrupt (chat.interruptSession / root.interruptTurn, inline confirm).
+   Nothing invented: no fake step counts, no repo link, no priority flow (no engine data).
+   **Process lesson (logged): I overwrote the pre-existing tasks-panel.test.ts unread — caught
+   by gate count arithmetic (4790→4787), restored all 5 original pins adapted to the rail DOM
+   + 2 new. Always Read before Write on test files.**
+   **NEXT: Arc 5 — states + siblings** (status vocabulary, task detail, new-task modal).
+10. **Arc 5a LANDED (gate green 4797 — +4 exact):** task detail + quick-add, pure composition —
+    TaskViewDialog gains the Steps section (session todos sorted by orderIndex, honest N-of-M +
+    gold bar, NO fabricated durations/outputs; fetch gated open && sessionId), rail rows open it
+    (panel-local viewingTaskId, TasksSection precedent), rail + button quick-adds inline (exact
+    TasksSection create shape). Live-verified end-to-end with real events (the CLI driver's
+    fill/type raced HMR-stale refs — in-page event probe created + viewed a real task).
+    **REMAINING for 5b (engine work, plan deliberately):** per-workspace problem/error signal
+    (one-status red end-to-end), cross-project refs chips + turn rendering, handed-off card,
+    composer actions/toggles semantics. The canvases' AI-rewrite + priority flows also wait on
+    engine surfaces.
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

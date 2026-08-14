@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { File, FileCode2, FileJson, FileText, Image, X } from "lucide-vue-next";
+import {
+  PhFile as File,
+  PhFileCode as FileCode2,
+  PhBracketsCurly as FileJson,
+  PhFileText as FileText,
+  PhImage as Image,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import { IconButton, MarkdownText, SegmentedTabs } from "@vynel/ui";
 import { useFileContent } from "../../composables/files/use-file-content.js";
 import { useSaveFile } from "../../composables/files/use-save-file.js";
@@ -299,7 +306,7 @@ function discard() {
 .action.is-primary {
   background: var(--gold);
   border-color: transparent;
-  color: #14171c;
+  color: var(--color-bg);
 }
 
 .action.is-primary:hover {

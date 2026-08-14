@@ -369,7 +369,7 @@ const contextLine = computed(() => {
 .action.approve {
   background: var(--gold);
   border-color: transparent;
-  color: #14171c;
+  color: var(--color-bg);
 }
 
 .action.approve:hover:not(:disabled) {

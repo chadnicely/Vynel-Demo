@@ -2,36 +2,37 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
-  Bot,
-  BookOpen,
-  Brain,
-  Cable,
-  CalendarClock,
-  CalendarRange,
-  Cpu,
-  FolderTree,
-  History,
-  House,
-  ListChecks,
-  MessageCircle,
-  NotebookPen,
-  Radio,
-  ScrollText,
-  Server,
-  Settings2,
-  ShieldCheck,
-  SlidersHorizontal,
-  SquarePlay,
-  SquareSlash,
-  Store,
-  UserRound,
-  Wrench,
-} from "lucide-vue-next";
+  PhRobot as Bot,
+  PhBookOpen as BookOpen,
+  PhBrain as Brain,
+  PhPlugsConnected as Cable,
+  PhCalendarDots as CalendarClock,
+  PhCalendarBlank as CalendarRange,
+  PhCpu as Cpu,
+  PhTreeView as FolderTree,
+  PhClockCounterClockwise as History,
+  PhHouse as House,
+  PhListChecks as ListChecks,
+  PhChatCircle as MessageCircle,
+  PhNotePencil as NotebookPen,
+  PhBroadcast as Radio,
+  PhScroll as ScrollText,
+  PhHardDrives as Server,
+  PhGearFine as Settings2,
+  PhShieldCheck as ShieldCheck,
+  PhSlidersHorizontal as SlidersHorizontal,
+  PhPlayCircle as SquarePlay,
+  PhTerminalWindow as SquareSlash,
+  PhStorefront as Store,
+  PhUser as UserRound,
+  PhWrench as Wrench,
+} from "@phosphor-icons/vue";
 import { CommandPalette, ResizablePanel, useOpenModalCount } from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
 import AppTabStrip from "./AppTabStrip.vue";
 import AppSidebar from "./AppSidebar.vue";
+import WorkspaceTree from "./WorkspaceTree.vue";
 import BrowserPanel from "../browser/BrowserPanel.vue";
 import type { SidebarItem } from "./AppSidebar.vue";
 import AppStatusBar from "./AppStatusBar.vue";
@@ -60,6 +61,11 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import {
+  useWorkspaceGroups,
+  useWorkspaceGroupMutations,
+} from "../../composables/workspaces/use-workspace-groups.js";
+import { useWorkspacePresence } from "../../composables/workspaces/use-workspace-presence.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
@@ -106,8 +112,23 @@ const activeWorkspaces = computed(() =>
   allWorkspaces.value.filter((w) => !w.isArchived),
 );
 const workspaceOptions = computed(() =>
-  activeWorkspaces.value.map((w) => ({ id: w.id, name: w.name })),
+  activeWorkspaces.value.map((w) => ({
+    id: w.id,
+    name: w.name,
+    groupId: w.groupId ?? null,
+  })),
 );
+
+// Menu-tree folders (Arc 2b) — the tree renders them; the mutations answer
+// its create/rename/delete/move events.
+const workspaceGroupsQuery = useWorkspaceGroups();
+const workspaceGroupOptions = computed(() =>
+  (workspaceGroupsQuery.data.value ?? []).map((group) => ({
+    id: group.id,
+    name: group.name,
+  })),
+);
+const groupMutations = useWorkspaceGroupMutations();
 const activeWorkspaceName = computed(
   () =>
     allWorkspaces.value.find((w) => w.id === ui.activeWorkspaceId)?.name ??
@@ -271,6 +292,10 @@ const sectionItems = computed(() => {
   ];
 });
 
+// Live per-scope presence — the strip's chips/dots and the workspace tree
+// read the same derivation.
+const { presenceByWorkspaceId, globalPresence } = useWorkspacePresence();
+
 // The strip needs every workspace's customized accent, not just the active
 // tab's — each tab colors itself.
 const workspaceColorSlots = computed<Record<string, number | null>>(() => {
@@ -317,6 +342,28 @@ const { selectTab, closeTab, addTab, retargetTab } = useScopeTabs(
   allWorkspaces,
   () => workspacesQuery.isSuccess.value,
 );
+
+// ── Menu-mode navigation: the tree is the root; selecting drives the SAME
+// tab machinery the strip uses (selectTab restores the tab's place), so the
+// two modes stay one state. ──
+function treeSelect(workspaceId: string | null) {
+  // Clicking the already-active row is inert — duplicate tabs are legal, so
+  // "find first tab for this room" could otherwise hop a later duplicate's
+  // canvas over to the first one's place.
+  if (ui.activeTab.workspaceId === workspaceId) return;
+  if (workspaceId === null) {
+    selectTab(GLOBAL_TAB_ID);
+    return;
+  }
+  const existing = ui.tabs.find((tab) => tab.workspaceId === workspaceId);
+  if (existing !== undefined) selectTab(existing.id);
+  else addTab(workspaceId);
+}
+
+function treeDrill(workspaceId: string | null) {
+  treeSelect(workspaceId);
+  ui.isWorkspaceTreeOpen = false;
+}
 
 // ── Navigation handlers (write shared ui-store + route; the views react). ──
 function selectSurface(id: string) {
@@ -432,6 +479,12 @@ function runCommand(id: string) {
     case "toggle-tasks":
       ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
       break;
+    case "nav-tabs":
+      ui.setNavMode("tabs");
+      break;
+    case "nav-menu":
+      ui.setNavMode("menu");
+      break;
     case "go-home":
       void router.push({ name: "home" });
       break;
@@ -482,6 +535,9 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
+  ui.navMode === "tabs"
+    ? { id: "nav-menu", label: "Switch to menu navigation", group: "View", keywords: "tree workspaces" }
+    : { id: "nav-tabs", label: "Switch to tabs navigation", group: "View", keywords: "strip" },
 ]);
 
 function onPaletteSelect(id: string) {
@@ -524,7 +580,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
   <div
     class="app-shell"
     :style="{
-      gridTemplateRows: browser.isOpen ? '40px 1fr 22px' : '40px 40px 1fr 22px',
+      gridTemplateRows:
+        browser.isOpen || ui.navMode === 'menu'
+          ? '40px 1fr 22px'
+          : '40px 40px 1fr 22px',
     }"
   >
     <AppTitleBar
@@ -532,6 +591,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :presence-state="presenceState"
       :presence-label="presenceLabel"
       :theme="ui.theme"
+      :nav-mode="ui.navMode"
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
       :open-task-count="openTaskCount"
@@ -539,12 +599,15 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       @menus-open="areTitleBarMenusOpen = $event"
     />
 
+    <!-- Menu mode collapses the strip row — the sidebar tree takes over. -->
     <AppTabStrip
-      v-if="!browser.isOpen"
+      v-if="!browser.isOpen && ui.navMode === 'tabs'"
       :tabs="ui.tabs"
       :active-tab-id="ui.activeTabId"
       :workspaces="workspaceOptions"
       :workspace-color-slots="workspaceColorSlots"
+      :workspace-presence="presenceByWorkspaceId"
+      :global-presence="globalPresence"
       @select-tab="selectTab"
       @close-tab="closeTab"
       @retarget-tab="retargetTab"
@@ -562,13 +625,37 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
         :min-width="200"
         :max-width="380"
       >
+        <WorkspaceTree
+          v-if="ui.navMode === 'menu' && ui.isWorkspaceTreeOpen"
+          :workspaces="workspaceOptions"
+          :groups="workspaceGroupOptions"
+          :active-workspace-id="ui.activeWorkspaceId"
+          :presence-by-workspace-id="presenceByWorkspaceId"
+          :global-presence="globalPresence"
+          :workspace-color-slots="workspaceColorSlots"
+          :account-name="accountName"
+          @select="treeSelect"
+          @drill="treeDrill"
+          @create-workspace="isCreateWorkspaceOpen = true"
+          @create-group="groupMutations.createGroup.mutate('New folder')"
+          @rename-group="(groupId, name) => groupMutations.renameGroup.mutate({ groupId, name })"
+          @delete-group="(groupId) => groupMutations.deleteGroup.mutate(groupId)"
+          @move-workspace="
+            (workspaceId, groupId) =>
+              groupMutations.moveWorkspace.mutate({ workspaceId, groupId })
+          "
+          @open-account="openAccount"
+        />
         <AppSidebar
+          v-else
           :section-title="sectionTitle"
           :section-items="sectionItems"
           :active-section-id="activeSectionId"
           :account-name="accountName"
+          :show-back="ui.navMode === 'menu'"
           @select-section="selectSection"
           @open-account="openAccount"
+          @back="ui.isWorkspaceTreeOpen = true"
         />
       </ResizablePanel>
 

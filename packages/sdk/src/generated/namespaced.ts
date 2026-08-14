@@ -1949,10 +1949,24 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  createGroup: async (input: NonNullable<paths["/workspaces/groups"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/groups", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   delete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}"]["delete"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}"]["delete"]['requestBody']>['content']['application/json']) => {
     const { error, response } = await client["DELETE"]("/workspaces/{workspaceId}", {
       params: { path: { workspaceId: workspaceId } },
       body: input,
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  deleteGroup: async (groupId: NonNullable<paths["/workspaces/groups/{groupId}"]["delete"]['parameters']>['path']["groupId"]) => {
+    const { error, response } = await client["DELETE"]("/workspaces/groups/{groupId}", {
+      params: { path: { groupId: groupId } },
     })
     if (error) throw new SdkError(response, error)
 
@@ -1978,8 +1992,29 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  listGroups: async () => {
+    const { data, error, response } = await client["GET"]("/workspaces/groups")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   register: async (input: NonNullable<paths["/workspaces"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  renameGroup: async (groupId: NonNullable<paths["/workspaces/groups/{groupId}"]["patch"]['parameters']>['path']["groupId"], input: NonNullable<paths["/workspaces/groups/{groupId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/workspaces/groups/{groupId}", {
+      params: { path: { groupId: groupId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  setGroup: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/group"]["put"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/group"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/group", {
+      params: { path: { workspaceId: workspaceId } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

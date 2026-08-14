@@ -2,11 +2,11 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import {
-  Activity,
-  CalendarClock,
-  FolderOpen,
-  MessagesSquare,
-} from "lucide-vue-next";
+  PhPulse as Activity,
+  PhCalendarDots as CalendarClock,
+  PhFolderOpen as FolderOpen,
+  PhChatsCircle as MessagesSquare,
+} from "@phosphor-icons/vue";
 import { EmptyState, PresenceDot } from "@vynel/ui";
 import TasksCard from "../components/home/TasksCard.vue";
 import UsageStatsCard from "../components/home/UsageStatsCard.vue";

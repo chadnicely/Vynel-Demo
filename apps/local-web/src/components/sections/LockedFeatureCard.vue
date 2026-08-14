@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Lock } from "lucide-vue-next";
+import { PhLock as Lock } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 
 // Stands in for a whole section when the live entitlement lacks its feature —

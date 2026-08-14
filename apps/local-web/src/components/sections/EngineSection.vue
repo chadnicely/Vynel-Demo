@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Cpu, Plus } from "lucide-vue-next";
+import { PhCpu as Cpu, PhPlus as Plus } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useServerInstalls } from "../../composables/server-install/use-server-installs.js";
 import { useEngineLocation } from "../../composables/shell/use-engine-location.js";

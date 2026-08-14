@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onScopeDispose, watch, ref } from "vue";
-import { ListChecks } from "lucide-vue-next";
+import { PhListChecks as ListChecks } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import { newlyCompletedIds } from "./recently-completed-diff.js";

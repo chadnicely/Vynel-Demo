@@ -1,25 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  Command,
-  FolderPlus,
-  ListChecks,
-  Moon,
-  PanelLeft,
-  Power,
-  Settings2,
-  Sun,
-  UserRound,
-} from "lucide-vue-next";
+  PhBrowsers as Browsers,
+  PhCommand as Command,
+  PhFolderPlus as FolderPlus,
+  PhList as List,
+  PhListChecks as ListChecks,
+  PhMoon as Moon,
+  PhSidebarSimple as PanelLeft,
+  PhPower as Power,
+  PhGearFine as Settings2,
+  PhSun as Sun,
+  PhUser as UserRound,
+} from "@phosphor-icons/vue";
 import { DropdownMenu, PresenceDot } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 
 // The desktop title bar with an integrated menu (the Windows 11 / VS Code
-// pattern — one bar carries identity, menus, window title, presence, and the
-// window controls). Workspace navigation lives on the tab strip below, not
-// here. Data-blind: it renders menus + emits `command`; the shell decides
+// pattern — one bar carries identity, menus, window title, presence, the
+// Tabs|Menu navigation-mode segment, and the window controls). Workspace
+// navigation itself lives on the strip (tabs mode) or the sidebar tree (menu
+// mode). Data-blind: it renders menus + emits `command`; the shell decides
 // what each id does. Window controls drive the frameless Tauri window (no-op
 // in the browser).
 const props = defineProps<{
@@ -27,10 +30,18 @@ const props = defineProps<{
   presenceState: "idle" | "live" | "attention";
   presenceLabel: string;
   theme: "dark" | "light";
+  navMode: "tabs" | "menu";
   sidebarOpen: boolean;
   tasksOpen: boolean;
   openTaskCount: number;
 }>();
+
+// The workspace-navigation views — a labeled segment, not a blind toggle, so
+// the off mode stays discoverable (the design's Tabs | Menu pair).
+const NAV_MODES = [
+  { id: "nav-tabs", mode: "tabs", label: "Tabs", icon: Browsers },
+  { id: "nav-menu", mode: "menu", label: "Menu", icon: List },
+] as const;
 
 const emit = defineEmits<{
   command: [id: string];
@@ -167,6 +178,32 @@ function onMenuCommand(id: string) {
         <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
         <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
       </span>
+    </div>
+
+    <!-- Workspace navigation mode (Tabs | Menu) — presentation only; the
+         scope-tab state underneath is shared, so flipping loses nothing. -->
+    <div
+      class="mr-1.5 flex shrink-0 items-center gap-0.5 self-center rounded-sm p-0.5"
+      role="group"
+      aria-label="Navigation mode"
+    >
+      <button
+        v-for="entry in NAV_MODES"
+        :key="entry.id"
+        type="button"
+        :aria-pressed="props.navMode === entry.mode"
+        :title="`${entry.label} navigation`"
+        class="flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs transition"
+        :class="
+          props.navMode === entry.mode
+            ? 'bg-row-active text-ink-1'
+            : 'text-ink-3 hover:bg-row-hover hover:text-ink-1'
+        "
+        @click="emit('command', entry.id)"
+      >
+        <component :is="entry.icon" :size="13" />
+        {{ entry.label }}
+      </button>
     </div>
 
     <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->

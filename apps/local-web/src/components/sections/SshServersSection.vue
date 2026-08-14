@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Plus, Server } from "lucide-vue-next";
+import { PhPlus as Plus, PhHardDrives as Server } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useSshServers } from "../../composables/ssh-servers/use-ssh-servers.js";
 import AddServerDialog from "../ssh/AddServerDialog.vue";

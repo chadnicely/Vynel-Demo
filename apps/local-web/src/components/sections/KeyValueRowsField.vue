@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, X } from "lucide-vue-next";
+import { PhPlus as Plus, PhX as X } from "@phosphor-icons/vue";
 
 // A small name/value pair editor (headers, env vars) for the add-MCP form —
 // one home so the two secret-bearing field sets share behavior. Values are

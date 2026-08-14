@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { FolderTree, Sparkles } from "lucide-vue-next";
+import { PhTreeView as FolderTree, PhSparkle as Sparkles } from "@phosphor-icons/vue";
 import { EmptyState, IconButton, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
@@ -362,7 +362,11 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       @open-file="openFileOnCanvas"
     />
 
-    <TasksPanel v-if="ui.isTasksPanelOpen" :scope="scope" />
+    <TasksPanel
+      v-if="ui.isTasksPanelOpen"
+      :scope="scope"
+      :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
+    />
   </div>
 </template>
 

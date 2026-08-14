@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Check, Loader2, Server, TriangleAlert, X } from "lucide-vue-next";
+import {
+  PhCheck as Check,
+  PhCircleNotch as Loader2,
+  PhHardDrives as Server,
+  PhWarning as TriangleAlert,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import { SdkError } from "@vynel/sdk";
 import type { SshServerResponse } from "@vynel/contracts/ssh/ssh-http";
 import { useRemoveSshServer } from "../../composables/ssh-servers/use-remove-ssh-server.js";
