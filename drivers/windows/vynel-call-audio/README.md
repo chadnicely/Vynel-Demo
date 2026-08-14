@@ -122,8 +122,9 @@ accepted). Sessions never install/update the driver unattended. See `LOADING.md`
   2026-08-14 (0.1.0.3)**: both endpoints show the contract names and the smoke passes through
   them at the generated amplitude.
 - [x] **In-driver format tolerance** — mono ring + channel fold/replicate + 48 kHz-only
-  format lists (see "Format tolerance" above). Compile + InfVerif VALID at 0.1.0.4; runtime
-  pass pending (fresh install + the pitch-checking smoke, which FAILs on 0.1.0.3).
+  format lists (see "Format tolerance" above). **Runtime-VERIFIED 2026-08-15 (0.1.0.4)**:
+  both ends open at 48000 and the pitch-checking smoke passes at 436.4 Hz (it FAILs on
+  0.1.0.3 at the folded pitch).
 - [ ] **N static pairs**: INF-models change (N device nodes, per-model friendly names, same
   binary) — days-scale, mostly INF + install UX.
 - [ ] **Dynamic pairs** (create per call on demand): ACX supports post-start

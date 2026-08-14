@@ -62,13 +62,15 @@ let frames = 0
 let samples = 0
 let peak = 0
 let sumSquares = 0
-// Pitch estimate via zero crossings on channel 0, with hysteresis so leading
-// silence and noise contribute nothing: crossings / 2 / active-span ≈ Hz.
-let crossings = 0
+// Pitch estimate on channel 0: the MEDIAN half-period between zero crossings
+// (with hysteresis). The capture is tone bursts separated by silence gaps —
+// the WASAPI engine renders silence whenever the JS feed timer is late — so a
+// crossings-per-second rate reads far low (measured ~5x). Gaps contribute one
+// huge interval each; the median ignores them and reads the in-burst pitch.
 let lastSign = 0
 let monoIndex = 0
-let firstActive = -1
-let lastActive = -1
+let lastCrossingIndex = -1
+const halfPeriods = []
 const ACTIVE_LEVEL = 0.05
 const micHandle = cpal.createStream(mic.deviceId, true, inConfig, (data) => {
   frames += 1
@@ -81,10 +83,11 @@ const micHandle = cpal.createStream(mic.deviceId, true, inConfig, (data) => {
   for (let f = 0; f < data.length; f += inConfig.channels) {
     const s = data[f]
     if (Math.abs(s) >= ACTIVE_LEVEL) {
-      if (firstActive < 0) firstActive = monoIndex
-      lastActive = monoIndex
       const sign = s > 0 ? 1 : -1
-      if (lastSign !== 0 && sign !== lastSign) crossings += 1
+      if (lastSign !== 0 && sign !== lastSign) {
+        if (lastCrossingIndex >= 0) halfPeriods.push(monoIndex - lastCrossingIndex)
+        lastCrossingIndex = monoIndex
+      }
       lastSign = sign
     }
     monoIndex += 1
@@ -99,9 +102,10 @@ setTimeout(() => {
   cpal.closeStream(micHandle)
   const rms = Math.sqrt(sumSquares / Math.max(1, samples))
   const nonSilent = peak > 0.01
-  const activeSpanSeconds = firstActive >= 0 ? (lastActive - firstActive) / inConfig.sampleRate : 0
-  const estimatedHz = activeSpanSeconds > 0 ? crossings / 2 / activeSpanSeconds : 0
-  const pitchOk = activeSpanSeconds > 1 && Math.abs(estimatedHz - TONE_HZ) / TONE_HZ < 0.1
+  halfPeriods.sort((a, b) => a - b)
+  const medianHalfPeriod = halfPeriods.length > 0 ? halfPeriods[Math.floor(halfPeriods.length / 2)] : 0
+  const estimatedHz = medianHalfPeriod > 0 ? inConfig.sampleRate / (2 * medianHalfPeriod) : 0
+  const pitchOk = halfPeriods.length > 100 && Math.abs(estimatedHz - TONE_HZ) / TONE_HZ < 0.1
   console.log(
     JSON.stringify({
       frames,
@@ -109,6 +113,7 @@ setTimeout(() => {
       peak: Number(peak.toFixed(4)),
       rms: Number(rms.toFixed(4)),
       nonSilent,
+      crossingIntervals: halfPeriods.length,
       estimatedHz: Number(estimatedHz.toFixed(1)),
       pitchOk,
     }),

@@ -367,8 +367,18 @@ The fix, two halves:
 
 0.1.0.4 built (compile+link clean; inf2cat hit the documented UTC clock-skew — local date
 rolled past UTC midnight — and `Sign-Driver.ps1` rebuilt the catalog as designed), InfVerif
-`/h` VALID, signed. **Runtime with Chad:** fresh install, then the smoke must flip to PASS at
-~440 Hz — and both endpoints should now open at 48000.
+`/h` VALID, signed.
+
+**Runtime-VERIFIED same day (Chad's machine, fresh install):** both ends opened at 48000
+(44100 gone), peak 0.3 preserved through the fold, and the smoke PASSED at **436.4 Hz**
+(628 crossing intervals; within 1% of the played 440). One estimator lesson en route: the
+first pitch check (crossings ÷ active span) read 80.5 Hz on the FIXED driver because the
+capture is ~20% tone bursts / 80% silence gaps (WASAPI renders silence when the smoke's JS
+feed timer is late — visible as rms 0.094 vs 0.21 for a continuous tone, in every run ever).
+The tell that the driver was already right: 40.5 Hz pre-fix → 80.5 Hz post-fix, exactly ×2 =
+the half-pitch fold removed. The estimator now uses the MEDIAN half-period between crossings —
+gaps contribute one huge outlier interval each, which the median ignores; on pre-fix data the
+same math reads ~220 Hz and still fails honestly.
 
 ### Runtime round 2 (0.1.0.3): VERIFIED — naming closed
 
