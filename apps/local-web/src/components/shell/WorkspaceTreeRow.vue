@@ -60,8 +60,8 @@ function progressLabel(): string | null {
 
 <template>
   <!-- Canvas geometry: pad `6px 11.2px 6px 10px`, a 12px caret column, a 16px
-       chip, then name + the meta cluster — so the name lands at x=64 from the
-       row's left edge, exactly as the canvas measures. -->
+       chip, then name + the meta cluster — so the name starts 54px in from the
+       row's left edge (x=64 on the canvas's own 10px-inset root row). -->
   <div
     class="group flex items-center rounded-sm pr-[11.2px] transition"
     :class="[
@@ -77,7 +77,7 @@ function progressLabel(): string | null {
     <button
       type="button"
       :aria-label="`Open the ${props.workspace.name} menu`"
-      class="grid w-3 shrink-0 self-stretch place-items-center rounded-sm text-[var(--color-neutral-600)] transition hover:text-ink-1"
+      class="tree-caret grid w-3 shrink-0 self-stretch place-items-center rounded-sm text-[var(--color-neutral-600)] transition hover:text-ink-1"
       @click="emit('drill')"
     >
       <CaretRight :size="10" />
@@ -145,6 +145,24 @@ function progressLabel(): string | null {
 </template>
 
 <style scoped>
+/* The caret's LAYOUT column is the canvas's 12px, but a 12px-wide target is
+   half of WCAG 2.5.8's 24x24 floor and drill-in has no other single-click
+   path. The hit area grows LEFT into the row's own padding — growing it
+   evenly would overlap the label button (a positioned ::after paints above
+   its unpositioned sibling) and steal clicks meant for "select". */
+.tree-caret {
+  position: relative;
+}
+
+.tree-caret::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -10px;
+  width: 24px;
+}
+
 /* One status, one colour — the mark dot's hue is the state's, everywhere. */
 .tree-mark {
   animation: tree-mark-pulse 1.4s ease-in-out infinite;

@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { PhClockCounterClockwise as History } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
+import { selectSessionsForScope } from "@vynel/contracts/chat/sessions-overview";
 import type {
   SessionsOverviewEntry,
   SessionsOverviewSegment,
@@ -37,20 +38,11 @@ const overviewQuery = useSessionsOverview(true, () =>
   activity.isTurnRunning ? 5000 : false,
 );
 
-const entries = computed<SessionsOverviewEntry[]>(() => {
-  const all = overviewQuery.data.value ?? [];
-  const scopeId = workspaceScopeId.value;
-  if (scopeId !== null) {
-    // The room's own sessions: its primary chain and the spawned sessions
-    // grounded in it — both carry the workspace id on their overview entry.
-    return all.filter((entry) => entry.workspaceId === scopeId);
-  }
-  // Global: only the root's own children. The Assistant thread is the Chat
-  // nav; workspace conversations belong to their rooms.
-  return all.filter(
-    (entry) => entry.scope === "spawned" && entry.workspaceId === null,
-  );
-});
+// The curation moved to `selectSessionsForScope` (contracts) so the menu's
+// `Sessions N` counts exactly these rows — see its doc comment.
+const entries = computed<SessionsOverviewEntry[]>(() =>
+  selectSessionsForScope(overviewQuery.data.value ?? [], workspaceScopeId.value),
+);
 
 const errorText = computed(() =>
   overviewQuery.isError.value

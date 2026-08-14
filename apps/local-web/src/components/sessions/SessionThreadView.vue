@@ -295,7 +295,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
 /* A canvas chat surface like Workspace/Global — full-bleed on the thread's
    own gutter. */
 .composer-dock {
-  padding: 10px 22.4px 12px;
+  padding: 10px var(--thread-gutter, 22.4px) 12px;
   width: 100%;
 }
 

@@ -4,8 +4,11 @@
 //
 // The point of these pins: a count must agree with what OPENING the row
 // shows. So they assert the curation (archived / soft-deleted / hidden swap
-// segments are excluded, sibling scopes stay out) rather than just "a number
-// came back".
+// segments are excluded, sibling scopes stay out, a scope counts what it
+// OWNS) rather than just "a number came back".
+//
+// Sessions counts ENTRIES via `selectSessionsForScope` — the same predicate
+// the library renders — so a continuity chain counts once.
 
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -17,6 +20,7 @@ import { VynelError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertChatSession, type NewChatSession } from '@vynel/chat/repositories'
+import { insertAgent } from '@vynel/db/repositories/agents'
 import type { Database } from '@vynel/db'
 import type { AppEnv } from '../../factory.js'
 import { sectionCountsApp } from './index.js'
@@ -103,8 +107,35 @@ function seedSession(
   })
 }
 
+function seedAgent(db: Database, userId: string, workspaceId: string | null, slug: string) {
+  const now = new Date()
+  return insertAgent(db, {
+    id: randomUUID(),
+    userId,
+    workspaceId,
+    slug,
+    name: slug,
+    description: 'A helper.',
+    icon: null,
+    prompt: 'Do the thing.',
+    model: null,
+    effort: null,
+    permissionMode: null,
+    background: false,
+    allowedTools: null,
+    disallowedTools: null,
+    scope: workspaceId === null ? 'user' : 'workspace',
+    source: 'user',
+    trustTier: 'community',
+    enabled: true,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+  })
+}
+
 describe('GET /workspaces/:workspaceId/section-counts', () => {
-  it("counts only the workspace's own listed sessions — siblings and global stay out", async () => {
+  it("counts only the workspace's own conversations — siblings and global stay out", async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
       const workspace = seedWorkspace(db, user.id)
@@ -150,6 +181,29 @@ describe('GET /workspaces/:workspaceId/section-counts', () => {
     })
   })
 
+  it('counts what the scope OWNS, not what merely resolves in it', async () => {
+    // Without this, an empty DB makes every agent/skill assertion 0 and
+    // dropping `ownedByWorkspaceOnly` from count-sections.ts passes silently.
+    // The menu row lists the owned set, so the number must too.
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      seedAgent(db, user.id, null, 'user-scope-helper')
+      seedAgent(db, user.id, workspace.id, 'workspace-helper')
+
+      const app = makeHarness(db)
+      const scoped = (await (
+        await app.request(`/workspaces/${workspace.id}/section-counts`)
+      ).json()) as CountsBody
+      // 1, not 2: the user-scope agent resolves in a session here but is the
+      // GLOBAL menu's row, not this workspace's.
+      expect(scoped.counts.agents).toBe(1)
+
+      const global = (await (await app.request('/section-counts')).json()) as CountsBody
+      expect(global.counts.agents).toBe(1)
+    })
+  })
+
   it('404s on a workspace the user does not own', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
@@ -160,17 +214,18 @@ describe('GET /workspaces/:workspaceId/section-counts', () => {
 })
 
 describe('GET /section-counts', () => {
-  it('counts every scope the Global library lists, and omits apps', async () => {
+  it("counts what the GLOBAL library lists — only the root's own children", async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
       const workspace = seedWorkspace(db, user.id)
-      seedSession(db, user.id, null)
-      seedSession(db, user.id, workspace.id)
+      seedSession(db, user.id, null, { scope: 'spawned' }) // listed in Global
+      seedSession(db, user.id, null, { scope: 'global' }) // the Assistant brain — the Chat nav
+      seedSession(db, user.id, workspace.id) // belongs to its room
 
       const res = await makeHarness(db).request('/section-counts')
       expect(res.status).toBe(200)
       const body = (await res.json()) as CountsBody
-      expect(body.counts.sessions).toBe(2)
+      expect(body.counts.sessions).toBe(1)
       expect(body.counts.apps).toBeUndefined()
     })
   })

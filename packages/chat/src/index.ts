@@ -73,10 +73,6 @@ export type { ListChatSessionsForWorkspaceInput } from './history/list-chat-sess
 
 // Queries — cross-scope reads that don't fit the per-workspace history ops.
 export { listRecentChatSessionsForUser } from './queries/list-recent-chat-sessions-for-user.js'
-export {
-  countChatSessions,
-  type CountChatSessionsInput,
-} from './queries/count-chat-sessions.js'
 export type { ListRecentChatSessionsForUserInput } from './queries/list-recent-chat-sessions-for-user.js'
 export { getChatSessionDetail } from './history/get-chat-session-detail.js'
 export type { ChatSessionDetail } from './history/get-chat-session-detail.js'

@@ -8,10 +8,15 @@ import { useVynel } from "../use-vynel.js";
 //
 // A section absent from the map renders NO number: the engine only reports
 // counts it can answer honestly, and a fabricated 0 reads as "empty".
+//
+// Every successful mutation refreshes this — see `plugins/vue-query.ts` for
+// why that lives there rather than in each feature's mutation.
+export const SECTION_COUNTS_KEY = "section-counts";
+
 export function useSectionCounts(workspaceId: Ref<string | null>) {
   const vynel = useVynel();
   const query = useQuery({
-    queryKey: computed(() => ["section-counts", workspaceId.value] as const),
+    queryKey: computed(() => [SECTION_COUNTS_KEY, workspaceId.value] as const),
     queryFn: () => {
       const id = workspaceId.value;
       return id === null

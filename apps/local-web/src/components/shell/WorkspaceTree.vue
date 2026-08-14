@@ -197,7 +197,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
             <button
               type="button"
               aria-label="Open the Global menu"
-              class="grid w-3 shrink-0 self-stretch place-items-center rounded-sm text-[var(--color-neutral-600)] transition hover:text-ink-1"
+              class="tree-caret grid w-3 shrink-0 self-stretch place-items-center rounded-sm text-[var(--color-neutral-600)] transition hover:text-ink-1"
               @click="emit('drill', null)"
             >
               <CaretRight :size="10" />
@@ -305,7 +305,8 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
               </button>
             </div>
           </ContextMenu>
-          <!-- 14px here + the row's own 10px = the canvas's 24px child indent. -->
+          <!-- The 24px child indent lives INSIDE the row (`indented`), so the
+               active ground still spans the whole folder. -->
           <ul
             v-if="!collapsedFolderIds.has(group.id)"
             class="grid list-none gap-[5px] pl-0"
@@ -393,3 +394,23 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
     />
   </nav>
 </template>
+
+<style scoped>
+/* The caret's LAYOUT column is the canvas's 12px, but a 12px-wide target is
+   half of WCAG 2.5.8's 24x24 floor and drill-in has no other single-click
+   path. The hit area grows LEFT into the row's own padding — growing it
+   evenly would overlap the label button (a positioned ::after paints above
+   its unpositioned sibling) and steal clicks meant for "select". */
+.tree-caret {
+  position: relative;
+}
+
+.tree-caret::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -10px;
+  width: 24px;
+}
+</style>

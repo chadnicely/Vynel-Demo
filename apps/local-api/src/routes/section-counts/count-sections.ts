@@ -1,14 +1,18 @@
 // The counting itself, shared by the user- and workspace-scoped twins so the
 // two can never drift.
 //
-// Every count calls the SAME core read the section's own list route calls,
-// with the same arguments — the number in the menu and the rows behind it
-// come from one source, so they cannot disagree. Only `sessions` gets a
-// dedicated count query: it is the one unbounded set here (the others are
-// tens of rows), and re-deriving its curation filters in a second place is
-// exactly the drift this rule avoids.
+// ONE RULE, no exceptions: every count calls the SAME core read the section's
+// own list route calls, with the same arguments, and takes its length — so
+// the number in the menu and the rows behind it come from one source and
+// cannot disagree. `sessions` originally broke that rule with a bespoke
+// `chat_sessions` count and was the only count that drifted (it advertised
+// every scope's sessions while the Global library lists only the root's own
+// children — and entries collapse continuity chains, so no row count can
+// answer it at all). The curation now lives once, in
+// `selectSessionsForScope`.
 
-import { countChatSessions } from '@vynel/chat'
+import { getSessionsOverview } from '@vynel/session/overview'
+import { selectSessionsForScope } from '@vynel/contracts/chat/sessions-overview'
 import { listAgentsForWorkspace } from '@vynel/agents'
 import { listInstalledSkillsForContext, listAllRuleFilesForScope } from '@vynel/skills'
 import { listApps } from '@vynel/apps'
@@ -52,8 +56,10 @@ export async function countSections(
       ? listAllRuleFilesForScope('user')
       : listAllRuleFilesForScope('workspace', workspace.path)
 
+  const sessions = selectSessionsForScope(getSessionsOverview(db, { userId }), workspaceId)
+
   return {
-    sessions: countChatSessions(db, { userId, workspaceId }),
+    sessions: sessions.length,
     agents: agents.length,
     skills: skills.length,
     rules: rules.length,
