@@ -9,6 +9,24 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **You decide what Claude can touch.** A new "Tool access" panel in the
+  workspace toolkit lists every tool Claude has — grouped by feature — and
+  makes all of it editable: turn a tool off entirely, choose where it's
+  available (chat, background jobs, channels, agents…), set when it needs
+  your approval (never / when asking / always), and bind it to a plan tier
+  or capability toggle. The workspace capability switches (memory,
+  knowledge, notebook) get their first real UI in the same place. Tools
+  your plan doesn't include simply don't exist for Claude anymore, instead
+  of failing when it tries them.
+
+- **Claude can ask you a question mid-job.** Work running in the background
+  (a Telegram message you sent it, for example) can now pause on a short
+  form when Claude genuinely needs your call — you get a nudge on your
+  connected channel, and the answer flows straight back into the running
+  job. If you don't answer within 10 minutes it continues with its best
+  judgment and tells you what it assumed. Questions asked in the app still
+  wait for you as long as it takes.
+
 - **Design changes are now traceable.** Vynel's UI designs from claude.ai/design
   live in the repo as a git-tracked mirror (`.claude-design/`), refreshed
   wholesale from each export zip by the new `/sync-design` command — so every
@@ -314,6 +332,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   task's opening row names Claude honestly instead of masquerading as you.
 
 ### Changed
+
+- **Approvals now truly cover every tool.** An internal permissive wildcard
+  meant most of Claude's built-in tools skipped the approval layer in Ask
+  mode — the check ran, but the answer was pre-decided. Every tool call now
+  passes through the real approval decision (the same curated set cards by
+  default, so nothing feels different day to day), and the boot warning that
+  hinted at the gap is gone. The Claude Agent SDK also moved up to 0.3.231.
 
 - **The installed app is unmistakably Vynel now.** The program is `Vynel.exe`
   (no more `vynel-desktop.exe`), the engine runs as `vynel-engine.exe` instead
