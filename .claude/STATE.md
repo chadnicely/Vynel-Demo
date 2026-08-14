@@ -61,16 +61,51 @@
    by gate count arithmetic (4790→4787), restored all 5 original pins adapted to the rail DOM
    + 2 new. Always Read before Write on test files.**
    **NEXT: Arc 5 — states + siblings** (status vocabulary, task detail, new-task modal).
+11. **Arc 5b LANDED (2026-08-14, Kafi's parity+status session — typecheck 104/104, 1217 targeted
+    tests, parity green, live-verified with real set-status calls):** the status vocabulary
+    end-to-end + the exact-view parity sweep. Engine: `workspaces.status/statusNote/statusSetAt`
+    (migration 0041) + `setWorkspaceStatus` op (outbox `workspace.status-set`) + `PUT
+    /workspaces/:id/status` [x-mcp `set_workspace_status` — completed before finishing / problem
+    when stuck / needs_input for conclusions; approvals+asks detected] + `GET
+    /workspaces/statuses` (composed facts: set state · latest turn envelope · task rollup via
+    NEW `countTasksByWorkspace`) + turn OUTCOME threading (`endedReason:'failed'` on terminal
+    session-errored/throw/timeout/settle-failure across EVERY workspace-scoped producer — the
+    interactive streams, schedule fires, the three delegation runners; user Stop stays clean;
+    `turn-ended.outcome`; the gate-3 reviewer caught the background half). Web:
+    `use-workspace-status.ts` is THE one derivation (problem→needs_input→running→completed→
+    not_running; set states are facts superseded by later turns; note surfaces only when the set
+    state shows); use-workspace-presence DELETED. UI: conversation cards (ask+reply in ONE
+    card, folded = one dim strip + read more; state pills/spines per canvas), browser-tab strip
+    in the canvas column (state chips + status dots + parked dim), tree rows with chips + n/m +
+    marks + NOT RUNNING group (parked = quiet+nothing open; foldered rows stay in folder), drill
+    header card, chat-column status badge, rail kickers/tints/rollup, chrome title bar + accent
+    mark, composer send-chip polish. Deferred: delegation outcomes (report pipeline owns their
+    failures), avatars, per-card step labels, composer actions/toggles, connection dots.
+    **Module notes updated (docs/module-notes/workspace-redesign.md — the landed list + the
+    worklist).**
+    **SAME-DAY PIXEL PASSES (Kafi's screenshot-driven sweep, commits `c9c36b0`→`efcd325`):**
+    tab strip = canvas exact (per-tab workspace SWITCHER retired — rooms open via `+`, close
+    stays hover; UA focus ring suppressed); title bar 34px on chrome ground, NO title/presence
+    dot in the center, right cluster = the canvas icon row (list-checks rail toggle badge-less +
+    minus/square/x, 13px/18px-gap); the 22px AppStatusBar REMOVED entirely (canvas has none;
+    component+test deleted); sidebar 208px default; tree = label-less header (icons only),
+    `list-none` sweep (stray li bullets), 5px row rhythm, 10.5px progress ink, play glyph on
+    parked rows; section rows 12.5px/13px-icon/accent-900-active; folded chat card = the
+    canvas's TWO lines (author+time / 14px ask + read-more); ask author 12px plain vs assistant
+    small-caps. Serve the design canvases via the memory recipe
+    (serve-design-canvases-recipe, port 18899). STILL OPEN for the next parity session:
+    connection dots + their modal (user: "add the modal later"), the DEVELOPMENT folder-path
+    tree header (needs a small endpoint over `makeDefaultWorkspaceParentDirectory`), composer
+    actions/toggles row, cross-project + handed-off cards, priority flow.
 10. **Arc 5a LANDED (gate green 4797 — +4 exact):** task detail + quick-add, pure composition —
     TaskViewDialog gains the Steps section (session todos sorted by orderIndex, honest N-of-M +
     gold bar, NO fabricated durations/outputs; fetch gated open && sessionId), rail rows open it
     (panel-local viewingTaskId, TasksSection precedent), rail + button quick-adds inline (exact
     TasksSection create shape). Live-verified end-to-end with real events (the CLI driver's
     fill/type raced HMR-stale refs — in-page event probe created + viewed a real task).
-    **REMAINING for 5b (engine work, plan deliberately):** per-workspace problem/error signal
-    (one-status red end-to-end), cross-project refs chips + turn rendering, handed-off card,
-    composer actions/toggles semantics. The canvases' AI-rewrite + priority flows also wait on
-    engine surfaces.
+    ~~REMAINING for 5b~~ → **5b LANDED, see item 11.** Still open after 5b: cross-project refs
+    chips + turn rendering, handed-off card, composer actions/toggles semantics, AI-rewrite +
+    priority flows (all wait on engine surfaces).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

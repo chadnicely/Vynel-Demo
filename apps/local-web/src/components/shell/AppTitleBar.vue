@@ -3,17 +3,21 @@ import { computed, ref } from "vue";
 import {
   PhBrowsers as Browsers,
   PhCommand as Command,
+  PhDiamondsFour as DiamondsFour,
   PhFolderPlus as FolderPlus,
   PhList as List,
   PhListChecks as ListChecks,
+  PhMinus as Minus,
   PhMoon as Moon,
   PhSidebarSimple as PanelLeft,
   PhPower as Power,
   PhGearFine as Settings2,
+  PhSquare as Square,
   PhSun as Sun,
   PhUser as UserRound,
+  PhX as X,
 } from "@phosphor-icons/vue";
-import { DropdownMenu, PresenceDot } from "@vynel/ui";
+import { DropdownMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
@@ -26,14 +30,10 @@ import { shortcutHint } from "../../utils/shortcut-label.js";
 // what each id does. Window controls drive the frameless Tauri window (no-op
 // in the browser).
 const props = defineProps<{
-  title: string;
-  presenceState: "idle" | "live" | "attention";
-  presenceLabel: string;
   theme: "dark" | "light";
   navMode: "tabs" | "menu";
   sidebarOpen: boolean;
   tasksOpen: boolean;
-  openTaskCount: number;
 }>();
 
 // The workspace-navigation views — a labeled segment, not a blind toggle, so
@@ -123,19 +123,12 @@ function onMenuCommand(id: string) {
 
 <template>
   <header
-    class="flex h-10 shrink-0 items-center gap-0.5 border-b border-hair bg-shell pl-2 pr-0 select-none"
+    class="flex h-[34px] shrink-0 items-center gap-0.5 border-b border-hair bg-chrome pl-2 pr-0 select-none"
     data-tauri-drag-region
   >
-    <!-- Identity mark (neutral — gold stays reserved for presence) -->
-    <span class="mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-ink-2">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M12 2 22 12 12 22 2 12Z"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linejoin="round"
-        />
-      </svg>
+    <!-- Identity mark — the canvas's accent diamonds-four. -->
+    <span class="mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-[var(--color-accent)]">
+      <DiamondsFour :size="15" weight="regular" />
     </span>
 
     <!-- Menu bar -->
@@ -152,7 +145,7 @@ function onMenuCommand(id: string) {
         <template #trigger>
           <button
             type="button"
-            class="rounded-sm px-2 py-1 text-sm text-ink-2 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
+            class="rounded-sm px-2 py-0.5 text-[12px] text-ink-2 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
           >
             {{ menu.label }}
           </button>
@@ -160,30 +153,16 @@ function onMenuCommand(id: string) {
       </DropdownMenu>
     </nav>
 
-    <!-- Center: window title + presence (the drag region). The presence pair
-         is a BUTTON (no-drag island): it opens the Background overview —
-         the dot says something is running; the click shows what. -->
-    <div
-      class="flex flex-1 items-center justify-center gap-2 px-4"
-      data-tauri-drag-region
-    >
-      <!-- The presence pair is PASSIVE now (redesign Q7d): the working rail
-           is the detail — the dot only says live / attention / idle. It
-           survives because your OWN turn's approval can need you while the
-           rail is empty. -->
-      <span
-        class="flex items-center gap-2 px-2 py-0.5"
-        data-testid="titlebar-presence"
-      >
-        <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
-        <span class="truncate text-xs text-ink-2">{{ props.title }}</span>
-      </span>
-    </div>
+    <!-- Center: pure drag region — the canvas's bar carries nothing here
+         (title + presence dot both retired; the tabs/tree/rail say where
+         you are and what's live). -->
+    <div class="flex-1" data-tauri-drag-region />
 
-    <!-- Workspace navigation mode (Tabs | Menu) — presentation only; the
-         scope-tab state underneath is shared, so flipping loses nothing. -->
+    <!-- Workspace navigation mode (Tabs | Menu) — the canvas's segment: the
+         active mode wears the accent border + tinted ground. Presentation
+         only; the scope-tab state underneath is shared. -->
     <div
-      class="mr-1.5 flex shrink-0 items-center gap-0.5 self-center rounded-sm p-0.5"
+      class="mr-2 flex shrink-0 items-center gap-[5px] self-center"
       role="group"
       aria-label="Navigation mode"
     >
@@ -193,66 +172,60 @@ function onMenuCommand(id: string) {
         type="button"
         :aria-pressed="props.navMode === entry.mode"
         :title="`${entry.label} navigation`"
-        class="flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs transition"
+        class="flex items-center gap-1.5 rounded-sm border px-2 py-[3px] text-[11px] transition"
         :class="
           props.navMode === entry.mode
-            ? 'bg-row-active text-ink-1'
-            : 'text-ink-3 hover:bg-row-hover hover:text-ink-1'
+            ? 'border-[var(--color-accent)] bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
+            : 'border-transparent text-[var(--color-neutral-500)] hover:text-[var(--color-accent-200)]'
         "
         @click="emit('command', entry.id)"
       >
-        <component :is="entry.icon" :size="13" />
+        <component :is="entry.icon" :size="12" />
         {{ entry.label }}
       </button>
     </div>
 
-    <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->
-    <button
-      type="button"
-      aria-label="Toggle tasks"
-      class="relative mr-1 grid size-7 shrink-0 place-items-center self-center rounded-sm transition hover:bg-row-hover hover:text-ink-1"
-      :class="props.tasksOpen ? 'bg-row-active text-ink-1' : 'text-ink-3'"
-      title="Show tasks"
-      @click="emit('command', 'toggle-tasks')"
-    >
-      <ListChecks :size="15" />
-      <span
-        v-if="props.openTaskCount > 0"
-        class="task-count-badge absolute -right-0.5 -top-0.5 grid min-w-[14px] place-items-center rounded-full bg-info px-1 text-[9px] font-bold leading-[14px] text-white"
+    <!-- The canvas's right icon row: list-checks (the rail toggle) rides the
+         SAME 18px-gap, 13px cluster as the window controls — plain glyphs,
+         no boxes, no badge. -->
+    <div class="flex shrink-0 items-center gap-[18px] pl-1.5 pr-3 text-[13px]">
+      <button
+        type="button"
+        aria-label="Toggle tasks"
+        title="Show tasks"
+        class="grid place-items-center transition"
+        :class="
+          props.tasksOpen
+            ? 'text-[var(--color-accent-200)]'
+            : 'text-ink-3 hover:text-ink-1'
+        "
+        @click="emit('command', 'toggle-tasks')"
       >
-        {{ props.openTaskCount > 9 ? "9+" : props.openTaskCount }}
-      </span>
-    </button>
-
-    <!-- Window controls (frameless Tauri; simulated in the browser) -->
-    <div class="flex h-full items-stretch">
+        <ListChecks :size="13" />
+      </button>
       <button
         type="button"
         aria-label="Minimize"
-        class="grid h-full w-11 place-items-center text-ink-3 transition hover:bg-row-hover hover:text-ink-1"
+        class="grid place-items-center text-ink-3 transition hover:text-ink-1"
         @click="controls.minimize()"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" stroke="currentColor" stroke-width="1.2" /></svg>
+        <Minus :size="13" />
       </button>
       <button
         type="button"
         :aria-label="controls.isMaximized.value ? 'Restore' : 'Maximize'"
-        class="grid h-full w-11 place-items-center text-ink-3 transition hover:bg-row-hover hover:text-ink-1"
+        class="grid place-items-center text-ink-3 transition hover:text-ink-1"
         @click="controls.toggleMaximize()"
       >
-        <svg v-if="controls.isMaximized.value" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-          <rect x="0.5" y="2.5" width="6" height="6" stroke="currentColor" stroke-width="1.1" />
-          <path d="M3 2.5V0.5h6v6H7" stroke="currentColor" stroke-width="1.1" />
-        </svg>
-        <svg v-else width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" stroke-width="1.1" /></svg>
+        <Square :size="13" />
       </button>
       <button
         type="button"
         aria-label="Close"
-        class="grid h-full w-11 place-items-center text-ink-3 transition hover:bg-danger hover:text-white"
+        class="grid place-items-center text-ink-3 transition hover:text-[var(--danger)]"
         @click="controls.close()"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1.2" /></svg>
+        <X :size="13" />
       </button>
     </div>
   </header>

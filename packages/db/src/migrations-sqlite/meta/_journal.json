@@ -288,6 +288,13 @@
       "when": 1786668614434,
       "tag": "0040_tool_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1786677964211,
+      "tag": "0041_workspace_status",
+      "breakpoints": true
     }
   ]
 }

@@ -34,6 +34,11 @@ export type BridgePrimarySessionInput = {
   userId: string
 }
 
+// The carry-fidelity floor (trimmed chars). The summarizer's labelled hand-off
+// (GOAL/DONE/IN PROGRESS/NEXT/FACTS) can't legitimately compress a
+// pressure-crossing session under this — shorter means the distill degenerated.
+const MIN_CARRY_SUMMARY_LENGTH = 60
+
 export type BridgePrimarySessionDeps = {
   /** Distill the pre-swap session into the carry summary (provider-owned). */
   summarizeSession: (sdkSessionId: string) => Promise<string | null>
@@ -67,12 +72,20 @@ export async function bridgePrimarySession(
 
   // 1. Distill the live session into the carry.
   const summary = await deps.summarizeSession(fromSdkSessionId)
-  if (summary === null || summary.length === 0) {
-    // No carry → continuity can't be preserved; abort the swap (the caller
-    // keeps the existing session). A carry-fidelity limit worth surfacing.
+  if (summary === null || summary.trim().length < MIN_CARRY_SUMMARY_LENGTH) {
+    // No usable carry → continuity can't be preserved; abort the swap (the
+    // caller keeps the existing session and re-evaluates next turn; the
+    // runtime's own compaction still backstops an ever-growing session). The
+    // floor exists because a degenerate stub once passed the empty-only check
+    // (tester-DB incident 2026-08-14: an 18-char "summary" of an 869k-token
+    // session) — a real labelled hand-off can't legitimately fit under it.
     deps.logger?.warn(
-      { primarySessionId: input.primarySessionId, fromSdkSessionId },
-      'bridge aborted: no carry summary produced',
+      {
+        primarySessionId: input.primarySessionId,
+        fromSdkSessionId,
+        summaryLength: summary?.length ?? 0,
+      },
+      'bridge aborted: no usable carry summary produced',
     )
     return null
   }

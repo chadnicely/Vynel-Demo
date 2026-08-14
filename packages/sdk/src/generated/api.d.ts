@@ -1105,6 +1105,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/chat/continuing/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the workspace's continuing conversation history (messages across swap segments). */
+        get: operations["getWorkspacesByWorkspaceIdChatContinuingTranscript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/chat/sessions/turn": {
         parameters: {
             query?: never;
@@ -3095,6 +3112,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/root/sessions/{sessionId}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one owned session's chain-spanning history (messages across swap segments). */
+        get: operations["getRootSessionsBySessionIdTranscript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/root/delegations": {
         parameters: {
             query?: never;
@@ -3660,6 +3694,23 @@ export interface paths {
         patch: operations["patchWorkspacesGroupsByGroupId"];
         trace?: never;
     };
+    "/workspaces/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-workspace status facts: set state, latest turn, task counts. */
+        get: operations["getWorkspacesStatuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}": {
         parameters: {
             query?: never;
@@ -3689,6 +3740,23 @@ export interface paths {
         get?: never;
         /** Move a workspace into a folder (or to the tree root with null). */
         put: operations["putWorkspacesByWorkspaceIdGroup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the workspace status (completed / problem / needs_input). */
+        put: operations["putWorkspacesByWorkspaceIdStatus"];
         post?: never;
         delete?: never;
         options?: never;
@@ -7891,6 +7959,131 @@ export interface operations {
                     "application/json": {
                         rootSessionId: string | null;
                         currentSdkSessionId: string | null;
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdChatContinuingTranscript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { session, messages, toolCallsByMessageId } — the current segment (null until the first continue-mode turn) + the chain-spanning message history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        session: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            providerId: string;
+                            model: string | null;
+                            title: string;
+                            /** @enum {string} */
+                            visibility: "listed" | "hidden";
+                            /** @enum {string} */
+                            scope: "global" | "workspace" | "agent" | "spawned";
+                            isArchived: boolean;
+                            deletedAt: string | null;
+                            totalMessageCount: number;
+                            totalInputTokens: number;
+                            totalOutputTokens: number;
+                            startedAt: string;
+                            lastMessageAt: string;
+                            updatedAt: string;
+                        } | null;
+                        messages: {
+                            id: string;
+                            sessionId: string;
+                            /** @enum {string} */
+                            role: "user" | "assistant" | "system";
+                            body: string;
+                            /** @enum {string|null} */
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceLabel: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
+                            partialSessionId: string | null;
+                            threadId: string | null;
+                            delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                contextTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
+                            thinkingBody: string | null;
+                            inputTokens: number | null;
+                            outputTokens: number | null;
+                            attachedImagesMetadata: {
+                                filename: string;
+                                mimeType: string;
+                                sizeBytes: number;
+                            }[] | null;
+                            errorCode: string | null;
+                            errorMessage: string | null;
+                            startedAt: string;
+                            completedAt: string | null;
+                            createdAt: string;
+                        }[];
+                        toolCallsByMessageId: {
+                            [key: string]: {
+                                id: string;
+                                parentMessageId: string;
+                                toolUseId: string;
+                                toolName: string;
+                                toolInput?: unknown;
+                                toolOutput?: unknown;
+                                /** @enum {string} */
+                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                /** @enum {string|null} */
+                                approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
+                                isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
+                                } | null;
+                                startedAt: string;
+                                completedAt: string | null;
+                            }[];
+                        };
                     };
                 };
             };
@@ -14920,30 +15113,68 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { messages, toolCallsByMessageId } — the ordered message history + persisted tool calls keyed by message (empty until the first turn). */
+            /** @description { session, messages, toolCallsByMessageId } — the current segment (null until the first turn) + the chain-spanning message history. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
+                        session: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            providerId: string;
+                            model: string | null;
+                            title: string;
+                            /** @enum {string} */
+                            visibility: "listed" | "hidden";
+                            /** @enum {string} */
+                            scope: "global" | "workspace" | "agent" | "spawned";
+                            isArchived: boolean;
+                            deletedAt: string | null;
+                            totalMessageCount: number;
+                            totalInputTokens: number;
+                            totalOutputTokens: number;
+                            startedAt: string;
+                            lastMessageAt: string;
+                            updatedAt: string;
+                        } | null;
                         messages: {
                             id: string;
+                            sessionId: string;
                             /** @enum {string} */
                             role: "user" | "assistant" | "system";
                             body: string;
                             /** @enum {string|null} */
                             sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
                             sourceLabel: string | null;
-                            partialSessionId: string | null;
-                            threadId: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
+                            partialSessionId: string | null;
+                            threadId: string | null;
+                            delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                contextTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
+                            thinkingBody: string | null;
+                            inputTokens: number | null;
+                            outputTokens: number | null;
                             attachedImagesMetadata: {
                                 filename: string;
                                 mimeType: string;
                                 sizeBytes: number;
                             }[] | null;
+                            errorCode: string | null;
+                            errorMessage: string | null;
+                            startedAt: string;
+                            completedAt: string | null;
+                            createdAt: string;
                         }[];
                         toolCallsByMessageId: {
                             [key: string]: {
@@ -15108,6 +15339,131 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description { session, messages, toolCallsByMessageId } — the full session detail. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        session: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            providerId: string;
+                            model: string | null;
+                            title: string;
+                            /** @enum {string} */
+                            visibility: "listed" | "hidden";
+                            /** @enum {string} */
+                            scope: "global" | "workspace" | "agent" | "spawned";
+                            isArchived: boolean;
+                            deletedAt: string | null;
+                            totalMessageCount: number;
+                            totalInputTokens: number;
+                            totalOutputTokens: number;
+                            startedAt: string;
+                            lastMessageAt: string;
+                            updatedAt: string;
+                        };
+                        messages: {
+                            id: string;
+                            sessionId: string;
+                            /** @enum {string} */
+                            role: "user" | "assistant" | "system";
+                            body: string;
+                            /** @enum {string|null} */
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceLabel: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
+                            partialSessionId: string | null;
+                            threadId: string | null;
+                            delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                contextTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
+                            thinkingBody: string | null;
+                            inputTokens: number | null;
+                            outputTokens: number | null;
+                            attachedImagesMetadata: {
+                                filename: string;
+                                mimeType: string;
+                                sizeBytes: number;
+                            }[] | null;
+                            errorCode: string | null;
+                            errorMessage: string | null;
+                            startedAt: string;
+                            completedAt: string | null;
+                            createdAt: string;
+                        }[];
+                        toolCallsByMessageId: {
+                            [key: string]: {
+                                id: string;
+                                parentMessageId: string;
+                                toolUseId: string;
+                                toolName: string;
+                                toolInput?: unknown;
+                                toolOutput?: unknown;
+                                /** @enum {string} */
+                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                /** @enum {string|null} */
+                                approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
+                                isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
+                                } | null;
+                                startedAt: string;
+                                completedAt: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            /** @description No such session, or not owned by the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getRootSessionsBySessionIdTranscript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { session, messages, toolCallsByMessageId } — the head segment + messages across its whole continuation chain. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15811,6 +16167,10 @@ export interface operations {
                             isArchived: boolean;
                             continueEnabled: boolean;
                             groupId: string | null;
+                            /** @enum {string|null} */
+                            status: "completed" | "problem" | "needs_input" | null;
+                            statusNote: string | null;
+                            statusSetAt: string | null;
                             createdAt: string;
                             updatedAt: string;
                             lastAccessedAt: string;
@@ -16480,6 +16840,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16523,6 +16887,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16720,6 +17088,40 @@ export interface operations {
             };
         };
     };
+    getWorkspacesStatuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One status report per workspace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        workspaceId: string;
+                        /** @enum {string|null} */
+                        setStatus: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
+                        latestTurn: {
+                            startedAt: string;
+                            endedAt: string | null;
+                            /** @enum {string|null} */
+                            endedReason: "ended" | "orphaned" | "failed" | null;
+                        } | null;
+                        tasksTotal: number;
+                        tasksDone: number;
+                    }[];
+                };
+            };
+        };
+    };
     getWorkspacesByWorkspaceId: {
         parameters: {
             query?: never;
@@ -16748,6 +17150,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16832,6 +17238,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16881,6 +17291,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16888,6 +17302,61 @@ export interface operations {
                 };
             };
             /** @description Workspace or folder not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putWorkspacesByWorkspaceIdStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "completed" | "problem" | "needs_input";
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated workspace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        name: string;
+                        managerName: string | null;
+                        /** @enum {string} */
+                        kind: "small-business" | "personal" | "project" | "custom";
+                        path: string;
+                        isArchived: boolean;
+                        continueEnabled: boolean;
+                        groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        lastAccessedAt: string;
+                    };
+                };
+            };
+            /** @description Workspace not found. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16924,6 +17393,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -16967,6 +17440,10 @@ export interface operations {
                         isArchived: boolean;
                         continueEnabled: boolean;
                         groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;

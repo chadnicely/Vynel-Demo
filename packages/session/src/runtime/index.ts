@@ -53,13 +53,18 @@ export {
   type ComposedSessionCapabilities,
 } from './compose-session-capabilities.js'
 
-// The global root's settled-transcript read (`/root/transcript`) — the
-// continuity-anchored sibling of the workspace transcript reads.
+// The continuing-thread settled-transcript read — ONE chain-walking resolver
+// for both scopes (`/root/transcript` and the workspace
+// `/chat/continuing/transcript`): a context-pressure swap must never empty
+// the visible conversation.
 export {
-  resolveGlobalRootTranscript,
-  type GlobalRootTranscript,
-  type GlobalRootTranscriptMessage,
-} from './resolve-global-root-transcript.js'
+  resolvePrimaryTranscript,
+  resolveSessionChainTranscript,
+  type PrimaryTranscript,
+  type ResolvePrimaryTranscriptInput,
+  type SessionChainTranscript,
+  type ResolveSessionChainTranscriptInput,
+} from './resolve-primary-transcript.js'
 
 // The per-user turn-liveness registry behind `GET /activity/stream` — every
 // turn producer begins/ends here so any open UI surface learns a turn is
@@ -78,6 +83,7 @@ export { buildSessionTurnRecorder } from './session-turn-recorder.js'
 export {
   reapOrphanedSessionTurns,
   listRunningSessionTurnsForUser,
+  listLatestWorkspaceTurnsForUser,
   purgeEndedSessionTurnsBefore,
   type SessionTurnRow,
 } from '../repositories/index.js'

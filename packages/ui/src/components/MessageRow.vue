@@ -576,9 +576,6 @@ const collapsedPreview = computed(() => {
           via {{ originBadge.label }}
         </span>
       </p>
-      <span v-if="collapsedPreview" class="turn-preview">{{
-        collapsedPreview
-      }}</span>
       <span class="header-meta">
         <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
         <button
@@ -610,8 +607,17 @@ const collapsedPreview = computed(() => {
       </span>
     </div>
 
-    <!-- Folded: only the header strip above renders — everything below waits
-         behind the chevron. -->
+    <!-- Folded: the canvas's collapsed card — the header line above, then
+         the ask's first line + "read more" on their own line. -->
+    <div
+      v-if="props.collapsed && collapsedPreview"
+      class="collapsed-line"
+      @click="props.collapsible ? emit('toggleCollapse') : undefined"
+    >
+      <span class="turn-preview">{{ collapsedPreview }}</span>
+      <span class="read-more">read more</span>
+    </div>
+
     <template v-if="!props.collapsed">
       <ThinkingBlock
         v-if="props.message.thinkingBody"
@@ -758,14 +764,21 @@ const collapsedPreview = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--ink-3);
-  font: 600 10.5px/1.5 var(--font-ui);
+  color: var(--color-neutral-400);
+  /* The canvas's reply author line: small caps, wide tracking. */
+  font: 600 10px/1.5 var(--font-ui);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.14em;
 }
 
-.role-user .role-label {
+/* The ASK's author (the canvas's card header): plain 12px semibold — the
+   human's name is a name, not a label. Delivered reports keep the label
+   treatment (they speak as a persona). */
+.role-user:not(.is-report) .role-label {
   color: var(--ink-2);
+  font: 600 12px/1.5 var(--font-ui);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .row-header {
@@ -803,25 +816,42 @@ const collapsedPreview = computed(() => {
 
 .row-header.is-collapsible .header-meta {
   margin-left: auto;
-  /* ONE vertical line for every chevron (Chad's ruler): a plain row's meta
-     insets by the user bubble's padding + border, so bubbled and bare rows
-     land their toggles at the same x. */
-  margin-right: 15px;
-}
-
-.role-user:not(.is-report) .row-header.is-collapsible .header-meta {
+  /* ONE vertical line for every chevron (Chad's ruler) — with the user
+     bubble retired (Arc 5b), every row's toggle lands at the card edge. */
   margin-right: 0;
 }
 
-/* The folded strip's one-line preview — quiet, ellipsized, never wrapping. */
+/* The folded card's second line — the canvas's collapsed ask (14px medium,
+   ellipsized) with the quiet "read more" beside it. */
+.collapsed-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  cursor: pointer;
+}
+
 .turn-preview {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--ink-2);
-  font: 400 13px/1.5 var(--font-ui);
+  font: 500 14px/1.35 var(--font-ui);
+}
+
+/* The canvas's "read more" affordance beside the folded strip's preview —
+   the whole header is the toggle; this names it. */
+.read-more {
+  flex: none;
+  color: var(--ink-3);
+  font: 400 11.5px/1.5 var(--font-ui);
+  transition: color var(--t-fast, 120ms) ease;
+}
+
+.row-header.is-collapsible:hover .read-more {
+  color: var(--gold);
 }
 
 .collapse-toggle {
@@ -882,7 +912,8 @@ const collapsedPreview = computed(() => {
 
 .time-label {
   color: var(--ink-3);
-  font: 400 10px/1.5 var(--font-ui);
+  font: 400 11px/1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   opacity: 0.85;
 }
@@ -1004,21 +1035,11 @@ const collapsedPreview = computed(() => {
   overflow-wrap: break-word;
 }
 
-.role-user {
-  background: var(--bg-panel);
-  border: 1px solid var(--hair);
-  border-radius: var(--radius-m);
-  padding: 10px 14px;
-}
-
-/* An inbound colleague message sheds the "your message" bubble — the user did
-   not write it. Otherwise it renders as a regular participant message: the
-   persona author line + quiet badge carry its identity, no special chrome. */
-.role-user.is-report {
-  background: none;
-  border: none;
-  border-radius: 0;
-  padding: 0;
+/* The ask reads as the CARD's own voice (workspace redesign Arc 5b — the
+   conversation card is the container, so the old "your message" bubble
+   retired): plain lines at the canvas's 14px/500. */
+.role-user:not(.is-report) .plain-body {
+  font: 500 14px/1.35 var(--font-ui);
 }
 
 .role-user.is-report .role-label {

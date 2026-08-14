@@ -116,6 +116,15 @@ async function mountView(
     transcriptMessages?: Array<{ id: string; body: string } & Record<string, unknown>>;
   } = {},
 ) {
+  // A followed chain reads the chain-spanning transcript; a deliberately
+  // opened earlier part reads its own segment — both serve the same envelope.
+  const getSessionTranscript = vi.fn(async () => {
+    if (options.detailError !== undefined)
+      throw new Error(options.detailError);
+    return makeTranscript(
+      options.transcriptMessages ?? [{ id: "m-1", body: "Earlier findings." }],
+    );
+  });
   const getSession = vi.fn(async () => {
     if (options.detailError !== undefined)
       throw new Error(options.detailError);
@@ -142,7 +151,7 @@ async function mountView(
     // array by reference would defeat structural sharing when a test mutates
     // it to simulate a server-side change.
     sessions: { overview: async () => [...entries] },
-    root: { getSession },
+    root: { getSession, getSessionTranscript },
     GET,
     POST,
   } as unknown as VynelClient;
@@ -161,7 +170,15 @@ async function mountView(
     },
   });
   await flushPromises();
-  return { wrapper, pinia, router, getSession, turnCalls, queryClient };
+  return {
+    wrapper,
+    pinia,
+    router,
+    getSession,
+    getSessionTranscript,
+    turnCalls,
+    queryClient,
+  };
 }
 
 /** Open the first (or given) list row and settle the pane. */
@@ -327,13 +344,13 @@ describe("SessionsView", () => {
   });
 
   it("opening a spawned session renders it as a normal chat with a composer, beside the list", async () => {
-    const { wrapper, getSession } = await mountView([makeEntry()]);
+    const { wrapper, getSessionTranscript } = await mountView([makeEntry()]);
 
     await openRow(wrapper);
 
     // The transcript renders through the NORMAL chat path (ThreadStream/
-    // MessageRow) — the root read serves any owned session.
-    expect(getSession).toHaveBeenCalledWith("sp-1");
+    // MessageRow) — a followed chain reads its chain-spanning transcript.
+    expect(getSessionTranscript).toHaveBeenCalledWith("sp-1");
     expect(wrapper.find(".thread-stream").exists()).toBe(true);
     expect(wrapper.text()).toContain("Earlier findings.");
     expect(wrapper.find("textarea").exists()).toBe(true);
@@ -515,10 +532,10 @@ describe("SessionsView", () => {
 
   it("a mid-view chain swap re-points the open thread at the fresh head (B6 — the old accepted freeze)", async () => {
     const entries = [makeEntry()];
-    const { wrapper, getSession, queryClient } = await mountView(entries);
+    const { wrapper, getSessionTranscript, queryClient } = await mountView(entries);
 
     await openRow(wrapper);
-    expect(getSession).toHaveBeenCalledWith("sp-1");
+    expect(getSessionTranscript).toHaveBeenCalledWith("sp-1");
     expect(wrapper.text()).not.toContain("conversation continued");
 
     // The conversation continues onto a fresh segment (a compaction swap) —
@@ -543,7 +560,7 @@ describe("SessionsView", () => {
 
     // The open pane followed: detail re-keyed onto the head, the quiet note
     // says so, and the composer stays (sends now target sp-2).
-    await vi.waitFor(() => expect(getSession).toHaveBeenCalledWith("sp-2"));
+    await vi.waitFor(() => expect(getSessionTranscript).toHaveBeenCalledWith("sp-2"));
     await vi.waitFor(() =>
       expect(wrapper.text()).toContain(
         "This conversation continued onto a fresh session",

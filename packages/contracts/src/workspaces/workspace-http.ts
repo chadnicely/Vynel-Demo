@@ -11,6 +11,7 @@
 // `apps-web-foundation-design` decision.
 
 import type { WorkspaceKind } from './workspace-kind-bundles.js'
+import type { WorkspaceSetStatus } from './workspace-status.js'
 
 export interface WorkspaceResponse {
   id: string
@@ -28,6 +29,12 @@ export interface WorkspaceResponse {
   /** Menu-tree folder membership (workspace redesign Arc 2b) — the owning
    *  `WorkspaceGroupResponse.id`, or null at the tree root. */
   groupId: string | null
+  /** The assistant-set status (redesign Arc 5b) — null when nothing set.
+   *  Effective status derives client-side (see workspace-status.ts). */
+  status: WorkspaceSetStatus | null
+  statusNote: string | null
+  /** ISO-8601; null when nothing set. */
+  statusSetAt: string | null
   /** ISO-8601 */
   createdAt: string
   /** ISO-8601 */

@@ -24,7 +24,10 @@ import {
 } from '@vynel/chat/repositories'
 import { persistAttachedImages } from '@vynel/chat'
 import { enqueueWorkspaceDelegation, findDelegationJobById } from '@vynel/orchestration'
-import { getOrCreatePrimarySession } from '@vynel/session/continuity'
+import {
+  getOrCreatePrimarySession,
+  linkPrimarySessionToSdkSession,
+} from '@vynel/session/continuity'
 import type { Database } from '@vynel/db'
 import { createApp } from '../../app.js'
 
@@ -195,6 +198,76 @@ describe('GET /chat/continuing', () => {
         rootSessionId: primary.id,
         currentSdkSessionId: null,
       })
+    })
+  })
+})
+
+describe('GET /chat/continuing/transcript', () => {
+  it('returns the empty envelope when no continuing conversation exists yet', async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const app = createApp({ db, logger: silentLogger })
+      const res = await app.request(`/workspaces/${workspace.id}/chat/continuing/transcript`)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ session: null, messages: [], toolCallsByMessageId: {} })
+    })
+  })
+
+  it('spans the swap chain — pre-swap messages render though the current segment is empty', async () => {
+    await withTestDatabase(async (db) => {
+      // The tester-DB incident shape (2026-08-14): the bridge repointed the
+      // primary at a fresh, message-less segment; the thread must still show
+      // the whole conversation.
+      const { user, workspace } = seedWorld(db)
+      const primary = await getOrCreatePrimarySession(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      const oldSegment = insertChatSession(
+        db,
+        makeSession(user.id, workspace.id, { visibility: 'hidden' }),
+      )
+      const newSegment = insertChatSession(
+        db,
+        makeSession(user.id, workspace.id, {
+          visibility: 'hidden',
+          continuedFromSessionId: oldSegment.id,
+        }),
+      )
+      // Distinct timestamps — the transcript orders on startedAt, and two
+      // same-millisecond rows would make the expected order flaky.
+      insertChatMessage(db, {
+        ...makeMessage(oldSegment.id, 'pre-swap question'),
+        startedAt: new Date('2026-08-01T00:00:00Z'),
+      })
+      insertChatMessage(db, {
+        ...makeMessage(oldSegment.id, 'pre-swap answer'),
+        startedAt: new Date('2026-08-01T00:00:01Z'),
+      })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: newSegment.id,
+      })
+      const app = createApp({ db, logger: silentLogger })
+
+      const res = await app.request(`/workspaces/${workspace.id}/chat/continuing/transcript`)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        session: { id: string } | null
+        messages: Array<{ body: string }>
+      }
+      expect(body.session?.id).toBe(newSegment.id)
+      expect(body.messages.map((m) => m.body)).toEqual(['pre-swap question', 'pre-swap answer'])
+    })
+  })
+
+  it('404s for an unknown workspace', async () => {
+    await withTestDatabase(async (db) => {
+      seedWorld(db)
+      const app = createApp({ db, logger: silentLogger })
+      const res = await app.request(`/workspaces/${randomUUID()}/chat/continuing/transcript`)
+      expect(res.status).toBe(404)
     })
   })
 })

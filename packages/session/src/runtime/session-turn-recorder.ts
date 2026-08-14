@@ -44,9 +44,9 @@ export function buildSessionTurnRecorder(db: Database, logger: Logger): SessionT
         logger.error({ err, turnId }, 'session-turn recorder: resolve write failed')
       }
     },
-    turnEnded: (turnId) => {
+    turnEnded: (turnId, outcome) => {
       try {
-        endSessionTurn(db, turnId, new Date())
+        endSessionTurn(db, turnId, new Date(), outcome)
       } catch (err) {
         logger.error({ err, turnId }, 'session-turn recorder: end write failed')
       }

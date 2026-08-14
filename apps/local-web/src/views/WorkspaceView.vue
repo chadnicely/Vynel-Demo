@@ -14,6 +14,7 @@ import WorkspaceCustomizeSection from "../components/customize/WorkspaceCustomiz
 import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.vue";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
+import { useWorkspaceStatuses } from "../composables/workspaces/use-workspace-status.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { buildThreadPointers } from "../components/chat/thread-pointers.js";
@@ -112,6 +113,44 @@ const hasBackgroundTurnHere = computed(
     tab.workspaceId !== null &&
     activity.hasServerTurnInWorkspace(tab.workspaceId),
 );
+
+// The scope's effective status (one status one colour, Arc 5b) — tints the
+// thread's live/latest card and words the chat header's badge.
+const { statusByWorkspaceId } = useWorkspaceStatuses();
+const statusView = computed(() =>
+  tab.workspaceId === null
+    ? null
+    : (statusByWorkspaceId.value[tab.workspaceId] ?? null),
+);
+// The canvas's header badge, worded per state ("Task 5 of 13" · "Waiting on
+// your answer" · "Stopped on an error" · "All N tasks done" · "Not running").
+const headerBadge = computed<{ label: string; status: string } | null>(() => {
+  const view = statusView.value;
+  if (view === null) return null;
+  if (view.status === "needs_input")
+    return { label: "Waiting on your answer", status: "needs_input" };
+  if (view.status === "problem")
+    return { label: "Stopped on an error", status: "problem" };
+  if (view.status === "completed") {
+    return {
+      label:
+        view.tasksTotal > 0
+          ? `All ${view.tasksTotal} tasks done`
+          : "All done",
+      status: "completed",
+    };
+  }
+  if (view.status === "running") {
+    return {
+      label:
+        view.tasksTotal > 0
+          ? `Task ${Math.min(view.tasksDone + 1, view.tasksTotal)} of ${view.tasksTotal}`
+          : "Working now",
+      status: "running",
+    };
+  }
+  return { label: "Not running", status: "not_running" };
+});
 const detailQuery = useSessionDetail(
   () => scope.value,
   () => activeSessionId.value,
@@ -119,10 +158,13 @@ const detailQuery = useSessionDetail(
     hasInFlightDelegationHere.value || hasBackgroundTurnHere.value
       ? 4000
       : false,
+  // The continuous thread reads the chain-spanning transcript — a context
+  // swap must never empty the visible conversation.
+  () => (shell.target === "continuous" ? "continuing" : "segment"),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(
-  () => detailQuery.data.value?.session.model ?? null,
+  () => detailQuery.data.value?.session?.model ?? null,
 );
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
@@ -285,7 +327,18 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
     />
 
     <section v-else class="canvas thread-pane">
-      <div class="thread-toolbar">
+      <!-- The canvas's 40px chat header: workspace name + the status badge
+           (one status one colour) + the pane tools. -->
+      <div class="thread-header">
+        <span class="thread-title">{{ activeWorkspace?.name ?? "Workspace" }}</span>
+        <span
+          v-if="headerBadge"
+          class="thread-badge"
+          :data-status="headerBadge.status"
+        >
+          {{ headerBadge.label }}
+        </span>
+        <span class="thread-header-space" />
         <IconButton
           label="Toggle files"
           :active="isFilesPanelOpen"
@@ -324,6 +377,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         :pointers-by-trace-id="threadPointers"
         :workspaces-by-name="workspacesByName"
         :session-model="sessionModel"
+        :workspace-status="statusView?.status ?? null"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
       />
@@ -389,16 +443,65 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 .thread-pane {
   position: relative;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: 40px 1fr auto;
   min-height: 0;
   background: var(--bg-shell);
 }
 
-.thread-toolbar {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  z-index: 10;
+/* The canvas's chat header — 40px, hairline below, name + status badge. */
+.thread-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 22px 0 24px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.thread-title {
+  color: var(--ink-1);
+  font: 500 13.5px/1.4 var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-header-space {
+  flex: 1;
+}
+
+/* The status badge — the canvas's tag, one hue per state. */
+.thread-badge {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  background: var(--bg-inset);
+  color: var(--ink-2);
+  font: 500 11px/1.5 var(--font-ui);
+  white-space: nowrap;
+}
+
+.thread-badge[data-status="running"] {
+  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+  color: var(--color-accent-200);
+}
+
+.thread-badge[data-status="needs_input"] {
+  border-color: color-mix(in srgb, var(--needs-input) 45%, transparent);
+  background: var(--needs-input-soft);
+  color: var(--needs-input);
+}
+
+.thread-badge[data-status="problem"] {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.thread-badge[data-status="completed"] {
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  color: var(--ok);
 }
 
 .welcome {

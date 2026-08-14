@@ -1,4 +1,4 @@
-// The `workspaces` HTTP surface — thirteen routes mounted at `/workspaces`
+// The `workspaces` HTTP surface — fifteen routes mounted at `/workspaces`
 // (USER-scoped, no `:workspaceId` prefix) from `apps/local-api/src/app.ts`:
 //   - GET    /workspaces                        -> listWorkspacesForUser  [x-mcp]
 //   - POST   /workspaces                        -> createWorkspace
@@ -7,9 +7,11 @@
 //   - POST   /workspaces/groups                 -> createWorkspaceGroup
 //   - PATCH  /workspaces/groups/:groupId        -> renameWorkspaceGroup
 //   - DELETE /workspaces/groups/:groupId        -> deleteWorkspaceGroup
+//   - GET    /workspaces/statuses               -> status facts (Arc 5b)
 //   - GET    /workspaces/:workspaceId           -> c.var.workspace        [x-mcp]
 //   - PATCH  /workspaces/:workspaceId           -> updateWorkspaceMetadata
 //   - PUT    /workspaces/:workspaceId/group     -> setWorkspaceGroup
+//   - PUT    /workspaces/:workspaceId/status    -> setWorkspaceStatus     [x-mcp]
 //   - POST   /workspaces/:workspaceId/archive   -> archiveWorkspace
 //   - POST   /workspaces/:workspaceId/unarchive -> unarchiveWorkspace
 //   - DELETE /workspaces/:workspaceId           -> hardDeleteWorkspace
@@ -40,6 +42,9 @@ import type {
   WorkspaceGroupResponse,
   WorkspaceResponse,
 } from '@vynel/contracts/workspaces/workspace-http'
+import type { WorkspaceStatusReport } from '@vynel/contracts/workspaces/workspace-status'
+import { listLatestWorkspaceTurnsForUser } from '@vynel/session/runtime'
+import { countTasksByWorkspace } from '@vynel/tasks'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -57,6 +62,7 @@ import {
   renameWorkspaceGroup,
   deleteWorkspaceGroup,
   setWorkspaceGroup,
+  setWorkspaceStatus,
 } from '@vynel/workspaces'
 import type { Workspace, WorkspaceGroup } from '@vynel/workspaces'
 import {
@@ -71,8 +77,10 @@ import {
   CreateWorkspaceGroupRequestSchema,
   RenameWorkspaceGroupRequestSchema,
   SetWorkspaceGroupRequestSchema,
+  SetWorkspaceStatusRequestSchema,
   WorkspaceGroupResponseSchema,
   ListWorkspaceGroupsResponseSchema,
+  ListWorkspaceStatusesResponseSchema,
 } from './schemas.js'
 
 export const workspacesApp = factory
@@ -288,6 +296,59 @@ export const workspacesApp = factory
       return c.body(null, 204)
     },
   )
+  // ── Workspace statuses (redesign Arc 5b) — the FACTS the effective status
+  // derives from, one row per workspace: the assistant-set state, the latest
+  // turn envelope (failed/orphaned = the problem signal), and the task
+  // rollup. Static segment, registered before `/:workspaceId`. The app layer
+  // composes the three leaves (workspaces + session + tasks) — no leaf
+  // imports a sibling. ──
+  .get(
+    '/statuses',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Per-workspace status facts: set state, latest turn, task counts.',
+      'x-sdk-name': 'workspaces.listStatuses',
+      responses: {
+        200: {
+          description: 'One status report per workspace.',
+          content: {
+            'application/json': { schema: resolver(ListWorkspaceStatusesResponseSchema) },
+          },
+        },
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      const rows = await listWorkspacesForUser(c.var.db, { userId: c.var.user.id })
+      const latestTurns = listLatestWorkspaceTurnsForUser(c.var.db, c.var.user.id)
+      const taskCounts = new Map(
+        countTasksByWorkspace(c.var.db, { userId: c.var.user.id }).map((entry) => [
+          entry.workspaceId,
+          entry,
+        ]),
+      )
+      const reports: WorkspaceStatusReport[] = rows.map((workspace) => {
+        const turn = latestTurns.get(workspace.id)
+        const counts = taskCounts.get(workspace.id)
+        return {
+          workspaceId: workspace.id,
+          setStatus: workspace.status,
+          statusNote: workspace.statusNote,
+          statusSetAt: workspace.statusSetAt?.toISOString() ?? null,
+          latestTurn: turn
+            ? {
+                startedAt: turn.startedAt.toISOString(),
+                endedAt: turn.endedAt?.toISOString() ?? null,
+                endedReason: turn.endedReason,
+              }
+            : null,
+          tasksTotal: counts?.total ?? 0,
+          tasksDone: counts?.done ?? 0,
+        }
+      })
+      return c.json(reports)
+    },
+  )
   .get(
     '/:workspaceId',
     describeRoute({
@@ -363,6 +424,50 @@ export const workspacesApp = factory
         userId: c.var.user.id,
         workspaceId: c.var.workspace!.id,
         groupId: input.groupId,
+      })
+      return c.json(serializeWorkspaceForResponse(updated))
+    },
+  )
+  // The assistant's status write (redesign Arc 5b) — a self-tool, so no
+  // askApproval: setting "completed / problem / needs input" is reporting,
+  // not an irreversible action.
+  .put(
+    '/:workspaceId/status',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Set the workspace status (completed / problem / needs_input).',
+      'x-sdk-name': 'workspaces.setStatus',
+      responses: {
+        200: {
+          description: 'Updated workspace.',
+          content: { 'application/json': { schema: resolver(WorkspaceResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'set_workspace_status',
+        mutatingApproved: true,
+        description:
+          "Set this workspace's status light — the state the user sees on every " +
+          'navigation surface. Set `completed` when EVERY task on the list is done ' +
+          '(do it before finishing your reply, so the user sees it before their next ' +
+          'message). Set `problem` when you are stuck and cannot proceed without help. ' +
+          'Set `needs_input` when you reached a conclusion or decision that needs the ' +
+          "user's attention (approvals and questions are detected automatically — this " +
+          'is for conclusions). Include a short `note` saying why. The status clears ' +
+          'itself when the user sends the next message.',
+      },
+    }),
+    validator('json', SetWorkspaceStatusRequestSchema),
+    ...workspaceScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const updated = await setWorkspaceStatus(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+        status: input.status,
+        note: input.note ?? null,
       })
       return c.json(serializeWorkspaceForResponse(updated))
     },
@@ -443,6 +548,9 @@ function serializeWorkspaceForResponse(workspace: Workspace): WorkspaceResponse 
     isArchived: workspace.isArchived,
     continueEnabled: workspace.continueEnabled,
     groupId: workspace.groupId,
+    status: workspace.status,
+    statusNote: workspace.statusNote,
+    statusSetAt: workspace.statusSetAt?.toISOString() ?? null,
     createdAt: workspace.createdAt.toISOString(),
     updatedAt: workspace.updatedAt.toISOString(),
     lastAccessedAt: workspace.lastAccessedAt.toISOString(),

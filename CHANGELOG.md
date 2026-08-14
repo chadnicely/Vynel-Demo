@@ -18,6 +18,34 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   build would ship). Your own Tool access panel in the app still works on
   top of the shipped defaults; anything you customize stays yours.
 
+- **Every project wears one status light.** A workspace is now always in one
+  of five states — running, waiting on you, hit a problem, completed, or not
+  running — and the same colour tells the story on every surface: the
+  workspace tree's mark dots and `done/total` task counts, the tab strip's
+  chips and pulsing dots, the work rail's headline card, and the chat
+  header's badge. Claude sets the state itself (a new `set_workspace_status`
+  tool: "completed" once everything on the list is done, "problem" when it's
+  stuck, "needs input" when a conclusion needs your call — with a one-line
+  why that shows on the rail), and Vynel detects the rest: a crashed or
+  errored session turns the light red, a pending approval or question turns
+  it blue, and your next message clears a stale state automatically.
+
+- **The chat reads as one card per exchange.** Your ask and Claude's whole
+  reply now live in a single card — the newest exchange sits open on the
+  surface, older ones fold to a quiet one-line strip with "read more" and
+  wake on hover, and the live exchange keeps its glowing spine and working
+  timer. When a workspace is waiting on you, stuck, or done, the latest card
+  carries the verdict pill in that state's colour.
+
+- **Navigation looks the way the design says.** Tabs mode grew real
+  browser-style tabs that sit on the canvas edge (state chip + name + status
+  dot, parked rooms dimmed); menu mode's workspace tree shows each room's
+  state chip, task progress, and status mark, with quiet finished rooms
+  tucked under a collapsible NOT RUNNING group; the drilled sidebar leads
+  with the workspace's identity card and its live status line. The title bar
+  wears the accent Vynel mark on the chrome ground, and the composer's send
+  button matches the design's accent chip.
+
 - **You decide what Claude can touch.** A new "Tool access" panel in the
   workspace toolkit lists every tool Claude has — grouped by feature — and
   makes all of it editable: turn a tool off entirely, choose where it's
@@ -450,6 +478,26 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A workspace's main chat no longer empties when a long conversation rolls
+  over.** When the assistant quietly continues onto a fresh session because the
+  old one filled up, the main chat previously showed a blank conversation —
+  the assistant still remembered everything, but every earlier message
+  disappeared from view with no way to reach it. The main chat (workspace and
+  global alike, including the sidebar thread) now reads the whole continued
+  chain as one story, so a rollover is invisible: all your messages stay right
+  where they were. This also restores history retroactively — conversations
+  that already hit this show their full thread again after updating. The same
+  fix covers conversations opened from the Sessions list: a continued chain
+  opens with its whole history, not just the newest part (deliberately opening
+  an earlier part still shows exactly that part).
+- **Rollovers now actually carry your conversation forward.** The hand-off
+  summary written at a rollover was produced by a small helper model that
+  couldn't fit a huge conversation in its head — at the exact moment it
+  mattered most, the summary could come out nearly empty and the new session
+  started with almost nothing. The summary now runs on the same model your
+  conversation used (which by definition fits it), and a summary that comes
+  back malformed or suspiciously short cancels the rollover instead of
+  shipping — the conversation simply continues as-is and tries again later.
 - **Your own MCP servers are safe from the marketplace.** A connector you
   added by hand can share a name with a marketplace item — previously that
   made the item's card claim "Installed", and removing it from the

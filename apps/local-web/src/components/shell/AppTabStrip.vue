@@ -2,29 +2,28 @@
 import { computed, h } from "vue";
 import type { Component } from "vue";
 import {
-  PhCaretDown as ChevronDown,
   PhCircleNotch as CircleNotch,
+  PhCube as Cube,
   PhHouse as House,
+  PhMoon as Moon,
   PhPlus as Plus,
   PhX as X,
 } from "@phosphor-icons/vue";
-import {
-  DropdownMenu,
-  WorkspaceColorSwatches,
-  workspaceAccentVar,
-  workspaceMonogram,
-} from "@vynel/ui";
+import { DropdownMenu, workspaceAccentVar } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
-import type { WorkspacePresence } from "../../composables/workspaces/use-workspace-presence.js";
+import type { WorkspaceEffectiveStatus } from "@vynel/contracts/workspaces/workspace-status";
+import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
 
-// The scope tab strip (below the title bar) — tabs mode's workspace
-// navigation (menu mode collapses it for the sidebar workspace tree).
-// Tab one is the pinned Global tab; every other tab is a workspace room.
-// Uniform browser-style tabs: same width, the tab's accent underlines the
-// active one, and the switch/close controls reveal on hover so resting tabs
-// stay clean. Each room tab's dropdown switches its workspace and paints the
-// tab; `+` opens a new room tab. Data-blind like the title bar: tabs +
-// workspaces in, events out; the shell decides what happens.
+// The scope tab strip — tabs mode's workspace navigation, in the canvas's
+// browser-tab chrome (menu mode collapses it for the sidebar workspace
+// tree). Tab one is the pinned Global tab; every other tab is a workspace
+// room. Each tab wears the canvas's 16px STATE chip (spinner = running,
+// cube = a state is set, moon = parked) and the pulsing status dot (one
+// status one colour); parked tabs dim. The active tab sits on the canvas
+// ground with its accent bottom edge. A tab is just the room + a hover
+// close (the per-tab workspace SWITCHER retired — Kafi, 2026-08-14 parity
+// pass; rooms open via `+`). Data-blind like the title bar: tabs +
+// workspaces + status views in, events out.
 export interface ShellTabItem {
   id: string;
   workspaceId: string | null;
@@ -36,19 +35,16 @@ const props = defineProps<{
   activeTabId: string;
   workspaces: { id: string; name: string }[];
   // A workspace's customized accent slot (Customize section) — the default a
-  // tab starts from; a per-tab pick still overrides it.
+  // tab starts from; a per-tab pick still overrides it. Colors only the
+  // active tab's bottom edge (state owns the chip).
   workspaceColorSlots?: Record<string, number | null>;
-  // Live presence per scope: a working tab's chip spins, a waiting tab wears
-  // the needs-input dot — the strip tells you where to look without a click.
-  workspacePresence?: Record<string, WorkspacePresence>;
-  globalPresence?: WorkspacePresence;
+  statusByWorkspaceId?: Record<string, WorkspaceStatusView>;
+  globalStatus?: WorkspaceEffectiveStatus;
 }>();
 
 const emit = defineEmits<{
   "select-tab": [tabId: string];
   "close-tab": [tabId: string];
-  "retarget-tab": [tabId: string, workspaceId: string];
-  "color-tab": [tabId: string, colorSlot: number | null];
   "add-tab": [workspaceId: string];
   "create-workspace": [];
 }>();
@@ -61,21 +57,35 @@ function workspaceName(workspaceId: string | null): string {
   );
 }
 
-function tabPresence(tab: ShellTabItem): WorkspacePresence {
-  if (tab.workspaceId === null) return props.globalPresence ?? "idle";
-  return props.workspacePresence?.[tab.workspaceId] ?? "idle";
+function tabStatus(tab: ShellTabItem): WorkspaceEffectiveStatus {
+  if (tab.workspaceId === null) return props.globalStatus ?? "not_running";
+  return props.statusByWorkspaceId?.[tab.workspaceId]?.status ?? "not_running";
 }
 
-/** The tab's accent: the user's per-tab pick wins, then the workspace's
- *  customized color, else the room's name-derived color; the Global tab
- *  stays neutral (gold is reserved for presence). */
-function tabAccent(tab: ShellTabItem): string {
+const MARK_LABELS = {
+  needs_input: "is waiting on you",
+  problem: "hit a problem",
+  completed: "is completed",
+} as const;
+
+function tabMark(tab: ShellTabItem): keyof typeof MARK_LABELS | null {
+  const status = tabStatus(tab);
+  return status === "needs_input" || status === "problem" || status === "completed"
+    ? status
+    : null;
+}
+
+/** The active tab's bottom edge: the user's per-tab pick wins, then the
+ *  workspace's customized color, else the system accent (the canvas's
+ *  default — identity hues stay opt-in). */
+function tabEdge(tab: ShellTabItem): string {
   if (tab.colorSlot !== null) return `var(--ws-${tab.colorSlot})`;
-  if (tab.workspaceId === null) return "var(--ink-3)";
-  const customSlot = props.workspaceColorSlots?.[tab.workspaceId];
-  if (customSlot !== undefined && customSlot !== null)
-    return `var(--ws-${customSlot})`;
-  return workspaceAccentVar(workspaceName(tab.workspaceId));
+  if (tab.workspaceId !== null) {
+    const customSlot = props.workspaceColorSlots?.[tab.workspaceId];
+    if (customSlot !== undefined && customSlot !== null)
+      return `var(--ws-${customSlot})`;
+  }
+  return "var(--gold)";
 }
 
 // Each room row in a pick menu wears its own accent dot, so the list reads
@@ -107,16 +117,6 @@ const workspacePickMenu = computed<MenuItemModel[]>(() => [
   { id: "new-workspace", label: "New workspace" },
 ]);
 
-const tabMenu = computed<MenuItemModel[]>(() => [
-  { id: "switch-label", kind: "label", label: "Switch workspace" },
-  ...workspacePickMenu.value,
-]);
-
-function onTabMenuSelect(tabId: string, itemId: string) {
-  if (itemId === "new-workspace") emit("create-workspace");
-  else if (itemId.startsWith("ws:")) emit("retarget-tab", tabId, itemId.slice(3));
-}
-
 function onAddMenuSelect(itemId: string) {
   if (itemId === "new-workspace") emit("create-workspace");
   else if (itemId.startsWith("ws:")) emit("add-tab", itemId.slice(3));
@@ -127,87 +127,66 @@ function onAddMenuSelect(itemId: string) {
   <div
     role="tablist"
     aria-label="Open scopes"
-    class="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-hair bg-shell px-2 select-none"
+    class="app-tab-strip select-none"
   >
     <div
       v-for="tab in props.tabs"
       :key="tab.id"
-      class="group relative flex h-8 w-44 shrink-0 items-center rounded-sm transition"
-      :class="
+      class="app-tab group"
+      :class="{
+        'is-active': tab.id === props.activeTabId,
+        'is-parked':
+          tabStatus(tab) === 'not_running' && tab.id !== props.activeTabId,
+      }"
+      :style="
         tab.id === props.activeTabId
-          ? 'bg-row-active text-ink-1'
-          : 'text-ink-2 hover:bg-row-hover hover:text-ink-1'
+          ? { borderBottomColor: tabEdge(tab) }
+          : undefined
       "
     >
       <button
         type="button"
         role="tab"
         :aria-selected="tab.id === props.activeTabId"
-        class="flex h-full min-w-0 flex-1 items-center gap-2 py-1 pl-2 pr-1 text-sm"
+        class="flex h-full min-w-0 flex-1 items-center gap-2.5 pr-1"
         @click="emit('select-tab', tab.id)"
       >
-        <!-- Chip = identity at rest, liveness while working (the spinner
-             replaces the monogram; the accent keeps saying which room). -->
+        <!-- The state chip — same vocabulary as the tree rows. -->
         <span
-          class="grid size-5 shrink-0 place-items-center rounded-[4px] text-[10px] font-semibold text-white"
-          :style="{ background: tabAccent(tab) }"
+          class="grid size-4 shrink-0 place-items-center rounded-[4px]"
+          :class="
+            tabStatus(tab) === 'not_running'
+              ? 'bg-[var(--color-neutral-900)] text-[var(--color-neutral-600)]'
+              : 'bg-[var(--color-accent-900)] text-[var(--color-accent-200)]'
+          "
         >
           <CircleNotch
-            v-if="tabPresence(tab) === 'working'"
-            :size="12"
+            v-if="tabStatus(tab) === 'running'"
+            :size="10"
             class="animate-spin"
           />
-          <House v-else-if="tab.workspaceId === null" :size="12" />
-          <template v-else>{{ workspaceMonogram(workspaceName(tab.workspaceId)) }}</template>
+          <House v-else-if="tab.workspaceId === null" :size="10" />
+          <Moon v-else-if="tabStatus(tab) === 'not_running'" :size="10" />
+          <Cube v-else :size="10" class="text-[var(--color-neutral-500)]" />
         </span>
-        <span class="truncate">{{ workspaceName(tab.workspaceId) }}</span>
+        <span class="truncate text-[12.5px]">{{ workspaceName(tab.workspaceId) }}</span>
         <span
-          v-if="tabPresence(tab) === 'attention'"
-          :aria-label="`${workspaceName(tab.workspaceId)} is waiting on you`"
-          class="size-2 shrink-0 animate-pulse rounded-full bg-needs-input"
+          v-if="tabMark(tab)"
+          :aria-label="`${workspaceName(tab.workspaceId)} ${MARK_LABELS[tabMark(tab)!]}`"
+          class="tab-mark size-2 shrink-0 rounded-full"
+          :data-status="tabMark(tab)"
         />
       </button>
 
-      <template v-if="tab.workspaceId !== null">
-        <DropdownMenu
-          :items="tabMenu"
-          align="start"
-          @select="(itemId) => onTabMenuSelect(tab.id, itemId)"
-        >
-          <template #trigger>
-            <button
-              type="button"
-              :aria-label="`Switch workspace for ${workspaceName(tab.workspaceId)}`"
-              class="grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:bg-row-hover data-[state=open]:text-ink-1 data-[state=open]:opacity-100"
-            >
-              <ChevronDown :size="12" />
-            </button>
-          </template>
-          <template #footer>
-            <WorkspaceColorSwatches
-              :selected-slot="tab.colorSlot"
-              label="Tab color"
-              @pick="(slot) => emit('color-tab', tab.id, slot)"
-            />
-          </template>
-        </DropdownMenu>
-        <button
-          type="button"
-          :aria-label="`Close ${workspaceName(tab.workspaceId)}`"
-          class="mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
-          @click.stop="emit('close-tab', tab.id)"
-        >
-          <X :size="12" />
-        </button>
-      </template>
-
-      <!-- The tab's accent underline — the colorized identity of the active tab. -->
-      <span
-        v-if="tab.id === props.activeTabId"
-        aria-hidden="true"
-        class="absolute inset-x-1.5 bottom-0 h-0.5 rounded-full"
-        :style="{ background: tabAccent(tab) }"
-      />
+      <button
+        v-if="tab.workspaceId !== null"
+        type="button"
+        :aria-label="`Close ${workspaceName(tab.workspaceId)}`"
+        class="mr-0.5 grid size-6 shrink-0 place-items-center rounded-sm text-ink-3 opacity-0 transition hover:bg-row-hover hover:text-ink-1 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+        @click.stop="emit('close-tab', tab.id)"
+      >
+        <X :size="12" />
+      </button>
     </div>
 
     <DropdownMenu :items="workspacePickMenu" align="start" @select="onAddMenuSelect">
@@ -216,7 +195,7 @@ function onAddMenuSelect(itemId: string) {
           type="button"
           aria-label="New tab"
           title="New tab"
-          class="grid size-8 shrink-0 place-items-center rounded-sm text-ink-3 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
+          class="mb-1 grid size-8 shrink-0 place-items-center self-center rounded-sm text-ink-3 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
         >
           <Plus :size="15" />
         </button>
@@ -224,3 +203,107 @@ function onAddMenuSelect(itemId: string) {
     </DropdownMenu>
   </div>
 </template>
+
+<style scoped>
+/* The canvas's strip: chrome ground, hairline base, tabs rising from it. */
+.app-tab-strip {
+  display: flex;
+  align-items: stretch;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 6px 8px 0;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--hair);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* A browser tab: top radius, transparent at rest, the canvas ground +
+   accent bottom edge when active. */
+.app-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 210px;
+  min-width: 0;
+  flex: 0 1 auto;
+  margin-right: 5px;
+  /* The canvas's tab breathing room (9px / --space-6); the close affordance
+     borrows from the right pad on hover. */
+  padding: 0 6px 0 16px;
+  border-radius: var(--radius-m) var(--radius-m) 0 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out),
+    opacity var(--t-fast) var(--ease-out);
+}
+
+.app-tab:hover {
+  color: var(--ink-1);
+  background: var(--row-hover);
+}
+
+.app-tab.is-active {
+  background: var(--bg-shell);
+  color: var(--ink-1);
+}
+
+/* A mouse click must never wear the UA focus ring (the canvas's tabs carry
+   none); keyboard focus keeps a quiet hairline instead. */
+.app-tab [role="tab"]:focus {
+  outline: none;
+}
+
+.app-tab [role="tab"]:focus-visible {
+  outline: 1px solid var(--hair-strong);
+  outline-offset: -2px;
+  border-radius: var(--radius-s);
+}
+
+/* Parked rooms dim — the canvas's 0.55. */
+.app-tab.is-parked {
+  opacity: 0.55;
+}
+
+.app-tab.is-parked:hover {
+  opacity: 1;
+}
+
+/* One status, one colour — the pulsing mark dot. */
+.tab-mark {
+  animation: tab-mark-pulse 1.4s ease-in-out infinite;
+}
+
+.tab-mark[data-status="needs_input"] {
+  background: var(--needs-input);
+}
+
+.tab-mark[data-status="problem"] {
+  background: var(--danger);
+}
+
+.tab-mark[data-status="completed"] {
+  background: var(--ok);
+}
+
+@keyframes tab-mark-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-mark {
+    animation: none;
+  }
+}
+</style>

@@ -90,6 +90,7 @@ import {
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
   insertChatSession,
+  insertChatMessage,
   findChatSessionById,
   listChatMessagesForSession,
 } from '@vynel/chat/repositories'
@@ -204,7 +205,58 @@ describe('GET /root/transcript', () => {
       const app = makeHarness(db)
       const res = await app.request('/root/transcript')
       expect(res.status).toBe(200)
-      expect(await res.json()).toEqual({ messages: [], toolCallsByMessageId: {} })
+      expect(await res.json()).toEqual({ session: null, messages: [], toolCallsByMessageId: {} })
+    })
+  })
+
+  it('serves the current segment + chain-spanning messages once the root exists', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      // A swapped chain: g-old superseded into the (empty) current g-new.
+      seedGlobalSession(db, user.id, 'g-old')
+      insertChatSession(db, {
+        ...buildNewChatSessionRow({
+          sessionId: 'g-new',
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Continued conversation',
+          visibility: 'hidden',
+        }),
+        continuedFromSessionId: 'g-old',
+      })
+      insertChatMessage(db, {
+        id: 'm-old',
+        sessionId: 'g-old',
+        role: 'user',
+        body: 'pre-swap',
+        thinkingBody: null,
+        inputTokens: null,
+        outputTokens: null,
+        attachedImagesMetadata: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: new Date(),
+        completedAt: new Date(),
+        createdAt: new Date(),
+      })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'g-new',
+      })
+      const app = makeHarness(db)
+
+      const res = await app.request('/root/transcript')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        session: { id: string } | null
+        messages: { id: string }[]
+      }
+      expect(body.session?.id).toBe('g-new')
+      expect(body.messages.map((m) => m.id)).toEqual(['m-old'])
     })
   })
 })
@@ -246,6 +298,62 @@ describe('GET /root/sessions/:sessionId', () => {
 
       // Same response as unknown — no enumeration leak.
       const crossUser = await app.request('/root/sessions/theirs-1')
+      expect(crossUser.status).toBe(404)
+    })
+  })
+})
+
+describe('GET /root/sessions/:sessionId/transcript', () => {
+  it('spans the chain from the head, 404s on unknown AND cross-user (IDOR gate)', async () => {
+    await withTestDatabase(async (db) => {
+      const owner = seedUser(db)
+      const other = seedUser(db)
+      // A swapped chain: sp-old superseded into the (empty) head sp-new.
+      seedGlobalSession(db, owner.id, 'sp-old')
+      insertChatSession(db, {
+        ...buildNewChatSessionRow({
+          sessionId: 'sp-new',
+          userId: owner.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Continued conversation',
+          visibility: 'hidden',
+        }),
+        continuedFromSessionId: 'sp-old',
+      })
+      insertChatMessage(db, {
+        id: 'm-chain',
+        sessionId: 'sp-old',
+        role: 'user',
+        body: 'before the swap',
+        thinkingBody: null,
+        inputTokens: null,
+        outputTokens: null,
+        attachedImagesMetadata: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: new Date(),
+        completedAt: new Date(),
+        createdAt: new Date(),
+      })
+      seedGlobalSession(db, other.id, 'theirs-chain')
+      const app = makeHarness(db)
+
+      const owned = await app.request('/root/sessions/sp-new/transcript')
+      expect(owned.status).toBe(200)
+      const body = (await owned.json()) as {
+        session: { id: string }
+        messages: { id: string }[]
+      }
+      expect(body.session.id).toBe('sp-new')
+      expect(body.messages.map((m) => m.id)).toEqual(['m-chain'])
+
+      const unknown = await app.request('/root/sessions/nope/transcript')
+      expect(unknown.status).toBe(404)
+
+      // Same response as unknown — no enumeration leak.
+      const crossUser = await app.request('/root/sessions/theirs-chain/transcript')
       expect(crossUser.status).toBe(404)
     })
   })

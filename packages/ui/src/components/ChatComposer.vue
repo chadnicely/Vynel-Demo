@@ -426,11 +426,11 @@ function onDrop(event: DragEvent) {
 .chat-composer {
   display: grid;
   gap: 4px;
-  padding: 10px 10px 8px;
-  border: 1px solid var(--hair-strong);
+  padding: 10px 12px 8px;
+  /* The canvas's composer card: surface ground on the divider hairline. */
+  border: 1px solid var(--hair);
   border-radius: var(--radius-m);
   background: var(--bg-raised);
-  box-shadow: var(--shadow-raised);
 }
 
 .chat-composer:focus-within {
@@ -516,8 +516,8 @@ function onDrop(event: DragEvent) {
   margin: 0;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--ink-2);
@@ -578,17 +578,18 @@ function onDrop(event: DragEvent) {
   border: 0;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 25px;
+  height: 25px;
   border-radius: var(--radius-s);
-  background: var(--gold);
-  color: var(--color-bg);
+  /* The canvas's send chip: accent-700 ground, accent-100 arrow. */
+  background: var(--color-accent-700);
+  color: var(--color-accent-100);
   cursor: default;
   transition: background var(--t-fast) var(--ease-out);
 }
 
 .send-button:hover:not(:disabled) {
-  background: var(--gold-bright);
+  background: var(--color-accent-600);
 }
 
 .send-button:disabled {

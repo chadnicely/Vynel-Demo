@@ -101,7 +101,7 @@ describe("the active plan — looking vs controlling", () => {
     const state = fold([
       planStep("p1"),
       { kind: "turn-tool-settled", turnId: "t1", toolUseId: "p1", status: "completed" },
-      { kind: "turn-ended", turnId: "t1", sessionId: null },
+      { kind: "turn-ended", turnId: "t1", sessionId: null, outcome: "ended" },
     ]);
     expect(isControllingDesktop(state)).toBe(false);
     expect(state).toEqual(emptyDesktopActivity());
@@ -184,14 +184,14 @@ describe("applyDesktopActivityEvent", () => {
     const state = fold([desktopStep("a")]);
     const otherEnd = applyDesktopActivityEvent(
       state,
-      { kind: "turn-ended", turnId: "other", sessionId: null },
+      { kind: "turn-ended", turnId: "other", sessionId: null, outcome: "ended" },
       T0,
     );
     expect(otherEnd).toBe(state);
 
     const cleared = applyDesktopActivityEvent(
       state,
-      { kind: "turn-ended", turnId: "t1", sessionId: null },
+      { kind: "turn-ended", turnId: "t1", sessionId: null, outcome: "ended" },
       T0,
     );
     expect(cleared).toEqual(emptyDesktopActivity());
@@ -356,7 +356,7 @@ describe("following the right turn (the live overlay bugs)", () => {
 
     const ended = applyDesktopActivityEvent(
       state,
-      { kind: "turn-ended", turnId: "desk-turn", sessionId: null },
+      { kind: "turn-ended", turnId: "desk-turn", sessionId: null, outcome: "ended" },
       T0,
     );
     expect(ended.trackedTurn).toBeNull();

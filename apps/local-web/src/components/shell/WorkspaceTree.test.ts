@@ -18,8 +18,13 @@ function mountTree() {
       ],
       groups: [{ id: "grp-1", name: "Clients" }],
       activeWorkspaceId: null,
-      presenceByWorkspaceId: {},
-      globalPresence: "idle" as const,
+      // Alive views (open tasks) — parked rows would fold into NOT RUNNING
+      // and out of the folder/root zones these tests drive.
+      statusByWorkspaceId: {
+        "ws-a": { status: "running" as const, note: null, tasksDone: 1, tasksTotal: 3 },
+        "ws-b": { status: "not_running" as const, note: null, tasksDone: 0, tasksTotal: 2 },
+      },
+      globalStatus: "not_running" as const,
       accountName: "Sam",
     },
     attachTo: document.body,

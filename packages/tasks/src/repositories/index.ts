@@ -1,6 +1,7 @@
 export {
   listTasksForWorkspace,
   listTasksForUser,
+  countTasksByWorkspace,
   findTaskById,
   insertTask,
   updateTask,
@@ -9,6 +10,7 @@ export {
   type NewTask,
   type TaskStatus,
   type TaskSource,
+  type WorkspaceTaskCounts,
 } from './tasks.js'
 export {
   listSessionTodos,

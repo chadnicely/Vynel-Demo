@@ -44,6 +44,7 @@ describe("activity store — server turns", () => {
       kind: "turn-ended",
       turnId: "t1",
       sessionId: "sess-1",
+      outcome: "ended",
     });
     expect(store.hasGlobalServerTurn).toBe(false);
     expect(store.isTurnRunning).toBe(false);
@@ -74,6 +75,7 @@ describe("activity store — server turns", () => {
       kind: "turn-ended",
       turnId: "ghost",
       sessionId: null,
+      outcome: "ended",
     });
     expect(store.serverTurns).toEqual({});
 
@@ -107,7 +109,7 @@ describe("activity store — server turns", () => {
     expect(store.serverTurns["t4"]).toBeDefined();
     expect(store.isTurnRunning).toBe(true);
 
-    store.applyServerActivity({ kind: "turn-ended", turnId: "t4", sessionId: null });
+    store.applyServerActivity({ kind: "turn-ended", turnId: "t4", sessionId: null, outcome: "ended" });
     expect(store.serverTurns["t4"]).toBeUndefined();
   });
 
@@ -127,7 +129,7 @@ describe("activity store — server turns", () => {
     expect(store.serverTurnForSession("sess-5")?.turnId).toBe("t5");
     expect(store.serverTurnForSession("sess-other")).toBeNull();
 
-    store.applyServerActivity({ kind: "turn-ended", turnId: "t5", sessionId: "sess-5" });
+    store.applyServerActivity({ kind: "turn-ended", turnId: "t5", sessionId: "sess-5", outcome: "ended" });
     expect(store.serverTurnForSession("sess-5")).toBeNull();
   });
 });

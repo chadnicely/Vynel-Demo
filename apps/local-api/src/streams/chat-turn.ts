@@ -259,8 +259,12 @@ export async function streamChatTurn(
       ...(resumeSessionId !== undefined ? { sessionId: resumeSessionId } : {}),
       origin: 'web',
     })
+    // 'failed' when the drain sees a terminal session-errored or throws — the
+    // durable envelope + feed carry it (the status vocabulary's problem signal).
+    let turnOutcome: 'ended' | 'failed' = 'ended'
     try {
       for await (const event of turnStream) {
+        if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
         // Track the session the turn ran on (a NEW session's id is only known
         // at session-created) + the latest context occupancy (last usage wins).
         if (event.kind === 'session-created') {
@@ -285,6 +289,7 @@ export async function streamChatTurn(
     } catch (err) {
       // A mid-stream throw (consumer/DB) must still reach the client as typed
       // frames — a bare socket close leaves the composer "working" forever.
+      turnOutcome = 'failed'
       c.var.logger.error({ err }, 'chat turn stream failed mid-flight')
       await writeSseSafely(
         stream,
@@ -303,7 +308,7 @@ export async function streamChatTurn(
       // or disconnect (where the write no-ops).
       await writeSseSafely(stream, 'turn-stream-ended', '{}', c.var.logger)
       // Fires even on client disconnect (generator cleanup). Best-effort.
-      activity.end()
+      activity.end(turnOutcome)
       // An ask still parked when the turn ends (interrupt/disconnect — a
       // normal completion can't end with one open, the tool blocks the turn)
       // is unanswerable: cancel its waiter + expire its row so the UI never

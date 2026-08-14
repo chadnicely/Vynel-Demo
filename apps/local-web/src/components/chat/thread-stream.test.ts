@@ -41,34 +41,40 @@ function mountStream(messageCount: number) {
 }
 
 describe("ThreadStream", () => {
-  it("renders every message when the history fits the window", () => {
+  // test: correct expectation (Arc 5b conversation cards) — an exchange (ask +
+  // reply) folds to ONE strip, so a folded card renders only its header row.
+  it("renders the newest exchange fully; a folded exchange renders one strip", () => {
     const wrapper = mountStream(3);
 
-    expect(wrapper.findAll(".message-row")).toHaveLength(3);
+    // Cards: [m0 ask + m1 reply] folded (one strip) · [m2 ask] open.
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
     expect(wrapper.find(".older-note").exists()).toBe(false);
   });
 
-  // TURN folding (Chad, 2026-08-09): the thread folds every turn to its strip
-  // except the latest; any turn toggles freely.
-  it("only the LATEST turn is expanded by default; older turns fold to strips", () => {
+  // Folding (Chad, 2026-08-09, re-grouped by the Arc 5b card): the thread
+  // folds every exchange to its strip except the latest; any card toggles.
+  it("only the LATEST exchange is expanded by default; older ones fold to strips", () => {
     const wrapper = mountStream(3);
     const rows = wrapper.findAll(".message-row");
-    // Folded rows: the strip (preview, no body). The latest: full body.
+    // Folded rows: the strip (preview + read-more, no body). The latest: full body.
     expect(rows[0]!.find(".turn-preview").exists()).toBe(true);
+    expect(rows[0]!.find(".read-more").exists()).toBe(true);
     expect(rows[0]!.find(".plain-body").exists()).toBe(false);
-    expect(rows[2]!.find(".turn-preview").exists()).toBe(false);
-    expect(rows[2]!.text()).toContain("message 2");
+    expect(rows[1]!.find(".turn-preview").exists()).toBe(false);
+    expect(rows[1]!.text()).toContain("message 2");
   });
 
-  it("the header chevron toggles any turn open and closed", async () => {
+  it("the header chevron toggles any exchange open and closed", async () => {
     const wrapper = mountStream(3);
     await wrapper
       .findAll(".message-row")[0]!
       .find(".collapse-toggle")
       .trigger("click");
+    // Open: the ask's body AND the reply row render.
     expect(
       wrapper.findAll(".message-row")[0]!.find(".plain-body").exists(),
     ).toBe(true);
+    expect(wrapper.findAll(".message-row")).toHaveLength(3);
     await wrapper
       .findAll(".message-row")[0]!
       .find(".collapse-toggle")
@@ -76,6 +82,7 @@ describe("ThreadStream", () => {
     expect(
       wrapper.findAll(".message-row")[0]!.find(".plain-body").exists(),
     ).toBe(false);
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
   });
 
   it("landing on an anchor inside a folded turn unfolds it first", async () => {
@@ -105,7 +112,9 @@ describe("ThreadStream", () => {
     const wrapper = mountStream(150);
 
     const rows = wrapper.findAll(".message-row");
-    expect(rows).toHaveLength(100);
+    // 100 windowed messages = 50 exchanges: 49 folded strips + the open
+    // latest card's 2 rows (Arc 5b conversation cards).
+    expect(rows).toHaveLength(51);
     // The newest message is the last row; the oldest 50 stay unrendered.
     expect(rows[rows.length - 1]!.text()).toContain("message 149");
     expect(rows[0]!.text()).toContain("message 50");
@@ -330,16 +339,15 @@ describe("ThreadStream", () => {
     expect(wrapper.text()).toContain("streaming reply…");
   });
 
-  // The task cards (workspace redesign Arc 3): the turn lifecycle is a class
-  // on one wrapper per turn — folded past turns dim, the open turn is a card,
-  // the live turn glows with the working pill.
-  it("wraps each turn in a card — folded turns wear is-folded, the latest is-open", () => {
+  // The conversation cards (Arc 3 + 5b): ONE wrapper per exchange (ask +
+  // reply together) — folded past cards dim, the latest reads open.
+  it("wraps each exchange in a card — folded cards wear is-folded, the latest is-open", () => {
     const wrapper = mountStream(3);
     const cards = wrapper.findAll(".turn-card");
-    expect(cards).toHaveLength(3);
+    // [m0 ask + m1 reply] · [m2 ask] — the reply shares the ask's card.
+    expect(cards).toHaveLength(2);
     expect(cards[0]!.classes()).toContain("is-folded");
-    expect(cards[1]!.classes()).toContain("is-folded");
-    expect(cards[2]!.classes()).toContain("is-open");
+    expect(cards[1]!.classes()).toContain("is-open");
   });
 
   it("a streaming turn renders the live card with the ticking working pill", () => {
@@ -387,19 +395,21 @@ describe("ThreadStream", () => {
       global: { plugins: [createPinia()] },
     });
 
-    // test: correct expectation (turn folding) — a folded turn renders only
-    // its header strip, so the continuations appear once the turn is opened.
+    // test: correct expectation (Arc 5b cards) — the first exchange folds to
+    // ONE strip; opening it reveals the reply run under one author line.
     const folded = wrapper.findAll(".message-row");
     expect(folded.map((row) => row.findAll(".row-header").length)).toEqual([
-      1, 1, 1, 1,
+      1, 1, 1,
     ]);
-    await folded[1]!.find(".collapse-toggle").trigger("click");
+    await folded[0]!.find(".collapse-toggle").trigger("click");
 
     const rows = wrapper.findAll(".message-row");
     const headerCounts = rows.map((row) => row.findAll(".row-header").length);
     // user · assistant(+header) · 2 continuations · user · assistant(+header)
     expect(headerCounts).toEqual([1, 1, 0, 0, 1, 1]);
     expect(rows[2]!.classes()).toContain("is-continuation");
+    // The reply's first row wears the canvas's divider inside the card.
+    expect(rows[1]!.classes()).toContain("is-reply-start");
   });
 
   it("does NOT group assistant rows separated by a long gap — two background turns keep their timestamps", () => {

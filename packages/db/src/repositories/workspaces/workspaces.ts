@@ -16,7 +16,12 @@ import {
   type WorkspaceKind,
 } from '../../schema/workspaces/workspaces.js'
 
-export type { Workspace, NewWorkspace, WorkspaceKind } from '../../schema/workspaces/workspaces.js'
+export type {
+  Workspace,
+  NewWorkspace,
+  WorkspaceKind,
+  WorkspaceStatusKind,
+} from '../../schema/workspaces/workspaces.js'
 
 // Defensive cap on listWorkspacesForUser per coding-standard.md
 // "Structure / patterns" — every list* whose result set scales with

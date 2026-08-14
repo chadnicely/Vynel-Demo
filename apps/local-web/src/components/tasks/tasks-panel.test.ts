@@ -191,7 +191,7 @@ describe("TasksPanel (work rail)", () => {
     await flushPromises();
 
     const rows = wrapper.findAll(".task-row .task-title");
-    expect(rows[0]!.text()).toBe("Ship the rail");
+    expect(rows[0]!.text()).toBe("1. Ship the rail");
     expect(wrapper.find(".live-title").text()).toBe("Ship the rail");
   });
 
@@ -295,7 +295,7 @@ describe("TasksPanel (work rail)", () => {
     });
     await flushPromises();
 
-    expect(wrapper.find(".live-kicker").text()).toContain("All quiet");
+    expect(wrapper.find(".live-kicker").text()).toContain("Not running");
     expect(wrapper.find(".live-title").text()).toBe("Nothing running");
     expect(wrapper.find(".live-bar").exists()).toBe(false);
     expect(wrapper.find(".abort-button").exists()).toBe(false);

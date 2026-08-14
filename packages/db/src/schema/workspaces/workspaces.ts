@@ -16,6 +16,14 @@ import { users } from '../users/users.js'
 
 export type WorkspaceKind = 'small-business' | 'personal' | 'project' | 'custom'
 
+// The assistant-SET workspace status (redesign Arc 5b, "one status one
+// colour"): `completed` = every task done, set before the next message;
+// `problem` = the assistant flags it stuck; `needs_input` = a conclusion
+// needs the user. Rows are facts, never cleared by a write — a status is
+// SUPERSEDED by any turn that starts after `statusSetAt` (the effective
+// status derives at read time from this + turn liveness + approvals/asks).
+export type WorkspaceStatusKind = 'completed' | 'problem' | 'needs_input'
+
 export const workspaces = table(
   'workspaces',
   {
@@ -40,6 +48,12 @@ export const workspaces = table(
     // nullable, no DB FK; deleting a group detaches members inside its
     // transaction. Null = at the tree root.
     groupId: text(),
+    // Assistant-set status trio — all nullable; null = nothing set. The
+    // note is the assistant's one-line why ("All 5 tasks shipped and
+    // verified"), surfaced on the rail card + chat header.
+    status: text().$type<WorkspaceStatusKind>(),
+    statusNote: text(),
+    statusSetAt: timestamp(),
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),
     lastAccessedAt: timestamp().notNull(),
