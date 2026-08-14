@@ -362,7 +362,11 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       @open-file="openFileOnCanvas"
     />
 
-    <TasksPanel v-if="ui.isTasksPanelOpen" :scope="scope" />
+    <TasksPanel
+      v-if="ui.isTasksPanelOpen"
+      :scope="scope"
+      :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
+    />
   </div>
 </template>
 

@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The tasks dock grew into a work rail.** Toggle it from the title bar as
+  before — it now leads with a live card that mirrors the room's presence
+  (glowing while the assistant works, blue when something waits on you, quiet
+  otherwise) with real step progress from the running session, splits tasks
+  into "In the queue" and "Completed" pill tabs, and — in a workspace — ends
+  with an OPEN IT block: one-click links to the apps actually running on
+  their ports, and a stop button (with a confirm) that interrupts the current
+  work without touching anything already finished.
+
 - **The conversation reads like a task list now.** Every chat surface groups
   each exchange into its own card: past turns quiet down to dimmed one-line
   strips that wake when you hover (click to reopen them), the latest turn

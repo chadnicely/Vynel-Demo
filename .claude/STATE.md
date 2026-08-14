@@ -51,7 +51,16 @@
    with "{persona} working · elapsed" on the NEW shared `use-ticking-elapsed` clock — LiveTurn
    refactored onto it). Canvas items still deferred: refs chips + handed-off card (cross-project
    data), inline per-card comment, composer actions/toggles (engine semantics — plan Finding 4).
-   **NEXT: Arc 4 — the workspace right rail** (per the plan).
+9. **Arc 4 LANDED (gate green 4792 — count-arithmetic verified):** the work rail, EVOLVED from
+   TasksPanel (same mount + title-bar toggle): live card on scope presence + REAL step progress
+   (running session's todos via activity serverTurns → sessionId), queue/completed pill tabs
+   (in-progress leads), TaskStatusControl kept, OPEN IT = running apps as plain anchors (AppRow
+   pattern) + per-scope interrupt (chat.interruptSession / root.interruptTurn, inline confirm).
+   Nothing invented: no fake step counts, no repo link, no priority flow (no engine data).
+   **Process lesson (logged): I overwrote the pre-existing tasks-panel.test.ts unread — caught
+   by gate count arithmetic (4790→4787), restored all 5 original pins adapted to the rail DOM
+   + 2 new. Always Read before Write on test files.**
+   **NEXT: Arc 5 — states + siblings** (status vocabulary, task detail, new-task modal).
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 
