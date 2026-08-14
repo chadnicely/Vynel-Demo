@@ -61,7 +61,6 @@ import {
 } from "../../stores/customize-store.js";
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
-import { useActivityStore } from "../../stores/activity-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -71,9 +70,7 @@ import {
 } from "../../composables/workspaces/use-workspace-groups.js";
 import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
-import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
-import { useTasks } from "../../composables/tasks/use-tasks.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 // The reinvented desktop shell — mounted only for real surfaces (App.vue keeps
@@ -84,7 +81,6 @@ const route = useRoute();
 const router = useRouter();
 
 const ui = useUiStore();
-const activity = useActivityStore();
 const browser = useBrowserStore();
 // Ctrl/⌘+Q closes the window from anywhere — same controls the title bar drives.
 const windowControls = useWindowControls();
@@ -93,7 +89,6 @@ const windowControls = useWindowControls();
 useAppLinkRouter();
 const workspacesQuery = useWorkspaceList();
 const currentUserQuery = useCurrentUser();
-const pendingApprovalsQuery = usePendingApprovals();
 // The app's single /activity/stream subscription — server-reported turns
 // (Telegram, another tab, schedule fires) fold into the activity store so the
 // chat views go live and the presence dot lights for background work.
@@ -139,39 +134,8 @@ const activeWorkspaceName = computed(
     null,
 );
 
-const contextTitle = computed(() => {
-  if (surface.value === "home") return "Home";
-  if (surface.value === "sessions") return "Sessions";
-  if (surface.value === "workspace")
-    return activeWorkspaceName.value ?? "Workspace";
-  return "Global chat";
-});
-
-const pendingCount = computed(
-  () => pendingApprovalsQuery.data.value?.length ?? 0,
-);
-const presenceState = computed<"idle" | "live" | "attention">(() => {
-  if (pendingCount.value > 0) return "attention";
-  if (activity.isTurnRunning) return "live";
-  return "idle";
-});
-const presenceLabel = computed(() => {
-  if (pendingCount.value > 0)
-    return `${pendingCount.value} approval${pendingCount.value === 1 ? "" : "s"} waiting`;
-  if (activity.isTurnRunning) return "assistant working";
-  return "assistant idle";
-});
 const accountName = computed(
   () => currentUserQuery.data.value?.displayName ?? "Your account",
-);
-
-// Open work feeds the title bar's tasks-toggle badge (the same list every
-// tasks surface reads — vue-query dedupes the fetch).
-const tasksQuery = useTasks(true);
-const openTaskCount = computed(
-  () =>
-    (tasksQuery.data.value ?? []).filter((row) => row.status !== "done")
-      .length,
 );
 
 // ── Sidebar menu (contextual to the scope). Icons come from the app so
@@ -612,14 +576,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
        the right. Closing restores every piece — nothing is torn down. -->
   <div class="app-shell">
     <AppTitleBar
-      :title="contextTitle"
-      :presence-state="presenceState"
-      :presence-label="presenceLabel"
       :theme="ui.theme"
       :nav-mode="ui.navMode"
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
-      :open-task-count="openTaskCount"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
     />

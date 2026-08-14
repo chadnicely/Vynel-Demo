@@ -7,14 +7,17 @@ import {
   PhFolderPlus as FolderPlus,
   PhList as List,
   PhListChecks as ListChecks,
+  PhMinus as Minus,
   PhMoon as Moon,
   PhSidebarSimple as PanelLeft,
   PhPower as Power,
   PhGearFine as Settings2,
+  PhSquare as Square,
   PhSun as Sun,
   PhUser as UserRound,
+  PhX as X,
 } from "@phosphor-icons/vue";
-import { DropdownMenu, PresenceDot } from "@vynel/ui";
+import { DropdownMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
@@ -27,14 +30,10 @@ import { shortcutHint } from "../../utils/shortcut-label.js";
 // what each id does. Window controls drive the frameless Tauri window (no-op
 // in the browser).
 const props = defineProps<{
-  title: string;
-  presenceState: "idle" | "live" | "attention";
-  presenceLabel: string;
   theme: "dark" | "light";
   navMode: "tabs" | "menu";
   sidebarOpen: boolean;
   tasksOpen: boolean;
-  openTaskCount: number;
 }>();
 
 // The workspace-navigation views — a labeled segment, not a blind toggle, so
@@ -154,21 +153,10 @@ function onMenuCommand(id: string) {
       </DropdownMenu>
     </nav>
 
-    <!-- Center: the drag region. The presence dot stays PASSIVE (redesign
-         Q7d) — it survives because your OWN turn's approval can need you
-         while the rail is empty; the workspace TITLE retired (the canvas's
-         bar carries no room name — the tabs/tree say where you are). -->
-    <div
-      class="flex flex-1 items-center justify-center gap-2 px-4"
-      data-tauri-drag-region
-    >
-      <span
-        class="flex items-center gap-2 px-2 py-0.5"
-        data-testid="titlebar-presence"
-      >
-        <PresenceDot :state="props.presenceState" :label="props.presenceLabel" />
-      </span>
-    </div>
+    <!-- Center: pure drag region — the canvas's bar carries nothing here
+         (title + presence dot both retired; the tabs/tree/rail say where
+         you are and what's live). -->
+    <div class="flex-1" data-tauri-drag-region />
 
     <!-- Workspace navigation mode (Tabs | Menu) — the canvas's segment: the
          active mode wears the accent border + tinted ground. Presentation
@@ -197,53 +185,47 @@ function onMenuCommand(id: string) {
       </button>
     </div>
 
-    <!-- The tasks dock toggle (Chad's right-side icon) — badge counts open work. -->
-    <button
-      type="button"
-      aria-label="Toggle tasks"
-      class="relative mr-1 grid size-7 shrink-0 place-items-center self-center rounded-sm transition hover:bg-row-hover hover:text-ink-1"
-      :class="props.tasksOpen ? 'bg-row-active text-ink-1' : 'text-ink-3'"
-      title="Show tasks"
-      @click="emit('command', 'toggle-tasks')"
-    >
-      <ListChecks :size="15" />
-      <span
-        v-if="props.openTaskCount > 0"
-        class="task-count-badge absolute -right-0.5 -top-0.5 grid min-w-[14px] place-items-center rounded-full bg-info px-1 text-[9px] font-bold leading-[14px] text-white"
+    <!-- The canvas's right icon row: list-checks (the rail toggle) rides the
+         SAME 18px-gap, 13px cluster as the window controls — plain glyphs,
+         no boxes, no badge. -->
+    <div class="flex shrink-0 items-center gap-[18px] pl-1.5 pr-3 text-[13px]">
+      <button
+        type="button"
+        aria-label="Toggle tasks"
+        title="Show tasks"
+        class="grid place-items-center transition"
+        :class="
+          props.tasksOpen
+            ? 'text-[var(--color-accent-200)]'
+            : 'text-ink-3 hover:text-ink-1'
+        "
+        @click="emit('command', 'toggle-tasks')"
       >
-        {{ props.openTaskCount > 9 ? "9+" : props.openTaskCount }}
-      </span>
-    </button>
-
-    <!-- Window controls (frameless Tauri; simulated in the browser) -->
-    <div class="flex h-full items-stretch">
+        <ListChecks :size="13" />
+      </button>
       <button
         type="button"
         aria-label="Minimize"
-        class="grid h-full w-11 place-items-center text-ink-3 transition hover:bg-row-hover hover:text-ink-1"
+        class="grid place-items-center text-ink-3 transition hover:text-ink-1"
         @click="controls.minimize()"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" stroke="currentColor" stroke-width="1.2" /></svg>
+        <Minus :size="13" />
       </button>
       <button
         type="button"
         :aria-label="controls.isMaximized.value ? 'Restore' : 'Maximize'"
-        class="grid h-full w-11 place-items-center text-ink-3 transition hover:bg-row-hover hover:text-ink-1"
+        class="grid place-items-center text-ink-3 transition hover:text-ink-1"
         @click="controls.toggleMaximize()"
       >
-        <svg v-if="controls.isMaximized.value" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-          <rect x="0.5" y="2.5" width="6" height="6" stroke="currentColor" stroke-width="1.1" />
-          <path d="M3 2.5V0.5h6v6H7" stroke="currentColor" stroke-width="1.1" />
-        </svg>
-        <svg v-else width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" stroke-width="1.1" /></svg>
+        <Square :size="13" />
       </button>
       <button
         type="button"
         aria-label="Close"
-        class="grid h-full w-11 place-items-center text-ink-3 transition hover:bg-danger hover:text-white"
+        class="grid place-items-center text-ink-3 transition hover:text-[var(--danger)]"
         @click="controls.close()"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1.2" /></svg>
+        <X :size="13" />
       </button>
     </div>
   </header>
