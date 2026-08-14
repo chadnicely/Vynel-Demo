@@ -183,35 +183,6 @@ Return Value:
     return status;
 }
 
-PAGED_CODE_SEG
-NTSTATUS
-CodecC_EvtAcxPinRetrieveName(
-    _In_    ACXPIN              Pin,
-    _Out_   PUNICODE_STRING     Name
-)
-/*++
-
-Routine Description:
-
-    If g_UseCustomInfName is false then the ACX
-    pin callback EvtAcxPinRetrieveName calls this
-    function in order to retrieve the pin name. 
-
-Return Value:
-
-    NTSTATUS
-
---*/
-{
-    UNREFERENCED_PARAMETER(Pin);
-
-    PAGED_CODE();
-
-    // The endpoint name the app selects as its microphone, and the name the
-    // registry's auto-discovery keys on (docs/module-notes/virtual-audio-driver.md).
-    return RtlUnicodeStringPrintf(Name, L"Vynel Call 1 Microphone");
-}
-
 VOID
 CodecC_EvtPinContextCleanup(
     _In_ WDFOBJECT      WdfPin
@@ -548,11 +519,12 @@ Return Value:
         pinCfg.Category = &KSNODETYPE_MICROPHONE;
         pinCfg.PinCallbacks = &pinCallbacks;
 
-        // Name the microphone endpoint via the pin-name callback — a literal
-        // string, no GUID→name registry lookup (which the sample's MicCustomName
-        // path relied on and which left the endpoint at its default "Microphone").
-        UNREFERENCED_PARAMETER(MicCustomName);
-        pinCallbacks.EvtAcxPinRetrieveName = CodecC_EvtAcxPinRetrieveName;
+        // The endpoint name Windows shows ("Vynel Call 1 Microphone (Vynel Audio)")
+        // resolves through this GUID: KS looks it up under the device software key's
+        // MediaCategories, written by the INF (Audio_Device.EndpointNames.AddReg).
+        // A pin-name callback cannot do this — the endpoint builder reads the
+        // registry, not KSPROPERTY_PIN_NAME strings (proven live 2026-08-14).
+        pinCfg.Name = MicCustomName;
 
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
         attributes.ParentObject = circuit;

@@ -74,6 +74,17 @@ describe('discoverVynelCallPairs', () => {
     expect(discovered.orphanNames).toEqual([])
   })
 
+  it('claims the shipped Windows driver by its exact endpoint names', () => {
+    // The literal names the renamed driver publishes (INF MediaCategories +
+    // DeviceDesc "Vynel Audio") — pins the INF↔daemon naming contract.
+    const discovered = discoverVynelCallPairs([
+      device('Vynel Call 1 Voice (Vynel Audio)'),
+      device('Vynel Call 1 Microphone (Vynel Audio)'),
+    ])
+    expect(discovered.pairs).toEqual([{ outputName: 'Vynel Call 1 Voice (Vynel Audio)' }])
+    expect(discovered.orphanNames).toEqual([])
+  })
+
   it('keeps the first of two devices claiming the same end, orphaning the extra', () => {
     const discovered = discoverVynelCallPairs([
       device('Vynel Call 1 Ears (A)'),

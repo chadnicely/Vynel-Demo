@@ -26,8 +26,14 @@ Environment:
 // Defining the component ID for the capture circuit. This ID uniquely identifies the circuit instance (vendor specific):
 DEFINE_GUID(CODEC_CAPTURE_COMPONENT_GUID, 0x180f676f, 0x3883, 0x49e8, 0x81, 0x13, 0x71, 0xd2, 0x0f, 0x9e, 0x3d, 0xba);
 
-// Defines a custom name for the capture circuit bridge pin:
+// Custom name GUID for the capture circuit bridge pin. The INF maps it to
+// "Vynel Call 1 Microphone" under MediaCategories (Audio_Device.EndpointNames.AddReg) —
+// the GUID and that INF entry must stay in sync:
 DEFINE_GUID(MIC_CUSTOM_NAME, 0xb485172d, 0x5025, 0x4ff6, 0xa9, 0x4a, 0xaa, 0xe1, 0x51, 0x0b, 0xf0, 0x88);
+
+// Custom name GUID for the render circuit bridge pin. The INF maps it to
+// "Vynel Call 1 Voice" under MediaCategories — same sync rule as above:
+DEFINE_GUID(SPEAKER_CUSTOM_NAME, 0xc5dc38c1, 0x46d7, 0x41a9, 0xa5, 0x81, 0x49, 0xa6, 0x1e, 0x1e, 0x9f, 0xaf);
 
 // Defining the component ID for the render circuit. This ID uniquely identifies the circuit instance (vendor specific):
 DEFINE_GUID(CODEC_RENDER_COMPONENT_GUID, 0x6d0fd0ac, 0x937f, 0x4f3d, 0xba, 0x31, 0x38, 0x67, 0xc7, 0xf1, 0x8e, 0x3b);

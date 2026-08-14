@@ -4,8 +4,9 @@ Vynel's own virtual audio cable for voice-in-calls
 (`docs/module-notes/virtual-audio-driver.md` is the commissioning brief + P0 findings). It is
 now a **one-way loopback cable**: audio played into the render endpoint comes back out the
 capture endpoint, so a call app reads Vynel's voice as its microphone. Branded from Microsoft's
-ACX `AudioCodec` sample (MIT). **Compile-verified + InfVerif-clean; NOT yet runtime-tested** (a
-kernel driver loads only in a VM — see `LOADING.md`).
+ACX `AudioCodec` sample (MIT). **Runtime-PROVEN on real hardware (2026-08-14, test-signing
+mode, Chad at the keyboard): loaded clean, loopback smoke passed at the generated amplitude.**
+The endpoint rename below it is compile+InfVerif-verified and awaits its own runtime pass.
 
 ## What it publishes
 
@@ -15,6 +16,17 @@ with two looped endpoints:
 - **Vynel Call 1 Voice** (render — Vynel's daemon plays TTS into this; the registry's
   `outputName`)
 - **Vynel Call 1 Microphone** (capture — the call app selects this as its mic and hears Vynel)
+
+Windows composes an endpoint's display name as `<pin name> (<DeviceDesc>)`, resolving the pin
+name from the bridge pin's **Name GUID** via the device software key's `MediaCategories`
+(Win10 1809+ mechanism — the same one VB-Cable uses for "CABLE Output"). So the INF's
+`Audio_Device.EndpointNames.AddReg` maps the two GUIDs in `DriverSettings.h`
+(`SPEAKER_CUSTOM_NAME` / `MIC_CUSTOM_NAME`, set as `pinCfg.Name` on each bridge pin) to the
+names above, and `DeviceDesc` "Vynel Audio" fills the parenthesis: the user sees
+**"Vynel Call 1 Voice (Vynel Audio)"**. A pin-name *callback* cannot do this — the endpoint
+builder reads the registry, not `KSPROPERTY_PIN_NAME` strings (proven live on the pre-rename
+build, which showed "Speakers (VynelCallAudio Device)"). GUIDs and INF entries must stay in
+sync; the daemon pins the composed names in `call-cable-discovery.test.ts`.
 
 The cable is the render→capture ring in `Common/LoopbackRing.{h,cpp}`: the render stream engine
 writes each played packet into a device-level spin-lock ring, the capture stream engine reads it
@@ -43,11 +55,13 @@ separate pipeline (that decision pairs with Chad's Partner Center work).
 
 Forked from `microsoft/Windows-driver-samples` @ `717778a20ba4dd2440fe609f69153a1f8a64f597`,
 `audio/Acx/Samples/{AudioCodec,Common,Inc,Shared}` (MIT — headers retained in every source
-file). Changes are BRANDING ONLY (fresh GUIDs + names, zero functional code):
+file). Beyond the loopback ring (`Common/LoopbackRing` + its stream-engine/circuit wiring) and
+the endpoint-naming registration above, changes are branding (fresh GUIDs + names):
 
 - `VynelCallAudio/Driver/VynelCallAudio.inf` — hardware id `ROOT\VynelCallAudio`, service +
   binary `VynelCallAudio.sys`, provider "Vynel", endpoint friendly names above,
-  `DriverVer 0.1.0.0`
+  `DriverVer` 0.1.0.2 (bumped per package change; `sign/Sign-Driver.ps1` stamps the
+  authoritative version with a fixed past date)
 - `VynelCallAudio/Driver/DriverSettings.h` — fresh render/capture component GUIDs + mic pin
   GUID (a machine running the MS sample must never collide with ours), pool tag `uaCV`
 - `Shared/Trace.h` — fresh WPP control GUID
@@ -78,15 +92,19 @@ Virtual-Audio-Driver` (SimpleAudioSample-family branding precedent).
 > source `DriverVer` per release; the loopback build was verified this way (compile + link + INF
 > VALID) on 2026-08-14.
 
-**Never load this on a dev machine — VM only.** See `LOADING.md`.
+**Loading is a human decision, never autonomous.** The original hard rule was VM-only; Chad
+chose to run it on his own machine (2026-08-14, test-signing on, work saved first — BSOD risk
+accepted). Sessions never install/update the driver unattended. See `LOADING.md`.
 
 ## Status & next milestones (honest effort read)
 
 - [x] builds, test-signs, InfVerif `/h` VALID (the brand spike)
-- [x] **Loopback wiring** — render→capture ring (`Common/LoopbackRing`), compiles + links +
-  InfVerif-clean. **Runtime-unverified** (needs a VM per `LOADING.md`): confirm audio played
-  into "Vynel Call 1 Voice" is heard on "Vynel Call 1 Microphone", check latency + glitching,
-  and verify the format assumption holds when the daemon opens both ends at 48 kHz.
+- [x] **Loopback wiring** — render→capture ring (`Common/LoopbackRing`). **Runtime-PROVEN
+  2026-08-14 on real hardware**: a 440 Hz tone into "Vynel Call 1 Voice" came back out the
+  capture endpoint at the generated amplitude (peak 0.300, 5 s) — `smoke-cable.mjs`.
+- [x] **Proper endpoint names** — MediaCategories pin-name GUIDs + DeviceDesc "Vynel Audio"
+  (mechanism above). Compile + InfVerif VALID; runtime pass pending (devcon remove + fresh
+  install so Windows rebuilds the endpoints, then eyeball sound settings + re-run the smoke).
 - [ ] **In-driver format tolerance**: v1 assumes both ends share one PCM format; add a format
   check + resample so a mismatch degrades gracefully instead of playing wrong-rate audio.
 - [ ] **N static pairs**: INF-models change (N device nodes, per-model friendly names, same

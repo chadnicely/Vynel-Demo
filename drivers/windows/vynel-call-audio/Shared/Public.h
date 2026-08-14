@@ -231,6 +231,7 @@ NTSTATUS
 CodecR_AddStaticRender(
     _In_ WDFDEVICE              Device,
     _In_ const GUID *           ComponentGuid,
+    _In_ const GUID *           SpeakerCustomName,
     _In_ const UNICODE_STRING * CircuitName
 );
 

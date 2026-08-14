@@ -191,7 +191,7 @@ Return Value:
     // device context. These circuits will be added to the device when the
     // prepare hardware callback is called. 
     //
-    RETURN_NTSTATUS_IF_FAILED(CodecR_AddStaticRender(device, &CODEC_RENDER_COMPONENT_GUID, &renderCircuitName));
+    RETURN_NTSTATUS_IF_FAILED(CodecR_AddStaticRender(device, &CODEC_RENDER_COMPONENT_GUID, &SPEAKER_CUSTOM_NAME, &renderCircuitName));
 
     RETURN_NTSTATUS_IF_FAILED(CodecC_AddStaticCapture(device, &CODEC_CAPTURE_COMPONENT_GUID, &MIC_CUSTOM_NAME, &captureCircuitName));
 

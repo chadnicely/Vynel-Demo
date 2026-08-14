@@ -232,6 +232,7 @@ NTSTATUS
 CodecR_AddStaticRender(
     _In_ WDFDEVICE              Device,
     _In_ const GUID *           ComponentGuid,
+    _In_ const GUID *           SpeakerCustomName,
     _In_ const UNICODE_STRING * CircuitName
 )
 /*++
@@ -283,7 +284,7 @@ Return Value:
     //
     // Create a render circuit associated with this child device.
     //
-    RETURN_NTSTATUS_IF_FAILED(CodecR_CreateRenderCircuit(Device, ComponentGuid, CircuitName, &renderCircuit));
+    RETURN_NTSTATUS_IF_FAILED(CodecR_CreateRenderCircuit(Device, ComponentGuid, SpeakerCustomName, CircuitName, &renderCircuit));
 
     devCtx->Render = renderCircuit;
 
@@ -343,32 +344,10 @@ Render_AllocateSupportedFormats(
 
 PAGED_CODE_SEG
 NTSTATUS
-CodecR_EvtAcxPinRetrieveName(
-    _In_    ACXPIN              Pin,
-    _Out_   PUNICODE_STRING     Name
-)
-/*++
-
-Routine Description:
-
-    Names the render endpoint — what Vynel's daemon plays its voice INTO, and
-    the name the registry's auto-discovery keys on
-    (docs/module-notes/virtual-audio-driver.md).
-
---*/
-{
-    UNREFERENCED_PARAMETER(Pin);
-
-    PAGED_CODE();
-
-    return RtlUnicodeStringPrintf(Name, L"Vynel Call 1 Voice");
-}
-
-PAGED_CODE_SEG
-NTSTATUS
 CodecR_CreateRenderCircuit(
     _In_     WDFDEVICE              Device,
     _In_     const GUID *           ComponentGuid,
+    _In_     const GUID *           SpeakerCustomName,
     _In_     const UNICODE_STRING * CircuitName,
     _Out_    ACXCIRCUIT*            Circuit
 )
@@ -583,13 +562,18 @@ Return Value:
         //
 
         ACX_PIN_CALLBACKS_INIT(&pinCallbacks);
-        pinCallbacks.EvtAcxPinRetrieveName = CodecR_EvtAcxPinRetrieveName;
 
         ACX_PIN_CONFIG_INIT(&pinCfg);
         pinCfg.Type = AcxPinTypeSource;
         pinCfg.Communication = AcxPinCommunicationNone;
         pinCfg.Category = &KSNODETYPE_SPEAKER;
         pinCfg.PinCallbacks = &pinCallbacks;
+        // The endpoint name Windows shows ("Vynel Call 1 Voice (Vynel Audio)")
+        // resolves through this GUID: KS looks it up under the device software key's
+        // MediaCategories, written by the INF (Audio_Device.EndpointNames.AddReg).
+        // A pin-name callback cannot do this — the endpoint builder reads the
+        // registry, not KSPROPERTY_PIN_NAME strings (proven live 2026-08-14).
+        pinCfg.Name = SpeakerCustomName;
 
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, CODEC_PIN_CONTEXT);
         attributes.EvtCleanupCallback = CodecR_EvtPinContextCleanup;

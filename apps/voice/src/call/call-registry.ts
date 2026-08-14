@@ -88,12 +88,11 @@ function cablePairKey(pair: CallCablePair): string {
   return `${ears}::${normalizeDeviceName(pair.outputName)}`
 }
 
-// Vynel's own virtual-audio driver names its device with this brand marker
-// (whitespace-insensitive). Windows composes an audio endpoint's name as
-// "<role> (<device>)" and won't let us cleanly rename the "<role>" half, so we
-// recognize the driver by the device marker + a render-direction probe rather
-// than by a pretty "Vynel Call 1 Voice" endpoint name (a driver-naming polish
-// tracked in docs/module-notes/virtual-audio-driver.md).
+// Fallback for PRE-RENAME installs of Vynel's driver, whose endpoints enumerate
+// as "Speakers/Microphone (VynelCallAudio Device)". Renamed builds (INF
+// MediaCategories pin names, 2026-08-14) publish the contract names and are
+// claimed by discoverVynelCallPairs instead — this marker never matches them,
+// so the two paths cannot double-claim one device.
 const VYNEL_DRIVER_MARKER = 'vynelcallaudio'
 function isVynelDriverDevice(name: string): boolean {
   return name.toLowerCase().replace(/\s+/g, '').includes(VYNEL_DRIVER_MARKER)

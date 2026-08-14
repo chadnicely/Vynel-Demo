@@ -282,11 +282,42 @@ the app-facing capture endpoint shares the marker but fails the render probe, so
 claimed. Verified live: the probe cleanly split the two endpoints (render out=YES, capture
 in=YES). 3 tests; 173 daemon tests green.
 
-**Follow-ups:** (1) proper endpoint friendly name so it shows "Vynel Call 1 Voice/Microphone" in
-Windows sound settings (UX for non-technical users; the marker+probe works regardless) ·
-(2) prettier DeviceDesc ("Vynel Call Audio" not "VynelCallAudio Device") · (3) in-driver format
-tolerance (the smoke passed only because a tone is channel-symmetric; real stereo→mono needs
-handling).
+**Follow-ups:** ~~(1) proper endpoint friendly name~~ · ~~(2) prettier DeviceDesc~~ — both
+LANDED 2026-08-14, see the endpoint-naming section below · (3) in-driver format tolerance (the
+smoke passed only because a tone is channel-symmetric; real stereo→mono needs handling).
+
+## 2026-08-14 — endpoint naming SOLVED (build-verified; runtime pass pending)
+
+The mechanism (learn.microsoft "Friendly names for audio endpoint devices" + sysvad + the ACX
+sample itself): Windows composes `<pin name> (<DeviceDesc>)`, resolving the pin name from the
+**bridge pin's Name GUID** via `MediaCategories` — since Win10 1809 looked up FIRST in the
+device software key (`HKR\MediaCategories`, universal-INF compliant; the global HKLM key is
+legacy). This is what VB-Cable does for "CABLE Output". The ACX sample ships the code half
+(`pinCfg.Name = MicCustomName`) but never the INF half — and our string-callback attempt named
+the KS pin object, which the endpoint builder ignores (it reads the registry, not
+`KSPROPERTY_PIN_NAME` strings). Root cause closed.
+
+The fix, both halves now in sync:
+
+- **Driver:** `pinCfg.Name = &MIC_CUSTOM_NAME` restored on the capture bridge pin; new
+  `SPEAKER_CUSTOM_NAME` GUID (`c5dc38c1-46d7-41a9-a581-49a61e1e9faf`) threaded through
+  `CodecR_AddStaticRender` → render bridge pin. Both `EvtAcxPinRetrieveName` callbacks deleted
+  (dead mechanism, proven live).
+- **INF:** `Audio_Device.EndpointNames.AddReg` maps both GUIDs to the contract names under
+  `HKR,%MEDIA_CATEGORIES%\{guid},Name`; `DeviceDesc`/`StdMfg` → **"Vynel Audio"** / "Vynel"
+  (Chad picked "Vynel Audio" for the parenthesis, matching the standard
+  "<endpoint> (<adapter>)" shape in the Windows output picker). Expected display:
+  **"Vynel Call 1 Voice (Vynel Audio)"** + **"Vynel Call 1 Microphone (Vynel Audio)"**.
+- **Daemon: zero code change needed** — `discoverVynelCallPairs` already claims a Voice with no
+  Ears as a loopback pair, and the composed names match its prefix pattern. The
+  `vynelcallaudio` marker+probe path stays as the fallback for pre-rename installs (comment
+  updated; the marker can't match the new names, so no double-claim). One new test pins the
+  exact shipped names; `smoke-cable.mjs` already keys on the contract names and now just works.
+
+Build: EWDK compile + link green, catalog generated, **InfVerif `/h` VALID**, signed with the
+Vynel cert (0 errors). **Runtime pass with Chad:** devcon remove + FRESH install (endpoint
+property stores persist per endpoint — an in-place update may keep the stale name), then check
+the sound-settings names and re-run `smoke-cable.mjs`.
 
 ## Signing: local now, attestation later (Chad 2026-08-14)
 

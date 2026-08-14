@@ -409,6 +409,7 @@ NTSTATUS
 CodecR_CreateRenderCircuit(
     _In_     WDFDEVICE              Device,
     _In_     const GUID *           ComponentGuid,
+    _In_     const GUID *           SpeakerCustomName,
     _In_     const UNICODE_STRING * CircuitName,
     _Out_    ACXCIRCUIT *           Circuit
 );
@@ -451,7 +452,6 @@ EVT_ACX_VOLUME_ASSIGN_LEVEL         CodecC_EvtBoostAssignLevelCallback;
 EVT_ACX_VOLUME_RETRIEVE_LEVEL       CodecC_EvtBoostRetrieveLevelCallback;
 EVT_ACX_STREAM_GET_CAPTURE_PACKET   CodecC_EvtStreamGetCapturePacket;
 EVT_ACX_PIN_SET_DATAFORMAT          CodecC_EvtAcxPinSetDataFormat;
-EVT_ACX_PIN_RETRIEVE_NAME           CodecC_EvtAcxPinRetrieveName;
 EVT_WDF_DEVICE_CONTEXT_CLEANUP      CodecC_EvtPinContextCleanup;
 EVT_ACX_KEYWORDSPOTTER_RETRIEVE_ARM     CodecC_EvtAcxKeywordSpotterRetrieveArm;
 EVT_ACX_KEYWORDSPOTTER_ASSIGN_ARM       CodecC_EvtAcxKeywordSpotterAssignArm;
