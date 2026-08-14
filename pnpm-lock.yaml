@@ -660,6 +660,9 @@ importers:
 
   packages/capabilities:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db
@@ -1634,6 +1637,9 @@ importers:
       '@vynel/db':
         specifier: workspace:*
         version: link:../packages/db
+      '@vynel/desktop-control':
+        specifier: workspace:*
+        version: link:../packages/desktop-control
       '@vynel/local-api':
         specifier: workspace:*
         version: link:../apps/local-api

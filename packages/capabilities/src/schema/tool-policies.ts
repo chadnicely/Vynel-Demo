@@ -13,10 +13,11 @@
 
 import { table, id, text, timestamp, boolean, json, index, uniqueIndex } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
+import type { ToolCardClass } from '@vynel/contracts/tool-policy/catalog'
 
-/** How a tool's calls gate: never card / card in ask+plan-only / card in
- *  every carding mode. Mirrors `tool-approval-policy.ts`'s tiers. */
-export type ToolCardClass = 'never' | 'ask' | 'always'
+// The card-class union moved to contracts (the hub + portal share it);
+// re-exported here so every existing capabilities-side import keeps working.
+export type { ToolCardClass } from '@vynel/contracts/tool-policy/catalog'
 
 export const toolPolicies = table(
   'tool_policies',

@@ -11,6 +11,7 @@ export {
 } from './list-capability-status.js'
 export {
   SESSION_SURFACE_KINDS,
+  TOOL_CARD_CLASSES,
   type EffectiveToolPolicies,
   type EffectiveToolPolicy,
   type SessionSurfaceKind,

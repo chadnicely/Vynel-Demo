@@ -18,6 +18,7 @@ export default tseslint.config(
       '**/.vite/**',
       '**/.data/**',
       'packages/sdk/src/generated/**',
+      'packages/contracts/src/generated/**',
       'apps/mcp/src/generated/**',
       'packages/db/src/migrations-sqlite/**',
       'packages/db/src/migrations-postgres/**',
