@@ -177,14 +177,59 @@ built for real and had not answered when the session ended.
 **NEXT:** the pending / problem card states (`.status-pill` still carries 600/500 weights — the
 same weight-400 fix this pass applied to the running vocabulary).
 
+### Reply fold + turn marking (2026-08-15, Kafi) — `af3b5ce`, `e6b72f6`
+
+Kafi ran the design server + Playwright on BOTH sides and worked the four items he circled in the
+canvas screenshot. Method that finally worked: render the canvas, expand a done card so it matches
+the state being compared, screenshot the SAME card region in both at the same scale, enumerate.
+
+- **The reply now leads with one line** (canvas `replyLead` + `blocks`). A real message is one
+  markdown body, so the lead is its FIRST PARAGRAPH — reusing `inboundCardParts`' split and its
+  `FOLD_REMAINDER_MIN` floor, so a two-line answer grows no caret. Validated on the live thread
+  before building: 4 of 6 real assistant bodies split cleanly, 2 are single-paragraph and correctly
+  don't fold.
+- **A grouped CONTINUATION row has no header** to hold the caret, so its control rides the end of
+  the lead (`.reply-caret.is-inline`). Without it the first build had a fold with NO visible
+  control — the screenshot caught it, a property check never would have.
+- Ask time → inline after the name behind a `.name-divider`; it sits BESIDE `.role-label`, not in
+  it (four tests read that label as the author name). Reply time + caret → right edge. Folded-card
+  control → the canvas's arrows-out/in, not a chevron. Lead → **12.5px** (the open question from
+  the last pass; Kafi answered "exact styles").
+- **`RunStatsDoor` extracted** — the canvas draws its info glyph at the head of the reply, which is
+  exactly where the door belongs, so one icon serves both instead of two side by side. `statsMemberIndexOf`
+  now anchors on the row that DRAWS the lead (the first assistant row is empty on any tool-opening
+  turn, which put the door in the header and a second glyph on the lead).
+- **The chat icon MARKS a turn** — Kafi's call, replacing the canvas's per-card reply box: click
+  pins the turn, the composer shows what it points at, and the next send carries a `> Re: …` line.
+  State lives in `use-turn-reference.ts`; the prefix is applied in `AppComposer.onSend`, so every
+  surface that composes through it gets the pointer with **zero host wiring**.
+
+**Consequence to watch:** a long answer collapses to its lead WHEN THE TURN SETTLES (LiveTurn
+streams it whole, MessageRow folds it). That is the canvas's model, and one `isReplyOpen` default
+flips it if Kafi wants the newest reply open.
+
+**Still absent, and why** (unchanged from the last pass): `N of M steps completed` — no per-turn
+step history, and `runStats.toolCallCount` would be a plausible-looking lie; author PHOTO — no
+avatar to serve; `@ref` pills — cross-project data not surfaced; `HANDED OFF` card; composer pills
+and toggles — no engine behind them. Tool cards stay visible when the prose folds (they are already
+individually collapsed pills; the canvas has no tool concept to copy).
+
+Gate: typecheck 24/24 · 326 tests across `packages/ui` + the chat/composables suites · verified
+live in dark AND light against the canvas.
+
 **Known bugs + accepted trade-offs now live in `.claude/bugs/`** (one file per issue, status in
 the file; `grep -l 'Status:\*\* open' .claude/bugs/*.md`). Seeded with the two this arc deferred:
 the rules count's full-file reads, and the Sessions library's silent 50-entry truncation.
 
-**STILL OPEN:** author-line timestamp position (canvas puts it inline after the name; ours
-rides the right edge per Chad 2026-08-09 — kept deliberately), the three extra chat-header
-icons, avatars, the account `· Max` plan suffix, and the tree-header folder path (needs an
-endpoint over `makeDefaultWorkspaceParentDirectory` — Kafi skipped it).
+**STILL OPEN:** the three extra chat-header icons, avatars, the account `· Max` plan suffix, and
+the tree-header folder path (needs an endpoint over `makeDefaultWorkspaceParentDirectory` — Kafi
+skipped it).
+
+~~author-line timestamp position~~ — **RESOLVED 2026-08-15 (`af3b5ce`)**: the ASK's time moved
+inline after the name, per the canvas and Kafi's "exact styles". This reverses the deliberate
+right-edge choice recorded here from Chad 2026-08-09. Note the split: the ask wears it inline, a
+REPLY keeps it on the right edge (that is what the canvas does too — `margin-left: auto` on the
+reply eyebrow), so the old decision survives on the row it was really about.
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 
