@@ -414,13 +414,17 @@ function completedAtLabel(task: TaskResponse): string {
 </template>
 
 <style scoped>
+/* WEIGHT 400 on every micro-label in this rail, and quiet ink on the rows —
+   the tracking carries a label, not the weight. The chat card took this
+   correction in an earlier pass; the rail was measured against the canvas and
+   was running 600/500 and near-white throughout. */
 .work-rail {
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  gap: 12px;
+  gap: var(--space-6);
   min-height: 0;
   width: 272px;
-  padding: 14px 12px;
+  padding: var(--space-8) var(--space-6);
   background: var(--bg-panel);
   border-left: 1px solid var(--hair);
 }
@@ -467,7 +471,7 @@ function completedAtLabel(task: TaskResponse): string {
   align-items: center;
   gap: 7px;
   color: var(--ink-3);
-  font: 600 10px/1.5 var(--font-ui);
+  font: 400 10px/1.5 var(--font-ui);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -527,14 +531,14 @@ function completedAtLabel(task: TaskResponse): string {
 .live-title {
   margin: 0;
   color: var(--ink-1);
-  font: 600 13px/1.35 var(--font-ui);
+  font: 500 13px/1.35 var(--font-ui);
   text-wrap: pretty;
 }
 
 .live-meta {
   margin: 0;
   color: var(--ink-3);
-  font: 500 10.5px/1.5 var(--font-ui);
+  font: 400 10.5px/1.55 var(--font-ui);
 }
 
 .live-bar {
@@ -571,7 +575,7 @@ function completedAtLabel(task: TaskResponse): string {
 .live-bar-label {
   margin: 0;
   color: var(--ink-3);
-  font: 500 10px/1.5 var(--font-ui);
+  font: 400 10px/1.5 var(--font-ui);
 }
 
 /* ── The queue/completed pill segment. ── */
@@ -601,7 +605,7 @@ function completedAtLabel(task: TaskResponse): string {
   padding: 4px 10px;
   border-radius: 999px;
   color: var(--ink-3);
-  font: 600 11px/1.5 var(--font-ui);
+  font: 400 11px/1.55 var(--font-ui);
   transition:
     background var(--t-fast) var(--ease-out),
     color var(--t-fast) var(--ease-out);
@@ -657,8 +661,14 @@ function completedAtLabel(task: TaskResponse): string {
   border-color: var(--gold);
 }
 
+/* The counts sit a step behind their label — accent on the selected tab, the
+   quietest neutral on the one you are not looking at. */
 .list-tab.is-active .tab-count {
-  color: var(--gold-bright);
+  color: var(--color-accent-300);
+}
+
+.list-tab:not(.is-active) .tab-count {
+  color: var(--color-neutral-700);
 }
 
 .task-list {
@@ -689,8 +699,10 @@ function completedAtLabel(task: TaskResponse): string {
   min-width: 0;
   flex: 1;
   text-align: left;
-  color: var(--ink-1);
-  font: 500 12px/1.5 var(--font-ui);
+  /* A queued task is something waiting, not the headline — the canvas holds
+     the row at neutral-400, well behind the live card above it. */
+  color: var(--color-neutral-400);
+  font: 400 12px/1.55 var(--font-ui);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -698,7 +710,7 @@ function completedAtLabel(task: TaskResponse): string {
 
 .task-meta {
   color: var(--ink-3);
-  font: 500 10px/1.5 var(--font-ui);
+  font: 400 10px/1.5 var(--font-ui);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -718,7 +730,7 @@ function completedAtLabel(task: TaskResponse): string {
 .open-it-label {
   margin: 0 0 2px;
   color: var(--ink-3);
-  font: 600 10px/1.5 var(--font-ui);
+  font: 400 10px/1.5 var(--font-ui);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
