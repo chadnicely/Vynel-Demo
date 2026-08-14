@@ -4,7 +4,9 @@ import {
   PhBrowsers as Browsers,
   PhCommand as Command,
   PhDiamondsFour as DiamondsFour,
+  PhFolderOpen as FolderOpen,
   PhFolderPlus as FolderPlus,
+  PhHouse as House,
   PhList as List,
   PhListChecks as ListChecks,
   PhMinus as Minus,
@@ -34,6 +36,9 @@ const props = defineProps<{
   navMode: "tabs" | "menu";
   sidebarOpen: boolean;
   tasksOpen: boolean;
+  /** The scope you are in, as the canvas's folder chip beside the menu bar.
+   *  Null in Global — there is no folder to name there. */
+  scopeLabel?: string | null;
 }>();
 
 // The workspace-navigation views — a labeled segment, not a blind toggle, so
@@ -153,6 +158,39 @@ function onMenuCommand(id: string) {
       </DropdownMenu>
     </nav>
 
+    <!-- The canvas's folder chip: which folder you are in, on its own side of
+         a hairline. The tasks toggle rides WITH it (Kafi, 2026-08-15) — the
+         rail is about this scope's work, so it belongs beside the scope, not
+         out among the window controls. -->
+    <div class="ml-1 flex shrink-0 items-center gap-2 border-l border-hair pl-3">
+      <!-- Global has no folder to open, so it wears the house the rest of the
+           app gives it. The group always renders, so the toggle never moves
+           out from under the pointer when you change scope. -->
+      <component
+        :is="props.scopeLabel ? FolderOpen : House"
+        :size="13"
+        class="text-[var(--color-accent)]"
+      />
+      <span
+        class="max-w-[180px] truncate text-[11px] tracking-[0.1em] text-[var(--color-neutral-300)]"
+        >{{ props.scopeLabel ?? "Global" }}</span
+      >
+      <button
+        type="button"
+        aria-label="Toggle tasks"
+        title="Show tasks"
+        class="ml-0.5 grid place-items-center transition"
+        :class="
+          props.tasksOpen
+            ? 'text-[var(--color-accent-200)]'
+            : 'text-ink-3 hover:text-ink-1'
+        "
+        @click="emit('command', 'toggle-tasks')"
+      >
+        <ListChecks :size="13" />
+      </button>
+    </div>
+
     <!-- Center: pure drag region — the canvas's bar carries nothing here
          (title + presence dot both retired; the tabs/tree/rail say where
          you are and what's live). -->
@@ -185,24 +223,9 @@ function onMenuCommand(id: string) {
       </button>
     </div>
 
-    <!-- The canvas's right icon row: list-checks (the rail toggle) rides the
-         SAME 18px-gap, 13px cluster as the window controls — plain glyphs,
-         no boxes, no badge. -->
+    <!-- Window controls only — the rail toggle moved beside the folder chip,
+         where the scope it belongs to lives. -->
     <div class="flex shrink-0 items-center gap-[18px] pl-1.5 pr-3 text-[13px]">
-      <button
-        type="button"
-        aria-label="Toggle tasks"
-        title="Show tasks"
-        class="grid place-items-center transition"
-        :class="
-          props.tasksOpen
-            ? 'text-[var(--color-accent-200)]'
-            : 'text-ink-3 hover:text-ink-1'
-        "
-        @click="emit('command', 'toggle-tasks')"
-      >
-        <ListChecks :size="13" />
-      </button>
       <button
         type="button"
         aria-label="Minimize"

@@ -37,12 +37,21 @@ describe("AppTitleBar", () => {
   it("carries no title and no presence pair — the center is empty", () => {
     const wrapper = mountTitleBar();
     expect(wrapper.find('[data-testid="titlebar-presence"]').exists()).toBe(false);
-    // Only the menus + the nav segment carry text — nothing else.
-    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelViewTabsMenu");
+    // test: correct expectation (2026-08-15) — the canvas's folder chip now
+    // names the scope beside the menu bar. The CENTRE is still empty, which is
+    // what this guards; "Global" is the chip, not a title.
+    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelViewGlobalTabsMenu");
   });
 
-  // The rail toggle rides the window-control icon row (the canvas's cluster)
-  // — a plain glyph, no badge, still a real command.
+  it("the folder chip names the scope — the workspace, or Global", () => {
+    expect(mountTitleBar().text()).toContain("Global");
+    const inWorkspace = mountTitleBar({ scopeLabel: "letterman" });
+    expect(inWorkspace.text()).toContain("letterman");
+    expect(inWorkspace.text()).not.toContain("Global");
+  });
+
+  // The rail toggle rides WITH the folder chip — the rail is this scope's
+  // work, so it sits beside the scope, not among the window controls.
   it("the tasks glyph commands toggle-tasks", async () => {
     const wrapper = mountTitleBar();
     await wrapper.get('[aria-label="Toggle tasks"]').trigger("click");

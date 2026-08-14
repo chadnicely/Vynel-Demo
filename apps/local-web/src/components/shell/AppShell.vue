@@ -590,6 +590,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :nav-mode="ui.navMode"
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
+      :scope-label="activeWorkspaceName"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
     />
