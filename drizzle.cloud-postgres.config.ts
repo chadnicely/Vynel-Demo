@@ -21,6 +21,7 @@ export default defineConfig({
     '../registry/src/schema/publishers.ts',
     '../registry/src/schema/catalog-items.ts',
     '../registry/src/schema/item-versions.ts',
+    '../registry/src/schema/tool-policy-defaults.ts',
   ],
   out: './migrations-postgres',
 })
