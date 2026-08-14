@@ -40,6 +40,11 @@ export function createAppRouter() {
         name: "accounts",
         component: () => import("./views/AccountsView.vue"),
       },
+      {
+        path: "/tool-policy",
+        name: "tool-policy",
+        component: () => import("./views/ToolPolicyView.vue"),
+      },
     ],
   });
 
