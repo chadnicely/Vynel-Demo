@@ -637,6 +637,33 @@ describe("MessageRow turn folding (collapsible header)", () => {
     expect(wrapper.text()).toContain("Plain.");
   });
 
+  it("the ask's time sits BESIDE the author label, never inside it", () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ role: "user", body: "Ship it." }) },
+    });
+
+    expect(wrapper.get(".role-label").text()).toBe("You");
+    expect(wrapper.get(".row-header").text()).toContain("Jul 5");
+    expect(wrapper.find(".name-divider").exists()).toBe(true);
+  });
+
+  it("the chat icon reports the mark; a plain row has none", async () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage(), collapsible: true },
+    });
+    await wrapper.get(".reference-toggle").trigger("click");
+    expect(wrapper.emitted("toggleReference")).toHaveLength(1);
+    expect(wrapper.find(".reference-toggle.is-marked").exists()).toBe(false);
+
+    const marked = mount(MessageRow, {
+      props: { message: makeMessage(), collapsible: true, referenced: true },
+    });
+    expect(marked.find(".reference-toggle.is-marked").exists()).toBe(true);
+
+    const plain = mount(MessageRow, { props: { message: makeMessage() } });
+    expect(plain.find(".reference-toggle").exists()).toBe(false);
+  });
+
   it("a body-less header shows the host's fallback preview; own text wins over it", () => {
     const toolTurn = mount(MessageRow, {
       props: {
@@ -657,5 +684,95 @@ describe("MessageRow turn folding (collapsible header)", () => {
       },
     });
     expect(withText.get(".turn-preview").text()).toBe("Own first line.");
+  });
+});
+
+// THE REPLY FOLD (the canvas's reply block): an answer leads with one line and
+// keeps its detail behind a caret, so a thread reads as asks + verdicts.
+describe("MessageRow reply fold", () => {
+  const LONG_DETAIL = `Second paragraph that is comfortably past the fold floor so the caret is worth drawing at all. ${"more detail ".repeat(6)}`;
+
+  it("leads with the first paragraph and holds the rest behind the caret", async () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: `The verdict line.\n\n${LONG_DETAIL}` }) },
+    });
+
+    expect(wrapper.get(".reply-lead").text()).toContain("The verdict line.");
+    expect(wrapper.find(".reply-detail").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Second paragraph");
+
+    await wrapper.get(".reply-caret").trigger("click");
+    expect(wrapper.get(".reply-detail").text()).toContain("Second paragraph");
+  });
+
+  it("the lead line itself opens the fold — the whole line is the control", async () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }) },
+    });
+
+    await wrapper.get(".reply-lead").trigger("click");
+    expect(wrapper.find(".reply-detail").exists()).toBe(true);
+  });
+
+  it("a one-paragraph answer renders whole — no caret, nothing hidden", () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Short and done." }) },
+    });
+
+    expect(wrapper.text()).toContain("Short and done.");
+    expect(wrapper.find(".reply-caret").exists()).toBe(false);
+  });
+
+  it("a trivial remainder stays put — a two-line answer grows no caret", () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Done.\n\nNothing else." }) },
+    });
+
+    expect(wrapper.text()).toContain("Nothing else.");
+    expect(wrapper.find(".reply-caret").exists()).toBe(false);
+  });
+
+  it("a grouped continuation carries its caret inline — a fold is never invisible", () => {
+    const headed = mount(MessageRow, {
+      props: { message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }) },
+    });
+    expect(headed.find(".reply-caret.is-inline").exists()).toBe(false);
+
+    const continuation = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }),
+        showHeader: false,
+      },
+    });
+    expect(continuation.find(".reply-caret.is-inline").exists()).toBe(true);
+  });
+
+  it("the run-stats door moves to the lead glyph, and stays one door", () => {
+    const stats = {
+      model: "claude-fable-5",
+      toolCallCount: 4,
+      inputTokens: 1500,
+      outputTokens: 200,
+      contextTokens: 41_500,
+      durationMs: 9000,
+    };
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Answered." }), runStats: stats },
+    });
+
+    expect(wrapper.findAll(".run-info")).toHaveLength(1);
+    expect(wrapper.get(".reply-lead").find(".run-info").exists()).toBe(true);
+  });
+
+  // The ask is not a reply: it keeps its plain body, never a lead + fold.
+  it("a user ask never folds", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ role: "user", body: `Ask.\n\n${LONG_DETAIL}` }),
+      },
+    });
+
+    expect(wrapper.find(".reply-lead").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Second paragraph");
   });
 });

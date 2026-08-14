@@ -11,6 +11,7 @@ import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import AttachmentChips from "./AttachmentChips.vue";
 import ClaudeMark from "./ClaudeMark.vue";
+import RunStatsDoor from "./RunStatsDoor.vue";
 import Tooltip from "./Tooltip.vue";
 import { formatMessageTimestamp } from "../lib/format-timestamp.js";
 import { splitSourceLabel } from "../lib/source-label.js";
@@ -71,6 +72,9 @@ const props = withDefaults(
      *  with tool calls): the host, which sees the whole turn, hands the first
      *  meaningful line — a later row's text or a tool summary. */
     previewFallback?: string | null;
+    /** This turn is MARKED as the next message's reference (the header's chat
+     *  icon) — the icon lights up so the mark is visible from the thread. */
+    referenced?: boolean;
   }>(),
   {
     assistantName: "Assistant",
@@ -82,6 +86,7 @@ const props = withDefaults(
     collapsible: false,
     collapsed: false,
     previewFallback: null,
+    referenced: false,
   },
 );
 
@@ -89,6 +94,9 @@ const emit = defineEmits<{
   /** The turn header's fold toggle (thread-wide turn collapsing — the host
    *  owns which turns are open; this row only reports the click). */
   toggleCollapse: [];
+  /** The chat icon: mark (or unmark) this turn as what the next message
+   *  refers to. The host owns the mark; this row only reports the click. */
+  toggleReference: [];
 }>();
 
 // An inbound REPORT — a workspace's or agent's finished result arriving as
@@ -299,54 +307,36 @@ const inboundKindWord = computed(() =>
 
 const isExpanded = ref(false);
 
-// The run-stats hover card (Chad, 2026-08-09): the info icon beside the
-// author reveals the PRODUCING run's stats. Served stats (delivered rows —
-// the colleague's run) win over the host's TURN aggregate (every other
-// assistant turn) so one door serves both.
+// The run-stats hover card (Chad, 2026-08-09): the info icon reveals the
+// PRODUCING run's stats. Served stats (delivered rows — the colleague's run)
+// win over the host's TURN aggregate (every other assistant turn) so one door
+// serves both.
 const runStats = computed(() => props.message.runStats ?? props.runStats);
 
-function formatTokenCount(count: number): string {
-  return count >= 1000
-    ? `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k`
-    : String(count);
-}
-
-function formatRunDuration(ms: number): string {
-  if (ms < 1000) return "<1s";
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
-}
-
-// "Tokens" is what the run/turn ADDED: fresh input (the occupancy delta the
-// host/server derived) + generated output. The window total rides separately
-// as the Context row — the two must never read as one number again (the
-// "462.8k in" confusion).
-const runTokensLabel = computed(() => {
-  const stats = runStats.value;
-  if (stats == null) return null;
-  if (stats.inputTokens === null && stats.outputTokens === null) return "—";
-  const inPart =
-    stats.inputTokens === null
-      ? "—"
-      : `+${formatTokenCount(stats.inputTokens)}`;
-  return `${inPart} in · ${formatTokenCount(stats.outputTokens ?? 0)} out`;
+// THE REPLY FOLD (canvas `Vynel Workspace.dc.html`, the `convos` card): the
+// assistant speaks ONE lead line and its detail waits behind a caret. The
+// canvas authors lead and detail as separate fields; a real message is a
+// single markdown body, so the lead is its FIRST PARAGRAPH — the same split
+// the delivered-message card already makes, sharing its floor so a two-line
+// answer never grows a pointless caret.
+const assistantLeadParts = computed(() => {
+  if (!isAssistant.value || displayBody.value.trim() === "") return null;
+  const body = displayBody.value;
+  const splitAt = body.indexOf("\n\n");
+  if (splitAt === -1) return { lead: body, detail: null };
+  const detail = body.slice(splitAt + 2);
+  if (detail.trim().length < FOLD_REMAINDER_MIN)
+    return { lead: body, detail: null };
+  return { lead: body.slice(0, splitAt), detail };
 });
 
-const runContextLabel = computed(() =>
-  runStats.value?.contextTokens != null
-    ? formatTokenCount(runStats.value.contextTokens)
-    : "—",
+const isReplyOpen = ref(false);
+
+// The ask wears its time INLINE beside the name (the canvas's card header);
+// every other row keeps it on the right, where the reply's caret joins it.
+const showsInlineTime = computed(
+  () => props.message.role === "user" && !isInboundReport.value,
 );
-
-// SERVED stats know a null duration means the run hasn't finished; a turn
-// aggregate's null just means timestamps are missing (an interrupted or
-// legacy turn) — claiming "still running" there would lie.
-const runDurationLabel = computed(() => {
-  if (runStats.value?.durationMs != null)
-    return formatRunDuration(runStats.value.durationMs);
-  return props.message.runStats != null ? "still running" : "—";
-});
 
 // The folded strip's one-line preview — the first non-empty line of the
 // display body (marker already stripped), the card-title cleanup applied.
@@ -503,56 +493,14 @@ const collapsedPreview = computed(() => {
             }}</span>
           </span>
         </Tooltip>
-        <!-- The run-stats door: hover reveals the producing run's metadata. -->
-        <Tooltip v-if="runStats" side="bottom" :delay-ms="150">
-          <template #content>
-            <span class="hover-card stats-card">
-              <span class="stats-row">
-                <span class="stats-key">Model</span>
-                <span>{{ runStats.model ?? "default" }}</span>
-              </span>
-              <span class="stats-row">
-                <span class="stats-key">Tool calls</span>
-                <span>{{ runStats.toolCallCount }}</span>
-              </span>
-              <span class="stats-row">
-                <span class="stats-key">Tokens</span>
-                <span>{{ runTokensLabel }}</span>
-              </span>
-              <span class="stats-row">
-                <span class="stats-key">Context</span>
-                <span>{{ runContextLabel }}</span>
-              </span>
-              <span class="stats-row">
-                <span class="stats-key">Took</span>
-                <span>{{ runDurationLabel }}</span>
-              </span>
-            </span>
-          </template>
-          <span class="run-info" aria-label="run details">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              aria-hidden="true"
-            >
-              <circle
-                cx="8"
-                cy="8"
-                r="6.25"
-                stroke="currentColor"
-                stroke-width="1.3"
-              />
-              <path
-                d="M8 7.4v3.1M8 5.3v.2"
-                stroke="currentColor"
-                stroke-width="1.4"
-                stroke-linecap="round"
-              />
-            </svg>
-          </span>
-        </Tooltip>
+        <!-- The run-stats door. A reply carries it at the head of its lead
+             line (where the canvas draws the glyph); rows with no lead — an
+             ask, a delivered report — keep it here beside the author. -->
+        <RunStatsDoor
+          v-if="runStats && !assistantLeadParts"
+          :stats="runStats"
+          :served="props.message.runStats != null"
+        />
         <span v-if="originBadge" class="origin-badge">
           <!-- Inline glyphs keep @vynel/ui icon-library-free -->
           <svg
@@ -597,21 +545,30 @@ const collapsedPreview = computed(() => {
           via {{ originBadge.label }}
         </span>
       </p>
+      <!-- The canvas's card header reads "name | time" — one hairline, then
+           the timestamp, inline. Only the ask wears it this way, and it sits
+           BESIDE the label: `.role-label` names the author, nothing else. -->
+      <template v-if="showsInlineTime && timeLabel">
+        <span class="name-divider" aria-hidden="true" />
+        <span class="time-label">{{ timeLabel }}</span>
+      </template>
       <span class="header-meta">
-        <span v-if="timeLabel" class="time-label">{{ timeLabel }}</span>
+        <span v-if="timeLabel && !showsInlineTime" class="time-label is-reply">{{
+          timeLabel
+        }}</span>
         <button
-          v-if="props.collapsible"
+          v-if="assistantLeadParts?.detail"
           type="button"
-          class="collapse-toggle"
-          :aria-expanded="!props.collapsed"
-          aria-label="fold or unfold this message"
-          @click.stop="emit('toggleCollapse')"
+          class="reply-caret"
+          :aria-expanded="isReplyOpen"
+          aria-label="show or hide the rest of this reply"
+          @click.stop="isReplyOpen = !isReplyOpen"
         >
           <svg
             class="collapse-chevron"
-            :class="{ 'is-open': !props.collapsed }"
-            width="12"
-            height="12"
+            :class="{ 'is-open': isReplyOpen }"
+            width="10"
+            height="10"
             viewBox="0 0 16 16"
             fill="none"
             aria-hidden="true"
@@ -619,10 +576,73 @@ const collapsedPreview = computed(() => {
             <path
               d="M4 6l4 4 4-4"
               stroke="currentColor"
-              stroke-width="1.6"
+              stroke-width="1.8"
               stroke-linecap="round"
               stroke-linejoin="round"
             />
+          </svg>
+        </button>
+        <!-- Mark this turn as what the next message is about. The canvas puts
+             a reply box behind this icon; Kafi's call is a MARK instead — no
+             per-card composer, just a pointer the next send carries. -->
+        <button
+          v-if="props.collapsible"
+          type="button"
+          class="reference-toggle"
+          :class="{ 'is-marked': props.referenced }"
+          :aria-pressed="props.referenced"
+          :title="
+            props.referenced
+              ? 'Marked — your next message refers to this'
+              : 'Mark this for your next message'
+          "
+          aria-label="mark this turn as the next message's reference"
+          @click.stop="emit('toggleReference')"
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M13.5 8a5.5 5.5 0 0 1-5.5 5.5H2.5V8a5.5 5.5 0 0 1 11 0Z"
+              :fill="props.referenced ? 'currentColor' : 'none'"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <!-- The canvas's card control: arrows out to open the folded card,
+             arrows in to close it — not a chevron. -->
+        <button
+          v-if="props.collapsible"
+          type="button"
+          class="collapse-toggle"
+          :aria-expanded="!props.collapsed"
+          :title="props.collapsed ? 'Expand' : 'Collapse'"
+          aria-label="fold or unfold this message"
+          @click.stop="emit('toggleCollapse')"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <template v-if="props.collapsed">
+              <path d="M9.5 2.5h4v4" />
+              <path d="M13.5 2.5 9 7" />
+              <path d="M6.5 13.5h-4v-4" />
+              <path d="M2.5 13.5 7 9" />
+            </template>
+            <template v-else>
+              <path d="M13.5 6.5h-4v-4" />
+              <path d="M9.5 6.5 14 2" />
+              <path d="M2.5 9.5h4v4" />
+              <path d="M6.5 9.5 2 14" />
+            </template>
           </svg>
         </button>
       </span>
@@ -651,7 +671,63 @@ const collapsedPreview = computed(() => {
          full markdown body, author line + quiet badge as its identity. A
          LONG one collapses to its lead paragraph behind an in-place
          expander — never a popup. -->
-      <MarkdownText v-if="isAssistant" :source="displayBody" />
+      <!-- The reply: its lead line beside the info glyph, the rest folded
+           behind the header's caret (the canvas's reply block). -->
+      <template v-if="assistantLeadParts">
+        <div
+          class="reply-lead"
+          :class="{ 'is-foldable': assistantLeadParts.detail !== null }"
+          @click="
+            assistantLeadParts.detail !== null
+              ? (isReplyOpen = !isReplyOpen)
+              : undefined
+          "
+        >
+          <!-- The glyph sits on the lead's first line; a flex baseline would
+               sink an SVG to its box bottom, so the slot nudges it optically. -->
+          <span class="lead-glyph-slot">
+            <RunStatsDoor
+              :stats="runStats"
+              :served="props.message.runStats != null"
+            />
+          </span>
+          <MarkdownText class="reply-lead-text" :source="assistantLeadParts.lead" />
+          <!-- A continuation row has no header to hold the caret (the host
+               groups a turn's replies under ONE author line), so its control
+               rides the end of the lead — a fold must never be invisible. -->
+          <button
+            v-if="assistantLeadParts.detail && !props.showHeader"
+            type="button"
+            class="reply-caret is-inline"
+            :aria-expanded="isReplyOpen"
+            aria-label="show or hide the rest of this reply"
+            @click.stop="isReplyOpen = !isReplyOpen"
+          >
+            <svg
+              class="collapse-chevron"
+              :class="{ 'is-open': isReplyOpen }"
+              width="10"
+              height="10"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M4 6l4 4 4-4"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <MarkdownText
+          v-if="isReplyOpen && assistantLeadParts.detail"
+          class="reply-detail"
+          :source="assistantLeadParts.detail"
+        />
+      </template>
       <!-- The delivered-message card (all kinds): kind icon + title line,
          chevron at the line's end, body expands in place. -->
       <template v-else-if="isInboundReport && inboundCardParts !== null">
@@ -809,7 +885,9 @@ const collapsedPreview = computed(() => {
      flex "baseline" is its bottom edge — baseline-aligning would sink the
      time label below the name. */
   align-items: center;
-  gap: 8px;
+  /* The canvas's author row spaces its parts at 7px, the same step the label
+     uses inside itself — one rhythm across the whole line. */
+  gap: 7px;
 }
 
 /* TURN folding: a collapsible header is the whole toggle; its time + chevron
@@ -876,7 +954,54 @@ const collapsedPreview = computed(() => {
   color: var(--gold);
 }
 
-.collapse-toggle {
+.collapse-toggle,
+.reference-toggle {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 2px;
+  display: inline-flex;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+  transition: color var(--t-fast, 120ms) ease;
+}
+
+.collapse-toggle:hover,
+.reference-toggle:hover {
+  color: var(--ink-1);
+}
+
+.collapse-toggle:focus-visible,
+.reference-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+/* A marked turn wears the accent — the same light the composer's chip uses,
+   so the pointer reads as one thing from both ends. */
+.reference-toggle.is-marked,
+.reference-toggle.is-marked:hover {
+  color: var(--gold);
+}
+
+.collapse-chevron {
+  transition: transform 140ms ease;
+}
+
+.collapse-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+/* A reply line ends with its time and fold caret at the row's right edge —
+   the canvas's `margin-left: auto` cluster. Only the ask keeps its meta
+   tight against the name (its time went inline). */
+.row-header:not(.is-collapsible) .header-meta {
+  margin-left: auto;
+}
+
+.reply-caret {
   appearance: none;
   border: 0;
   margin: 0;
@@ -888,21 +1013,51 @@ const collapsedPreview = computed(() => {
   border-radius: var(--radius-s);
 }
 
-.collapse-toggle:hover {
+.reply-caret:hover {
   color: var(--ink-1);
 }
 
-.collapse-toggle:focus-visible {
+.reply-caret:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 1px;
 }
 
-.collapse-chevron {
-  transition: transform 140ms ease;
+/* THE REPLY: the info glyph and the one line that answers. */
+.reply-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
 }
 
-.collapse-chevron.is-open {
-  transform: rotate(180deg);
+.reply-lead.is-foldable {
+  cursor: pointer;
+}
+
+.lead-glyph-slot {
+  display: inline-flex;
+  flex: none;
+  margin-top: 3px;
+}
+
+.reply-caret.is-inline {
+  margin-top: 2px;
+}
+
+.reply-lead .reply-lead-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-neutral-200);
+  font: 400 12.5px/1.4 var(--font-ui);
+  text-wrap: pretty;
+}
+
+/* The rest of the answer, once the caret opens it — a step quieter than the
+   lead, indented under it so the lead stays the thing you read first. */
+.message-row .reply-detail {
+  padding-left: 19px;
+  color: var(--color-neutral-300);
+  font: 400 12.5px/1.5 var(--font-ui);
 }
 
 .author-avatar {
@@ -940,11 +1095,25 @@ const collapsedPreview = computed(() => {
 }
 
 .time-label {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-ui);
+  color: var(--ink-2);
+  font: 400 11px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
-  opacity: 0.85;
+}
+
+/* On the right of a reply row the time is quieter and a half-step smaller —
+   it labels the fold, it doesn't head the card. */
+.time-label.is-reply {
+  color: var(--ink-3);
+  font-size: 10.5px;
+}
+
+/* The hairline between the author's name and the time. */
+.name-divider {
+  width: 1px;
+  height: 10px;
+  flex: none;
+  background: color-mix(in srgb, var(--color-text) 16%, transparent);
 }
 
 /* The workspace identity chip beside the author name — the label's workspace
@@ -977,15 +1146,6 @@ const collapsedPreview = computed(() => {
   color: var(--ink-1);
   font: 600 8px/1 var(--font-ui);
   letter-spacing: 0.02em;
-}
-
-.run-info {
-  display: inline-flex;
-  color: var(--ink-3);
-}
-
-.run-info:hover {
-  color: var(--ink-1);
 }
 
 /* Hover-card content (teleported, but it keeps this component's scope). */
@@ -1024,23 +1184,6 @@ const collapsedPreview = computed(() => {
   font: 500 9.5px/1.2 var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-}
-
-.stats-card {
-  align-items: stretch;
-  min-width: 150px;
-}
-
-.stats-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--ink-1);
-  font: 400 11.5px/1.6 var(--font-ui);
-}
-
-.stats-key {
-  color: var(--ink-3);
 }
 
 /* "via Voice" — a quiet provenance mark beside the author line. */

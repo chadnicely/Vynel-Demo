@@ -28,6 +28,7 @@ import { buildToolCallPointer } from "./thread-pointers.js";
 import type { ThreadPointerModel } from "./thread-pointers.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
 import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
+import { useTurnReference } from "../../composables/chat/use-turn-reference.js";
 
 // Watch chips follow the PIPELINE scoping rule (Chad, 2026-07-21 evening —
 // Global → Workspace → Session → Agent): a thread shows chips ONLY for its
@@ -90,6 +91,16 @@ const emit = defineEmits<{
 // same way the live cards resolve theirs, with the host's name→id map keying
 // the workspace's customized persona image.
 const { resolvePersona } = usePersonaResolver();
+
+// The marked turn (Kafi, 2026-08-15): a card's chat icon pins it, and the
+// composer spends the mark on the next send. The thread owns neither end —
+// it just reports the click and lights the marked card.
+const { markedMessageId, mark: markTurnReference } = useTurnReference();
+
+function referenceAuthorFor(message: ChatMessageResponse): string {
+  if (message.role === "user") return "You";
+  return message.sourceLabel ?? props.assistantName;
+}
 
 // The workspace chip beside a persona row's author (Chad, 2026-08-09): the
 // label's LAST " · " segment (the persona-first rule) resolves to an
@@ -773,6 +784,10 @@ watch(
               :collapsible="memberIndex === 0"
               :collapsed="!isCardExpanded(group.key)"
               :preview-fallback="cardPreviewFallbackFor(group.key)"
+              :referenced="markedMessageId === message.id"
+              @toggle-reference="
+                markTurnReference(message, referenceAuthorFor(message))
+              "
               :run-stats="
                 memberIndex === statsMemberIndexOf(group)
                   ? turnRunStatsFor(group.key)
