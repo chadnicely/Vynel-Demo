@@ -231,7 +231,10 @@ describe("ThreadStream", () => {
     expect(pointer.attributes("data-status")).toBe("completed");
     expect(pointer.text()).toContain("Overview of access levels");
     expect(pointer.text()).toContain("letterman");
-    expect(pointer.text()).toContain("done");
+    // test: correct expectation (2026-08-15) — the pointer wears the canvas's
+    // handed-off card, whose eyebrow is title-case and uppercased in CSS. Was
+    // the lowercase literal "done".
+    expect(pointer.text()).toContain("Done");
     await pointer.trigger("click");
     expect(wrapper.emitted("openPointer")).toEqual([
       [
