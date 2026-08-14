@@ -37,7 +37,7 @@ function formatRunDuration(ms: number): string {
 // "462.8k in" confusion).
 const tokensLabel = computed(() => {
   const stats = props.stats;
-  if (stats == null) return null;
+  if (!stats) return null;
   if (stats.inputTokens === null && stats.outputTokens === null) return "—";
   const inPart =
     stats.inputTokens === null
@@ -46,18 +46,17 @@ const tokensLabel = computed(() => {
   return `${inPart} in · ${formatTokenCount(stats.outputTokens ?? 0)} out`;
 });
 
-const contextLabel = computed(() =>
-  props.stats?.contextTokens != null
-    ? formatTokenCount(props.stats.contextTokens)
-    : "—",
-);
+const contextLabel = computed(() => {
+  const contextTokens = props.stats?.contextTokens ?? null;
+  return contextTokens === null ? "—" : formatTokenCount(contextTokens);
+});
 
 // SERVED stats know a null duration means the run hasn't finished; a turn
 // aggregate's null just means timestamps are missing (an interrupted or
 // legacy turn) — claiming "still running" there would lie.
 const durationLabel = computed(() => {
-  if (props.stats?.durationMs != null)
-    return formatRunDuration(props.stats.durationMs);
+  const durationMs = props.stats?.durationMs ?? null;
+  if (durationMs !== null) return formatRunDuration(durationMs);
   return props.served ? "still running" : "—";
 });
 </script>

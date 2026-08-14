@@ -16,8 +16,8 @@ function makeMessage(
     attachedImagesMetadata: null,
     errorCode: null,
     errorMessage: null,
-    startedAt: null,
-    completedAt: null,
+    startedAt: "2026-07-05T10:00:00.000Z",
+    completedAt: "2026-07-05T10:00:01.000Z",
     createdAt: "2026-07-05T10:00:00.000Z",
     ...overrides,
   };

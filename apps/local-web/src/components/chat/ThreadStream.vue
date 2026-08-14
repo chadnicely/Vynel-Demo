@@ -793,15 +793,15 @@ watch(
               :collapsed="!isCardExpanded(group.key)"
               :preview-fallback="cardPreviewFallbackFor(group.key)"
               :referenced="markedMessageId === message.id"
-              @toggle-reference="
-                markTurnReference(message, referenceAuthorFor(message))
-              "
               :run-stats="
                 memberIndex === statsMemberIndexOf(group)
                   ? turnRunStatsFor(group.key)
                   : null
               "
               @toggle-collapse="toggleCard(group.key)"
+              @toggle-reference="
+                markTurnReference(message, referenceAuthorFor(message))
+              "
             >
               <template
                 v-if="props.toolCallsByMessageId[message.id]?.length"
