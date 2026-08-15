@@ -138,7 +138,6 @@ export async function fireSchedule(
           userMessageText: renderedPrompt,
           permissionMode: 'bypass-with-behavior-gate', // D10
           mcpServers: composedMcp.mcpServers,
-          allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
           deniedToolNames: composedMcp.deniedMcpToolPatterns,
           // Capability prompt + the MCP composer's per-feature prompt sections
           // (the chat-turn join; the MCP half used to be dropped here too).

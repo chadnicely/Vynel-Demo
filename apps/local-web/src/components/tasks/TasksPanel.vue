@@ -1,94 +1,682 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { nextTick } from "vue";
+import {
+  PhArrowUpRight as ArrowUpRight,
+  PhMonitor as Monitor,
+  PhPlus as Plus,
+  PhStopCircle as StopCircle,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
+import { useCreateTask } from "../../composables/tasks/use-create-task.js";
 import { useTasksInScope } from "../../composables/tasks/use-tasks-in-scope.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
+import TaskViewDialog from "./TaskViewDialog.vue";
+import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
+import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
+import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
+import { useActivityStore } from "../../stores/activity-store.js";
+import { useVynel } from "../../composables/use-vynel.js";
 import type { SectionScope } from "../sections/section-scope.js";
 import TaskStatusControl from "./TaskStatusControl.vue";
 
-// The opt-in tasks dock: a compact glance at what's still open, beside
-// whichever chat surface is up. It reads the same scoped query as
-// TasksSection, so the dock and the menu never disagree.
-const props = defineProps<{
-  scope: SectionScope;
-}>();
+// The workspace work rail (redesign Arc 4 — the canvas's right rail on OUR
+// data): the live card reads the scope's presence + the running session's
+// working steps, the queue/completed pills read the same scoped tasks query
+// as TasksSection, and OPEN IT lists the workspace's actually-running apps
+// (AppRow's plain-anchor pattern) plus the same per-scope interrupt the chat
+// surfaces use. Still the opt-in dock — the title-bar toggle is unchanged.
+const props = withDefaults(
+  defineProps<{
+    scope: SectionScope;
+    /** Who works this scope — the workspace manager persona / the assistant. */
+    assistantName?: string;
+  }>(),
+  { assistantName: "Assistant" },
+);
 
+const vynel = useVynel();
+const activity = useActivityStore();
 const tasksQuery = useTasksInScope(() => props.scope);
 const updateTask = useUpdateTask();
+const { statusByWorkspaceId, globalStatus } = useWorkspaceStatuses();
+
+const scopeWorkspaceId = computed(() =>
+  props.scope.kind === "workspace" ? props.scope.workspaceId : null,
+);
+
+// The scope's effective status — one status, one colour (Arc 5b).
+const statusView = computed(() =>
+  scopeWorkspaceId.value === null
+    ? null
+    : (statusByWorkspaceId.value[scopeWorkspaceId.value] ?? null),
+);
+const scopeStatus = computed(() =>
+  scopeWorkspaceId.value === null
+    ? globalStatus.value
+    : (statusView.value?.status ?? "not_running"),
+);
 
 const tasksInScope = computed(() => tasksQuery.data.value ?? []);
-
-const openTasks = computed(() =>
-  tasksInScope.value.filter((row) => row.status !== "done"),
+const queuedTasks = computed(() => {
+  const open = tasksInScope.value.filter((row) => row.status !== "done");
+  // The one being worked leads the queue — the canvas's reading order.
+  return [
+    ...open.filter((row) => row.status === "in-progress"),
+    ...open.filter((row) => row.status === "open"),
+  ];
+});
+const completedTasks = computed(() =>
+  tasksInScope.value.filter((row) => row.status === "done"),
 );
+
+const listTab = ref<"queue" | "done">("queue");
+const shownTasks = computed(() =>
+  listTab.value === "done" ? completedTasks.value : queuedTasks.value,
+);
+
+// The scope's RUNNING session — the server turn map carries sessionId per
+// scope; it anchors both the live card's steps and the interrupt target.
+const liveSessionId = computed(() => {
+  for (const turn of Object.values(activity.serverTurns)) {
+    const matchesScope =
+      scopeWorkspaceId.value === null
+        ? turn.scopeKind === "global"
+        : turn.scopeKind === "workspace" &&
+          turn.workspaceId === scopeWorkspaceId.value;
+    if (matchesScope) return turn.sessionId;
+  }
+  return null;
+});
+
+const liveTask = computed(
+  () => queuedTasks.value.find((row) => row.status === "in-progress") ?? null,
+);
+
+// Steps for the live card: the running session's todos win (that IS what's
+// happening now); a paused in-progress task shows its session's steps.
+const todosQuery = useSessionTodos(
+  () => liveSessionId.value ?? liveTask.value?.sessionId ?? null,
+);
+const stepProgress = computed(() => {
+  const todos = todosQuery.data.value ?? [];
+  if (todos.length === 0) return null;
+  const done = todos.filter((todo) => todo.status === "done").length;
+  return { done, total: todos.length, pct: Math.round((100 * done) / todos.length) };
+});
+
+// The canvas's kicker vocabulary — one line per state.
+const liveKicker = computed(() => {
+  if (scopeStatus.value === "needs_input") return "Waiting on you";
+  if (scopeStatus.value === "problem") return "Hit a problem";
+  if (scopeStatus.value === "completed") return "All tasks done";
+  if (scopeStatus.value === "running") return `${props.assistantName} working`;
+  return "Not running";
+});
+const liveTitle = computed(() => {
+  if (liveTask.value !== null) return liveTask.value.title;
+  if (scopeStatus.value === "running") return "Working in the chat";
+  if (scopeStatus.value === "needs_input") return "Something needs your answer";
+  if (scopeStatus.value === "problem") return "Stopped on an error";
+  if (scopeStatus.value === "completed") return "Everything on the list is done";
+  return "Nothing running";
+});
+const liveMeta = computed(() => {
+  // The assistant's own one-line why (set_workspace_status note) wins.
+  const note = statusView.value?.note;
+  if (note != null && note !== "") return note;
+  if (scopeStatus.value === "needs_input") return "Open the chat to answer";
+  if (scopeStatus.value === "problem") return "Open the chat to see what broke";
+  if (scopeStatus.value === "running") return "Building now";
+  const open = queuedTasks.value.length;
+  return open === 0
+    ? "Pick it up when you are ready"
+    : `${open} in the queue, waiting`;
+});
+// The end-state progress line — the canvas's "N of M tasks done" trio
+// (no invented counts: the state itself is the suffix's story).
+const taskProgressLabel = computed(() => {
+  const view = statusView.value;
+  if (view === null || view.tasksTotal === 0) return null;
+  if (scopeStatus.value === "completed")
+    return `${view.tasksTotal} of ${view.tasksTotal} tasks completed`;
+  if (scopeStatus.value === "needs_input" || scopeStatus.value === "problem")
+    return `${view.tasksDone} of ${view.tasksTotal} tasks done`;
+  return null;
+});
+const taskProgressPct = computed(() => {
+  const view = statusView.value;
+  if (view === null || view.tasksTotal === 0) return 0;
+  return Math.round((100 * view.tasksDone) / view.tasksTotal);
+});
+
+// ── OPEN IT — the workspace's running apps as plain anchors (the AppRow
+// mechanism), and the same per-scope interrupt the chat surfaces call. ──
+const appsQuery = useWorkspaceApps(scopeWorkspaceId);
+const openableApps = computed(() =>
+  (appsQuery.data.value ?? []).filter(
+    (app) => app.port !== null && app.runtime?.status === "running",
+  ),
+);
+
+const isAbortConfirmOpen = ref(false);
+const isInterrupting = ref(false);
+// Workspace-only by design — the stop lives in the OPEN IT block, and the
+// Global surface already carries its own interrupt on the live turn.
+async function abortLiveSession() {
+  const sessionId = liveSessionId.value;
+  isAbortConfirmOpen.value = false;
+  if (isInterrupting.value) return;
+  if (props.scope.kind !== "workspace" || sessionId === null) return;
+  isInterrupting.value = true;
+  try {
+    await vynel.chat.interruptSession(props.scope.workspaceId, sessionId);
+  } catch {
+    // The turn may have settled between the click and the call — the rail's
+    // presence view corrects itself on the next activity event either way.
+  } finally {
+    isInterrupting.value = false;
+  }
+}
 
 function changeStatus(task: TaskResponse, status: TaskStatus) {
   updateTask.mutate({ taskId: task.id, status });
 }
+
+// A row opens the full task view (status, detail, the session's real steps).
+const viewingTaskId = ref<string | null>(null);
+
+// Quick add — the same create the Tasks section does, scoped to this rail.
+const createTask = useCreateTask();
+const isCreateOpen = ref(false);
+const newTaskTitle = ref("");
+const createInput = ref<HTMLInputElement | null>(null);
+
+function openCreate() {
+  listTab.value = "queue";
+  isCreateOpen.value = true;
+  void nextTick(() => createInput.value?.focus());
+}
+
+function cancelCreate(event: KeyboardEvent) {
+  // Esc mid-IME-composition cancels the COMPOSITION, not the draft.
+  if (event.isComposing) return;
+  isCreateOpen.value = false;
+  newTaskTitle.value = "";
+}
+
+function addTask() {
+  const title = newTaskTitle.value.trim();
+  if (title.length === 0 || createTask.isPending.value) return;
+  createTask.mutate(
+    props.scope.kind === "workspace"
+      ? { scope: "workspace", workspaceId: props.scope.workspaceId, title }
+      : { scope: "global", title },
+    {
+      onSuccess: () => {
+        newTaskTitle.value = "";
+        isCreateOpen.value = false;
+      },
+    },
+  );
+}
+
+function completedAtLabel(task: TaskResponse): string {
+  if (task.completedAt === null) return "";
+  return new Date(task.completedAt).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
 </script>
 
 <template>
-  <aside class="tasks-panel">
-    <header class="panel-header">
-      <p class="panel-title">Tasks</p>
-      <span class="count-chip">{{ openTasks.length }} open</span>
-    </header>
+  <aside class="work-rail">
+    <!-- The live card — the scope's status, what's being worked, and the
+         real numbers: session steps while running, the task rollup in the
+         end states. One status, one colour. -->
+    <div class="live-card" :data-status="scopeStatus">
+      <p class="live-kicker">
+        <span class="live-dot" aria-hidden="true" />
+        {{ liveKicker }}
+      </p>
+      <p class="live-title">{{ liveTitle }}</p>
+      <p class="live-meta">{{ liveMeta }}</p>
+      <template v-if="scopeStatus === 'running' && stepProgress">
+        <span class="live-bar">
+          <span class="live-bar-fill" :style="{ width: `${stepProgress.pct}%` }" />
+        </span>
+        <p class="live-bar-label">
+          {{ stepProgress.done }} of {{ stepProgress.total }} steps completed
+        </p>
+      </template>
+      <template v-else-if="taskProgressLabel">
+        <span class="live-bar">
+          <span class="live-bar-fill" :style="{ width: `${taskProgressPct}%` }" />
+        </span>
+        <p class="live-bar-label">{{ taskProgressLabel }}</p>
+      </template>
+    </div>
+
+    <!-- Queue | Completed — the canvas's pill segment on the scoped query.
+         The tablist wraps ONLY the tabs; the add button shares the pill
+         visually but stays outside the tablist semantics (ARIA owned-
+         children rule). -->
+    <div class="list-tabs">
+      <div class="list-tabs-group" role="tablist" aria-label="Task lists">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="listTab === 'queue'"
+          class="list-tab"
+          :class="{ 'is-active': listTab === 'queue' }"
+          @click="listTab = 'queue'"
+        >
+          In the queue <span class="tab-count">{{ queuedTasks.length }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="listTab === 'done'"
+          class="list-tab"
+          :class="{ 'is-active': listTab === 'done' }"
+          @click="listTab = 'done'"
+        >
+          Completed <span class="tab-count">{{ completedTasks.length }}</span>
+        </button>
+      </div>
+      <button
+        type="button"
+        aria-label="Add a task"
+        title="Add a task"
+        class="add-task"
+        @click="openCreate"
+      >
+        <Plus :size="12" />
+      </button>
+    </div>
 
     <div class="task-list">
+      <!-- Form submit, not a keydown handler — implicit submission never
+           fires mid-IME-composition (the TasksSection precedent). -->
+      <form
+        v-if="isCreateOpen"
+        class="create-row"
+        @submit.prevent="addTask"
+      >
+        <input
+          ref="createInput"
+          v-model="newTaskTitle"
+          class="create-input"
+          placeholder="What needs doing?"
+          maxlength="200"
+          @keydown.esc="cancelCreate"
+        />
+      </form>
       <EmptyState
-        v-if="openTasks.length === 0"
-        title="Nothing on the list"
-        hint="Ask Claude for something and it'll track the steps here."
+        v-if="shownTasks.length === 0"
+        :title="listTab === 'done' ? 'Nothing finished yet' : 'Nothing on the list'"
+        :hint="
+          listTab === 'done'
+            ? 'Completed tasks land here.'
+            : 'Ask for something and it\'ll track the steps here.'
+        "
       />
 
-      <div v-for="task in openTasks" :key="task.id" class="task-row">
+      <div
+        v-for="(task, taskIndex) in shownTasks"
+        :key="task.id"
+        class="task-row"
+        :class="{ 'is-done': task.status === 'done' }"
+      >
         <TaskStatusControl
           size="compact"
           :status="task.status"
           @change="changeStatus(task, $event)"
         />
-        <span class="task-title">{{ task.title }}</span>
+        <button
+          type="button"
+          class="task-title"
+          :title="task.title"
+          @click="viewingTaskId = task.id"
+        >
+          {{ taskIndex + 1 }}. {{ task.title }}
+        </button>
+        <span v-if="task.status === 'done'" class="task-meta">
+          {{ completedAtLabel(task) }}
+        </span>
+        <span v-else-if="task.status === 'in-progress'" class="task-meta is-live">
+          now
+        </span>
       </div>
     </div>
+
+    <!-- OPEN IT — real running apps + the real interrupt. Workspace rooms
+         only; Global has no apps to open. -->
+    <div v-if="props.scope.kind === 'workspace'" class="open-it">
+      <p class="open-it-label">Open it</p>
+      <a
+        v-for="app in openableApps"
+        :key="app.id"
+        class="open-row"
+        :href="`http://localhost:${app.port}`"
+        target="_blank"
+        rel="noreferrer"
+      >
+        <Monitor :size="14" class="open-icon" />
+        <span class="open-text">
+          <span class="open-name">Open {{ app.name }}</span>
+          <span class="open-value">localhost:{{ app.port }}</span>
+        </span>
+        <ArrowUpRight :size="12" class="open-arrow" />
+      </a>
+      <p v-if="openableApps.length === 0" class="open-empty">
+        Nothing running to open.
+      </p>
+
+      <template v-if="scopeStatus === 'running' && liveSessionId !== null">
+        <button
+          type="button"
+          class="abort-button"
+          @click="isAbortConfirmOpen = !isAbortConfirmOpen"
+        >
+          <StopCircle :size="14" />
+          Stop the current work
+        </button>
+        <div v-if="isAbortConfirmOpen" class="abort-confirm">
+          <p class="abort-note">
+            Stops what {{ props.assistantName }} is doing right now. Finished
+            work stays; the step in flight is dropped.
+          </p>
+          <div class="abort-actions">
+            <button
+              type="button"
+              class="abort-keep"
+              @click="isAbortConfirmOpen = false"
+            >
+              Keep going
+            </button>
+            <button type="button" class="abort-do" @click="abortLiveSession">
+              Stop it
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <TaskViewDialog
+      :open="viewingTaskId !== null"
+      :task-id="viewingTaskId"
+      @close="viewingTaskId = null"
+    />
   </aside>
 </template>
 
 <style scoped>
-.tasks-panel {
+/* WEIGHT 400 on every micro-label in this rail, and quiet ink on the rows —
+   the tracking carries a label, not the weight. The chat card took this
+   correction in an earlier pass; the rail was measured against the canvas and
+   was running 600/500 and near-white throughout. */
+.work-rail {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--space-6);
   min-height: 0;
-  width: 260px;
-  background: var(--bg-panel);
+  width: 272px;
+  padding: var(--space-8) var(--space-6);
+  /* The canvas rail carries no panel ground of its own — it sits on the app
+     floor, separated by the hairline alone, so the tinted live card reads as
+     the one lit thing in the column. --bg-panel put it only 6% off the card. */
+  background: var(--color-bg);
   border-left: 1px solid var(--hair);
 }
 
-.panel-header {
+/* ── The live card. The status carries the tint — one status, one colour:
+   accent while working, blue waiting on you, red problem, green done. ── */
+.live-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radius-m);
+  background: var(--bg-raised);
+  border: 1px solid var(--hair);
+  border-left: 2px solid var(--hair-strong);
+}
+
+.live-card[data-status="running"] {
+  background: var(--color-accent-900);
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+  border-left-color: var(--gold);
+}
+
+.live-card[data-status="needs_input"] {
+  background: var(--needs-input-soft);
+  border-color: color-mix(in srgb, var(--needs-input) 45%, transparent);
+  border-left-color: var(--needs-input);
+}
+
+.live-card[data-status="problem"] {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  border-left-color: var(--danger);
+}
+
+.live-card[data-status="completed"] {
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  border-left-color: var(--ok);
+}
+
+.live-kicker {
+  margin: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px 8px;
-  border-bottom: 1px solid var(--hair);
-}
-
-.panel-title {
-  margin: 0;
-  color: var(--ink-2);
-  font: 600 12px/1.5 var(--font-ui);
-}
-
-.count-chip {
+  gap: 7px;
   color: var(--ink-3);
-  font: 600 10.5px/1.5 var(--font-ui);
+  font: 400 10px/1.5 var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-status="running"] .live-kicker {
+  color: var(--color-accent-200);
+}
+
+[data-status="needs_input"] .live-kicker {
+  color: var(--needs-input);
+}
+
+[data-status="problem"] .live-kicker {
+  color: var(--danger);
+}
+
+[data-status="completed"] .live-kicker {
+  color: var(--ok);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+
+[data-status="running"] .live-dot {
+  background: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 60%, transparent);
+}
+
+[data-status="needs_input"] .live-dot {
+  background: var(--needs-input);
+  animation: rail-dot-pulse 1.4s ease-in-out infinite;
+}
+
+[data-status="problem"] .live-dot {
+  background: var(--danger);
+  animation: rail-dot-pulse 1.4s ease-in-out infinite;
+}
+
+[data-status="completed"] .live-dot {
+  background: var(--ok);
+}
+
+@keyframes rail-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.live-title {
+  margin: 0;
+  color: var(--ink-1);
+  font: 500 13px/1.35 var(--font-ui);
+  text-wrap: pretty;
+}
+
+.live-meta {
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 10.5px/1.55 var(--font-ui);
+}
+
+.live-bar {
+  height: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink-3) 25%, transparent);
+  overflow: hidden;
+}
+
+.live-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--gold);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gold) 60%, transparent);
+  transition: width var(--t-slow) var(--ease-out);
+}
+
+[data-status="needs_input"] .live-bar-fill {
+  background: var(--needs-input);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--needs-input) 60%, transparent);
+}
+
+[data-status="problem"] .live-bar-fill {
+  background: var(--danger);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 60%, transparent);
+}
+
+[data-status="completed"] .live-bar-fill {
+  background: var(--ok);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ok) 60%, transparent);
+}
+
+.live-bar-label {
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 10px/1.5 var(--font-ui);
+}
+
+/* ── The queue/completed pill segment. ── */
+.list-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
   border: 1px solid var(--hair);
-  border-radius: 99px;
-  padding: 0 8px;
+  background: var(--color-neutral-900);
+}
+
+.list-tabs-group {
+  display: flex;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.list-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  font: 400 11px/1.55 var(--font-ui);
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.list-tab:hover {
+  color: var(--ink-1);
+}
+
+.list-tab.is-active {
+  background: var(--row-active);
+  color: var(--ink-1);
+}
+
+.tab-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.add-task {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.add-task:hover {
+  background: var(--row-hover);
+  color: var(--ink-1);
+}
+
+.create-row {
+  padding: 2px 2px 6px;
+}
+
+.create-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  border-radius: var(--radius-s);
+  background: var(--bg-inset);
+  color: var(--ink-1);
+  font: 500 12px/1.5 var(--font-ui);
+}
+
+.create-input:focus-visible {
+  outline: none;
+  border-color: var(--gold);
+}
+
+/* The counts sit a step behind their label — accent on the selected tab, the
+   quietest neutral on the one you are not looking at. */
+.list-tab.is-active .tab-count {
+  color: var(--color-accent-300);
+}
+
+.list-tab:not(.is-active) .tab-count {
+  color: var(--color-neutral-700);
 }
 
 .task-list {
   overflow-y: auto;
-  padding: 8px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -106,12 +694,184 @@ function changeStatus(task: TaskResponse, status: TaskStatus) {
   background: var(--row-hover);
 }
 
+.task-row.is-done {
+  opacity: 0.6;
+}
+
+/* The canvas's row mark is a GLYPH, not a chip — no border, no ground. It is
+   still the status control (click cycles), it just stops wearing a box in a
+   column of quiet rows. Accent once finished, the quietest neutral while it
+   waits; in-progress keeps its own ink. */
+.task-row :deep(.status-control) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.task-row:not(.is-done) :deep(.status-control) {
+  color: var(--color-neutral-700);
+}
+
+.task-row.is-done :deep(.status-control) {
+  color: var(--gold);
+}
+
+.task-row :deep(.status-control:hover) {
+  color: var(--ink-1);
+}
+
 .task-title {
   min-width: 0;
-  color: var(--ink-1);
-  font: 500 12.5px/1.5 var(--font-ui);
+  flex: 1;
+  text-align: left;
+  /* A queued task is something waiting, not the headline — the canvas holds
+     the row at neutral-400, well behind the live card above it. */
+  color: var(--color-neutral-400);
+  font: 400 12px/1.55 var(--font-ui);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.task-meta {
+  color: var(--ink-3);
+  font: 400 10px/1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.task-meta.is-live {
+  color: var(--gold-bright);
+}
+
+/* ── OPEN IT. ── */
+.open-it {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hair);
+}
+
+.open-it-label {
+  margin: 0 0 2px;
+  color: var(--ink-3);
+  font: 400 10px/1.5 var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.open-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  border-radius: var(--radius-m);
+  color: var(--gold-bright);
+  text-decoration: none;
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+.open-row:hover {
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+}
+
+.open-icon {
+  flex: none;
+}
+
+.open-text {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 1px;
+}
+
+.open-name {
+  font: 600 12px/1.4 var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.open-value {
+  color: var(--ink-3);
+  font: 500 10px/1.4 var(--font-mono);
+}
+
+.open-arrow {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.open-empty {
+  margin: 0;
+  color: var(--ink-3);
+  font: 500 11px/1.5 var(--font-ui);
+}
+
+.abort-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 38%, transparent);
+  border-radius: var(--radius-m);
+  color: var(--danger);
+  font: 600 12px/1.4 var(--font-ui);
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.abort-button:hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.abort-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 10px 11px;
+  border-radius: var(--radius-m);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+.abort-note {
+  margin: 0;
+  color: var(--ink-1);
+  font: 500 11px/1.45 var(--font-ui);
+  text-wrap: pretty;
+}
+
+.abort-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.abort-keep {
+  padding: 4px 11px;
+  border-radius: var(--radius-s);
+  color: var(--ink-2);
+  font: 600 11px/1.5 var(--font-ui);
+}
+
+.abort-keep:hover {
+  background: var(--row-hover);
+  color: var(--ink-1);
+}
+
+.abort-do {
+  padding: 4px 12px;
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
+  font: 600 11px/1.5 var(--font-ui);
+}
+
+.abort-do:hover {
+  background: color-mix(in srgb, var(--danger) 26%, transparent);
 }
 </style>

@@ -15,12 +15,38 @@ const DEMO_WORKSPACE = {
   kind: "project",
   managerName: "Sage",
   isArchived: false,
+  groupId: null as string | null,
 };
+
+type DemoGroup = { id: string; name: string };
+
+// A complete pending-approval row (the notifier renders what the presence
+// derivation counts, so the fake must satisfy both).
+function makePendingApproval(workspaceId: string | null) {
+  return {
+    id: `approval-${workspaceId ?? "global"}`,
+    providerApprovalId: "prov-1",
+    workspaceId,
+    sessionId: "session-1",
+    parentMessageId: "message-1",
+    toolUseId: "tool-use-1",
+    toolName: "Bash",
+    actionKind: "execute",
+    toolInput: { command: "echo hi" },
+    status: "pending",
+    resolutionKind: null,
+    autoApprovedByRuleId: null,
+    requestedAt: "2026-08-14T10:00:00.000Z",
+    resolvedAt: null,
+  };
+}
 
 // The shell touches the approvals + workspaces surfaces at mount (notifier,
 // titlebar presence) — give it a quiet fake client instead of the network.
 function makeFakeVynelClient(
   workspaces: (typeof DEMO_WORKSPACE)[] = [],
+  pendingApprovals: ReturnType<typeof makePendingApproval>[] = [],
+  workspaceGroups: DemoGroup[] = [],
 ): VynelClient {
   const noConversation = async () => ({
     rootSessionId: null,
@@ -30,10 +56,13 @@ function makeFakeVynelClient(
     // The activity feed opens one long-lived SSE request at mount — park it
     // forever (no frames, no reconnect churn) so shell tests stay quiet.
     GET: () => new Promise(() => {}),
-    approvals: { listPending: async () => [] },
+    approvals: { listPending: async () => pendingApprovals },
     // The ask notifier polls alongside approvals from the shell.
     asks: { listPending: async () => [] },
-    workspaces: { list: async () => workspaces },
+    workspaces: {
+      list: async () => workspaces,
+      listGroups: async () => workspaceGroups,
+    },
     channelsUser: { list: async () => [] },
     // The shell reads the tasks list for the title-bar badge.
     tasksUser: { list: async () => [] },
@@ -84,7 +113,11 @@ async function mountShell(
   // its initial navigation. Cold-start tests mirror that ordering exactly:
   // stamp the URL, mount, no push (jsdom shares one window.history, so an
   // unawaited push would race the router's own initial navigation).
-  { settleRouterBeforeMount = true } = {},
+  {
+    settleRouterBeforeMount = true,
+    pendingApprovals = [] as ReturnType<typeof makePendingApproval>[],
+    workspaceGroups = [] as DemoGroup[],
+  } = {},
 ) {
   window.history.replaceState(null, "", initialPath);
   const router = createAppRouter();
@@ -106,7 +139,13 @@ async function mountShell(
           },
         ],
       ],
-      provide: { [vynelClientKey as symbol]: makeFakeVynelClient(workspaces) },
+      provide: {
+        [vynelClientKey as symbol]: makeFakeVynelClient(
+          workspaces,
+          pendingApprovals,
+          workspaceGroups,
+        ),
+      },
     },
   });
   await router.isReady();
@@ -373,5 +412,158 @@ describe("app shell", () => {
 
     expect(stripTabNames(wrapper)).toEqual(["Global"]);
     expect(router.currentRoute.value.name).toBe("chat");
+  });
+
+  // ── The tabs/menu navigation modes (workspace redesign Arc 2a): one tab
+  // state, two presentations. Menu mode collapses the strip and roots the
+  // sidebar at the workspace tree; drilling opens the scope's section menu. ──
+
+  it("switching to menu mode hides the strip and shows the workspace tree", async () => {
+    const { wrapper } = await mountShell("/", [DEMO_WORKSPACE]);
+
+    await wrapper.find('[title="Menu navigation"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0);
+    const treeLabels = wrapper
+      .findAll("nav ul button .truncate")
+      .map((node) => node.text());
+    expect(treeLabels).toContain("Global");
+    expect(treeLabels).toContain("Marketing");
+    // The pick persists like the theme does.
+    expect(localStorage.getItem("vynel.nav-mode")).toBe("menu");
+  });
+
+  it("tree drill opens the scope's menu with a back row; back returns to the tree", async () => {
+    const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE]);
+
+    await wrapper.find('[title="Menu navigation"]').trigger("click");
+    await flushPromises();
+
+    await wrapper
+      .find('[aria-label="Open the Marketing menu"]')
+      .trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    // Drilled: the room's section menu, led by the trio, with the back row.
+    expect(router.currentRoute.value.name).toBe("workspace");
+    expect(
+      menuItems(wrapper)
+        .slice(0, 3)
+        .map((button) => button.text()),
+    ).toEqual(["Home", "Chat", "Sessions"]);
+    const back = wrapper
+      .findAll("button")
+      .find((button) => button.text() === "Workspaces");
+    expect(back).toBeTruthy();
+
+    await back!.trigger("click");
+    await flushPromises();
+
+    // Back at the tree, the active room still marked.
+    const activeRow = wrapper.find('nav ul button[aria-current="page"]');
+    expect(activeRow.text()).toContain("Marketing");
+  });
+
+  it("flipping back to tabs keeps the tree-opened room's tab and place", async () => {
+    const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE]);
+
+    await wrapper.find('[title="Menu navigation"]').trigger("click");
+    await flushPromises();
+    const marketingRow = wrapper
+      .findAll("nav ul button")
+      .find((button) => button.text().includes("Marketing"));
+    await marketingRow!.trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    await wrapper.find('[title="Tabs navigation"]').trigger("click");
+    await flushPromises();
+
+    // The room opened from the tree IS a strip tab — one state, two views.
+    expect(stripTabNames(wrapper)).toEqual(["Global", "Marketing"]);
+    expect(
+      wrapper.find('[role="tab"][aria-selected="true"] .truncate').text(),
+    ).toBe("Marketing");
+    expect(router.currentRoute.value.name).toBe("workspace");
+  });
+
+  it("pending approvals light the needs-input dot on their scope only", async () => {
+    const { wrapper } = await mountShell("/", [DEMO_WORKSPACE], {
+      pendingApprovals: [
+        makePendingApproval("ws-marketing"),
+        makePendingApproval(null),
+      ],
+    });
+
+    // Tabs mode: only the Global tab exists on the strip at boot — the
+    // null-scoped approval lights ITS dot (the room's tab isn't open yet).
+    expect(
+      wrapper.find('[aria-label="Global is waiting on you"]').exists(),
+    ).toBe(true);
+    expect(
+      wrapper.find('[aria-label="Marketing is waiting on you"]').exists(),
+    ).toBe(false);
+
+    await wrapper.find('[title="Menu navigation"]').trigger("click");
+    await flushPromises();
+
+    // The tree shows the same presence: room dot + the Global row's dot.
+    expect(
+      wrapper.find('[aria-label="Marketing is waiting on you"]').exists(),
+    ).toBe(true);
+    expect(wrapper.find('[aria-label="Waiting on you"]').exists()).toBe(true);
+  });
+
+  it("folders group their member workspaces in the tree", async () => {
+    const grouped = { ...DEMO_WORKSPACE, groupId: "grp-clients" };
+    const rootWorkspace = {
+      ...DEMO_WORKSPACE,
+      id: "ws-blog",
+      name: "Blog",
+      groupId: null,
+    };
+    const { wrapper } = await mountShell("/", [grouped, rootWorkspace], {
+      workspaceGroups: [{ id: "grp-clients", name: "Clients" }],
+    });
+
+    await wrapper.find('[title="Menu navigation"]').trigger("click");
+    await flushPromises();
+
+    // The folder header renders with its member count; the member row sits
+    // under it while the ungrouped row stays at the root.
+    const folderHeader = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Clients"));
+    expect(folderHeader).toBeTruthy();
+    expect(folderHeader!.text()).toContain("1");
+    // The tree rows (not the title-bar nav): member + root workspace both render.
+    const rowLabels = wrapper
+      .findAll("nav ul button .truncate")
+      .map((node) => node.text());
+    expect(rowLabels).toContain("Marketing");
+    expect(rowLabels).toContain("Blog");
+  });
+
+  it("selecting a tree row switches scope and stays on the tree", async () => {
+    const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE]);
+
+    await wrapper.find('[title="Menu navigation"]').trigger("click");
+    await flushPromises();
+
+    const marketingRow = wrapper
+      .findAll("nav ul button")
+      .find((button) => button.text().includes("Marketing"));
+    await marketingRow!.trigger("click");
+    await vi.dynamicImportSettled();
+    await flushPromises();
+
+    expect(router.currentRoute.value.name).toBe("workspace");
+    // Still the tree (select is not drill) — Global row remains visible.
+    const treeLabels = wrapper
+      .findAll("nav ul button .truncate")
+      .map((node) => node.text());
+    expect(treeLabels).toContain("Global");
   });
 });

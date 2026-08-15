@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { withTestDatabase } from '@vynel/testing'
 import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
 import { desktopFeatureDescriptor } from '@vynel/desktop-control'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
+import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 
 const context: SessionToolContext = {
   db: {} as unknown,
@@ -22,10 +24,13 @@ function fakeDescriptor(overrides: Partial<McpFeatureDescriptor> = {}): McpFeatu
 }
 
 describe('composeSessionMcpServers', () => {
-  it('collects each descriptor into mcpServers + an allow pattern per server', () => {
+  it('collects each descriptor into mcpServers — with NO allow patterns emitted', () => {
+    // REGRESSION PIN (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED): the composer used to
+    // mint `mcp__<server>__*` allowedTools wildcards, auto-approving whole
+    // servers upstream of canUseTool. Registration alone offers the tools.
     const composed = composeSessionMcpServers([fakeDescriptor()], context)
     expect(composed.mcpServers).toHaveProperty('vynel')
-    expect(composed.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+    expect('allowedMcpToolPatterns' in composed).toBe(false)
   })
 
   it('skips a descriptor whose build() returns null or isApplicable is false', () => {
@@ -33,7 +38,6 @@ describe('composeSessionMcpServers', () => {
     const notApplicable = fakeDescriptor({ serverName: 'b', isApplicable: () => false })
     const composed = composeSessionMcpServers([nullBuild, notApplicable], context)
     expect(Object.keys(composed.mcpServers)).toEqual([])
-    expect(composed.allowedMcpToolPatterns).toEqual([])
   })
 
   it('denies a capability-gated tool only when its capability is absent', () => {
@@ -162,7 +166,6 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
   it('excludes the whole feature when no reader was wired at boot', () => {
     const composed = composeSessionMcpServers([desktopFeatureDescriptor], context)
     expect(composed.mcpServers).not.toHaveProperty('desktop')
-    expect(composed.allowedMcpToolPatterns).toEqual([])
     expect(composed.askModeApprovalToolNames).toEqual([])
     expect(composed.systemPromptAppend).toBe('')
   })
@@ -174,7 +177,6 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
       enableDesktopActions: false,
     })
     expect(composed.mcpServers).toHaveProperty('desktop')
-    expect(composed.allowedMcpToolPatterns).toContain('mcp__desktop__*')
     // The declaration is unconditional (descriptor contract) — the tier is
     // additive, so declaring an unregistered tool is harmless.
     // test: correct expectation — plan-level approval (Kafi 2026-08-11): the
@@ -201,5 +203,158 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
     expect(composed.askModeApprovalToolNames).toEqual(['mcp__desktop__propose_desktop_plan'])
     expect(composed.systemPromptAppend).toContain('act_on_app')
     expect(composed.systemPromptAppend).toContain('propose_desktop_plan')
+  })
+
+  describe('tier filtering (featureGatedTools)', () => {
+    const tierGated = fakeDescriptor({
+      featureGatedTools: {
+        ssh: ['mcp__vynel__run_ssh_command'],
+        apps: ['mcp__vynel__list_apps', 'mcp__vynel__start_app'],
+      },
+      contributePrompt: () => 'TIER_PROMPT',
+    })
+
+    it('denies the tools of feature keys the entitlement lacks', () => {
+      const composed = composeSessionMcpServers([tierGated], context, {
+        enabledFeatureKeys: new Set(['apps']),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual(['mcp__vynel__run_ssh_command'])
+      // Partially denied → the prompt survives (some tools remain live).
+      expect(composed.systemPromptAppend).toBe('TIER_PROMPT')
+    })
+
+    it('FAIL-OPEN: no live entitlement (option absent) means no tier denials at all', () => {
+      // The featureGate posture: hub not configured / signed out / offline
+      // past grace = permissive. Capabilities differ deliberately.
+      const composed = composeSessionMcpServers([tierGated], context)
+      expect(composed.deniedMcpToolPatterns).toEqual([])
+    })
+
+    it('drops the prompt of a descriptor gated ONLY by tier when every key is denied (the ssh shape)', () => {
+      const composed = composeSessionMcpServers([tierGated], context, {
+        enabledFeatureKeys: new Set(['channels']),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual([
+        'mcp__vynel__run_ssh_command',
+        'mcp__vynel__list_apps',
+        'mcp__vynel__start_app',
+      ])
+      expect(composed.systemPromptAppend).toBe('')
+      // The server still registers — the deny list is what strips the tools.
+      expect(composed.mcpServers).toHaveProperty('vynel')
+    })
+
+    it('keeps the prompt when a fully tier-denied descriptor also has capability gates', () => {
+      // The vynel shape: its prompt sections are capability-owned (tasks,
+      // plans, journal…) and stay valid even when every TIER key is denied.
+      const both = fakeDescriptor({
+        featureGatedTools: { apps: ['mcp__vynel__list_apps'] },
+        capabilityGatedTools: { tasks: ['mcp__vynel__list_tasks'] },
+        contributePrompt: () => 'CAPABILITY_PROMPT',
+      })
+      const composed = composeSessionMcpServers([both], context, {
+        enabledCapabilityIds: new Set(['tasks']),
+        enabledFeatureKeys: new Set(['channels']),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual(['mcp__vynel__list_apps'])
+      expect(composed.systemPromptAppend).toBe('CAPABILITY_PROMPT')
+    })
+
+    it('applies admin overrides: disable, surface-exclude, and AUTHORITATIVE cardClass', () => {
+      const descriptor = fakeDescriptor({
+        askModeApprovalToolNames: ['mcp__vynel__delete_agent'],
+      })
+      const policies = new Map([
+        [
+          'mcp__vynel__list_tasks',
+          {
+            toolName: 'mcp__vynel__list_tasks',
+            serverName: 'vynel',
+            enabled: false,
+            surfaces: ['workspace-interactive' as const],
+            cardClass: 'never' as const,
+            hasOverride: true,
+          },
+        ],
+        [
+          'mcp__vynel__send_message',
+          {
+            toolName: 'mcp__vynel__send_message',
+            serverName: 'vynel',
+            enabled: true,
+            surfaces: ['global-interactive' as const], // NOT this turn's surface
+            cardClass: 'always' as const, // promoted to every-mode carding
+            hasOverride: true,
+          },
+        ],
+        [
+          'mcp__vynel__delete_agent',
+          {
+            toolName: 'mcp__vynel__delete_agent',
+            serverName: 'vynel',
+            enabled: true,
+            surfaces: ['workspace-interactive' as const],
+            cardClass: 'never' as const, // demoted OUT of the curated ask tier
+            hasOverride: true,
+          },
+        ],
+        [
+          'mcp__gmail__send_email',
+          {
+            toolName: 'mcp__gmail__send_email',
+            serverName: 'gmail', // NOT registered this turn → inert
+            enabled: false,
+            surfaces: [],
+            cardClass: 'never' as const,
+            hasOverride: true,
+          },
+        ],
+      ])
+      const composed = composeSessionMcpServers([descriptor], context, {
+        toolPolicies: policies,
+        surfaceKind: 'workspace-interactive',
+      })
+      expect(composed.deniedMcpToolPatterns).toContain('mcp__vynel__list_tasks')
+      expect(composed.deniedMcpToolPatterns).toContain('mcp__vynel__send_message')
+      expect(composed.deniedMcpToolPatterns).not.toContain('mcp__gmail__send_email')
+      expect(composed.mutatingToolNames).toContain('mcp__vynel__send_message')
+      // The demote stripped the curated ask-tier membership.
+      expect(composed.askModeApprovalToolNames).not.toContain('mcp__vynel__delete_agent')
+    })
+
+    it('an alwaysOn core feature is never tier-denied', () => {
+      const core = fakeDescriptor({
+        alwaysOn: true,
+        featureGatedTools: { ssh: ['mcp__vynel__run_ssh_command'] },
+      })
+      const composed = composeSessionMcpServers([core], context, {
+        enabledFeatureKeys: new Set<string>(),
+      })
+      expect(composed.deniedMcpToolPatterns).toEqual([])
+    })
+  })
+
+  // Default policies from the REAL catalog + resolver, no admin overrides —
+  // the layer the pure-Map tests above bypass. This is the pin that catches
+  // "a turn site attaches a server the catalog's surfaces don't grant".
+  describe('real default policies per surface', () => {
+    it("leaves ask_user UN-denied on 'global-channel' (the bounded channel ask)", async () => {
+      await withTestDatabase(async (db) => {
+        const askDescriptor = fakeDescriptor({ serverName: 'vynel-ask' })
+        const policies = resolveSessionToolPolicies(db, { userId: 'user-1' })
+        const composed = composeSessionMcpServers([askDescriptor], context, {
+          toolPolicies: policies,
+          surfaceKind: 'global-channel',
+        })
+        expect(composed.deniedMcpToolPatterns).not.toContain('mcp__vynel-ask__ask_user')
+        // Control: a surface the ask does NOT ride denies it — proves this
+        // pin actually exercises the surface check.
+        const offSurface = composeSessionMcpServers([askDescriptor], context, {
+          toolPolicies: policies,
+          surfaceKind: 'schedule',
+        })
+        expect(offSurface.deniedMcpToolPatterns).toContain('mcp__vynel-ask__ask_user')
+      })
+    })
   })
 })

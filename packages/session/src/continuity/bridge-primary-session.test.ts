@@ -72,6 +72,11 @@ function seedPrimary(
   })
 }
 
+// A carry that clears the fidelity floor — the labelled hand-off shape a real
+// distill produces (fixtures shorter than the floor now read as degenerate).
+const USABLE_CARRY =
+  'GOAL: ship the launcher. DONE: test environment green end-to-end. NEXT: continue the migration rehearsal. FACTS: codename BLUEHERON.'
+
 describe('bridgePrimarySession', () => {
   it('distills, starts a fresh seeded session, repoints the primary, and emits session.swapped', async () => {
     await withTestDatabase(async (db) => {
@@ -79,7 +84,7 @@ describe('bridgePrimarySession', () => {
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const primary = seedPrimary(db, user.id, workspace.id, 'sdk-old')
 
-      const summarizeSession = vi.fn().mockResolvedValue('GOAL: ship. NEXT: continue.')
+      const summarizeSession = vi.fn().mockResolvedValue(USABLE_CARRY)
       const startSeededSession = vi.fn().mockResolvedValue('sdk-new')
 
       const result = await bridgePrimarySession(
@@ -91,13 +96,13 @@ describe('bridgePrimarySession', () => {
       expect(result).toEqual({
         fromSdkSessionId: 'sdk-old',
         toSdkSessionId: 'sdk-new',
-        summary: 'GOAL: ship. NEXT: continue.',
+        summary: USABLE_CARRY,
       })
       // The provider summarized the OLD session; the fresh session was seeded
       // with the carry.
       expect(summarizeSession).toHaveBeenCalledWith('sdk-old')
       // The superseded id rides along so the chat side can stamp the chain link.
-      expect(startSeededSession).toHaveBeenCalledWith('GOAL: ship. NEXT: continue.', 'sdk-old')
+      expect(startSeededSession).toHaveBeenCalledWith(USABLE_CARRY, 'sdk-old')
 
       // Primary repointed to the fresh session; the superseded one recorded.
       const reloaded = findPrimarySessionById(db, primary.id)
@@ -140,7 +145,7 @@ describe('bridgePrimarySession', () => {
         db,
         { primarySessionId: voice.id, userId: user.id },
         {
-          summarizeSession: vi.fn().mockResolvedValue('GOAL: keep listening.'),
+          summarizeSession: vi.fn().mockResolvedValue(USABLE_CARRY),
           startSeededSession: vi.fn().mockResolvedValue('sdk-voice-new'),
         },
       )
@@ -169,6 +174,29 @@ describe('bridgePrimarySession', () => {
 
       expect(result).toBeNull()
       // No fresh session started; primary unchanged; nothing emitted.
+      expect(startSeededSession).not.toHaveBeenCalled()
+      expect(findPrimarySessionById(db, primary.id)?.currentSdkSessionId).toBe('sdk-old')
+      expect(listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)).toHaveLength(0)
+    })
+  })
+
+  it('aborts on a degenerate carry — a stub under the fidelity floor never swaps', async () => {
+    await withTestDatabase(async (db) => {
+      // The tester-DB incident shape (2026-08-14): the distill "succeeded"
+      // with an 18-char stub; the empty-only check let it seed the swap and
+      // the thread's conversational state was lost. The floor aborts instead.
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const primary = seedPrimary(db, user.id, workspace.id, 'sdk-old')
+
+      const startSeededSession = vi.fn()
+      const result = await bridgePrimarySession(
+        db,
+        { primarySessionId: primary.id, userId: user.id },
+        { summarizeSession: vi.fn().mockResolvedValue('GOAL: ClawLauncher'), startSeededSession },
+      )
+
+      expect(result).toBeNull()
       expect(startSeededSession).not.toHaveBeenCalled()
       expect(findPrimarySessionById(db, primary.id)?.currentSdkSessionId).toBe('sdk-old')
       expect(listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)).toHaveLength(0)
@@ -251,7 +279,7 @@ describe('bridgePrimarySessionIfUnderPressure (the turn-boundary trigger)', () =
           measurement: { usedTokens: 190_000, contextWindow: 200_000 },
         },
         {
-          summarizeSession: vi.fn().mockResolvedValue('GOAL: x. NEXT: y.'),
+          summarizeSession: vi.fn().mockResolvedValue(USABLE_CARRY),
           startSeededSession: vi.fn().mockResolvedValue('sdk-new'),
         },
       )

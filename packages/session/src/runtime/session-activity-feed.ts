@@ -16,6 +16,7 @@ import type {
   SessionActivityEvent,
   SessionTurnActivity,
   SessionTurnOrigin,
+  SessionTurnOutcome,
   SessionTurnStep,
 } from '@vynel/contracts/chat/session-activity'
 import { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
@@ -64,7 +65,7 @@ export interface SessionTurnRecorder {
     partialSessionId: string | null
   }) => void
   turnResolved: (turnId: string, sessionId: string) => void
-  turnEnded: (turnId: string) => void
+  turnEnded: (turnId: string, outcome: SessionTurnOutcome) => void
 }
 
 export interface SessionTurnActivityHandle {
@@ -74,8 +75,10 @@ export interface SessionTurnActivityHandle {
   /** Publish one narration step (tool start/settle, approval bell) on the feed.
    *  Transient — stamped with this turn's id, never stored, no-op after end(). */
   publishTurnStep: (step: SessionTurnStep) => void
-  /** The turn finished (drained, threw, or the client disconnected). Idempotent. */
-  end: () => void
+  /** The turn finished (drained, threw, or the client disconnected).
+   *  Idempotent — the FIRST call's outcome wins, so a producer may end
+   *  'failed' in its catch and let the finally's clean end() no-op. */
+  end: (outcome?: SessionTurnOutcome) => void
 }
 
 export class SessionActivityFeed {
@@ -146,7 +149,7 @@ export class SessionActivityFeed {
         this.lastStepByTurnId.set(turn.turnId, frame)
         this.broadcaster.publish(activityChannelKey(input.userId), frame)
       },
-      end: () => {
+      end: (outcome: SessionTurnOutcome = 'ended') => {
         if (ended) return
         ended = true
         turns.delete(turn.turnId)
@@ -156,8 +159,9 @@ export class SessionActivityFeed {
           kind: 'turn-ended',
           turnId: turn.turnId,
           sessionId: turn.sessionId,
+          outcome,
         })
-        this.deps.turnRecorder?.turnEnded(turn.turnId)
+        this.deps.turnRecorder?.turnEnded(turn.turnId, outcome)
       },
     }
   }

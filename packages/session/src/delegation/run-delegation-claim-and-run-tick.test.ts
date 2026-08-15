@@ -297,7 +297,6 @@ describe('runDelegationClaimAndRunTick', () => {
       const globalSessionId = await setUpGlobalRoot(db, user.id)
       const attachment = {
         mcpServers: { vynel: { name: 'vynel' } },
-        allowedMcpToolPatterns: ['mcp__vynel__*'],
         deniedMcpToolPatterns: [],
         mutatingToolNames: [],
         askModeApprovalToolNames: [],
@@ -341,7 +340,7 @@ describe('runDelegationClaimAndRunTick', () => {
         jobId: expect.any(String),
       })
       expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
-      expect(workspaceInputs[0]!.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      expect('allowedMcpToolPatterns' in workspaceInputs[0]!).toBe(false)
       await drainPendingReportDeliveries(db)
 
       // WORKSPACE-GROUNDED session target (Slice ④b): composed with the spawned
@@ -1724,6 +1723,79 @@ describe('runDelegationClaimAndRunTick — turn steps reach the activity feed', 
           (frame) => frame['kind'] === 'turn-tool-started' && frame['toolName'] === 'Read',
         ),
       ).toBe(true)
+    })
+  })
+})
+
+// The middle hop of "report to whoever asked": the route records the asking
+// workspace on the job, and the tick must hand it to the MCP composer as the
+// requester-override — otherwise the routed turn resolves its requester from
+// its own grounding and a workspace-requested result lands in the global
+// conversation instead. Previously untested on the task path.
+describe('runDelegationClaimAndRunTick — requester threading', () => {
+  const attachment = {
+    mcpServers: { vynel: { name: 'vynel' } },
+    deniedMcpToolPatterns: [],
+    mutatingToolNames: [],
+    askModeApprovalToolNames: [],
+    systemPromptAppend: '',
+  }
+
+  it("threads the job's requesterWorkspaceId onto the routed turn", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const asking = insertWorkspace(db, makeWorkspace(user.id))
+      const target = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const composeWorkspaceMcpServers = vi.fn(() => attachment)
+
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: target.id,
+        workspacePath: target.path,
+        workspaceName: target.name,
+        taskText: 'audit the invoices',
+        requesterWorkspaceId: asking.id,
+      })
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'ws-req', resultText: 'ok' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        composeWorkspaceMcpServers,
+      })
+
+      expect(composeWorkspaceMcpServers).toHaveBeenCalledWith(
+        expect.objectContaining({ requesterWorkspaceId: asking.id }),
+      )
+    })
+  })
+
+  it('omits it for a global-root send — no requester recorded is how the chain terminates', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const target = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const composeWorkspaceMcpServers = vi.fn(() => attachment)
+
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: target.id,
+        workspacePath: target.path,
+        workspaceName: target.name,
+        taskText: 'audit the invoices',
+      })
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'ws-noreq', resultText: 'ok' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        composeWorkspaceMcpServers,
+      })
+
+      expect(composeWorkspaceMcpServers).toHaveBeenCalledWith(
+        expect.not.objectContaining({ requesterWorkspaceId: expect.anything() }),
+      )
     })
   })
 })

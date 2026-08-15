@@ -354,6 +354,9 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.0
         version: 1.2.3
+      '@phosphor-icons/vue':
+        specifier: ^2.2.1
+        version: 2.2.1(vue@3.5.39(typescript@5.9.3))
       '@tanstack/vue-query':
         specifier: ^5.59.0
         version: 5.101.2(vue@3.5.39(typescript@5.9.3))
@@ -378,9 +381,6 @@ importers:
       codemirror:
         specifier: ^6.0.1
         version: 6.0.2
-      lucide-vue-next:
-        specifier: ^0.468.0
-        version: 0.468.0(vue@3.5.39(typescript@5.9.3))
       pinia:
         specifier: ^3.0.0
         version: 3.0.4(typescript@5.9.3)(vue@3.5.39(typescript@5.9.3))
@@ -428,8 +428,8 @@ importers:
   apps/mcp:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.3.213
-        version: 0.3.213(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
+        specifier: ^0.3.231
+        version: 0.3.231(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
@@ -483,6 +483,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      node-api-headers:
+        specifier: ^1.9.0
+        version: 1.9.0
       tsx:
         specifier: ^4.19.0
         version: 4.22.4
@@ -657,9 +660,15 @@ importers:
 
   packages/capabilities:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.2(@electric-sql/pglite@0.2.17)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(postgres@3.4.9)
     devDependencies:
       '@vynel/testing':
         specifier: workspace:*
@@ -1248,8 +1257,8 @@ importers:
   packages/providers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.3.213
-        version: 0.3.213(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
+        specifier: ^0.3.231
+        version: 0.3.231(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
       '@vynel/errors':
         specifier: workspace:*
         version: link:../errors
@@ -1628,6 +1637,9 @@ importers:
       '@vynel/db':
         specifier: workspace:*
         version: link:../packages/db
+      '@vynel/desktop-control':
+        specifier: workspace:*
+        version: link:../packages/desktop-control
       '@vynel/local-api':
         specifier: workspace:*
         version: link:../apps/local-api
@@ -1680,13 +1692,29 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.231':
+    resolution: {integrity: sha512-xT7LBojUmP8uwfZvGLzgKHGhiBlAmVujhUXcy6AIXePgvfZ6dd8TeAdckJz1VZDt/zFDy6t2MwZKCzb7gVRVCA==}
+    cpu: [arm64]
+    os: [darwin]
+
   '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.213':
     resolution: {integrity: sha512-1OCmyv5xyCX0htKRgVBGhuc9q4DyYNRRHuisYrDGpHz4ooN7Zh0VUjl4pbLhtPf5MhHHQS8PQjOwUiHbOhVYbg==}
     cpu: [x64]
     os: [darwin]
 
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.231':
+    resolution: {integrity: sha512-3SaelJtW3kKqaI2fjqFVmE9csPCBjMngndUwwWhxzlsP1v6fyglgX39FhpoImcLilaEwEVZjhuwIOerknpnOsg==}
+    cpu: [x64]
+    os: [darwin]
+
   '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.213':
     resolution: {integrity: sha512-9kEIEC3gPVKWCLTyBXc8ttG3VYDMnnYeL8Z44BOJO7fphwpA0r95PS6HeRV9Ii7FtbK+hP3x6ConwcsdHZGfmw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.231':
+    resolution: {integrity: sha512-ikM2Ftmu8rqrjzrPLFQOwlQuYpWzacSfovYER2sKr/YODcy+e3UR7SfcGeUWj6aGSex3avf7TIWoR32c2I254A==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
@@ -1697,8 +1725,20 @@ packages:
     os: [linux]
     libc: [glibc]
 
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.231':
+    resolution: {integrity: sha512-4/HBqCPwJakmWalyT0/xjMyHz5o7cK52qeESMDIq27Zo46JGgjM/A4Ddzh5wqT9L80Y9gP6ezSU3c/cg7KQWAw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.213':
     resolution: {integrity: sha512-nqyzhmoQTCffQ0olE/fli55JlM8re/xic9GI46Vl62mnN5NYpg7WQFt1UNsJ/FrOsWZD6ma9o9FwB1CYmo3V8A==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.231':
+    resolution: {integrity: sha512-IgK4qgxcRNEPIoIzSvaQolcOxBcJI5+UMaa02qf8ngQP4ROxNF4Kuh04c5SGbuY7CTH8bew6R7dbOBImmrOM4Q==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
@@ -1709,8 +1749,19 @@ packages:
     os: [linux]
     libc: [glibc]
 
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.231':
+    resolution: {integrity: sha512-f9AEC6YcyFVwzsyYC3fGItNS3w09et6pgChw3Yf7lch/YNc2NZXA4VQEBP+htzkGJHdnpVr6oEF06i2oFk8xqQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
   '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.213':
     resolution: {integrity: sha512-o/cHUUhS0drzZGk0Nb17E4kUUDrRC5dR9LVg7DMpYtPH/0tyyI8Pa1o2JfmV4B/kqUW1P4kMAIiKSBf2R8+PEQ==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.231':
+    resolution: {integrity: sha512-PT5KQYDbcC6h6x0taD1gyax7EHYh5FYoYgIdmp0wJg1U5oiY9G8RiFuO/Q96uY9ie4JLkWgoVoPzU9hztWJSfw==}
     cpu: [arm64]
     os: [win32]
 
@@ -1719,8 +1770,21 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.231':
+    resolution: {integrity: sha512-cN7inf1VipIun3PpDkhhZ6lAF+2wmFzMuC+x5dVy64l1YyuXRHDcugQ4nUODZsdmeOd6VJSBjT+aV+RP3dRBVg==}
+    cpu: [x64]
+    os: [win32]
+
   '@anthropic-ai/claude-agent-sdk@0.3.213':
     resolution: {integrity: sha512-iwIhbKYZg+b/WJQb5ZdL/hX4Y8qoudW4rbFfaQtsX2F2NQaSinoZ2cmh8J6XxNbYDkL7vQN6MLfUWaNsAmYjlw==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@anthropic-ai/sdk': '>=0.93.0'
+      '@modelcontextprotocol/sdk': ^1.29.0
+      zod: ^4.0.0
+
+  '@anthropic-ai/claude-agent-sdk@0.3.231':
+    resolution: {integrity: sha512-tazYrn34/p9tNpzt2v5lkjQMO4ypnm52tQFFd2rUIFsmDfeaRZZp7laO6WeujFCenxAoDotFPlzr+y6uxwb0Ew==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@anthropic-ai/sdk': '>=0.93.0'
@@ -3163,6 +3227,12 @@ packages:
 
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
+
+  '@phosphor-icons/vue@2.2.1':
+    resolution: {integrity: sha512-3RNg1utc2Z5RwPKWFkW3eXI/0BfQAwXgtFxPUPeSzi55jGYUq16b+UqcgbKLazWFlwg5R92OCLKjDiJjeiJcnA==}
+    engines: {node: '>=14'}
+    peerDependencies:
+      vue: '>=3.2.39'
 
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
@@ -5419,6 +5489,9 @@ packages:
   node-addon-api@5.0.0:
     resolution: {integrity: sha512-CvkDw2OEnme7ybCykJpVcKH+uAOLV2qLqiyla128dN9TkEWfrYmxG6C2boDe5KcNQqZF3orkqzGgOMvZ/JNekA==}
 
+  node-api-headers@1.9.0:
+    resolution: {integrity: sha512-2oNILP4jXwRB4ywnYKjVk1YyJ96n2D4EOVJO6S3oYZ5PtbJrw3Yt9TpAuX3nBLMuzn74rnfGQrv13pS9vC+YiA==}
+
   node-cpal@0.1.1:
     resolution: {integrity: sha512-ENjac9jLGqp6hb+zn2ioPEhKCN+ctDlP4omP52cNukFrerD2olXUQjfLFoRXeZRVuBrT44chDgcPEpnckQmUVw==}
     engines: {node: '>=14.0.0'}
@@ -6602,25 +6675,49 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.213':
     optional: true
 
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.231':
+    optional: true
+
   '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.213':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.231':
     optional: true
 
   '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.213':
     optional: true
 
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.231':
+    optional: true
+
   '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.213':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.231':
     optional: true
 
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.213':
     optional: true
 
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.231':
+    optional: true
+
   '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.213':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.231':
     optional: true
 
   '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.213':
     optional: true
 
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.231':
+    optional: true
+
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.213':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.231':
     optional: true
 
   '@anthropic-ai/claude-agent-sdk@0.3.213(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)':
@@ -6637,6 +6734,21 @@ snapshots:
       '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.213
       '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.213
       '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.213
+
+  '@anthropic-ai/claude-agent-sdk@0.3.231(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)':
+    dependencies:
+      '@anthropic-ai/sdk': 0.109.0(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
+      zod: 3.25.76
+    optionalDependencies:
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.231
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.231
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.231
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.231
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.231
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.231
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.231
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.231
 
   '@anthropic-ai/sdk@0.109.0(zod@3.25.76)':
     dependencies:
@@ -7829,6 +7941,10 @@ snapshots:
       - encoding
 
   '@one-ini/wasm@0.1.1': {}
+
+  '@phosphor-icons/vue@2.2.1(vue@3.5.39(typescript@5.9.3))':
+    dependencies:
+      vue: 3.5.39(typescript@5.9.3)
 
   '@pinojs/redact@0.4.0': {}
 
@@ -9981,6 +10097,8 @@ snapshots:
 
   node-addon-api@5.0.0:
     optional: true
+
+  node-api-headers@1.9.0: {}
 
   node-cpal@0.1.1: {}
 

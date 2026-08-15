@@ -38,6 +38,11 @@ export {
   type UpdateCatalogItemMetadataPatch,
 } from './admin-catalog.js'
 export {
+  listToolPolicyDefaults,
+  setToolPolicyDefault,
+  resolveToolPolicyMapExport,
+} from './tool-policy-defaults.js'
+export {
   checkUpstreamAgainstPin,
   type UpstreamWatchManifest,
   type UpstreamWatchReport,

@@ -1,10 +1,11 @@
-// The `chat` HTTP surface — 12 routes mounted under
+// The `chat` HTTP surface — 13 routes mounted under
 // `/workspaces/:workspaceId/chat/…` from `apps/local-api/src/app.ts` (D21).
 //
 // Workspace-scoped (use `...workspaceScoped`):
 //   GET    /sessions                            -> listChatSessionsForWorkspace [x-mcp]
 //   GET    /sessions/search                     -> searchChatSessions           [x-mcp]
 //   GET    /continuing                          -> findPrimaryConversation
+//   GET    /continuing/transcript               -> resolvePrimaryTranscript (chain-spanning)
 //   POST   /sessions/turn                       -> streamChatTurn (SSE stream)
 //
 // Session-scoped (use `...sessionScoped` — triple-check user+workspace+session):
@@ -44,7 +45,12 @@ import {
   readAttachedImageBytes,
 } from '@vynel/chat'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
+import { findChatSessionById } from '@vynel/chat/repositories'
+import { resolvePrimaryTranscript } from '@vynel/session/runtime'
+import {
+  enrichChatSessionDetail,
+  enrichPrimaryTranscript,
+} from '../../sessions/enrich-chat-session-detail.js'
 import type { AiAgentProviderId } from '@vynel/providers'
 import { streamChatTurn } from '../../streams/chat-turn.js'
 import { fetchSessionContextReport } from './fetch-context-report.js'
@@ -56,6 +62,7 @@ import {
   ListChatSessionsResponseSchema,
   SearchChatSessionsResponseSchema,
   ContinuingConversationResponseSchema,
+  ContinuingTranscriptResponseSchema,
   ChatSessionDetailResponseSchema,
   SessionContextReportResponseSchema,
   ChatSessionSchema,
@@ -148,7 +155,8 @@ export const chatApp = factory
       'x-sdk-name': 'chat.getContinuing',
       responses: {
         200: {
-          description: '{ rootSessionId, currentSdkSessionId } — nulls when no root exists yet.',
+          description:
+            '{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no root exists yet.',
           content: {
             'application/json': { schema: resolver(ContinuingConversationResponseSchema) },
           },
@@ -163,11 +171,57 @@ export const chatApp = factory
         userId: c.var.user.id,
         workspaceId: c.var.workspace!.id,
       })
+      // Talking counts as working: a room that chatted without ever planning
+      // steps still has to read as running, and the step dock alone would call
+      // it idle. The clock lives on the session the thread is currently on.
+      const currentSessionId = primary?.currentSdkSessionId ?? null
+      const current =
+        currentSessionId === null ? null : findChatSessionById(c.var.db, currentSessionId)
       return c.json({
         rootSessionId: primary?.id ?? null,
-        currentSdkSessionId: primary?.currentSdkSessionId ?? null,
+        currentSdkSessionId: currentSessionId,
+        lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
       })
     },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /continuing/transcript — the continuing thread's full history,
+  // spanning the primary's swap-segment chain. The main chat reads THIS
+  // (never the single-segment session detail): a context-pressure swap
+  // repoints the primary at a fresh, empty segment — the single-segment
+  // read then showed an empty conversation while every pre-swap row sat
+  // one chain-link away (the tester-DB incident, 2026-08-14).
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/continuing/transcript',
+    describeRoute({
+      tags: ['chat'],
+      summary:
+        "Get the workspace's continuing conversation history (messages across swap segments).",
+      'x-sdk-name': 'chat.getContinuingTranscript',
+      responses: {
+        200: {
+          description:
+            '{ session, messages, toolCallsByMessageId } — the current segment (null until the first continue-mode turn) + the chain-spanning message history.',
+          content: {
+            'application/json': { schema: resolver(ContinuingTranscriptResponseSchema) },
+          },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+      // No x-mcp — the agent reads sessions through the cross-session tools.
+    }),
+    ...workspaceScoped,
+    async (c) =>
+      c.json(
+        enrichPrimaryTranscript(
+          c.var.db,
+          resolvePrimaryTranscript(c.var.db, {
+            userId: c.var.user.id,
+            workspaceId: c.var.workspace!.id,
+          }),
+        ),
+      ),
   )
   // ──────────────────────────────────────────────────────────────────
   // POST /sessions/turn — start (or resume) a chat turn; SSE stream

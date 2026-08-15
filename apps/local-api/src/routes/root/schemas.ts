@@ -24,6 +24,7 @@ import {
 export {
   ContinuingConversationResponseSchema,
   ChatSessionDetailResponseSchema,
+  ContinuingTranscriptResponseSchema,
 } from '../chat/schemas.js'
 
 // Derived from @vynel/session's canonical SESSION_MODES so the route enum can't
@@ -68,27 +69,6 @@ export const RootSessionParamSchema = z.object({
 
 const TranscriptMessageRoleSchema = z.enum(['user', 'assistant', 'system'])
 const TranscriptSourceKindSchema = z.enum(['user', 'global-root', 'workspace-manager', 'agent'])
-
-// The lean, attributed transcript DTO (`resolveGlobalRootTranscript`) — not the
-// raw chat_messages row.
-export const GlobalRootTranscriptMessageSchema = z.object({
-  id: z.string(),
-  role: TranscriptMessageRoleSchema,
-  body: z.string(),
-  sourceKind: TranscriptSourceKindSchema.nullable(),
-  sourceLabel: z.string().nullable(),
-  partialSessionId: z.string().nullable(),
-  threadId: z.string().nullable(),
-  originChannel: z.enum(['voice', 'telegram', 'discord', 'zoom']).nullable(),
-  attachedImagesMetadata: z
-    .array(z.object({ filename: z.string(), mimeType: z.string(), sizeBytes: z.number() }))
-    .nullable(),
-})
-
-export const GlobalRootTranscriptResponseSchema = z.object({
-  messages: z.array(GlobalRootTranscriptMessageSchema),
-  toolCallsByMessageId: z.record(z.array(ChatToolCallSchema)),
-})
 
 const DelegationJobStatusSchema = z.enum(['pending', 'claimed', 'completed', 'failed'])
 const TraceEntryScopeSchema = z.enum(['global', 'workspace'])

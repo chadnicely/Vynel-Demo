@@ -135,7 +135,6 @@ describe('GET /chat/sessions/:sessionId/context', () => {
             vynel: expect.anything(),
             'vynel-notebook': expect.anything(),
           }),
-          allowedMcpToolPatterns: ['mcp__vynel__*', 'mcp__vynel-notebook__*'],
         }),
       )
     })

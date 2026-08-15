@@ -13,7 +13,7 @@ import type { NormalizedSessionEvent } from '../../shared/normalized-session-eve
 import type { PendingApprovalRegistry } from '../../shared/pending-approval-registry.js'
 import type { ClaudePermissionMode } from '../../shared/start-chat-session-input.js'
 import type { SyntheticEventQueue } from '../session/synthetic-event-queue.js'
-import { TOOLS_ALWAYS_REQUIRING_APPROVAL } from './tools-always-requiring-approval.js'
+import { decideCanUseTool } from './tool-approval-policy.js'
 
 export type BuildClaudeCanUseToolCallbackInput = {
   pendingApprovalRegistry: PendingApprovalRegistry
@@ -23,9 +23,18 @@ export type BuildClaudeCanUseToolCallbackInput = {
   sessionIdHolder: { current: string | null }
   syntheticEventQueue: SyntheticEventQueue<NormalizedSessionEvent>
   /** Per-turn feature mutating tools, UNIONED with the static floor — a tool
-   *  in either set cards under `bypass-with-behavior-gate` (the unattended
-   *  default). The user's `bypass` and `auto` never consult these here. */
+   *  in either set cards in every carding mode. The user's `bypass` and
+   *  `auto` never consult these here. */
   alwaysRequireApprovalToolNames?: ReadonlySet<string>
+  /** The ask-mode destructive tier. Now consulted HERE too: with no MCP
+   *  wildcards left in `allowedTools`, every MCP call reaches this callback,
+   *  and the map — not an upstream pre-approval — decides which of them card
+   *  in ask mode. See `tool-approval-policy.ts`. */
+  askModeApprovalToolNames?: ReadonlySet<string>
+  /** The turn's composed in-process server names — scopes the ask-mode
+   *  map-allow to Vynel's own servers; an external (settings-loaded) server's
+   *  tools keep carding in ask, as they did before the re-plumb. */
+  composedMcpServerNames?: ReadonlySet<string>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,33 +47,16 @@ export function buildClaudeCanUseToolCallback(
   return async (toolName, toolInput, callOptions) => {
     const sessionId = input.sessionIdHolder.current ?? 'pending-session'
 
-    // The user's bypass means bypass, and AUTO MEANS NO APPROVAL — neither
-    // raises a card for any tool.
-    //
-    // Auto previously stopped short of this: the classifier's UNCERTAIN cases
-    // escalated to `canUseTool` and carded here "exactly like ask" (Chad's
-    // 2026-07-30 directive). Kafi overruled that 2026-08-11 after a live smoke
-    // where it hung a turn: a desktop tool parked on an escalated approval the
-    // user was never expecting — in a mode whose whole promise is "don't ask
-    // me" — with no card on screen to answer. The rule is now flat: ask asks,
-    // auto and bypass do not.
-    //
-    // CONSEQUENCE, deliberately accepted: at this layer auto is now equivalent
-    // to bypass. The classifier still shapes what the SDK runs, but it can no
-    // longer stop a call by escalating — auto is the user's standing consent,
-    // the same reading that already lets `request_desktop_access` grant
-    // uncarded there.
-    if (input.permissionMode === 'bypass' || input.permissionMode === 'auto') {
-      return { behavior: 'allow', updatedInput: toolInput }
-    }
-
-    // Behavior gate for the UNATTENDED default: a tool in NEITHER the static
-    // floor nor the per-turn feature mutating set runs without a card; floor
-    // tools card and park for the user (surface-up approval).
+    // The whole mode × tool matrix lives in `tool-approval-policy.ts` (the
+    // dated directives ride there). 'allow' resolves immediately — including
+    // every MCP tool outside the declared card tiers, the map-check that
+    // replaced the `mcp__<server>__*` wildcard pre-approval.
     if (
-      input.permissionMode === 'bypass-with-behavior-gate' &&
-      !TOOLS_ALWAYS_REQUIRING_APPROVAL.has(toolName) &&
-      !(input.alwaysRequireApprovalToolNames?.has(toolName) ?? false)
+      decideCanUseTool(toolName, input.permissionMode, {
+        alwaysRequireApprovalToolNames: input.alwaysRequireApprovalToolNames,
+        askModeApprovalToolNames: input.askModeApprovalToolNames,
+        composedMcpServerNames: input.composedMcpServerNames,
+      }) === 'allow'
     ) {
       return { behavior: 'allow', updatedInput: toolInput }
     }

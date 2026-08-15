@@ -5,6 +5,10 @@
 //                  turn lifecycle (started / updated / ended) plus per-tool
 //                  steps and approval bells (the contracts vocabulary).
 //
+//   GET /messages -> who spoke to whom inside a short window: the edges the
+//                  node screen draws a line for. Polled, not pushed — the line
+//                  is short-lived, so a refresh cadence is enough.
+//
 //   GET /running -> the DURABLE in-flight turns (persona-sessions): the
 //                  refresh/restart rebuild seed — what `session_turns` says is
 //                  running right now, before the stream's live frames arrive.
@@ -17,16 +21,25 @@
 // no x-mcp.
 
 import { streamSSE } from 'hono/streaming'
-import { resolver } from 'hono-openapi/zod'
+import { resolver, validator } from 'hono-openapi/zod'
 import { listRunningSessionTurnsForUser } from '@vynel/session/runtime'
+import { listRecentMessageEdges } from '@vynel/orchestration'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
-import { RunningSessionTurnsResponseSchema } from './schemas.js'
+import {
+  RecentMessageEdgesQuerySchema,
+  RecentMessageEdgesResponseSchema,
+  RunningSessionTurnsResponseSchema,
+} from './schemas.js'
 
 // Keeps proxies from reaping the idle connection between turns; the client's
 // frame parser skips `:` comment lines, so pings never reach the event fold.
 const HEARTBEAT_MS = 25_000
+
+// The arcs fade about a minute after the message; asking for a little more than
+// that means a client that just opened still sees one already in flight.
+const DEFAULT_MESSAGE_WINDOW_SECONDS = 120
 
 export const activityApp = factory
   .createApp()
@@ -99,5 +112,33 @@ export const activityApp = factory
         startedAt: turn.startedAt.toISOString(),
       }))
       return c.json({ turns })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /messages — who spoke to whom, just now (the node screen's arcs).
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/messages',
+    describeRoute({
+      tags: ['activity'],
+      summary: 'Recent session-to-session messages — the arcs the node screen draws.',
+      'x-sdk-name': 'activity.listRecentMessages',
+      responses: {
+        200: {
+          description: 'Every message sent inside the window, newest first.',
+          content: {
+            'application/json': { schema: resolver(RecentMessageEdgesResponseSchema) },
+          },
+        },
+      },
+      // No x-mcp — a UI drawing helper, not an agent tool surface.
+    }),
+    ...userScoped,
+    validator('query', RecentMessageEdgesQuerySchema),
+    (c) => {
+      const { withinSeconds } = c.req.valid('query')
+      const since = new Date(Date.now() - (withinSeconds ?? DEFAULT_MESSAGE_WINDOW_SECONDS) * 1000)
+      const edges = listRecentMessageEdges(c.var.db, { userId: c.var.user.id, since })
+      return c.json({ edges })
     },
   )

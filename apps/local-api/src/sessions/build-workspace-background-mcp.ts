@@ -17,12 +17,15 @@
 // keeps the static build graph light until a background turn actually needs it.
 
 import type { Database } from '@vynel/db'
-import { listEnabledCapabilities } from '@vynel/capabilities'
+import { defaultEnabledCapabilityIds, listEnabledCapabilities } from '@vynel/capabilities'
 import type { HonoAppRequestFn } from '../factory.js'
 import {
   composeSessionMcpServers,
   type ComposedSessionMcpServers,
 } from './compose-session-mcp-servers.js'
+import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from './session-tool-catalog.js'
+import type { SessionSurfaceKind } from '@vynel/capabilities'
 import { wrapAppRequestWithDelegationThread } from './delegation-thread-header.js'
 import { wrapAppRequestWithDelegationJob } from './delegation-job-header.js'
 import {
@@ -35,23 +38,37 @@ export type WorkspaceBackgroundMcpComposer = (input: {
   db: Database
   userId: string
   workspaceId: string
+  /** WHICH consumer kind this turn is — the admin's per-tool surface
+   *  overrides key on it. The one builder serves schedule fires AND
+   *  workspace-grounded spawned-session turns, so the caller names it. */
+  surfaceKind: SessionSurfaceKind
 }) => ComposedSessionMcpServers
 
 export async function buildWorkspaceBackgroundMcpComposer(
   appRequest: HonoAppRequestFn,
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys,
 ): Promise<WorkspaceBackgroundMcpComposer> {
   const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  return ({ db, userId, workspaceId }) =>
-    composeSessionMcpServers(
+  return ({ db, userId, workspaceId, surfaceKind }) => {
+    // Read the entitlement PER COMPOSITION — the hub session refreshes while
+    // the process runs; absent reader/entitlement = fail-open (no tier filter).
+    const enabledFeatureKeys = readEnabledFeatureKeys?.()
+    // Admin overrides, resolved per turn (no desktop on this composer).
+    const toolPolicies = resolveSessionToolPolicies(db, { userId })
+    return composeSessionMcpServers(
       [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
       { db, userId, workspaceId, appRequest },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
         ),
+        ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+        toolPolicies,
+        surfaceKind,
       },
     )
+  }
 }
 
 // The DELEGATED-turn composer (2026-07-21, Chad's re-decision of the ④b pin):
@@ -137,6 +154,7 @@ export type DelegatedTurnMcpComposer = (input: {
 export async function buildDelegatedTurnMcpComposer(
   appRequest: HonoAppRequestFn,
   desktop: DelegatedTurnDesktopContext = {},
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys,
 ): Promise<DelegatedTurnMcpComposer> {
   const { vynelWorkspaceInteractiveDescriptor, vynelRoutingDescriptor } = await import(
     '@vynel/mcp'
@@ -242,11 +260,35 @@ export async function buildDelegatedTurnMcpComposer(
     // A GLOBAL-grounded spawned session inherits the GLOBAL ROOT's toolset —
     // its parent's — because it has no workspace to inherit one from. It used to
     // get nothing at all, so it could not even report back. `send_message` rides
-    // both surfaces, so reporting works either way.
+    // both surfaces, so reporting works either way. Capabilities: no workspace
+    // row to read, so the catalog defaults apply — the same fallback both
+    // global-root turn sites use (omitting the set entirely read as "all
+    // disabled" and silently denied the notebook's gated tools here).
+    const enabledFeatureKeys = readEnabledFeatureKeys?.()
+    // WHICH consumer kind this delegated turn is, derived from the inputs the
+    // tick already passes — the admin's surface overrides key on it.
+    const surfaceKind: SessionSurfaceKind =
+      workspaceId === null
+        ? 'delegated-global'
+        : target === 'workspace-root'
+          ? 'delegated-workspace'
+          : target === 'agent-session'
+            ? 'agent'
+            : 'spawned'
+    const toolPolicies = resolveSessionToolPolicies(db, {
+      userId,
+      desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
+    })
     if (workspaceId === null) {
       return composeSessionMcpServers(
         [vynelRoutingDescriptor, notebookFeatureDescriptor, ...desktopDescriptors],
         { db, userId, appRequest: jobAwareAppRequest, ...desktopContext },
+        {
+          enabledCapabilityIds: defaultEnabledCapabilityIds(),
+          ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+          toolPolicies,
+          surfaceKind,
+        },
       )
     }
     return composeSessionMcpServers(
@@ -256,6 +298,9 @@ export async function buildDelegatedTurnMcpComposer(
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
         ),
+        ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+        toolPolicies,
+        surfaceKind,
       },
     )
   }

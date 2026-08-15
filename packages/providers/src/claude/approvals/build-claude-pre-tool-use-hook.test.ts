@@ -135,10 +135,10 @@ describe('buildClaudePreToolUseHook', () => {
   })
 
   describe('the ask-mode destructive tier (askModeApprovalToolNames)', () => {
-    // The tier cards ONLY in ask mode: the 'ask' decision pulls the call out of
-    // the MCP wildcard's allowedTools pre-approval and into canUseTool (live
-    // smoke 2026-07-26). Auto/bypass run the same tools uncarded — Chad's
-    // approval stance.
+    // The tier cards only under ask/plan-only. The hook's 'ask' decision is
+    // the SUBAGENT rescue (a skip-mode subagent bypasses canUseTool; live
+    // smoke 2026-06-21); the main session reaches the callback's policy map
+    // directly. Auto/bypass run the same tools uncarded — Chad's stance.
     const askSet = new Set(['mcp__vynel__remove_knowledge_source'])
 
     it("ask mode: forces 'ask' for a destructive-tier tool (main AND subagent)", async () => {
@@ -167,7 +167,7 @@ describe('buildClaudePreToolUseHook', () => {
       expect(result).toEqual({})
     })
 
-    it("plan-only mode: forces 'ask' for a destructive-tier tool (defensive — the wildcard still rides allowedTools)", async () => {
+    it("plan-only mode: forces 'ask' for a destructive-tier tool (defensive — nothing routes plan-only today)", async () => {
       const planHook = buildClaudePreToolUseHook('plan-only', undefined, askSet)
       const result = await planHook(
         makePreToolInput('mcp__vynel__remove_knowledge_source'),

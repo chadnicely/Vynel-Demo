@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Component } from "vue";
-import { ChevronRight, ChevronsUpDown } from "lucide-vue-next";
-import { workspaceMonogram } from "@vynel/ui";
+import { PhArrowLeft as ArrowLeft, PhCaretRight as ChevronRight } from "@phosphor-icons/vue";
+import SidebarAccountRow from "./SidebarAccountRow.vue";
 
 export interface SidebarItem {
   id: string;
@@ -11,6 +11,9 @@ export interface SidebarItem {
   // header; ungrouped items are plain rows (Home / Chat / Sessions,
   // Marketplace, the system rows).
   group?: { id: string; label: string };
+  /** How much is in this section (the canvas's right-hand number). Absent =
+   *  no honest count for it — the row shows nothing rather than a bare 0. */
+  count?: number;
 }
 
 // The left navigation: plain rows at the top, then the feature sections
@@ -22,11 +25,25 @@ const props = defineProps<{
   sectionItems: SidebarItem[];
   activeSectionId: string | null;
   accountName: string;
+  /** Menu mode renders the sidebar as a drill-in — the back row returns to
+   *  the workspace tree. Absent in tabs mode. */
+  showBack?: boolean;
+  /** The drilled workspace's header card (the canvas's app card): identity
+   *  chip + name + the live status line. Null = the plain section title. */
+  workspaceCard?: {
+    name: string;
+    initials: string;
+    statusLine: string;
+    /** The status vocabulary key — colours the meta line (one status one
+     *  colour). */
+    statusTone: "running" | "needs_input" | "problem" | "completed" | "not_running";
+  } | null;
 }>();
 
 const emit = defineEmits<{
   "select-section": [id: string];
   "open-account": [];
+  back: [];
 }>();
 
 type SidebarBlock =
@@ -98,24 +115,64 @@ watch(
 </script>
 
 <template>
-  <nav class="flex h-full flex-col bg-panel">
+  <!-- Same column as the tree: `--color-bg` ground, container padded
+       `16.8px 8.4px` so every child sits inset on the hairline. -->
+  <nav class="flex h-full flex-col bg-[var(--color-bg)] px-[8.4px] py-[16.8px] text-[12.5px]">
     <div
       v-if="props.sectionItems.length > 0"
       class="min-h-0 flex-1 overflow-y-auto"
     >
-      <p class="px-4 pb-0.5 pt-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-3">
+      <button
+        v-if="props.showBack"
+        type="button"
+        class="flex w-full cursor-default items-center gap-[9px] py-[5px] pl-[11.2px] pr-[11.2px] text-left text-[11.5px] text-[var(--color-neutral-500)] transition hover:text-[var(--color-accent)]"
+        @click="emit('back')"
+      >
+        <ArrowLeft :size="12" class="shrink-0" />
+        <span class="truncate">Workspaces</span>
+      </button>
+      <!-- The drilled app's header card (the canvas): identity chip + name +
+           the live status line, on the accent ground. -->
+      <div
+        v-if="props.workspaceCard"
+        class="mb-[8.4px] mt-0.5 flex items-center gap-[9px] rounded-sm bg-[var(--color-accent-900)] px-[11.2px] py-[7px]"
+        data-testid="sidebar-workspace-card"
+      >
+        <span
+          class="grid size-5 shrink-0 place-items-center rounded-[4px] bg-[var(--color-accent-600)] text-[9px] text-[var(--color-accent-100)]"
+        >
+          {{ props.workspaceCard.initials }}
+        </span>
+        <span class="flex min-w-0 flex-col gap-px">
+          <span class="truncate text-[13px] leading-tight text-[var(--color-accent-100)]">
+            {{ props.workspaceCard.name }}
+          </span>
+          <span
+            class="workspace-card-meta truncate text-[10.5px] leading-snug"
+            :data-status="props.workspaceCard.statusTone"
+          >
+            {{ props.workspaceCard.statusLine }}
+          </span>
+        </span>
+      </div>
+      <p
+        v-else
+        class="pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]"
+      >
         {{ props.sectionTitle }}
       </p>
       <template v-for="(block, index) in blocks" :key="index">
+        <!-- Grouping stays (Chad, 2026-08-04) — the headers just wear the
+             canvas's quiet eyebrow: 10px, 0.12em, weight 400. -->
         <button
           v-if="block.kind === 'group'"
           type="button"
-          class="group-header flex w-full cursor-default items-center gap-1 px-3 pb-0 pt-1 text-left text-2xs font-semibold uppercase tracking-wider text-ink-3 transition hover:text-ink-2"
+          class="group-header flex w-full cursor-default items-center gap-2 pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-left text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)] transition hover:text-[var(--color-accent)]"
           :aria-expanded="!collapsedGroupIds.has(block.id)"
           @click="toggleGroup(block.id)"
         >
           <ChevronRight
-            :size="11"
+            :size="10"
             class="shrink-0 transition-transform"
             :class="collapsedGroupIds.has(block.id) ? '' : 'rotate-90'"
           />
@@ -123,22 +180,39 @@ watch(
         </button>
         <ul
           v-if="block.kind === 'plain' || !collapsedGroupIds.has(block.id)"
-          class="grid gap-px px-2"
+          class="grid list-none gap-[2px] pl-0"
         >
           <li v-for="item in block.items" :key="item.id">
+            <!-- The canvas's section row: 35px tall, pad `8px 11.2px`, 12px
+                 gap, 12.5px ink, 13px icon, accent-900 ground when active. -->
             <button
               type="button"
-              class="flex w-full cursor-default items-center gap-2.5 rounded-sm px-2.5 py-[3px] text-left text-sm transition"
+              class="flex w-full cursor-default items-center gap-3 rounded-sm px-[11.2px] py-2 text-left text-[12.5px] transition"
               :class="
                 item.id === props.activeSectionId
-                  ? 'bg-row-active font-medium text-ink-1'
-                  : 'text-ink-2 hover:bg-row-hover hover:text-ink-1'
+                  ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
+                  : 'text-[var(--color-neutral-400)] hover:bg-row-hover hover:text-ink-1'
               "
               :aria-current="item.id === props.activeSectionId ? 'page' : undefined"
               @click="emit('select-section', item.id)"
             >
-              <component :is="item.icon" v-if="item.icon" class="size-4 shrink-0 text-ink-3" />
+              <component
+                :is="item.icon"
+                v-if="item.icon"
+                :size="13"
+                class="shrink-0"
+                :class="
+                  item.id === props.activeSectionId
+                    ? 'text-[var(--color-accent)]'
+                    : 'text-[var(--color-neutral-600)]'
+                "
+              />
               <span class="flex-1 truncate">{{ item.label }}</span>
+              <span
+                v-if="item.count !== undefined"
+                class="shrink-0 text-[10.5px] tabular-nums text-[var(--color-neutral-600)]"
+                >{{ item.count }}</span
+              >
             </button>
           </li>
         </ul>
@@ -146,17 +220,28 @@ watch(
     </div>
     <div v-else class="flex-1" />
 
-    <!-- Account (pinned foot) -->
-    <button
-      type="button"
-      class="flex w-full cursor-default items-center gap-2.5 border-t border-hair px-3 py-2.5 text-left transition hover:bg-row-hover"
-      @click="emit('open-account')"
-    >
-      <span class="grid size-6 shrink-0 place-items-center rounded-full bg-claude-soft text-2xs font-semibold text-claude">
-        {{ workspaceMonogram(props.accountName) }}
-      </span>
-      <span class="min-w-0 flex-1 truncate text-sm text-ink-1">{{ props.accountName }}</span>
-      <ChevronsUpDown :size="14" class="shrink-0 text-ink-3" />
-    </button>
+    <SidebarAccountRow
+      :account-name="props.accountName"
+      @open-account="emit('open-account')"
+    />
   </nav>
 </template>
+
+<style scoped>
+/* One status, one colour — the header card's meta line. */
+.workspace-card-meta {
+  color: var(--color-accent-300);
+}
+
+.workspace-card-meta[data-status="needs_input"] {
+  color: var(--needs-input);
+}
+
+.workspace-card-meta[data-status="problem"] {
+  color: var(--danger);
+}
+
+.workspace-card-meta[data-status="completed"] {
+  color: var(--ok);
+}
+</style>

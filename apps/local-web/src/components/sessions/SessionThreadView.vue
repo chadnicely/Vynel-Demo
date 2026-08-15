@@ -90,10 +90,14 @@ const detailQuery = useSessionDetail(
   { kind: "global" },
   () => activeSessionId.value,
   () => (hasBackgroundTurnHere.value && !turn.isStreaming.value ? 4000 : false),
+  // A followed chain reads the chain-spanning transcript (a compaction swap
+  // must never empty this view); a deliberately-opened earlier part stays
+  // put on its own segment.
+  () => (props.followChain ? "chain" : "segment"),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(
-  () => detailQuery.data.value?.session.model ?? null,
+  () => detailQuery.data.value?.session?.model ?? null,
 );
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
@@ -134,7 +138,7 @@ watch(
 // global-grounded one the user scope) — mirroring where the server grounds
 // this thread's @ dispatches.
 const composerScope = computed(() => {
-  const workspaceId = detailQuery.data.value?.session.workspaceId ?? null;
+  const workspaceId = detailQuery.data.value?.session?.workspaceId ?? null;
   return workspaceId === null
     ? ({ kind: "global" } as const)
     : ({ kind: "workspace", workspaceId } as const);
@@ -228,6 +232,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         {{ turn.errorText.value }}
       </p>
       <AppComposer
+        :session-id="activeSessionId"
         :streaming="turn.isStreaming.value"
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"
@@ -288,11 +293,11 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
   color: var(--danger);
 }
 
+/* A canvas chat surface like Workspace/Global — full-bleed on the thread's
+   own gutter. */
 .composer-dock {
-  padding: 0 24px 18px;
-  max-width: 968px;
+  padding: 10px var(--thread-gutter, 22.4px) 12px;
   width: 100%;
-  margin: 0 auto;
 }
 
 .queued-note {

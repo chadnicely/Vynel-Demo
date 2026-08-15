@@ -55,6 +55,7 @@ export {
 export { splitSourceLabel } from "./lib/source-label.js";
 export {
   formatMessageTimestamp,
+  formatMessageTime,
   formatElapsed,
 } from "./lib/format-timestamp.js";
 export { workspaceMonogram } from "./lib/workspace-monogram.js";

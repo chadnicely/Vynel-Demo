@@ -27,6 +27,7 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { HonoAppRequestFn } from '../factory.js'
 import { buildWorkspaceBackgroundMcpComposer } from './build-workspace-background-mcp.js'
+import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
 
 export async function buildScheduleFireDeps(
   db: Database,
@@ -34,10 +35,18 @@ export async function buildScheduleFireDeps(
   logger: Logger,
   activityFeed: SessionActivityFeed,
   turnEvents?: TurnEventBroadcaster,
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys,
 ): Promise<FireScheduleDeps> {
   // The shared background composer closes over the in-process `appRequest`
   // dispatcher so each fired turn re-enters the api (dynamic MCP import inside).
-  const composeWorkspaceMcpServers = await buildWorkspaceBackgroundMcpComposer(appRequest)
+  const backgroundComposer = await buildWorkspaceBackgroundMcpComposer(
+    appRequest,
+    readEnabledFeatureKeys,
+  )
+  // The schedules contract stays surface-agnostic; a fired turn IS the
+  // 'schedule' consumer kind, stamped here at the binding.
+  const composeWorkspaceMcpServers: FireScheduleDeps['composeWorkspaceMcpServers'] = (input) =>
+    backgroundComposer({ ...input, surfaceKind: 'schedule' })
 
   // A fired turn mutates a workspace thread the user may have OPEN, with no
   // other signal — announce it on the session-activity feed like every other
@@ -54,11 +63,15 @@ export async function buildScheduleFireDeps(
       ...(input.resumeSessionId !== undefined ? { sessionId: input.resumeSessionId } : {}),
       origin: 'schedule',
     })
+    // 'failed' on a terminal session-errored or a thrown drain — the status
+    // vocabulary's problem signal (a schedule fire has no other witness).
+    let turnOutcome: 'ended' | 'failed' = 'ended'
     try {
       for await (const event of startChatTurn(turnDb, input, {
         ...turnDeps,
         ...(turnEvents !== undefined ? { turnEvents } : {}),
       })) {
+        if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
         if (event.kind === 'session-created') activity.sessionResolved(event.session.id)
         else if (event.kind === 'user-message-persisted')
           activity.sessionResolved(event.message.sessionId)
@@ -66,8 +79,11 @@ export async function buildScheduleFireDeps(
         publishTurnActivityStep(activity, event)
         yield event
       }
+    } catch (err) {
+      turnOutcome = 'failed'
+      throw err
     } finally {
-      activity.end()
+      activity.end(turnOutcome)
     }
   }
 

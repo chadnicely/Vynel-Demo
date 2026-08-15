@@ -382,6 +382,9 @@ export async function runReportDeliveryJob(
         `${queueLabel}: completed — the requester absorbed it in its own turn`,
       )
     } else if (outcome.status === 'timed-out') {
+      // The workspace status vocabulary's problem signal — first call wins,
+      // the finally's clean end() no-ops after this.
+      activityHandle?.end('failed')
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
       deps.logger.warn(
         { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
@@ -390,6 +393,7 @@ export async function runReportDeliveryJob(
     } else {
       await approvalHandler?.abandonParked()
       const reason = cancelHandle?.isCancelRequested() ? 'stopped by the user' : outcome.message
+      if (!cancelHandle?.isCancelRequested()) activityHandle?.end('failed')
       // A transient notify-turn failure (provider down, rate limit) requeues —
       // the report body is the ONLY copy of the child's result; before this a
       // failed delivery row was permanently invisible (excluded from both the
@@ -404,6 +408,7 @@ export async function runReportDeliveryJob(
     }
     return true
   } catch (err) {
+    activityHandle?.end('failed')
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, `${queueLabel} job run threw unexpectedly`)

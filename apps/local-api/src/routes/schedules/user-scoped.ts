@@ -34,6 +34,7 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { buildScheduleFireDeps } from '../../sessions/build-schedule-fire-deps.js'
+import { buildEnabledFeatureKeysReader } from '../../sessions/enabled-feature-keys.js'
 import {
   createSchedule,
   listSchedulesForUser,
@@ -242,7 +243,14 @@ export const schedulesUserApp = factory
     async (c) => {
       const fireDeps =
         c.var.scheduleFireDeps ??
-        (await buildScheduleFireDeps(c.var.db, c.var.appRequest, c.var.logger, c.var.activityFeed))
+        (await buildScheduleFireDeps(
+          c.var.db,
+          c.var.appRequest,
+          c.var.logger,
+          c.var.activityFeed,
+          undefined,
+          buildEnabledFeatureKeysReader(c.var.hubSession),
+        ))
       const run = await manualFireSchedule(
         c.var.db,
         { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },

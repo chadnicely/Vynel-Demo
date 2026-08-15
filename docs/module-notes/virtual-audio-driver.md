@@ -403,6 +403,28 @@ The smoke also live-demoed follow-up #2's gap: the ends opened at 44100 Hz ×2 (
 (capture) and only passed because a tone is channel-symmetric — in-driver format tolerance is
 the next driver improve.
 
+## 2026-08-16 — arc closed, merged to main
+
+All three filed follow-ups are closed (endpoint naming · in-driver format tolerance · conductor
+`capturePid`), and `worktree-virtual-audio-driver` merged into `main` — 22 commits. The merge took
+one conflict, in `CHANGELOG.md`, where both sides had appended under `[Unreleased]`; resolving it
+also corrected this arc's own entries, which still told users the cable "isn't wired into calls yet"
+and awaited a VM pass. The three generated artifacts (`openapi.json`, `api.d.ts`, `api-tools.ts`)
+auto-merged textually — a known failure mode, since git will happily emit a file no generator would —
+so `pnpm api:generate` was re-run and reproduced them **byte-identical**, confirming the auto-merge
+rather than trusting it. 5/5 parity guards, 49/49 typecheck at the seam, 840 vitest green across
+`apps/voice` + `apps/local-api` + `packages/sdk`.
+
+**Open items now live in `.claude/docs/call-audio/followup.md`** — the as-built book's register for
+this unit, opened with the merge. It carries the six that outlived the arc, each with its
+establishment marker and a fix shape. The one that matters most: **the driver publishes a single
+cable pair**, so a second concurrent Windows call has no voice — stated goal #4 of this brief, and
+the requirement the free third-party stack can never meet. The software above it is already
+N-shaped; the INF is the whole constraint.
+
+What this note keeps recording, because it is narrative rather than a work item: the per-OS reality
+table, the P0 findings, the cross-OS naming contract, and the signing posture below.
+
 ## Signing: local now, attestation later (Chad 2026-08-14)
 
 Attestation (Partner Center + EV) is DEFERRED — it's the signature for public/community

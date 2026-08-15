@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { LibraryBig, LogOut, Users } from "lucide-vue-next";
+import { LibraryBig, LogOut, SlidersHorizontal, Users } from "lucide-vue-next";
 import NotAdminCard from "./components/NotAdminCard.vue";
 import { useAdminSession } from "./composables/use-admin-session.js";
 
@@ -34,6 +34,10 @@ function handleSignOut() {
         <RouterLink class="nav-link" :to="{ name: 'accounts' }">
           <Users :size="16" />
           <span>Accounts</span>
+        </RouterLink>
+        <RouterLink class="nav-link" :to="{ name: 'tool-policy' }">
+          <SlidersHorizontal :size="16" />
+          <span>Tool policy</span>
         </RouterLink>
       </nav>
     </aside>

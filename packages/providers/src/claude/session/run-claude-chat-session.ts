@@ -61,15 +61,16 @@ export async function* runClaudeChatSession(
   })
   const abortController = new AbortController()
 
-  // Per-turn feature mutating tools (e.g. desktop act_on_app) → carded EVEN under
-  // bypass, UNIONED with the static floor in BOTH the PreToolUse hook + the
-  // canUseTool callback. Convert once; pass to both so gate + backstop share it.
-  // ADDITIVE — omitting it never drops the static floor.
+  // Per-turn feature mutating tools (e.g. desktop act_on_app) → carded in every
+  // carding mode, UNIONED with the static floor in BOTH the PreToolUse hook +
+  // the canUseTool callback. Convert once; pass to both so gate + backstop
+  // share it. ADDITIVE — omitting it never drops the static floor.
   const alwaysRequireApprovalToolNames =
     input.alwaysRequireApprovalToolNames !== undefined ? new Set(input.alwaysRequireApprovalToolNames) : undefined
-  // Ask-mode-only destructive tier — consumed by the PreToolUse backstop alone.
-  // Deliberately NOT passed to `canUseTool`: in ask mode everything that reaches
-  // the callback cards anyway, and in bypass these tools must stay uncarded.
+  // Ask-mode-only destructive tier — consumed by the PreToolUse backstop AND
+  // `canUseTool`: with no MCP wildcards in `allowedTools`, every MCP call
+  // reaches the callback, and the policy map (not an upstream pre-approval)
+  // decides which card in ask mode (`tool-approval-policy.ts`).
   const askModeApprovalToolNames =
     input.askModeApprovalToolNames !== undefined ? new Set(input.askModeApprovalToolNames) : undefined
 
@@ -87,9 +88,6 @@ export async function* runClaudeChatSession(
       ? {
           mcpServers: input.mcpServers as Parameters<typeof buildClaudeSdkOptions>[0]['mcpServers'],
         }
-      : {}),
-    ...(input.allowedMcpToolPatterns !== undefined
-      ? { allowedMcpToolPatterns: input.allowedMcpToolPatterns }
       : {}),
     ...(input.systemPromptAppend !== undefined
       ? { systemPromptAppend: input.systemPromptAppend }
@@ -110,13 +108,27 @@ export async function* runClaudeChatSession(
       : {}),
   })
   sdkOptions.abortController = abortController
-  sdkOptions.canUseTool = buildClaudeCanUseToolCallback({
-    pendingApprovalRegistry,
-    permissionMode: input.permissionMode,
-    sessionIdHolder,
-    syntheticEventQueue,
-    ...(alwaysRequireApprovalToolNames !== undefined ? { alwaysRequireApprovalToolNames } : {}),
-  })
+  // In the user's `bypass` the callback is genuinely dead — the SDK's
+  // `bypassPermissions` auto-approves before consulting it, the hook stands
+  // down, and the policy would allow everything anyway. Not binding it keeps
+  // the SDK's shadowed-callback warning from firing on bypass turns; every
+  // other mode gates through it.
+  if (input.permissionMode !== 'bypass') {
+    // The composed server names scope the ask-mode map-allow: only Vynel's own
+    // registered servers inherit the old wildcard's blanket; an external
+    // settings-loaded server's tools keep carding, as they always did.
+    const composedMcpServerNames =
+      input.mcpServers !== undefined ? new Set(Object.keys(input.mcpServers)) : undefined
+    sdkOptions.canUseTool = buildClaudeCanUseToolCallback({
+      pendingApprovalRegistry,
+      permissionMode: input.permissionMode,
+      sessionIdHolder,
+      syntheticEventQueue,
+      ...(alwaysRequireApprovalToolNames !== undefined ? { alwaysRequireApprovalToolNames } : {}),
+      ...(askModeApprovalToolNames !== undefined ? { askModeApprovalToolNames } : {}),
+      ...(composedMcpServerNames !== undefined ? { composedMcpServerNames } : {}),
+    })
+  }
 
   const queryInstance = query({ prompt: imageHandling.modifiedPrompt, options: sdkOptions })
 

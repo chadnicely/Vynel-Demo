@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ChevronRight } from "lucide-vue-next";
+import { PhCaretRight as ChevronRight } from "@phosphor-icons/vue";
 import { PresenceDot } from "@vynel/ui";
 import type {
   SessionsOverviewEntry,

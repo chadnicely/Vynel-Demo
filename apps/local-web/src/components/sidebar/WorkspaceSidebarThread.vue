@@ -69,10 +69,13 @@ const detailQuery = useSessionDetail(
   () => activeSessionId.value,
   () =>
     hasBackgroundTurnHere.value && !chatTurn.isStreaming.value ? 4000 : false,
+  // The sidebar thread IS the continuing conversation — read the
+  // chain-spanning transcript so a context swap never empties it.
+  () => "continuing",
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(
-  () => detailQuery.data.value?.session.model ?? null,
+  () => detailQuery.data.value?.session?.model ?? null,
 );
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
@@ -167,6 +170,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
         {{ chatTurn.errorText.value }}
       </p>
       <AppComposer
+        :session-id="activeSessionId"
         :streaming="chatTurn.isStreaming.value"
         :placeholder="`Message ${managerName}…`"
         :allow-attachments="false"
@@ -181,6 +185,10 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
 
 <style scoped>
 .workspace-sidebar-thread {
+  /* A narrow docked panel, not the canvas column: 22.4px would eat a 320px
+     width. Set HERE, on the common ancestor, so the thread, the composer and
+     the skeleton share one edge — a child can't reach its own siblings. */
+  --thread-gutter: 12px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -195,7 +203,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
   height: 100%;
 }
 .thread-skeleton-pad {
-  padding-left: 24px;
+  padding-left: var(--thread-gutter);
 }
 .state-note {
   margin: 24px;
@@ -206,7 +214,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
   color: var(--danger);
 }
 .composer-dock {
-  padding: 8px 12px 12px;
+  padding: 8px var(--thread-gutter) 12px;
   border-top: 1px solid var(--hair);
 }
 .queued-note,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Bot } from "lucide-vue-next";
+import { PhRobot as Bot } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useAgents } from "../../composables/agents/use-agents.js";
 import { useSetAgentEnabled } from "../../composables/agents/use-set-agent-enabled.js";

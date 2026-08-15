@@ -59,7 +59,9 @@ describe("WorkspaceCustomizeSection", () => {
     expect((inputs[0]!.element as HTMLInputElement).value).toBe("vynel");
     expect((inputs[1]!.element as HTMLInputElement).value).toBe("Sarah");
     // The menu editor lists every catalog section.
-    expect(wrapper.findAll(".entry-row").length).toBe(16);
+    // test: correct expectation — the catalog grew: 'tool-policy' joined the
+    // toolkit group (the admin tool matrix, 2026-08-14).
+    expect(wrapper.findAll(".entry-row").length).toBe(17);
   });
 
   it("saves persona edits through workspaces.update", async () => {

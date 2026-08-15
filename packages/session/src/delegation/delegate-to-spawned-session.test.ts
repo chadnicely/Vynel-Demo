@@ -120,7 +120,6 @@ describe('delegateToSpawnedSession', () => {
           providerId: 'claude',
           mcpAttachment: {
             mcpServers: { vynel: { name: 'vynel' } },
-            allowedMcpToolPatterns: ['mcp__vynel__*'],
             deniedMcpToolPatterns: [],
             mutatingToolNames: [],
             askModeApprovalToolNames: [],
@@ -131,7 +130,9 @@ describe('delegateToSpawnedSession', () => {
 
       const turnInput = startChatSessionInputs[0]!
       expect(turnInput.mcpServers).toEqual({ vynel: { name: 'vynel' } })
-      expect(turnInput.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      // No wildcard patterns ride to the provider — registration alone offers
+      // the tools; the canUseTool policy map gates each call (SHADOWED fix).
+      expect('allowedMcpToolPatterns' in turnInput).toBe(false)
       expect(turnInput.deniedToolNames).toEqual([])
       // Empty composer prompt → the routed steer alone, no trailing join.
       expect(turnInput.systemPromptAppend).toBe(ROUTED_TASK_INSTRUCTIONS)

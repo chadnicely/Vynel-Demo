@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vynel/db": "workspace:*"
+    "@vynel/contracts": "workspace:*",
+    "@vynel/db": "workspace:*",
+    "drizzle-orm": "^0.45.0"
   },
   "devDependencies": {
     "@vynel/testing": "workspace:*",

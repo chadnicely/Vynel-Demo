@@ -41,34 +41,40 @@ function mountStream(messageCount: number) {
 }
 
 describe("ThreadStream", () => {
-  it("renders every message when the history fits the window", () => {
+  // test: correct expectation (Arc 5b conversation cards) — an exchange (ask +
+  // reply) folds to ONE strip, so a folded card renders only its header row.
+  it("renders the newest exchange fully; a folded exchange renders one strip", () => {
     const wrapper = mountStream(3);
 
-    expect(wrapper.findAll(".message-row")).toHaveLength(3);
+    // Cards: [m0 ask + m1 reply] folded (one strip) · [m2 ask] open.
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
     expect(wrapper.find(".older-note").exists()).toBe(false);
   });
 
-  // TURN folding (Chad, 2026-08-09): the thread folds every turn to its strip
-  // except the latest; any turn toggles freely.
-  it("only the LATEST turn is expanded by default; older turns fold to strips", () => {
+  // Folding (Chad, 2026-08-09, re-grouped by the Arc 5b card): the thread
+  // folds every exchange to its strip except the latest; any card toggles.
+  it("only the LATEST exchange is expanded by default; older ones fold to strips", () => {
     const wrapper = mountStream(3);
     const rows = wrapper.findAll(".message-row");
-    // Folded rows: the strip (preview, no body). The latest: full body.
+    // Folded rows: the strip (preview + read-more, no body). The latest: full body.
     expect(rows[0]!.find(".turn-preview").exists()).toBe(true);
+    expect(rows[0]!.find(".read-more").exists()).toBe(true);
     expect(rows[0]!.find(".plain-body").exists()).toBe(false);
-    expect(rows[2]!.find(".turn-preview").exists()).toBe(false);
-    expect(rows[2]!.text()).toContain("message 2");
+    expect(rows[1]!.find(".turn-preview").exists()).toBe(false);
+    expect(rows[1]!.text()).toContain("message 2");
   });
 
-  it("the header chevron toggles any turn open and closed", async () => {
+  it("the header chevron toggles any exchange open and closed", async () => {
     const wrapper = mountStream(3);
     await wrapper
       .findAll(".message-row")[0]!
       .find(".collapse-toggle")
       .trigger("click");
+    // Open: the ask's body AND the reply row render.
     expect(
       wrapper.findAll(".message-row")[0]!.find(".plain-body").exists(),
     ).toBe(true);
+    expect(wrapper.findAll(".message-row")).toHaveLength(3);
     await wrapper
       .findAll(".message-row")[0]!
       .find(".collapse-toggle")
@@ -76,6 +82,7 @@ describe("ThreadStream", () => {
     expect(
       wrapper.findAll(".message-row")[0]!.find(".plain-body").exists(),
     ).toBe(false);
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
   });
 
   it("landing on an anchor inside a folded turn unfolds it first", async () => {
@@ -105,7 +112,9 @@ describe("ThreadStream", () => {
     const wrapper = mountStream(150);
 
     const rows = wrapper.findAll(".message-row");
-    expect(rows).toHaveLength(100);
+    // 100 windowed messages = 50 exchanges: 49 folded strips + the open
+    // latest card's 2 rows (Arc 5b conversation cards).
+    expect(rows).toHaveLength(51);
     // The newest message is the last row; the oldest 50 stay unrendered.
     expect(rows[rows.length - 1]!.text()).toContain("message 149");
     expect(rows[0]!.text()).toContain("message 50");
@@ -222,7 +231,10 @@ describe("ThreadStream", () => {
     expect(pointer.attributes("data-status")).toBe("completed");
     expect(pointer.text()).toContain("Overview of access levels");
     expect(pointer.text()).toContain("letterman");
-    expect(pointer.text()).toContain("done");
+    // test: correct expectation (2026-08-15) — the pointer wears the canvas's
+    // handed-off card, whose eyebrow is title-case and uppercased in CSS. Was
+    // the lowercase literal "done".
+    expect(pointer.text()).toContain("Done");
     await pointer.trigger("click");
     expect(wrapper.emitted("openPointer")).toEqual([
       [
@@ -330,6 +342,46 @@ describe("ThreadStream", () => {
     expect(wrapper.text()).toContain("streaming reply…");
   });
 
+  // The conversation cards (Arc 3 + 5b): ONE wrapper per exchange (ask +
+  // reply together) — folded past cards dim, the latest reads open.
+  it("wraps each exchange in a card — folded cards wear is-folded, the latest is-open", () => {
+    const wrapper = mountStream(3);
+    const cards = wrapper.findAll(".turn-card");
+    // [m0 ask + m1 reply] · [m2 ask] — the reply shares the ask's card.
+    expect(cards).toHaveLength(2);
+    expect(cards[0]!.classes()).toContain("is-folded");
+    expect(cards[1]!.classes()).toContain("is-open");
+  });
+
+  it("a streaming turn renders the live card with the ticking working pill", () => {
+    const activeTurn: ActiveTurnView = {
+      ...createActiveTurnView(),
+      status: "streaming",
+      startedAtMs: Date.now() - 95_000,
+      segments: [
+        { messageId: "live-1", text: "on it…", thinking: "", toolCalls: [] },
+      ],
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [],
+        toolCallsByMessageId: {},
+        activeTurn,
+        assistantName: "Ryan",
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const liveCard = wrapper.find(".turn-card.is-live");
+    expect(liveCard.exists()).toBe(true);
+    expect(liveCard.find(".live-spine").exists()).toBe(true);
+    const pill = liveCard.find(".working-pill");
+    expect(pill.exists()).toBe(true);
+    expect(pill.text()).toContain("Ryan working");
+    // 95s ago → "1m 35s" (formatElapsed's m/s shape; the mount tick is <1s).
+    expect(pill.text()).toMatch(/1m 3[56]s/);
+  });
+
   it("groups consecutive assistant rows under ONE author line — a reloaded turn reads like the live overlay", async () => {
     // One turn persists as several assistant rows (one per provider message).
     // Only the first of a run shows the header; a user row breaks the group.
@@ -346,19 +398,171 @@ describe("ThreadStream", () => {
       global: { plugins: [createPinia()] },
     });
 
-    // test: correct expectation (turn folding) — a folded turn renders only
-    // its header strip, so the continuations appear once the turn is opened.
+    // test: correct expectation (reply fold, 2026-08-15) — opening the CARD
+    // now shows the ask plus the reply's SUMMARY row; the continuation run is
+    // part of the real view and waits behind the reply caret. Was: one click
+    // revealed all six rows.
     const folded = wrapper.findAll(".message-row");
     expect(folded.map((row) => row.findAll(".row-header").length)).toEqual([
-      1, 1, 1, 1,
+      1, 1, 1,
     ]);
-    await folded[1]!.find(".collapse-toggle").trigger("click");
+    await folded[0]!.find(".collapse-toggle").trigger("click");
+
+    const summarised = wrapper.findAll(".message-row");
+    expect(summarised).toHaveLength(4);
+    await summarised[1]!.find(".reply-caret").trigger("click");
 
     const rows = wrapper.findAll(".message-row");
     const headerCounts = rows.map((row) => row.findAll(".row-header").length);
     // user · assistant(+header) · 2 continuations · user · assistant(+header)
     expect(headerCounts).toEqual([1, 1, 0, 0, 1, 1]);
     expect(rows[2]!.classes()).toContain("is-continuation");
+    // The reply's first row wears the canvas's divider inside the card.
+    expect(rows[1]!.classes()).toContain("is-reply-start");
+  });
+
+  // THE REPLY FOLD (Kafi, 2026-08-15): one rule for every chat — a settled
+  // turn shows its summary line; opening it shows the turn AS IT RAN.
+  function makeToolCall(parentMessageId: string): ChatToolCallResponse {
+    return {
+      id: `tc-${parentMessageId}`,
+      parentMessageId,
+      toolUseId: `tu-${parentMessageId}`,
+      toolName: "Read",
+      toolInput: { path: "CLAUDE.md" },
+      toolOutput: "ok",
+      status: "completed",
+      approvalStatus: null,
+      isErrorResult: false,
+      delegation: null,
+      startedAt: "2026-07-05T10:00:00.000Z",
+      completedAt: "2026-07-05T10:00:01.000Z",
+    };
+  }
+
+  it("a folded reply hides the tool calls AND the later rows; opening shows the turn as it ran", async () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      {
+        ...makeMessage(1),
+        id: "a1",
+        role: "assistant",
+        body: "Summary line.\n\nDetail paragraph.",
+      },
+      { ...makeMessage(2), id: "a2", role: "assistant", body: "Later message." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: { a1: [makeToolCall("a1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    // test: correct expectation (2026-08-15) — the NEWEST turn now opens with
+    // its whole run. Was folded on arrival, which snapped an answer shut the
+    // instant it settled.
+    expect(wrapper.findAll(".message-row")).toHaveLength(3);
+    expect(wrapper.find(".tool-list").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Detail paragraph.");
+    expect(wrapper.text()).toContain("Later message.");
+
+    await wrapper.get(".reply-caret").trigger("click");
+
+    // Folded: the ask and ONE summary row. Nothing else — the tool card is
+    // part of the real view, and gating the row alone would leave it on show.
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
+    expect(wrapper.find(".tool-list").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Summary line.");
+    expect(wrapper.text()).not.toContain("Detail paragraph.");
+    expect(wrapper.text()).not.toContain("Later message.");
+  });
+
+  it("the summary comes from the first row that SPEAKS — a tool-only opening row is skipped", async () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "" },
+      { ...makeMessage(2), id: "a2", role: "assistant", body: "The real answer." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: { a1: [makeToolCall("a1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    // The newest turn opens; fold it to see which row carries the summary.
+    await wrapper.get(".reply-caret").trigger("click");
+
+    const rows = wrapper.findAll(".message-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[1]!.text()).toContain("The real answer.");
+    // Promoted to the reply's start, so it wears the author line and the
+    // hairline even though it is not the turn's first assistant row.
+    expect(rows[1]!.findAll(".row-header")).toHaveLength(1);
+    expect(rows[1]!.classes()).toContain("is-reply-start");
+  });
+
+  // History folds; what just happened does not. The canvas closes every reply,
+  // but it has no streaming — here you watch the answer arrive, and folding it
+  // the instant it settled shut the thing you were mid-sentence in.
+  it("the NEWEST turn opens; older ones stay folded", async () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "Older.\n\nOlder detail." },
+      { ...makeMessage(2), role: "user" },
+      { ...makeMessage(3), id: "a2", role: "assistant", body: "Newest.\n\nNewest detail." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    expect(wrapper.text()).toContain("Newest detail.");
+
+    // The older exchange is card-folded to its strip, so nothing of its reply
+    // shows; opening the CARD still leaves the reply summarised.
+    expect(wrapper.text()).not.toContain("Older detail.");
+    await wrapper.findAll(".collapse-toggle")[0]!.trigger("click");
+    expect(wrapper.text()).toContain("Older.");
+    expect(wrapper.text()).not.toContain("Older detail.");
+  });
+
+  it("a tool-opening turn keeps its caret once expanded — the fold is never one-way", async () => {
+    // Folded, the SPEAKING row is promoted and draws the author line. Open,
+    // the tool-only row heads the reply and the speaker trails as a headerless
+    // continuation — so the caret has to follow the header, not the speaker,
+    // or an expanded turn can never be closed again.
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "" },
+      { ...makeMessage(2), id: "a2", role: "assistant", body: "Created the task." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: { a1: [makeToolCall("a1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    // Open (the newest turn): the tool-only row heads the reply, so the caret
+    // has to be on THAT row or the turn could never be closed again.
+    expect(wrapper.find(".tool-list").exists()).toBe(true);
+    expect(wrapper.findAll(".reply-caret")).toHaveLength(1);
+
+    await wrapper.get(".reply-caret").trigger("click");
+    expect(wrapper.find(".tool-list").exists()).toBe(false);
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
+
+    // And back open — folded, the promoted speaking row carries it.
+    expect(wrapper.findAll(".reply-caret")).toHaveLength(1);
+    await wrapper.get(".reply-caret").trigger("click");
+    expect(wrapper.find(".tool-list").exists()).toBe(true);
   });
 
   it("does NOT group assistant rows separated by a long gap — two background turns keep their timestamps", () => {

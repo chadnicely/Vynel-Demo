@@ -83,6 +83,9 @@ export async function applyPrimaryTurnContinuity(
         usedTokens: input.occupancyTokens,
         contextWindow: resolveContextWindow(input.model),
       },
+      // The summary distill runs on the turn's model — its window provably
+      // covers the session it just ran (the carry-fidelity rule).
+      model: input.model,
       ...(input.threshold !== undefined ? { threshold: input.threshold } : {}),
     },
     deps,

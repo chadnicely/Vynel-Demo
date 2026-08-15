@@ -7,6 +7,7 @@
 //   GET  /trace/:partialSessionId -> TIER 1: the condensed delegation trace
 //   GET  /trace/:partialSessionId/stream -> observe a LIVE delegation's turn (SSE)
 //   GET  /sessions/:sessionId   -> TIER 2: one owned session in full (trace drill-down)
+//   GET  /sessions/:sessionId/transcript -> a folded chain's full history (Sessions panel)
 //   GET  /delegations           -> the user's in-flight delegations (processing indicator)
 //   POST /turn                  -> start a global-root turn; SSE stream (LLM-native routing)
 //
@@ -26,20 +27,27 @@ import {
 import { NotFoundError } from '@vynel/errors'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { getChatSessionDetail, interruptChatSession } from '@vynel/chat'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
-import { resolveGlobalRootTranscript } from '@vynel/session/runtime'
+import {
+  resolvePrimaryTranscript,
+  resolveSessionChainTranscript,
+} from '@vynel/session/runtime'
 import { resolveDelegationTrace } from '@vynel/session/delegation'
 import { traceChannelKey, attachSpawnedSessionNames } from '@vynel/session/delegation'
-import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
+import {
+  enrichChatSessionDetail,
+  enrichPrimaryTranscript,
+} from '../../sessions/enrich-chat-session-detail.js'
 import {
   StartGlobalRootTurnRequestSchema,
   DelegationTraceParamSchema,
   RootSessionParamSchema,
   ContinuingConversationResponseSchema,
-  GlobalRootTranscriptResponseSchema,
+  ContinuingTranscriptResponseSchema,
   DelegationTraceResponseSchema,
   ChatSessionDetailResponseSchema,
   ListInFlightDelegationsResponseSchema,
@@ -64,7 +72,8 @@ export const rootApp = factory
       'x-sdk-name': 'root.getContinuing',
       responses: {
         200: {
-          description: '{ rootSessionId, currentSdkSessionId } — nulls when no global root exists yet.',
+          description:
+            '{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no global root exists yet.',
           content: {
             'application/json': { schema: resolver(ContinuingConversationResponseSchema) },
           },
@@ -76,15 +85,21 @@ export const rootApp = factory
     (c) => {
       // workspaceId omitted → the global root.
       const root = findPrimaryConversation(c.var.db, { userId: c.var.user.id })
+      const currentSessionId = root?.currentSdkSessionId ?? null
+      const current =
+        currentSessionId === null ? null : findChatSessionById(c.var.db, currentSessionId)
       return c.json({
         rootSessionId: root?.id ?? null,
-        currentSdkSessionId: root?.currentSdkSessionId ?? null,
+        currentSdkSessionId: currentSessionId,
+        lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
       })
     },
   )
   // ──────────────────────────────────────────────────────────────────
   // GET /transcript — the global root conversation history (messages across
-  // the swap-segment chain), for cold-start hydration of the global chat
+  // the swap-segment chain), for the continuing global thread. Serves the
+  // session-detail envelope (session = the CURRENT segment, enriched like
+  // `root.getSession`) so the thread renders through the same pipeline.
   // ──────────────────────────────────────────────────────────────────
   .get(
     '/transcript',
@@ -95,15 +110,21 @@ export const rootApp = factory
       responses: {
         200: {
           description:
-            '{ messages, toolCallsByMessageId } — the ordered message history + persisted tool calls keyed by message (empty until the first turn).',
+            '{ session, messages, toolCallsByMessageId } — the current segment (null until the first turn) + the chain-spanning message history.',
           content: {
-            'application/json': { schema: resolver(GlobalRootTranscriptResponseSchema) },
+            'application/json': { schema: resolver(ContinuingTranscriptResponseSchema) },
           },
         },
       },
     }),
     ...userScoped,
-    (c) => c.json(resolveGlobalRootTranscript(c.var.db, c.var.user.id)),
+    (c) =>
+      c.json(
+        enrichPrimaryTranscript(
+          c.var.db,
+          resolvePrimaryTranscript(c.var.db, { userId: c.var.user.id }),
+        ),
+      ),
   )
   // ──────────────────────────────────────────────────────────────────
   // GET /trace/:partialSessionId — TIER 1: the condensed delegation trace
@@ -233,6 +254,41 @@ export const rootApp = factory
         ownerUserId: c.var.user.id,
       })
       return c.json(enrichChatSessionDetail(c.var.db, detail))
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /sessions/:sessionId/transcript — a folded chain's full history,
+  // opened by its newest segment (the id the sessions overview keys every
+  // chain by). The Sessions panel reads THIS for a followed chain: a spawned
+  // session's compaction swap repoints the chain at a fresh, empty segment —
+  // the single-segment read then showed an empty conversation (the same shape
+  // the continuing threads had). Owner-gated like /sessions/:sessionId.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/sessions/:sessionId/transcript',
+    describeRoute({
+      tags: ['root'],
+      summary: "Get one owned session's chain-spanning history (messages across swap segments).",
+      'x-sdk-name': 'root.getSessionTranscript',
+      responses: {
+        200: {
+          description:
+            '{ session, messages, toolCallsByMessageId } — the head segment + messages across its whole continuation chain.',
+          content: {
+            'application/json': { schema: resolver(ChatSessionDetailResponseSchema) },
+          },
+        },
+        404: { description: 'No such session, or not owned by the caller.' },
+      },
+    }),
+    validator('param', RootSessionParamSchema),
+    ...userScoped,
+    (c) => {
+      const transcript = resolveSessionChainTranscript(c.var.db, {
+        userId: c.var.user.id,
+        headSessionId: c.req.valid('param').sessionId,
+      })
+      return c.json(enrichChatSessionDetail(c.var.db, transcript))
     },
   )
   // ──────────────────────────────────────────────────────────────────

@@ -57,7 +57,7 @@ describe('fireSchedule', () => {
       // The turn was MCP-equipped and fresh.
       const callInput = startChatTurn.mock.calls[0]?.[1]
       expect(callInput.mcpServers).toBeDefined()
-      expect(callInput.allowedMcpToolPatterns).toEqual(['mcp__vynel__*'])
+      expect('allowedMcpToolPatterns' in callInput).toBe(false)
       expect(callInput.permissionMode).toBe('bypass-with-behavior-gate')
       expect(callInput.resumeSessionId).toBeUndefined() // always a fresh session (D3)
       // The composed prompt (capabilities stub) + the disabled-capability tool

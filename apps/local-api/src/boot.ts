@@ -19,7 +19,7 @@ import {
 } from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
-import { expireAskRequests } from '@vynel/asks'
+import { expireAskRequests, PendingAskRegistry } from '@vynel/asks'
 import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { reapAllStartedChatToolCalls } from '@vynel/chat'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
@@ -52,7 +52,9 @@ import { startMemoryMaintenanceService } from './services/memory-maintenance-ser
 import { startChannelsService } from './services/channels-service.js'
 import { startOutboxRelayService } from './services/outbox-relay-service.js'
 import { startDelegationService } from './services/delegation-service.js'
+import { primeBakedToolPolicyDefaults } from './sessions/baked-tool-policy-defaults.js'
 import { buildDelegatedTurnMcpComposer } from './sessions/build-workspace-background-mcp.js'
+import { buildEnabledFeatureKeysReader } from './sessions/enabled-feature-keys.js'
 import { buildGlobalRootReportTurnRunner } from './sessions/run-global-root-turn.js'
 import { startApprovalsRecoveryService } from './services/approvals-recovery-service.js'
 import { startMonitorsService } from './services/monitors-service.js'
@@ -86,6 +88,9 @@ export async function boot(): Promise<void> {
   // only surface the fact in the boot log.
   if (env.VYNEL_ASSETS_DIR !== undefined) {
     logger.info({ assetsDir: env.VYNEL_ASSETS_DIR }, 'api boot: bundled assets dir active')
+    // The baked operator tool-policy map rides the same assets dir — primed
+    // once here, read by every resolveSessionToolPolicies call thereafter.
+    primeBakedToolPolicyDefaults({ assetsDir: env.VYNEL_ASSETS_DIR, logger })
   }
 
   // Before any embedding tick can lazily load the model — the cache must live
@@ -213,6 +218,7 @@ export async function boot(): Promise<void> {
 
   const serverPayloadArchive = resolveServerPayloadArchive(env.VYNEL_SERVER_PAYLOAD_ARCHIVE, logger)
 
+  const askWaiters = new PendingAskRegistry()
   const app = createApp({
     db,
     logger,
@@ -230,6 +236,10 @@ export async function boot(): Promise<void> {
     ...(serverPayloadArchive !== null ? { serverPayloadArchive } : {}),
     ...(desktopNotifications !== undefined ? { desktopNotifications } : {}),
     ...(hubSession !== undefined ? { hubSession } : {}),
+    // ONE parked-ask registry shared by the routes (answer/dismiss resolve)
+    // and the channel runner (ask_user on channel turns) — a runner-parked
+    // ask must be resolvable by the route the app answers through.
+    askWaiters,
   })
 
   // The in-process Hono dispatcher for headless turns (the schedule fire path's
@@ -265,7 +275,17 @@ export async function boot(): Promise<void> {
   // The per-minute schedule poll — claims due schedules + fires each via a
   // headless workspace turn. MCP-intrinsic, so it lives in the api process (not
   // the worker). Stopped on shutdown, like the file watcher.
-  const schedulesService = await startSchedulesService({ db, logger, appRequest, activityFeed, turnEvents })
+  // Boot services read the entitlement PER COMPOSITION through this reader —
+  // tier filtering follows a mid-process sign-in/upgrade without a restart.
+  const readEnabledFeatureKeys = buildEnabledFeatureKeysReader(hubSession)
+  const schedulesService = await startSchedulesService({
+    db,
+    logger,
+    appRequest,
+    activityFeed,
+    turnEvents,
+    readEnabledFeatureKeys,
+  })
   // Watcher restore + catch-up scan for every registered knowledge source, plus
   // the in-process embeddings tick (the desktop app runs no apps/worker).
   const knowledgeIndexingService = startKnowledgeIndexingService({ db, logger, fileWatcher })
@@ -284,6 +304,8 @@ export async function boot(): Promise<void> {
     turnEvents,
     desktopReader: desktopNotifications,
     enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
+    readEnabledFeatureKeys,
+    askWaiters,
   })
   // The delegation claim-and-run tick — claims one pending routing job per tick,
   // runs it as a workspace turn, records the terminal state; at startup it fails
@@ -298,10 +320,14 @@ export async function boot(): Promise<void> {
   // `DESKTOP_CAPABLE_DELEGATED_TARGETS` — a task handed to a spawned session is
   // the only way desktop work runs WHILE the user does something else, since a
   // global-root turn holds the per-user root lock for its whole duration.
-  const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(appRequest, {
-    desktopReader: desktopNotifications,
-    enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
-  })
+  const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(
+    appRequest,
+    {
+      desktopReader: desktopNotifications,
+      enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
+    },
+    readEnabledFeatureKeys,
+  )
   // The GLOBAL-root notify runner (session-comms): a completed delegation's
   // report runs a REAL turn on the root — the assistant absorbs the result in
   // its own flow instead of receiving a detached pushed row.
@@ -311,6 +337,7 @@ export async function boot(): Promise<void> {
     appRequest,
     activityFeed,
     turnEvents,
+    readEnabledFeatureKeys,
   })
   const delegationService = startDelegationService({
     db,

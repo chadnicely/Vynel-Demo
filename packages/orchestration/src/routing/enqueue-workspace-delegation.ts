@@ -53,11 +53,17 @@ export interface EnqueueWorkspaceDelegationInput {
   model?: string
   /** The root's thinking-effort pick for the routed turn. Omit for the adaptive default. */
   thinkingEffort?: ThinkingEffortLevel
-  /** WHERE this task's report lands (chat-mentions): the ORIGINATING chat's
-   *  workspace primary — a `@persona` mention typed in another workspace's chat
-   *  reports back to THAT chat, not the global root. Omit = the global root
-   *  (every pre-mentions caller, byte-for-byte). LOOSE ref — never the target
-   *  workspace itself. */
+  /** WHO asked for this task, and therefore WHERE its report lands: the asking
+   *  workspace's primary. Two producers — a `@persona` mention typed in another
+   *  workspace's chat (chat-mentions), and a plain workspace-to-workspace send
+   *  (the calling workspace). Omit for a global-root send. LOOSE ref, not a FK:
+   *  a deleted asker must fail the report over to the root, never cascade the
+   *  job away.
+   *
+   *  Callers are expected not to pass the TARGET workspace as its own asker;
+   *  nothing enforces it here, and a self-send is harmless in practice — the
+   *  upward resolver's self-guard drops a self-override and the report
+   *  terminates at the root instead of looping. */
   requesterWorkspaceId?: string
 }
 

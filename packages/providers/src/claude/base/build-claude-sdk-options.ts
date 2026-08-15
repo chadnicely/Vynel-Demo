@@ -21,15 +21,14 @@ export type BuildClaudeSdkOptionsInput = {
   /**
    * Pre-built MCP servers (per-session — see `docs/blueprints/mcp/`
    * D5). Caller constructs via `@vynel/mcp.buildInProcessMcpServer`;
-   * forwarded verbatim into the SDK `Options.mcpServers`.
+   * forwarded verbatim into the SDK `Options.mcpServers`. Deliberately NO
+   * `mcp__<server>__*` allow patterns ride along: a bare `allowedTools`
+   * entry auto-approves the whole server UPSTREAM of `canUseTool`
+   * (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED), which silently un-gated every MCP
+   * tool in ask mode. MCP calls now fall through to the callback, where
+   * `tool-approval-policy.ts` decides allow-vs-card from the declared tiers.
    */
   mcpServers?: Options['mcpServers']
-  /**
-   * Allowed-tool patterns specific to MCP servers (e.g.
-   * `'mcp__vynel__*'`). Appended to `allowedToolNames` before being
-   * sent to the SDK.
-   */
-  allowedMcpToolPatterns?: string[]
   /**
    * Text appended to the Claude Code preset system prompt
    * (`systemPrompt.append`). Vynel's operating rules + per-enabled-capability
@@ -60,26 +59,35 @@ export type BuildClaudeSdkOptionsInput = {
    */
   alwaysRequireApprovalToolNames?: ReadonlySet<string>
   /**
-   * Per-turn destructive tier — cards ONLY when `permissionMode` is `ask`,
-   * via the same PreToolUse backstop (`'ask'` overrides the MCP wildcard's
-   * `allowedTools` pre-approval; live smoke 2026-07-26).
+   * Per-turn destructive tier — cards under `ask`/`plan-only`, enforced by
+   * the canUseTool policy map (every MCP call reaches the callback now) and
+   * rescued for skip-mode subagents by the same PreToolUse backstop. See
+   * `tool-approval-policy.ts`.
    */
   askModeApprovalToolNames?: ReadonlySet<string>
 }
 
-// Vynel permission mode -> SDK `PermissionMode`. Both bypass flavors map to
-// the SDK's `bypassPermissions`; the difference is Vynel-side — `bypass` (the
-// user's composer pick) never cards, while `bypass-with-behavior-gate` (the
-// unattended default) keeps the irreversible floor carding via the behavior
-// gate + the PreToolUse backstop. `auto` maps to the SDK's `auto` and raises NO
-// Vynel card at all (Kafi 2026-08-11) — note it is still NOT the SDK's
-// `bypassPermissions`, so whatever the provider's own classifier refuses
-// outright it still refuses.
+// Vynel permission mode -> SDK `PermissionMode`.
+// - `bypass` (the user's composer pick) is the ONLY `bypassPermissions`
+//   mapping left: nothing cards there, `canUseTool` is genuinely dead (the
+//   runner does not bind it), so the SDK's shadowed-callback warning cannot
+//   fire.
+// - `bypass-with-behavior-gate` now maps to `default` (was
+//   `bypassPermissions`): with no MCP wildcards in `allowedTools`, every
+//   tool call falls through to `canUseTool`, whose policy map allows
+//   everything except the floor + declared mutating set — the SAME net
+//   behavior the bypassPermissions+backstop pair produced, minus the SDK
+//   warning, and with `canUseTool` live for the floor without needing the
+//   hook's rescue on the main session (the hook still rescues subagents).
+// - `auto` maps to the SDK's `auto` and raises NO Vynel card at all
+//   (Kafi 2026-08-11) — note it is still NOT the SDK's `bypassPermissions`,
+//   so whatever the provider's own classifier refuses outright it still
+//   refuses.
 const SDK_PERMISSION_MODE = {
   ask: 'default',
   auto: 'auto',
   bypass: 'bypassPermissions',
-  'bypass-with-behavior-gate': 'bypassPermissions',
+  'bypass-with-behavior-gate': 'default',
   'plan-only': 'plan',
 } as const
 
@@ -155,13 +163,8 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
   if (sdkPermissionMode === 'bypassPermissions') {
     options.allowDangerouslySkipPermissions = true
   }
-  // Merge MCP tool patterns with the existing allowedToolNames before
-  // emitting. The SDK's `allowedTools` is a single string[]; we accept
-  // them in two inputs for clarity at the caller (chat-time tool names
-  // vs MCP server wildcards).
-  const mergedAllowed = [...input.allowedToolNames, ...(input.allowedMcpToolPatterns ?? [])]
-  if (mergedAllowed.length > 0) {
-    options.allowedTools = mergedAllowed
+  if (input.allowedToolNames.length > 0) {
+    options.allowedTools = input.allowedToolNames
   }
   if (input.deniedToolNames.length > 0) {
     options.disallowedTools = input.deniedToolNames

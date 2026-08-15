@@ -1,36 +1,45 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-14.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-16.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-14 VIRTUAL-AUDIO-DRIVER — THE DRIVER RUNS ON REAL HARDWARE (branch worktree-virtual-audio-driver, tip e9febc4)
+## ✅ 2026-08-16 VIRTUAL-AUDIO-DRIVER — ARC COMPLETE, MERGED TO MAIN
 
-**Read `docs/module-notes/virtual-audio-driver.md` — it is the whole story** (P0 research →
-driver → loopback cable → ears addon → registry integration → local signing → hardware smoke →
-driver recognition). 13 commits, all pushed, tree clean. Voice-daemon suite **173 green**; full
-`pnpm test` gate NOT run (CPU rule). Toolchain: EWDK ISO at `E:\KLONE\Workspace\Toolchains\`
-(mount to build; `sign/Sign-Driver.ps1` signs with our own cert; `devcon` copied there too).
+**Read `docs/module-notes/virtual-audio-driver.md` — it is the whole story** (P0 research → branded
+ACX driver → loopback cable → ears addon → registry integration → local signing → hardware smoke →
+endpoint naming → format tolerance → conductor `capturePid`). 22 commits off
+`worktree-virtual-audio-driver`, merged here; **all three filed follow-ups CLOSED**. Items that
+outlived the arc are filed in `.claude/docs/call-audio/followup.md`. Toolchain: EWDK ISO at
+`E:\KLONE\Workspace\Toolchains\` (mount to build; `sign/Sign-Driver.ps1` signs with our own cert;
+`devcon` copied there too).
 
-**Proven on Chad's machine (test-signing on):** the branded ACX driver loaded (`devcon install
-ROOT\VynelCallAudio`), no BSOD, and the **loopback smoke PASSED** — a tone played into the render
-endpoint came back out the capture endpoint (peak 0.300). The `LoopbackRing` kernel code carries
-audio for real. The daemon **recognizes the installed driver** by brand marker `vynelcallaudio` +
-a render-direction probe (`call-registry.ts#discoverDriverLoopbackPairs`) — the pretty endpoint
-name doesn't apply (Windows shows "Speakers/Microphone (VynelCallAudio Device)"), so recognition
-is name-independent. Windows ears = process-loopback exclude-self (no pid, no app detection,
-echo-free) — live-verified.
+**Runtime-verified on Chad's machine (driver 0.1.0.4, test-signing on):** loads via `devcon install
+ROOT\VynelCallAudio`, no BSOD, shows as **"Vynel Call 1 Voice (Vynel Audio)"** +
+**"Vynel Call 1 Microphone (Vynel Audio)"**, and `smoke-cable.mjs` PASSES on **pitch** — 436.4 Hz
+for a played 440, within 1%. (An amplitude-only smoke had passed a driver that was really folding
+stereo to mono at half pitch; the pitch check is why we know it carries audio.) Both ends open at
+48 kHz; the ring stores canonical mono and folds/replicates per channel count. Registry
+auto-discovery claims the pair by contract name, with the `vynelcallaudio` marker + render probe
+kept as the pre-rename fallback. Windows ears = process-loopback **exclude-self** (no pid, no app
+detection, echo-free) — live-verified; `start_call` takes an optional `capturePid` to scope to one
+app.
 
-**Driver still LOADED on Chad's machine** (functional). Remove: `devcon remove ROOT\VynelCallAudio`;
-turn test-signing back off + re-enable Secure Boot when done.
+**⚠ The driver is still LOADED on Chad's machine, with test-signing ON and Secure Boot OFF.** To
+undo: `devcon remove ROOT\VynelCallAudio`, then turn test-signing back off and re-enable Secure Boot.
 
-**Open follow-ups (filed, none blocking):** (1) proper Windows endpoint friendly names
-"Vynel Call 1 Voice/Microphone" — INF FriendlyName + ACX pin callback don't override the role
-half; research the VB-Cable mechanism (UX polish) · (2) in-driver format tolerance (stereo→mono;
-the smoke passed only on a channel-symmetric tone) · (3) conductor start_call capturePid (optional
-— scope ears to one app) · **Needs Chad:** Partner Center + EV cert for community distribution
-(the driver + the app installer; ~$300-400/yr, registered business) — local self-signing covers
-our own build/test now · Mac hardware (P3). A real end-to-end call still needs the voice daemon
-running with fetched models.
+**Merge verification (2026-08-16):** one conflict (CHANGELOG, both sides appended under
+`[Unreleased]`) resolved as a union, and the branch's own entries corrected — they still claimed the
+cable "isn't wired into calls yet" and needed a VM pass. The three generated artifacts auto-merged
+textually; `pnpm api:generate` reproduced them **byte-identical**, so the auto-merge was real.
+5/5 parity guards · 49/49 turbo typecheck at the seam · 840 vitest green across `apps/voice` +
+`apps/local-api` + `packages/sdk`. Full `pnpm test` NOT run (CPU rule — Kafi's call).
+
+**What's left is not code we can write today:** Partner Center + EV cert for community distribution
+(~$300-400/yr, registered business — local self-signing covers all our own build/test) · Mac
+hardware for P3 (macOS AudioServerPlugIn) · **N cable pairs for concurrent calls** — the one stated
+goal of the brief the arc did not reach (the driver publishes one pair; the registry is already
+N-shaped) — plus five smaller items, all in the call-audio register. A real end-to-end call still
+needs the voice daemon running with fetched models.
 
 ## 🔥 2026-08-14 WORKSPACE REDESIGN ARC — mirror seeded, plan settled, theme LANDED
 
@@ -50,7 +59,233 @@ running with fetched models.
    (new: --bg-chrome/--bg-inset/--needs-input; --ok/--danger re-pointed; row hovers per canvas);
    Inter variable fonts vendored in `packages/ui/src/styles/fonts/`; Tailwind bridge + 6px
    scrollbars; six components' on-gold ink → `var(--color-bg)`; index.html flash → #161826.
-   **NEXT: Arc 1b Phosphor icon sweep, then Arc 2 tabs/menu view** (per the plan).
+5. **Arc 1b LANDED (gate green again):** lucide → `@phosphor-icons/vue` across all 61 local-web
+   files — codemod aliased each Phosphor export to the file's existing local name
+   (`PhGearSix as Settings`), so usage sites are byte-identical; 123-name mapping pre-verified
+   against the package's 1512 exports; catalog icon NAMES untouched (contracts data);
+   `lucide-vue-next` removed from local-web (cloud-admin-web keeps its copy — deferred surface).
+6. **Arc 2a LANDED (gate green, 3 new shell tests, live-verified both modes):** the tabs/menu
+   view — `navMode` in ui-store (persisted `vynel.nav-mode`, tabs default), title-bar Tabs|Menu
+   segment, presence-aware strip (spinner chip / needs-input dot via NEW
+   `use-workspace-presence`: server turns + workspace-scoped approvals/asks), menu mode roots
+   the sidebar at NEW `WorkspaceTree.vue` (pinned Global row, workspace rows, drill-in → section
+   menu with back row) over the SAME ShellTab state (treeSelect/treeDrill ride useScopeTabs).
+   Deliberate deferrals in `docs/module-notes/workspace-redesign.md` (NOT-RUNNING group +
+   progress + problem state → Arc 5 status vocabulary; hover card → rail arc).
+7. **Arc 2b LANDED (gate green 4782, 18 new tests, live drag-drop verified):** the
+   `workspace_groups` engine slice, built fresh — schema in the db kernel + migration
+   `0039_workspace_groups` (loose `workspaces.group_id`, tasks.planId precedent), functional
+   repos + `detachWorkspacesFromGroup`, five leaf ops (created/deleted outbox pair; rename/move
+   event-less per D14 selectivity; owner-scoped 404s, one shared name normalizer),
+   `/workspaces/groups` routes + `PUT /:workspaceId/group`, regenerated SDK (listGroups/
+   createGroup/renameGroup/deleteGroup/setGroup) + MCP `list_workspace_groups` (roster test +1),
+   tree folders UI (drag-drop, dashed drop targets, ContextMenu inline rename, root-zone
+   detach, persisted folds).
+8. **Arc 3a LANDED (gate green 4787, 29 chat-component tests):** the task-card lifecycle on the
+   shared ThreadStream — `turnCardGroups` wraps the EXISTING 2026-08-09 turn-fold machinery in
+   one `<section class="turn-card">` per turn (zero host changes; all four mounts inherit):
+   folded past turns dim to grayscale strips with hover wake, the open turn is a hairline card,
+   the live turn wears `.is-live` (gold-tinted ground + `.live-spine` sweep + `.working-pill`
+   with "{persona} working · elapsed" on the NEW shared `use-ticking-elapsed` clock — LiveTurn
+   refactored onto it). Canvas items still deferred: refs chips + handed-off card (cross-project
+   data), inline per-card comment, composer actions/toggles (engine semantics — plan Finding 4).
+9. **Arc 4 LANDED (gate green 4792 — count-arithmetic verified):** the work rail, EVOLVED from
+   TasksPanel (same mount + title-bar toggle): live card on scope presence + REAL step progress
+   (running session's todos via activity serverTurns → sessionId), queue/completed pill tabs
+   (in-progress leads), TaskStatusControl kept, OPEN IT = running apps as plain anchors (AppRow
+   pattern) + per-scope interrupt (chat.interruptSession / root.interruptTurn, inline confirm).
+   Nothing invented: no fake step counts, no repo link, no priority flow (no engine data).
+   **Process lesson (logged): I overwrote the pre-existing tasks-panel.test.ts unread — caught
+   by gate count arithmetic (4790→4787), restored all 5 original pins adapted to the rail DOM
+   + 2 new. Always Read before Write on test files.**
+   **NEXT: Arc 5 — states + siblings** (status vocabulary, task detail, new-task modal).
+11. **Arc 5b LANDED (2026-08-14, Kafi's parity+status session — typecheck 104/104, 1217 targeted
+    tests, parity green, live-verified with real set-status calls):** the status vocabulary
+    end-to-end + the exact-view parity sweep. Engine: `workspaces.status/statusNote/statusSetAt`
+    (migration 0041) + `setWorkspaceStatus` op (outbox `workspace.status-set`) + `PUT
+    /workspaces/:id/status` [x-mcp `set_workspace_status` — completed before finishing / problem
+    when stuck / needs_input for conclusions; approvals+asks detected] + `GET
+    /workspaces/statuses` (composed facts: set state · latest turn envelope · task rollup via
+    NEW `countTasksByWorkspace`) + turn OUTCOME threading (`endedReason:'failed'` on terminal
+    session-errored/throw/timeout/settle-failure across EVERY workspace-scoped producer — the
+    interactive streams, schedule fires, the three delegation runners; user Stop stays clean;
+    `turn-ended.outcome`; the gate-3 reviewer caught the background half). Web:
+    `use-workspace-status.ts` is THE one derivation (problem→needs_input→running→completed→
+    not_running; set states are facts superseded by later turns; note surfaces only when the set
+    state shows); use-workspace-presence DELETED. UI: conversation cards (ask+reply in ONE
+    card, folded = one dim strip + read more; state pills/spines per canvas), browser-tab strip
+    in the canvas column (state chips + status dots + parked dim), tree rows with chips + n/m +
+    marks + NOT RUNNING group (parked = quiet+nothing open; foldered rows stay in folder), drill
+    header card, chat-column status badge, rail kickers/tints/rollup, chrome title bar + accent
+    mark, composer send-chip polish. Deferred: delegation outcomes (report pipeline owns their
+    failures), avatars, per-card step labels, composer actions/toggles, connection dots.
+    **Module notes updated (docs/module-notes/workspace-redesign.md — the landed list + the
+    worklist).**
+    **SAME-DAY PIXEL PASSES (Kafi's screenshot-driven sweep, commits `c9c36b0`→`efcd325`):**
+    tab strip = canvas exact (per-tab workspace SWITCHER retired — rooms open via `+`, close
+    stays hover; UA focus ring suppressed); title bar 34px on chrome ground, NO title/presence
+    dot in the center, right cluster = the canvas icon row (list-checks rail toggle badge-less +
+    minus/square/x, 13px/18px-gap); the 22px AppStatusBar REMOVED entirely (canvas has none;
+    component+test deleted); sidebar 208px default; tree = label-less header (icons only),
+    `list-none` sweep (stray li bullets), 5px row rhythm, 10.5px progress ink, play glyph on
+    parked rows; section rows 12.5px/13px-icon/accent-900-active; folded chat card = the
+    canvas's TWO lines (author+time / 14px ask + read-more); ask author 12px plain vs assistant
+    small-caps. Serve the design canvases via the memory recipe
+    (serve-design-canvases-recipe, port 18899). STILL OPEN for the next parity session:
+    connection dots + their modal (user: "add the modal later"), the DEVELOPMENT folder-path
+    tree header (needs a small endpoint over `makeDefaultWorkspaceParentDirectory`), composer
+    actions/toggles row, cross-project + handed-off cards, priority flow.
+10. **Arc 5a LANDED (gate green 4797 — +4 exact):** task detail + quick-add, pure composition —
+    TaskViewDialog gains the Steps section (session todos sorted by orderIndex, honest N-of-M +
+    gold bar, NO fabricated durations/outputs; fetch gated open && sessionId), rail rows open it
+    (panel-local viewingTaskId, TasksSection precedent), rail + button quick-adds inline (exact
+    TasksSection create shape). Live-verified end-to-end with real events (the CLI driver's
+    fill/type raced HMR-stale refs — in-page event probe created + viewed a real task).
+    ~~REMAINING for 5b~~ → **5b LANDED, see item 11.** Still open after 5b: cross-project refs
+    chips + turn rendering, handed-off card, composer actions/toggles semantics, AI-rewrite +
+    priority flows (all wait on engine surfaces).
+
+## 🔥 2026-08-15 CANVAS PARITY PASS (Kafi) — tree · chat · section menu
+
+Three surfaces measured against the served canvases (`serve-design-canvases-recipe`, port
+18899) at a MATCHED 1120px column — measuring with the rail shut offsets every chat width by
+272px, which invalidated the first pass. Diff table + what landed: `docs/module-notes/
+workspace-redesign.md`. Commits `3f0896b`, `10a37b9`, `c5ce578`.
+
+- **Tree**: column on `--color-bg` (was `bg-panel` — the canvas keeps the sidebar flush with
+  the canvas, one hairline apart), container padded `16.8px 8.4px`, canvas row grid (name at
+  rowX+54), folder members indented INSIDE the row so the active ground spans the folder,
+  `font-semibold` swept off every micro-label. Header row REMOVED by Kafi's call — its icons
+  ride the Global row; groups wear `PhFolders`.
+- **Chat**: full-bleed at 22.4px gutters — header/column/dock all `1120@208`, card `1075@230`,
+  identical to the canvas. `--thread-gutter` lets the narrow docked sidebar tighten to 12px.
+- **Section menu**: canvas geometry, grouping KEPT (Chad 2026-08-04 — the canvas is flat; only
+  its type was adopted), plus per-row counts.
+- **Section counts (engine)**: `GET /section-counts` + `/workspaces/:id/section-counts`, no
+  x-mcp. **The rule: every count calls the SAME core read the section's list route calls.**
+  `sessions` broke it once with a bespoke query and was the only count that drifted (read 5
+  beside a list of 2) — fixed by hoisting the library's curation to
+  `selectSessionsForScope` in contracts, shared by the view and the count.
+
+Gate: typecheck 104/104 · 1853 tests / 284 files · all five parity guards · code-reviewer gate
+passed after fixes · live-verified dark + light, both nav modes.
+
+### Chat-card pass (2026-08-15, later) — running card done; READ THIS BEFORE CLAIMING PARITY
+
+Landed: `f440b6b` (running card) + `2123482` (folded cards).
+
+- **User rows wear a person glyph** where the canvas puts the author's PHOTO — inline SVG in the
+  house style (`@vynel/ui` carries no icon set; ClaudeMark + the Global house are drawn the same
+  way), neutral chip because the coral tint is Claude's identity. Avatar 22px → the canvas's 20px.
+- **The RUNNING card lifts its ink** onto the accent ground like the canvas (`nameColor` /
+  `createdColor` / `color` switch on `live`): author + ask → accent-100, time → accent-300,
+  scoped to `.is-live`.
+- **Weight 400 on every micro-label** (reply eyebrow, working-pill label + elapsed, live/done
+  chips). The user's NAME stays 600. `LiveTurn`'s author line is byte-identical to MessageRow's
+  by contract — its comment protects "no shift when the turn settles". **Change both or neither.**
+- **Folded turns were rendering as a stack of BOXES.** The canvas fades the whole card
+  (`cardOpacity .3` + grayscale) so its `divider x 55%` edge composites to ~2.6% alpha; we dim the
+  members instead (an ancestor opacity would grey out a live tracker's gold dot), which left the
+  edge at full 8.8%. The edge now carries the composite itself.
+
+**PROCESS LESSON — the reason Kafi had to correct this twice.** Verifying the canvas
+property-by-property and declaring "matches" is not verification: the folded-card edge was the
+SAME declared value in both files and rendered completely differently, and a property check can
+never surface an element that is simply absent. **Read the canvas source for the whole surface,
+enumerate every element, then compare screenshots side by side** — the `.dc.html` markup plus its
+`text/x-dc` script IS the spec (`.claude-design/README.md` says so).
+
+**Chat column, honest gap list** (canvas vs ours, after the above):
+
+| gap | why it is missing |
+| --- | --- |
+| done-card `N of M steps completed` + reply/expand icons | no per-turn step history stored |
+| composer pills (Push Local · Send Git · Resort Back) | **no engine behind them** |
+| composer toggles (Clarify before build · Auto buildout · Rewrite with AI) | **no engine behind them** |
+| `HANDED OFF` card | cross-project data not surfaced |
+| header `Task 5 of 13` + terminal/layout/⋮ icons | ours shows the status badge + 1 icon |
+| assistant body 12.5px (ours 13.5px) | **OPEN QUESTION — Kafi has not answered** |
+| title-bar connection dots | no connections engine |
+| sidebar `DEVELOPMENT` + `~/DEVELOPMENT` | Kafi said skip it this session |
+
+Five of those are "we chose not to build the feature", not styling — they are dead buttons until
+an engine exists. **Do not render them inert without Kafi asking.** He was asked which he wants
+built for real and had not answered when the session ended.
+
+**NEXT:** the pending / problem card states (`.status-pill` still carries 600/500 weights — the
+same weight-400 fix this pass applied to the running vocabulary).
+
+### Reply fold + turn marking (2026-08-15, Kafi) — `af3b5ce`, `e6b72f6`
+
+Kafi ran the design server + Playwright on BOTH sides and worked the four items he circled in the
+canvas screenshot. Method that finally worked: render the canvas, expand a done card so it matches
+the state being compared, screenshot the SAME card region in both at the same scale, enumerate.
+
+- **The reply now leads with one line** (canvas `replyLead` + `blocks`). A real message is one
+  markdown body, so the lead is its FIRST PARAGRAPH — reusing `inboundCardParts`' split and its
+  `FOLD_REMAINDER_MIN` floor, so a two-line answer grows no caret. Validated on the live thread
+  before building: 4 of 6 real assistant bodies split cleanly, 2 are single-paragraph and correctly
+  don't fold.
+- **A grouped CONTINUATION row has no header** to hold the caret, so its control rides the end of
+  the lead (`.reply-caret.is-inline`). Without it the first build had a fold with NO visible
+  control — the screenshot caught it, a property check never would have.
+- Ask time → inline after the name behind a `.name-divider`; it sits BESIDE `.role-label`, not in
+  it (four tests read that label as the author name). Reply time + caret → right edge. Folded-card
+  control → the canvas's arrows-out/in, not a chevron. Lead → **12.5px** (the open question from
+  the last pass; Kafi answered "exact styles").
+- **`RunStatsDoor` extracted** — the canvas draws its info glyph at the head of the reply, which is
+  exactly where the door belongs, so one icon serves both instead of two side by side. `statsMemberIndexOf`
+  now anchors on the row that DRAWS the lead (the first assistant row is empty on any tool-opening
+  turn, which put the door in the header and a second glyph on the lead).
+- **The chat icon MARKS a turn** — Kafi's call, replacing the canvas's per-card reply box: click
+  pins the turn, the composer shows what it points at, and the next send carries a `> Re: …` line.
+  State lives in `use-turn-reference.ts`; the prefix is applied in `AppComposer.onSend`, so every
+  surface that composes through it gets the pointer with **zero host wiring**.
+
+**SUPERSEDED SAME DAY — the fold is per TURN, not per message** (`b3839e9`). Kafi's rule: every
+chat works the way a child session's report already does — first paragraph is the title, details
+on expand. A settled turn shows ONE summary line; opening it shows the turn AS IT RAN (every
+message, every tool call, in order).
+
+- State moved to `ThreadStream` (`replyOverrides`, keyed by card key, beside `isCardExpanded`) —
+  a member cannot hide its siblings. MessageRow now takes `replyCollapsed` / `replyFoldable` and
+  emits `toggleReply`; its own `isReplyOpen` ref and the inline continuation caret are DELETED.
+  Exactly one caret per turn, on the reply eyebrow — where the canvas draws it.
+- `speakingMemberIndexOf` (was `statsMemberIndexOf`) is the shared finder: the first assistant row
+  with a non-empty body. A tool-only opening row is skipped for BOTH the summary and the stats
+  door. While folded that row is promoted to the reply's start (author line + hairline).
+- **TOOL CALLS FOLD TOO** — the `#tool-calls` slot is gated on the same state. Gating the row alone
+  leaves tool pills visible under a one-line summary; that is the easy miss here, and only an
+  element count or a screenshot catches it.
+- The length floor is gone: foldable = "is there anything behind this" (another row, any tool call,
+  more text than the summary paragraph). `FOLD_REMAINDER_MIN` stays for `inboundCardParts` only.
+
+**Consequence to watch:** a long answer collapses to its summary WHEN THE TURN SETTLES, and now
+swallows its tool cards too (LiveTurn streams everything, ThreadStream folds it). That is the
+canvas's model. Default the newest turn's `replyOverrides` entry to `true` if Kafi wants it open.
+
+**Still absent, and why** (unchanged from the last pass): `N of M steps completed` — no per-turn
+step history, and `runStats.toolCallCount` would be a plausible-looking lie; author PHOTO — no
+avatar to serve; `@ref` pills — cross-project data not surfaced; `HANDED OFF` card; composer pills
+and toggles — no engine behind them. Tool cards stay visible when the prose folds (they are already
+individually collapsed pills; the canvas has no tool concept to copy).
+
+Gate: typecheck 24/24 · 326 tests across `packages/ui` + the chat/composables suites · verified
+live in dark AND light against the canvas.
+
+**Known bugs + accepted trade-offs now live in `.claude/bugs/`** (one file per issue, status in
+the file; `grep -l 'Status:\*\* open' .claude/bugs/*.md`). Seeded with the two this arc deferred:
+the rules count's full-file reads, and the Sessions library's silent 50-entry truncation.
+
+**STILL OPEN:** the three extra chat-header icons, avatars, the account `· Max` plan suffix, and
+the tree-header folder path (needs an endpoint over `makeDefaultWorkspaceParentDirectory` — Kafi
+skipped it).
+
+~~author-line timestamp position~~ — **RESOLVED 2026-08-15 (`af3b5ce`)**: the ASK's time moved
+inline after the name, per the canvas and Kafi's "exact styles". This reverses the deliberate
+right-edge choice recorded here from Chad 2026-08-09. Note the split: the ask wears it inline, a
+REPLY keeps it on the right edge (that is what the canvas does too — `margin-left: auto` on the
+reply eyebrow), so the old decision survives on the row it was really about.
 
 ## ✅ 2026-08-11 ENGINEERING-PLAN LEAVES + APP ENV EDITOR — code-complete (Kafi's arc)
 

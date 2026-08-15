@@ -4,7 +4,12 @@
 // are covered without stdio or a running api.
 
 import { describe, expect, it } from 'vitest'
-import { collectExternalTools, type FetchDispatch, type OpenApiSpec } from './external-mcp-server.js'
+import {
+  buildExternalMcpServer,
+  collectExternalTools,
+  type FetchDispatch,
+  type OpenApiSpec,
+} from './external-mcp-server.js'
 
 const spec: OpenApiSpec = {
   paths: {
@@ -157,5 +162,20 @@ describe('collectExternalTools — dispatch', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0]?.text).toContain('timed out')
     expect(result.content[0]?.text).toContain('did not respond')
+  })
+
+  it('buildExternalMcpServer skips admin-disabled tools at registration', () => {
+    const noopDispatch: FetchDispatch = async () => new Response('{}', { status: 200 })
+    const registered: string[] = []
+    const server = buildExternalMcpServer(spec, noopDispatch, {
+      disabledToolNames: new Set(['mcp__vynel__search_knowledge']),
+    })
+    // The registered roster is not public API — probe via the server's own
+    // registration map (stable across the pinned @modelcontextprotocol/sdk).
+    const tools = (server as unknown as { _registeredTools: Record<string, unknown> })
+      ._registeredTools
+    registered.push(...Object.keys(tools))
+    expect(registered).toContain('create_thing')
+    expect(registered).not.toContain('search_knowledge')
   })
 })

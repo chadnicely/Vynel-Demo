@@ -109,6 +109,23 @@ export function parseComposerTokens(text: string): ComposerTokens {
   return { mentions, workspaceRefs, slashCommand }
 }
 
+/** Rewrite every `@mention` in PLAIN TEXT, through the SAME grammar the
+ *  composer inserts with and the server resolves against — so what a thread
+ *  paints as a mention is exactly what was parsed as one, and `chad@acme.com`
+ *  stays an address in both. The caller supplies the replacement; text with no
+ *  mention is returned untouched.
+ *
+ *  Plain text only: a caller holding markup must hand this the text runs, not
+ *  the markup, or it will rewrite inside tags and code. */
+export function replaceMentions(
+  text: string,
+  replace: (name: string) => string,
+): string {
+  return text.replace(MENTION_PATTERN, (whole, name: string) =>
+    typeof name === 'string' ? replace(name) : whole,
+  )
+}
+
 /** The token a picker inserts for an agent (`@code-reviewer`). */
 export function formatAgentMentionToken(slug: string): string {
   return `@${slug}`

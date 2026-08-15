@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   parseComposerTokens,
+  replaceMentions,
   formatAgentMentionToken,
   formatPersonaMentionToken,
   formatWorkspaceRefToken,
@@ -178,5 +179,24 @@ describe('format helpers round-trip through the parser', () => {
   it('slash command tokens', () => {
     const token = formatSlashCommandToken('git:commit')
     expect(parseComposerTokens(token).slashCommand?.command).toBe('git:commit')
+  })
+
+  // The renderer paints chips through this, so it must agree with the parser
+  // above — a mention shown is a mention resolved.
+  describe('replaceMentions', () => {
+    const wrap = (text: string) => replaceMentions(text, (name) => `[${name}]`)
+
+    it('rewrites what the parser calls a mention', () => {
+      expect(wrap('ask @Sarah and @code-reviewer')).toBe('ask [Sarah] and [code-reviewer]')
+    })
+
+    it('leaves an address alone, exactly as the parser does', () => {
+      expect(parseComposerTokens('mail chad@acme.com').mentions).toHaveLength(0)
+      expect(wrap('mail chad@acme.com')).toBe('mail chad@acme.com')
+    })
+
+    it('returns text with no mention untouched', () => {
+      expect(wrap('nothing to see')).toBe('nothing to see')
+    })
   })
 })

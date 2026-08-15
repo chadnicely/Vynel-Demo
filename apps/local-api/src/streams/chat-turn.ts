@@ -34,6 +34,8 @@ import { composeSessionMcpServers } from '../sessions/compose-session-mcp-server
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
+import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import type { z } from 'zod'
 import type { StartChatTurnRequestSchema } from '../routes/chat/schemas.js'
@@ -47,17 +49,18 @@ export async function streamChatTurn(
   // Compose THIS chat session's MCP attachment. An INTERACTIVE workspace turn
   // gets the full route-derived `vynel` server PLUS the session-spawning tools
   // (Slice ④b — the interactive descriptor; background workspace turns compose
-  // `vynelWorkspaceDescriptor` and never see them), auto-allowed via the
-  // `mcp__vynel__*` wildcard; a disabled capability's tools are DENIED via the
-  // descriptor's capabilityGatedTools + the enabled-capability set. The composer
-  // is the single per-turn step for servers + allow + deny; the system prompt
-  // still comes from composeSessionCapabilities below (memory snapshot etc.).
+  // `vynelWorkspaceDescriptor` and never see them). Registration alone offers
+  // the tools — each call gates through the provider's canUseTool policy map;
+  // a disabled capability's tools are DENIED via the descriptor's
+  // capabilityGatedTools + the enabled-capability set. The composer is the
+  // single per-turn step for servers + deny; the system prompt still comes
+  // from composeSessionCapabilities below (memory snapshot etc.).
   // Dynamic import keeps the heavy SDK out of module load.
   const { vynelWorkspaceInteractiveDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  // ask_user attaches to INTERACTIVE app turns only (this stream + the global
-  // chat stream) — never schedule fires or channel turns, where nobody is
-  // looking at the app to answer (docs/module-notes/ask.md fork #2).
+  // ask_user here waits UNBOUNDED — an interactive stream means the user is
+  // present (docs/module-notes/ask.md fork #1). Channel turns attach it too,
+  // but with a timeout (see runGlobalRootTurn).
   const { buildAskFeatureDescriptor } = await import('@vynel/asks/mcp')
   // This turn's key — turn-end cleanup cancels exactly the asks THIS turn
   // parked (never a concurrent sibling turn's in the same workspace).
@@ -80,6 +83,9 @@ export async function streamChatTurn(
   const enabledCapabilityIds = new Set(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),
   )
+  const enabledFeatureKeys = resolveEnabledFeatureKeys(c.var.hubSession)
+  // The admin's per-tool overrides (no desktop on this surface → []).
+  const toolPolicies = resolveSessionToolPolicies(c.var.db, { userId: c.var.user.id })
   // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
   // (enqueued once the turn's session resolves) + the per-turn # study
   // descriptor. Never throws; null = a token-free turn.
@@ -116,7 +122,12 @@ export async function streamChatTurn(
       workspaceId: c.var.workspace!.id,
       appRequest: turnSession.wrapAppRequest(c.var.appRequest),
     },
-    { enabledCapabilityIds },
+    {
+      enabledCapabilityIds,
+      ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+      toolPolicies,
+      surfaceKind: 'workspace-interactive',
+    },
   )
 
   // Primary-as-thread (Slice 1) + continue-mode activation (Slice 2): when the
@@ -202,7 +213,6 @@ export async function streamChatTurn(
         // classifier, bypass never asks (2026-07-30 stance).
         permissionMode: turnPermissionMode,
         mcpServers: composedMcp.mcpServers,
-        allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
         // Deny a disabled capability's tools (from the composer); the system prompt
         // joins composeSessionCapabilities (Vynel operating-rules + memory snapshot
         // etc.) with the MCP composer's per-feature prompt sections (notebook /
@@ -249,8 +259,12 @@ export async function streamChatTurn(
       ...(resumeSessionId !== undefined ? { sessionId: resumeSessionId } : {}),
       origin: 'web',
     })
+    // 'failed' when the drain sees a terminal session-errored or throws — the
+    // durable envelope + feed carry it (the status vocabulary's problem signal).
+    let turnOutcome: 'ended' | 'failed' = 'ended'
     try {
       for await (const event of turnStream) {
+        if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
         // Track the session the turn ran on (a NEW session's id is only known
         // at session-created) + the latest context occupancy (last usage wins).
         if (event.kind === 'session-created') {
@@ -275,6 +289,7 @@ export async function streamChatTurn(
     } catch (err) {
       // A mid-stream throw (consumer/DB) must still reach the client as typed
       // frames — a bare socket close leaves the composer "working" forever.
+      turnOutcome = 'failed'
       c.var.logger.error({ err }, 'chat turn stream failed mid-flight')
       await writeSseSafely(
         stream,
@@ -293,7 +308,7 @@ export async function streamChatTurn(
       // or disconnect (where the write no-ops).
       await writeSseSafely(stream, 'turn-stream-ended', '{}', c.var.logger)
       // Fires even on client disconnect (generator cleanup). Best-effort.
-      activity.end()
+      activity.end(turnOutcome)
       // An ask still parked when the turn ends (interrupt/disconnect — a
       // normal completion can't end with one open, the tool blocks the turn)
       // is unanswerable: cancel its waiter + expire its row so the UI never

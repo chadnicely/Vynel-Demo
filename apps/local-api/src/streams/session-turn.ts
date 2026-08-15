@@ -25,6 +25,8 @@ import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
+import { buildEnabledFeatureKeysReader } from '../sessions/enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import {
   buildDelegatedTurnMcpComposer,
   buildWorkspaceBackgroundMcpComposer,
@@ -81,9 +83,10 @@ export async function streamSpawnedSessionTurn(
   // agent-session caller identity its mention runs carry — so the colleague's
   // own send_message updates/reports resolve their requester correctly, and
   // its toolset never flip-flops by turn origin (the deferred-tool trap).
+  const readEnabledFeatureKeys = buildEnabledFeatureKeysReader(c.var.hubSession)
   const composedBackgroundMcp =
     spawned.scope === 'agent'
-      ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest))({
+      ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest, {}, readEnabledFeatureKeys))({
           db,
           userId,
           workspaceId: spawned.workspaceId,
@@ -91,10 +94,11 @@ export async function streamSpawnedSessionTurn(
           targetPrimarySessionId: spawned.id,
         })
       : spawned.workspaceId !== null
-        ? (await buildWorkspaceBackgroundMcpComposer(turnSessionAppRequest))({
+        ? (await buildWorkspaceBackgroundMcpComposer(turnSessionAppRequest, readEnabledFeatureKeys))({
             db,
             userId,
             workspaceId: spawned.workspaceId,
+            surfaceKind: 'spawned',
           })
         : null
 
@@ -138,6 +142,13 @@ export async function streamSpawnedSessionTurn(
           desktopPlanConsent: deriveDesktopPlanConsent(
             toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
           ),
+        },
+        {
+          toolPolicies: resolveSessionToolPolicies(db, {
+            userId,
+            desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
+          }),
+          surfaceKind: 'spawned',
         })
   // `desktopMcp` composes to an EMPTY attachment off-Windows (the descriptor
   // self-excludes), so merging it is a no-op there rather than a shape change.
@@ -239,7 +250,6 @@ export async function streamSpawnedSessionTurn(
           ...(composedMcp !== null
             ? {
                 mcpServers: composedMcp.mcpServers,
-                allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
                 deniedToolNames: composedMcp.deniedMcpToolPatterns,
                 ...(composedMcp.mutatingToolNames.length > 0
                   ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
@@ -285,8 +295,11 @@ export async function streamSpawnedSessionTurn(
         // direct-send turn to the same session card a delegated run uses.
         primarySessionId: spawned.id,
       })
+      // 'failed' when the drain sees a terminal session-errored or throws.
+      let turnOutcome: 'ended' | 'failed' = 'ended'
       try {
         for await (const event of turnStream) {
+          if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
           if (event.kind === 'session-created') {
             // Mid-turn compaction swap — advance the primary's link so the
             // NEXT turn resumes the new head (event-driven, the
@@ -309,6 +322,7 @@ export async function streamSpawnedSessionTurn(
       } catch (err) {
         // A mid-stream throw must still reach the client as typed frames — a
         // bare socket close leaves the composer "working" forever.
+        turnOutcome = 'failed'
         logger.error({ err }, 'session turn stream failed mid-flight')
         await writeSseSafely(
           stream,
@@ -326,7 +340,7 @@ export async function streamSpawnedSessionTurn(
         // The terminal frame fires on EVERY exit (clean, thrown, disconnect).
         await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
         // Fires even on client disconnect (generator cleanup). Best-effort.
-        activity.end()
+        activity.end(turnOutcome)
       }
     } finally {
       // The single-writer hand-over: a queued delegated job (or user turn) on

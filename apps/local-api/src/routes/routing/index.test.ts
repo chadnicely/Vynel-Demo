@@ -1105,6 +1105,116 @@ describe('POST /routing/message → requester report (ported from /routing/repor
       expect(user.id).not.toBe(stranger.id)
     })
   })
+
+  // `deliveredTo` is the sender's ONLY confirmation of where its message went,
+  // and every upward branch resolves it separately — so every branch is pinned
+  // here. The spawned case regressed silently precisely because no upward path
+  // asserted this field: the destination fell back to the SENDER's own label,
+  // which reads as a successful delivery to itself.
+  describe('deliveredTo names the DESTINATION, never the sender', () => {
+    it('a WORKSPACE-grounded spawned session names the workspace, not itself', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const workspace = seedManagedWorkspace(db, user.id)
+        const spawned = await createSpawnedSession(db, makePrimingProvider('sdk-sp-dt-1'), {
+          userId: user.id,
+          name: 'Acme research',
+          purpose: 'dig into the backlog',
+          workspacePath: workspace.path,
+          workspaceId: workspace.id,
+        })
+        const app = makeHarness(db)
+        const caller: ReportCaller = {
+          kind: 'spawned-session',
+          targetPrimarySessionId: spawned.primarySessionId,
+        }
+
+        // 'Acme' — where it went. NEVER 'Acme research', which is who sent it.
+        const report = await postReport(app, 'Backlog has 4 stale items.', caller)
+        expect(report.status).toBe(200)
+        expect(((await report.json()) as { deliveredTo: string }).deliveredTo).toBe('Acme')
+
+        // All three upward dispatchers share one resolution — an update agrees.
+        const update = await postJson(
+          app,
+          '/routing/message',
+          { to: 'requester', body: 'Received — starting now.', kind: 'update' },
+          { [REPORT_CALLER_HEADER]: serializeReportCaller(caller) },
+        )
+        expect(update.status).toBe(200)
+        expect(((await update.json()) as { deliveredTo: string }).deliveredTo).toBe('Acme')
+      })
+    })
+
+    it('a GLOBAL-grounded spawned session names Global', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const spawned = await createSpawnedSession(db, makePrimingProvider('sdk-sp-dt-2'), {
+          userId: user.id,
+          name: 'Research: pricing',
+          purpose: 'compare pricing pages',
+          workspacePath: '/tmp/vynel/global-root',
+        })
+        const app = makeHarness(db)
+
+        const res = await postReport(app, 'A undercuts us by 12%.', {
+          kind: 'spawned-session',
+          targetPrimarySessionId: spawned.primarySessionId,
+        })
+        expect(res.status).toBe(200)
+        expect(((await res.json()) as { deliveredTo: string }).deliveredTo).toBe('Global')
+      })
+    })
+
+    it('a workspace primary names Global, or the ORIGINATING workspace when rerouted', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const target = seedManagedWorkspace(db, user.id, 'Target')
+        const origin = seedManagedWorkspace(db, user.id, 'Origin')
+        await seedLinkedWorkspacePrimaryFor(db, user.id, target.id, 'ws-primary-dt3')
+        const app = makeHarness(db)
+        const caller: ReportCaller = { kind: 'workspace-primary', workspaceId: target.id }
+
+        const plain = await postReport(app, 'All docs are current.', caller)
+        expect(plain.status).toBe(200)
+        expect(((await plain.json()) as { deliveredTo: string }).deliveredTo).toBe('Global')
+
+        // The mention reroute — and a direct_to_user rides the same resolution,
+        // so this pins the third dispatcher too.
+        const rerouted = await postJson(
+          app,
+          '/routing/message',
+          { to: 'requester', body: 'Full overview.', kind: 'direct_to_user', title: 'Overview' },
+          {
+            [REPORT_CALLER_HEADER]: serializeReportCaller(caller),
+            [REPORT_REQUESTER_HEADER]: origin.id,
+          },
+        )
+        expect(rerouted.status).toBe(200)
+        expect(((await rerouted.json()) as { deliveredTo: string }).deliveredTo).toBe('Origin')
+      })
+    })
+
+    it('an agent colleague names the workspace it lands in, not the agent', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const workspace = seedManagedWorkspace(db, user.id, 'Grounding')
+        const { colleagueId } = await seedLinkedColleague(db, user.id, {
+          workspaceId: workspace.id,
+          slug: 'researcher',
+          name: 'Nova',
+        })
+        const app = makeHarness(db)
+
+        const res = await postReport(app, 'Found three strong sources.', {
+          kind: 'agent-session',
+          targetPrimarySessionId: colleagueId,
+        })
+        expect(res.status).toBe(200)
+        expect(((await res.json()) as { deliveredTo: string }).deliveredTo).toBe('Grounding')
+      })
+    })
+  })
 })
 
 describe('POST /routing/message → kind direct_to_user (direct messages to the user)', () => {
@@ -1510,6 +1620,195 @@ describe('tool-first reporting (no double report)', () => {
         body: JSON.stringify({ to: 'requester', body: 'findings' }),
       })
       expect(res.status).toBe(200)
+    })
+  })
+})
+
+// Reports travel to whoever ASKED — one rule for every caller kind (Chad,
+// 2026-08-16). Before this, "who asked" was never recorded on a task send: a
+// workspace-to-workspace task parented on the GLOBAL root and both the ack and
+// the result landed in the global conversation, and a workspace-tasked session
+// reported to its own grounding instead of the workspace that asked.
+describe('POST /routing/message → a task records WHO asked', () => {
+  function primer(sessionId: string): AiAgentProvider {
+    return {
+      startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+        return (async function* () {
+          yield {
+            kind: 'session-started',
+            sessionId,
+            resumedFromExisting: false,
+            startedAt: new Date(),
+          } as NormalizedSessionEvent
+          yield {
+            kind: 'session-completed',
+            sessionId,
+            isNewSession: true,
+            completedAt: new Date(),
+          } as NormalizedSessionEvent
+        })()
+      },
+    } as unknown as AiAgentProvider
+  }
+
+  // The tick stamps the job's requesterWorkspaceId as this header on the routed
+  // turn (pinned in run-delegation-claim-and-run-tick.test.ts); passing it here
+  // is that hop, simulated.
+  function speakUp(
+    app: ReturnType<typeof makeHarness>,
+    caller: ReportCaller,
+    kind: 'update' | 'report',
+    requesterOverrideId?: string,
+  ) {
+    return postJson(
+      app,
+      '/routing/message',
+      { to: 'requester', body: 'x', kind },
+      {
+        [REPORT_CALLER_HEADER]: serializeReportCaller(caller),
+        ...(requesterOverrideId !== undefined
+          ? { [REPORT_REQUESTER_HEADER]: requesterOverrideId }
+          : {}),
+      },
+    )
+  }
+
+  it('workspace → workspace: parents on the ASKING workspace and reports back to it', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const alpha = seedManagedWorkspace(db, user.id, 'Alpha')
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, alpha.id, 'ws-alpha')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, beta.id, 'ws-beta')
+      const app = makeHarness(db)
+
+      const task = await postJson(app, '/routing/message', {
+        to: `workspace:${beta.id}`,
+        body: 'audit the invoices',
+        workspaceId: alpha.id,
+      })
+      expect(task.status).toBe(200)
+      const taskJob = findDelegationJobById(db, ((await task.json()) as { jobId: string }).jobId)
+      // NOT 'g-1': the asking workspace is the provenance parent AND the requester.
+      expect(taskJob?.parentSessionId).toBe('ws-alpha')
+      expect(taskJob?.requesterWorkspaceId).toBe(alpha.id)
+
+      // Beta's ack and its result both land in Alpha's chat, not the root's.
+      const caller: ReportCaller = { kind: 'workspace-primary', workspaceId: beta.id }
+      for (const kind of ['update', 'report'] as const) {
+        const res = await speakUp(app, caller, kind, alpha.id)
+        expect(res.status).toBe(200)
+        const out = (await res.json()) as { deliveredTo: string; jobId: string }
+        expect(out.deliveredTo).toBe('Alpha')
+        expect(findDelegationJobById(db, out.jobId)?.workspaceId).toBe(alpha.id)
+      }
+    })
+  })
+
+  it('workspace → a GLOBAL-grounded session: the report goes to the workspace, not Global', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const home = seedManagedWorkspace(db, user.id, 'Home')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, home.id, 'ws-home')
+      const spawned = await createSpawnedSession(db, primer('sdk-ground'), {
+        userId: user.id,
+        name: 'Research: pricing',
+        purpose: 'compare pricing pages',
+        workspacePath: '/tmp/vynel/global-root',
+      })
+      const app = makeHarness(db)
+
+      const task = await postJson(app, '/routing/message', {
+        to: `session:${spawned.sessionId}`,
+        body: 'compare pricing',
+        workspaceId: home.id,
+      })
+      expect(task.status).toBe(200)
+      const taskJob = findDelegationJobById(db, ((await task.json()) as { jobId: string }).jobId)
+      expect(taskJob?.requesterWorkspaceId).toBe(home.id)
+
+      // The session is grounded in NO workspace — before, that alone sent its
+      // result to the global root and Home never heard back.
+      const res = await speakUp(
+        app,
+        { kind: 'spawned-session', targetPrimarySessionId: spawned.primarySessionId },
+        'report',
+        home.id,
+      )
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { deliveredTo: string; jobId: string }
+      expect(out.deliveredTo).toBe('Home')
+      expect(findDelegationJobById(db, out.jobId)?.workspaceId).toBe(home.id)
+    })
+  })
+
+  // The calling-workspace guards now fire on the `to: "workspace:"` branch too
+  // (both destinations share resolveTaskSender). The session branch pinned these
+  // already; the workspace branch reached them with no coverage at all.
+  it('404s a workspace task whose CALLING workspace is unknown or not owned', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id)
+      const stranger = seedUser(db)
+      const foreign = seedManagedWorkspace(db, stranger.id, 'Theirs')
+      const app = makeHarness(db)
+
+      for (const callingWorkspaceId of [randomUUID(), foreign.id]) {
+        const res = await postJson(app, '/routing/message', {
+          to: `workspace:${beta.id}`,
+          body: 'audit the invoices',
+          workspaceId: callingWorkspaceId,
+        })
+        // Unknown and not-owned answer identically — no enumeration leak.
+        expect(res.status).toBe(404)
+      }
+    })
+  })
+
+  // NOTE: this pins the guard as it stands after the shared-resolver change.
+  // Before it, a workspace task ignored the caller entirely and parented on the
+  // root, so this call succeeded. Flagged for Chad — if the calling workspace
+  // should fall back to the root for PROVENANCE while still being recorded as
+  // the requester, this expectation changes with it.
+  it('400s a workspace task whose CALLING workspace has no live primary', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const quiet = seedManagedWorkspace(db, user.id, 'Quiet')
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id) // live, but not the caller here
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${beta.id}`,
+        body: 'audit the invoices',
+        workspaceId: quiet.id,
+      })
+      expect(res.status).toBe(400)
+    })
+  })
+
+  it('the global root records NO requester — that is how a chain terminates at the root', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, beta.id, 'ws-beta-root')
+      const app = makeHarness(db)
+
+      const task = await postJson(app, '/routing/message', {
+        to: `workspace:${beta.id}`,
+        body: 'audit the invoices',
+      })
+      expect(task.status).toBe(200)
+      const taskJob = findDelegationJobById(db, ((await task.json()) as { jobId: string }).jobId)
+      expect(taskJob?.parentSessionId).toBe('g-1')
+      expect(taskJob?.requesterWorkspaceId).toBeNull()
+
+      // With nothing recorded, Beta's report terminates at the root as before.
+      const res = await speakUp(app, { kind: 'workspace-primary', workspaceId: beta.id }, 'report')
+      expect(((await res.json()) as { deliveredTo: string }).deliveredTo).toBe('Global')
     })
   })
 })

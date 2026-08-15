@@ -27,6 +27,17 @@ Every module folder holds exactly two files:
 If you only need the idea, read `overview.md`. If you're about to change code, read `structure.md`.
 Each file ends with a provenance line stamping the date it was mapped.
 
+A unit may carry one optional third file, **`followup.md`** — open bugs and deliberately-deferred
+items for that unit, each stamped with how it was established (probed / reviewed / read). It exists
+so a known defect lives next to the code map instead of in a commit message nobody re-reads. Add one
+only when there is something real to record, and close an item by fixing it and deleting the entry.
+
+Three exist today: [`session-communication`](./session-communication/followup.md),
+[`nodes`](./nodes/followup.md) and [`call-audio`](./call-audio/followup.md). **`nodes` and
+`call-audio` have only that file** — their `overview.md` / `structure.md` pairs are unwritten, and
+each folder stands as a marker that one is owed. A followup may legitimately arrive before the pair
+does; findings should not wait on documentation.
+
 ## The shape of the system
 
 Vynel is a **modular monolith**: features are `@vynel/<feature>` packages over one shared
@@ -117,6 +128,7 @@ The "one brain, many hands" backbone: everything is a session; roots delegate to
 | `session` | The Session primitive + the turn runtime (reaches the model only through the provider seam) + delegation composition. | [overview](./session/overview.md) · [structure](./session/structure.md) |
 | `agents` | Agent definitions — curated seed + `AgentRow`→SDK mapping + per-session composition + the `.claude/agents/` disk mirror. | [overview](./agents/overview.md) · [structure](./agents/structure.md) |
 | `orchestration` | The delegation engine — the durable job queue, routing (request-down / report-up), the partial-session-id trace. | [overview](./orchestration/overview.md) · [structure](./orchestration/structure.md) |
+| `session-communication` | *(cross-cutting)* How sessions talk to each other — the one messaging verb, its four voices, ambient addressing, and the delivery pipeline. Spans the three rows above plus `chat` and the MCP layer. | [overview](./session-communication/overview.md) · [structure](./session-communication/structure.md) · [followup](./session-communication/followup.md) |
 
 ## Part 1c — The hub (cloud)
 
@@ -144,6 +156,7 @@ The shared machinery every module stands on. Grouped: each folder covers several
 | `_platform/embeddings-and-indexing` | `embeddings` (MiniLM model) + `indexer` (document parsers + chunker) — the shared file→text→chunks→vector pipeline. | [overview](./_platform/embeddings-and-indexing/overview.md) · [structure](./_platform/embeddings-and-indexing/structure.md) |
 | `_platform/contracts-and-sdk` | `contracts` (Zod + value catalogs) + `sdk` (the generated `vynel.*` client) + `mcp-contract` (`McpFeatureDescriptor`) — the boundary seams; the routes→OpenAPI→SDK pipeline. | [overview](./_platform/contracts-and-sdk/overview.md) · [structure](./_platform/contracts-and-sdk/structure.md) |
 | `_platform/primitives` | `errors` (the `VynelError` taxonomy) + `logger` + `testing` (`withTestDatabase`) + `ui` (shared Vue components + tokens). | [overview](./_platform/primitives/overview.md) · [structure](./_platform/primitives/structure.md) |
+| `_platform/tool-policy` | The tool governance layer spanning both systems: the declared catalog + generated snapshot, surfaces/card classes/tier + capability gates, the three-layer resolve (code → baked operator map → user override), the release-build bake, and the two editing surfaces (portal matrix + Tool access panel). | [overview](./_platform/tool-policy/overview.md) · [structure](./_platform/tool-policy/structure.md) |
 
 ## Part 4 — App shells
 
@@ -188,5 +201,6 @@ leaves them. The discipline that keeps them honest:
 - The `overview` / `structure` skills (`.claude/skills/`) are the playbooks; the `wh` agent runs them.
 
 ---
-*As-built documentation for Vynel — 18 product domains + 3 session-spine modules + 3 hub modules +
-1 kernel + 4 platform groups + 9 app shells. Mapped from the code on disk, 2026-07-14.*
+*As-built documentation for Vynel — 18 product domains + 3 session-spine modules (+1 cross-cutting
+seam) + 3 hub modules + 1 kernel + 5 platform groups + 9 app shells. Mapped from the code on disk,
+2026-07-14; `session-communication` added 2026-08-16.*

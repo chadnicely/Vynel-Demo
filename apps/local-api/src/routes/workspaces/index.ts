@@ -1,10 +1,17 @@
-// The `workspaces` HTTP surface — eight routes mounted at `/workspaces`
+// The `workspaces` HTTP surface — fifteen routes mounted at `/workspaces`
 // (USER-scoped, no `:workspaceId` prefix) from `apps/local-api/src/app.ts`:
 //   - GET    /workspaces                        -> listWorkspacesForUser  [x-mcp]
 //   - POST   /workspaces                        -> createWorkspace
 //   - GET    /workspaces/directories             -> listChildDirectories
+//   - GET    /workspaces/groups                 -> listWorkspaceGroups    [x-mcp]
+//   - POST   /workspaces/groups                 -> createWorkspaceGroup
+//   - PATCH  /workspaces/groups/:groupId        -> renameWorkspaceGroup
+//   - DELETE /workspaces/groups/:groupId        -> deleteWorkspaceGroup
+//   - GET    /workspaces/statuses               -> status facts (Arc 5b)
 //   - GET    /workspaces/:workspaceId           -> c.var.workspace        [x-mcp]
 //   - PATCH  /workspaces/:workspaceId           -> updateWorkspaceMetadata
+//   - PUT    /workspaces/:workspaceId/group     -> setWorkspaceGroup
+//   - PUT    /workspaces/:workspaceId/status    -> setWorkspaceStatus     [x-mcp]
 //   - POST   /workspaces/:workspaceId/archive   -> archiveWorkspace
 //   - POST   /workspaces/:workspaceId/unarchive -> unarchiveWorkspace
 //   - DELETE /workspaces/:workspaceId           -> hardDeleteWorkspace
@@ -31,7 +38,13 @@
 // `instanceof VynelError` check per `error-handling.md` "Layering".
 
 import { resolver, validator } from 'hono-openapi/zod'
-import type { WorkspaceResponse } from '@vynel/contracts/workspaces/workspace-http'
+import type {
+  WorkspaceGroupResponse,
+  WorkspaceResponse,
+} from '@vynel/contracts/workspaces/workspace-http'
+import type { WorkspaceStatusReport } from '@vynel/contracts/workspaces/workspace-status'
+import { listLatestWorkspaceTurnsForUser } from '@vynel/session/runtime'
+import { countTasksByWorkspace } from '@vynel/tasks'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -44,8 +57,14 @@ import {
   unarchiveWorkspace,
   hardDeleteWorkspace,
   listChildDirectories,
+  createWorkspaceGroup,
+  listWorkspaceGroups,
+  renameWorkspaceGroup,
+  deleteWorkspaceGroup,
+  setWorkspaceGroup,
+  setWorkspaceStatus,
 } from '@vynel/workspaces'
-import type { Workspace } from '@vynel/workspaces'
+import type { Workspace, WorkspaceGroup } from '@vynel/workspaces'
 import {
   CreateWorkspaceRequestSchema,
   UpdateWorkspaceRequestSchema,
@@ -55,6 +74,13 @@ import {
   WorkspaceResponseSchema,
   ListWorkspacesResponseSchema,
   DirectoryListingResponseSchema,
+  CreateWorkspaceGroupRequestSchema,
+  RenameWorkspaceGroupRequestSchema,
+  SetWorkspaceGroupRequestSchema,
+  SetWorkspaceStatusRequestSchema,
+  WorkspaceGroupResponseSchema,
+  ListWorkspaceGroupsResponseSchema,
+  ListWorkspaceStatusesResponseSchema,
 } from './schemas.js'
 
 export const workspacesApp = factory
@@ -169,6 +195,160 @@ export const workspacesApp = factory
       )
     },
   )
+  // ── Menu-tree folders (workspace redesign Arc 2b). Registered before
+  // `/:workspaceId` so the static `groups` segment wins (the `/directories`
+  // precedent). Mutations defer MCP exposure like the workspace mutations. ──
+  .get(
+    '/groups',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: "List the user's workspace folders (menu-tree groups), creation order.",
+      'x-sdk-name': 'workspaces.listGroups',
+      responses: {
+        200: {
+          description: 'Array of workspace folders.',
+          content: { 'application/json': { schema: resolver(ListWorkspaceGroupsResponseSchema) } },
+        },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'list_workspace_groups',
+        description:
+          "List the authenticated user's workspace folders — the groups that organize " +
+          'workspaces in the navigation tree. Membership is each workspace\'s groupId. Read-only.',
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      const groups = await listWorkspaceGroups(c.var.db, c.var.user.id)
+      return c.json(groups.map(serializeWorkspaceGroupForResponse))
+    },
+  )
+  .post(
+    '/groups',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Create a workspace folder.',
+      'x-sdk-name': 'workspaces.createGroup',
+      responses: {
+        201: {
+          description: 'Folder created.',
+          content: { 'application/json': { schema: resolver(WorkspaceGroupResponseSchema) } },
+        },
+        400: { description: 'Empty or over-long folder name.' },
+      },
+    }),
+    validator('json', CreateWorkspaceGroupRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const group = await createWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        name: input.name,
+      })
+      return c.json(serializeWorkspaceGroupForResponse(group), 201)
+    },
+  )
+  .patch(
+    '/groups/:groupId',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Rename a workspace folder (owner-scoped — 404 if not owned).',
+      'x-sdk-name': 'workspaces.renameGroup',
+      responses: {
+        200: {
+          description: 'Renamed folder.',
+          content: { 'application/json': { schema: resolver(WorkspaceGroupResponseSchema) } },
+        },
+        404: { description: 'Folder not found.' },
+      },
+    }),
+    validator('json', RenameWorkspaceGroupRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const group = await renameWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        groupId: c.req.param('groupId'),
+        name: input.name,
+      })
+      return c.json(serializeWorkspaceGroupForResponse(group))
+    },
+  )
+  .delete(
+    '/groups/:groupId',
+    describeRoute({
+      tags: ['workspaces'],
+      summary:
+        'Delete a workspace folder. Member workspaces detach to the tree root — never deleted.',
+      'x-sdk-name': 'workspaces.deleteGroup',
+      responses: {
+        204: { description: 'Folder deleted; members detached.' },
+        404: { description: 'Folder not found.' },
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      await deleteWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        groupId: c.req.param('groupId'),
+      })
+      return c.body(null, 204)
+    },
+  )
+  // ── Workspace statuses (redesign Arc 5b) — the FACTS the effective status
+  // derives from, one row per workspace: the assistant-set state, the latest
+  // turn envelope (failed/orphaned = the problem signal), and the task
+  // rollup. Static segment, registered before `/:workspaceId`. The app layer
+  // composes the three leaves (workspaces + session + tasks) — no leaf
+  // imports a sibling. ──
+  .get(
+    '/statuses',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Per-workspace status facts: set state, latest turn, task counts.',
+      'x-sdk-name': 'workspaces.listStatuses',
+      responses: {
+        200: {
+          description: 'One status report per workspace.',
+          content: {
+            'application/json': { schema: resolver(ListWorkspaceStatusesResponseSchema) },
+          },
+        },
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      const rows = await listWorkspacesForUser(c.var.db, { userId: c.var.user.id })
+      const latestTurns = listLatestWorkspaceTurnsForUser(c.var.db, c.var.user.id)
+      const taskCounts = new Map(
+        countTasksByWorkspace(c.var.db, { userId: c.var.user.id }).map((entry) => [
+          entry.workspaceId,
+          entry,
+        ]),
+      )
+      const reports: WorkspaceStatusReport[] = rows.map((workspace) => {
+        const turn = latestTurns.get(workspace.id)
+        const counts = taskCounts.get(workspace.id)
+        return {
+          workspaceId: workspace.id,
+          setStatus: workspace.status,
+          statusNote: workspace.statusNote,
+          statusSetAt: workspace.statusSetAt?.toISOString() ?? null,
+          latestTurn: turn
+            ? {
+                startedAt: turn.startedAt.toISOString(),
+                endedAt: turn.endedAt?.toISOString() ?? null,
+                endedReason: turn.endedReason,
+              }
+            : null,
+          tasksTotal: counts?.total ?? 0,
+          tasksDone: counts?.done ?? 0,
+        }
+      })
+      return c.json(reports)
+    },
+  )
   .get(
     '/:workspaceId',
     describeRoute({
@@ -218,6 +398,76 @@ export const workspacesApp = factory
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.managerName !== undefined ? { managerName: input.managerName } : {}),
         ...(input.continueEnabled !== undefined ? { continueEnabled: input.continueEnabled } : {}),
+      })
+      return c.json(serializeWorkspaceForResponse(updated))
+    },
+  )
+  .put(
+    '/:workspaceId/group',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Move a workspace into a folder (or to the tree root with null).',
+      'x-sdk-name': 'workspaces.setGroup',
+      responses: {
+        200: {
+          description: 'Updated workspace.',
+          content: { 'application/json': { schema: resolver(WorkspaceResponseSchema) } },
+        },
+        404: { description: 'Workspace or folder not found.' },
+      },
+    }),
+    validator('json', SetWorkspaceGroupRequestSchema),
+    ...workspaceScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const updated = await setWorkspaceGroup(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+        groupId: input.groupId,
+      })
+      return c.json(serializeWorkspaceForResponse(updated))
+    },
+  )
+  // The assistant's status write (redesign Arc 5b) — a self-tool, so no
+  // askApproval: setting "completed / problem / needs input" is reporting,
+  // not an irreversible action.
+  .put(
+    '/:workspaceId/status',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Set the workspace status (completed / problem / needs_input).',
+      'x-sdk-name': 'workspaces.setStatus',
+      responses: {
+        200: {
+          description: 'Updated workspace.',
+          content: { 'application/json': { schema: resolver(WorkspaceResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'set_workspace_status',
+        mutatingApproved: true,
+        description:
+          "Set this workspace's status light — the state the user sees on every " +
+          'navigation surface. Set `completed` when EVERY task on the list is done ' +
+          '(do it before finishing your reply, so the user sees it before their next ' +
+          'message). Set `problem` when you are stuck and cannot proceed without help. ' +
+          'Set `needs_input` when you reached a conclusion or decision that needs the ' +
+          "user's attention (approvals and questions are detected automatically — this " +
+          'is for conclusions). Include a short `note` saying why. The status clears ' +
+          'itself when the user sends the next message.',
+      },
+    }),
+    validator('json', SetWorkspaceStatusRequestSchema),
+    ...workspaceScoped,
+    async (c) => {
+      const input = c.req.valid('json')
+      const updated = await setWorkspaceStatus(c.var.db, {
+        userId: c.var.user.id,
+        workspaceId: c.var.workspace!.id,
+        status: input.status,
+        note: input.note ?? null,
       })
       return c.json(serializeWorkspaceForResponse(updated))
     },
@@ -297,8 +547,22 @@ function serializeWorkspaceForResponse(workspace: Workspace): WorkspaceResponse 
     path: workspace.path,
     isArchived: workspace.isArchived,
     continueEnabled: workspace.continueEnabled,
+    groupId: workspace.groupId,
+    status: workspace.status,
+    statusNote: workspace.statusNote,
+    statusSetAt: workspace.statusSetAt?.toISOString() ?? null,
     createdAt: workspace.createdAt.toISOString(),
     updatedAt: workspace.updatedAt.toISOString(),
     lastAccessedAt: workspace.lastAccessedAt.toISOString(),
+  }
+}
+
+function serializeWorkspaceGroupForResponse(group: WorkspaceGroup): WorkspaceGroupResponse {
+  return {
+    id: group.id,
+    userId: group.userId,
+    name: group.name,
+    createdAt: group.createdAt.toISOString(),
+    updatedAt: group.updatedAt.toISOString(),
   }
 }

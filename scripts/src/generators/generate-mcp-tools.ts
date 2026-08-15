@@ -227,9 +227,11 @@ for (const [pathKey, methods] of Object.entries(paths)) {
   }
 }
 
-// Stable order across regenerations — by tool name. Without this, a
-// route file rename or `for...in` reorder could churn the snapshot.
-entries.sort((a, b) => a.name.localeCompare(b.name))
+// Stable order across regenerations — by tool name, codepoint comparison
+// (localeCompare collation varies by host locale and could flap parity
+// across machines). Without this, a route file rename or `for...in`
+// reorder could churn the snapshot.
+entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
 // ---------------------------------------------------------------------------
 // Emit the registry file.

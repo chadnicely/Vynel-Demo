@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, watch } from "vue";
+import { computed } from "vue";
 import {
   ApprovalCard,
   ClaudeMark,
   ThinkingBlock,
   ToolCallList,
   MarkdownText,
-  formatElapsed,
 } from "@vynel/ui";
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
 import { deriveActionKind } from "@vynel/approvals/action-kind";
 import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
+import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
 
 // The in-flight turn: everything the assistant is doing RIGHT NOW —
 // thinking, answer text typing in, tool cards appearing, approvals pausing
@@ -40,28 +40,11 @@ const lastSegmentId = computed(
 );
 
 // How long this turn has been running — ticks beside "working" so a long run
-// reads as alive, not frozen. The interval exists only while streaming.
-const nowMs = ref(Date.now());
-let elapsedTimer: ReturnType<typeof setInterval> | null = null;
-watch(
+// reads as alive, not frozen (shared clock: the thread's working pill reads
+// the same composable).
+const elapsedLabel = useTickingElapsed(
+  () => props.view.startedAtMs,
   () => props.view.status === "streaming",
-  (isStreaming) => {
-    if (isStreaming && elapsedTimer === null) {
-      elapsedTimer = setInterval(() => {
-        nowMs.value = Date.now();
-      }, 1000);
-    } else if (!isStreaming && elapsedTimer !== null) {
-      clearInterval(elapsedTimer);
-      elapsedTimer = null;
-    }
-  },
-  { immediate: true },
-);
-onScopeDispose(() => {
-  if (elapsedTimer !== null) clearInterval(elapsedTimer);
-});
-const elapsedLabel = computed(() =>
-  formatElapsed(props.view.startedAtMs, nowMs.value),
 );
 </script>
 
@@ -92,7 +75,9 @@ const elapsedLabel = computed(() =>
       />
 
       <div v-if="segment.text" class="answer">
-        <MarkdownText :source="segment.text" />
+        <!-- The SAME reply voice MessageRow gives the settled row: the thread
+             must not reformat when the turn completes. -->
+        <MarkdownText variant="reply" :source="segment.text" />
         <span
           v-if="
             props.view.status === 'streaming' &&
@@ -166,10 +151,13 @@ const elapsedLabel = computed(() =>
   /* 7px matches MessageRow's settled label — the author name must not shift
      when the turn completes. */
   gap: 7px;
-  color: var(--ink-3);
-  font: 600 10.5px/1.5 var(--font-ui);
+  /* Byte-identical to MessageRow's settled `.role-label` (canvas: 10px,
+     0.14em, weight 400, neutral-400) — the author must not shift when the
+     live turn becomes a settled row. Change both or neither. */
+  color: var(--color-neutral-400);
+  font: 400 10px/1.5 var(--font-ui);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.14em;
 }
 
 .author-avatar {
@@ -199,7 +187,7 @@ const elapsedLabel = computed(() =>
 
 .live-chip {
   color: var(--gold);
-  font: 600 10px/1.4 var(--font-ui);
+  font: 400 10px/1.4 var(--font-ui);
   letter-spacing: 0.05em;
   padding: 1px 7px;
   border: 1px solid var(--gold-soft);
@@ -210,7 +198,7 @@ const elapsedLabel = computed(() =>
 
 .done-chip {
   color: var(--ink-3);
-  font: 600 10px/1.4 var(--font-ui);
+  font: 400 10px/1.4 var(--font-ui);
   letter-spacing: 0.05em;
   padding: 1px 7px;
   border: 1px solid var(--hair);
@@ -233,8 +221,11 @@ const elapsedLabel = computed(() =>
   }
 }
 
+/* Ink to match the settled reply's lead — MarkdownText's `reply` variant owns
+   the metrics, the caller owns the colour. */
 .answer {
   position: relative;
+  color: var(--color-neutral-200);
 }
 
 .stream-cursor {

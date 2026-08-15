@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./app": "./src/app.ts"
+    "./app": "./src/app.ts",
+    "./tool-catalog": "./src/sessions/session-tool-catalog.ts"
   },
   "scripts": {
     "dev": "node --watch --env-file-if-exists=../../.env --import tsx src/server.ts",

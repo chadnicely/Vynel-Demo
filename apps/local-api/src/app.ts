@@ -63,6 +63,7 @@ import { notebookApp } from './routes/notebook/index.js'
 import { capabilitiesApp } from './routes/capabilities/index.js'
 import { usersApp } from './routes/users/index.js'
 import { agentsApp } from './routes/agents/index.js'
+import { toolPoliciesApp } from './routes/tool-policies/index.js'
 import { providersApp } from './routes/providers/index.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
@@ -87,6 +88,8 @@ import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
 import { dashboardWorkspaceApp } from './routes/dashboard/workspace-scoped.js'
+import { sectionCountsApp } from './routes/section-counts/index.js'
+import { sectionCountsWorkspaceApp } from './routes/section-counts/workspace-scoped.js'
 import { sessionsApp } from './routes/sessions/index.js'
 import {
   TurnEventBroadcaster,
@@ -314,6 +317,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/approval-rules', approvalRulesApp)
   // The per-workspace dashboard reads (usage statistics) — twin of `/dashboard`.
   app.route('/workspaces/:workspaceId/dashboard', dashboardWorkspaceApp)
+  // The drilled menu's per-section counts — twin of `/section-counts`.
+  app.route('/workspaces/:workspaceId/section-counts', sectionCountsWorkspaceApp)
   // User-scoped (no workspace prefix) — GLOBAL (null-workspace) + cross-workspace
   // resources. `/channels` + `/schedules` span a user's whole set (both scopes)
   // so global channels/schedules are creatable, listable, and manageable; the
@@ -361,6 +366,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/commands', commandsUserApp)
   app.route('/mcp-servers', mcpServersUserApp)
   app.route('/approvals', approvalsUserApp)
+  // The admin tool-policy matrix — deliberately x-mcp-free (an agent must
+  // never edit its own gates; the capabilities-PUT doctrine).
+  app.route('/tool-policies', toolPoliciesApp)
   app.route('/users', usersApp)
   app.route('/onboarding', onboardingApp)
   app.route('/providers', providersApp)
@@ -372,6 +380,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/activity', activityApp)
   app.route('/voice', voiceApp)
   app.route('/dashboard', dashboardApp)
+  app.route('/section-counts', sectionCountsApp)
   // The unified session list (session-library Slice ③) — user-scoped.
   app.route('/sessions', sessionsApp)
   app.route('/hub', hubApp)

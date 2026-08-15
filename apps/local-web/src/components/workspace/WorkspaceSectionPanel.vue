@@ -14,6 +14,7 @@ import RulesSection from "../sections/RulesSection.vue";
 import SchedulesSection from "../sections/SchedulesSection.vue";
 import SkillsSection from "../sections/SkillsSection.vue";
 import SshServersSection from "../sections/SshServersSection.vue";
+import ToolPolicySection from "../sections/ToolPolicySection.vue";
 import TasksSection from "../sections/TasksSection.vue";
 import PlansSection from "../sections/PlansSection.vue";
 import JournalSection from "../sections/JournalSection.vue";
@@ -105,6 +106,11 @@ const { isLocked } = useHubFeatures();
   />
   <McpServersSection
     v-else-if="props.section === 'mcp-servers'"
+    :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
+  />
+  <!-- Tool Policy is the admin's safety surface — core plumbing, no tier gate. -->
+  <ToolPolicySection
+    v-else-if="props.section === 'tool-policy'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
   />
 

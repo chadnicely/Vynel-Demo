@@ -1,5 +1,14 @@
 # MCP app (`@vynel/mcp`) — Structure
 
+> **DRIFT (2026-08-14, tool-policy arc — remap on next touch).** The permission plumbing this
+> map describes changed: the composer **no longer emits `allowedMcpToolPatterns`** (bare MCP
+> wildcards shadowed `canUseTool` — the SHADOWED hole); it now applies admin
+> `toolPolicies` + a `surfaceKind` and tier `featureGatedTools` into denials. The gate arrays
+> moved to `src/vynel-tool-gates.ts` (subpath `@vynel/mcp/tool-gates`); the surface → server
+> map + per-tool catalog live in `apps/local-api/src/sessions/session-tool-catalog.ts`; the
+> external bin filters admin-disabled tools at startup. Current map:
+> [`_platform/tool-policy`](../../_platform/tool-policy/structure.md) + `docs/module-notes/tool-policy.md`.
+>
 > The code map and connections for the `apps/mcp` shell. For the concepts behind it, see [overview.md](./overview.md).
 >
 > Folders touched: `apps/mcp/src/` · `apps/mcp/src/generated/` · `scripts/src/generators/` · `apps/local-api/src/{sessions,streams,routes}/` · `packages/mcp-contract/src/`

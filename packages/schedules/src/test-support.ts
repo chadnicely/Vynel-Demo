@@ -165,7 +165,6 @@ export function stubFireDeps(): StubFireDeps {
       state.buildCount += 1
       return {
         mcpServers: { vynel: {} },
-        allowedMcpToolPatterns: ['mcp__vynel__*'],
         deniedMcpToolPatterns: ['mcp__vynel__search_knowledge'],
         mutatingToolNames: ['mcp__vynel__create_memory_entry'],
         askModeApprovalToolNames: ['mcp__vynel__remove_knowledge_source'],

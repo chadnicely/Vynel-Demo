@@ -148,7 +148,9 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       // provider mode since 2026-07-30 (bypass-with-behavior-gate stays the
       // unattended default only).
       expect(input.permissionMode).toBe('bypass')
-      expect(input.allowedMcpToolPatterns).toContain('mcp__vynel__*')
+      // Servers register; no wildcard patterns reach the provider (SHADOWED fix).
+      expect(input.mcpServers).toHaveProperty('vynel')
+      expect('allowedMcpToolPatterns' in input).toBe(false)
       // The capability PROMPT composition (operating rules) rides along.
       expect(input.systemPromptAppend).toBeTruthy()
     })

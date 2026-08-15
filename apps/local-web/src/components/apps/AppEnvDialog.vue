@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Eye, EyeOff, Plus, X } from "lucide-vue-next";
+import { PhEye as Eye, PhEyeSlash as EyeOff, PhPlus as Plus, PhX as X } from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 import type { WorkspaceAppResponse } from "@vynel/contracts/apps/app-http";
 import { useAppEnv } from "../../composables/workspace-apps/use-app-env.js";

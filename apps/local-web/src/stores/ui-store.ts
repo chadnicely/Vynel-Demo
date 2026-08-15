@@ -13,6 +13,15 @@ import type { WorkspaceSectionId } from "../components/workspace/workspace-secti
 
 export type Theme = "dark" | "light";
 
+/** How workspaces are navigated: the browser-style tab strip, or the sidebar
+ *  workspace tree (the strip row collapses). One selection state under both —
+ *  the mode only changes presentation. */
+export type NavMode = "tabs" | "menu";
+
+/** The Nodes screen's three readings of the same projects: the constellation,
+ *  the same fleet as cards, and everything on one track toward done. */
+export type NodesMode = "nodes" | "grid" | "race";
+
 /** What the chat surface is pointed at: the ongoing single conversation (the
  *  default — Vynel's "one brain"), a fresh topic, or one history session. */
 export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
@@ -62,14 +71,22 @@ export const GLOBAL_TAB_ID = "global";
 
 const THEME_STORAGE_KEY = "vynel.theme";
 const TABS_STORAGE_KEY = "vynel.tabs";
+const NAV_MODE_STORAGE_KEY = "vynel.nav-mode";
 const LEGACY_WORKSPACE_STORAGE_KEY = "vynel.active-workspace";
 const COMPOSER_MODE_STORAGE_KEY = "vynel.composer-mode";
 const COMPOSER_MODEL_STORAGE_KEY = "vynel.composer-model";
 const COMPOSER_THINKING_EFFORT_STORAGE_KEY = "vynel.composer-thinking-effort";
+const COMPOSER_AUTO_BUILDOUT_STORAGE_KEY = "vynel.composer-auto-buildout";
 
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
   return stored === "light" ? "light" : "dark";
+}
+
+// Tabs is the default — it's the shell's long-standing behavior; menu is the
+// opt-in view. Junk storage falls back to tabs like every stored value.
+function readStoredNavMode(): NavMode {
+  return localStorage.getItem(NAV_MODE_STORAGE_KEY) === "menu" ? "menu" : "tabs";
 }
 
 // Fail-closed restores: an unknown stored value (a renamed mode, a retired
@@ -96,6 +113,14 @@ function readStoredThinkingEffort(): ComposerThinkingEffort {
   return THINKING_EFFORT_OPTIONS.some((option) => option.id === stored)
     ? (stored as ComposerThinkingEffort)
     : DEFAULT_THINKING_EFFORT;
+}
+
+// Auto buildout — the canvas's composer toggle. NOTHING READS IT YET (Kafi,
+// 2026-08-15: "we don't have functions yet but add that"): it is a persisted
+// preference waiting for the build engine, deliberately not a dead switch that
+// forgets itself. Off by default — a build that runs itself is opt-in.
+function readStoredAutoBuildout(): boolean {
+  return localStorage.getItem(COMPOSER_AUTO_BUILDOUT_STORAGE_KEY) === "on";
 }
 
 function freshShell(): ChatShellState {
@@ -194,6 +219,22 @@ export const useUiStore = defineStore("ui", () => {
 
   function toggleTheme() {
     theme.value = theme.value === "dark" ? "light" : "dark";
+  }
+
+  // Navigation mode — persisted like the theme; the tab state underneath is
+  // shared, so flipping modes never loses a scope or its canvas.
+  const navMode = ref<NavMode>(readStoredNavMode());
+  watch(navMode, (value) => localStorage.setItem(NAV_MODE_STORAGE_KEY, value));
+
+  // Menu mode's sidebar shows the workspace tree (root) or the active scope's
+  // section menu (drilled). Ephemeral by design: entering menu mode always
+  // lands on the tree — that's the mode's whole point.
+  const isWorkspaceTreeOpen = ref(true);
+
+  function setNavMode(mode: NavMode) {
+    if (mode === navMode.value) return;
+    navMode.value = mode;
+    if (mode === "menu") isWorkspaceTreeOpen.value = true;
   }
 
   // The scope tabs — the pinned Global tab plus any open workspace rooms.
@@ -323,7 +364,11 @@ export const useUiStore = defineStore("ui", () => {
   const composerThinkingEffort = ref<ComposerThinkingEffort>(
     readStoredThinkingEffort(),
   );
+  const composerAutoBuildout = ref<boolean>(readStoredAutoBuildout());
 
+  watch(composerAutoBuildout, (value) =>
+    localStorage.setItem(COMPOSER_AUTO_BUILDOUT_STORAGE_KEY, value ? "on" : "off"),
+  );
   watch(composerMode, (value) =>
     localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, value),
   );
@@ -342,9 +387,26 @@ export const useUiStore = defineStore("ui", () => {
   // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);
 
+  // A ring-the-bell counter for the create-workspace dialog. The dialog is
+  // mounted once in AppShell; routed views (the Nodes screen's empty state)
+  // can't reach its local ref, so they bump this and the shell watches it.
+  const createWorkspaceRequestCount = ref(0);
+  function requestCreateWorkspace() {
+    createWorkspaceRequestCount.value += 1;
+  }
+
+  // Which reading the Nodes screen is on — the constellation, the same fleet
+  // as cards, or the race toward done. Held here rather than in the view so it
+  // survives leaving the route; not persisted, so a fresh app opens on the
+  // constellation.
+  const nodesMode = ref<NodesMode>("nodes");
+
   return {
     theme,
     toggleTheme,
+    navMode,
+    setNavMode,
+    isWorkspaceTreeOpen,
     tabs,
     activeTabId,
     activeTab,
@@ -362,7 +424,11 @@ export const useUiStore = defineStore("ui", () => {
     composerModelId,
     composerMode,
     composerThinkingEffort,
+    composerAutoBuildout,
     composerSeed,
     isVoiceOverlayOpen,
+    createWorkspaceRequestCount,
+    requestCreateWorkspace,
+    nodesMode,
   };
 });

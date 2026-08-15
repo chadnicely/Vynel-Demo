@@ -19,6 +19,7 @@
 // exactly the machines that have it.
 
 import type { Database } from '@vynel/db'
+import type { PendingAskRegistry } from '@vynel/asks'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import {
   composeSessionAgents,
@@ -41,9 +42,16 @@ import {
 import type { DelegationOrigin } from '@vynel/orchestration'
 import type { HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
+import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
+
+// How long a channel turn's ask_user form waits before expiring — matched to
+// the approvals reaper's ~10-minute real-world bound, the app's standing
+// answer to "how long may a background turn wait on a human".
+const CHANNEL_ASK_TIMEOUT_MS = 10 * 60 * 1000
 
 // The drain sink narrows on the SAME `ChatTurnEvent` the runner emits, taken
 // straight off `SessionSink` so this edge never needs a `@vynel/chat` dependency.
@@ -54,6 +62,12 @@ export interface RunGlobalRootTurnDeps {
   logger: Logger
   /** The in-process API dispatcher (`c.var.appRequest`) — the routing MCP tools dispatch through it. */
   appRequest: HonoAppRequestFn
+  /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys
+  /** The process-wide parked-ask registry — attaching it gives channel turns
+   *  ask_user with the bounded wait. Absent (older callers, tests) = ask-free
+   *  turn, exactly the pre-slice shape. */
+  askWaiters?: PendingAskRegistry
   /** The turn-liveness registry — a background channel turn must announce
    *  itself so the open app surfaces it live (the web has no other signal). */
   activityFeed: SessionActivityFeed
@@ -214,8 +228,35 @@ export async function runGlobalRootTurn(
   const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
     userId: input.userId,
   })
+  const enabledFeatureKeys = deps.readEnabledFeatureKeys?.()
+  const toolPolicies = resolveSessionToolPolicies(deps.db, {
+    userId: input.userId,
+    desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
+  })
+  // ask_user now rides channel turns too — the Telegram flow ("Claude needs
+  // your input" nudge is already wired on ask.created) — but BOUNDED: nobody
+  // may be looking at the app, so an unanswered form expires and the turn
+  // proceeds with judgment instead of parking a background job forever.
+  // Interactive streams keep the recorded no-timeout decision (fork #1).
+  const askTurnKey = crypto.randomUUID()
+  const askFeatureDescriptors =
+    deps.askWaiters !== undefined
+      ? [
+          (await import('@vynel/asks/mcp')).buildAskFeatureDescriptor({
+            waiters: deps.askWaiters,
+            turnKey: askTurnKey,
+            timeoutMs: CHANNEL_ASK_TIMEOUT_MS,
+            logger: deps.logger,
+          }),
+        ]
+      : []
   const composedMcp = composeSessionMcpServers(
-    [vynelRoutingDescriptor, notebookFeatureDescriptor, desktopFeatureDescriptor],
+    [
+      vynelRoutingDescriptor,
+      notebookFeatureDescriptor,
+      ...askFeatureDescriptors,
+      desktopFeatureDescriptor,
+    ],
     {
       db: deps.db,
       userId: input.userId,
@@ -246,7 +287,12 @@ export async function runGlobalRootTurn(
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
     // the notebook's defaultEnabled gated tools would be denied here).
-    { enabledCapabilityIds: defaultEnabledCapabilityIds() },
+    {
+      enabledCapabilityIds: defaultEnabledCapabilityIds(),
+      ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+      toolPolicies,
+      surfaceKind: 'global-channel',
+    },
   )
 
   // USER-scope agents ride channel turns too — a Telegram ask can spawn the
@@ -336,7 +382,7 @@ export async function runGlobalRootTurn(
           ? { steerPromptAppend: input.steerPromptAppend }
           : {}),
         mcpServers: composedMcp.mcpServers,
-        allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
+        deniedMcpToolPatterns: composedMcp.deniedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,
         askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
         mcpSystemPromptAppend: composedMcp.systemPromptAppend,
@@ -346,6 +392,21 @@ export async function runGlobalRootTurn(
     )
   } finally {
     activity.end()
+    // A parked ask must not outlive its turn: cancel THIS turn's waiters and
+    // expire their rows — the interactive streams' cleanup mirrored, GUARD
+    // INCLUDED: a bookkeeping failure here must never replace the turn's real
+    // outcome (boot expiry sweeps any row this misses).
+    if (deps.askWaiters !== undefined) {
+      try {
+        const cancelledAskIds = deps.askWaiters.cancelForTurn(askTurnKey)
+        if (cancelledAskIds.length > 0) {
+          const { expireAskRequests } = await import('@vynel/asks')
+          expireAskRequests(deps.db, { askIds: cancelledAskIds }, { logger: deps.logger })
+        }
+      } catch (err) {
+        deps.logger.warn({ err }, 'failed to expire cancelled ask requests at turn end')
+      }
+    }
     if (agentRunId) {
       try {
         await recordAgentRunCompleted(deps.db, {

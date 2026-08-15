@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Plus, X } from "lucide-vue-next";
+import { PhPlus as Plus, PhX as X } from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 import { useChannels } from "../../composables/channels/use-channels.js";
 import { useRenameChannel } from "../../composables/channels/use-rename-channel.js";

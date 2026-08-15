@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { MonitorSmartphone } from "lucide-vue-next";
+import { PhDevices as MonitorSmartphone } from "@phosphor-icons/vue";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 
 // Structural subset of the SDK's HubDeviceView — the row only needs these.

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { BookOpen, FileText, FolderOpen, Plus, X } from "lucide-vue-next";
+import {
+  PhBookOpen as BookOpen,
+  PhFileText as FileText,
+  PhFolderOpen as FolderOpen,
+  PhPlus as Plus,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useKnowledgeSourcesInScope } from "../../composables/knowledge/use-knowledge-sources-in-scope.js";
 import { useRemoveKnowledgeSource } from "../../composables/knowledge/use-remove-knowledge-source.js";

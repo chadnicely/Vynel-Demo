@@ -1,13 +1,19 @@
 // The `ask_user` SDK MCP tool — the agent-facing half of the blocking bridge.
 // The handler records the pending ask, then PARKS on a promise the waiter
 // registry holds; the answer/dismiss routes (or a scope cancel / boot expiry)
-// resolve it. There is deliberately NO timeout: a decision Claude chose to
-// ask for cannot be fabricated (Chad, module notes fork #1) — the user's
-// dismiss is the only "proceed without me" path.
+// resolve it.
+//
+// Timeout policy is the CALLER's: an INTERACTIVE stream passes none — a
+// decision Claude chose to ask for cannot be fabricated (Chad, module notes
+// fork #1); the user's dismiss is the only "proceed without me" path there.
+// An UNATTENDED surface (channel turns) passes `timeoutMs` — nobody may be
+// looking at the app, so a bounded wait resolves 'expired' and the turn
+// proceeds with judgment instead of parking a background job forever.
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { AskQuestionsSchema, type AskQuestion } from '@vynel/contracts/asks/ask-questions'
 import { createAskRequest } from '../lifecycle/create-ask-request.js'
+import { expireAskRequests } from '../lifecycle/expire-ask-requests.js'
 import type { Database } from '@vynel/db'
 import type { AskOutcome, StructuralLogger } from '../asks-types.js'
 import type { PendingAskRegistry } from '../waiting/pending-ask-registry.js'
@@ -27,6 +33,9 @@ const TOOL_DESCRIPTION =
 export interface AskUserToolScope {
   userId: string
   workspaceId: string | null // null = a global-root turn
+  /** Vynel's stable primary-session id when the turn knows it — stamped on
+   *  the ask row so the wizard can point back at the asking conversation. */
+  sessionId?: string
 }
 
 export interface AskUserToolDeps {
@@ -34,6 +43,9 @@ export interface AskUserToolDeps {
   // The owning turn's key (minted per stream request) — turn-end cleanup
   // cancels exactly this turn's parked asks, never a sibling turn's.
   turnKey: string
+  /** Bounded wait for unattended surfaces — see the file header. Omit on
+   *  interactive streams (the recorded no-timeout decision). */
+  timeoutMs?: number
   logger?: StructuralLogger
 }
 
@@ -53,17 +65,48 @@ export async function runAskUserBridge(
 ): Promise<AskOutcome> {
   const ask = createAskRequest(
     db,
-    { userId: scope.userId, workspaceId: scope.workspaceId, questions },
+    {
+      userId: scope.userId,
+      workspaceId: scope.workspaceId,
+      ...(scope.sessionId !== undefined ? { sessionId: scope.sessionId } : {}),
+      questions,
+    },
     deps.logger !== undefined ? { logger: deps.logger } : {},
   )
   return new Promise<AskOutcome>((resolve) => {
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined
     deps.waiters.register({
       askId: ask.id,
       userId: scope.userId,
       workspaceId: scope.workspaceId,
       turnKey: deps.turnKey,
-      resolve,
+      resolve: (outcome) => {
+        if (expiryTimer !== undefined) clearTimeout(expiryTimer)
+        resolve(outcome)
+      },
     })
+    if (deps.timeoutMs !== undefined) {
+      expiryTimer = setTimeout(() => {
+        // The user may have answered in the same tick — the registry's
+        // has-check makes expiry lose that race cleanly.
+        if (!deps.waiters.has(ask.id)) return
+        try {
+          expireAskRequests(
+            db,
+            { askIds: [ask.id] },
+            deps.logger !== undefined ? { logger: deps.logger } : {},
+          )
+        } catch (err) {
+          // A timer callback has no upstream catch — an unguarded throw here
+          // is a process crash. A failed row-expire must also never park the
+          // turn: resolve anyway; boot expiry sweeps the row later.
+          deps.logger?.warn({ err, askId: ask.id }, 'ask expiry bookkeeping failed')
+        }
+        deps.waiters.resolve(ask.id, { answered: false, reason: 'expired' })
+      }, deps.timeoutMs)
+      // Never hold the process open for a parked background ask.
+      expiryTimer.unref?.()
+    }
   })
 }
 

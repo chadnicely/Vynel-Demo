@@ -23,7 +23,10 @@ import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
 import type { SessionTurnOrigin } from '@vynel/contracts/chat/session-activity'
 
-export type SessionTurnEndedReason = 'ended' | 'orphaned'
+// 'failed' = the drain saw a terminal `session-errored` or threw — the
+// "stuck on an error" signal the workspace status vocabulary reads. A user
+// interrupt stays 'ended' (stopping work is not a problem).
+export type SessionTurnEndedReason = 'ended' | 'orphaned' | 'failed'
 
 export const sessionTurns = table(
   'session_turns',

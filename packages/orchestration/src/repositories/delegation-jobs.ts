@@ -591,3 +591,27 @@ export function requeueOrphanedClaimedReportDeliveries(db: Database, at: Date): 
     .returning()
     .all()
 }
+
+// EVERY kind, not just work: the node screen draws a line whenever two
+// conversations talk, and a `send_message` between them is a DELIVERY row.
+// Filtering to tasks here (as the run views do) would hide exactly the traffic
+// the picture exists to show. Windowed rather than paged — the caller only ever
+// wants "what happened just now".
+export function listDelegationJobsSince(
+  db: Database,
+  input: { userId: string; since: Date; limit?: number },
+): DelegationJob[] {
+  const cappedLimit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  return db
+    .select()
+    .from(delegationJobs)
+    .where(
+      and(
+        eq(delegationJobs.userId, input.userId),
+        gte(delegationJobs.createdAt, input.since),
+      ),
+    )
+    .orderBy(desc(delegationJobs.createdAt), desc(delegationJobs.id))
+    .limit(cappedLimit)
+    .all()
+}

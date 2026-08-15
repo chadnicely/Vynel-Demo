@@ -16,15 +16,19 @@
 //   - workspace turn  → [vynelWorkspaceDescriptor]   (full tools, capability-gated)
 //   - global-root turn → [vynelRoutingDescriptor, ...]
 
+import type { EffectiveToolPolicies, SessionSurfaceKind } from '@vynel/capabilities'
 import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
 
 export interface ComposedSessionMcpServers {
   // Server key → built in-process server, for the SDK's `options.mcpServers`.
   // `unknown` keeps the SDK type out of the api turn layer (the provider casts at
   // the edge, per the chat contract's `Record<string, unknown>` precedent).
+  // Deliberately NO `mcp__<serverName>__*` allow patterns: a bare allowedTools
+  // entry auto-approves the whole server upstream of `canUseTool`
+  // (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED), which silently un-gated every MCP tool
+  // in ask mode. Registration alone is what offers the tools; the provider's
+  // policy map decides allow-vs-card per call.
   mcpServers: Record<string, unknown>
-  // `mcp__<serverName>__*` for each included feature.
-  allowedMcpToolPatterns: string[]
   // Tools denied because their gating capability is disabled (an `alwaysOn` core
   // feature is never denied).
   deniedMcpToolPatterns: string[]
@@ -42,11 +46,27 @@ export interface ComposedSessionMcpServers {
 export function composeSessionMcpServers(
   descriptors: readonly McpFeatureDescriptor[],
   context: SessionToolContext,
-  options: { enabledCapabilityIds?: ReadonlySet<string> } = {},
+  options: {
+    enabledCapabilityIds?: ReadonlySet<string>
+    /** The hub entitlement's feature keys. `undefined` = NO live entitlement
+     *  (hub not configured / signed out / offline past grace) — deliberately
+     *  FAIL-OPEN, matching the HTTP featureGate's posture: the gate enforces
+     *  only what a live entitlement actually says. A set filters strictly.
+     *  (Capabilities differ on purpose: absent set = default-deny — a
+     *  capability read always exists; an entitlement may genuinely not.) */
+    enabledFeatureKeys?: ReadonlySet<string>
+    /** The admin's resolved per-tool policies + which surface this turn IS.
+     *  When both are present, overrides apply ON TOP of the declared gates:
+     *  disabled or surface-excluded tools deny; an override-set tier or
+     *  capability gates through the same enabled sets; a cardClass override
+     *  is AUTHORITATIVE for that tool's membership in the card sets (an
+     *  admin can demote a curated ask-tool or promote a read to always). */
+    toolPolicies?: EffectiveToolPolicies
+    surfaceKind?: SessionSurfaceKind
+  } = {},
 ): ComposedSessionMcpServers {
   const enabledCapabilityIds = options.enabledCapabilityIds ?? new Set<string>()
   const mcpServers: Record<string, unknown> = {}
-  const allowedMcpToolPatterns: string[] = []
   const deniedMcpToolPatterns: string[] = []
   const mutatingToolNames: string[] = []
   const askModeApprovalToolNames: string[] = []
@@ -59,12 +79,11 @@ export function composeSessionMcpServers(
     if (server === null) continue
 
     mcpServers[descriptor.serverName] = server
-    const allowPattern = `mcp__${descriptor.serverName}__*`
-    if (!allowedMcpToolPatterns.includes(allowPattern)) allowedMcpToolPatterns.push(allowPattern)
 
     // A core-tier (`alwaysOn`) feature is always-on + no-approval: never
     // capability-denied, never carded — regardless of permission mode.
     let everyGatedToolDenied = false
+    let everyFeatureGateDenied = false
     if (descriptor.alwaysOn !== true) {
       mutatingToolNames.push(...descriptor.mutatingToolNames)
       for (const toolName of descriptor.askModeApprovalToolNames ?? []) {
@@ -80,23 +99,63 @@ export function composeSessionMcpServers(
         for (const [, toolNames] of deniedGateEntries) deniedMcpToolPatterns.push(...toolNames)
         everyGatedToolDenied = gateEntries.length > 0 && deniedGateEntries.length === gateEntries.length
       }
+      // The tier gate — same three lines as the capability gate, but only
+      // against a LIVE entitlement (undefined = fail-open, see the option doc).
+      if (descriptor.featureGatedTools !== undefined && options.enabledFeatureKeys !== undefined) {
+        const enabledFeatureKeys = options.enabledFeatureKeys
+        const featureEntries = Object.entries(descriptor.featureGatedTools)
+        const deniedFeatureEntries = featureEntries.filter(
+          ([featureKey]) => !enabledFeatureKeys.has(featureKey),
+        )
+        for (const [, toolNames] of deniedFeatureEntries) deniedMcpToolPatterns.push(...toolNames)
+        everyFeatureGateDenied =
+          featureEntries.length > 0 && deniedFeatureEntries.length === featureEntries.length
+      }
     }
 
     // A fully capability-denied feature contributes NO prompt: the notebook is
     // the first descriptor combining capabilityGatedTools + contributePrompt,
     // and with its capability toggled OFF the turn would still say "call
     // list_playbooks…" while every one of those tools is denied — the model
-    // gets steered into calls that can only fail.
+    // gets steered into calls that can only fail. The tier twin applies the
+    // same rule to a descriptor gated ONLY by tier (ssh: every tool behind one
+    // key); a descriptor that also has capability gates keeps its prompt —
+    // its capability-gated sections may still be live.
     if (everyGatedToolDenied) continue
+    if (everyFeatureGateDenied && descriptor.capabilityGatedTools === undefined) continue
     const contribution = descriptor.contributePrompt?.(context, enabledCapabilityIds)
     if (contribution !== undefined && contribution !== null && contribution !== '') {
       promptSections.push(contribution)
     }
   }
 
+  // The admin overrides, applied on top of the declared gates — only for
+  // tools of servers this turn actually registered.
+  if (options.toolPolicies !== undefined) {
+    for (const policy of options.toolPolicies.values()) {
+      if (!(policy.serverName in mcpServers)) continue
+      const denied =
+        !policy.enabled ||
+        (options.surfaceKind !== undefined && !policy.surfaces.includes(options.surfaceKind)) ||
+        (policy.featureKey !== undefined &&
+          options.enabledFeatureKeys !== undefined &&
+          !options.enabledFeatureKeys.has(policy.featureKey)) ||
+        (policy.capabilityId !== undefined && !enabledCapabilityIds.has(policy.capabilityId))
+      if (denied && !deniedMcpToolPatterns.includes(policy.toolName)) {
+        deniedMcpToolPatterns.push(policy.toolName)
+      }
+      // cardClass is authoritative where a policy exists: strip, then re-add.
+      const inMutating = mutatingToolNames.indexOf(policy.toolName)
+      if (inMutating !== -1) mutatingToolNames.splice(inMutating, 1)
+      const inAskTier = askModeApprovalToolNames.indexOf(policy.toolName)
+      if (inAskTier !== -1) askModeApprovalToolNames.splice(inAskTier, 1)
+      if (policy.cardClass === 'always') mutatingToolNames.push(policy.toolName)
+      if (policy.cardClass === 'ask') askModeApprovalToolNames.push(policy.toolName)
+    }
+  }
+
   return {
     mcpServers,
-    allowedMcpToolPatterns,
     deniedMcpToolPatterns,
     mutatingToolNames,
     askModeApprovalToolNames,
@@ -114,7 +173,6 @@ export function mergeComposedSessionMcpServers(
 ): ComposedSessionMcpServers {
   return {
     mcpServers: { ...base.mcpServers, ...extra.mcpServers },
-    allowedMcpToolPatterns: [...base.allowedMcpToolPatterns, ...extra.allowedMcpToolPatterns],
     deniedMcpToolPatterns: [...base.deniedMcpToolPatterns, ...extra.deniedMcpToolPatterns],
     mutatingToolNames: [...base.mutatingToolNames, ...extra.mutatingToolNames],
     askModeApprovalToolNames: [

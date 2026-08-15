@@ -155,6 +155,8 @@ const EXPECTED_TOOL_NAMES = [
   'list_schedules',
   'list_tasks',
   'list_workspaces',
+  // Menu-tree folders (workspace redesign Arc 2b) — read-only list.
+  'list_workspace_groups',
   'install_marketplace_item',
   'remove_knowledge_source',
   'search_chat_messages',
@@ -166,6 +168,9 @@ const EXPECTED_TOOL_NAMES = [
   // the plain workspace array alongside its routing membership below — one
   // name on every surface, so the toolset never flips per turn origin.
   'set_todos',
+  // The status vocabulary write (workspace redesign Arc 5b) — completed /
+  // problem / needs_input, the state light every navigation surface renders.
+  'set_workspace_status',
   'start_app',
   'stop_app',
   'stop_monitor',

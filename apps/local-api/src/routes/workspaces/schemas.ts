@@ -44,6 +44,48 @@ export const DeleteWorkspaceRequestSchema = z.object({
   deleteFilesFromDisk: z.boolean(),
 })
 
+// ── Menu-tree folders (workspace redesign Arc 2b). Name bounds mirror the
+// core's normalizeWorkspaceGroupName (trim happens there — one home). ──
+export const CreateWorkspaceGroupRequestSchema = z.object({
+  name: z.string().min(1).max(60),
+})
+
+export const RenameWorkspaceGroupRequestSchema = z.object({
+  name: z.string().min(1).max(60),
+})
+
+// Membership move — a folder id, or null for the tree root.
+export const SetWorkspaceGroupRequestSchema = z.object({
+  groupId: z.string().min(1).nullable(),
+})
+
+// Assistant-set workspace status (redesign Arc 5b) — the set_workspace_status
+// MCP tool's body. The note is the assistant's one-line why.
+export const SetWorkspaceStatusRequestSchema = z.object({
+  status: z.enum(['completed', 'problem', 'needs_input']),
+  note: z.string().max(500).optional(),
+})
+
+// One row of GET /workspaces/statuses — mirrors
+// `@vynel/contracts/workspaces/workspace-status` WorkspaceStatusReport.
+export const WorkspaceStatusReportSchema = z.object({
+  workspaceId: z.string(),
+  setStatus: z.enum(['completed', 'problem', 'needs_input']).nullable(),
+  statusNote: z.string().nullable(),
+  statusSetAt: z.string().nullable(),
+  latestTurn: z
+    .object({
+      startedAt: z.string(),
+      endedAt: z.string().nullable(),
+      endedReason: z.enum(['ended', 'orphaned', 'failed']).nullable(),
+    })
+    .nullable(),
+  tasksTotal: z.number(),
+  tasksDone: z.number(),
+})
+
+export const ListWorkspaceStatusesResponseSchema = z.array(WorkspaceStatusReportSchema)
+
 // Folder picker — `path` omitted starts at the user's home directory.
 // `includeFiles` opts the listing into carrying visible files too (the
 // knowledge add-source picker; the workspace picker leaves it off).
@@ -69,12 +111,28 @@ export const WorkspaceResponseSchema = z.object({
   path: z.string(),
   isArchived: z.boolean(),
   continueEnabled: z.boolean(),
+  // Menu-tree folder membership — null at the tree root.
+  groupId: z.string().nullable(),
+  // Assistant-set status trio (redesign Arc 5b) — null when nothing set.
+  status: z.enum(['completed', 'problem', 'needs_input']).nullable(),
+  statusNote: z.string().nullable(),
+  statusSetAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   lastAccessedAt: z.string(),
 })
 
 export const ListWorkspacesResponseSchema = z.array(WorkspaceResponseSchema)
+
+export const WorkspaceGroupResponseSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const ListWorkspaceGroupsResponseSchema = z.array(WorkspaceGroupResponseSchema)
 
 const DirectoryEntryResponseSchema = z.object({
   name: z.string(),
@@ -96,3 +154,6 @@ export type CreateWorkspaceRequest = z.infer<typeof CreateWorkspaceRequestSchema
 export type UpdateWorkspaceRequest = z.infer<typeof UpdateWorkspaceRequestSchema>
 export type DeleteWorkspaceRequest = z.infer<typeof DeleteWorkspaceRequestSchema>
 export type ListWorkspacesQuery = z.infer<typeof ListWorkspacesQuerySchema>
+export type CreateWorkspaceGroupRequest = z.infer<typeof CreateWorkspaceGroupRequestSchema>
+export type RenameWorkspaceGroupRequest = z.infer<typeof RenameWorkspaceGroupRequestSchema>
+export type SetWorkspaceGroupRequest = z.infer<typeof SetWorkspaceGroupRequestSchema>

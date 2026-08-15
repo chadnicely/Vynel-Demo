@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { LogIn } from "lucide-vue-next";
+import { PhSignIn as LogIn } from "@phosphor-icons/vue";
 import { useHubSignIn } from "../../composables/hub/use-hub-sign-in.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 

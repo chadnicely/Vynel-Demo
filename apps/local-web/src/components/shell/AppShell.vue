@@ -2,38 +2,44 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
-  Bot,
-  BookOpen,
-  Brain,
-  Cable,
-  CalendarClock,
-  CalendarRange,
-  Cpu,
-  FolderTree,
-  History,
-  House,
-  ListChecks,
-  MessageCircle,
-  NotebookPen,
-  Radio,
-  ScrollText,
-  Server,
-  Settings2,
-  SlidersHorizontal,
-  SquarePlay,
-  SquareSlash,
-  Store,
-  UserRound,
-  Wrench,
-} from "lucide-vue-next";
-import { CommandPalette, ResizablePanel, useOpenModalCount } from "@vynel/ui";
+  PhRobot as Bot,
+  PhBookOpen as BookOpen,
+  PhBrain as Brain,
+  PhPlugsConnected as Cable,
+  PhCalendarDots as CalendarClock,
+  PhCalendarBlank as CalendarRange,
+  PhCpu as Cpu,
+  PhTreeView as FolderTree,
+  PhClockCounterClockwise as History,
+  PhHouse as House,
+  PhListChecks as ListChecks,
+  PhChatCircle as MessageCircle,
+  PhNotePencil as NotebookPen,
+  PhBroadcast as Radio,
+  PhScroll as ScrollText,
+  PhHardDrives as Server,
+  PhGearFine as Settings2,
+  PhShieldCheck as ShieldCheck,
+  PhSlidersHorizontal as SlidersHorizontal,
+  PhPlayCircle as SquarePlay,
+  PhTerminalWindow as SquareSlash,
+  PhStorefront as Store,
+  PhUser as UserRound,
+  PhWrench as Wrench,
+} from "@phosphor-icons/vue";
+import {
+  CommandPalette,
+  ResizablePanel,
+  useOpenModalCount,
+  workspaceMonogram,
+} from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
 import AppTabStrip from "./AppTabStrip.vue";
 import AppSidebar from "./AppSidebar.vue";
+import WorkspaceTree from "./WorkspaceTree.vue";
 import BrowserPanel from "../browser/BrowserPanel.vue";
 import type { SidebarItem } from "./AppSidebar.vue";
-import AppStatusBar from "./AppStatusBar.vue";
 import ApprovalNotifier from "./ApprovalNotifier.vue";
 import UpdatePill from "./UpdatePill.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
@@ -55,14 +61,17 @@ import {
 } from "../../stores/customize-store.js";
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
-import { useActivityStore } from "../../stores/activity-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import {
+  useWorkspaceGroups,
+  useWorkspaceGroupMutations,
+} from "../../composables/workspaces/use-workspace-groups.js";
+import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
+import { useSectionCounts } from "../../composables/workspaces/use-section-counts.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
-import { usePendingApprovals } from "../../composables/approvals/use-pending-approvals.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
-import { useTasks } from "../../composables/tasks/use-tasks.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 // The reinvented desktop shell — mounted only for real surfaces (App.vue keeps
@@ -73,7 +82,6 @@ const route = useRoute();
 const router = useRouter();
 
 const ui = useUiStore();
-const activity = useActivityStore();
 const browser = useBrowserStore();
 // Ctrl/⌘+Q closes the window from anywhere — same controls the title bar drives.
 const windowControls = useWindowControls();
@@ -82,18 +90,22 @@ const windowControls = useWindowControls();
 useAppLinkRouter();
 const workspacesQuery = useWorkspaceList();
 const currentUserQuery = useCurrentUser();
-const pendingApprovalsQuery = usePendingApprovals();
 // The app's single /activity/stream subscription — server-reported turns
 // (Telegram, another tab, schedule fires) fold into the activity store so the
 // chat views go live and the presence dot lights for background work.
 useSessionActivityFeed();
 
-const surface = computed<"home" | "chat" | "sessions" | "workspace">(() => {
-  const name = route.name;
-  return name === "home" || name === "workspace" || name === "sessions"
-    ? name
-    : "chat";
-});
+const surface = computed<"home" | "chat" | "sessions" | "workspace" | "nodes">(
+  () => {
+    const name = route.name;
+    return name === "home" ||
+      name === "workspace" ||
+      name === "sessions" ||
+      name === "nodes"
+      ? name
+      : "chat";
+  },
+);
 // Scope follows the ACTIVE TAB: the pinned Global tab or a workspace room.
 // Everything contextual (sidebar menu, session library scope, the canvas
 // shell) derives from it.
@@ -105,51 +117,31 @@ const activeWorkspaces = computed(() =>
   allWorkspaces.value.filter((w) => !w.isArchived),
 );
 const workspaceOptions = computed(() =>
-  activeWorkspaces.value.map((w) => ({ id: w.id, name: w.name })),
+  activeWorkspaces.value.map((w) => ({
+    id: w.id,
+    name: w.name,
+    groupId: w.groupId ?? null,
+  })),
 );
+
+// Menu-tree folders (Arc 2b) — the tree renders them; the mutations answer
+// its create/rename/delete/move events.
+const workspaceGroupsQuery = useWorkspaceGroups();
+const workspaceGroupOptions = computed(() =>
+  (workspaceGroupsQuery.data.value ?? []).map((group) => ({
+    id: group.id,
+    name: group.name,
+  })),
+);
+const groupMutations = useWorkspaceGroupMutations();
 const activeWorkspaceName = computed(
   () =>
     allWorkspaces.value.find((w) => w.id === ui.activeWorkspaceId)?.name ??
     null,
 );
 
-const contextTitle = computed(() => {
-  if (surface.value === "home") return "Home";
-  if (surface.value === "sessions") return "Sessions";
-  if (surface.value === "workspace")
-    return activeWorkspaceName.value ?? "Workspace";
-  return "Global chat";
-});
-
-const pendingCount = computed(
-  () => pendingApprovalsQuery.data.value?.length ?? 0,
-);
-const presenceState = computed<"idle" | "live" | "attention">(() => {
-  if (pendingCount.value > 0) return "attention";
-  if (activity.isTurnRunning) return "live";
-  return "idle";
-});
-const presenceLabel = computed(() => {
-  if (pendingCount.value > 0)
-    return `${pendingCount.value} approval${pendingCount.value === 1 ? "" : "s"} waiting`;
-  if (activity.isTurnRunning) return "assistant working";
-  return "assistant idle";
-});
-const statusContext = computed(
-  () => `${presenceLabel.value} · ${contextTitle.value}`,
-);
-
 const accountName = computed(
   () => currentUserQuery.data.value?.displayName ?? "Your account",
-);
-
-// Open work feeds the title bar's tasks-toggle badge (the same list every
-// tasks surface reads — vue-query dedupes the fetch).
-const tasksQuery = useTasks(true);
-const openTaskCount = computed(
-  () =>
-    (tasksQuery.data.value ?? []).filter((row) => row.status !== "done")
-      .length,
 );
 
 // ── Sidebar menu (contextual to the scope). Icons come from the app so
@@ -166,6 +158,7 @@ const SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
   skills: Wrench,
   rules: ScrollText,
   commands: SquareSlash,
+  "tool-policy": ShieldCheck,
   "mcp-servers": Cable,
   marketplace: Store,
   channels: Radio,
@@ -261,13 +254,27 @@ const GLOBAL_MENU_ITEMS: SidebarItem[] = [
   ...GLOBAL_SYSTEM_ITEMS,
   CUSTOMIZE_ITEM,
 ];
-const sectionItems = computed(() => {
+// The menu's right-hand numbers (the canvas's per-row counts) — one request
+// per scope, stamped onto whichever rows the engine can answer for.
+const { countBySectionId } = useSectionCounts(
+  computed(() => ui.activeTab.workspaceId),
+);
+const sectionItems = computed<SidebarItem[]>(() => {
   const workspaceId = ui.activeTab.workspaceId;
+  const counts = countBySectionId.value;
   return [
     ...SURFACE_ITEMS,
     ...customizedMenuItems(workspaceId ?? GLOBAL_SCOPE_KEY),
-  ];
+  ].map((item) => {
+    const count = counts[item.id];
+    return count === undefined ? item : { ...item, count };
+  });
 });
+
+// Live per-scope status (one status one colour, Arc 5b) — the strip's
+// chips/dots, the workspace tree, and the title-bar presence all read the
+// same derivation.
+const { statusByWorkspaceId, globalStatus } = useWorkspaceStatuses();
 
 // The strip needs every workspace's customized accent, not just the active
 // tab's — each tab colors itself.
@@ -298,9 +305,44 @@ const sectionTitle = computed(() =>
     ? (activeWorkspaceName.value ?? "Workspace")
     : "Menu",
 );
+
+// The drilled sidebar's workspace header card (the canvas's app card):
+// identity + a live status line worded per the vocabulary.
+const sidebarWorkspaceCard = computed(() => {
+  const workspaceId = ui.activeTab.workspaceId;
+  if (workspaceId === null) return null;
+  const name = activeWorkspaceName.value ?? "Workspace";
+  const view = statusByWorkspaceId.value[workspaceId] ?? null;
+  const status = view?.status ?? "not_running";
+  const counts =
+    view !== null && view.tasksTotal > 0
+      ? `Task ${Math.min(view.tasksDone + 1, view.tasksTotal)} of ${view.tasksTotal}`
+      : null;
+  const statusLine =
+    status === "running"
+      ? (counts !== null ? `${counts} · building now` : "Working now")
+      : status === "needs_input"
+        ? (counts !== null ? `${counts} — needs you` : "Waiting on your answer")
+        : status === "problem"
+          ? "Hit a problem — needs a look"
+          : status === "completed"
+            ? (view !== null && view.tasksTotal > 0
+                ? `All ${view.tasksTotal} tasks done`
+                : "All done")
+            : "Nothing running";
+  return {
+    name,
+    initials: workspaceMonogram(name),
+    statusLine,
+    statusTone: status,
+  };
+});
 const activeSectionId = computed(() => {
   if (surface.value === "home") return "home";
   if (surface.value === "sessions") return "sessions";
+  // The Nodes screen is reached from the title bar, not the sidebar menu — so
+  // nothing there is active. Falling through would have marked Chat.
+  if (surface.value === "nodes") return null;
   const view = scopeShell.value.mainView;
   if (typeof view !== "string") return null;
   if (view !== "chat") return view;
@@ -311,10 +353,32 @@ const activeSectionId = computed(() => {
 
 // ── Tab lifecycle — store mutations, boot/route reconcile, and per-tab route
 // restoration all live in the composable (one home). ──
-const { selectTab, closeTab, addTab, retargetTab } = useScopeTabs(
+const { selectTab, closeTab, addTab } = useScopeTabs(
   allWorkspaces,
   () => workspacesQuery.isSuccess.value,
 );
+
+// ── Menu-mode navigation: the tree is the root; selecting drives the SAME
+// tab machinery the strip uses (selectTab restores the tab's place), so the
+// two modes stay one state. ──
+function treeSelect(workspaceId: string | null) {
+  // Clicking the already-active row is inert — duplicate tabs are legal, so
+  // "find first tab for this room" could otherwise hop a later duplicate's
+  // canvas over to the first one's place.
+  if (ui.activeTab.workspaceId === workspaceId) return;
+  if (workspaceId === null) {
+    selectTab(GLOBAL_TAB_ID);
+    return;
+  }
+  const existing = ui.tabs.find((tab) => tab.workspaceId === workspaceId);
+  if (existing !== undefined) selectTab(existing.id);
+  else addTab(workspaceId);
+}
+
+function treeDrill(workspaceId: string | null) {
+  treeSelect(workspaceId);
+  ui.isWorkspaceTreeOpen = false;
+}
 
 // ── Navigation handlers (write shared ui-store + route; the views react). ──
 function selectSurface(id: string) {
@@ -377,6 +441,15 @@ const isSidebarOpen = ref(true);
 const isPaletteOpen = ref(false);
 const isCreateWorkspaceOpen = ref(false);
 
+// The dialog is mounted once, here. A routed view (the Nodes screen's empty
+// state) can't reach that ref, so it rings the store's bell and we answer.
+watch(
+  () => ui.createWorkspaceRequestCount,
+  () => {
+    isCreateWorkspaceOpen.value = true;
+  },
+);
+
 // A note parked while no composer was on screen must not materialize in some
 // future, wrong-scope draft — closing the browser view discards unconsumed
 // seeds (covers the panel's own close button too).
@@ -430,8 +503,20 @@ function runCommand(id: string) {
     case "toggle-tasks":
       ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
       break;
+    case "nav-tabs":
+      ui.setNavMode("tabs");
+      break;
+    case "nav-menu":
+      ui.setNavMode("menu");
+      break;
     case "go-home":
       void router.push({ name: "home" });
+      break;
+    // The title bar's Nodes word — ALL the software's node screen (Chad,
+    // 2026-08-11). It shows the whole fleet, so it leaves any workspace tab.
+    case "open-nodes":
+      ui.activateTab(GLOBAL_TAB_ID);
+      void router.push({ name: "nodes" });
       break;
     case "go-chat":
       selectSurface("chat");
@@ -480,6 +565,9 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
+  ui.navMode === "tabs"
+    ? { id: "nav-menu", label: "Switch to menu navigation", group: "View", keywords: "tree workspaces" }
+    : { id: "nav-tabs", label: "Switch to tabs navigation", group: "View", keywords: "strip" },
 ]);
 
 function onPaletteSelect(id: string) {
@@ -519,36 +607,15 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
   <!-- Browser mode is a focus TAKEOVER: the scope strip and sidebar tuck
        away (their grid row collapses), chat keeps the left, the page takes
        the right. Closing restores every piece — nothing is torn down. -->
-  <div
-    class="app-shell"
-    :style="{
-      gridTemplateRows: browser.isOpen ? '40px 1fr 22px' : '40px 40px 1fr 22px',
-    }"
-  >
+  <div class="app-shell">
     <AppTitleBar
-      :title="contextTitle"
-      :presence-state="presenceState"
-      :presence-label="presenceLabel"
       :theme="ui.theme"
+      :nav-mode="ui.navMode"
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
-      :open-task-count="openTaskCount"
+      :shows-tasks-toggle="!inWorkspaceScope"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
-    />
-
-    <AppTabStrip
-      v-if="!browser.isOpen"
-      :tabs="ui.tabs"
-      :active-tab-id="ui.activeTabId"
-      :workspaces="workspaceOptions"
-      :workspace-color-slots="workspaceColorSlots"
-      @select-tab="selectTab"
-      @close-tab="closeTab"
-      @retarget-tab="retargetTab"
-      @color-tab="ui.setTabColor"
-      @add-tab="addTab"
-      @create-workspace="isCreateWorkspaceOpen = true"
     />
 
     <div class="app-body">
@@ -556,25 +623,67 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
         v-if="isSidebarOpen && !browser.isOpen"
         side="left"
         storage-key="vynel.sidebar.width"
-        :default-width="240"
+        :default-width="208"
         :min-width="200"
         :max-width="380"
       >
+        <WorkspaceTree
+          v-if="ui.navMode === 'menu' && ui.isWorkspaceTreeOpen"
+          :workspaces="workspaceOptions"
+          :groups="workspaceGroupOptions"
+          :active-workspace-id="ui.activeWorkspaceId"
+          :status-by-workspace-id="statusByWorkspaceId"
+          :global-status="globalStatus"
+          :account-name="accountName"
+          @select="treeSelect"
+          @drill="treeDrill"
+          @create-workspace="isCreateWorkspaceOpen = true"
+          @create-group="groupMutations.createGroup.mutate('New folder')"
+          @rename-group="(groupId, name) => groupMutations.renameGroup.mutate({ groupId, name })"
+          @delete-group="(groupId) => groupMutations.deleteGroup.mutate(groupId)"
+          @move-workspace="
+            (workspaceId, groupId) =>
+              groupMutations.moveWorkspace.mutate({ workspaceId, groupId })
+          "
+          @open-account="openAccount"
+        />
         <AppSidebar
+          v-else
           :section-title="sectionTitle"
           :section-items="sectionItems"
           :active-section-id="activeSectionId"
           :account-name="accountName"
+          :show-back="ui.navMode === 'menu'"
+          :workspace-card="sidebarWorkspaceCard"
           @select-section="selectSection"
           @open-account="openAccount"
+          @back="ui.isWorkspaceTreeOpen = true"
         />
       </ResizablePanel>
 
-      <main class="canvas-wrap">
-        <!-- Keyed per tab: each tab is its own view instance, so a view can
-             safely bind to its tab's shell for its whole lifetime. -->
-        <RouterView :key="ui.activeTabId" />
-      </main>
+      <div class="canvas-stack">
+        <!-- The strip lives in the canvas column (the canvas's layout: tabs
+             start at the chat edge, the sidebar runs beside them). Menu mode
+             collapses it — the sidebar tree takes over. -->
+        <AppTabStrip
+          v-if="!browser.isOpen && ui.navMode === 'tabs'"
+          :tabs="ui.tabs"
+          :active-tab-id="ui.activeTabId"
+          :workspaces="workspaceOptions"
+          :workspace-color-slots="workspaceColorSlots"
+          :status-by-workspace-id="statusByWorkspaceId"
+          :global-status="globalStatus"
+          @select-tab="selectTab"
+          @close-tab="closeTab"
+          @add-tab="addTab"
+          @create-workspace="isCreateWorkspaceOpen = true"
+        />
+        <main class="canvas-wrap">
+          <!-- Keyed per tab: each tab is its own view instance, so a view can
+               safely bind to its tab's shell for its whole lifetime. -->
+          <RouterView :key="ui.activeTabId" />
+        </main>
+      </div>
 
       <ResizablePanel
         v-if="browser.isOpen"
@@ -587,13 +696,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
         <BrowserPanel />
       </ResizablePanel>
     </div>
-
-    <AppStatusBar
-      :presence-state="presenceState"
-      :context-label="statusContext"
-      :pending-approvals="pendingCount"
-      @open-approvals="selectSurface('chat')"
-    />
 
     <WorkingRail />
     <ConversationSidebar />
@@ -620,7 +722,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 <style scoped>
 .app-shell {
   display: grid;
-  /* Rows come from the template binding — browser mode collapses the strip. */
+  /* Title bar · body — the canvas's rows (34px bar, no status bar; the
+     strip lives inside the canvas column). */
+  grid-template-rows: 34px 1fr;
   height: 100vh;
   background: var(--bg-shell);
   color: var(--ink-1);
@@ -632,9 +736,18 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
   overflow: hidden;
 }
 
+.canvas-stack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .canvas-wrap {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 </style>

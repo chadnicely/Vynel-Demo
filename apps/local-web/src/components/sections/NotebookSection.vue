@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { NotebookText, Pencil, Plus, X } from "lucide-vue-next";
+import {
+  PhNotebook as NotebookText,
+  PhPencilSimple as Pencil,
+  PhPlus as Plus,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useNotebookDocuments } from "../../composables/notebook/use-notebook-documents.js";
 import { useDeleteNotebookDocument } from "../../composables/notebook/use-delete-notebook-document.js";

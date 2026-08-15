@@ -9,6 +9,7 @@
   "dependencies": {
     "@vynel/contracts": "workspace:*",
     "@vynel/db": "workspace:*",
+    "@vynel/desktop-control": "workspace:*",
     "@vynel/local-api": "workspace:*",
     "@vynel/registry": "workspace:*",
     "@vynel/sealing": "workspace:*",

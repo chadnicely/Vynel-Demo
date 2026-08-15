@@ -24,71 +24,14 @@ import {
   buildWorkspaceInteractiveMcpServer,
 } from './build-in-process-server.js'
 import { generatedAskModeApprovalToolNames } from './generated/api-tools.js'
-
-// The MCP tools each capability owns (server name `vynel` → `mcp__vynel__<x-mcp
-// name>`); the composer denies a capability's tools when that capability is off.
-// Aligned to KLONE's ACTUAL generated registry: `knowledge` (all 7 tools) and
-// `memory` (all 6 — 3 reads + 3 mutatingApproved writes) each gate together —
-// a capability OFF means none of its tools at all. skills/channels/schedules
-// tools stay ungated.
-const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly string[]>> = {
-  knowledge: [
-    'mcp__vynel__search_knowledge',
-    'mcp__vynel__list_knowledge_documents',
-    'mcp__vynel__get_knowledge_document',
-    'mcp__vynel__get_indexer_status',
-    'mcp__vynel__list_knowledge_sources',
-    'mcp__vynel__add_to_knowledge',
-    'mcp__vynel__remove_knowledge_source',
-  ],
-  memory: [
-    'mcp__vynel__list_memory_entries',
-    'mcp__vynel__search_memory',
-    'mcp__vynel__list_memory_tags',
-    'mcp__vynel__create_memory_entry',
-    'mcp__vynel__update_memory_entry',
-    'mcp__vynel__add_memory_from_file',
-  ],
-  // `tasks` owns BOTH halves of the work-tracking leaf: the durable task list
-  // and the per-session working steps (`set_todos`) — one toggle, because a
-  // user turning "Tasks" off means "stop keeping lists for me".
-  tasks: [
-    'mcp__vynel__list_tasks',
-    'mcp__vynel__create_task',
-    'mcp__vynel__update_task',
-    'mcp__vynel__complete_task',
-    'mcp__vynel__list_my_tasks',
-    'mcp__vynel__set_todos',
-  ],
-  plans: [
-    'mcp__vynel__list_plans',
-    'mcp__vynel__create_plan',
-    'mcp__vynel__update_plan',
-    'mcp__vynel__complete_plan',
-    'mcp__vynel__list_my_plans',
-  ],
-  phases: [
-    'mcp__vynel__list_phases',
-    'mcp__vynel__create_phase',
-    'mcp__vynel__get_phase',
-    'mcp__vynel__update_phase',
-    'mcp__vynel__complete_phase',
-    'mcp__vynel__delete_phase',
-  ],
-  features: [
-    'mcp__vynel__list_features',
-    'mcp__vynel__create_feature',
-    'mcp__vynel__get_feature',
-    'mcp__vynel__update_feature',
-    'mcp__vynel__complete_feature',
-    'mcp__vynel__delete_feature',
-  ],
-  journal: [
-    'mcp__vynel__list_journal_entries',
-    'mcp__vynel__add_journal_entry',
-    'mcp__vynel__list_my_journal_entries',
-  ],
-}
+import {
+  ROUTING_FEATURE_GATED_TOOLS,
+  ROUTING_TOOL_NAMES,
+  VYNEL_CAPABILITY_GATED_TOOLS,
+  VYNEL_FEATURE_GATED_TOOLS,
+  WORKSPACE_INTERACTIVE_TOOL_NAMES,
+  WORKSPACE_TOOL_NAMES,
+} from './vynel-tool-gates.js'
 
 // The standing per-capability disciplines for a workspace turn. Each section
 // is self-contained (the tools it names are this descriptor's own) and
@@ -201,10 +144,12 @@ const contributeWorkspacePrompt: NonNullable<McpFeatureDescriptor['contributePro
 
 export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
+  toolNames: WORKSPACE_TOOL_NAMES,
   build: (context) => buildInProcessMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
+  featureGatedTools: VYNEL_FEATURE_GATED_TOOLS,
   contributePrompt: contributeWorkspacePrompt,
 }
 
@@ -223,10 +168,12 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
 // surface), so `mutatingToolNames` stays empty here too.
 export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
+  toolNames: WORKSPACE_INTERACTIVE_TOOL_NAMES,
   build: (context) => buildWorkspaceInteractiveMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
+  featureGatedTools: VYNEL_FEATURE_GATED_TOOLS,
   contributePrompt: contributeWorkspacePrompt,
 }
 
@@ -244,8 +191,10 @@ export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
 // one capability went missing.
 export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
+  toolNames: ROUTING_TOOL_NAMES,
   build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
+  featureGatedTools: ROUTING_FEATURE_GATED_TOOLS,
   contributePrompt: () => TODOS_PROMPT_INSTRUCTIONS,
 }

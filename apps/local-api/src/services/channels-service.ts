@@ -34,6 +34,8 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { HonoAppRequestFn } from '../factory.js'
+import type { PendingAskRegistry } from '@vynel/asks'
+import type { ReadEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import { runGlobalRootTurn } from '../sessions/run-global-root-turn.js'
 import type { TurnEventBroadcaster } from '@vynel/session/delegation'
 
@@ -59,11 +61,24 @@ export interface ChannelsServiceOptions {
   desktopReader?: unknown
   /** Whether the mutating desktop `act_on_app` tool is enabled (env flag). */
   enableDesktopActions?: boolean
+  /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
+  readEnabledFeatureKeys?: ReadEnabledFeatureKeys
+  /** The shared parked-ask registry — gives channel turns ask_user (bounded). */
+  askWaiters?: PendingAskRegistry
 }
 
 export function startChannelsService(options: ChannelsServiceOptions): { stop: () => void } {
-  const { db, logger, appRequest, activityFeed, turnEvents, desktopReader, enableDesktopActions } =
-    options
+  const {
+    db,
+    logger,
+    appRequest,
+    activityFeed,
+    turnEvents,
+    desktopReader,
+    enableDesktopActions,
+    readEnabledFeatureKeys,
+    askWaiters,
+  } = options
 
   const turnDeps: ProcessInboundDeps = {
     logger,
@@ -81,6 +96,8 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
           ...(turnEvents !== undefined ? { turnEvents } : {}),
           desktopReader,
           ...(enableDesktopActions !== undefined ? { enableDesktopActions } : {}),
+          ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
+          ...(askWaiters !== undefined ? { askWaiters } : {}),
         },
         input,
       ),

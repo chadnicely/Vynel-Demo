@@ -452,19 +452,25 @@ export const routingApp = factory
         const { jobId, deliveredTo } = await dispatchReportToRequester(c, { report: body })
         return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'report' as const })
       }
+      // The CALLING workspace (Slice ④b, ambient-stamped by the workspace
+      // surface) — the creator the job parents on AND the requester its target
+      // reports back to. BOTH task destinations take it: a workspace handing
+      // work to another workspace is as much "who asked" as one handing work to
+      // a session, and reading it on only one branch sent every workspace-to-
+      // workspace result to the global conversation instead.
+      const callingWorkspace = workspaceId !== undefined ? { workspaceId } : {}
       const { jobId, deliveredTo } =
         destination.kind === 'workspace'
           ? await dispatchTaskToWorkspace(c, {
               targetWorkspaceId: destination.workspaceId,
               task: body,
+              ...callingWorkspace,
               ...taskOptions,
             })
           : await dispatchTaskToSession(c, {
               targetSessionId: destination.sessionId,
               task: body,
-              // The CALLING workspace (Slice ④b, ambient-stamped by the
-              // workspace surface) — the creator the job parents on.
-              ...(workspaceId !== undefined ? { workspaceId } : {}),
+              ...callingWorkspace,
               ...taskOptions,
             })
       return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'task' as const })

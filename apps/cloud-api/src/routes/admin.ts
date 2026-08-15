@@ -37,6 +37,7 @@ import {
 import type { CloudAppOptions } from '../cloud-app-options.js'
 import { jsonValidator } from '../middleware/json-validator.js'
 import { requireAdminAccess } from '../middleware/require-admin.js'
+import { buildAdminToolPolicyRoutes } from './admin-tool-policy.js'
 
 const CreateAccountSchema = z.object({
   email: z.string().email().max(320),
@@ -310,4 +311,7 @@ export function buildAdminRoutes(options: CloudAppOptions) {
       )
       return c.json({ configured: true as const, ...report })
     })
+    // The operator tool-policy defaults (its own file — this one is at the
+    // ~300-line ceiling). Rides this chain's requireAdminAccess gate.
+    .route('/tool-policy', buildAdminToolPolicyRoutes(options))
 }

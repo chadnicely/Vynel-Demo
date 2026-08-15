@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Mic, MicOff, X } from "lucide-vue-next";
+import { PhMicrophone as Mic, PhMicrophoneSlash as MicOff, PhX as X } from "@phosphor-icons/vue";
 import { IconButton, VoiceOrb } from "@vynel/ui";
 import type { VoiceOrbState } from "@vynel/ui";
 

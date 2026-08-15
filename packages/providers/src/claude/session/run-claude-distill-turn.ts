@@ -50,8 +50,13 @@ export async function runClaudeDistillTurn(
   input: ClaudeDistillTurnInput,
 ): Promise<string | null> {
   const options = buildClaudeSdkOptions({
+    // Pure `bypass`, deliberately: this internal turn is TOOLLESS (tools: []
+    // below), so a behavior-gate floor has nothing to card — and the wall the
+    // test pins is "can never prompt" (SDK bypassPermissions). The unattended
+    // `bypass-with-behavior-gate` now maps to SDK `default` for the card
+    // path, which would let a prompt block a turn no human is watching.
+    permissionMode: 'bypass',
     workspacePath: input.workspacePath,
-    permissionMode: 'bypass-with-behavior-gate',
     allowedToolNames: [],
     deniedToolNames: [],
     ...(input.resumeSessionId !== undefined

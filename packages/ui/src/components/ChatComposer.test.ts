@@ -236,4 +236,51 @@ describe("ChatComposer", () => {
     expect((sendEvents[0]![1] as File[])[0]!.name).toBe("notes.md");
     expect(wrapper.find(".attachment-chip").exists()).toBe(false);
   });
+
+  // Auto buildout (the canvas's composer toggle): the composer only reports
+  // the flip — the host owns the preference. Nothing consumes it yet.
+  it("the auto-buildout switch renders only when a surface binds it", () => {
+    expect(
+      mount(ChatComposer, { props: baseProps }).find(".auto-toggle").exists(),
+    ).toBe(false);
+
+    const bound = mount(ChatComposer, {
+      props: { ...baseProps, autoBuildout: false },
+    });
+    expect(bound.find(".auto-toggle").exists()).toBe(true);
+    expect(bound.find(".auto-toggle").classes()).not.toContain("is-on");
+  });
+
+  it("the switch reports the flip and shows the bound state", async () => {
+    const off = mount(ChatComposer, {
+      props: { ...baseProps, autoBuildout: false },
+    });
+    await off.find(".auto-toggle").trigger("click");
+    expect(off.emitted("update:autoBuildout")).toEqual([[true]]);
+
+    const on = mount(ChatComposer, {
+      props: { ...baseProps, autoBuildout: true },
+    });
+    expect(on.find(".auto-toggle").classes()).toContain("is-on");
+    expect(on.find(".auto-toggle").attributes("aria-checked")).toBe("true");
+    await on.find(".auto-toggle").trigger("click");
+    expect(on.emitted("update:autoBuildout")).toEqual([[false]]);
+  });
+
+  // The ring reads as a property of the model, so it LEADS the model chip.
+  it("the context ring sits before the model chip, not by the send key", () => {
+    const wrapper = mount(ChatComposer, {
+      props: { ...baseProps, contextFraction: 0.4 },
+    });
+    const toolbar = wrapper.find(".toolbar").element;
+    const classNames = [...toolbar.children].map((child) => child.className);
+    const ringIndex = classNames.findIndex((name) =>
+      name.includes("context-slot"),
+    );
+    const modelIndex = classNames.findIndex((name) =>
+      name.includes("select-chip"),
+    );
+    expect(ringIndex).toBeGreaterThan(-1);
+    expect(ringIndex).toBeLessThan(modelIndex);
+  });
 });

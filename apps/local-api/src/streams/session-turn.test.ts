@@ -242,7 +242,6 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         // Locked decision 1 (global-grounded half): NOTHING attaches — its
         // delegated turns run bare, so its user turns do too.
         expect(input.mcpServers).toBeUndefined()
-        expect(input.allowedMcpToolPatterns).toBeUndefined()
         expect(input.systemPromptAppend).toBeUndefined()
         // Interactive default — the workspace chat stream's mode resolution,
         // NOT the routed-turn bypass default.
@@ -278,7 +277,7 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         // Locked decision 1: the PLAIN background set — the same attachment its
         // delegated turns carry (vynel workspace tools present).
         expect(input.mcpServers).toBeDefined()
-        expect(input.allowedMcpToolPatterns).toContain('mcp__vynel__*')
+        expect(input.mcpServers).toHaveProperty('vynel')
         // The user is talking directly — the routed-task steer must NOT ride
         // the system prompt (only the composer's per-feature sections may).
         expect(input.systemPromptAppend ?? '').not.toContain('routed from')
@@ -370,7 +369,7 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         // The DELEGATED agent-session set (G5's MCP parity) — never the bare
         // global-grounded shape: the vynel routing tools ride the turn, so the
         // colleague speaks (send_message) exactly as its mention runs do.
-        expect(input.allowedMcpToolPatterns ?? []).toContain('mcp__vynel__*')
+        expect(input.mcpServers ?? {}).toHaveProperty('vynel')
         expect(Object.keys(input.mcpServers ?? {}).length).toBeGreaterThan(0)
       })
     })

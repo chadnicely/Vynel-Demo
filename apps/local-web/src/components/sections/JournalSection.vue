@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { NotebookPen, Plus } from "lucide-vue-next";
+import { PhNotePencil as NotebookPen, PhPlus as Plus } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type { JournalEntryResponse } from "@vynel/contracts/journal/journal-http";
 import { useJournalEntriesInScope } from "../../composables/journal/use-journal-entries-in-scope.js";

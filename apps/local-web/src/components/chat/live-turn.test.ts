@@ -119,3 +119,31 @@ describe("LiveTurn inline approval card", () => {
     expect(card.text()).toContain("wants to create a file");
   });
 });
+
+// The streaming answer and the settled one must READ the same — a thread that
+// reformats when a turn completes is the bug this pins. MessageRow renders the
+// settled reply with MarkdownText's `reply` variant; this is the other half,
+// so the pair can no longer drift silently.
+describe("LiveTurn reply voice", () => {
+  it("streams the answer in the SAME reply variant the settled row uses", () => {
+    const wrapper = mount(LiveTurn, {
+      props: {
+        view: {
+          ...createActiveTurnView(),
+          segments: [
+            {
+              messageId: "m1",
+              text: "Answering now.",
+              thinking: "",
+              toolCalls: [],
+            },
+          ],
+        },
+      },
+    });
+
+    const markdown = wrapper.find(".answer .markdown-text");
+    expect(markdown.exists()).toBe(true);
+    expect(markdown.classes()).toContain("is-reply");
+  });
+});

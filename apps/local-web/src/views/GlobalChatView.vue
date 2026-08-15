@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { Settings2 } from "lucide-vue-next";
+import { PhGearFine as Settings2 } from "@phosphor-icons/vue";
 import { EmptyState, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
@@ -27,6 +27,7 @@ import RulesSection from "../components/sections/RulesSection.vue";
 import SchedulesSection from "../components/sections/SchedulesSection.vue";
 import SkillsSection from "../components/sections/SkillsSection.vue";
 import SshServersSection from "../components/sections/SshServersSection.vue";
+import ToolPolicySection from "../components/sections/ToolPolicySection.vue";
 import EngineSection from "../components/sections/EngineSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
 import PlansSection from "../components/sections/PlansSection.vue";
@@ -86,6 +87,7 @@ const GLOBAL_SECTION_IDS = [
   "skills",
   "rules",
   "commands",
+  "tool-policy",
   "mcp-servers",
   "account",
 ] as const;
@@ -210,10 +212,13 @@ const detailQuery = useSessionDetail(
   () => GLOBAL_SCOPE,
   () => activeSessionId.value,
   () => (isProcessing.value || hasUnrenderedGlobalTurn.value ? 4000 : false),
+  // The continuous thread reads the chain-spanning transcript — a context
+  // swap must never empty the visible conversation.
+  () => (shell.target === "continuous" ? "continuing" : "segment"),
 );
 const messages = computed(() => detailQuery.data.value?.messages ?? []);
 const sessionModel = computed(
-  () => detailQuery.data.value?.session.model ?? null,
+  () => detailQuery.data.value?.session?.model ?? null,
 );
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
@@ -399,6 +404,10 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           v-else-if="shell.mainView === 'mcp-servers'"
           :scope="{ kind: 'global' }"
         />
+        <ToolPolicySection
+          v-else-if="shell.mainView === 'tool-policy'"
+          :scope="{ kind: 'global' }"
+        />
         <LockedFeatureCard
           v-else-if="isLocked('memory')"
           feature-label="Memory"
@@ -444,6 +453,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           {{ chatTurn.errorText.value }}
         </p>
         <AppComposer
+          :session-id="activeSessionId"
           :streaming="chatTurn.isStreaming.value"
           :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"
           :context-fraction="occupancy.fraction.value"
@@ -454,7 +464,11 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       </footer>
     </section>
 
-    <TasksPanel v-if="ui.isTasksPanelOpen" :scope="{ kind: 'global' }" />
+    <TasksPanel
+      v-if="ui.isTasksPanelOpen"
+      :scope="{ kind: 'global' }"
+      :assistant-name="ASSISTANT_NAME"
+    />
   </div>
 </template>
 
@@ -536,10 +550,9 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
   max-width: none;
 }
 
+/* Full-bleed with the thread — the canvas's composer region. */
 .composer-dock {
-  padding: 0 24px 18px;
-  max-width: 968px;
+  padding: 10px var(--thread-gutter, 22.4px) 12px;
   width: 100%;
-  margin: 0 auto;
 }
 </style>

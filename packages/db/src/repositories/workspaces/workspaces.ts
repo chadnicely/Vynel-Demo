@@ -16,7 +16,12 @@ import {
   type WorkspaceKind,
 } from '../../schema/workspaces/workspaces.js'
 
-export type { Workspace, NewWorkspace, WorkspaceKind } from '../../schema/workspaces/workspaces.js'
+export type {
+  Workspace,
+  NewWorkspace,
+  WorkspaceKind,
+  WorkspaceStatusKind,
+} from '../../schema/workspaces/workspaces.js'
 
 // Defensive cap on listWorkspacesForUser per coding-standard.md
 // "Structure / patterns" — every list* whose result set scales with
@@ -115,4 +120,16 @@ export function touchWorkspaceLastAccessedAt(db: Database, workspaceId: string):
 export function hardDeleteWorkspace(db: Database, workspaceId: string): boolean {
   const result = db.delete(workspaces).where(eq(workspaces.id, workspaceId)).run()
   return (result.changes ?? 0) > 0
+}
+
+// Bulk-detach for group deletion (workspace redesign Arc 2b): `groupId` is a
+// LOOSE ref with no DB FK, so the delete op clears members explicitly inside
+// its transaction. Returns how many workspaces moved back to the tree root.
+export function detachWorkspacesFromGroup(db: Database, groupId: string): number {
+  const result = db
+    .update(workspaces)
+    .set({ groupId: null, updatedAt: new Date() })
+    .where(eq(workspaces.groupId, groupId))
+    .run()
+  return result.changes ?? 0
 }

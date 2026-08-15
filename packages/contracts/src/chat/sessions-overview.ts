@@ -37,3 +37,26 @@ export interface SessionsOverviewEntry {
   /** Ordered oldest → newest; length 1 for an unswapped conversation. */
   segments: SessionsOverviewSegment[]
 }
+
+/**
+ * Which entries the Sessions library shows for a scope — the ONE definition,
+ * shared by the view that renders the rows and the count that advertises them
+ * in the menu. It lived only in `SessionsView.vue` until the menu's
+ * `Sessions N` was derived separately and disagreed with it.
+ *
+ * A workspace shows its own conversations (its primary chain and the sessions
+ * spawned in it — both carry the workspace id). Global shows only the root's
+ * own children: the Assistant thread is the Chat nav, and a workspace's
+ * conversations belong to its room.
+ *
+ * Entries, not rows: a continuity chain collapses into one entry, so this can
+ * never be answered by counting `chat_sessions`.
+ */
+export function selectSessionsForScope(
+  entries: SessionsOverviewEntry[],
+  workspaceId: string | null,
+): SessionsOverviewEntry[] {
+  return workspaceId !== null
+    ? entries.filter((entry) => entry.workspaceId === workspaceId)
+    : entries.filter((entry) => entry.scope === 'spawned' && entry.workspaceId === null)
+}

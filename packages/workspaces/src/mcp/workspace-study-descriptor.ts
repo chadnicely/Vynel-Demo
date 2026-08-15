@@ -57,6 +57,11 @@ export function buildWorkspaceStudyDescriptor(deps: {
   const { workspaces } = deps
   return {
     serverName: 'vynel-workspace-study',
+    toolNames: [
+      'mcp__vynel-workspace-study__get_workspace_overview',
+      'mcp__vynel-workspace-study__list_workspace_files',
+      'mcp__vynel-workspace-study__read_workspace_file',
+    ],
     isApplicable: () => workspaces.length > 0,
     build: () => {
       if (workspaces.length === 0) return null

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ArrowUp, FileText, Folder, HardDrive } from "lucide-vue-next";
+import {
+  PhArrowUp as ArrowUp,
+  PhFileText as FileText,
+  PhFolder as Folder,
+  PhHardDrive as HardDrive,
+} from "@phosphor-icons/vue";
 import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 

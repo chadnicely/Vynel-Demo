@@ -348,6 +348,7 @@ export async function runDelegationClaimAndRunTick(
               })
             : null
         if (slug === null || agent === null) {
+          activityHandle.end('failed')
           settleFailedDelegationAttempt(
             db,
             claimed,
@@ -704,6 +705,9 @@ export async function runDelegationClaimAndRunTick(
         'delegation: completed — report delivery enqueued for the creator conversation',
       )
     } else if (outcome.status === 'timed-out') {
+      // The workspace status vocabulary's problem signal — first call wins,
+      // the finally's clean end() no-ops after this.
+      activityHandle.end('failed')
       failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
       // A turn that already SPOKE its report must not resurface as "couldn't
       // complete" through the pull net (B2's timeout half) — the requester has
@@ -734,9 +738,11 @@ export async function runDelegationClaimAndRunTick(
       // A user Stop lands here (the interrupted turn throws by design) — record
       // it as the user's action, not a provider failure. Never retried.
       if (cancelHandle?.isCancelRequested()) {
+        // A user Stop is a clean end — stopping work is not a problem light.
         failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
         deps.logger.warn({ jobId: claimed.id }, 'delegation job stopped by the user')
       } else {
+        activityHandle.end('failed')
         settleFailedDelegationAttempt(db, claimed, outcome.message, {
           logger: deps.logger,
           queueLabel: 'delegation',
@@ -750,6 +756,7 @@ export async function runDelegationClaimAndRunTick(
     // the job stuck `claimed` (Ch1 does not auto-reclaim) — nor a parked approval hanging.
     // Terminal, never retried: a throw from THIS body is our own bookkeeping (a corrupt
     // row would loop forever on requeue), not a transient provider failure.
+    activityHandle.end('failed')
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'delegation job run threw unexpectedly')

@@ -27,6 +27,7 @@ import { useCommands } from "../../composables/commands/use-commands.js";
 import { useDictation } from "../../composables/voice/use-dictation.js";
 import { filesToTurnAttachments } from "../../composables/chat/turn-attachments.js";
 import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
+import { useTurnReference } from "../../composables/chat/use-turn-reference.js";
 
 // The app-bound composer: binds the shared ChatComposer to Vynel state — the
 // real curated model allowlist + session-mode vocabulary, the shared composer
@@ -54,6 +55,10 @@ const props = withDefaults(
      *  (a session pane's persona — B8). Renders a quiet "→ Name" line; null
      *  hides it. */
     destinationLabel?: string | null | undefined;
+    /** WHICH conversation this composer speaks into — the key a marked turn
+     *  is stored under. More than one composer is alive at a time, so without
+     *  it a mark made in one thread would ride out on another's message. */
+    sessionId?: string | null | undefined;
   }>(),
   {
     allowAttachments: true,
@@ -150,6 +155,13 @@ const notice = computed(
   () => attachmentNotice.value ?? dictation.error.value ?? undefined,
 );
 
+// The turn the person marked in the thread — shown here so the pointer is
+// visible from the box you are typing into, and dismissible without scrolling
+// back to find the card.
+const { markedFor, clearFor, applyTo: applyTurnReference } = useTurnReference();
+
+const markedTurn = computed(() => markedFor(props.sessionId));
+
 async function onSend(text: string, files: File[]) {
   // A send mid-dictation must not resurrect late words into the cleared box.
   dictation.cancel();
@@ -171,7 +183,10 @@ async function onSend(text: string, files: File[]) {
   }
   // Everything the person tried to send was rejected — keep the notice, send nothing.
   if (text.trim().length === 0 && attachments.length === 0) return;
-  emit("send", text, attachments);
+  // A marked turn rides out as the message's opening reference line, and the
+  // mark is spent here — every surface that composes through this component
+  // gets the pointer without wiring one of its own.
+  emit("send", applyTurnReference(props.sessionId, text), attachments);
 }
 </script>
 
@@ -182,6 +197,36 @@ async function onSend(text: string, files: File[]) {
     data-testid="composer-destination"
   >
     → {{ props.destinationLabel }}
+  </p>
+  <!-- The marked turn: what this message will refer to. -->
+  <p
+    v-if="markedTurn"
+    class="m-0 mb-1 flex items-center gap-1.5 px-1 text-[10.5px]"
+    data-testid="composer-reference"
+  >
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 16 16"
+      class="shrink-0 text-[var(--gold)]"
+      aria-hidden="true"
+    >
+      <path
+        d="M13.5 8a5.5 5.5 0 0 1-5.5 5.5H2.5V8a5.5 5.5 0 0 1 11 0Z"
+        fill="currentColor"
+      />
+    </svg>
+    <span class="truncate text-[var(--ink-2)]">
+      About {{ markedTurn.author }} — “{{ markedTurn.preview }}”
+    </span>
+    <button
+      type="button"
+      class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[var(--ink-3)] hover:text-[var(--ink-1)]"
+      aria-label="drop the reference"
+      @click="clearFor(props.sessionId)"
+    >
+      ✕
+    </button>
   </p>
   <ChatComposer
     v-model:draft="draft"
@@ -194,6 +239,7 @@ async function onSend(text: string, files: File[]) {
     :mode-id="ui.composerMode"
     :efforts="effortOptions"
     :effort-id="ui.composerThinkingEffort"
+    :auto-buildout="ui.composerAutoBuildout"
     :context-fraction="props.contextFraction ?? null"
     :context-tooltip="props.contextTooltip ?? undefined"
     :allow-attachments="props.allowAttachments"
@@ -203,6 +249,7 @@ async function onSend(text: string, files: File[]) {
     show-voice
     :voice-active="dictation.isDictating.value"
     :notice="notice"
+    @update:auto-buildout="(on) => (ui.composerAutoBuildout = on)"
     @update:model-id="(id) => (ui.composerModelId = id)"
     @update:mode-id="(id) => (ui.composerMode = id as SessionMode)"
     @update:effort-id="

@@ -226,7 +226,7 @@ describe("MessageRow author avatar", () => {
     expect(img.attributes("src")).toBe("data:image/png;base64,AAAA");
   });
 
-  it("rows NOT authored by the surface assistant keep the Claude mark, and user rows get no glyph", () => {
+  it("rows NOT authored by the surface assistant keep the Claude mark; a user row wears the person icon", () => {
     const globalRoot = mount(MessageRow, {
       props: {
         message: makeMessage({ sourceKind: "global-root" }),
@@ -236,13 +236,19 @@ describe("MessageRow author avatar", () => {
     expect(globalRoot.find(".author-avatar img").exists()).toBe(false);
     expect(globalRoot.find(".author-avatar svg").exists()).toBe(true);
 
+    // SPEC CHANGE (2026-08-15): the canvas puts the author's photo here, so
+    // the slot is filled with a person glyph rather than left empty. Was
+    // "user rows get no glyph".
     const user = mount(MessageRow, {
       props: {
         message: makeMessage({ role: "user", body: "hi" }),
         assistantIconUrl: "data:image/png;base64,AAAA",
       },
     });
-    expect(user.find(".author-avatar").exists()).toBe(false);
+    expect(user.find(".author-avatar").exists()).toBe(true);
+    // A glyph, never the assistant's photo — the user is not the assistant.
+    expect(user.find(".author-avatar img").exists()).toBe(false);
+    expect(user.find(".author-avatar svg").exists()).toBe(true);
   });
 
   // Persona-sessions B8: a persona-attributed row wears ITS persona — the
@@ -631,6 +637,47 @@ describe("MessageRow turn folding (collapsible header)", () => {
     expect(wrapper.text()).toContain("Plain.");
   });
 
+  it("the ask's time sits BESIDE the author label, never inside it", () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ role: "user", body: "Ship it." }) },
+    });
+
+    expect(wrapper.get(".role-label").text()).toBe("You");
+    expect(wrapper.get(".row-header").text()).toContain("Jul 5");
+    expect(wrapper.find(".name-divider").exists()).toBe(true);
+  });
+
+  it("the chat icon reports the mark; a plain row has none", async () => {
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage(), collapsible: true },
+    });
+    await wrapper.get(".reference-toggle").trigger("click");
+    expect(wrapper.emitted("toggleReference")).toHaveLength(1);
+    expect(wrapper.find(".reference-toggle.is-marked").exists()).toBe(false);
+
+    const marked = mount(MessageRow, {
+      props: { message: makeMessage(), collapsible: true, referenced: true },
+    });
+    expect(marked.find(".reference-toggle.is-marked").exists()).toBe(true);
+
+    // The canvas reaches the icon from both ends of a card — the header and
+    // the reply's own line — so a headed reply carries one too.
+    const reply = mount(MessageRow, { props: { message: makeMessage() } });
+    expect(reply.find(".reference-toggle").exists()).toBe(true);
+
+    // A grouped continuation is not a row you can point at on its own.
+    const continuation = mount(MessageRow, {
+      props: { message: makeMessage(), showHeader: false },
+    });
+    expect(continuation.find(".reference-toggle").exists()).toBe(false);
+
+    // Nor is an ask that is not a card header.
+    const plainAsk = mount(MessageRow, {
+      props: { message: makeMessage({ role: "user", body: "hi" }) },
+    });
+    expect(plainAsk.find(".reference-toggle").exists()).toBe(false);
+  });
+
   it("a body-less header shows the host's fallback preview; own text wins over it", () => {
     const toolTurn = mount(MessageRow, {
       props: {
@@ -651,5 +698,144 @@ describe("MessageRow turn folding (collapsible header)", () => {
       },
     });
     expect(withText.get(".turn-preview").text()).toBe("Own first line.");
+  });
+});
+
+// THE REPLY FOLD (the canvas's reply block): an answer leads with one line and
+// keeps its detail behind a caret, so a thread reads as asks + verdicts.
+describe("MessageRow reply fold", () => {
+  const LONG_DETAIL = `Second paragraph that is comfortably past the fold floor so the caret is worth drawing at all. ${"more detail ".repeat(6)}`;
+
+  // test: correct expectation (2026-08-15) — the fold moved to the HOST: a
+  // turn folds as one, and a member cannot hide its siblings. This row now
+  // renders what it is told and reports the click.
+  it("collapsed: the summary paragraph only", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `The verdict line.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: true,
+      },
+    });
+
+    expect(wrapper.get(".reply-lead").text()).toContain("The verdict line.");
+    expect(wrapper.find(".reply-detail").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Second paragraph");
+  });
+
+  it("open: the whole answer, summary first then the rest", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `The verdict line.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: false,
+      },
+    });
+
+    expect(wrapper.get(".reply-lead").text()).toContain("The verdict line.");
+    expect(wrapper.get(".reply-detail").text()).toContain("Second paragraph");
+  });
+
+  it("the caret renders only when the host says something is behind it", () => {
+    const bare = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Done." }), replyCollapsed: true },
+    });
+    expect(bare.find(".reply-caret").exists()).toBe(false);
+
+    const foldable = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Done." }),
+        replyCollapsed: true,
+        replyFoldable: true,
+      },
+    });
+    expect(foldable.find(".reply-caret").exists()).toBe(true);
+  });
+
+  it("the caret and the lead line both report the toggle", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: true,
+        replyFoldable: true,
+      },
+    });
+
+    await wrapper.get(".reply-caret").trigger("click");
+    await wrapper.get(".reply-lead").trigger("click");
+    expect(wrapper.emitted("toggleReply")).toHaveLength(2);
+  });
+
+  // A drag-select over the summary ends in a click; folding there would eat
+  // the answer the moment you tried to copy from it.
+  it("selecting text in the lead does not fold the turn", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: true,
+        replyFoldable: true,
+      },
+    });
+
+    const realGetSelection = window.getSelection;
+    window.getSelection = (() =>
+      ({ isCollapsed: false }) as Selection) as typeof window.getSelection;
+    await wrapper.get(".reply-lead").trigger("click");
+    expect(wrapper.emitted("toggleReply")).toBeUndefined();
+
+    window.getSelection = realGetSelection;
+    await wrapper.get(".reply-lead").trigger("click");
+    expect(wrapper.emitted("toggleReply")).toHaveLength(1);
+  });
+
+  it("no length floor — any second paragraph is detail", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Done.\n\nNothing else." }),
+        replyCollapsed: true,
+      },
+    });
+
+    expect(wrapper.text()).toContain("Done.");
+    expect(wrapper.text()).not.toContain("Nothing else.");
+  });
+
+  it("a one-paragraph answer renders whole even collapsed — nothing to hide", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: "Short and done." }),
+        replyCollapsed: true,
+      },
+    });
+
+    expect(wrapper.get(".reply-lead").text()).toContain("Short and done.");
+    expect(wrapper.find(".reply-detail").exists()).toBe(false);
+  });
+
+  it("the run-stats door moves to the lead glyph, and stays one door", () => {
+    const stats = {
+      model: "claude-fable-5",
+      toolCallCount: 4,
+      inputTokens: 1500,
+      outputTokens: 200,
+      contextTokens: 41_500,
+      durationMs: 9000,
+    };
+    const wrapper = mount(MessageRow, {
+      props: { message: makeMessage({ body: "Answered." }), runStats: stats },
+    });
+
+    expect(wrapper.findAll(".run-info")).toHaveLength(1);
+    expect(wrapper.get(".reply-lead").find(".run-info").exists()).toBe(true);
+  });
+
+  // The ask is not a reply: it keeps its plain body, never a lead + fold.
+  it("a user ask never folds", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ role: "user", body: `Ask.\n\n${LONG_DETAIL}` }),
+      },
+    });
+
+    expect(wrapper.find(".reply-lead").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Second paragraph");
   });
 });

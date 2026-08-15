@@ -91,7 +91,6 @@ export function composeAgentColleaguePrompt(agentName: string, agentPrompt: stri
  *  the same background set schedule fires attach. */
 export type RoutedTurnMcpAttachment = {
   mcpServers: Record<string, unknown>
-  allowedMcpToolPatterns: string[]
   deniedMcpToolPatterns: string[]
   /** Feature mutating tools carded even under bypass (additive to the floor). */
   mutatingToolNames: string[]
@@ -121,7 +120,6 @@ export function routedTurnMcpSessionFields(
 ): {
   deniedToolNames: string[]
   mcpServers?: Record<string, unknown>
-  allowedMcpToolPatterns?: string[]
   alwaysRequireApprovalToolNames?: string[]
   askModeApprovalToolNames?: string[]
 } {
@@ -129,7 +127,6 @@ export function routedTurnMcpSessionFields(
   return {
     deniedToolNames: mcpAttachment.deniedMcpToolPatterns,
     mcpServers: mcpAttachment.mcpServers,
-    allowedMcpToolPatterns: mcpAttachment.allowedMcpToolPatterns,
     ...(mcpAttachment.mutatingToolNames.length > 0
       ? { alwaysRequireApprovalToolNames: mcpAttachment.mutatingToolNames }
       : {}),

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Cable, Check, Plus, X } from "lucide-vue-next";
+import {
+  PhPlugsConnected as Cable,
+  PhCheck as Check,
+  PhPlus as Plus,
+  PhX as X,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useLoginMcpServer } from "../../composables/mcp-servers/use-login-mcp-server.js";
 import { useMcpServers } from "../../composables/mcp-servers/use-mcp-servers.js";

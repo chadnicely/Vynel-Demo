@@ -16,22 +16,25 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   app instead by passing its process, if you'd rather not capture other audio.
   The existing device-cable setup (VB-Cable, Linux null-sinks) is unchanged.
 
-- **Vynel's own Windows call cable is now a real cable.** The virtual-audio
-  driver went from a silent placeholder to a working one-way loopback: audio
-  played into its "Vynel Call 1 Voice" endpoint comes back out "Vynel Call 1
-  Microphone", which a call app selects as its mic — so Vynel can speak into a
-  meeting through a device it ships itself, no third-party cable. Paired with
-  the per-app capture above, a Windows call needs just this one cable. Built
-  and validated as far as is possible without loading it (compiles, links,
-  passes Microsoft's INF checks); live audio still needs a VM test pass before
-  it's trusted, and it isn't wired into calls yet.
+- **Vynel's own Windows call cable is real, and it carries a call.** The
+  virtual-audio driver is a working one-way cable, proven on real hardware:
+  audio played into **Vynel Call 1 Voice (Vynel Audio)** comes back out
+  **Vynel Call 1 Microphone (Vynel Audio)**, which a call app selects as its
+  microphone — so Vynel speaks into a meeting through a device it ships
+  itself, with no third-party cable to install. Paired with the per-app
+  capture above, a Windows call needs this one cable and nothing else. It
+  runs at 48 kHz and folds whatever channel layout an app asks for down and
+  back, so an app's format choice can't garble the audio, and it registers as
+  a line connector rather than a speaker, so Windows never quietly makes it
+  your default output. For now it carries Vynel's own test signature, which
+  covers our testing — putting it on other people's machines needs Microsoft
+  attestation signing, a separate step.
 
 - **On Windows, Vynel can hear a call with no cable to install.** A new native
   module captures a single app's audio directly (Zoom, Teams, a Meet tab) —
   the "ears" half of a meeting — so a Windows call needs only one virtual
   cable for Vynel's voice, not two. Off-Windows or until the module is built,
-  Vynel falls back to a cable feed exactly as before. Not yet wired into live
-  calls; it lands with the virtual-audio driver's voice half.
+  Vynel falls back to a cable feed exactly as before.
 
 - **Vynel finds its own call cables.** Virtual audio devices named
   `Vynel Call <n> Ears/Voice` are now claimed as call cable pairs
@@ -47,6 +50,123 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   pair count with `VYNEL_CALL_LINUX_PAIRS` (default 2, `0` turns it off).
   Real-Linux-box verification is still pending — recorded in the module
   note.
+
+- **See everything Vynel is working on, at once.** A new **Nodes** word in the
+  top bar opens a live picture of your whole fleet: every project is a dot
+  orbiting the centre, and its colour says what is happening — purple while it
+  is working, orange when it is waiting on you, green when it has finished and
+  nothing is left in the queue, grey once it has been quiet for an hour. Busy
+  projects stream light along their strand; quiet ones barely flicker. Click a
+  project and you step inside it — the same picture, except the dots are now its
+  conversations, each lighting up and streaming while it is actually running,
+  and clicking one opens the chat. The same fleet reads three
+  ways: **Nodes** (the constellation, arranged as Constellation, Orbit or Rise),
+  **Grid** (the same projects as plain cards) and **Race** (everything on one
+  track toward done). With nothing set up yet the stars still turn and the
+  centre stays lit, with an invitation to add your first workspace.
+
+- **You can watch them talk to each other.** When one of Vynel's conversations
+  sends something to another, a light travels the curve between their two dots
+  and the line stays for about a minute afterwards — so you can look away and
+  still see what just happened. Going out is one colour, coming back is
+  another, so an exchange reads as question and answer at a glance. It works
+  both on the whole-fleet picture and inside a single project, and a message
+  to or from Vynel's own top-level brain simply runs to the centre, because
+  that is what the centre is.
+
+- **Tool access is now set from mission control.** The cloud admin portal
+  grew a Tool policy page: every tool Claude ships with, editable in one
+  matrix — on/off, where it's available, when it needs approval, which plan
+  tier or capability it rides. Each desktop release bakes the current map
+  in at build time, so a policy change rolls out with the next version —
+  predictable, versioned, and visible (the page shows the exact map hash a
+  build would ship). Your own Tool access panel in the app still works on
+  top of the shipped defaults; anything you customize stays yours.
+
+- **Every project wears one status light.** A workspace is now always in one
+  of five states — running, waiting on you, hit a problem, completed, or not
+  running — and the same colour tells the story on every surface: the
+  workspace tree's mark dots and `done/total` task counts, the tab strip's
+  chips and pulsing dots, the work rail's headline card, and the chat
+  header's badge. Claude sets the state itself (a new `set_workspace_status`
+  tool: "completed" once everything on the list is done, "problem" when it's
+  stuck, "needs input" when a conclusion needs your call — with a one-line
+  why that shows on the rail), and Vynel detects the rest: a crashed or
+  errored session turns the light red, a pending approval or question turns
+  it blue, and your next message clears a stale state automatically.
+
+- **The chat reads as one card per exchange.** Your ask and Claude's whole
+  reply now live in a single card — the newest exchange sits open on the
+  surface, older ones fold to a quiet one-line strip with "read more" and
+  wake on hover, and the live exchange keeps its glowing spine and working
+  timer. When a workspace is waiting on you, stuck, or done, the latest card
+  carries the verdict pill in that state's colour.
+
+- **Navigation looks the way the design says.** Tabs mode grew real
+  browser-style tabs that sit on the canvas edge (state chip + name + status
+  dot, parked rooms dimmed); menu mode's workspace tree shows each room's
+  state chip, task progress, and status mark, with quiet finished rooms
+  tucked under a collapsible NOT RUNNING group; the drilled sidebar leads
+  with the workspace's identity card and its live status line. The title bar
+  wears the accent Vynel mark on the chrome ground, and the composer's send
+  button matches the design's accent chip.
+
+- **You decide what Claude can touch.** A new "Tool access" panel in the
+  workspace toolkit lists every tool Claude has — grouped by feature — and
+  makes all of it editable: turn a tool off entirely, choose where it's
+  available (chat, background jobs, channels, agents…), set when it needs
+  your approval (never / when asking / always), and bind it to a plan tier
+  or capability toggle. The workspace capability switches (memory,
+  knowledge, notebook) get their first real UI in the same place. Tools
+  your plan doesn't include simply don't exist for Claude anymore, instead
+  of failing when it tries them.
+
+- **Claude can ask you a question mid-job.** Work running in the background
+  (a Telegram message you sent it, for example) can now pause on a short
+  form when Claude genuinely needs your call — you get a nudge on your
+  connected channel, and the answer flows straight back into the running
+  job. If you don't answer within 10 minutes it continues with its best
+  judgment and tells you what it assumed. Questions asked in the app still
+  wait for you as long as it takes.
+
+- **Tasks open into a full view with their real steps.** Click any task in
+  the work rail to see everything about it — status, who added it, its
+  write-up, and (for tasks the assistant has actually worked) the genuine
+  step list from that session with a progress bar. A little + on the rail
+  quick-adds a task to whichever room you're in.
+
+- **The tasks dock grew into a work rail.** Toggle it from the title bar as
+  before — it now leads with a live card that mirrors the room's presence
+  (glowing while the assistant works, blue when something waits on you, quiet
+  otherwise) with real step progress from the running session, splits tasks
+  into "In the queue" and "Completed" pill tabs, and — in a workspace — ends
+  with an OPEN IT block: one-click links to the apps actually running on
+  their ports, and a stop button (with a confirm) that interrupts the current
+  work without touching anything already finished.
+
+- **The conversation reads like a task list now.** Every chat surface groups
+  each exchange into its own card: past turns quiet down to dimmed one-line
+  strips that wake when you hover (click to reopen them), the latest turn
+  sits in a clean card, and while the assistant works its card glows with a
+  sweeping light along the edge and a live "working · 1m 32s" pill ticking in
+  the corner — you can tell at a glance what's history, what's current, and
+  what's in motion.
+
+- **Folders for your projects.** In Menu navigation the workspace tree now
+  has real folders: make one with the new-folder button, drag projects in and
+  out (or back to the top level), right-click to rename or delete. Deleting a
+  folder never touches the projects inside — they just move back to the top.
+  Folders live in Vynel's database, so they follow you across restarts.
+
+- **Two ways to move between your projects: Tabs or Menu.** A new switch in
+  the title bar picks how workspaces are navigated. Tabs keeps the familiar
+  browser-style strip. Menu tucks the strip away and roots the sidebar at a
+  workspace tree — every project in one list with a pinned Global entry;
+  click a row to switch rooms while you watch the canvas, or drill in to open
+  that room's menu (and step back out with one click). Both views share the
+  same open tabs underneath, so flipping modes never loses your place. Either
+  way, the navigation now shows live presence: a room's chip spins while the
+  assistant works there, and a soft blue dot pulses when it's waiting on you.
 
 - **Design changes are now traceable.** Vynel's UI designs from claude.ai/design
   live in the repo as a git-tracked mirror (`.claude-design/`), refreshed
@@ -354,6 +474,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Approvals now truly cover every tool.** An internal permissive wildcard
+  meant most of Claude's built-in tools skipped the approval layer in Ask
+  mode — the check ran, but the answer was pre-decided. Every tool call now
+  passes through the real approval decision (the same curated set cards by
+  default, so nothing feels different day to day), and the boot warning that
+  hinted at the gap is gone. The Claude Agent SDK also moved up to 0.3.231.
+
+- **Every icon in the app speaks Phosphor now.** The interface's whole icon
+  vocabulary moved from lucide to Phosphor — the set the Nocturne design
+  language is drawn in — so glyphs match the design screens exactly: the
+  gear-six settings, the circle-notch spinner, the robot for agents, the
+  scroll for rules, carets instead of chevrons. Marketplace catalog icon
+  names are untouched (they're stored data); only the artwork behind them
+  changed.
+
 - **Vynel wears its new look: Nocturne.** The whole app moved from the old
   near-black palette to the Nocturne design system — a quiet blue-grey ground,
   one violet accent used as a line and a glow rather than a flood, Inter as
@@ -408,6 +543,26 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A workspace's main chat no longer empties when a long conversation rolls
+  over.** When the assistant quietly continues onto a fresh session because the
+  old one filled up, the main chat previously showed a blank conversation —
+  the assistant still remembered everything, but every earlier message
+  disappeared from view with no way to reach it. The main chat (workspace and
+  global alike, including the sidebar thread) now reads the whole continued
+  chain as one story, so a rollover is invisible: all your messages stay right
+  where they were. This also restores history retroactively — conversations
+  that already hit this show their full thread again after updating. The same
+  fix covers conversations opened from the Sessions list: a continued chain
+  opens with its whole history, not just the newest part (deliberately opening
+  an earlier part still shows exactly that part).
+- **Rollovers now actually carry your conversation forward.** The hand-off
+  summary written at a rollover was produced by a small helper model that
+  couldn't fit a huge conversation in its head — at the exact moment it
+  mattered most, the summary could come out nearly empty and the new session
+  started with almost nothing. The summary now runs on the same model your
+  conversation used (which by definition fits it), and a summary that comes
+  back malformed or suspiciously short cancels the rollover instead of
+  shipping — the conversation simply continues as-is and tries again later.
 - **Your own MCP servers are safe from the marketplace.** A connector you
   added by hand can share a name with a marketplace item — previously that
   made the item's card claim "Installed", and removing it from the

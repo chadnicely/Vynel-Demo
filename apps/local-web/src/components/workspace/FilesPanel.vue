@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { X } from "lucide-vue-next";
+import { PhX as X } from "@phosphor-icons/vue";
 import { EmptyState, IconButton } from "@vynel/ui";
 import { useFileTree } from "../../composables/files/use-file-tree.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";

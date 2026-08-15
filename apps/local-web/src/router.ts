@@ -18,6 +18,13 @@ export function createAppRouter() {
         component: () => import("./views/GlobalChatView.vue"),
       },
       {
+        // Every project at once, as a constellation — the title bar's `Nodes`
+        // word. Three readings of the same fleet live inside it.
+        path: "/nodes",
+        name: "nodes",
+        component: () => import("./views/NodesView.vue"),
+      },
+      {
         path: "/workspace",
         name: "workspace",
         component: () => import("./views/WorkspaceView.vue"),

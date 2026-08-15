@@ -37,9 +37,14 @@ export function resolveSessionTurnSession(
     .run()
 }
 
-export function endSessionTurn(db: Database, turnId: string, endedAt: Date): void {
+export function endSessionTurn(
+  db: Database,
+  turnId: string,
+  endedAt: Date,
+  reason: 'ended' | 'failed' = 'ended',
+): void {
   db.update(sessionTurns)
-    .set({ endedAt, endedReason: 'ended' })
+    .set({ endedAt, endedReason: reason })
     .where(and(eq(sessionTurns.id, turnId), isNull(sessionTurns.endedAt)))
     .run()
 }
@@ -66,6 +71,27 @@ export function listRunningSessionTurnsForUser(db: Database, userId: string): Se
     .where(and(eq(sessionTurns.userId, userId), isNull(sessionTurns.endedAt)))
     .orderBy(sessionTurns.startedAt, sessionTurns.id)
     .all()
+}
+
+/** The LATEST workspace-scoped turn per workspace (any liveness) — the
+ *  workspace status read's "did the last run fail / is one running" input.
+ *  A per-user scan over the purge-bounded envelope table; newest wins per
+ *  workspace in one ordered pass. */
+export function listLatestWorkspaceTurnsForUser(
+  db: Database,
+  userId: string,
+): Map<string, SessionTurnRow> {
+  const rows = db
+    .select()
+    .from(sessionTurns)
+    .where(and(eq(sessionTurns.userId, userId), eq(sessionTurns.scopeKind, 'workspace')))
+    .orderBy(sessionTurns.startedAt, sessionTurns.id)
+    .all()
+  const latestByWorkspaceId = new Map<string, SessionTurnRow>()
+  for (const row of rows) {
+    if (row.workspaceId !== null) latestByWorkspaceId.set(row.workspaceId, row)
+  }
+  return latestByWorkspaceId
 }
 
 /** Retention purge primitive — hard-deletes ENDED turns older than the cutoff

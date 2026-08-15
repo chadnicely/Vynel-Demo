@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { CloudOff, Lock, LogOut, Unplug, UserRound } from "lucide-vue-next";
+import {
+  PhCloudSlash as CloudOff,
+  PhLock as Lock,
+  PhSignOut as LogOut,
+  PhPlugs as Unplug,
+  PhUser as UserRound,
+} from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import { useHubSession } from "../../composables/hub/use-hub-session.js";
 import { useHubDevices } from "../../composables/hub/use-hub-devices.js";

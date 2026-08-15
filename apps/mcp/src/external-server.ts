@@ -27,14 +27,39 @@ function createFetchDispatch(apiUrl: string): FetchDispatch {
   return (url, init) => fetch(new URL(apiMountUrl + url), init)
 }
 
+// One startup read of the admin's kill-switches. Best-effort: an unreachable
+// api (it may boot after us) means the full registry — call-time gates still
+// apply — never a boot failure.
+async function fetchDisabledToolNames(dispatch: FetchDispatch): Promise<ReadonlySet<string>> {
+  try {
+    const response = await dispatch('/tool-policies', {
+      signal: AbortSignal.timeout(3_000),
+    })
+    if (!response.ok) return new Set()
+    const body = (await response.json()) as {
+      tools?: Array<{ toolName?: string; enabled?: boolean }>
+    }
+    return new Set(
+      (body.tools ?? [])
+        .filter((tool) => tool.enabled === false && typeof tool.toolName === 'string')
+        .map((tool) => tool.toolName as string),
+    )
+  } catch {
+    // eslint-disable-next-line no-console -- stderr status line (stdout is the MCP channel)
+    console.error('[mcp] tool-policy read unreachable — serving the full registry (call-time gates still apply)')
+    return new Set()
+  }
+}
+
 async function main(): Promise<void> {
   const env = loadEnv()
+  const dispatch = createFetchDispatch(env.VYNEL_API_URL)
+  const disabledToolNames = await fetchDisabledToolNames(dispatch)
   // The committed spec's deep-literal type is a superset of our reader
   // interface; we read only the subset we declare (documented boundary cast).
-  const server = buildExternalMcpServer(
-    openApiSpec as unknown as OpenApiSpec,
-    createFetchDispatch(env.VYNEL_API_URL),
-  )
+  const server = buildExternalMcpServer(openApiSpec as unknown as OpenApiSpec, dispatch, {
+    disabledToolNames,
+  })
   await server.connect(new StdioServerTransport())
   // eslint-disable-next-line no-console -- stderr status line (stdout is the MCP channel)
   console.error(`[mcp] external server ready — dispatching to ${env.VYNEL_API_URL}`)

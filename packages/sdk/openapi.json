@@ -10600,7 +10600,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ rootSessionId, currentSdkSessionId } — nulls when no root exists yet.",
+            "description": "{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no root exists yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10617,11 +10617,18 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "lastMessageAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "rootSessionId",
-                    "currentSdkSessionId"
+                    "currentSdkSessionId",
+                    "lastMessageAt"
                   ]
                 }
               }
@@ -10647,6 +10654,544 @@
         ],
         "summary": "Resolve the workspace's continuing root conversation (read-only; nulls until the first continue-mode turn).",
         "x-sdk-name": "chat.getContinuing"
+      }
+    },
+    "/workspaces/{workspaceId}/chat/continuing/transcript": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ session, messages, toolCallsByMessageId } — the current segment (null until the first continue-mode turn) + the chain-spanning message history.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "workspaceId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "providerId": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "listed",
+                            "hidden"
+                          ]
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "global",
+                            "workspace",
+                            "agent",
+                            "spawned"
+                          ]
+                        },
+                        "isArchived": {
+                          "type": "boolean"
+                        },
+                        "deletedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "totalMessageCount": {
+                          "type": "number"
+                        },
+                        "totalInputTokens": {
+                          "type": "number"
+                        },
+                        "totalOutputTokens": {
+                          "type": "number"
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "lastMessageAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "workspaceId",
+                        "providerId",
+                        "model",
+                        "title",
+                        "visibility",
+                        "scope",
+                        "isArchived",
+                        "deletedAt",
+                        "totalMessageCount",
+                        "totalInputTokens",
+                        "totalOutputTokens",
+                        "startedAt",
+                        "lastMessageAt",
+                        "updatedAt"
+                      ]
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "sessionId": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "assistant",
+                              "system"
+                            ]
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "sourceKind": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "user",
+                              "global-root",
+                              "workspace-manager",
+                              "agent",
+                              null
+                            ]
+                          },
+                          "sourceLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "originChannel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "voice",
+                              "telegram",
+                              "discord",
+                              "zoom",
+                              null
+                            ]
+                          },
+                          "partialSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "threadId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "delegationTaskLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "runStats": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "model": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "toolCallCount": {
+                                "type": "number"
+                              },
+                              "inputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "outputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "contextTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "toolCallCount",
+                              "inputTokens",
+                              "outputTokens",
+                              "contextTokens",
+                              "durationMs"
+                            ]
+                          },
+                          "thinkingBody": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "inputTokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "outputTokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "attachedImagesMetadata": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "filename": {
+                                  "type": "string"
+                                },
+                                "mimeType": {
+                                  "type": "string"
+                                },
+                                "sizeBytes": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "filename",
+                                "mimeType",
+                                "sizeBytes"
+                              ]
+                            }
+                          },
+                          "errorCode": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "errorMessage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sessionId",
+                          "role",
+                          "body",
+                          "sourceKind",
+                          "sourceLabel",
+                          "originChannel",
+                          "partialSessionId",
+                          "threadId",
+                          "thinkingBody",
+                          "inputTokens",
+                          "outputTokens",
+                          "attachedImagesMetadata",
+                          "errorCode",
+                          "errorMessage",
+                          "startedAt",
+                          "completedAt",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "toolCallsByMessageId": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "parentMessageId": {
+                              "type": "string"
+                            },
+                            "toolUseId": {
+                              "type": "string"
+                            },
+                            "toolName": {
+                              "type": "string"
+                            },
+                            "toolInput": {},
+                            "toolOutput": {},
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "started",
+                                "completed",
+                                "failed",
+                                "denied",
+                                "cancelled"
+                              ]
+                            },
+                            "approvalStatus": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "enum": [
+                                "approved",
+                                "denied",
+                                "timed-out",
+                                "cancelled",
+                                null
+                              ]
+                            },
+                            "isErrorResult": {
+                              "type": "boolean"
+                            },
+                            "subagentNarrative": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "subagentToolCalls": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "toolUseId": {
+                                    "type": "string"
+                                  },
+                                  "toolName": {
+                                    "type": "string"
+                                  },
+                                  "toolInput": {},
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "started",
+                                      "completed",
+                                      "failed"
+                                    ]
+                                  },
+                                  "startedAt": {
+                                    "type": "string"
+                                  },
+                                  "completedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "toolUseId",
+                                  "toolName",
+                                  "status",
+                                  "startedAt",
+                                  "completedAt"
+                                ]
+                              }
+                            },
+                            "delegation": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "partialSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "claimed",
+                                    "completed",
+                                    "failed"
+                                  ]
+                                },
+                                "deliveredTo": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "taskLabel": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "workspaceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "targetSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "partialSessionId",
+                                "status",
+                                "deliveredTo",
+                                "taskLabel",
+                                "reportedAt",
+                                "completedAt",
+                                "workspaceId",
+                                "targetSessionId"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "string"
+                            },
+                            "completedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "parentMessageId",
+                            "toolUseId",
+                            "toolName",
+                            "status",
+                            "approvalStatus",
+                            "isErrorResult",
+                            "startedAt",
+                            "completedAt"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "session",
+                    "messages",
+                    "toolCallsByMessageId"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdChatContinuingTranscript",
+        "tags": [
+          "chat"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Get the workspace's continuing conversation history (messages across swap segments).",
+        "x-sdk-name": "chat.getContinuingTranscript"
       }
     },
     "/workspaces/{workspaceId}/chat/sessions/turn": {
@@ -15018,6 +15563,72 @@
         ],
         "summary": "Get one workspace's token-usage statistics per model per day.",
         "x-sdk-name": "dashboardWorkspace.getUsage"
+      }
+    },
+    "/workspaces/{workspaceId}/section-counts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ counts: { sessions, agents, skills, rules, apps } }.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counts": {
+                      "type": "object",
+                      "properties": {
+                        "sessions": {
+                          "type": "integer"
+                        },
+                        "agents": {
+                          "type": "integer"
+                        },
+                        "skills": {
+                          "type": "integer"
+                        },
+                        "rules": {
+                          "type": "integer"
+                        },
+                        "apps": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sessions",
+                        "agents",
+                        "skills",
+                        "rules"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "counts"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such workspace owned by this user."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSection-counts",
+        "tags": [
+          "section-counts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Get one workspace menu's per-section counts.",
+        "x-sdk-name": "sectionCountsWorkspace.get"
       }
     },
     "/channels": {
@@ -24999,6 +25610,364 @@
         }
       }
     },
+    "/tool-policies": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ tools: EffectiveToolPolicy[] } sorted by server then tool.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "toolName": {
+                            "type": "string"
+                          },
+                          "serverName": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "surfaces": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "global-interactive",
+                                "global-channel",
+                                "workspace-interactive",
+                                "workspace-background",
+                                "delegated-workspace",
+                                "delegated-global",
+                                "spawned",
+                                "agent",
+                                "schedule"
+                              ]
+                            }
+                          },
+                          "cardClass": {
+                            "type": "string",
+                            "enum": [
+                              "never",
+                              "ask",
+                              "always"
+                            ]
+                          },
+                          "featureKey": {
+                            "type": "string"
+                          },
+                          "capabilityId": {
+                            "type": "string"
+                          },
+                          "hasOverride": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "toolName",
+                          "serverName",
+                          "enabled",
+                          "surfaces",
+                          "cardClass",
+                          "hasOverride"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "tools"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getTool-policies",
+        "tags": [
+          "tool-policies"
+        ],
+        "parameters": [],
+        "summary": "List the effective per-tool policy matrix (defaults merged with overrides).",
+        "x-sdk-name": "toolPolicies.list"
+      }
+    },
+    "/tool-policies/{toolName}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The updated effective policy for the tool.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "surfaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "global-interactive",
+                          "global-channel",
+                          "workspace-interactive",
+                          "workspace-background",
+                          "delegated-workspace",
+                          "delegated-global",
+                          "spawned",
+                          "agent",
+                          "schedule"
+                        ]
+                      }
+                    },
+                    "cardClass": {
+                      "type": "string",
+                      "enum": [
+                        "never",
+                        "ask",
+                        "always"
+                      ]
+                    },
+                    "featureKey": {
+                      "type": "string"
+                    },
+                    "capabilityId": {
+                      "type": "string"
+                    },
+                    "hasOverride": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "toolName",
+                    "serverName",
+                    "enabled",
+                    "surfaces",
+                    "cardClass",
+                    "hasOverride"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Unknown tool (not in the declared catalog)."
+          }
+        },
+        "operationId": "putTool-policiesByToolName",
+        "tags": [
+          "tool-policies"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toolName",
+            "schema": {
+              "type": "string",
+              "pattern": "^mcp__[a-z0-9-]+__[a-z0-9_]+$"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Save one tool's policy override (full-replace; null fields inherit).",
+        "x-sdk-name": "toolPolicies.save",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "cardClass": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "never",
+                      "ask",
+                      "always",
+                      null
+                    ]
+                  },
+                  "surfaces": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "global-interactive",
+                        "global-channel",
+                        "workspace-interactive",
+                        "workspace-background",
+                        "delegated-workspace",
+                        "delegated-global",
+                        "spawned",
+                        "agent",
+                        "schedule"
+                      ]
+                    }
+                  },
+                  "featureKey": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "none",
+                      "channels",
+                      "voice",
+                      "schedules",
+                      "knowledge",
+                      "memory",
+                      "marketplace",
+                      "apps",
+                      "ssh",
+                      null
+                    ]
+                  },
+                  "capabilityId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "none",
+                      "memory",
+                      "knowledge",
+                      "notebook",
+                      "tasks",
+                      "plans",
+                      "phases",
+                      "features",
+                      "journal",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "cardClass",
+                  "surfaces",
+                  "featureKey",
+                  "capabilityId"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "The tool policy after the reset (its declared defaults).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "serverName": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "surfaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "global-interactive",
+                          "global-channel",
+                          "workspace-interactive",
+                          "workspace-background",
+                          "delegated-workspace",
+                          "delegated-global",
+                          "spawned",
+                          "agent",
+                          "schedule"
+                        ]
+                      }
+                    },
+                    "cardClass": {
+                      "type": "string",
+                      "enum": [
+                        "never",
+                        "ask",
+                        "always"
+                      ]
+                    },
+                    "featureKey": {
+                      "type": "string"
+                    },
+                    "capabilityId": {
+                      "type": "string"
+                    },
+                    "hasOverride": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "toolName",
+                    "serverName",
+                    "enabled",
+                    "surfaces",
+                    "cardClass",
+                    "hasOverride"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown tool (not in the declared catalog)."
+          }
+        },
+        "operationId": "deleteTool-policiesByToolName",
+        "tags": [
+          "tool-policies"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toolName",
+            "schema": {
+              "type": "string",
+              "pattern": "^mcp__[a-z0-9-]+__[a-z0-9_]+$"
+            },
+            "required": true
+          }
+        ],
+        "summary": "Reset one tool's policy to the declared defaults.",
+        "x-sdk-name": "toolPolicies.reset"
+      }
+    },
     "/users/me": {
       "get": {
         "responses": {
@@ -28185,7 +29154,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ rootSessionId, currentSdkSessionId } — nulls when no global root exists yet.",
+            "description": "{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no global root exists yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -28202,11 +29171,18 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "lastMessageAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "rootSessionId",
-                    "currentSdkSessionId"
+                    "currentSdkSessionId",
+                    "lastMessageAt"
                   ]
                 }
               }
@@ -28226,18 +29202,114 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ messages, toolCallsByMessageId } — the ordered message history + persisted tool calls keyed by message (empty until the first turn).",
+            "description": "{ session, messages, toolCallsByMessageId } — the current segment (null until the first turn) + the chain-spanning message history.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "session": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "workspaceId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "providerId": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "listed",
+                            "hidden"
+                          ]
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "global",
+                            "workspace",
+                            "agent",
+                            "spawned"
+                          ]
+                        },
+                        "isArchived": {
+                          "type": "boolean"
+                        },
+                        "deletedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "totalMessageCount": {
+                          "type": "number"
+                        },
+                        "totalInputTokens": {
+                          "type": "number"
+                        },
+                        "totalOutputTokens": {
+                          "type": "number"
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "lastMessageAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "workspaceId",
+                        "providerId",
+                        "model",
+                        "title",
+                        "visibility",
+                        "scope",
+                        "isArchived",
+                        "deletedAt",
+                        "totalMessageCount",
+                        "totalInputTokens",
+                        "totalOutputTokens",
+                        "startedAt",
+                        "lastMessageAt",
+                        "updatedAt"
+                      ]
+                    },
                     "messages": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
                           "id": {
+                            "type": "string"
+                          },
+                          "sessionId": {
                             "type": "string"
                           },
                           "role": {
@@ -28270,6 +29342,19 @@
                               "null"
                             ]
                           },
+                          "originChannel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "voice",
+                              "telegram",
+                              "discord",
+                              "zoom",
+                              null
+                            ]
+                          },
                           "partialSessionId": {
                             "type": [
                               "string",
@@ -28282,17 +29367,77 @@
                               "null"
                             ]
                           },
-                          "originChannel": {
+                          "delegationTaskLabel": {
                             "type": [
                               "string",
                               "null"
+                            ]
+                          },
+                          "runStats": {
+                            "type": [
+                              "object",
+                              "null"
                             ],
-                            "enum": [
-                              "voice",
-                              "telegram",
-                              "discord",
-                              "zoom",
-                              null
+                            "properties": {
+                              "model": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "toolCallCount": {
+                                "type": "number"
+                              },
+                              "inputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "outputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "contextTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "toolCallCount",
+                              "inputTokens",
+                              "outputTokens",
+                              "contextTokens",
+                              "durationMs"
+                            ]
+                          },
+                          "thinkingBody": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "inputTokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "outputTokens": {
+                            "type": [
+                              "number",
+                              "null"
                             ]
                           },
                           "attachedImagesMetadata": {
@@ -28319,18 +29464,51 @@
                                 "sizeBytes"
                               ]
                             }
+                          },
+                          "errorCode": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "errorMessage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
                           }
                         },
                         "required": [
                           "id",
+                          "sessionId",
                           "role",
                           "body",
                           "sourceKind",
                           "sourceLabel",
+                          "originChannel",
                           "partialSessionId",
                           "threadId",
-                          "originChannel",
-                          "attachedImagesMetadata"
+                          "thinkingBody",
+                          "inputTokens",
+                          "outputTokens",
+                          "attachedImagesMetadata",
+                          "errorCode",
+                          "errorMessage",
+                          "startedAt",
+                          "completedAt",
+                          "createdAt"
                         ]
                       }
                     },
@@ -28528,6 +29706,7 @@
                     }
                   },
                   "required": [
+                    "session",
                     "messages",
                     "toolCallsByMessageId"
                   ]
@@ -29437,6 +30616,542 @@
         ],
         "summary": "Get one owned session in full (messages + tool calls) — for the trace drill-down.",
         "x-sdk-name": "root.getSession"
+      }
+    },
+    "/root/sessions/{sessionId}/transcript": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ session, messages, toolCallsByMessageId } — the head segment + messages across its whole continuation chain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "workspaceId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "providerId": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "listed",
+                            "hidden"
+                          ]
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "global",
+                            "workspace",
+                            "agent",
+                            "spawned"
+                          ]
+                        },
+                        "isArchived": {
+                          "type": "boolean"
+                        },
+                        "deletedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "totalMessageCount": {
+                          "type": "number"
+                        },
+                        "totalInputTokens": {
+                          "type": "number"
+                        },
+                        "totalOutputTokens": {
+                          "type": "number"
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "lastMessageAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "workspaceId",
+                        "providerId",
+                        "model",
+                        "title",
+                        "visibility",
+                        "scope",
+                        "isArchived",
+                        "deletedAt",
+                        "totalMessageCount",
+                        "totalInputTokens",
+                        "totalOutputTokens",
+                        "startedAt",
+                        "lastMessageAt",
+                        "updatedAt"
+                      ]
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "sessionId": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "assistant",
+                              "system"
+                            ]
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "sourceKind": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "user",
+                              "global-root",
+                              "workspace-manager",
+                              "agent",
+                              null
+                            ]
+                          },
+                          "sourceLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "originChannel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "voice",
+                              "telegram",
+                              "discord",
+                              "zoom",
+                              null
+                            ]
+                          },
+                          "partialSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "threadId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "delegationTaskLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "runStats": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "model": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "toolCallCount": {
+                                "type": "number"
+                              },
+                              "inputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "outputTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "contextTokens": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "durationMs": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "model",
+                              "toolCallCount",
+                              "inputTokens",
+                              "outputTokens",
+                              "contextTokens",
+                              "durationMs"
+                            ]
+                          },
+                          "thinkingBody": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "inputTokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "outputTokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "attachedImagesMetadata": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "filename": {
+                                  "type": "string"
+                                },
+                                "mimeType": {
+                                  "type": "string"
+                                },
+                                "sizeBytes": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "filename",
+                                "mimeType",
+                                "sizeBytes"
+                              ]
+                            }
+                          },
+                          "errorCode": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "errorMessage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sessionId",
+                          "role",
+                          "body",
+                          "sourceKind",
+                          "sourceLabel",
+                          "originChannel",
+                          "partialSessionId",
+                          "threadId",
+                          "thinkingBody",
+                          "inputTokens",
+                          "outputTokens",
+                          "attachedImagesMetadata",
+                          "errorCode",
+                          "errorMessage",
+                          "startedAt",
+                          "completedAt",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "toolCallsByMessageId": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "parentMessageId": {
+                              "type": "string"
+                            },
+                            "toolUseId": {
+                              "type": "string"
+                            },
+                            "toolName": {
+                              "type": "string"
+                            },
+                            "toolInput": {},
+                            "toolOutput": {},
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "started",
+                                "completed",
+                                "failed",
+                                "denied",
+                                "cancelled"
+                              ]
+                            },
+                            "approvalStatus": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "enum": [
+                                "approved",
+                                "denied",
+                                "timed-out",
+                                "cancelled",
+                                null
+                              ]
+                            },
+                            "isErrorResult": {
+                              "type": "boolean"
+                            },
+                            "subagentNarrative": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "subagentToolCalls": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "toolUseId": {
+                                    "type": "string"
+                                  },
+                                  "toolName": {
+                                    "type": "string"
+                                  },
+                                  "toolInput": {},
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "started",
+                                      "completed",
+                                      "failed"
+                                    ]
+                                  },
+                                  "startedAt": {
+                                    "type": "string"
+                                  },
+                                  "completedAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "toolUseId",
+                                  "toolName",
+                                  "status",
+                                  "startedAt",
+                                  "completedAt"
+                                ]
+                              }
+                            },
+                            "delegation": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "partialSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "claimed",
+                                    "completed",
+                                    "failed"
+                                  ]
+                                },
+                                "deliveredTo": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "taskLabel": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "workspaceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "targetSessionId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "partialSessionId",
+                                "status",
+                                "deliveredTo",
+                                "taskLabel",
+                                "reportedAt",
+                                "completedAt",
+                                "workspaceId",
+                                "targetSessionId"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "string"
+                            },
+                            "completedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "parentMessageId",
+                            "toolUseId",
+                            "toolName",
+                            "status",
+                            "approvalStatus",
+                            "isErrorResult",
+                            "startedAt",
+                            "completedAt"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "session",
+                    "messages",
+                    "toolCallsByMessageId"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session, or not owned by the caller."
+          }
+        },
+        "operationId": "getRootSessionsBySessionIdTranscript",
+        "tags": [
+          "root"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Get one owned session's chain-spanning history (messages across swap segments).",
+        "x-sdk-name": "root.getSessionTranscript"
       }
     },
     "/root/delegations": {
@@ -30389,6 +32104,95 @@
         "x-sdk-name": "activity.listRunningTurns"
       }
     },
+    "/activity/messages": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Every message sent inside the window, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "jobId": {
+                            "type": "string"
+                          },
+                          "direction": {
+                            "type": "string",
+                            "enum": [
+                              "ask",
+                              "reply"
+                            ]
+                          },
+                          "fromSessionId": {
+                            "type": "string"
+                          },
+                          "toSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "fromWorkspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "toWorkspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "jobId",
+                          "direction",
+                          "fromSessionId",
+                          "toSessionId",
+                          "fromWorkspaceId",
+                          "toWorkspaceId",
+                          "at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "edges"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getActivityMessages",
+        "tags": [
+          "activity"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "withinSeconds",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 600
+            }
+          }
+        ],
+        "summary": "Recent session-to-session messages — the arcs the node screen draws.",
+        "x-sdk-name": "activity.listRecentMessages"
+      }
+    },
     "/voice/speak": {
       "post": {
         "responses": {
@@ -30704,6 +32508,36 @@
                           "continueEnabled": {
                             "type": "boolean"
                           },
+                          "groupId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "completed",
+                              "problem",
+                              "needs_input",
+                              null
+                            ]
+                          },
+                          "statusNote": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "statusSetAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "createdAt": {
                             "type": "string"
                           },
@@ -30723,6 +32557,10 @@
                           "path",
                           "isArchived",
                           "continueEnabled",
+                          "groupId",
+                          "status",
+                          "statusNote",
+                          "statusSetAt",
                           "createdAt",
                           "updatedAt",
                           "lastAccessedAt"
@@ -31203,6 +33041,60 @@
         ],
         "summary": "Get token-usage statistics per model per day (all scopes).",
         "x-sdk-name": "dashboard.getUsage"
+      }
+    },
+    "/section-counts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ counts: { sessions, agents, skills, rules } } — no `apps` at global scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counts": {
+                      "type": "object",
+                      "properties": {
+                        "sessions": {
+                          "type": "integer"
+                        },
+                        "agents": {
+                          "type": "integer"
+                        },
+                        "skills": {
+                          "type": "integer"
+                        },
+                        "rules": {
+                          "type": "integer"
+                        },
+                        "apps": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sessions",
+                        "agents",
+                        "skills",
+                        "rules"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "counts"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getSection-counts",
+        "tags": [
+          "section-counts"
+        ],
+        "parameters": [],
+        "summary": "Get the Global menu's per-section counts.",
+        "x-sdk-name": "sectionCounts.getGlobal"
       }
     },
     "/sessions/overview": {
@@ -32767,6 +34659,36 @@
                       "continueEnabled": {
                         "type": "boolean"
                       },
+                      "groupId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "completed",
+                          "problem",
+                          "needs_input",
+                          null
+                        ]
+                      },
+                      "statusNote": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "statusSetAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "createdAt": {
                         "type": "string"
                       },
@@ -32786,6 +34708,10 @@
                       "path",
                       "isArchived",
                       "continueEnabled",
+                      "groupId",
+                      "status",
+                      "statusNote",
+                      "statusSetAt",
                       "createdAt",
                       "updatedAt",
                       "lastAccessedAt"
@@ -32868,6 +34794,36 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -32887,6 +34843,10 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33052,6 +35012,336 @@
         "x-sdk-name": "workspaces.listDirectories"
       }
     },
+    "/workspaces/groups": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of workspace folders.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "name",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getWorkspacesGroups",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "List the user's workspace folders (menu-tree groups), creation order.",
+        "x-sdk-name": "workspaces.listGroups",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_workspace_groups",
+          "description": "List the authenticated user's workspace folders — the groups that organize workspaces in the navigation tree. Membership is each workspace's groupId. Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Folder created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or over-long folder name."
+          }
+        },
+        "operationId": "postWorkspacesGroups",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Create a workspace folder.",
+        "x-sdk-name": "workspaces.createGroup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/groups/{groupId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Renamed folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Folder not found."
+          }
+        },
+        "operationId": "patchWorkspacesGroupsByGroupId",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "groupId",
+            "required": true
+          }
+        ],
+        "summary": "Rename a workspace folder (owner-scoped — 404 if not owned).",
+        "x-sdk-name": "workspaces.renameGroup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Folder deleted; members detached."
+          },
+          "404": {
+            "description": "Folder not found."
+          }
+        },
+        "operationId": "deleteWorkspacesGroupsByGroupId",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "groupId",
+            "required": true
+          }
+        ],
+        "summary": "Delete a workspace folder. Member workspaces detach to the tree root — never deleted.",
+        "x-sdk-name": "workspaces.deleteGroup"
+      }
+    },
+    "/workspaces/statuses": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "One status report per workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string"
+                      },
+                      "setStatus": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "completed",
+                          "problem",
+                          "needs_input",
+                          null
+                        ]
+                      },
+                      "statusNote": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "statusSetAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "latestTurn": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "endedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "endedReason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "ended",
+                              "orphaned",
+                              "failed",
+                              null
+                            ]
+                          }
+                        },
+                        "required": [
+                          "startedAt",
+                          "endedAt",
+                          "endedReason"
+                        ]
+                      },
+                      "tasksTotal": {
+                        "type": "number"
+                      },
+                      "tasksDone": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "workspaceId",
+                      "setStatus",
+                      "statusNote",
+                      "statusSetAt",
+                      "latestTurn",
+                      "tasksTotal",
+                      "tasksDone"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getWorkspacesStatuses",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Per-workspace status facts: set state, latest turn, task counts.",
+        "x-sdk-name": "workspaces.listStatuses"
+      }
+    },
     "/workspaces/{workspaceId}": {
       "get": {
         "responses": {
@@ -33095,6 +35385,36 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33114,6 +35434,10 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33190,6 +35514,36 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33209,6 +35563,10 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33306,6 +35664,311 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/group": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "Updated workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "managerName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "small-business",
+                        "personal",
+                        "project",
+                        "custom"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "continueEnabled": {
+                      "type": "boolean"
+                    },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastAccessedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "managerName",
+                    "kind",
+                    "path",
+                    "isArchived",
+                    "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
+                    "createdAt",
+                    "updatedAt",
+                    "lastAccessedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace or folder not found."
+          }
+        },
+        "operationId": "putWorkspacesByWorkspaceIdGroup",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Move a workspace into a folder (or to the tree root with null).",
+        "x-sdk-name": "workspaces.setGroup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "groupId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "groupId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/status": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "Updated workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "managerName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "small-business",
+                        "personal",
+                        "project",
+                        "custom"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "continueEnabled": {
+                      "type": "boolean"
+                    },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastAccessedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "managerName",
+                    "kind",
+                    "path",
+                    "isArchived",
+                    "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
+                    "createdAt",
+                    "updatedAt",
+                    "lastAccessedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "putWorkspacesByWorkspaceIdStatus",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Set the workspace status (completed / problem / needs_input).",
+        "x-sdk-name": "workspaces.setStatus",
+        "x-mcp": {
+          "exposed": true,
+          "name": "set_workspace_status",
+          "mutatingApproved": true,
+          "description": "Set this workspace's status light — the state the user sees on every navigation surface. Set `completed` when EVERY task on the list is done (do it before finishing your reply, so the user sees it before their next message). Set `problem` when you are stuck and cannot proceed without help. Set `needs_input` when you reached a conclusion or decision that needs the user's attention (approvals and questions are detected automatically — this is for conclusions). Include a short `note` saying why. The status clears itself when the user sends the next message."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "completed",
+                      "problem",
+                      "needs_input"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/archive": {
       "post": {
         "responses": {
@@ -33349,6 +36012,36 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33368,6 +36061,10 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -33441,6 +36138,36 @@
                     "continueEnabled": {
                       "type": "boolean"
                     },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -33460,6 +36187,10 @@
                     "path",
                     "isArchived",
                     "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"

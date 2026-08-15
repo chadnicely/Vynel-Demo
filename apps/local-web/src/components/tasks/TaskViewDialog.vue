@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { CalendarRange } from "lucide-vue-next";
+import {
+  PhCalendarBlank as CalendarRange,
+  PhCheckCircle as CheckCircle,
+  PhCircleDashed as CircleDashed,
+  PhCircleHalf as CircleHalf,
+} from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 import type { TaskStatus } from "@vynel/contracts/tasks/task-http";
 import { useTasks } from "../../composables/tasks/use-tasks.js";
+import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import TaskStatusControl from "./TaskStatusControl.vue";
 
-// View one task in full: title, status (live cycle), detail, provenance, and
-// — when it belongs to a plan — a chip that opens the SHARED plan review
-// dialog (the task→plan deep link). Takes the ID and resolves the row from
-// the live list query — a snapshot prop would freeze the status tile on its
-// first transition (the PlanViewDialog precedent).
+// View one task in full: title, status (live cycle), detail, provenance,
+// its REAL working steps (the session's todos — redesign Arc 5, the canvas's
+// task-detail view on our data; no session, no steps section), and — when it
+// belongs to a plan — a chip that opens the SHARED plan review dialog. Takes
+// the ID and resolves the row from the live list query — a snapshot prop
+// would freeze the status tile on its first transition (the PlanViewDialog
+// precedent).
 const props = defineProps<{
   open: boolean;
   taskId: string | null;
@@ -32,6 +40,24 @@ const task = computed(
     (tasksQuery.data.value ?? []).find((row) => row.id === props.taskId) ??
     null,
 );
+
+// The task's working steps — fetched only while the dialog is up and the
+// task actually has a session behind it.
+const todosQuery = useSessionTodos(() =>
+  props.open ? (task.value?.sessionId ?? null) : null,
+);
+const steps = computed(() =>
+  [...(todosQuery.data.value ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
+);
+const stepProgress = computed(() => {
+  if (steps.value.length === 0) return null;
+  const done = steps.value.filter((step) => step.status === "done").length;
+  return {
+    done,
+    total: steps.value.length,
+    pct: Math.round((100 * done) / steps.value.length),
+  };
+});
 
 function changeStatus(status: TaskStatus) {
   if (!task.value) return;
@@ -86,6 +112,51 @@ function onOpenChange(open: boolean) {
         {{ task.detail }}
       </p>
 
+      <!-- The steps — the session's real todos; nothing is fabricated for
+           tasks that never ran. -->
+      <div v-if="stepProgress" class="flex flex-col gap-2">
+        <div class="flex items-center gap-2.5">
+          <p class="m-0 text-2xs font-semibold uppercase tracking-wider text-ink-3">
+            Steps
+          </p>
+          <span class="steps-bar h-[3px] min-w-0 flex-1 overflow-hidden rounded-full">
+            <span
+              class="steps-bar-fill block h-full rounded-full"
+              :style="{ width: `${stepProgress.pct}%` }"
+            />
+          </span>
+          <span class="text-2xs tabular-nums text-ink-3">
+            {{ stepProgress.done }} of {{ stepProgress.total }}
+          </span>
+        </div>
+        <ul class="m-0 flex list-none flex-col gap-1 p-0">
+          <li
+            v-for="step in steps"
+            :key="step.id"
+            class="flex items-center gap-2 text-sm"
+            :class="step.status === 'done' ? 'text-ink-3' : 'text-ink-1'"
+          >
+            <CheckCircle
+              v-if="step.status === 'done'"
+              :size="14"
+              class="shrink-0 text-gold"
+            />
+            <CircleHalf
+              v-else-if="step.status === 'in-progress'"
+              :size="14"
+              class="shrink-0 text-gold-bright"
+            />
+            <CircleDashed v-else :size="14" class="shrink-0 text-ink-3" />
+            <span class="min-w-0 flex-1 truncate">{{ step.title }}</span>
+            <span
+              v-if="step.completedAt"
+              class="shrink-0 text-2xs text-ink-3"
+              >{{ formatRelativeTime(step.completedAt) }}</span
+            >
+          </li>
+        </ul>
+      </div>
+
       <p class="m-0 text-xs text-ink-3">
         Added {{ formatRelativeTime(task.createdAt) }}<template
           v-if="task.completedAt"
@@ -96,3 +167,14 @@ function onOpenChange(open: boolean) {
     </div>
   </Modal>
 </template>
+
+<style scoped>
+.steps-bar {
+  background: color-mix(in srgb, var(--ink-3) 25%, transparent);
+}
+
+.steps-bar-fill {
+  background: var(--gold);
+  transition: width var(--t-slow) var(--ease-out);
+}
+</style>

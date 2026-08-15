@@ -103,11 +103,13 @@ export const SendMessageRequestSchema = z.object({
   /** REQUIRED with kind 'direct_to_user' (rejected otherwise): the short
    *  headline the user's message box shows — the full text opens from it. */
   title: z.string().min(1).max(200).optional(),
-  /** The CALLING workspace for a "session:" send (Slice ④b, ownership-checked)
-   *  — the job then parents on that workspace's primary conversation, so the
-   *  report returns to the creator. The workspace surface stamps this
-   *  ambiently from the turn's scope (the generator's workspaceId fallback);
-   *  absent = a global-root call. */
+  /** The CALLING workspace for either task destination (Slice ④b,
+   *  ownership-checked) — the job parents on that workspace's primary
+   *  conversation and records it as the requester, so the target's updates and
+   *  report return to the chat that asked instead of the global root. The
+   *  workspace surface stamps this ambiently from the turn's scope (the
+   *  generator's workspaceId fallback); absent = a global-root call, where
+   *  recording no requester IS how the chain terminates at the root. */
   workspaceId: z.string().min(1).optional(),
   ...DelegationRunPreferenceFields,
 })

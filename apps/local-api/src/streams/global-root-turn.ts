@@ -37,6 +37,8 @@ import { writeSseSafely } from './write-sse-safely.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
 import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
+import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
+import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import type { z } from 'zod'
 import type { StartGlobalRootTurnRequestSchema } from '../routes/root/schemas.js'
 
@@ -136,9 +138,9 @@ export async function streamGlobalRootTurn(
   // streamChatTurn precedent).
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  // ask_user attaches to INTERACTIVE app turns only — this stream is the app's
-  // global chat; the background channel runner (`runGlobalRootTurn`) stays
-  // ask-free (docs/module-notes/ask.md fork #2).
+  // ask_user here waits UNBOUNDED — this stream is the app's global chat, the
+  // user is present. The background channel runner (`runGlobalRootTurn`)
+  // attaches it too, with a bounded timeout.
   const { buildAskFeatureDescriptor } = await import('@vynel/asks/mcp')
   // This turn's key — turn-end cleanup cancels exactly the asks THIS turn parked.
   const askTurnKey = crypto.randomUUID()
@@ -187,6 +189,11 @@ export async function streamGlobalRootTurn(
     },
     { logger: c.var.logger },
   )
+  const enabledFeatureKeys = resolveEnabledFeatureKeys(c.var.hubSession)
+  const toolPolicies = resolveSessionToolPolicies(c.var.db, {
+    userId: c.var.user.id,
+    desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
+  })
   const composedMcp = composeSessionMcpServers(
     [
       vynelRoutingDescriptor,
@@ -211,7 +218,12 @@ export async function streamGlobalRootTurn(
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
     // the notebook's defaultEnabled gated tools would be denied here).
-    { enabledCapabilityIds: defaultEnabledCapabilityIds() },
+    {
+      enabledCapabilityIds: defaultEnabledCapabilityIds(),
+      ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
+      toolPolicies,
+      surfaceKind: 'global-interactive',
+    },
   )
 
   return streamSSE(c, async (stream) => {
@@ -273,7 +285,7 @@ export async function streamGlobalRootTurn(
           // A voice turn also RECORDS its origin — the transcript shows "via Voice".
           ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),
           mcpServers: composedMcp.mcpServers,
-          allowedMcpToolPatterns: composedMcp.allowedMcpToolPatterns,
+          deniedMcpToolPatterns: composedMcp.deniedMcpToolPatterns,
           mutatingToolNames: composedMcp.mutatingToolNames,
           askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
           // The mention-dispatch note (chat-mentions) rides the same seam as

@@ -26,7 +26,12 @@ export interface ThreadChainHop {
    *  'direct-delivery' = a final answer carried straight to the user. */
   kind: 'task' | 'report-delivery' | 'update-delivery' | 'direct-delivery'
   status: DelegationJobStatus
-  /** Where the hop went: the workspace name, or the session/reporter label. */
+  /** The OTHER PARTY on this hop — kind-dependent, and deliberately NOT always
+   *  the destination: a 'task' hop names where the work went, but a delivery hop
+   *  names the SENDER whose message it carries (the row reuses `workspaceName`
+   *  for the reporter's label). Read it as "who", never as "where it went" —
+   *  the routing route shipped a `deliveredTo` that made exactly that
+   *  substitution and reported a sender's own name back to it. */
   target: string
   createdAt: Date
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ChevronRight, Mic } from "lucide-vue-next";
+import { PhCaretRight as ChevronRight, PhMicrophone as Mic } from "@phosphor-icons/vue";
 import type { ChannelResponse } from "@vynel/contracts/channels/channel-http";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import { WORKSPACE_KIND_BUNDLES } from "@vynel/contracts/workspaces/workspace-kind-bundles";

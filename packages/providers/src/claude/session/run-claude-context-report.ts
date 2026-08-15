@@ -28,9 +28,6 @@ export async function runClaudeContextReport(
           mcpServers: input.mcpServers as Parameters<typeof buildClaudeSdkOptions>[0]['mcpServers'],
         }
       : {}),
-    ...(input.allowedMcpToolPatterns !== undefined
-      ? { allowedMcpToolPatterns: input.allowedMcpToolPatterns }
-      : {}),
   })
   options.maxTurns = 1
   // Ephemeral probe — /context must NOT write the session's JSONL (Vynel's
