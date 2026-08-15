@@ -38,7 +38,7 @@ Orchestration is the **delegation engine** — "the VERB over the `agents` noun.
 
 ## Data & persistence
 
-One owned table, `delegation_jobs`, defined in `packages/orchestration/src/schema/delegation-jobs.ts`, registered for drizzle-kit at `drizzle.sqlite.config.ts:54` (`'../orchestration/src/schema/delegation-jobs.ts'`) — the schema-parity guard enforces exactly-one-config registration. DDL: `packages/db/src/migrations-sqlite/0000_baseline.sql` (table L522, indexes L546–547). No later migration touches it. **No `deletedAt`** — terminal rows await a future retention job, not soft-delete.
+One owned table, `delegation_jobs`, defined in `packages/orchestration/src/schema/delegation-jobs.ts`, registered for drizzle-kit at `drizzle.sqlite.config.ts:54` (`'../orchestration/src/schema/delegation-jobs.ts'`) — the schema-parity guard enforces exactly-one-config registration. DDL: `packages/db/src/migrations-sqlite/0000_baseline.sql` (table L522, indexes L546–547), then seven additive `ALTER`s — `0012`, `0014`, `0015`, `0020`, `0021`, `0023`, `0027` (see the warning below). **No `deletedAt`** — terminal rows await a future retention job, not soft-delete.
 
 **`delegation_jobs`** — one row per delegated background task; a durable FIFO work queue.
 
@@ -60,6 +60,16 @@ One owned table, `delegation_jobs`, defined in `packages/orchestration/src/schem
 | `createdAt` | timestamp (notNull) | FIFO ordering key |
 
 Indexes: `idx_delegation_jobs_status_created` on `(status, createdAt)` (the FIFO claim) · `idx_delegation_jobs_user` on `(userId)`.
+
+> **⚠ This column table is incomplete as of 2026-08-16.** It was mapped before the session-messaging
+> work landed and does not list `jobKind` (the five-shape discriminator — `task` / `report-delivery` /
+> `update-delivery` / `direct-delivery` / `agent-run`, added in `0015`), `threadId` (`0020`),
+> `reportedAt` (`0021`), the retry trio `attemptCount` / `nextAttemptAt` / `errorCode` (`0023`), or
+> `agentSlug` / `requesterWorkspaceId` (`0027`). Two more indexes exist too
+> (`idx_delegation_jobs_thread`, `idx_delegation_jobs_ready`). Those columns — and how the delivery
+> kinds reuse `taskText` / `workspaceName` / `parentSessionId` for a message rather than a task — are
+> mapped in [session-communication/structure.md](../session-communication/structure.md). The table
+> is still owned here; that doc is the current reading for the messaging columns.
 
 ## Repositories
 
@@ -188,4 +198,4 @@ flowchart LR
 - **The `providers → orchestration` grep hit is a comment**, not a runtime import (`packages/providers/src/shared/start-chat-session-input.ts:96` documents `composeSessionAgents`) — no layering inversion.
 
 ---
-*Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [overview.md](./overview.md).*
+*Mapped from the code on disk, 2026-07-14; the `delegation_jobs` section annotated 2026-08-16 (see the warning under Data & persistence). If you change this module, update this file and [overview.md](./overview.md).*

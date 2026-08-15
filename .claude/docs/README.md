@@ -117,6 +117,7 @@ The "one brain, many hands" backbone: everything is a session; roots delegate to
 | `session` | The Session primitive + the turn runtime (reaches the model only through the provider seam) + delegation composition. | [overview](./session/overview.md) · [structure](./session/structure.md) |
 | `agents` | Agent definitions — curated seed + `AgentRow`→SDK mapping + per-session composition + the `.claude/agents/` disk mirror. | [overview](./agents/overview.md) · [structure](./agents/structure.md) |
 | `orchestration` | The delegation engine — the durable job queue, routing (request-down / report-up), the partial-session-id trace. | [overview](./orchestration/overview.md) · [structure](./orchestration/structure.md) |
+| `session-communication` | *(cross-cutting)* How sessions talk to each other — the one messaging verb, its four voices, ambient addressing, and the delivery pipeline. Spans the three rows above plus `chat` and the MCP layer. | [overview](./session-communication/overview.md) · [structure](./session-communication/structure.md) |
 
 ## Part 1c — The hub (cloud)
 
@@ -189,5 +190,6 @@ leaves them. The discipline that keeps them honest:
 - The `overview` / `structure` skills (`.claude/skills/`) are the playbooks; the `wh` agent runs them.
 
 ---
-*As-built documentation for Vynel — 18 product domains + 3 session-spine modules + 3 hub modules +
-1 kernel + 4 platform groups + 9 app shells. Mapped from the code on disk, 2026-07-14.*
+*As-built documentation for Vynel — 18 product domains + 3 session-spine modules (+1 cross-cutting
+seam) + 3 hub modules + 1 kernel + 5 platform groups + 9 app shells. Mapped from the code on disk,
+2026-07-14; `session-communication` added 2026-08-16.*
