@@ -13,7 +13,7 @@ export type WorkspaceProgress = {
   lastWorkedAt: string | null;
 };
 
-// The sidebar's "4/13" per project — REAL working steps, read from each
+// The node screen's "4/13" per project — REAL working steps, read from each
 // project's CONTINUING conversation: the same session its room opens on, and
 // the same todos its chat dock shows. (Not the sessions overview: a project's
 // continuing chat is hidden end to end, so the overview deliberately never
@@ -37,6 +37,10 @@ export function useWorkspaceProgress(
           sessionScopeKey({ kind: "workspace" as const, workspaceId }),
         ],
         queryFn: () => vynel.chat.getContinuing(workspaceId),
+        // One request PER PROJECT — the node screen asks for the whole fleet at
+        // once, so an unthrottled refetch multiplies by however many rooms
+        // exist. Matches the todos cadence below.
+        staleTime: 15_000,
       })),
     ),
   });

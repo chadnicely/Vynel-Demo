@@ -1,8 +1,10 @@
-// One reading of "the queue" per project, shared by every surface that shows
-// a project's status dot — the sidebar rows and the Mission Control nodes
-// (Chad, 2026-08-12). A project only goes GREEN when its work finished AND
-// nothing is left in the queue; a single task still open keeps it amber,
-// because more is coming.
+// How the NODE SCREEN reads "the queue" for one project (Chad, 2026-08-12):
+// green only when the work finished AND nothing is left in the queue; a single
+// task still open keeps it amber, because more is coming.
+//
+// Only `composables/nodes` imports this. Main's navigation surfaces derive
+// their status from `composables/workspaces/use-workspace-status.ts` instead —
+// see the note in `fleet-node-status.ts` for why the two still differ.
 
 /** The queue reading for one project. */
 export interface WorkspaceQueueSummary {

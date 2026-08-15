@@ -16,7 +16,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   nothing is left in the queue, grey once it has been quiet for an hour. Busy
   projects stream light along their strand; quiet ones barely flicker. Click a
   project and you step inside it — the same picture, except the dots are now its
-  conversations, and clicking one opens the chat. The same fleet reads three
+  conversations, each lighting up and streaming while it is actually running,
+  and clicking one opens the chat. The same fleet reads three
   ways: **Nodes** (the constellation, arranged as Constellation, Orbit or Rise),
   **Grid** (the same projects as plain cards) and **Race** (everything on one
   track toward done). With nothing set up yet the stars still turn and the

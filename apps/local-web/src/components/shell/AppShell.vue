@@ -95,12 +95,17 @@ const currentUserQuery = useCurrentUser();
 // chat views go live and the presence dot lights for background work.
 useSessionActivityFeed();
 
-const surface = computed<"home" | "chat" | "sessions" | "workspace">(() => {
-  const name = route.name;
-  return name === "home" || name === "workspace" || name === "sessions"
-    ? name
-    : "chat";
-});
+const surface = computed<"home" | "chat" | "sessions" | "workspace" | "nodes">(
+  () => {
+    const name = route.name;
+    return name === "home" ||
+      name === "workspace" ||
+      name === "sessions" ||
+      name === "nodes"
+      ? name
+      : "chat";
+  },
+);
 // Scope follows the ACTIVE TAB: the pinned Global tab or a workspace room.
 // Everything contextual (sidebar menu, session library scope, the canvas
 // shell) derives from it.
@@ -335,6 +340,9 @@ const sidebarWorkspaceCard = computed(() => {
 const activeSectionId = computed(() => {
   if (surface.value === "home") return "home";
   if (surface.value === "sessions") return "sessions";
+  // The Nodes screen is reached from the title bar, not the sidebar menu — so
+  // nothing there is active. Falling through would have marked Chat.
+  if (surface.value === "nodes") return null;
   const view = scopeShell.value.mainView;
   if (typeof view !== "string") return null;
   if (view !== "chat") return view;

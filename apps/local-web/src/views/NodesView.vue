@@ -44,9 +44,11 @@ const fleetNodes = useFleetNodes(fleetWorkspaces);
 // descends into that ONE project — same bar, same three readings, but the
 // dots are now its sessions and work. A session node is what opens the chat.
 //
-// Entered from INSIDE a project (its tab is active): start at that project's
-// level, not the fleet.
-const drilledProjectId = ref<string | null>(ui.activeTab.workspaceId);
+// Always opens on the fleet. The prototype seeded this from the active tab so
+// a project's own node link could land you inside it, but the title bar's
+// `Nodes` is the only way in here and it leaves the workspace tab first — that
+// entry point is future work, not a dropped feature.
+const drilledProjectId = ref<string | null>(null);
 const drilledProject = computed(
   () =>
     fleetWorkspaces.value.find((room) => room.id === drilledProjectId.value) ??
@@ -123,7 +125,12 @@ function mountScene() {
   scene.setLayout(layout.value);
 }
 
-onMounted(mountScene);
+// Only if Nodes is the reading on show — `ui.nodesMode` outlives the route, so
+// arriving back on Grid or Race must not start a frame loop behind `v-show`'s
+// display:none.
+onMounted(() => {
+  if (ui.nodesMode === "nodes") mountScene();
+});
 
 // The canvas only exists while Nodes is showing; leaving stops its frame loop
 // rather than animating a fleet nobody can see.

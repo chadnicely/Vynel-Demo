@@ -31,9 +31,9 @@ export function initialsOf(name: string): string {
  *  setup-completion stamp the workspace row does not carry here. It stays as
  *  the seam so the filter lands in one place when it does.
  *
- *  Each node's status comes from `statusOf` — the SAME reading the sidebar's
- *  dot uses (building / waiting / done / idle), so the constellation and the
- *  sidebar can never disagree about what is alive (Chad, 2026-08-11). */
+ *  Each node's status comes from `statusOf` — this screen's own reading
+ *  (building / waiting / done / idle), which is NOT yet main's shared one.
+ *  See `composables/nodes/fleet-node-status.ts` for where the two differ. */
 export function buildSceneNodes(
   workspaces: readonly WorkspaceLike[],
   statusOf: (workspaceId: string) => SceneNode["status"],

@@ -24,9 +24,11 @@ export interface SceneNode {
   status: "building" | "waiting" | "problem" | "done" | "idle";
 }
 
-// ONE state, ONE colour — the same reading on every surface (Chad,
-// 2026-08-12): working (a live turn OR its queue running a task) is PURPLE,
-// completed is green, waiting on YOU is orange, a problem is red, idle is grey.
+// ONE state, ONE colour WITHIN this screen (Chad, 2026-08-12): working (a live
+// turn, or a queue running a task) is PURPLE, completed is green, waiting on
+// YOU is orange, a problem is red, idle is grey. The palette is scene-local —
+// main's other surfaces render `WorkspaceEffectiveStatus` — and `problem` is
+// the one state nothing feeds here yet.
 const COL: Record<SceneNode["status"], string> = {
   building: "#b5abfc",
   waiting: "#ff9a3d",
