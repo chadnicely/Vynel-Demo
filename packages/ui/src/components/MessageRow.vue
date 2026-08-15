@@ -844,9 +844,15 @@ const collapsedPreview = computed(() => {
           :source="inboundCardParts.remainder"
         />
       </template>
-      <p v-else-if="props.message.body" class="plain-body">
-        {{ props.message.body }}
-      </p>
+      <!-- An ask stays literal — no markdown — but its mentions still chip.
+           The renderer's `plain` variant does exactly that, so the chip lives
+           in one place instead of a second copy of the rule here. -->
+      <MarkdownText
+        v-else-if="props.message.body"
+        class="plain-body"
+        variant="plain"
+        :source="displayBody"
+      />
 
       <AttachmentChips
         v-if="props.message.attachedImagesMetadata?.length"
@@ -1219,7 +1225,10 @@ const collapsedPreview = computed(() => {
   letter-spacing: 0.04em;
 }
 
-.plain-body {
+/* Scoped through `.message-row` deliberately: the renderer's own root font
+   lands on this same element at equal specificity, and a tie is settled by
+   stylesheet order. */
+.message-row .plain-body {
   margin: 0;
   color: var(--ink-1);
   font: 400 13.5px/1.65 var(--font-ui);
@@ -1230,7 +1239,7 @@ const collapsedPreview = computed(() => {
 /* The ask reads as the CARD's own voice (workspace redesign Arc 5b — the
    conversation card is the container, so the old "your message" bubble
    retired): plain lines at the canvas's 14px/500. */
-.role-user:not(.is-report) .plain-body {
+.message-row.role-user:not(.is-report) .plain-body {
   font: 500 14px/1.35 var(--font-ui);
 }
 

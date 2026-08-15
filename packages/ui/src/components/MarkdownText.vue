@@ -1,6 +1,7 @@
 <script lang="ts">
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
+import { replaceMentions } from "@vynel/contracts/chat/composer-tokens";
 import {
   SHIKI_THEMES,
   getLoadedHighlighter,
@@ -24,6 +25,37 @@ const markdown = new MarkdownIt({
     });
   },
 });
+
+// `@mention` as the canvas's accent chip. Runs on our own generated HTML,
+// before sanitizing, like the checkboxes below.
+//
+// TEXT RUNS ONLY, and that is the whole difficulty: a naive pass over the HTML
+// would rewrite inside `<a href="mailto:…">`, inside attribute values, and
+// inside code — where an `@` is literal and must stay. So the walk skips
+// anything between `<` and `>`, and everything inside `<code>`/`<pre>`.
+// The grammar itself is not restated here: `replaceMentions` is the same one
+// the composer inserts with, which is why `chad@acme.com` survives intact.
+const TAG_OR_TEXT = /<[^>]*>|[^<]+/g
+const CODE_OPEN = /^<(code|pre)\b/i
+const CODE_CLOSE = /^<\/(code|pre)\s*>/i
+
+function renderMentionChips(html: string): string {
+  let literalDepth = 0
+  return html.replace(TAG_OR_TEXT, (chunk) => {
+    if (chunk.startsWith('<')) {
+      if (CODE_CLOSE.test(chunk)) literalDepth = Math.max(0, literalDepth - 1)
+      else if (CODE_OPEN.test(chunk) && !chunk.endsWith('/>')) literalDepth += 1
+      return chunk
+    }
+    if (literalDepth > 0) return chunk
+    // The matched name is `[A-Za-z0-9-]+` by the shared grammar, so it carries
+    // no markup-significant character to escape.
+    return replaceMentions(
+      chunk,
+      (name) => `<span class="mention-chip">@${name}</span>`,
+    )
+  })
+}
 
 // GitHub-style task lists: markdown-it leaves "[x] " as literal text — swap
 // the markers for styled checkboxes. Runs on our own generated HTML, before
@@ -51,8 +83,13 @@ import { loadHighlighter } from "../lib/shiki-highlighter.js";
 // tighter type, blocks 7px apart, accent-tinted inline code. It lives HERE so
 // the streaming answer and the settled one cannot drift — the thread must not
 // reformat when a turn completes.
+//
+// `plain` renders NO markdown — an ask is what the person typed, asterisks and
+// all. It still runs the mention pass, because a mention is structure rather
+// than formatting, and this keeps the chip in ONE place instead of a second
+// copy of the rule wherever plain text is shown.
 const props = withDefaults(
-  defineProps<{ source: string; variant?: "default" | "reply" }>(),
+  defineProps<{ source: string; variant?: "default" | "reply" | "plain" }>(),
   { variant: "default" },
 );
 
@@ -66,14 +103,20 @@ if (!isHighlighterReady.value) {
 
 // Built here rather than bound inline so the element stays one line — the
 // `vue/no-v-html` disable comment has to sit directly above the v-html.
-const rootClass = computed(() =>
-  props.variant === "reply" ? "markdown-text is-reply" : "markdown-text",
-);
+const VARIANT_CLASS = {
+  default: "markdown-text",
+  reply: "markdown-text is-reply",
+  plain: "markdown-text is-plain",
+} as const;
+
+const rootClass = computed(() => VARIANT_CLASS[props.variant]);
 
 const rendered = computed(() => {
   void isHighlighterReady.value;
   return DOMPurify.sanitize(
-    renderTaskCheckboxes(markdown.render(props.source)),
+    props.variant === "plain"
+      ? renderMentionChips(markdown.utils.escapeHtml(props.source))
+      : renderMentionChips(renderTaskCheckboxes(markdown.render(props.source))),
     // DOMPurify 3.4's default URI allowlist plus the app's own `vynel:`
     // scheme — in-app deep links (e.g. `vynel://plan/<id>`) the shell's link
     // router intercepts. Everything else (javascript:, data:, …) still
@@ -108,6 +151,12 @@ const rendered = computed(() => {
    specificity and the winner falls out of stylesheet order. */
 .markdown-text.is-reply {
   font: 400 12.5px/var(--reply-leading, 1.5) var(--font-ui);
+}
+
+/* Typed text, kept as typed — the caller owns the type; this only keeps the
+   line breaks the person made. */
+.markdown-text.is-plain {
+  white-space: pre-wrap;
 }
 
 .markdown-text.is-reply :deep(p),
@@ -146,6 +195,17 @@ const rendered = computed(() => {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   color: var(--color-accent-200);
   font-size: 11.5px;
+}
+
+/* The canvas's mention chip — accent-tinted, a shade brighter than the prose
+   it sits in, so a named participant reads as a thing and not as words. */
+.markdown-text :deep(.mention-chip) {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  color: var(--color-accent-100);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .markdown-text :deep(p) {
