@@ -8,7 +8,29 @@ import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { SessionActivityFeed, buildSessionTurnRecorder } from '@vynel/session/runtime'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import {
+  enqueueWorkspaceDelegation,
+  enqueueReportDelivery,
+  findDelegationJobById,
+} from '@vynel/orchestration'
+import { randomUUID } from 'node:crypto'
 import { createApp } from '../../app.js'
+
+function makeWorkspace(userId: string, name: string) {
+  const now = new Date()
+  return {
+    id: randomUUID(),
+    userId,
+    name,
+    kind: 'personal' as const,
+    path: `/tmp/vynel/${randomUUID()}`,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+    lastAccessedAt: now,
+  }
+}
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -168,6 +190,88 @@ describe('GET /activity/running', () => {
       handle.end()
       const after = await app.request('/activity/running')
       expect(((await after.json()) as { turns: unknown[] }).turns).toEqual([])
+    })
+  })
+})
+
+describe('GET /activity/messages', () => {
+  it('reports the ask and the reply, each pointing the way it travelled', async () => {
+    await withTestDatabase(async (db) => {
+      const user = getOrCreateLocalUser(db)
+      const home = insertWorkspace(db, makeWorkspace(user.id, 'Home'))
+      const target = insertWorkspace(db, makeWorkspace(user.id, 'Acme'))
+      const askId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'session-home',
+        workspaceId: target.id,
+        workspacePath: target.path,
+        workspaceName: target.name,
+        taskText: 'ship it',
+        requesterWorkspaceId: home.id,
+      })
+      const ask = findDelegationJobById(db, askId)!
+      const thread = ask.threadId ?? ask.partialSessionId
+      enqueueReportDelivery(db, {
+        ...(thread === null ? {} : { threadId: thread }),
+        userId: user.id,
+        reporterSessionId: 'session-acme-child',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'shipped',
+        requester: {
+          kind: 'workspace-primary',
+          workspaceId: home.id,
+          workspacePath: home.path,
+        },
+      })
+
+      const app = createApp({ db, logger: silentLogger })
+      const res = await app.request('/activity/messages')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        edges: Array<Record<string, unknown>>
+      }
+      const ways = Object.fromEntries(
+        body.edges.map((edge) => [edge.direction, edge]),
+      )
+      expect(ways.ask).toMatchObject({
+        fromWorkspaceId: home.id,
+        toWorkspaceId: target.id,
+      })
+      expect(ways.reply).toMatchObject({
+        fromSessionId: 'session-acme-child',
+        fromWorkspaceId: target.id,
+        toWorkspaceId: home.id,
+      })
+    })
+  })
+
+  it('sees nothing outside the window it was asked for', async () => {
+    await withTestDatabase(async (db) => {
+      const user = getOrCreateLocalUser(db)
+      const target = insertWorkspace(db, makeWorkspace(user.id, 'Acme'))
+      enqueueWorkspaceDelegation(
+        db,
+        {
+          userId: user.id,
+          parentSessionId: 'session-home',
+          workspaceId: target.id,
+          workspacePath: target.path,
+          workspaceName: target.name,
+          taskText: 'ship it',
+        },
+        { now: () => new Date(Date.now() - 600_000) },
+      )
+
+      const app = createApp({ db, logger: silentLogger })
+      const res = await app.request('/activity/messages?withinSeconds=60')
+      expect(((await res.json()) as { edges: unknown[] }).edges).toEqual([])
+    })
+  })
+
+  it('rejects a window outside the allowed range', async () => {
+    await withTestDatabase(async (db) => {
+      const app = createApp({ db, logger: silentLogger })
+      expect((await app.request('/activity/messages?withinSeconds=99999')).status).toBe(400)
     })
   })
 })

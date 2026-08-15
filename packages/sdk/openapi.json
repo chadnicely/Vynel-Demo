@@ -32104,6 +32104,95 @@
         "x-sdk-name": "activity.listRunningTurns"
       }
     },
+    "/activity/messages": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Every message sent inside the window, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "jobId": {
+                            "type": "string"
+                          },
+                          "direction": {
+                            "type": "string",
+                            "enum": [
+                              "ask",
+                              "reply"
+                            ]
+                          },
+                          "fromSessionId": {
+                            "type": "string"
+                          },
+                          "toSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "fromWorkspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "toWorkspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "jobId",
+                          "direction",
+                          "fromSessionId",
+                          "toSessionId",
+                          "fromWorkspaceId",
+                          "toWorkspaceId",
+                          "at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "edges"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getActivityMessages",
+        "tags": [
+          "activity"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "withinSeconds",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 600
+            }
+          }
+        ],
+        "summary": "Recent session-to-session messages — the arcs the node screen draws.",
+        "x-sdk-name": "activity.listRecentMessages"
+      }
+    },
     "/voice/speak": {
       "post": {
         "responses": {

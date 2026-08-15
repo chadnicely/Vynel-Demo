@@ -138,6 +138,13 @@ export {
   type ThreadChainHop,
 } from './queries/resolve-thread-chain.js'
 
+// Who spoke to whom, just now — what the node screen draws a line for.
+export {
+  listRecentMessageEdges,
+  type MessageEdge,
+  type MessageEdgeDirection,
+} from './queries/list-recent-message-edges.js'
+
 // What an AGENT can read back about the work it handed off — the reads that make
 // the `jobId` from send_task_to_workspace / send_task_to_session usable.
 export {

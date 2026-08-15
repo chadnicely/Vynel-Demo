@@ -3367,6 +3367,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activity/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent session-to-session messages — the arcs the node screen draws. */
+        get: operations["getActivityMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/speak": {
         parameters: {
             query?: never;
@@ -16085,6 +16102,39 @@ export interface operations {
                             threadId: string | null;
                             partialSessionId: string | null;
                             startedAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getActivityMessages: {
+        parameters: {
+            query?: {
+                withinSeconds?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every message sent inside the window, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        edges: {
+                            jobId: string;
+                            /** @enum {string} */
+                            direction: "ask" | "reply";
+                            fromSessionId: string;
+                            toSessionId: string | null;
+                            fromWorkspaceId: string | null;
+                            toWorkspaceId: string | null;
+                            at: string;
                         }[];
                     };
                 };

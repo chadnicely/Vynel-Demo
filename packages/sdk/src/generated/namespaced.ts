@@ -21,6 +21,13 @@ import type { paths } from './api.js'
 export function makeNamespaced(client: Client<paths>) {
   return {
   activity: {
+  listRecentMessages: async (options?: NonNullable<paths["/activity/messages"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/activity/messages", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   listRunningTurns: async () => {
     const { data, error, response } = await client["GET"]("/activity/running")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
