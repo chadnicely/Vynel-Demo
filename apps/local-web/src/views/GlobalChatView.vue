@@ -453,6 +453,7 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           {{ chatTurn.errorText.value }}
         </p>
         <AppComposer
+          :session-id="activeSessionId"
           :streaming="chatTurn.isStreaming.value"
           :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"
           :context-fraction="occupancy.fraction.value"

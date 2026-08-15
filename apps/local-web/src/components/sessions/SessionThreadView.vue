@@ -232,6 +232,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         {{ turn.errorText.value }}
       </p>
       <AppComposer
+        :session-id="activeSessionId"
         :streaming="turn.isStreaming.value"
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"

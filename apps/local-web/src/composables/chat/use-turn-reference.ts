@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
+import { composeTurnReferenceLine } from "@vynel/contracts/chat/turn-reference";
 import { formatMessageTimestamp } from "@vynel/ui";
 
 /** A turn the person marked to point at (Kafi, 2026-08-15): the chat icon on
@@ -31,43 +32,64 @@ function truncate(text: string): string {
 
 // Module-level so the thread that marks and the composer that spends it read
 // the same one — a mark is a property of the conversation, not of a component.
-const marked = ref<MarkedTurn | null>(null);
+//
+// KEYED BY SESSION, and that is the point: more than one composer is alive at
+// a time (the sidebar drawer thread sits beside the main view), so a single
+// shared mark let a workspace-chat mark ride out on a message to a different
+// session, quoting a turn absent from that thread's history. One mark per
+// conversation instead.
+const marksBySession = ref(new Map<string, MarkedTurn>());
 
 export function useTurnReference() {
   function mark(message: ChatMessageResponse, author: string) {
+    const next = new Map(marksBySession.value);
     // Clicking the marked card again unmarks it — the icon is a toggle.
-    if (marked.value?.messageId === message.id) {
-      marked.value = null;
-      return;
+    if (next.get(message.sessionId)?.messageId === message.id) {
+      next.delete(message.sessionId);
+    } else {
+      const preview = truncate(firstLineOf(message.body));
+      const time = formatMessageTimestamp(message.createdAt);
+      next.set(message.sessionId, {
+        messageId: message.id,
+        author,
+        preview,
+        quote: composeTurnReferenceLine(author, time, preview),
+      });
     }
-    const preview = truncate(firstLineOf(message.body));
-    const time = formatMessageTimestamp(message.createdAt);
-    marked.value = {
-      messageId: message.id,
-      author,
-      preview,
-      quote: `> Re: ${author}${time ? ` · ${time}` : ""} — "${preview}"`,
-    };
+    marksBySession.value = next;
   }
 
-  function clear() {
-    marked.value = null;
+  /** What THIS conversation points at; null in a thread with no mark. */
+  function markedFor(sessionId: string | null | undefined) {
+    return sessionId ? (marksBySession.value.get(sessionId) ?? null) : null;
   }
 
-  /** The outgoing body with its reference line, and the mark spent. Text with
-   *  no mark passes through untouched. */
-  function applyTo(text: string): string {
-    if (marked.value === null) return text;
-    const quote = marked.value.quote;
-    marked.value = null;
-    return `${quote}\n\n${text}`;
+  function isMarked(message: ChatMessageResponse): boolean {
+    return marksBySession.value.get(message.sessionId)?.messageId === message.id;
+  }
+
+  function clearFor(sessionId: string | null | undefined) {
+    if (!sessionId || !marksBySession.value.has(sessionId)) return;
+    const next = new Map(marksBySession.value);
+    next.delete(sessionId);
+    marksBySession.value = next;
+  }
+
+  /** The outgoing body with THIS conversation's reference line, and that mark
+   *  spent. Text with no mark passes through untouched. */
+  function applyTo(sessionId: string | null | undefined, text: string): string {
+    const mark = markedFor(sessionId);
+    if (mark === null) return text;
+    clearFor(sessionId);
+    return `${mark.quote}\n\n${text}`;
   }
 
   return {
-    marked: computed(() => marked.value),
-    markedMessageId: computed(() => marked.value?.messageId ?? null),
+    marks: computed(() => marksBySession.value),
+    markedFor,
+    isMarked,
+    clearFor,
     mark,
-    clear,
     applyTo,
   };
 }

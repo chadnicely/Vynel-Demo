@@ -102,8 +102,12 @@ const rendered = computed(() => {
 /* THE REPLY VOICE — the canvas's chat answer, one home for the streaming and
    the settled render. The caller still owns the ink (a lead reads brighter
    than the detail under it); this owns metrics and inline treatments. */
+/* `--reply-leading` is the caller's one dial: a reply's LEAD sets it tighter
+   than the detail beneath it. Exposed as a property rather than left to be
+   overridden, because a caller re-declaring `font` ties at this rule's
+   specificity and the winner falls out of stylesheet order. */
 .markdown-text.is-reply {
-  font: 400 12.5px/1.5 var(--font-ui);
+  font: 400 12.5px/var(--reply-leading, 1.5) var(--font-ui);
 }
 
 .markdown-text.is-reply :deep(p),

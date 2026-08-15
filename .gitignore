@@ -54,3 +54,6 @@ dist-payloads/
 # scratch exports (e.g. frontend copy for design uploads)
 .tmp/
 .playwright/
+
+# Per-machine Claude Code settings (permission grants are local, never shared)
+.claude/settings.local.json

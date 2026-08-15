@@ -6,6 +6,7 @@ import {
   isUpdateMessageBody,
   stripReportMessageMarker,
 } from "@vynel/contracts/chat/report-message-marker";
+import { stripTurnReferenceLine } from "@vynel/contracts/chat/turn-reference";
 import { deriveMessageOrigin } from "@vynel/contracts/chat/message-origin";
 import MarkdownText from "./MarkdownText.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
@@ -235,13 +236,15 @@ const timeLabel = computed(() =>
     : formatMessageTimestamp(props.message.createdAt),
 );
 
-// A delivered report carries a first-line attribution marker FOR THE MODEL
-// (the notify turn must never mistake it for user input). The card's author
-// line already names the reporter, so the marker is stripped for display.
+// Both first-line markers are written FOR THE MODEL and stripped for display:
+// a delivered report's attribution (the notify turn must never mistake it for
+// user input — the author line already names the reporter), and an ask's turn
+// reference (the person already saw what they marked). Left in, the reference
+// became the folded card's preview and ate the question itself.
 const displayBody = computed(() =>
   isInboundReport.value
     ? stripReportMessageMarker(props.message.body)
-    : props.message.body,
+    : stripTurnReferenceLine(props.message.body),
 );
 
 // A user message that arrived through a channel wears a small "via X" badge —
@@ -345,6 +348,16 @@ const assistantLeadParts = computed(() => {
   if (splitAt === -1) return { lead: body, detail: null };
   return { lead: body.slice(0, splitAt), detail: body.slice(splitAt + 2) };
 });
+
+// The whole lead line toggles the fold, but a drag-select ends in a click and
+// would swallow the answer the moment you tried to copy from it. A live
+// selection means the person is reading, not folding.
+function onLeadClick(event: MouseEvent) {
+  if (!props.replyFoldable) return;
+  if ((event.target as HTMLElement | null)?.closest("a")) return;
+  if (window.getSelection()?.isCollapsed === false) return;
+  emit("toggleReply");
+}
 
 // The ask wears its time INLINE beside the name (the canvas's card header);
 // every other row keeps it on the right, where the reply's caret joins it.
@@ -704,7 +717,7 @@ const collapsedPreview = computed(() => {
         <div
           class="reply-lead"
           :class="{ 'is-foldable': props.replyFoldable }"
-          @click="props.replyFoldable ? emit('toggleReply') : undefined"
+          @click="onLeadClick"
         >
           <!-- The glyph sits on the lead's first line; a flex baseline would
                sink an SVG to its box bottom, so the slot nudges it optically. -->
@@ -1043,11 +1056,16 @@ const collapsedPreview = computed(() => {
   margin-top: 3px;
 }
 
+/* The lead is set TIGHTER than the detail under it (the canvas: 1.4 against
+   1.5). It asks through the variant's own hook rather than re-declaring
+   `font` — a competing shorthand here lands at the same specificity as
+   MarkdownText's, so which one won came down to stylesheet order. */
 .reply-lead .reply-lead-text {
+  --reply-leading: 1.4;
+
   flex: 1 1 auto;
   min-width: 0;
   color: var(--color-neutral-200);
-  font: 400 12.5px/1.4 var(--font-ui);
   text-wrap: pretty;
 }
 

@@ -55,6 +55,10 @@ const props = withDefaults(
      *  (a session pane's persona — B8). Renders a quiet "→ Name" line; null
      *  hides it. */
     destinationLabel?: string | null | undefined;
+    /** WHICH conversation this composer speaks into — the key a marked turn
+     *  is stored under. More than one composer is alive at a time, so without
+     *  it a mark made in one thread would ride out on another's message. */
+    sessionId?: string | null | undefined;
   }>(),
   {
     allowAttachments: true,
@@ -154,11 +158,9 @@ const notice = computed(
 // The turn the person marked in the thread — shown here so the pointer is
 // visible from the box you are typing into, and dismissible without scrolling
 // back to find the card.
-const {
-  marked: markedTurn,
-  clear: clearTurnReference,
-  applyTo: applyTurnReference,
-} = useTurnReference();
+const { markedFor, clearFor, applyTo: applyTurnReference } = useTurnReference();
+
+const markedTurn = computed(() => markedFor(props.sessionId));
 
 async function onSend(text: string, files: File[]) {
   // A send mid-dictation must not resurrect late words into the cleared box.
@@ -184,7 +186,7 @@ async function onSend(text: string, files: File[]) {
   // A marked turn rides out as the message's opening reference line, and the
   // mark is spent here — every surface that composes through this component
   // gets the pointer without wiring one of its own.
-  emit("send", applyTurnReference(text), attachments);
+  emit("send", applyTurnReference(props.sessionId, text), attachments);
 }
 </script>
 
@@ -221,7 +223,7 @@ async function onSend(text: string, files: File[]) {
       type="button"
       class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[var(--ink-3)] hover:text-[var(--ink-1)]"
       aria-label="drop the reference"
-      @click="clearTurnReference"
+      @click="clearFor(props.sessionId)"
     >
       ✕
     </button>

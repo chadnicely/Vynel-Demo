@@ -12,6 +12,7 @@ import type {
   ChatToolCallResponse,
 } from "@vynel/contracts/chat/chat-http";
 import { stripReportMessageMarker } from "@vynel/contracts/chat/report-message-marker";
+import { stripTurnReferenceLine } from "@vynel/contracts/chat/turn-reference";
 import {
   MessageRow,
   ToolCallList,
@@ -95,7 +96,7 @@ const { resolvePersona } = usePersonaResolver();
 // The marked turn (Kafi, 2026-08-15): a card's chat icon pins it, and the
 // composer spends the mark on the next send. The thread owns neither end —
 // it just reports the click and lights the marked card.
-const { markedMessageId, mark: markTurnReference } = useTurnReference();
+const { isMarked, mark: markTurnReference } = useTurnReference();
 
 function referenceAuthorFor(message: ChatMessageResponse): string {
   if (message.role === "user") return "You";
@@ -407,9 +408,12 @@ const cardPreviewFallbacks = computed(() => {
   for (const message of settledMessages.value) {
     const cardKey = cardKeyByMessageId.value.get(message.id) ?? message.id;
     if (!bodyLines.has(cardKey)) {
-      // Marker-stripped, matching the row's own displayBody — the model-facing
-      // "[Report from …]" line must never surface as a strip preview.
-      const firstLine = stripReportMessageMarker(message.body)
+      // Marker-stripped, matching the row's own displayBody — neither
+      // model-facing first line ("[Report from …]", "> Re: …") may surface as
+      // a strip preview and stand in for the message itself.
+      const firstLine = stripTurnReferenceLine(
+        stripReportMessageMarker(message.body),
+      )
         .split("\n")
         .find((line) => line.trim() !== "");
       if (firstLine !== undefined) bodyLines.set(cardKey, firstLine);
@@ -885,7 +889,7 @@ watch(
               :collapsible="memberIndex === 0"
               :collapsed="!isCardExpanded(group.key)"
               :preview-fallback="cardPreviewFallbackFor(group.key)"
-              :referenced="markedMessageId === message.id"
+              :referenced="isMarked(message)"
               :reply-collapsed="!isReplyOpen(group.key)"
               :reply-foldable="
                 memberIndex === replyCaretMemberIndexOf(group) &&

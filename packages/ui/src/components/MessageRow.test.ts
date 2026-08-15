@@ -764,6 +764,28 @@ describe("MessageRow reply fold", () => {
     expect(wrapper.emitted("toggleReply")).toHaveLength(2);
   });
 
+  // A drag-select over the summary ends in a click; folding there would eat
+  // the answer the moment you tried to copy from it.
+  it("selecting text in the lead does not fold the turn", async () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({ body: `Lead.\n\n${LONG_DETAIL}` }),
+        replyCollapsed: true,
+        replyFoldable: true,
+      },
+    });
+
+    const realGetSelection = window.getSelection;
+    window.getSelection = (() =>
+      ({ isCollapsed: false }) as Selection) as typeof window.getSelection;
+    await wrapper.get(".reply-lead").trigger("click");
+    expect(wrapper.emitted("toggleReply")).toBeUndefined();
+
+    window.getSelection = realGetSelection;
+    await wrapper.get(".reply-lead").trigger("click");
+    expect(wrapper.emitted("toggleReply")).toHaveLength(1);
+  });
+
   it("no length floor — any second paragraph is detail", () => {
     const wrapper = mount(MessageRow, {
       props: {
