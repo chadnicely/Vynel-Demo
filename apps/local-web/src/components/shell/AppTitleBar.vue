@@ -4,9 +4,7 @@ import {
   PhBrowsers as Browsers,
   PhCommand as Command,
   PhDiamondsFour as DiamondsFour,
-  PhFolderOpen as FolderOpen,
   PhFolderPlus as FolderPlus,
-  PhHouse as House,
   PhList as List,
   PhListChecks as ListChecks,
   PhMinus as Minus,
@@ -37,9 +35,6 @@ const props = withDefaults(
   navMode: "tabs" | "menu";
   sidebarOpen: boolean;
   tasksOpen: boolean;
-  /** The scope you are in, as the canvas's folder chip beside the menu bar.
-   *  Null in Global — there is no folder to name there. */
-  scopeLabel?: string | null;
   /** True where the scope has no pane-tool cluster of its own (Global). A
    *  workspace puts the rail toggle beside its files toggle, so the bar must
    *  not carry a second one. */
@@ -47,7 +42,7 @@ const props = withDefaults(
   }>(),
   // Explicit, not merely absent: Vue casts an unpassed boolean prop to false,
   // which would silently strip the toggle from a bar that never opted out.
-  { scopeLabel: null, showsTasksToggle: true },
+  { showsTasksToggle: true },
 );
 
 // The workspace-navigation views — a labeled segment, not a blind toggle, so
@@ -167,40 +162,6 @@ function onMenuCommand(id: string) {
       </DropdownMenu>
     </nav>
 
-    <!-- The canvas's folder chip: which folder you are in, on its own side of
-         a hairline. The tasks toggle rides WITH it (Kafi, 2026-08-15) — the
-         rail is about this scope's work, so it belongs beside the scope, not
-         out among the window controls. -->
-    <div class="ml-1 flex shrink-0 items-center gap-2 border-l border-hair pl-3">
-      <!-- Global has no folder to open, so it wears the house the rest of the
-           app gives it. The group always renders, so the toggle never moves
-           out from under the pointer when you change scope. -->
-      <component
-        :is="props.scopeLabel ? FolderOpen : House"
-        :size="13"
-        class="text-[var(--color-accent)]"
-      />
-      <span
-        class="max-w-[180px] truncate text-[11px] tracking-[0.1em] text-[var(--color-neutral-300)]"
-        >{{ props.scopeLabel ?? "Global" }}</span
-      >
-      <button
-        v-if="props.showsTasksToggle"
-        type="button"
-        aria-label="Toggle tasks"
-        title="Show tasks"
-        class="ml-0.5 grid place-items-center transition"
-        :class="
-          props.tasksOpen
-            ? 'text-[var(--color-accent-200)]'
-            : 'text-ink-3 hover:text-ink-1'
-        "
-        @click="emit('command', 'toggle-tasks')"
-      >
-        <ListChecks :size="13" />
-      </button>
-    </div>
-
     <!-- Center: pure drag region — the canvas's bar carries nothing here
          (title + presence dot both retired; the tabs/tree/rail say where
          you are and what's live). -->
@@ -233,9 +194,25 @@ function onMenuCommand(id: string) {
       </button>
     </div>
 
-    <!-- Window controls only — the rail toggle moved beside the folder chip,
-         where the scope it belongs to lives. -->
+    <!-- The canvas's right icon row: plain glyphs at 13px on an 18px gap. The
+         rail toggle only appears where the scope has no pane tools of its own
+         — a workspace keeps it beside its files toggle instead. -->
     <div class="flex shrink-0 items-center gap-[18px] pl-1.5 pr-3 text-[13px]">
+      <button
+        v-if="props.showsTasksToggle"
+        type="button"
+        aria-label="Toggle tasks"
+        title="Show tasks"
+        class="grid place-items-center transition"
+        :class="
+          props.tasksOpen
+            ? 'text-[var(--color-accent-200)]'
+            : 'text-ink-3 hover:text-ink-1'
+        "
+        @click="emit('command', 'toggle-tasks')"
+      >
+        <ListChecks :size="13" />
+      </button>
       <button
         type="button"
         aria-label="Minimize"

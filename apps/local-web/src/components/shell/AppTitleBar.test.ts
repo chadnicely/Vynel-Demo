@@ -37,17 +37,9 @@ describe("AppTitleBar", () => {
   it("carries no title and no presence pair — the center is empty", () => {
     const wrapper = mountTitleBar();
     expect(wrapper.find('[data-testid="titlebar-presence"]').exists()).toBe(false);
-    // test: correct expectation (2026-08-15) — the canvas's folder chip now
-    // names the scope beside the menu bar. The CENTRE is still empty, which is
-    // what this guards; "Global" is the chip, not a title.
-    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelViewGlobalTabsMenu");
-  });
-
-  it("the folder chip names the scope — the workspace, or Global", () => {
-    expect(mountTitleBar().text()).toContain("Global");
-    const inWorkspace = mountTitleBar({ scopeLabel: "letterman" });
-    expect(inWorkspace.text()).toContain("letterman");
-    expect(inWorkspace.text()).not.toContain("Global");
+    // Only the menus + the nav segment carry text — nothing else. The bar
+    // names no scope: the chat header and the tree already say where you are.
+    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelViewTabsMenu");
   });
 
   // A workspace puts the rail toggle beside its own files toggle, so the bar
