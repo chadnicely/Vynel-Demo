@@ -160,6 +160,17 @@ function onMenuCommand(id: string) {
           </button>
         </template>
       </DropdownMenu>
+      <!-- The whole fleet's node screen, one word away (Chad, 2026-08-11):
+           a direct link, not a menu — the project rooms carry their own
+           quieter icons for their own nodes. Wears the menu triggers' own
+           classes so it sits flush with them rather than proud of them. -->
+      <button
+        type="button"
+        class="rounded-sm px-2 py-0.5 text-[12px] text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('command', 'open-nodes')"
+      >
+        Nodes
+      </button>
     </nav>
 
     <!-- Center: pure drag region — the canvas's bar carries nothing here

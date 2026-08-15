@@ -18,6 +18,10 @@ export type Theme = "dark" | "light";
  *  the mode only changes presentation. */
 export type NavMode = "tabs" | "menu";
 
+/** The Nodes screen's three readings of the same projects: the constellation,
+ *  the same fleet as cards, and everything on one track toward done. */
+export type NodesMode = "nodes" | "grid" | "race";
+
 /** What the chat surface is pointed at: the ongoing single conversation (the
  *  default — Vynel's "one brain"), a fresh topic, or one history session. */
 export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
@@ -383,6 +387,20 @@ export const useUiStore = defineStore("ui", () => {
   // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);
 
+  // A ring-the-bell counter for the create-workspace dialog. The dialog is
+  // mounted once in AppShell; routed views (the Nodes screen's empty state)
+  // can't reach its local ref, so they bump this and the shell watches it.
+  const createWorkspaceRequestCount = ref(0);
+  function requestCreateWorkspace() {
+    createWorkspaceRequestCount.value += 1;
+  }
+
+  // Which reading the Nodes screen is on — the constellation, the same fleet
+  // as cards, or the race toward done. Held here rather than in the view so it
+  // survives leaving the route; not persisted, so a fresh app opens on the
+  // constellation.
+  const nodesMode = ref<NodesMode>("nodes");
+
   return {
     theme,
     toggleTheme,
@@ -409,5 +427,8 @@ export const useUiStore = defineStore("ui", () => {
     composerAutoBuildout,
     composerSeed,
     isVoiceOverlayOpen,
+    createWorkspaceRequestCount,
+    requestCreateWorkspace,
+    nodesMode,
   };
 });

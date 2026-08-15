@@ -328,3 +328,36 @@ describe("ui-store composer selections", () => {
     expect(useUiStore().composerThinkingEffort).toBe("xhigh");
   });
 });
+
+describe("ui-store nodes screen", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it("opens on the constellation", () => {
+    expect(useUiStore().nodesMode).toBe("nodes");
+  });
+
+  it("keeps the chosen reading for the session, and deliberately not past it", () => {
+    // It survives leaving the route because the store outlives it — but it is
+    // NOT persisted like the theme is (the prototype's own behaviour): a fresh
+    // app opens on the constellation again.
+    const ui = useUiStore();
+    ui.nodesMode = "race";
+    expect(useUiStore().nodesMode).toBe("race");
+
+    setActivePinia(createPinia());
+    expect(useUiStore().nodesMode).toBe("nodes");
+  });
+
+  it("the create-workspace bell counts each ring", () => {
+    // A counter, not a boolean: the shell watches it, and two asks in a row
+    // must both reach the dialog — a flag would swallow the second.
+    const ui = useUiStore();
+    expect(ui.createWorkspaceRequestCount).toBe(0);
+    ui.requestCreateWorkspace();
+    ui.requestCreateWorkspace();
+    expect(ui.createWorkspaceRequestCount).toBe(2);
+  });
+});

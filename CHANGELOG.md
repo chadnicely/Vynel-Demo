@@ -9,6 +9,19 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **See everything Vynel is working on, at once.** A new **Nodes** word in the
+  top bar opens a live picture of your whole fleet: every project is a dot
+  orbiting the centre, and its colour says what is happening — purple while it
+  is working, orange when it is waiting on you, green when it has finished and
+  nothing is left in the queue, grey once it has been quiet for an hour. Busy
+  projects stream light along their strand; quiet ones barely flicker. Click a
+  project and you step inside it — the same picture, except the dots are now its
+  conversations, and clicking one opens the chat. The same fleet reads three
+  ways: **Nodes** (the constellation, arranged as Constellation, Orbit or Rise),
+  **Grid** (the same projects as plain cards) and **Race** (everything on one
+  track toward done). With nothing set up yet the stars still turn and the
+  centre stays lit, with an invitation to add your first workspace.
+
 - **Tool access is now set from mission control.** The cloud admin portal
   grew a Tool policy page: every tool Claude ships with, editable in one
   matrix — on/off, where it's available, when it needs approval, which plan

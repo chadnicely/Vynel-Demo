@@ -433,6 +433,15 @@ const isSidebarOpen = ref(true);
 const isPaletteOpen = ref(false);
 const isCreateWorkspaceOpen = ref(false);
 
+// The dialog is mounted once, here. A routed view (the Nodes screen's empty
+// state) can't reach that ref, so it rings the store's bell and we answer.
+watch(
+  () => ui.createWorkspaceRequestCount,
+  () => {
+    isCreateWorkspaceOpen.value = true;
+  },
+);
+
 // A note parked while no composer was on screen must not materialize in some
 // future, wrong-scope draft — closing the browser view discards unconsumed
 // seeds (covers the panel's own close button too).
@@ -494,6 +503,12 @@ function runCommand(id: string) {
       break;
     case "go-home":
       void router.push({ name: "home" });
+      break;
+    // The title bar's Nodes word — ALL the software's node screen (Chad,
+    // 2026-08-11). It shows the whole fleet, so it leaves any workspace tab.
+    case "open-nodes":
+      ui.activateTab(GLOBAL_TAB_ID);
+      void router.push({ name: "nodes" });
       break;
     case "go-chat":
       selectSurface("chat");
