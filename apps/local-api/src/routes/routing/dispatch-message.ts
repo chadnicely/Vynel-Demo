@@ -166,15 +166,49 @@ export async function dispatchTaskToSession(
   return { jobId, deliveredTo: sessionName }
 }
 
+/** WHERE an upward message lands, resolved together with the name of that
+ *  place. The two are produced as ONE value on purpose: the destination and its
+ *  label used to be two independent statements repeated per branch, and the
+ *  branch that resolved a destination without labelling it reported the
+ *  SENDER's own name back as `deliveredTo` — a field whose whole job is to let
+ *  the caller confirm where its message actually went. */
+type ResolvedRequester = {
+  requester: ReportDeliveryRequester
+  /** The honest `deliveredTo` — the destination, never the sender. */
+  requesterLabel: string
+}
+
+/** Upward chains terminate at the global root; it is one conversation, so it
+ *  needs no id — only a name to report back. */
+const GLOBAL_ROOT_REQUESTER: ResolvedRequester = {
+  requester: { kind: 'global-root' },
+  requesterLabel: 'Global',
+}
+
+/** An already-ownership-checked requester workspace → the delivery target plus
+ *  its label. `null` (no grounding, gone, foreign, or self override) falls
+ *  through to the root. The single home every branch resolves through, so
+ *  labelling can no longer be forgotten at one call site. */
+function toResolvedRequester(
+  workspace: { id: string; path: string; name: string } | null,
+): ResolvedRequester {
+  if (workspace === null) return GLOBAL_ROOT_REQUESTER
+  return {
+    requester: {
+      kind: 'workspace-primary',
+      workspaceId: workspace.id,
+      workspacePath: workspace.path,
+    },
+    requesterLabel: workspace.name,
+  }
+}
+
 /** The resolved "from + to" of an UPWARD message (report or update): who is
  *  speaking, and which conversation hears it. ONE home for both dispatchers —
  *  a resolution rule that drifted between them would mis-address one kind. */
-type ResolvedUpwardSender = {
+type ResolvedUpwardSender = ResolvedRequester & {
   reporterSessionId: string
   reporterLabel: string
-  requester: ReportDeliveryRequester
-  /** The honest `deliveredTo` when an override rerouted the delivery. */
-  requesterLabel: string | null
 }
 
 async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSender> {
@@ -191,10 +225,7 @@ async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSen
 
   let reporterSessionId: string | null
   let reporterLabel: string
-  let requester: ReportDeliveryRequester
-  // Set only when the requester-override rerouted the delivery — the honest
-  // `deliveredTo` (reporterLabel would name the SENDER, not the destination).
-  let requesterLabel: string | null = null
+  let resolvedRequester: ResolvedRequester
   if (caller.kind === 'spawned-session') {
     // A spawned session reports to its CREATOR: its grounding workspace's
     // primary, else the global root (a gone grounding workspace falls through —
@@ -210,14 +241,7 @@ async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSen
       spawned.workspaceId !== null
         ? await getWorkspaceById(c.var.db, spawned.workspaceId, c.var.user.id).catch(() => null)
         : null
-    requester =
-      groundingWorkspace !== null
-        ? {
-            kind: 'workspace-primary',
-            workspaceId: groundingWorkspace.id,
-            workspacePath: groundingWorkspace.path,
-          }
-        : { kind: 'global-root' }
+    resolvedRequester = toResolvedRequester(groundingWorkspace)
   } else if (caller.kind === 'agent-session') {
     // An agent COLLEAGUE (persona-sessions) reports to the chat that asked: the
     // requester-override workspace when the mention came from another chat
@@ -247,16 +271,7 @@ async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSen
       overrideWorkspace === null && colleague.workspaceId !== null
         ? await getWorkspaceById(c.var.db, colleague.workspaceId, c.var.user.id).catch(() => null)
         : null
-    const requesterWorkspace = overrideWorkspace ?? groundingWorkspace
-    requester =
-      requesterWorkspace !== null
-        ? {
-            kind: 'workspace-primary',
-            workspaceId: requesterWorkspace.id,
-            workspacePath: requesterWorkspace.path,
-          }
-        : { kind: 'global-root' }
-    if (requesterWorkspace !== null) requesterLabel = requesterWorkspace.name
+    resolvedRequester = toResolvedRequester(overrideWorkspace ?? groundingWorkspace)
   } else {
     // A workspace primary reports to the global root (the tree's top) — UNLESS
     // the turn carries the requester-override header (chat-mentions): a
@@ -276,15 +291,7 @@ async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSen
       requesterOverrideId !== undefined && requesterOverrideId !== workspace.id
         ? await getWorkspaceById(c.var.db, requesterOverrideId, c.var.user.id).catch(() => null)
         : null
-    requester =
-      requesterWorkspace !== null
-        ? {
-            kind: 'workspace-primary',
-            workspaceId: requesterWorkspace.id,
-            workspacePath: requesterWorkspace.path,
-          }
-        : { kind: 'global-root' }
-    if (requesterWorkspace !== null) requesterLabel = requesterWorkspace.name
+    resolvedRequester = toResolvedRequester(requesterWorkspace)
   }
   if (reporterSessionId === null) {
     // The caller is mid-turn on this very conversation, so a missing link means
@@ -293,13 +300,7 @@ async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUpwardSen
       'The calling conversation has no linked session — cannot attribute the report.',
     )
   }
-  return { reporterSessionId, reporterLabel, requester, requesterLabel }
-}
-
-function upwardDeliveredTo(sender: ResolvedUpwardSender): string {
-  return sender.requester.kind === 'global-root'
-    ? 'Global'
-    : (sender.requesterLabel ?? sender.reporterLabel)
+  return { reporterSessionId, reporterLabel, ...resolvedRequester }
 }
 
 /** Pass a FINAL result UP to whoever requested this turn's work. */
@@ -330,7 +331,7 @@ export async function dispatchReportToRequester(
     markDelegationJobReported(c.var.db, runningJobId, new Date())
   }
 
-  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
+  return { jobId, deliveredTo: sender.requesterLabel }
 }
 
 /** Pass a FINAL answer straight to the USER (kind `direct_to_user`): it lands
@@ -361,7 +362,7 @@ export async function dispatchDirectToUser(
     markDelegationJobReported(c.var.db, runningJobId, new Date())
   }
 
-  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
+  return { jobId, deliveredTo: sender.requesterLabel }
 }
 
 /** Pass an interim ACK/STATUS update UP (persona-sessions) — same resolution as
@@ -383,7 +384,7 @@ export async function dispatchUpdateToRequester(
     ...(threadId !== undefined ? { threadId } : {}),
   })
 
-  return { jobId, deliveredTo: upwardDeliveredTo(sender) }
+  return { jobId, deliveredTo: sender.requesterLabel }
 }
 
 /** Parse the unified tool's `to` field. The shape is validated by the schema, so

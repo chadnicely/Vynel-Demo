@@ -15,7 +15,7 @@ This layer **owns no package and no table.** It is the addressing + delivery pol
 | Path | Role |
 |---|---|
 | ► `apps/local-api/src/routes/routing/index.ts` | the `routing` HTTP surface; `POST /message` (L346–472) is `send_message` — destination/kind cross-validation then a five-way dispatch. Also `GET /workspaces`, `GET /channels`, `POST /send-to-channel`, `POST /reply-to-channel`, `GET /background-runs[/:jobId]` |
-| ► `apps/local-api/src/routes/routing/dispatch-message.ts` | the five dispatch cores — one home so the resolutions can never drift; `resolveUpwardSender` (L180–297) is the load-bearing "who asked" resolver |
+| ► `apps/local-api/src/routes/routing/dispatch-message.ts` | the five dispatch cores — one home so the resolutions can never drift; `resolveUpwardSender` (L214–304) is the load-bearing "who asked" resolver, `toResolvedRequester` (L192–204) the destination+label pairing it resolves through |
 | `apps/local-api/src/routes/routing/schemas.ts` | Zod request/response shapes; `MessageDestinationSchema` (L84–90) is the `to` grammar |
 | `apps/mcp/src/generated/api-tools.ts` | the generated MCP tool — `sendMessage` factory L3000–3043; registered in **both** `generatedMcpTools` (L3866) and `generatedRoutingMcpTools` (L3901) |
 | `apps/mcp/src/vynel-mcp-feature-descriptor.ts` | the three `vynel` descriptors (workspace / workspace-interactive / routing) that attach the tool to a turn |
@@ -115,13 +115,14 @@ All are nullable, so each migration stayed a pure additive `ALTER`. `requesterWo
 
 | Operation | What it does | Key calls / boundaries |
 |---|---|---|
-| `parseMessageDestination` | `to` string → `requester` \| `workspace` \| `session` | `dispatch-message.ts:396–407`; shape already validated by the schema, so a bad value here is a programming error |
+| `parseMessageDestination` | `to` string → `requester` \| `workspace` \| `session` | `dispatch-message.ts:397–408`; shape already validated by the schema, so a bad value here is a programming error |
 | `dispatchTaskToWorkspace` | requires a live global root, ownership-checks the target, enqueues | `dispatch-message.ts:102–125` → `enqueueWorkspaceDelegation` |
 | `dispatchTaskToSession` | resolves the creator (calling workspace's primary, else the global root), resolves the target by segment id, enqueues | `dispatch-message.ts:128–167` → `findRoutableSessionBySegmentId`, `enqueueSessionDelegation` |
-| `resolveUpwardSender` | **the addressing core** — caller header → reporter identity + label + requester (+ override) | `dispatch-message.ts:180–297` |
-| `dispatchReportToRequester` | enqueues a report delivery **and** marks the running job reported | `dispatch-message.ts:306–334` → `enqueueReportDelivery`, `markDelegationJobReported` |
-| `dispatchDirectToUser` | same, with `deliverDirectly: true` and the body composed as `` `${title}\n\n${message}` `` | `dispatch-message.ts:342–365` (L353 is the composition) |
-| `dispatchUpdateToRequester` | enqueues (or coalesces) an update; **never** marks reported | `dispatch-message.ts:370–387` → `enqueueUpdateDelivery` |
+| `toResolvedRequester` | pairs a resolved destination with its display name, so a branch cannot resolve one without the other | `dispatch-message.ts:192–204` |
+| `resolveUpwardSender` | **the addressing core** — caller header → reporter identity + label + requester (+ override) | `dispatch-message.ts:214–304` |
+| `dispatchReportToRequester` | enqueues a report delivery **and** marks the running job reported | `dispatch-message.ts:307–335` → `enqueueReportDelivery`, `markDelegationJobReported` |
+| `dispatchDirectToUser` | same, with `deliverDirectly: true` and the body composed as `` `${title}\n\n${message}` `` | `dispatch-message.ts:343–366` (L354 is the composition) |
+| `dispatchUpdateToRequester` | enqueues (or coalesces) an update; **never** marks reported | `dispatch-message.ts:371–388` → `enqueueUpdateDelivery` |
 
 **Transaction boundaries** — two co-commits matter, both outside this layer's own code but caused by it: a direct delivery persists the message *and* completes its job in one transaction (`run-report-delivery-tick.ts:177–186`), and a completing task co-commits `complete` + `markSurfaced` (`run-delegation-claim-and-run-tick.ts:647–650`).
 
@@ -164,8 +165,8 @@ Returns `{ status: 'enqueued', jobId, deliveredTo, kind }`.
 | unparseable `to`, empty/oversize `body`, bad `model`/`thinkingEffort` | 400 (schema) |
 | no active global-root turn (workspace task) | 400 (`dispatch-message.ts:109`) |
 | no active creator conversation (session task) | 400 (`dispatch-message.ts:143`) |
-| no caller header on an upward send | 400 (`dispatch-message.ts:184–190`) |
-| caller's primary has no linked SDK session | 400 (`dispatch-message.ts:289–295`) |
+| no caller header on an upward send | 400 (`dispatch-message.ts:218–224`) |
+| caller's primary has no linked SDK session | 400 (`dispatch-message.ts:296–302`) |
 | unknown **or** not-owned workspace/session | 404, identically |
 
 Pinned end to end in `apps/local-api/src/routes/routing/index.test.ts` (1516 lines; the kind matrix at L1349–1433, the direct-message shape at L1110–1186, the double-report guard at L1451–1515).
@@ -247,11 +248,11 @@ A worker acknowledging and reporting, step by step:
 1. The turn is composed by `buildDelegatedTurnMcpComposer` (`build-workspace-background-mcp.ts:154`), which wraps the in-process dispatcher so every tool call carries the caller identity, chain, and job id (L183–209).
 2. The steer tells it to acknowledge first (`routed-turn-provider-input.ts:10–24`), so it calls the tool with `to: "requester", kind: "update"`.
 3. The route validates the pair (`index.ts:412–419`) and dispatches upward (`index.ts:432`).
-4. `resolveUpwardSender` reads the caller header, resolves the reporter's label and *its* requester — a workspace primary reports to the global root unless the requester-override reroutes it to the chat that mentioned it (`dispatch-message.ts:260–288`).
+4. `resolveUpwardSender` reads the caller header, resolves the reporter's label and *its* requester — a workspace primary reports to the global root unless the requester-override reroutes it to the chat that mentioned it (`dispatch-message.ts:275–295`).
 5. `enqueueUpdateDelivery` looks for a still-pending update on this chain and replaces its body in place if one exists (`enqueue-update-delivery.ts:77–89`); the sender gets its handle back at once.
 6. The tick claims the row, sees a delivery kind (`run-delegation-claim-and-run-tick.ts:222`) and hands it to `runReportDeliveryJob`.
 7. That prepends `[Update from …]` and runs a notify turn on the requester under the update steer (`run-report-delivery-tick.ts:147–153`, L284–365). The requester absorbs it; the task is *not* marked done.
-8. Work finishes. The worker sends `kind: "report"` — same path, except `dispatchReportToRequester` also stamps `reportedAt` on the running row (`dispatch-message.ts:328–331`), which is what stops the tick from *also* harvesting the chat reply and waking the requester twice.
+8. Work finishes. The worker sends `kind: "report"` — same path, except `dispatchReportToRequester` also stamps `reportedAt` on the running row (`dispatch-message.ts:329–332`), which is what stops the tick from *also* harvesting the chat reply and waking the requester twice.
 9. Had it chosen `direct_to_user`, step 7 would instead persist the message straight onto the root transcript and complete the job in one transaction (`run-report-delivery-tick.ts:177–186`) — and the work row would stay **unsurfaced** so the root absorbs it via the catch-up net rather than echoing it (`run-delegation-claim-and-run-tick.ts:645–649`).
 
 ## Connections
@@ -289,7 +290,7 @@ flowchart LR
 - **`orchestration/structure.md` is stale on this table.** Mapped 2026-07-14, it predates `jobKind`, `threadId`, `reportedAt`, retry, and mentions entirely. Code wins; this file is current for those columns.
 - **The route test's header comment is stale.** `apps/local-api/src/routes/routing/index.test.ts:1–6` says `routingApp` "is not mounted in app.ts yet" and builds its own harness. It *is* mounted (`app.ts:377`) — the harness is now redundant, not wrong.
 - **`model` and `thinkingEffort` are silently dropped on an upward send.** The handler destructures them into `taskOptions` (`index.ts:401–406`) but spreads it only on the two task branches. An *illegal* model still 400s (schema runs first, pinned at `index.test.ts:353–358`); a legal one is accepted and discarded. Asymmetric with `kind`/`title`, which are strictly cross-validated.
-- **`deliveredTo` names the sender, not the destination, for a workspace-grounded spawned session.** `requesterLabel` is assigned only in the workspace-primary and agent-session branches (`dispatch-message.ts:259, 287`); the spawned branch leaves it null, so `upwardDeliveredTo` (L299–303) falls back to the *reporter's* label. **Read from code — no test pins this path.**
+- **A destination and its label are ONE value, never two statements.** `toResolvedRequester` (`dispatch-message.ts:192–204`) returns the requester *and* its `deliveredTo` name together, and every branch resolves through it. Load-bearing, not stylistic: the label used to be a separate assignment per branch, the spawned-session branch omitted it, and the fallback then reported the **sender's own name** as `deliveredTo` — a delivery that looked successful and named itself as the destination. Fixed 2026-08-16; all four upward paths are now pinned in `index.test.ts` (“deliveredTo names the DESTINATION, never the sender”). Do not reintroduce a fallback here.
 - **The no-turn direct path is global-requester only.** `run-report-delivery-tick.ts:169` gates on `isGlobalRequester`. With a *workspace* requester, `direct_to_user` still runs a full notify turn, just under `DIRECT_DELIVERY_INSTRUCTIONS` ("absorb silently, do not restate"). There is no workspace-side absorb net yet.
 - **A mention chain's reply delivers direct whatever kind it spoke** (`run-report-delivery-tick.ts:126–132`) — a colleague answering a user's `@mention` must never be re-narrated, so the direct steer is the floor for that whole chain.
 - **No harvest, by decision (2026-07-27).** The receiver's ordinary chat reply is never captured as a report. A silent worker therefore delivers *nothing*; the reply still lives on `resultText` and in its own transcript. Completed rows are marked surfaced unconditionally so the catch-up net cannot leak the capture back through another door.

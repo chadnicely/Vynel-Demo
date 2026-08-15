@@ -1105,6 +1105,116 @@ describe('POST /routing/message → requester report (ported from /routing/repor
       expect(user.id).not.toBe(stranger.id)
     })
   })
+
+  // `deliveredTo` is the sender's ONLY confirmation of where its message went,
+  // and every upward branch resolves it separately — so every branch is pinned
+  // here. The spawned case regressed silently precisely because no upward path
+  // asserted this field: the destination fell back to the SENDER's own label,
+  // which reads as a successful delivery to itself.
+  describe('deliveredTo names the DESTINATION, never the sender', () => {
+    it('a WORKSPACE-grounded spawned session names the workspace, not itself', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const workspace = seedManagedWorkspace(db, user.id)
+        const spawned = await createSpawnedSession(db, makePrimingProvider('sdk-sp-dt-1'), {
+          userId: user.id,
+          name: 'Acme research',
+          purpose: 'dig into the backlog',
+          workspacePath: workspace.path,
+          workspaceId: workspace.id,
+        })
+        const app = makeHarness(db)
+        const caller: ReportCaller = {
+          kind: 'spawned-session',
+          targetPrimarySessionId: spawned.primarySessionId,
+        }
+
+        // 'Acme' — where it went. NEVER 'Acme research', which is who sent it.
+        const report = await postReport(app, 'Backlog has 4 stale items.', caller)
+        expect(report.status).toBe(200)
+        expect(((await report.json()) as { deliveredTo: string }).deliveredTo).toBe('Acme')
+
+        // All three upward dispatchers share one resolution — an update agrees.
+        const update = await postJson(
+          app,
+          '/routing/message',
+          { to: 'requester', body: 'Received — starting now.', kind: 'update' },
+          { [REPORT_CALLER_HEADER]: serializeReportCaller(caller) },
+        )
+        expect(update.status).toBe(200)
+        expect(((await update.json()) as { deliveredTo: string }).deliveredTo).toBe('Acme')
+      })
+    })
+
+    it('a GLOBAL-grounded spawned session names Global', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const spawned = await createSpawnedSession(db, makePrimingProvider('sdk-sp-dt-2'), {
+          userId: user.id,
+          name: 'Research: pricing',
+          purpose: 'compare pricing pages',
+          workspacePath: '/tmp/vynel/global-root',
+        })
+        const app = makeHarness(db)
+
+        const res = await postReport(app, 'A undercuts us by 12%.', {
+          kind: 'spawned-session',
+          targetPrimarySessionId: spawned.primarySessionId,
+        })
+        expect(res.status).toBe(200)
+        expect(((await res.json()) as { deliveredTo: string }).deliveredTo).toBe('Global')
+      })
+    })
+
+    it('a workspace primary names Global, or the ORIGINATING workspace when rerouted', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const target = seedManagedWorkspace(db, user.id, 'Target')
+        const origin = seedManagedWorkspace(db, user.id, 'Origin')
+        await seedLinkedWorkspacePrimaryFor(db, user.id, target.id, 'ws-primary-dt3')
+        const app = makeHarness(db)
+        const caller: ReportCaller = { kind: 'workspace-primary', workspaceId: target.id }
+
+        const plain = await postReport(app, 'All docs are current.', caller)
+        expect(plain.status).toBe(200)
+        expect(((await plain.json()) as { deliveredTo: string }).deliveredTo).toBe('Global')
+
+        // The mention reroute — and a direct_to_user rides the same resolution,
+        // so this pins the third dispatcher too.
+        const rerouted = await postJson(
+          app,
+          '/routing/message',
+          { to: 'requester', body: 'Full overview.', kind: 'direct_to_user', title: 'Overview' },
+          {
+            [REPORT_CALLER_HEADER]: serializeReportCaller(caller),
+            [REPORT_REQUESTER_HEADER]: origin.id,
+          },
+        )
+        expect(rerouted.status).toBe(200)
+        expect(((await rerouted.json()) as { deliveredTo: string }).deliveredTo).toBe('Origin')
+      })
+    })
+
+    it('an agent colleague names the workspace it lands in, not the agent', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const workspace = seedManagedWorkspace(db, user.id, 'Grounding')
+        const { colleagueId } = await seedLinkedColleague(db, user.id, {
+          workspaceId: workspace.id,
+          slug: 'researcher',
+          name: 'Nova',
+        })
+        const app = makeHarness(db)
+
+        const res = await postReport(app, 'Found three strong sources.', {
+          kind: 'agent-session',
+          targetPrimarySessionId: colleagueId,
+        })
+        expect(res.status).toBe(200)
+        expect(((await res.json()) as { deliveredTo: string }).deliveredTo).toBe('Grounding')
+      })
+    })
+  })
 })
 
 describe('POST /routing/message → kind direct_to_user (direct messages to the user)', () => {
