@@ -543,6 +543,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Vynel's speech no longer cuts out partway through a sentence.** Whole
+  spoken lines were being handed to the sound device in one go, which it
+  refuses once its buffer is full — so the rest of the line was silently
+  abandoned, and Vynel sounded like it kept dropping words. Audio is now fed
+  in small pieces at the speed the device can take it, so lines play through
+  to the end. This affected everywhere Vynel speaks: the assistant's own
+  voice and its voice in a call. Interrupting Vynel mid-sentence also stops
+  it faster now, because the audio it hasn't reached yet can be dropped.
+
 - **A workspace's main chat no longer empties when a long conversation rolls
   over.** When the assistant quietly continues onto a fresh session because the
   old one filled up, the main chat previously showed a blank conversation —

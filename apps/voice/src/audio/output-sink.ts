@@ -20,6 +20,15 @@ const KEEPALIVE_MS = 50
 // Skip the trickle while real audio flowed this recently — it keeps the
 // stream warm on its own, and queued silence behind it would gap playback.
 const KEEPALIVE_IDLE_MS = 250
+// The binding's write buffer is small and bounded, and it THROWS
+// "Failed to write to stream: buffer full" rather than blocking. Handing it a
+// whole utterance therefore aborted the line partway through — the audible
+// symptom was speech cutting out constantly. So the sink queues audio and
+// feeds it in small chunks, treating "buffer full" as backpressure: the
+// device's own drain rate is the clock, which needs no tuning to match it.
+// node-cpal's own example uses the same shape (~1024 samples, short sleep).
+const WRITE_CHUNK_SAMPLES = 1024
+const WRITE_TICK_MS = 10
 
 export interface OutputSinkSource {
   device: CpalDevice
@@ -52,12 +61,56 @@ export function openOutputSink(
   let drainTimer: ReturnType<typeof setTimeout> | null = null
   let lastRealEmitAt = 0
 
+  // Audio accepted from the caller but not yet handed to the device, plus how
+  // far into the head chunk the pump has read.
+  const samplesPerSecond = config.sampleRate * config.channels
+  let pending: Float32Array[] = []
+  let pendingOffset = 0
+  let pendingSamples = 0
+
+  const pendingSeconds = (): number => pendingSamples / samplesPerSecond
+
+  // Top the device up until it says it is full, then leave the rest for the
+  // next tick. Only a successful write advances the cursor, so a rejected chunk
+  // is re-offered rather than lost.
+  const pump = (): void => {
+    while (handle !== null && pending.length > 0) {
+      const head = pending[0]!
+      const take = Math.min(head.length - pendingOffset, WRITE_CHUNK_SAMPLES)
+      // Copy rather than subarray — the binding reads a raw buffer and must not
+      // depend on a view's byte offset.
+      try {
+        cpal.writeToStream(handle, head.slice(pendingOffset, pendingOffset + take))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.includes('buffer full')) return
+        // Anything else is a real device fault: drop the line rather than spin
+        // on a stream that will never accept it again.
+        logger.error({ sink: label, device: device.name, error: message }, 'output write failed — dropping queued audio')
+        pending = []
+        pendingOffset = 0
+        pendingSamples = 0
+        return
+      }
+      pendingOffset += take
+      pendingSamples -= take
+      if (pendingOffset >= head.length) {
+        pending.shift()
+        pendingOffset = 0
+      }
+    }
+  }
+  const pacer = setInterval(pump, WRITE_TICK_MS)
+
   // ~KEEPALIVE_MS of silence, in the sink's own interleaved format.
   const keepAliveFrame = new Float32Array(
     Math.max(1, Math.round((config.sampleRate * config.channels * KEEPALIVE_MS) / 1000)),
   )
   const keepAlive = setInterval(() => {
     if (handle === null) return
+    // Real audio still draining keeps the stream warm by itself, and silence
+    // queued behind it would gap the line.
+    if (pendingSamples > 0) return
     if (performance.now() - lastRealEmitAt < KEEPALIVE_IDLE_MS) return
     cpal.writeToStream(handle, keepAliveFrame)
   }, KEEPALIVE_MS)
@@ -77,12 +130,18 @@ export function openOutputSink(
       }
       queuedSeconds += pcm.samples.length / pcm.sampleRate
       lastRealEmitAt = performance.now()
-      cpal.writeToStream(handle, interleaved)
+      pending.push(interleaved)
+      pendingSamples += interleaved.length
+      pump()
     },
     endSpeech(): void {
       const startedAt = playbackStartedAt ?? performance.now()
       const playedSeconds = (performance.now() - startedAt) / 1000
-      const remainingMs = Math.max(0, (queuedSeconds - playedSeconds) * 1000) + PLAYBACK_TAIL_MS
+      // Audio still queued here has not even reached the device yet, so it
+      // floors the estimate — without it a paced line declares itself drained
+      // early and the mic reopens into its own tail.
+      const remainingMs =
+        Math.max(0, queuedSeconds - playedSeconds, pendingSeconds()) * 1000 + PLAYBACK_TAIL_MS
       if (drainTimer !== null) clearTimeout(drainTimer)
       drainTimer = setTimeout(() => {
         drainTimer = null
@@ -107,6 +166,12 @@ export function openOutputSink(
       }
       playbackStartedAt = null
       queuedSeconds = 0
+      // Audio not yet handed over is the part a cut can genuinely take back —
+      // dropping it here is what makes barge-in immediate rather than merely
+      // closing the device on a tail already inside it.
+      pending = []
+      pendingOffset = 0
+      pendingSamples = 0
       try {
         cpal.closeStream(closing)
       } catch (error) {
@@ -132,6 +197,9 @@ export function openOutputSink(
     // registry will have racing stop paths.
     stop(): void {
       clearInterval(keepAlive)
+      clearInterval(pacer)
+      pending = []
+      pendingSamples = 0
       if (drainTimer !== null) clearTimeout(drainTimer)
       if (handle === null) return
       cpal.closeStream(handle)

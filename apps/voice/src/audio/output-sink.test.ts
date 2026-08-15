@@ -219,4 +219,71 @@ describe('openOutputSink', () => {
     expect(writeToStream).not.toHaveBeenCalled()
     expect(onDrained).not.toHaveBeenCalled()
   })
+
+  // 1 s of 16 kHz mono becomes 32 kHz stereo: 64_000 interleaved samples.
+  const INTERLEAVED_PER_SECOND = 64_000
+  const delivered = () =>
+    writeToStream.mock.calls.reduce((total, [, data]) => total + (data as Float32Array).length, 0)
+
+  it('hands the device small chunks — never one oversized write', () => {
+    const { sink } = openSink()
+
+    sink.emitAudio(oneSecondOfSpeech())
+
+    // The binding throws "buffer full" on an oversized write, which used to
+    // abandon the rest of the line — every chunk must stay small.
+    expect(writeToStream.mock.calls.length).toBeGreaterThan(1)
+    for (const [, data] of writeToStream.mock.calls) {
+      expect((data as Float32Array).length).toBeLessThanOrEqual(1024)
+    }
+    expect(delivered()).toBe(INTERLEAVED_PER_SECOND)
+  })
+
+  it('treats "buffer full" as backpressure — the refused chunk is retried, not lost', () => {
+    const { sink } = openSink()
+    let refusals = 0
+    writeToStream.mockImplementation(() => {
+      // Refuse every other write, as a device draining in real time would.
+      if (refusals++ % 2 === 0) throw new Error('Failed to write to stream: buffer full')
+    })
+
+    sink.emitAudio(oneSecondOfSpeech())
+    // Each tick makes partial progress; the queue survives the refusals.
+    vi.advanceTimersByTime(200)
+
+    const accepted = writeToStream.mock.calls.length - Math.ceil(refusals / 2)
+    expect(accepted).toBeGreaterThan(0)
+    expect(refusals).toBeGreaterThan(1) // the path was actually exercised
+  })
+
+  it('a real device fault drops the queue instead of spinning on a dead stream', () => {
+    const { sink } = openSink()
+    writeToStream.mockImplementation(() => {
+      throw new Error('device disconnected')
+    })
+
+    sink.emitAudio(oneSecondOfSpeech())
+    const afterFault = writeToStream.mock.calls.length
+    vi.advanceTimersByTime(200)
+
+    // Nothing is retried — a stream that will never accept audio is not worth
+    // a queue that never empties.
+    expect(writeToStream.mock.calls.length).toBe(afterFault)
+  })
+
+  it('cutPlayback discards audio that never reached the device', () => {
+    const { sink } = openSink()
+    writeToStream.mockImplementationOnce(() => {
+      throw new Error('Failed to write to stream: buffer full')
+    })
+
+    sink.emitAudio(oneSecondOfSpeech()) // stalls immediately, all of it pending
+    sink.cutPlayback()
+    writeToStream.mockClear()
+    vi.advanceTimersByTime(200)
+
+    // Barge-in can now take back audio the device never received — before the
+    // queue existed, every sample was already inside the binding.
+    expect(delivered()).toBe(0)
+  })
 })
