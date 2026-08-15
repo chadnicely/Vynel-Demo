@@ -106,8 +106,15 @@ function taskEnqueueExtras(c: RoutingContext, options: TaskDispatchOptions) {
  *  instead of back to the workspace that asked.
  *
  *  A global-root send carries no calling workspace: it parents on the root and
- *  records NO requester, which is exactly what makes the root the chain's
- *  terminus. */
+ *  records no requester. Read that absence narrowly — it means "nobody below
+ *  the root asked", NOT "the report is bound for the root". A WORKSPACE-PRIMARY
+ *  sender with no recorded requester does terminate at the root, but a grounded
+ *  SESSION still falls back to its grounding workspace (`resolveRequesterWorkspace`
+ *  below), so a root-tasked, workspace-grounded session reports into that
+ *  workspace's chat rather than back to the root that asked. That asymmetry is
+ *  pre-existing and deliberate-by-default, not established here; closing it
+ *  needs a job-level "asked by the root" marker rather than a third meaning for
+ *  absence. */
 async function resolveTaskSender(
   c: RoutingContext,
   callingWorkspaceId: string | undefined,

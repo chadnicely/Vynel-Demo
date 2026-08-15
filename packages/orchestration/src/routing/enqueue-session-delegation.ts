@@ -43,9 +43,11 @@ export interface EnqueueSessionDelegationInput {
   thinkingEffort?: ThinkingEffortLevel
   /** WHO handed this task down — the calling workspace, so the target's report
    *  travels back to the conversation that asked instead of the session's own
-   *  grounding. Omit for a GLOBAL-root send: the root is the chain's terminus,
-   *  so "no requester recorded" already means "report to the root". The
-   *  `enqueueWorkspaceDelegation` / `enqueueAgentRun` sibling field. */
+   *  grounding. Omit for a GLOBAL-root send; note that omission does NOT force
+   *  the report to the root — an omitted requester leaves a grounded session
+   *  falling back to its grounding workspace (the routing layer's
+   *  `resolveRequesterWorkspace`). The `enqueueWorkspaceDelegation` /
+   *  `enqueueAgentRun` sibling field. */
   requesterWorkspaceId?: string
 }
 

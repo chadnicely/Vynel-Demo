@@ -1743,6 +1743,52 @@ describe('POST /routing/message → a task records WHO asked', () => {
     })
   })
 
+  // The calling-workspace guards now fire on the `to: "workspace:"` branch too
+  // (both destinations share resolveTaskSender). The session branch pinned these
+  // already; the workspace branch reached them with no coverage at all.
+  it('404s a workspace task whose CALLING workspace is unknown or not owned', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id)
+      const stranger = seedUser(db)
+      const foreign = seedManagedWorkspace(db, stranger.id, 'Theirs')
+      const app = makeHarness(db)
+
+      for (const callingWorkspaceId of [randomUUID(), foreign.id]) {
+        const res = await postJson(app, '/routing/message', {
+          to: `workspace:${beta.id}`,
+          body: 'audit the invoices',
+          workspaceId: callingWorkspaceId,
+        })
+        // Unknown and not-owned answer identically — no enumeration leak.
+        expect(res.status).toBe(404)
+      }
+    })
+  })
+
+  // NOTE: this pins the guard as it stands after the shared-resolver change.
+  // Before it, a workspace task ignored the caller entirely and parented on the
+  // root, so this call succeeded. Flagged for Chad — if the calling workspace
+  // should fall back to the root for PROVENANCE while still being recorded as
+  // the requester, this expectation changes with it.
+  it('400s a workspace task whose CALLING workspace has no live primary', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const quiet = seedManagedWorkspace(db, user.id, 'Quiet')
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id) // live, but not the caller here
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${beta.id}`,
+        body: 'audit the invoices',
+        workspaceId: quiet.id,
+      })
+      expect(res.status).toBe(400)
+    })
+  })
+
   it('the global root records NO requester — that is how a chain terminates at the root', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
