@@ -460,6 +460,16 @@ describe("ThreadStream", () => {
       global: { plugins: [createPinia()] },
     });
 
+    // test: correct expectation (2026-08-15) — the NEWEST turn now opens with
+    // its whole run. Was folded on arrival, which snapped an answer shut the
+    // instant it settled.
+    expect(wrapper.findAll(".message-row")).toHaveLength(3);
+    expect(wrapper.find(".tool-list").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Detail paragraph.");
+    expect(wrapper.text()).toContain("Later message.");
+
+    await wrapper.get(".reply-caret").trigger("click");
+
     // Folded: the ask and ONE summary row. Nothing else — the tool card is
     // part of the real view, and gating the row alone would leave it on show.
     expect(wrapper.findAll(".message-row")).toHaveLength(2);
@@ -467,16 +477,9 @@ describe("ThreadStream", () => {
     expect(wrapper.text()).toContain("Summary line.");
     expect(wrapper.text()).not.toContain("Detail paragraph.");
     expect(wrapper.text()).not.toContain("Later message.");
-
-    await wrapper.get(".reply-caret").trigger("click");
-
-    expect(wrapper.findAll(".message-row")).toHaveLength(3);
-    expect(wrapper.find(".tool-list").exists()).toBe(true);
-    expect(wrapper.text()).toContain("Detail paragraph.");
-    expect(wrapper.text()).toContain("Later message.");
   });
 
-  it("the summary comes from the first row that SPEAKS — a tool-only opening row is skipped", () => {
+  it("the summary comes from the first row that SPEAKS — a tool-only opening row is skipped", async () => {
     const messages: ChatMessageResponse[] = [
       { ...makeMessage(0), role: "user" },
       { ...makeMessage(1), id: "a1", role: "assistant", body: "" },
@@ -491,6 +494,9 @@ describe("ThreadStream", () => {
       global: { plugins: [createPinia()] },
     });
 
+    // The newest turn opens; fold it to see which row carries the summary.
+    await wrapper.get(".reply-caret").trigger("click");
+
     const rows = wrapper.findAll(".message-row");
     expect(rows).toHaveLength(2);
     expect(rows[1]!.text()).toContain("The real answer.");
@@ -498,6 +504,31 @@ describe("ThreadStream", () => {
     // hairline even though it is not the turn's first assistant row.
     expect(rows[1]!.findAll(".row-header")).toHaveLength(1);
     expect(rows[1]!.classes()).toContain("is-reply-start");
+  });
+
+  // History folds; what just happened does not. The canvas closes every reply,
+  // but it has no streaming — here you watch the answer arrive, and folding it
+  // the instant it settled shut the thing you were mid-sentence in.
+  it("the NEWEST turn opens; older ones stay folded", async () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "Older.\n\nOlder detail." },
+      { ...makeMessage(2), role: "user" },
+      { ...makeMessage(3), id: "a2", role: "assistant", body: "Newest.\n\nNewest detail." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: { messages, toolCallsByMessageId: {}, activeTurn: null },
+      global: { plugins: [createPinia()] },
+    });
+
+    expect(wrapper.text()).toContain("Newest detail.");
+
+    // The older exchange is card-folded to its strip, so nothing of its reply
+    // shows; opening the CARD still leaves the reply summarised.
+    expect(wrapper.text()).not.toContain("Older detail.");
+    await wrapper.findAll(".collapse-toggle")[0]!.trigger("click");
+    expect(wrapper.text()).toContain("Older.");
+    expect(wrapper.text()).not.toContain("Older detail.");
   });
 
   it("a tool-opening turn keeps its caret once expanded — the fold is never one-way", async () => {
@@ -519,16 +550,19 @@ describe("ThreadStream", () => {
       global: { plugins: [createPinia()] },
     });
 
-    expect(wrapper.findAll(".reply-caret")).toHaveLength(1);
-    await wrapper.get(".reply-caret").trigger("click");
-
+    // Open (the newest turn): the tool-only row heads the reply, so the caret
+    // has to be on THAT row or the turn could never be closed again.
     expect(wrapper.find(".tool-list").exists()).toBe(true);
     expect(wrapper.findAll(".reply-caret")).toHaveLength(1);
 
-    // And it folds back.
     await wrapper.get(".reply-caret").trigger("click");
     expect(wrapper.find(".tool-list").exists()).toBe(false);
     expect(wrapper.findAll(".message-row")).toHaveLength(2);
+
+    // And back open — folded, the promoted speaking row carries it.
+    expect(wrapper.findAll(".reply-caret")).toHaveLength(1);
+    await wrapper.get(".reply-caret").trigger("click");
+    expect(wrapper.find(".tool-list").exists()).toBe(true);
   });
 
   it("does NOT group assistant rows separated by a long gap — two background turns keep their timestamps", () => {

@@ -504,8 +504,12 @@ function speakingMemberIndexOf(group: {
 // message — a member cannot hide its siblings.
 const replyOverrides = ref(new Map<string, boolean>());
 
+// The NEWEST turn stays open, same default as the card fold above it. The
+// canvas closes every reply, but the canvas has no streaming: here you watch
+// an answer arrive, and folding it the instant it settled snapped the thing
+// you were mid-sentence in shut. History folds; what just happened does not.
 function isReplyOpen(cardKey: string): boolean {
-  return replyOverrides.value.get(cardKey) ?? false;
+  return replyOverrides.value.get(cardKey) ?? cardKey === latestCardKey.value;
 }
 
 function toggleReply(cardKey: string) {
