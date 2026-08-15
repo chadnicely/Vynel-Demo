@@ -31,7 +31,11 @@ A unit may carry one optional third file, **`followup.md`** — open bugs and de
 items for that unit, each stamped with how it was established (probed / reviewed / read). It exists
 so a known defect lives next to the code map instead of in a commit message nobody re-reads. Add one
 only when there is something real to record, and close an item by fixing it and deleting the entry.
-Today only [`session-communication`](./session-communication/followup.md) has one.
+
+Two exist today: [`session-communication`](./session-communication/followup.md) and
+[`nodes`](./nodes/followup.md). **`nodes` has only that file** — its `overview.md` / `structure.md`
+pair is unwritten, and the folder stands as a marker that it is owed. A followup may legitimately
+arrive before the pair does; findings should not wait on documentation.
 
 ## The shape of the system
 
