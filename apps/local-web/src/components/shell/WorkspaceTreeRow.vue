@@ -18,13 +18,6 @@ const props = defineProps<{
   workspace: { id: string; name: string };
   isActive: boolean;
   statusView: WorkspaceStatusView | null;
-  /** A folder member — the row box stays full-width so the active ground
-   *  still spans the folder, and only the CONTENT steps in. A SMALL step
-   *  (Kafi, 2026-08-15, against his reference sidebar): the folder header
-   *  above already says these are nested, so the rows read as one left rail
-   *  with it rather than a staircase. Was 24px, which cost half the column's
-   *  width to whitespace. Root rows sit at 10px. */
-  indented?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -66,9 +59,8 @@ function progressLabel(): string | null {
        chip, then name + the meta cluster — so the name starts 54px in from the
        row's left edge (x=64 on the canvas's own 10px-inset root row). -->
   <div
-    class="group flex items-center rounded-sm pr-[11.2px] transition"
+    class="group flex items-center rounded-sm pl-[10px] pr-[11.2px] transition"
     :class="[
-      props.indented ? 'pl-[14px]' : 'pl-[10px]',
       props.isActive
         ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
         : 'text-ink-2 hover:bg-row-hover hover:text-ink-1',
@@ -89,7 +81,7 @@ function progressLabel(): string | null {
       type="button"
       class="ml-2 grid min-w-0 flex-1 cursor-default grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-left text-[12.5px]"
       :class="[
-        props.indented ? 'min-h-[30px]' : 'min-h-8',
+        'min-h-8',
         { 'opacity-50': status() === 'not_running' && !props.isActive },
       ]"
       :aria-current="props.isActive ? 'page' : undefined"

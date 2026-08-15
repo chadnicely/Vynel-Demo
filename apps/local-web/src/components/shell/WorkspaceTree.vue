@@ -181,7 +181,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
        child — the parked group and the account foot included — sits inset. -->
   <nav class="flex h-full flex-col bg-[var(--color-bg)] px-[8.4px] py-[16.8px] text-[12.5px]">
     <div class="min-h-0 flex-1 overflow-y-auto">
-      <ul class="my-0 grid list-none gap-[2px] pl-0">
+      <ul class="my-0 grid list-none gap-1 pl-0">
         <!-- The pinned Global scope — the tree's anchor, like the strip's. It
              also carries the new-folder / new-workspace affordances, so the
              tree starts at a real row with no header gutter above it. -->
@@ -251,7 +251,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <!-- Folders (alive members). Dashed border only while a drag hovers —
            the canvas's drop-target treatment. -->
-      <div class="mt-[5px] grid gap-1">
+      <div class="mt-2 grid gap-2">
         <div
           v-for="group in props.groups"
           :key="group.id"
@@ -266,7 +266,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
           @drop="onDrop(group.id)"
         >
           <ContextMenu :items="FOLDER_MENU" @select="(id) => onFolderMenu(group, id)">
-            <div class="flex w-full items-center rounded-sm pl-[7px] pr-[11.2px] text-[var(--color-neutral-300)]">
+            <div class="flex w-full items-center rounded-sm pb-2 pl-[7px] pr-[11.2px] pt-2 text-[var(--color-neutral-300)]">
               <button
                 type="button"
                 :aria-expanded="!collapsedFolderIds.has(group.id)"
@@ -305,18 +305,18 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
               </button>
             </div>
           </ContextMenu>
-          <!-- The 24px child indent lives INSIDE the row (`indented`), so the
-               active ground still spans the whole folder. -->
+          <!-- No child inset: a folder's rows share the header's left rail,
+               the way the mission-control prototype's groups do. The header
+               above already says they are nested. -->
           <ul
             v-if="!collapsedFolderIds.has(group.id)"
-            class="my-0 grid list-none gap-[2px] pl-0"
+            class="my-0 grid list-none gap-1 pl-0"
           >
             <li v-for="workspace in membersByGroupId.get(group.id) ?? []" :key="workspace.id">
               <WorkspaceTreeRow
                 :workspace="workspace"
                 :is-active="props.activeWorkspaceId === workspace.id"
                 :status-view="statusViewOf(workspace.id)"
-                indented
                 @select="emit('select', workspace.id)"
                 @drill="emit('drill', workspace.id)"
                 @drag-start="draggingWorkspaceId = workspace.id"
@@ -329,7 +329,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <!-- The root zone — ungrouped alive rows; a drop here detaches. -->
       <ul
-        class="mt-1 mb-0 grid list-none gap-[2px] rounded-sm border border-dashed p-0.5 pl-0.5 transition"
+        class="mt-1 mb-0 grid list-none gap-1 rounded-sm border border-dashed p-0.5 pl-0.5 transition"
         :class="dropTargetId === 'root' ? 'border-gold bg-gold-soft' : 'border-transparent'"
         @dragover="onRootDragOver"
         @dragleave="dropTargetId = dropTargetId === 'root' ? null : dropTargetId"
@@ -365,7 +365,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
             parkedWorkspaces.length
           }}</span>
         </button>
-        <ul v-if="isParkedOpen" class="my-0 grid list-none gap-[2px] pl-0">
+        <ul v-if="isParkedOpen" class="my-0 grid list-none gap-1 pl-0">
           <li v-for="workspace in parkedWorkspaces" :key="workspace.id">
             <WorkspaceTreeRow
               :workspace="workspace"
