@@ -83,5 +83,11 @@ export function useProjectNodes(projectId: MaybeRefOrGetter<string | null>) {
       continuingQuery.data.value !== undefined,
   );
 
-  return { nodes, hasAnswered };
+  /** The segment the continuing build is currently on — how "The build" node
+   *  recognises itself as the sender or target of a message. */
+  const continuingSessionId = computed(
+    () => continuingQuery.data.value?.currentSdkSessionId ?? null,
+  );
+
+  return { nodes, hasAnswered, continuingSessionId };
 }

@@ -38,6 +38,18 @@ const COL: Record<SceneNode["status"], string> = {
 };
 const DIM = "#9397ab";
 
+// A message arc is its own mark, deliberately NOT one of the node colours: it
+// is an event between two dots, not the state of either. Fuchsia going out,
+// green coming home — the pair reads as question and answer at a glance.
+const MESSAGE_COL: Record<SceneMessage["direction"], string> = {
+  ask: "#e879f9",
+  reply: "#4ade80",
+};
+/** How long the head takes to travel the whole arc. */
+const MESSAGE_TRAVEL_MS = 1400;
+/** How long the arc lingers afterwards before it is gone. */
+const MESSAGE_LIFETIME_MS = 60_000;
+
 const isLive = (node: SceneNode) =>
   node.status === "building" ||
   node.status === "waiting" ||
@@ -80,8 +92,23 @@ const BLOBS = [
  *  how far along they are. The prototype's three layout buttons. */
 export type SceneLayout = "constellation" | "orbit" | "rise";
 
+/** One message that travelled between two dots. `null` at either end means the
+ *  core — the global root really is the centre of this picture, so a message to
+ *  or from it needs no special case. */
+export interface SceneMessage {
+  /** Stable across polls, so a message already in flight is never restarted. */
+  id: string;
+  fromId: string | null;
+  toId: string | null;
+  /** `ask` = work handed down; `reply` = a result carried back. */
+  direction: "ask" | "reply";
+  /** Epoch ms. Older than MESSAGE_LIFETIME_MS and it is simply not drawn. */
+  sentAt: number;
+}
+
 export interface SceneHandle {
   setNodes(nodes: SceneNode[]): void;
+  setMessages(messages: SceneMessage[]): void;
   setLayout(layout: SceneLayout): void;
   /** The centre carries the WORKSPACE's name — "NICELY MEDIA", not a brand. */
   setCoreLabel(label: string): void;
@@ -113,6 +140,7 @@ export function startConstellationScene(
     for (const cv of [bgCv, fxCv, ndCv]) cv.remove();
     return {
       setNodes() {},
+      setMessages() {},
       setLayout() {},
       setCoreLabel() {},
       hitTest: () => -1,
@@ -138,6 +166,7 @@ export function startConstellationScene(
   const positions: Array<{ x: number; y: number }> = [];
   const core = { x: 0, y: 0 };
   const particles: Particle[] = [];
+  let messages: SceneMessage[] = [];
   let spawnAcc: number[] = [];
   let orbiters: Orbiter[][] = [];
 
@@ -295,6 +324,98 @@ export function startConstellationScene(
         nd.fillText(f === 1 ? "DONE" : `${Math.round(f * 100)}%`, 34, y);
         nd.textAlign = "center";
       }
+    }
+  }
+
+
+  /** Where a message endpoint sits. A dot this level does not draw — the global
+   *  root, or a room off-screen at the other level — resolves to the core,
+   *  which is what it visually IS here. */
+  function anchorOf(id: string | null) {
+    if (id === null) return core;
+    const index = nodes.findIndex((node) => node.id === id);
+    return positions[index] ?? core;
+  }
+
+  /** Which way an arc bows, stable per message, so two between the same pair
+   *  never lie on top of each other. */
+  function bendOf(id: string) {
+    let hash = 0;
+    for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+    return (hash % 2 === 0 ? 1 : -1) * (0.55 + (Math.abs(hash) % 5) * 0.14);
+  }
+
+  /** A bowed bezier between two arbitrary points — the same curve language the
+   *  core strands speak, so an arc reads as part of this picture. */
+  function messagePoint(
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+    bend: number,
+    t: number,
+  ) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = bend * Math.min(120, len * 0.28);
+    const cx = (a.x + b.x) / 2 - (dy / len) * bow;
+    const cy = (a.y + b.y) / 2 + (dx / len) * bow;
+    const u = 1 - t;
+    return {
+      x: u * u * a.x + 2 * u * t * cx + t * t * b.x,
+      y: u * u * a.y + 2 * u * t * cy + t * t * b.y,
+    };
+  }
+
+  /** The arcs. A head travels the curve first, drawing the line behind it, then
+   *  the whole arc lingers and fades so you can still see what just happened
+   *  after looking away. Drawn ABOVE the strands and BELOW the nodes — a dot is
+   *  never hidden behind its own traffic. */
+  function drawMessages(nowMs: number) {
+    const SEGMENTS = 40;
+    for (const message of messages) {
+      const age = nowMs - message.sentAt;
+      if (age < 0 || age > MESSAGE_LIFETIME_MS) continue;
+      const from = anchorOf(message.fromId);
+      const to = anchorOf(message.toId);
+      // Both ends landed on the core: nothing this level can draw a line
+      // between. Never a dot talking to itself.
+      if (from === to) continue;
+
+      const bend = bendOf(message.id);
+      const col = MESSAGE_COL[message.direction];
+      const travelled = reduceMotion ? 1 : ease(Math.min(1, age / MESSAGE_TRAVEL_MS));
+      const settled =
+        Math.max(0, age - MESSAGE_TRAVEL_MS) /
+        (MESSAGE_LIFETIME_MS - MESSAGE_TRAVEL_MS);
+
+      nd.beginPath();
+      for (let step = 0; step <= SEGMENTS; step += 1) {
+        const point = messagePoint(from, to, bend, (step / SEGMENTS) * travelled);
+        if (step === 0) nd.moveTo(point.x, point.y);
+        else nd.lineTo(point.x, point.y);
+      }
+      nd.globalAlpha = 0.08 + 0.8 * (1 - settled);
+      nd.strokeStyle = col;
+      nd.lineWidth = 1.6;
+      nd.shadowBlur = 10;
+      nd.shadowColor = col;
+      nd.stroke();
+      nd.shadowBlur = 0;
+
+      // The travelling head — the thing that actually reads as "a message went
+      // from here to there".
+      if (travelled < 1) {
+        const tip = messagePoint(from, to, bend, travelled);
+        const glow = nd.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, 15);
+        glow.addColorStop(0, col);
+        glow.addColorStop(1, `${col}00`);
+        nd.globalAlpha = 1;
+        nd.beginPath();
+        nd.arc(tip.x, tip.y, 15, 0, Math.PI * 2);
+        nd.fillStyle = glow;
+        nd.fill();
+      }
+      nd.globalAlpha = 1;
     }
   }
 
@@ -514,6 +635,8 @@ export function startConstellationScene(
       nd.shadowBlur = 0;
     });
 
+    drawMessages(Date.now());
+
     drawCore(t);
 
     // Nodes — halo bloom, inner glow, thick ring, label.
@@ -642,6 +765,9 @@ export function startConstellationScene(
       }
       nodes = next;
       if (spawnAcc.length !== next.length) seedPerNode();
+    },
+    setMessages(next) {
+      messages = next;
     },
     setLayout(next) {
       layoutMode = next;

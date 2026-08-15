@@ -4,6 +4,11 @@ import { useRouter } from "vue-router";
 import { useDashboardOverview } from "../composables/dashboard/use-dashboard-overview.js";
 import { useFleetNodes } from "../composables/nodes/use-fleet-nodes.js";
 import { useProjectNodes } from "../composables/nodes/use-project-nodes.js";
+import { useMessageEdges } from "../composables/nodes/use-message-edges.js";
+import {
+  fleetMessages,
+  projectMessages,
+} from "../composables/nodes/message-scene-mapping.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import NodesFleetBar from "../components/nodes/NodesFleetBar.vue";
@@ -14,6 +19,7 @@ import {
   startConstellationScene,
   type SceneHandle,
   type SceneLayout,
+  type SceneMessage,
 } from "../utils/constellation-scene.js";
 
 // The Nodes screen — the design prototype's constellation, running on the real
@@ -61,6 +67,32 @@ const projectNodes = useProjectNodes(drilledProjectId);
 const displayNodes = computed(() =>
   isInsideProject.value ? projectNodes.nodes.value : fleetNodes.value,
 );
+
+// The arcs — a line between two dots when they talk. Only ever asked for while
+// the constellation is the reading on show; the other two draw no lines.
+const edgesQuery = useMessageEdges(() => ui.nodesMode === "nodes");
+
+/** What the CURRENT level can draw a line between. Each level speaks its own
+ *  id shape, so the same wire edge maps differently in here than out there. */
+const sceneMessages = computed<SceneMessage[]>(() => {
+  const edges = edgesQuery.data.value?.edges ?? [];
+  if (edges.length === 0) return [];
+  if (!isInsideProject.value) {
+    return fleetMessages(
+      edges,
+      new Set(fleetNodes.value.map((node) => node.id)),
+    );
+  }
+  return projectMessages(edges, {
+    projectId: drilledProjectId.value!,
+    continuingSessionId: projectNodes.continuingSessionId.value,
+    drawnSessionIds: new Set(
+      projectNodes.nodes.value
+        .filter((node) => node.id.startsWith("session:"))
+        .map((node) => node.id.slice("session:".length)),
+    ),
+  });
+});
 
 const isFleetEmpty = computed(
   () =>
@@ -122,6 +154,7 @@ function mountScene() {
   if (scene || !stage.value) return;
   scene = startConstellationScene(stage.value, displayNodes.value, onNodeClick);
   scene.setCoreLabel(coreLabel.value);
+  scene.setMessages(sceneMessages.value);
   scene.setLayout(layout.value);
 }
 
@@ -148,6 +181,7 @@ watch(
 );
 
 watch(displayNodes, (next) => scene?.setNodes(next));
+watch(sceneMessages, (next) => scene?.setMessages(next));
 watch(coreLabel, (name) => scene?.setCoreLabel(name), { immediate: true });
 
 onBeforeUnmount(() => {
