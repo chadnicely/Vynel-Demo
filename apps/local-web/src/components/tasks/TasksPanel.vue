@@ -425,7 +425,10 @@ function completedAtLabel(task: TaskResponse): string {
   min-height: 0;
   width: 272px;
   padding: var(--space-8) var(--space-6);
-  background: var(--bg-panel);
+  /* The canvas rail carries no panel ground of its own — it sits on the app
+     floor, separated by the hairline alone, so the tinted live card reads as
+     the one lit thing in the column. --bg-panel put it only 6% off the card. */
+  background: var(--color-bg);
   border-left: 1px solid var(--hair);
 }
 
@@ -586,7 +589,7 @@ function completedAtLabel(task: TaskResponse): string {
   padding: 3px;
   border-radius: 999px;
   border: 1px solid var(--hair);
-  background: var(--bg-inset);
+  background: var(--color-neutral-900);
 }
 
 .list-tabs-group {
@@ -693,6 +696,27 @@ function completedAtLabel(task: TaskResponse): string {
 
 .task-row.is-done {
   opacity: 0.6;
+}
+
+/* The canvas's row mark is a GLYPH, not a chip — no border, no ground. It is
+   still the status control (click cycles), it just stops wearing a box in a
+   column of quiet rows. Accent once finished, the quietest neutral while it
+   waits; in-progress keeps its own ink. */
+.task-row :deep(.status-control) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.task-row:not(.is-done) :deep(.status-control) {
+  color: var(--color-neutral-700);
+}
+
+.task-row.is-done :deep(.status-control) {
+  color: var(--gold);
+}
+
+.task-row :deep(.status-control:hover) {
+  color: var(--ink-1);
 }
 
 .task-title {
