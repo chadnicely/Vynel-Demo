@@ -23,6 +23,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   track toward done). With nothing set up yet the stars still turn and the
   centre stays lit, with an invitation to add your first workspace.
 
+- **You can watch them talk to each other.** When one of Vynel's conversations
+  sends something to another, a light travels the curve between their two dots
+  and the line stays for about a minute afterwards — so you can look away and
+  still see what just happened. Going out is one colour, coming back is
+  another, so an exchange reads as question and answer at a glance. It works
+  both on the whole-fleet picture and inside a single project, and a message
+  to or from Vynel's own top-level brain simply runs to the centre, because
+  that is what the centre is.
+
 - **Tool access is now set from mission control.** The cloud admin portal
   grew a Tool policy page: every tool Claude ships with, editable in one
   matrix — on/off, where it's available, when it needs approval, which plan
