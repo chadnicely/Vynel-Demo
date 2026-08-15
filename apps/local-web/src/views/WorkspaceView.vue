@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { PhTreeView as FolderTree, PhSparkle as Sparkles } from "@phosphor-icons/vue";
+import {
+  PhTreeView as FolderTree,
+  PhListChecks as ListChecks,
+  PhSparkle as Sparkles,
+} from "@phosphor-icons/vue";
 import { EmptyState, IconButton, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
@@ -345,6 +349,16 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           @click="isFilesPanelOpen = !isFilesPanelOpen"
         >
           <FolderTree :size="15" />
+        </IconButton>
+        <!-- The rail toggle sits with the pane tools, right after files
+             (Kafi, 2026-08-15) — both open a side pane on THIS room, so they
+             belong to the same cluster. -->
+        <IconButton
+          label="Toggle tasks"
+          :active="ui.isTasksPanelOpen"
+          @click="ui.isTasksPanelOpen = !ui.isTasksPanelOpen"
+        >
+          <ListChecks :size="15" />
         </IconButton>
       </div>
 

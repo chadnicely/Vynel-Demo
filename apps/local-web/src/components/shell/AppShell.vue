@@ -591,6 +591,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
       :scope-label="activeWorkspaceName"
+      :shows-tasks-toggle="!inWorkspaceScope"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
     />

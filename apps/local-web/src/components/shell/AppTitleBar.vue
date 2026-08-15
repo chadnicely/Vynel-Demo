@@ -31,7 +31,8 @@ import { shortcutHint } from "../../utils/shortcut-label.js";
 // mode). Data-blind: it renders menus + emits `command`; the shell decides
 // what each id does. Window controls drive the frameless Tauri window (no-op
 // in the browser).
-const props = defineProps<{
+const props = withDefaults(
+  defineProps<{
   theme: "dark" | "light";
   navMode: "tabs" | "menu";
   sidebarOpen: boolean;
@@ -39,7 +40,15 @@ const props = defineProps<{
   /** The scope you are in, as the canvas's folder chip beside the menu bar.
    *  Null in Global — there is no folder to name there. */
   scopeLabel?: string | null;
-}>();
+  /** True where the scope has no pane-tool cluster of its own (Global). A
+   *  workspace puts the rail toggle beside its files toggle, so the bar must
+   *  not carry a second one. */
+  showsTasksToggle?: boolean;
+  }>(),
+  // Explicit, not merely absent: Vue casts an unpassed boolean prop to false,
+  // which would silently strip the toggle from a bar that never opted out.
+  { scopeLabel: null, showsTasksToggle: true },
+);
 
 // The workspace-navigation views — a labeled segment, not a blind toggle, so
 // the off mode stays discoverable (the design's Tabs | Menu pair).
@@ -176,6 +185,7 @@ function onMenuCommand(id: string) {
         >{{ props.scopeLabel ?? "Global" }}</span
       >
       <button
+        v-if="props.showsTasksToggle"
         type="button"
         aria-label="Toggle tasks"
         title="Show tasks"

@@ -50,6 +50,16 @@ describe("AppTitleBar", () => {
     expect(inWorkspace.text()).not.toContain("Global");
   });
 
+  // A workspace puts the rail toggle beside its own files toggle, so the bar
+  // must not carry a second one.
+  it("drops the tasks glyph where the scope has its own pane tools", () => {
+    expect(
+      mountTitleBar({ showsTasksToggle: false })
+        .find('[aria-label="Toggle tasks"]')
+        .exists(),
+    ).toBe(false);
+  });
+
   // The rail toggle rides WITH the folder chip — the rail is this scope's
   // work, so it sits beside the scope, not among the window controls.
   it("the tasks glyph commands toggle-tasks", async () => {
