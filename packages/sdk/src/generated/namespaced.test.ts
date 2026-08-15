@@ -300,6 +300,13 @@ describe('makeNamespaced — shape', () => {
       'rulesUser',
       'schedules',
       'schedulesUser',
+      // test: correct expectation — the canvas menu pass (3f0896b) added the
+      // per-section count routes, so the generator emits `sectionCounts`
+      // (GET /section-counts) and its workspace-scoped twin. Real routes:
+      // `sectionCountsApp` / `sectionCountsWorkspaceApp` in local-api's
+      // app.ts. The list was simply never updated with them.
+      'sectionCounts',
+      'sectionCountsWorkspace',
       // test: correct expectation — Phase D2 added `serverInstall` (the
       // remote-engine provisioning routes).
       'serverInstall',
