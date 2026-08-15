@@ -35,6 +35,11 @@ export const StartCallRequestSchema = z.object({
   mode: CallModeSchema.default('notetaker'),
   /** The user's goal for the call, in their words — primes the call session. */
   goal: z.string().trim().min(1).max(2000).optional(),
+  /** Windows driver-path ears scoping: the call app's process id. With it the
+   *  call hears that app (+ child processes) only; without it, all system
+   *  audio except Vynel's own (echo-free either way). Ignored for two-device
+   *  cable pairs, which hear through their capture device. */
+  capturePid: z.number().int().positive().optional(),
 })
 
 /** The daemon's descriptor shape, validated at this boundary. */

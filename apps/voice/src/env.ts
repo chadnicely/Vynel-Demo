@@ -63,6 +63,12 @@ function buildEnvSchema(portBase: number) {
   VYNEL_CALL_OUTPUT_DEVICE: z.string().min(1).optional(),
   VYNEL_CALL_INPUT_DEVICE_2: z.string().min(1).optional(),
   VYNEL_CALL_OUTPUT_DEVICE_2: z.string().min(1).optional(),
+  // How many runtime null-sink cable pairs the daemon creates at boot on
+  // Linux (PipeWire/PulseAudio — no driver, no install; the modules vanish
+  // with the daemon and stale ones are reaped at the next boot). 0 disables.
+  // Ignored on Windows/macOS, where pairs come from discovery or the env
+  // pairs above.
+  VYNEL_CALL_LINUX_PAIRS: z.coerce.number().int().min(0).max(8).default(2),
   // Silence (ms) in an active conversation before falling back asleep.
   VYNEL_VOICE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   // Loopback port for the browser Jarvis-view channel (SSE wake/state events).

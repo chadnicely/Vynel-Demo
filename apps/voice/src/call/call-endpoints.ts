@@ -45,6 +45,7 @@ export function createCallEndpoints(roster: CallRoster, voice: CallVoice, logger
         label?: unknown
         mode?: unknown
         sessionId?: unknown
+        capturePid?: unknown
       } | null
       // sessionId is FUNCTIONAL (it wires the brain), so an invalid one 400s
       // rather than coercing — a typo must not silently start a brainless call.
@@ -66,9 +67,24 @@ export function createCallEndpoints(roster: CallRoster, voice: CallVoice, logger
         return c.json({ error: "mode must be 'notetaker' or 'participant'" }, 400)
       }
       const mode: CallMode = body?.mode === 'participant' ? 'participant' : 'notetaker'
+      // capturePid targets the call app for a loopback-ears pair (the Windows
+      // driver path). FUNCTIONAL — a bad value 400s rather than coercing, so a
+      // typo never silently makes the call deaf.
+      if (
+        body?.capturePid !== undefined &&
+        (typeof body.capturePid !== 'number' || !Number.isInteger(body.capturePid) || body.capturePid <= 0)
+      ) {
+        return c.json({ error: 'capturePid must be a positive integer when given' }, 400)
+      }
+      const capturePid = typeof body?.capturePid === 'number' ? body.capturePid : undefined
       try {
         return c.json(
-          roster.startCall({ label, mode, ...(sessionId !== undefined ? { sessionId } : {}) }),
+          roster.startCall({
+            label,
+            mode,
+            ...(sessionId !== undefined ? { sessionId } : {}),
+            ...(capturePid !== undefined ? { capturePid } : {}),
+          }),
         )
       } catch (error) {
         return respondRegistryError(c, error, logger)

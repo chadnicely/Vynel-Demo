@@ -1,7 +1,45 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-15.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-16.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ 2026-08-16 VIRTUAL-AUDIO-DRIVER — ARC COMPLETE, MERGED TO MAIN
+
+**Read `docs/module-notes/virtual-audio-driver.md` — it is the whole story** (P0 research → branded
+ACX driver → loopback cable → ears addon → registry integration → local signing → hardware smoke →
+endpoint naming → format tolerance → conductor `capturePid`). 22 commits off
+`worktree-virtual-audio-driver`, merged here; **all three filed follow-ups CLOSED**. Items that
+outlived the arc are filed in `.claude/docs/call-audio/followup.md`. Toolchain: EWDK ISO at
+`E:\KLONE\Workspace\Toolchains\` (mount to build; `sign/Sign-Driver.ps1` signs with our own cert;
+`devcon` copied there too).
+
+**Runtime-verified on Chad's machine (driver 0.1.0.4, test-signing on):** loads via `devcon install
+ROOT\VynelCallAudio`, no BSOD, shows as **"Vynel Call 1 Voice (Vynel Audio)"** +
+**"Vynel Call 1 Microphone (Vynel Audio)"**, and `smoke-cable.mjs` PASSES on **pitch** — 436.4 Hz
+for a played 440, within 1%. (An amplitude-only smoke had passed a driver that was really folding
+stereo to mono at half pitch; the pitch check is why we know it carries audio.) Both ends open at
+48 kHz; the ring stores canonical mono and folds/replicates per channel count. Registry
+auto-discovery claims the pair by contract name, with the `vynelcallaudio` marker + render probe
+kept as the pre-rename fallback. Windows ears = process-loopback **exclude-self** (no pid, no app
+detection, echo-free) — live-verified; `start_call` takes an optional `capturePid` to scope to one
+app.
+
+**⚠ The driver is still LOADED on Chad's machine, with test-signing ON and Secure Boot OFF.** To
+undo: `devcon remove ROOT\VynelCallAudio`, then turn test-signing back off and re-enable Secure Boot.
+
+**Merge verification (2026-08-16):** one conflict (CHANGELOG, both sides appended under
+`[Unreleased]`) resolved as a union, and the branch's own entries corrected — they still claimed the
+cable "isn't wired into calls yet" and needed a VM pass. The three generated artifacts auto-merged
+textually; `pnpm api:generate` reproduced them **byte-identical**, so the auto-merge was real.
+5/5 parity guards · 49/49 turbo typecheck at the seam · 840 vitest green across `apps/voice` +
+`apps/local-api` + `packages/sdk`. Full `pnpm test` NOT run (CPU rule — Kafi's call).
+
+**What's left is not code we can write today:** Partner Center + EV cert for community distribution
+(~$300-400/yr, registered business — local self-signing covers all our own build/test) · Mac
+hardware for P3 (macOS AudioServerPlugIn) · **N cable pairs for concurrent calls** — the one stated
+goal of the brief the arc did not reach (the driver publishes one pair; the registry is already
+N-shaped) — plus five smaller items, all in the call-audio register. A real end-to-end call still
+needs the voice daemon running with fetched models.
 
 ## 🔥 2026-08-14 WORKSPACE REDESIGN ARC — mirror seeded, plan settled, theme LANDED
 

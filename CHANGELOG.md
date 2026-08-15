@@ -9,6 +9,48 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A Windows call just hears itself — no cable, no setup.** When Vynel's own
+  audio device is installed, a call hears the meeting by capturing everything
+  playing on the machine *except Vynel's own voice* (so no echo) — no capture
+  cable, no picking which app, nothing to configure. Point it at one specific
+  app instead by passing its process, if you'd rather not capture other audio.
+  The existing device-cable setup (VB-Cable, Linux null-sinks) is unchanged.
+
+- **Vynel's own Windows call cable is real, and it carries a call.** The
+  virtual-audio driver is a working one-way cable, proven on real hardware:
+  audio played into **Vynel Call 1 Voice (Vynel Audio)** comes back out
+  **Vynel Call 1 Microphone (Vynel Audio)**, which a call app selects as its
+  microphone — so Vynel speaks into a meeting through a device it ships
+  itself, with no third-party cable to install. Paired with the per-app
+  capture above, a Windows call needs this one cable and nothing else. It
+  runs at 48 kHz and folds whatever channel layout an app asks for down and
+  back, so an app's format choice can't garble the audio, and it registers as
+  a line connector rather than a speaker, so Windows never quietly makes it
+  your default output. For now it carries Vynel's own test signature, which
+  covers our testing — putting it on other people's machines needs Microsoft
+  attestation signing, a separate step.
+
+- **On Windows, Vynel can hear a call with no cable to install.** A new native
+  module captures a single app's audio directly (Zoom, Teams, a Meet tab) —
+  the "ears" half of a meeting — so a Windows call needs only one virtual
+  cable for Vynel's voice, not two. Off-Windows or until the module is built,
+  Vynel falls back to a cable feed exactly as before.
+
+- **Vynel finds its own call cables.** Virtual audio devices named
+  `Vynel Call <n> Ears/Voice` are now claimed as call cable pairs
+  automatically, checked fresh at every call start — install a device and
+  the next call just uses it, no settings, no restart. The env-var cable
+  setup keeps working as the fallback, and two calls can never grab the
+  same cable end.
+
+- **On Linux, calls need zero audio setup.** The voice daemon now creates
+  its own virtual cable pairs when it starts (plain PipeWire/PulseAudio
+  null sinks — no driver, nothing installed) and removes them when it
+  exits; leftovers from a crash are cleaned up at the next start. Pick the
+  pair count with `VYNEL_CALL_LINUX_PAIRS` (default 2, `0` turns it off).
+  Real-Linux-box verification is still pending — recorded in the module
+  note.
+
 - **See everything Vynel is working on, at once.** A new **Nodes** word in the
   top bar opens a live picture of your whole fleet: every project is a dot
   orbiting the centre, and its colour says what is happening — purple while it

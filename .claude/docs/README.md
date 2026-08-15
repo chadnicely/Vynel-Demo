@@ -32,10 +32,11 @@ items for that unit, each stamped with how it was established (probed / reviewed
 so a known defect lives next to the code map instead of in a commit message nobody re-reads. Add one
 only when there is something real to record, and close an item by fixing it and deleting the entry.
 
-Two exist today: [`session-communication`](./session-communication/followup.md) and
-[`nodes`](./nodes/followup.md). **`nodes` has only that file** — its `overview.md` / `structure.md`
-pair is unwritten, and the folder stands as a marker that it is owed. A followup may legitimately
-arrive before the pair does; findings should not wait on documentation.
+Three exist today: [`session-communication`](./session-communication/followup.md),
+[`nodes`](./nodes/followup.md) and [`call-audio`](./call-audio/followup.md). **`nodes` and
+`call-audio` have only that file** — their `overview.md` / `structure.md` pairs are unwritten, and
+each folder stands as a marker that one is owed. A followup may legitimately arrive before the pair
+does; findings should not wait on documentation.
 
 ## The shape of the system
 
