@@ -27,6 +27,12 @@ Every module folder holds exactly two files:
 If you only need the idea, read `overview.md`. If you're about to change code, read `structure.md`.
 Each file ends with a provenance line stamping the date it was mapped.
 
+A unit may carry one optional third file, **`followup.md`** — open bugs and deliberately-deferred
+items for that unit, each stamped with how it was established (probed / reviewed / read). It exists
+so a known defect lives next to the code map instead of in a commit message nobody re-reads. Add one
+only when there is something real to record, and close an item by fixing it and deleting the entry.
+Today only [`session-communication`](./session-communication/followup.md) has one.
+
 ## The shape of the system
 
 Vynel is a **modular monolith**: features are `@vynel/<feature>` packages over one shared
@@ -117,7 +123,7 @@ The "one brain, many hands" backbone: everything is a session; roots delegate to
 | `session` | The Session primitive + the turn runtime (reaches the model only through the provider seam) + delegation composition. | [overview](./session/overview.md) · [structure](./session/structure.md) |
 | `agents` | Agent definitions — curated seed + `AgentRow`→SDK mapping + per-session composition + the `.claude/agents/` disk mirror. | [overview](./agents/overview.md) · [structure](./agents/structure.md) |
 | `orchestration` | The delegation engine — the durable job queue, routing (request-down / report-up), the partial-session-id trace. | [overview](./orchestration/overview.md) · [structure](./orchestration/structure.md) |
-| `session-communication` | *(cross-cutting)* How sessions talk to each other — the one messaging verb, its four voices, ambient addressing, and the delivery pipeline. Spans the three rows above plus `chat` and the MCP layer. | [overview](./session-communication/overview.md) · [structure](./session-communication/structure.md) |
+| `session-communication` | *(cross-cutting)* How sessions talk to each other — the one messaging verb, its four voices, ambient addressing, and the delivery pipeline. Spans the three rows above plus `chat` and the MCP layer. | [overview](./session-communication/overview.md) · [structure](./session-communication/structure.md) · [followup](./session-communication/followup.md) |
 
 ## Part 1c — The hub (cloud)
 

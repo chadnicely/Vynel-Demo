@@ -2,7 +2,7 @@
 
 > How Vynel's sessions talk to each other: one messaging verb that carries a task down the tree, an interim update back up, a final report to whoever asked, or an answer addressed straight to the user — always asynchronously, never with an address the model chose.
 >
-> **Status:** shipped · **Depends on:** [session](../session/overview.md), [orchestration](../orchestration/overview.md), [chat](../chat/overview.md), [_apps/mcp](../_apps/mcp/overview.md), [_apps/local-api](../_apps/local-api/overview.md) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped · **Depends on:** [session](../session/overview.md), [orchestration](../orchestration/overview.md), [chat](../chat/overview.md), [_apps/mcp](../_apps/mcp/overview.md), [_apps/local-api](../_apps/local-api/overview.md) · **Code map:** [structure.md](./structure.md) · **Open items:** [followup.md](./followup.md)
 
 > **This is a cross-cutting doc.** Session communication is a *seam*, not a module — it owns no package and no table. It spans the messaging route in the app shell, the durable queue in [orchestration](../orchestration/overview.md), the turn runners in [session](../session/overview.md), the message markers and rendering in [chat](../chat/overview.md), and the tool exposure in [_apps/mcp](../_apps/mcp/overview.md). This file explains **how those pieces fit together and why**; each neighbor's own docs remain authoritative for what it owns.
 

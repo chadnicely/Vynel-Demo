@@ -1,6 +1,6 @@
 # Session Communication — Structure
 
-> The code map and connections for the session-messaging seam. For the concepts behind it, see [overview.md](./overview.md).
+> The code map and connections for the session-messaging seam. For the concepts behind it, see [overview.md](./overview.md); for what is still wrong or still owed, [followup.md](./followup.md).
 >
 > Folders touched: `apps/local-api/src/routes/routing/` · `apps/local-api/src/sessions/` (ambient headers + MCP composers) · `packages/orchestration/src/routing/` · `packages/orchestration/src/repositories/` · `packages/session/src/delegation/` · `packages/contracts/src/chat/` · `apps/mcp/src/` · `apps/local-web/src/components/chat/`
 
