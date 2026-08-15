@@ -179,7 +179,11 @@ describe('GET /chat/continuing', () => {
       const app = createApp({ db, logger: silentLogger })
       const res = await app.request(`/workspaces/${workspace.id}/chat/continuing`)
       expect(res.status).toBe(200)
-      expect(await res.json()).toEqual({ rootSessionId: null, currentSdkSessionId: null })
+      expect(await res.json()).toEqual({
+        rootSessionId: null,
+        currentSdkSessionId: null,
+        lastMessageAt: null,
+      })
     })
   })
 
@@ -197,6 +201,37 @@ describe('GET /chat/continuing', () => {
       expect(await res.json()).toEqual({
         rootSessionId: primary.id,
         currentSdkSessionId: null,
+        // A primary with no segment linked yet has never spoken.
+        lastMessageAt: null,
+      })
+    })
+  })
+
+  it("carries the current segment's clock — chatting is what makes a room read as running", async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const primary = await getOrCreatePrimarySession(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+      })
+      const spokeAt = new Date('2026-08-14T09:30:00.000Z')
+      const segment = insertChatSession(
+        db,
+        makeSession(user.id, workspace.id, { visibility: 'hidden', lastMessageAt: spokeAt }),
+      )
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: segment.id,
+      })
+      const app = createApp({ db, logger: silentLogger })
+
+      const res = await app.request(`/workspaces/${workspace.id}/chat/continuing`)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({
+        rootSessionId: primary.id,
+        currentSdkSessionId: segment.id,
+        lastMessageAt: spokeAt.toISOString(),
       })
     })
   })

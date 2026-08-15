@@ -10600,7 +10600,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ rootSessionId, currentSdkSessionId } — nulls when no root exists yet.",
+            "description": "{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no root exists yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10617,11 +10617,18 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "lastMessageAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "rootSessionId",
-                    "currentSdkSessionId"
+                    "currentSdkSessionId",
+                    "lastMessageAt"
                   ]
                 }
               }
@@ -29147,7 +29154,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "{ rootSessionId, currentSdkSessionId } — nulls when no global root exists yet.",
+            "description": "{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no global root exists yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -29164,11 +29171,18 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "lastMessageAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "rootSessionId",
-                    "currentSdkSessionId"
+                    "currentSdkSessionId",
+                    "lastMessageAt"
                   ]
                 }
               }

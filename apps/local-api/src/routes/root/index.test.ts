@@ -182,10 +182,14 @@ describe('GET /root/continuing', () => {
 
       const before = await app.request('/root/continuing')
       expect(before.status).toBe(200)
-      expect(await before.json()).toEqual({ rootSessionId: null, currentSdkSessionId: null })
+      expect(await before.json()).toEqual({
+        rootSessionId: null,
+        currentSdkSessionId: null,
+        lastMessageAt: null,
+      })
 
       const primary = await getOrCreatePrimarySession(db, { userId: user.id })
-      seedGlobalSession(db, user.id, 'g-1')
+      const session = seedGlobalSession(db, user.id, 'g-1')
       linkPrimarySessionToSdkSession(db, {
         primarySessionId: primary.id,
         userId: user.id,
@@ -193,7 +197,11 @@ describe('GET /root/continuing', () => {
       })
 
       const after = await app.request('/root/continuing')
-      expect(await after.json()).toEqual({ rootSessionId: primary.id, currentSdkSessionId: 'g-1' })
+      expect(await after.json()).toEqual({
+        rootSessionId: primary.id,
+        currentSdkSessionId: 'g-1',
+        lastMessageAt: session.lastMessageAt.toISOString(),
+      })
     })
   })
 })

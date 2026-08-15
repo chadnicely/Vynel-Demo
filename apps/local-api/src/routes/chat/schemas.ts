@@ -291,6 +291,7 @@ export const SearchChatSessionsResponseSchema = z.array(
 export const ContinuingConversationResponseSchema = z.object({
   rootSessionId: z.string().nullable(),
   currentSdkSessionId: z.string().nullable(),
+  lastMessageAt: z.string().nullable(),
 });
 
 export const ChatSessionDetailResponseSchema = z.object({

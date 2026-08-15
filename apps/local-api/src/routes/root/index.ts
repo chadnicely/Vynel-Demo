@@ -27,6 +27,7 @@ import {
 import { NotFoundError } from '@vynel/errors'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { getChatSessionDetail, interruptChatSession } from '@vynel/chat'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -71,7 +72,8 @@ export const rootApp = factory
       'x-sdk-name': 'root.getContinuing',
       responses: {
         200: {
-          description: '{ rootSessionId, currentSdkSessionId } — nulls when no global root exists yet.',
+          description:
+            '{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no global root exists yet.',
           content: {
             'application/json': { schema: resolver(ContinuingConversationResponseSchema) },
           },
@@ -83,9 +85,13 @@ export const rootApp = factory
     (c) => {
       // workspaceId omitted → the global root.
       const root = findPrimaryConversation(c.var.db, { userId: c.var.user.id })
+      const currentSessionId = root?.currentSdkSessionId ?? null
+      const current =
+        currentSessionId === null ? null : findChatSessionById(c.var.db, currentSessionId)
       return c.json({
         rootSessionId: root?.id ?? null,
-        currentSdkSessionId: root?.currentSdkSessionId ?? null,
+        currentSdkSessionId: currentSessionId,
+        lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
       })
     },
   )

@@ -230,6 +230,10 @@ export interface ChatContextReportResponse {
 export interface ContinuingConversationResponse {
   rootSessionId: string | null;
   currentSdkSessionId: string | null;
+  /** When the conversation last spoke — null until it has. Talking counts as
+   *  working: a room that chatted without ever planning steps still has to read
+   *  as running, and the step dock alone would call it idle. */
+  lastMessageAt: string | null;
 }
 
 /** Each row returned by `GET /sessions/search`. */

@@ -7984,7 +7984,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { rootSessionId, currentSdkSessionId } — nulls when no root exists yet. */
+            /** @description { rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no root exists yet. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7993,6 +7993,7 @@ export interface operations {
                     "application/json": {
                         rootSessionId: string | null;
                         currentSdkSessionId: string | null;
+                        lastMessageAt: string | null;
                     };
                 };
             };
@@ -15161,7 +15162,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description { rootSessionId, currentSdkSessionId } — nulls when no global root exists yet. */
+            /** @description { rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no global root exists yet. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15170,6 +15171,7 @@ export interface operations {
                     "application/json": {
                         rootSessionId: string | null;
                         currentSdkSessionId: string | null;
+                        lastMessageAt: string | null;
                     };
                 };
             };

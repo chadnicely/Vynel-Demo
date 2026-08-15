@@ -45,6 +45,7 @@ import {
   readAttachedImageBytes,
 } from '@vynel/chat'
 import { findPrimaryConversation } from '@vynel/session/continuity'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import { resolvePrimaryTranscript } from '@vynel/session/runtime'
 import {
   enrichChatSessionDetail,
@@ -154,7 +155,8 @@ export const chatApp = factory
       'x-sdk-name': 'chat.getContinuing',
       responses: {
         200: {
-          description: '{ rootSessionId, currentSdkSessionId } — nulls when no root exists yet.',
+          description:
+            '{ rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no root exists yet.',
           content: {
             'application/json': { schema: resolver(ContinuingConversationResponseSchema) },
           },
@@ -169,9 +171,16 @@ export const chatApp = factory
         userId: c.var.user.id,
         workspaceId: c.var.workspace!.id,
       })
+      // Talking counts as working: a room that chatted without ever planning
+      // steps still has to read as running, and the step dock alone would call
+      // it idle. The clock lives on the session the thread is currently on.
+      const currentSessionId = primary?.currentSdkSessionId ?? null
+      const current =
+        currentSessionId === null ? null : findChatSessionById(c.var.db, currentSessionId)
       return c.json({
         rootSessionId: primary?.id ?? null,
-        currentSdkSessionId: primary?.currentSdkSessionId ?? null,
+        currentSdkSessionId: currentSessionId,
+        lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
       })
     },
   )
