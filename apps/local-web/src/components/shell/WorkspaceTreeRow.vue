@@ -18,9 +18,12 @@ const props = defineProps<{
   workspace: { id: string; name: string };
   isActive: boolean;
   statusView: WorkspaceStatusView | null;
-  /** A folder member — the canvas indents the CONTENT (pad-left 24px) and
-   *  keeps the row box full-width, so the active ground still spans the
-   *  folder. Root rows sit at 10px. */
+  /** A folder member — the row box stays full-width so the active ground
+   *  still spans the folder, and only the CONTENT steps in. A SMALL step
+   *  (Kafi, 2026-08-15, against his reference sidebar): the folder header
+   *  above already says these are nested, so the rows read as one left rail
+   *  with it rather than a staircase. Was 24px, which cost half the column's
+   *  width to whitespace. Root rows sit at 10px. */
   indented?: boolean;
 }>();
 
@@ -65,7 +68,7 @@ function progressLabel(): string | null {
   <div
     class="group flex items-center rounded-sm pr-[11.2px] transition"
     :class="[
-      props.indented ? 'pl-[24px]' : 'pl-[10px]',
+      props.indented ? 'pl-[14px]' : 'pl-[10px]',
       props.isActive
         ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
         : 'text-ink-2 hover:bg-row-hover hover:text-ink-1',
