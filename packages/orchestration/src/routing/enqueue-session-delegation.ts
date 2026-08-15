@@ -41,6 +41,12 @@ export interface EnqueueSessionDelegationInput {
   model?: string
   /** The root's thinking-effort pick for the routed turn. Omit for the adaptive default. */
   thinkingEffort?: ThinkingEffortLevel
+  /** WHO handed this task down — the calling workspace, so the target's report
+   *  travels back to the conversation that asked instead of the session's own
+   *  grounding. Omit for a GLOBAL-root send: the root is the chain's terminus,
+   *  so "no requester recorded" already means "report to the root". The
+   *  `enqueueWorkspaceDelegation` / `enqueueAgentRun` sibling field. */
+  requesterWorkspaceId?: string
 }
 
 /** Enqueue a spawned-session delegation as a pending job and return its id. */
@@ -88,6 +94,7 @@ export function enqueueSessionDelegation(
     permissionMode: input.permissionMode ?? null,
     model: input.model ?? null,
     thinkingEffort: input.thinkingEffort ?? null,
+    requesterWorkspaceId: input.requesterWorkspaceId ?? null,
     createdAt: now,
   })
   return id

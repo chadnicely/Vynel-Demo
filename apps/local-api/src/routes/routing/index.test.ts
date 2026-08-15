@@ -1623,3 +1623,146 @@ describe('tool-first reporting (no double report)', () => {
     })
   })
 })
+
+// Reports travel to whoever ASKED — one rule for every caller kind (Chad,
+// 2026-08-16). Before this, "who asked" was never recorded on a task send: a
+// workspace-to-workspace task parented on the GLOBAL root and both the ack and
+// the result landed in the global conversation, and a workspace-tasked session
+// reported to its own grounding instead of the workspace that asked.
+describe('POST /routing/message → a task records WHO asked', () => {
+  function primer(sessionId: string): AiAgentProvider {
+    return {
+      startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+        return (async function* () {
+          yield {
+            kind: 'session-started',
+            sessionId,
+            resumedFromExisting: false,
+            startedAt: new Date(),
+          } as NormalizedSessionEvent
+          yield {
+            kind: 'session-completed',
+            sessionId,
+            isNewSession: true,
+            completedAt: new Date(),
+          } as NormalizedSessionEvent
+        })()
+      },
+    } as unknown as AiAgentProvider
+  }
+
+  // The tick stamps the job's requesterWorkspaceId as this header on the routed
+  // turn (pinned in run-delegation-claim-and-run-tick.test.ts); passing it here
+  // is that hop, simulated.
+  function speakUp(
+    app: ReturnType<typeof makeHarness>,
+    caller: ReportCaller,
+    kind: 'update' | 'report',
+    requesterOverrideId?: string,
+  ) {
+    return postJson(
+      app,
+      '/routing/message',
+      { to: 'requester', body: 'x', kind },
+      {
+        [REPORT_CALLER_HEADER]: serializeReportCaller(caller),
+        ...(requesterOverrideId !== undefined
+          ? { [REPORT_REQUESTER_HEADER]: requesterOverrideId }
+          : {}),
+      },
+    )
+  }
+
+  it('workspace → workspace: parents on the ASKING workspace and reports back to it', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const alpha = seedManagedWorkspace(db, user.id, 'Alpha')
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, alpha.id, 'ws-alpha')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, beta.id, 'ws-beta')
+      const app = makeHarness(db)
+
+      const task = await postJson(app, '/routing/message', {
+        to: `workspace:${beta.id}`,
+        body: 'audit the invoices',
+        workspaceId: alpha.id,
+      })
+      expect(task.status).toBe(200)
+      const taskJob = findDelegationJobById(db, ((await task.json()) as { jobId: string }).jobId)
+      // NOT 'g-1': the asking workspace is the provenance parent AND the requester.
+      expect(taskJob?.parentSessionId).toBe('ws-alpha')
+      expect(taskJob?.requesterWorkspaceId).toBe(alpha.id)
+
+      // Beta's ack and its result both land in Alpha's chat, not the root's.
+      const caller: ReportCaller = { kind: 'workspace-primary', workspaceId: beta.id }
+      for (const kind of ['update', 'report'] as const) {
+        const res = await speakUp(app, caller, kind, alpha.id)
+        expect(res.status).toBe(200)
+        const out = (await res.json()) as { deliveredTo: string; jobId: string }
+        expect(out.deliveredTo).toBe('Alpha')
+        expect(findDelegationJobById(db, out.jobId)?.workspaceId).toBe(alpha.id)
+      }
+    })
+  })
+
+  it('workspace → a GLOBAL-grounded session: the report goes to the workspace, not Global', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const home = seedManagedWorkspace(db, user.id, 'Home')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, home.id, 'ws-home')
+      const spawned = await createSpawnedSession(db, primer('sdk-ground'), {
+        userId: user.id,
+        name: 'Research: pricing',
+        purpose: 'compare pricing pages',
+        workspacePath: '/tmp/vynel/global-root',
+      })
+      const app = makeHarness(db)
+
+      const task = await postJson(app, '/routing/message', {
+        to: `session:${spawned.sessionId}`,
+        body: 'compare pricing',
+        workspaceId: home.id,
+      })
+      expect(task.status).toBe(200)
+      const taskJob = findDelegationJobById(db, ((await task.json()) as { jobId: string }).jobId)
+      expect(taskJob?.requesterWorkspaceId).toBe(home.id)
+
+      // The session is grounded in NO workspace — before, that alone sent its
+      // result to the global root and Home never heard back.
+      const res = await speakUp(
+        app,
+        { kind: 'spawned-session', targetPrimarySessionId: spawned.primarySessionId },
+        'report',
+        home.id,
+      )
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { deliveredTo: string; jobId: string }
+      expect(out.deliveredTo).toBe('Home')
+      expect(findDelegationJobById(db, out.jobId)?.workspaceId).toBe(home.id)
+    })
+  })
+
+  it('the global root records NO requester — that is how a chain terminates at the root', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const beta = seedManagedWorkspace(db, user.id, 'Beta')
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, beta.id, 'ws-beta-root')
+      const app = makeHarness(db)
+
+      const task = await postJson(app, '/routing/message', {
+        to: `workspace:${beta.id}`,
+        body: 'audit the invoices',
+      })
+      expect(task.status).toBe(200)
+      const taskJob = findDelegationJobById(db, ((await task.json()) as { jobId: string }).jobId)
+      expect(taskJob?.parentSessionId).toBe('g-1')
+      expect(taskJob?.requesterWorkspaceId).toBeNull()
+
+      // With nothing recorded, Beta's report terminates at the root as before.
+      const res = await speakUp(app, { kind: 'workspace-primary', workspaceId: beta.id }, 'report')
+      expect(((await res.json()) as { deliveredTo: string }).deliveredTo).toBe('Global')
+    })
+  })
+})
