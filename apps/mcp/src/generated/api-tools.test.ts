@@ -116,6 +116,7 @@ const EXPECTED_TOOL_NAMES = [
   'install_curated_agent',
   'get_ai_agent_provider_auth_status',
   'get_app_logs',
+  'get_background_process',
   'get_chat_session',
   'get_current_user',
   'get_feature',
@@ -127,6 +128,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_agents',
   'list_ai_agent_providers',
   'list_allowed_senders',
+  'kill_background_process',
   'list_apps',
   'list_available_chat_models',
   'list_available_skills',
@@ -141,6 +143,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_knowledge_sources',
   'list_memory_entries',
   'list_memory_tags',
+  'list_background_processes',
   'list_monitors',
   'list_my_channels',
   'list_my_journal_entries',
@@ -159,6 +162,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_workspace_groups',
   'install_marketplace_item',
   'remove_knowledge_source',
+  'run_background_process',
   'search_chat_messages',
   'search_knowledge',
   'search_memory',
@@ -203,10 +207,16 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   // The cross-session conversation reads (2026-08-10): rootSurface +
   // workspaceSurface — every tier reads any owned session's messages through
   // ONE tool pair; the global root's own thread is walled off route-side.
+  // The background-process quartet (Kafi, 2026-08-17): rootSurface +
+  // workspaceSurface — one name on every surface, the send_message rule; a
+  // background command is the same act from the brain or a workspace turn.
+  'get_background_process',
   'get_chat_session',
   // Renamed from get_background_run / list_background_runs (Kafi, 2026-08-17):
   // "background run" read as an OS/shell process; these read tasks you SENT.
   'get_delegated_task',
+  'kill_background_process',
+  'list_background_processes',
   'list_calls',
   'list_delegated_tasks',
   'list_global_monitors',
@@ -217,6 +227,7 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   // The channel pipeline (2026-07-27): the model replies to the conversation
   // that drove the turn — addressed by the server-stamped ambient origin.
   'reply_to_channel',
+  'run_background_process',
   // The cross-session search twin of get_chat_session (2026-08-10).
   'search_chat_messages',
   'send_message',

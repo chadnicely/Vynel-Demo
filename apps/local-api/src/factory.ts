@@ -22,6 +22,7 @@ import type { PayloadArchive as ServerPayloadArchive } from '@vynel/server-insta
 import type { FireScheduleDeps } from '@vynel/schedules'
 import type { PendingAskRegistry } from '@vynel/asks'
 import type { AppProcessSupervisor } from '@vynel/apps'
+import type { BackgroundProcessRunner } from '@vynel/processes'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
@@ -124,6 +125,11 @@ export interface AppEnv {
     // Set once at construction (`app.ts`); `server.ts` stopAll()s it on
     // shutdown so quitting Vynel never orphans a dev server.
     appSupervisor: AppProcessSupervisor
+    // The process-wide runner of BACKGROUND processes (one-shot commands whose
+    // exit wakes their owner via a monitor) — the app supervisor's one-shot
+    // sibling. Set once at construction (`app.ts`); boot sweeps orphans at
+    // start and killAll()s at shutdown.
+    processRunner: BackgroundProcessRunner
     // The ssh sealing master key (base64, 32 bytes) — resolved from the OS
     // keyring at boot by server.ts; null in generator/test contexts that
     // don't pass one (the ssh routes then refuse to seal/open credentials).

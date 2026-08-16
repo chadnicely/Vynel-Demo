@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can run commands in the background and get woken when they finish.**
+  `run_background_process` starts a shell command — a test suite, a build — that
+  keeps running after the conversation moves on, even across its pauses; when it
+  exits, the session that started it is woken with the exit code and the output
+  tail (a completion watch is armed automatically). Companion tools list, fetch,
+  and kill them; every process has a hard runtime ceiling, a restart settles
+  interrupted ones honestly, and starting one always asks for approval — it is
+  a shell command, and it cards like one.
+
 - **Sessions can now talk to each other without handing out work.** `send_message`
   gained `kind: "note"` — plain coordination between any two of your conversations
   ("when you finish, tell the planner session"; "I'm editing that file, leave it

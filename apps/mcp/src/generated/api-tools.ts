@@ -430,7 +430,7 @@ export const createFeature: McpToolFactory = (scope, app) =>
 export const createGlobalMonitor: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_global_monitor',
-    "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `schedule.run-failed` — A scheduled task errored during its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount.",
+    "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `schedule.run-failed` — A scheduled task errored during its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount.\n- `process.completed` — A background process exited cleanly (code 0) — the payload carries the output tail. run_background_process arms this watch for you automatically. Filterable: processId, workspaceId.\n- `process.failed` — A background process failed — a non-zero exit, a kill, a timeout, or a restart; the payload says which and carries the output tail. Filterable: processId, workspaceId.",
     {
     description: z.string(),
     eventTypes: z.array(z.string()),
@@ -513,7 +513,7 @@ export const createMemoryEntry: McpToolFactory = (scope, app) =>
 export const createMonitor: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_monitor',
-    "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `schedule.run-failed` — A scheduled task errored during its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount.",
+    "Arm a watch that wakes THIS conversation when something happens, so you can start something and get on with other work instead of polling. `description` says what you are waiting for in plain language — it is shown to you when the watch fires. `payloadFilter` narrows to one thing ({\"appId\": \"...\"}) using the filterable fields listed below. `mode` is \"once\" (the default — wake me the first time) or \"recurring\" (wake me every time). `expiresInMs` sets the deadline; it defaults to 24 hours and every monitor has one. Returns the monitor id for stopping it. NOTE: the wake starts a NEW turn on this conversation — it will not interrupt one already running.\n\n`eventTypes` must come from this list:\n- `task.completed` — A task on the user’s task list was marked done. Filterable: taskId, workspaceId, planId.\n- `plan.completed` — A dated plan was completed. Filterable: planId, workspaceId, planDate.\n- `app.started` — A workspace app was started and is running. Filterable: appId, workspaceId.\n- `app.stopped` — A workspace app was stopped. Filterable: appId, workspaceId.\n- `app.crashed` — A workspace app exited unexpectedly — watch this to react to a dev server dying. Filterable: appId, workspaceId.\n- `schedule.run-completed` — A scheduled task finished its run. Filterable: scheduleId, workspaceId.\n- `schedule.run-failed` — A scheduled task errored during its run. Filterable: scheduleId, workspaceId.\n- `agent.run-completed` — A configured agent finished a run. Filterable: agentId, workspaceId.\n- `knowledge.document-indexed` — A document finished indexing and is searchable — watch this before searching freshly added sources. Filterable: documentId, workspaceId.\n- `approval.user-resolved` — The user approved or denied an approval card. Filterable: approvalRequestId, workspaceId, resolutionKind.\n- `ask.resolved` — The user answered a question you asked them. Filterable: askId, workspaceId.\n- `channel.connected` — A channel (Telegram, Zoom) finished connecting. Filterable: channelId.\n- `channel.group-discovered` — The bot was added to a group chat and is waiting to be approved. Filterable: channelId, groupId.\n- `workspace.created` — A new workspace was created. Filterable: workspaceId.\n- `monitor.expired` — A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: \"0\"). Filterable: monitorId, workspaceId, firedCount.\n- `process.completed` — A background process exited cleanly (code 0) — the payload carries the output tail. run_background_process arms this watch for you automatically. Filterable: processId, workspaceId.\n- `process.failed` — A background process failed — a non-zero exit, a kill, a timeout, or a restart; the payload says which and carries the output tail. Filterable: processId, workspaceId.",
     {
     workspaceId: z.string(),
     description: z.string(),
@@ -1006,6 +1006,39 @@ export const getAppLogs: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getBackgroundProcess: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_background_process',
+    "Get one background process by its processId — status, exit code, and the output tail (live while it runs, final once it settled). Use it when you were woken with a result and need more of the output, or to check on a run mid-flight. Read-only.",
+    {
+    processId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/processes/{processId}'
+        pathStr = pathStr.replace('{processId}', encodeURIComponent(String(args['processId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const getChatSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_chat_session',
@@ -1418,6 +1451,39 @@ export const installMarketplaceItem: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const killBackgroundProcess: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'kill_background_process',
+    "End a running background process early — use it when you no longer need the result. Takes the processId from run_background_process or list_background_processes; the completion watch still fires, reporting it killed.",
+    {
+    processId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/processes/{processId}/kill'
+        pathStr = pathStr.replace('{processId}', encodeURIComponent(String(args['processId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const listAgents: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_agents',
@@ -1601,6 +1667,47 @@ export const listAvailableSkills: McpToolFactory = (scope, app) =>
         let pathStr = '/workspaces/{workspaceId}/skills/available'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listBackgroundProcesses: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_background_processes',
+    "List the background processes of this scope, newest first — each with its processId, status (running / succeeded / failed), exit code, and output tail. Check this instead of assuming a command finished. Optional `status` filters. Read-only.",
+    {
+    status: z.enum(['running', 'succeeded', 'failed']).optional(),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/processes'
+        const queryParams = new URLSearchParams()
+        for (const k of ['status', 'workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'GET' })
@@ -2875,6 +2982,47 @@ export const replyToChannel: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const runBackgroundProcess: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'run_background_process',
+    "Run a shell command in the BACKGROUND — it keeps running after this turn ends, and when it exits you are WOKEN with the exit code and the output tail (a completion watch is armed for you automatically). Use it for long work you should not sit through: test suites, builds, installs. The command runs at your scope’s folder (the workspace’s folder, or the global ground). `timeoutMs` is the runtime ceiling — the process is killed past it (default 30 minutes, max 24 hours). Returns IMMEDIATELY with { processId, status: \"running\" }; check on it with list_background_processes / get_background_process, end it early with kill_background_process. NOT for quick commands (use Bash — you get the answer in the same turn) and NOT for work another session should own (send_message a task).",
+    {
+    command: z.string(),
+    timeoutMs: z.number().optional(),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/processes'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['command', 'timeoutMs', 'workspaceId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const searchChatMessages: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'search_chat_messages',
@@ -3818,6 +3966,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   getAgent,
   getAiAgentProviderAuthStatus,
   getAppLogs,
+  getBackgroundProcess,
   getChatSession,
   getCurrentUser,
   getFeature,
@@ -3829,12 +3978,14 @@ export const generatedMcpTools: McpToolFactory[] = [
   getWorkspace,
   installCuratedAgent,
   installMarketplaceItem,
+  killBackgroundProcess,
   listAgents,
   listAiAgentProviders,
   listAllowedSenders,
   listApps,
   listAvailableChatModels,
   listAvailableSkills,
+  listBackgroundProcesses,
   listCapabilities,
   listChannels,
   listChatSessions,
@@ -3862,6 +4013,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   listWorkspaceGroups,
   listWorkspaces,
   removeKnowledgeSource,
+  runBackgroundProcess,
   searchChatMessages,
   searchKnowledge,
   searchMemory,
@@ -3889,8 +4041,11 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   createGlobalMonitor,
   createSession,
   endCall,
+  getBackgroundProcess,
   getChatSession,
   getDelegatedTask,
+  killBackgroundProcess,
+  listBackgroundProcesses,
   listCalls,
   listDelegatedTasks,
   listGlobalMonitors,
@@ -3899,6 +4054,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   listSessions,
   registerWorkspace,
   replyToChannel,
+  runBackgroundProcess,
   searchChatMessages,
   sendMessage,
   sendToChannel,

@@ -2093,6 +2093,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/processes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the background processes of the active scope, newest first. */
+        get: operations["getProcesses"];
+        put?: never;
+        /** Run a shell command in the background; the exit wakes this conversation. */
+        post: operations["postProcesses"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/processes/{processId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one background process, with its full output tail. */
+        get: operations["getProcessesByProcessId"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/processes/{processId}/kill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Kill a running background process. */
+        post: operations["postProcessesByProcessIdKill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/journal": {
         parameters: {
             query?: never;
@@ -11744,6 +11796,186 @@ export interface operations {
                 content?: never;
             };
             /** @description Monitor not found, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getProcesses: {
+        parameters: {
+            query?: {
+                status?: "running" | "succeeded" | "failed";
+                workspaceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of processes with status and output tails. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        processId: string;
+                        /** @enum {string} */
+                        status: "running" | "succeeded" | "failed";
+                        command: string;
+                        cwdPath: string;
+                        workspaceId: string | null;
+                        pid: number | null;
+                        exitCode: number | null;
+                        failureReason: string | null;
+                        outputTail: string | null;
+                        timeoutMs: number;
+                        startedAt: string;
+                        finishedAt: string | null;
+                    }[];
+                };
+            };
+        };
+    };
+    postProcesses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    command: string;
+                    timeoutMs?: number;
+                    workspaceId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The process, running, with the auto-armed completion watch. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        processId: string;
+                        /** @enum {string} */
+                        status: "running" | "succeeded" | "failed";
+                        command: string;
+                        cwdPath: string;
+                        workspaceId: string | null;
+                        pid: number | null;
+                        exitCode: number | null;
+                        failureReason: string | null;
+                        outputTail: string | null;
+                        timeoutMs: number;
+                        startedAt: string;
+                        finishedAt: string | null;
+                        monitorId: string | null;
+                    };
+                };
+            };
+            /** @description Validation error, or the running-process cap. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getProcessesByProcessId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                processId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The process. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        processId: string;
+                        /** @enum {string} */
+                        status: "running" | "succeeded" | "failed";
+                        command: string;
+                        cwdPath: string;
+                        workspaceId: string | null;
+                        pid: number | null;
+                        exitCode: number | null;
+                        failureReason: string | null;
+                        outputTail: string | null;
+                        timeoutMs: number;
+                        startedAt: string;
+                        finishedAt: string | null;
+                    };
+                };
+            };
+            /** @description Unknown process, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postProcessesByProcessIdKill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                processId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The process (settling as failed/killed). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        processId: string;
+                        /** @enum {string} */
+                        status: "running" | "succeeded" | "failed";
+                        command: string;
+                        cwdPath: string;
+                        workspaceId: string | null;
+                        pid: number | null;
+                        exitCode: number | null;
+                        failureReason: string | null;
+                        outputTail: string | null;
+                        timeoutMs: number;
+                        startedAt: string;
+                        finishedAt: string | null;
+                    };
+                };
+            };
+            /** @description The process already finished. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown process, or not owned. */
             404: {
                 headers: {
                     [name: string]: unknown;

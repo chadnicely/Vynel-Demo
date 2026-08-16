@@ -53,6 +53,8 @@ import { serverInstallApp } from './routes/server-install/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
 import { workspaceAppsApp } from './routes/workspace-apps/index.js'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
+import { BackgroundProcessRunner, settleBackgroundProcess } from '@vynel/processes'
+import { processesApp } from './routes/processes/index.js'
 import { approvalsApp, approvalRulesApp } from './routes/approvals/index.js'
 import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
@@ -166,6 +168,10 @@ export interface CreateAppOptions {
   // The workspace-app process supervisor — one per process. Injectable so a
   // test can inspect/stop the processes a route started; production omits it.
   readonly appSupervisor?: AppProcessSupervisor
+  // The background-process runner — one per process, same contract as the app
+  // supervisor above; a child's settle writes the row + outbox event through
+  // the leaf op.
+  readonly processRunner?: BackgroundProcessRunner
   // The ssh sealing master key (base64, 32 bytes) — `server.ts` resolves it
   // from the OS keyring at boot; omitted by generators/tests that don't need
   // ssh (the routes then answer that ssh is unavailable).
@@ -219,6 +225,27 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       logger: options.logger,
       onExit: (appId, outcome) => publishAppExitOutcome(options.db, { appId, ...outcome }),
     })
+  // The one-shot sibling: a settling child flips its row terminal and speaks
+  // process.completed/failed — which the owner's auto-armed monitor turns
+  // into a wake.
+  const processRunner =
+    options.processRunner ??
+    new BackgroundProcessRunner({
+      logger: options.logger,
+      onExit: (processId, outcome) =>
+        void settleBackgroundProcess(
+          options.db,
+          {
+            processId,
+            exitCode: outcome.exitCode,
+            ...(outcome.failureReason !== undefined
+              ? { failureReason: outcome.failureReason }
+              : {}),
+            outputTail: outcome.outputTail,
+          },
+          { logger: options.logger },
+        ),
+    })
 
   app.use('*', async (c, next) => {
     c.set('db', options.db)
@@ -232,6 +259,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('sessionTargetLocks', sessionTargetLocks)
     c.set('askWaiters', askWaiters)
     c.set('appSupervisor', appSupervisor)
+    c.set('processRunner', processRunner)
     c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)
     c.set('desktopActionsEnabled', options.desktopActionsEnabled ?? false)
     c.set('remoteEngine', options.remoteEngine ?? false)
@@ -336,6 +364,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/todos', todosApp)
   app.route('/plans', plansUserApp)
   app.route('/monitors', monitorsUserApp)
+  app.route('/processes', processesApp)
   app.route('/journal', journalUserApp)
   // `/asks` — the ask_user answering surface (always the user; the agent's
   // surface is the `vynel-ask` descriptor tool). Core plumbing, not gated.

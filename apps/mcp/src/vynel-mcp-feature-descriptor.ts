@@ -31,6 +31,7 @@ import {
   VYNEL_FEATURE_GATED_TOOLS,
   WORKSPACE_INTERACTIVE_TOOL_NAMES,
   WORKSPACE_TOOL_NAMES,
+  ALWAYS_CARD_TOOL_NAMES,
 } from './vynel-tool-gates.js'
 
 // The standing per-capability disciplines for a workspace turn. Each section
@@ -127,11 +128,18 @@ function toMcpScope(context: SessionToolContext): McpScope {
 }
 
 // The full route-derived registry for a WORKSPACE turn. `mutatingToolNames`
-// stays EMPTY (no vynel tool cards in EVERY mode); the ask-approval tier
-// (`generatedAskModeApprovalToolNames` — DELETE routes + x-mcp.askApproval)
-// cards in ask mode only, per Chad's 2026-07-26 approval stance.
+// carries EXACTLY ONE name: `run_background_process` executes arbitrary
+// shell, so it cards in EVERY mode — the same treatment the provider floor
+// gives Bash itself, which the floor cannot reach for an MCP-named tool.
+// Everything else stays out (no other vynel tool cards in every mode); the
+// ask-approval tier (`generatedAskModeApprovalToolNames` — DELETE routes +
+// x-mcp.askApproval) cards in ask mode only, per Chad's 2026-07-26 stance.
 // One prompt contribution for both workspace descriptors — the interactive
 // variant differs ONLY in its toolset, never in its standing guidance.
+// The every-mode card set — shell execution only; shared with the session
+// tool catalog so the policy layer's cardClass agrees (see vynel-tool-gates).
+const ALWAYS_CARDED_VYNEL_TOOL_NAMES = [...ALWAYS_CARD_TOOL_NAMES]
+
 const contributeWorkspacePrompt: NonNullable<McpFeatureDescriptor['contributePrompt']> = (
   _context,
   enabledCapabilityIds,
@@ -146,7 +154,7 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   toolNames: WORKSPACE_TOOL_NAMES,
   build: (context) => buildInProcessMcpServer(toMcpScope(context), context.appRequest),
-  mutatingToolNames: [],
+  mutatingToolNames: ALWAYS_CARDED_VYNEL_TOOL_NAMES,
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
   featureGatedTools: VYNEL_FEATURE_GATED_TOOLS,
@@ -165,12 +173,12 @@ export const vynelWorkspaceDescriptor: McpFeatureDescriptor = {
 // descriptor — a truly autonomous turn never gains spawning tools, and a
 // spawned session is the leaf, not a router. The spawning tools are
 // mutatingApproved-auto (Chad's "Claude manages freely" precedent, like the root
-// surface), so `mutatingToolNames` stays empty here too.
+// surface), so `mutatingToolNames` stays the shared shell-only set here too.
 export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   toolNames: WORKSPACE_INTERACTIVE_TOOL_NAMES,
   build: (context) => buildWorkspaceInteractiveMcpServer(toMcpScope(context), context.appRequest),
-  mutatingToolNames: [],
+  mutatingToolNames: ALWAYS_CARDED_VYNEL_TOOL_NAMES,
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   capabilityGatedTools: VYNEL_CAPABILITY_GATED_TOOLS,
   featureGatedTools: VYNEL_FEATURE_GATED_TOOLS,
@@ -193,7 +201,7 @@ export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   toolNames: ROUTING_TOOL_NAMES,
   build: (context) => buildGlobalRootMcpServer(toMcpScope(context), context.appRequest),
-  mutatingToolNames: [],
+  mutatingToolNames: ALWAYS_CARDED_VYNEL_TOOL_NAMES,
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   featureGatedTools: ROUTING_FEATURE_GATED_TOOLS,
   contributePrompt: () => TODOS_PROMPT_INSTRUCTIONS,

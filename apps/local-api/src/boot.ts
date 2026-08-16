@@ -23,6 +23,11 @@ import { expireAskRequests, PendingAskRegistry } from '@vynel/asks'
 import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { reapAllStartedChatToolCalls } from '@vynel/chat'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
+import {
+  BackgroundProcessRunner,
+  settleBackgroundProcess,
+  sweepOrphanedBackgroundProcesses,
+} from '@vynel/processes'
 import { FileWatcherService } from '@vynel/knowledge'
 import { createFileMasterKeyVault, resolveMasterKey } from '@vynel/sealing'
 import { hostname } from 'node:os'
@@ -154,6 +159,28 @@ export async function boot(): Promise<void> {
     onExit: (appId, outcome) => publishAppExitOutcome(db, { appId, ...outcome }),
   })
 
+  // The background-process runner (the supervisor's one-shot sibling). Sweep
+  // FIRST: at startup nothing is running, so every `running` row is a restart
+  // orphan — settle it and let its failure event fire, so a session whose
+  // monitor waits on `pnpm test` learns instead of waiting forever.
+  sweepOrphanedBackgroundProcesses(db, { logger })
+  const processRunner = new BackgroundProcessRunner({
+    logger,
+    onExit: (processId, outcome) =>
+      void settleBackgroundProcess(
+        db,
+        {
+          processId,
+          exitCode: outcome.exitCode,
+          ...(outcome.failureReason !== undefined
+            ? { failureReason: outcome.failureReason }
+            : {}),
+          outputTail: outcome.outputTail,
+        },
+        { logger },
+      ),
+  })
+
   // ONE turn-event pub/sub per process — the delegation service publishes a routed
   // turn's live events; the SSE observe route streams them to the Watch panel.
   const turnEvents = new TurnEventBroadcaster()
@@ -228,6 +255,7 @@ export async function boot(): Promise<void> {
     delegationCancels,
     sessionTargetLocks,
     appSupervisor,
+    processRunner,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
     sshMasterKeyBase64: sshMasterKey,
     desktopActionsEnabled: env.VYNEL_DESKTOP_ACT_ENABLED,
@@ -433,8 +461,13 @@ export async function boot(): Promise<void> {
       approvalsRecoveryService.stop()
       monitorsService.stop()
       outboxRelayService.stop()
-      // Quitting Vynel never orphans a dev server (docs/module-notes/apps.md).
+      // Quitting Vynel never orphans a dev server (docs/module-notes/apps.md)
+      // — nor a headless background command (Windows children outlive their
+      // parent; taskkill runs synchronously, so the trees die before exit).
+      // The killed rows settle at the NEXT boot's sweep as 'restart' — the
+      // settle callbacks are async and this handler exits first.
       void appSupervisor.stopAll()
+      processRunner.killAll()
       hubSessionService?.stop()
       catalogSyncService?.stop()
       desktopNotifications?.stop()

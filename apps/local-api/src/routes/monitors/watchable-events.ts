@@ -98,6 +98,18 @@ export const WATCHABLE_EVENT_TYPES: readonly WatchableEventType[] = [
       'A monitor reached its deadline. Watch this to learn that a watch you armed died without ever firing (filter firedCount: "0").',
     filterableFields: ['monitorId', 'workspaceId', 'firedCount'],
   },
+  {
+    type: 'process.completed',
+    description:
+      'A background process exited cleanly (code 0) — the payload carries the output tail. run_background_process arms this watch for you automatically.',
+    filterableFields: ['processId', 'workspaceId'],
+  },
+  {
+    type: 'process.failed',
+    description:
+      'A background process failed — a non-zero exit, a kill, a timeout, or a restart; the payload says which and carries the output tail.',
+    filterableFields: ['processId', 'workspaceId'],
+  },
 ]
 
 const WATCHABLE_TYPE_SET = new Set(WATCHABLE_EVENT_TYPES.map((entry) => entry.type))

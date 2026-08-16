@@ -24,6 +24,17 @@ RENAMED to `list_delegated_tasks`/`get_delegated_task` (Kafi: "background run" r
 process; routes now `/routing/delegated-tasks[/:jobId]`, orchestration query file
 `list-delegated-tasks.ts`, census pins + docs updated).
 
+**And the night's second feature — `@vynel/processes` (background processes):** Kafi's ask ("a
+session runs `pnpm test`, keeps working even paused, gets notified on completion") became a new leaf
+package — read `docs/module-notes/background-processes.md` for the whole story. Four tools
+(`run/list/get/kill_background_process`, ONE name on every surface), `background_processes` table
+(migration 0042), `BackgroundProcessRunner` (mechanical twin of apps' supervisor — sibling-import ban
++ Kafi's package-per-feature ruling = accepted duplication, cross-referenced in both files), exits
+co-commit `process.completed/failed`, and the run route AUTO-ARMS a monitor so the owner is WOKEN
+with the result (route test pins matcher-vs-real-event). `run_background_process` cards in EVERY
+mode (descriptors' `mutatingToolNames` — shell ≙ the Bash floor). Boot: sweep → runner → killAll at
+shutdown. Not yet: UI surface, live wake smoke.
+
 **Next steps here:** Kafi's workspace-manager pipeline note is still being written (`.notes/Workspace
 Manager.txt` — the manager NEVER does work itself, always routes; will need steering, not schema).
 Open register items: bug 1 (workspace task 400s when the calling workspace has no live primary),

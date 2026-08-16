@@ -293,6 +293,9 @@ describe('makeNamespaced — shape', () => {
       'phases',
       'plans',
       'plansUser',
+      // background processes (2026-08-17) — ONE door on every surface (the
+      // send_message rule), so a single namespace with no user twin.
+      'processes',
       'providers',
       'root',
       'routing',

@@ -1259,6 +1259,36 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  processes: {
+  get: async (processId: NonNullable<paths["/processes/{processId}"]["get"]['parameters']>['path']["processId"]) => {
+    const { data, error, response } = await client["GET"]("/processes/{processId}", {
+      params: { path: { processId: processId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  kill: async (processId: NonNullable<paths["/processes/{processId}/kill"]["post"]['parameters']>['path']["processId"]) => {
+    const { data, error, response } = await client["POST"]("/processes/{processId}/kill", {
+      params: { path: { processId: processId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async (options?: NonNullable<paths["/processes"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/processes", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  run: async (input: NonNullable<paths["/processes"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/processes", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   providers: {
   discoverInstalledSkills: async (providerId: NonNullable<paths["/providers/{providerId}/skills"]["get"]['parameters']>['path']["providerId"], options?: NonNullable<paths["/providers/{providerId}/skills"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/providers/{providerId}/skills", {

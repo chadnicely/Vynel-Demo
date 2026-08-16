@@ -17,6 +17,7 @@
 // toolName (the resolver's documented precondition).
 
 import {
+  ALWAYS_CARD_TOOL_NAMES,
   ROUTING_FEATURE_GATED_TOOLS,
   ROUTING_TOOL_NAMES,
   VYNEL_CAPABILITY_GATED_TOOLS,
@@ -151,7 +152,13 @@ function vynelSurfacesFor(toolName: string): SessionSurfaceKind[] {
   return [...surfaces]
 }
 
+// The every-mode tier first (shell-equivalent tools — ONE home with the vynel
+// descriptors' mutatingToolNames, see vynel-tool-gates): the policy layer's
+// strip-then-re-add makes THIS the value that actually cards a real turn.
+const ALWAYS_CARD_SET = new Set<string>(ALWAYS_CARD_TOOL_NAMES)
+
 function cardClassFor(toolName: string): ToolCardClass {
+  if (ALWAYS_CARD_SET.has(toolName)) return 'always'
   return ASK_CARD_TOOL_NAMES.has(toolName) ? 'ask' : 'never'
 }
 
