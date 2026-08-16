@@ -18,6 +18,12 @@ delivery WON over the 08-16 persist-no-turn lean because an idle spawned session
 turn to absorb; model/effort now 400 on every non-task kind — item 6 closed). Verified: 661/661
 local-api · 232 orchestration+session · 5/5 parity · full `pnpm test` NOT run (CPU rule).
 
+**Also this day:** full `pnpm test` gate GREEN (5117 tests, Kafi's call) · the naming pass — `note`
+kept over `message`/`text` (medium-vs-intent argument), and `list_background_runs`/`get_background_run`
+RENAMED to `list_delegated_tasks`/`get_delegated_task` (Kafi: "background run" reads as an OS/shell
+process; routes now `/routing/delegated-tasks[/:jobId]`, orchestration query file
+`list-delegated-tasks.ts`, census pins + docs updated).
+
 **Next steps here:** Kafi's workspace-manager pipeline note is still being written (`.notes/Workspace
 Manager.txt` — the manager NEVER does work itself, always routes; will need steering, not schema).
 Open register items: bug 1 (workspace task 400s when the calling workspace has no live primary),

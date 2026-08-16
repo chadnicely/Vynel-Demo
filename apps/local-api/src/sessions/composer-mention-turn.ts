@@ -83,7 +83,7 @@ function composeDispatchNote(
   ].join('; ')
   return (
     `Background mention dispatch (done by the system, not by you): ${dispatched} — each ` +
-    'was handed this same message as a background run and will speak its own ' +
+    'was handed this same message as a background task and will speak its own ' +
     'acknowledgment and report into this chat with send_message as it works. Do NOT ' +
     'duplicate, re-run, or re-delegate that work; handle the rest of the message ' +
     'yourself and tell the user the mentioned runs are underway.'

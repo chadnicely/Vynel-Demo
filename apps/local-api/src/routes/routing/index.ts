@@ -7,7 +7,7 @@
 //                                     report + update back up; kind-aware)
 //   GET  /routing/channels         -> list_routing_channels (read-safe; the send targets)
 //   POST /routing/send-to-channel  -> send_to_channel (a mutating MCP tool — proactive push, Ch4 §D)
-//   GET  /routing/background-runs  -> list_background_runs / get_background_run (read-safe)
+//   GET  /routing/delegated-tasks  -> list_delegated_tasks / get_delegated_task (read-safe)
 //
 // (The three original tools — send_task_to_workspace / send_task_to_session /
 // report_to_requester — were superseded by send_message and REMOVED after one
@@ -45,7 +45,7 @@
 import { resolver, validator } from 'hono-openapi/zod'
 import { listWorkspacesForUser } from '@vynel/workspaces'
 import { listChannelsForUser, sendToChannel, replyToChannelOrigin } from '@vynel/channels'
-import { listBackgroundRuns, getBackgroundRun } from '@vynel/orchestration'
+import { listDelegatedTasks, getDelegatedTask } from '@vynel/orchestration'
 import { NotFoundError, ValidationError } from '@vynel/errors'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -59,8 +59,8 @@ import {
   SendToChannelResponseSchema,
   SendMessageRequestSchema,
   SendMessageResponseSchema,
-  ListBackgroundRunsResponseSchema,
-  BackgroundRunDetailSchema,
+  ListDelegatedTasksResponseSchema,
+  DelegatedTaskDetailSchema,
 } from './schemas.js'
 import {
   parseDelegationOriginHeader,
@@ -247,82 +247,84 @@ export const routingApp = factory
     },
   )
   // ──────────────────────────────────────────────────────────────────
-  // GET /background-runs — read back the work this agent handed off
+  // GET /delegated-tasks — read back the work this agent handed off
   //
   // send_message returns `{ status: 'enqueued', jobId }`, and until these two
   // reads existed that jobId was a DEAD HANDLE — no tool accepted it. Both are
   // GETs over queries that already existed for the UI, so they add no approval
   // surface. `workspaceInteractiveSurface` because a workspace root delegates
   // too: the agent that can hand work off must be the agent that can read it
-  // back.
+  // back. RENAMED from "background runs" (Kafi, 2026-08-17): that phrase reads
+  // as an OS/shell background process, and there is no such thing here — a
+  // "run" is a queue row plus a turn on the target session's own conversation.
   // ──────────────────────────────────────────────────────────────────
   .get(
-    '/background-runs',
+    '/delegated-tasks',
     describeRoute({
       tags: ['routing'],
-      summary: 'List the work handed off to workspaces and sessions, newest first.',
-      'x-sdk-name': 'routing.listBackgroundRuns',
+      summary: 'List the tasks delegated to workspaces and sessions, newest first.',
+      'x-sdk-name': 'routing.listDelegatedTasks',
       responses: {
         200: {
-          description: 'Array of background runs with status, target, and a result preview.',
+          description: 'Array of delegated tasks with status, target, and a result preview.',
           content: {
-            'application/json': { schema: resolver(ListBackgroundRunsResponseSchema) },
+            'application/json': { schema: resolver(ListDelegatedTasksResponseSchema) },
           },
         },
       },
       'x-mcp': {
         exposed: true,
-        name: 'list_background_runs',
+        name: 'list_delegated_tasks',
         workspaceInteractiveSurface: true,
         description:
           'List the tasks you handed off with send_message, ' +
           'newest first — each with its jobId, status (queued / running / completed / failed), ' +
           'where it went, and a preview of what it reported back. Use this to check on work you ' +
-          "started earlier instead of assuming it finished, and to find the jobId of a run you " +
+          'started earlier instead of assuming it finished, and to find the jobId of a task you ' +
           'want the full result for. Read-only.',
       },
     }),
     ...userScoped,
-    (c) => c.json(listBackgroundRuns(c.var.db, { userId: c.var.user.id })),
+    (c) => c.json(listDelegatedTasks(c.var.db, { userId: c.var.user.id })),
   )
   // ──────────────────────────────────────────────────────────────────
-  // GET /background-runs/:jobId — one run, with its FULL result text
+  // GET /delegated-tasks/:jobId — one task, with its FULL result text
   // ──────────────────────────────────────────────────────────────────
   .get(
-    '/background-runs/:jobId',
+    '/delegated-tasks/:jobId',
     describeRoute({
       tags: ['routing'],
-      summary: 'Get one background run, with the full text it reported back.',
-      'x-sdk-name': 'routing.getBackgroundRun',
+      summary: 'Get one delegated task, with the full text it reported back.',
+      'x-sdk-name': 'routing.getDelegatedTask',
       responses: {
         200: {
-          description: 'The run, with its complete result and the task as handed off.',
+          description: 'The task, with its complete result and the text as handed off.',
           content: {
-            'application/json': { schema: resolver(BackgroundRunDetailSchema) },
+            'application/json': { schema: resolver(DelegatedTaskDetailSchema) },
           },
         },
-        404: { description: 'Unknown run, or not owned by this user.' },
+        404: { description: 'Unknown task, or not owned by this user.' },
       },
       'x-mcp': {
         exposed: true,
-        name: 'get_background_run',
+        name: 'get_delegated_task',
         workspaceInteractiveSurface: true,
         description:
           'Get one handed-off task by its jobId — its status and the FULL text it reported back ' +
-          '(list_background_runs shows only a preview). Use it when a run has completed and you ' +
+          '(list_delegated_tasks shows only a preview). Use it when a task has completed and you ' +
           'need its actual result, or when it failed and you need the error. Read-only.',
       },
     }),
     ...userScoped,
     (c) => {
-      const run = getBackgroundRun(c.var.db, {
+      const task = getDelegatedTask(c.var.db, {
         userId: c.var.user.id,
         jobId: c.req.param('jobId'),
       })
       // Unknown and not-owned are the SAME 404 — a probe must not be able to
       // tell them apart (the query returns null for both).
-      if (run === null) throw new NotFoundError('Background run not found')
-      return c.json(run)
+      if (task === null) throw new NotFoundError('Delegated task not found')
+      return c.json(task)
     },
   )
   // ──────────────────────────────────────────────────────────────────
@@ -401,7 +403,7 @@ export const routingApp = factory
           'report/direct_to_user per task.\n\n' +
           'Returns IMMEDIATELY with { status: "enqueued", jobId }; the other session picks the ' +
           'message up in its own conversation shortly. Track a task you sent with ' +
-          'list_background_runs / get_background_run. Speaking upward only works on a ' +
+          'list_delegated_tasks / get_delegated_task. Speaking upward only works on a ' +
           'background (delegated) turn — if there is no requester, just reply with your ' +
           'findings as text. For a TASK you may pick `model` (legal ids from ' +
           'list_available_chat_models) and `thinkingEffort`; omit both for the defaults — ' +

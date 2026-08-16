@@ -684,7 +684,7 @@ export async function runDelegationClaimAndRunTick(
       // ALWAYS surfaced now — the root's catch-up net injects resultText,
       // which would be the capture leaking back through another door. A
       // silent child therefore delivers nothing; the chip settles and
-      // get_background_run answers status pulls. FAILED rows keep the
+      // get_delegated_task answers status pulls. FAILED rows keep the
       // catch-up: a failure note is status, not capture, and the root must
       // learn the task died. ONE exception (kind `direct_to_user`): a final
       // answer that went straight to the user runs NO notify turn, so the row

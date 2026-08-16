@@ -31666,11 +31666,11 @@
         }
       }
     },
-    "/routing/background-runs": {
+    "/routing/delegated-tasks": {
       "get": {
         "responses": {
           "200": {
-            "description": "Array of background runs with status, target, and a result preview.",
+            "description": "Array of delegated tasks with status, target, and a result preview.",
             "content": {
               "application/json": {
                 "schema": {
@@ -31741,26 +31741,26 @@
             }
           }
         },
-        "operationId": "getRoutingBackground-runs",
+        "operationId": "getRoutingDelegated-tasks",
         "tags": [
           "routing"
         ],
         "parameters": [],
-        "summary": "List the work handed off to workspaces and sessions, newest first.",
-        "x-sdk-name": "routing.listBackgroundRuns",
+        "summary": "List the tasks delegated to workspaces and sessions, newest first.",
+        "x-sdk-name": "routing.listDelegatedTasks",
         "x-mcp": {
           "exposed": true,
-          "name": "list_background_runs",
+          "name": "list_delegated_tasks",
           "workspaceInteractiveSurface": true,
-          "description": "List the tasks you handed off with send_message, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a run you want the full result for. Read-only."
+          "description": "List the tasks you handed off with send_message, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a task you want the full result for. Read-only."
         }
       }
     },
-    "/routing/background-runs/{jobId}": {
+    "/routing/delegated-tasks/{jobId}": {
       "get": {
         "responses": {
           "200": {
-            "description": "The run, with its complete result and the task as handed off.",
+            "description": "The task, with its complete result and the text as handed off.",
             "content": {
               "application/json": {
                 "schema": {
@@ -31832,10 +31832,10 @@
             }
           },
           "404": {
-            "description": "Unknown run, or not owned by this user."
+            "description": "Unknown task, or not owned by this user."
           }
         },
-        "operationId": "getRoutingBackground-runsByJobId",
+        "operationId": "getRoutingDelegated-tasksByJobId",
         "tags": [
           "routing"
         ],
@@ -31849,13 +31849,13 @@
             "required": true
           }
         ],
-        "summary": "Get one background run, with the full text it reported back.",
-        "x-sdk-name": "routing.getBackgroundRun",
+        "summary": "Get one delegated task, with the full text it reported back.",
+        "x-sdk-name": "routing.getDelegatedTask",
         "x-mcp": {
           "exposed": true,
-          "name": "get_background_run",
+          "name": "get_delegated_task",
           "workspaceInteractiveSurface": true,
-          "description": "Get one handed-off task by its jobId — its status and the FULL text it reported back (list_background_runs shows only a preview). Use it when a run has completed and you need its actual result, or when it failed and you need the error. Read-only."
+          "description": "Get one handed-off task by its jobId — its status and the FULL text it reported back (list_delegated_tasks shows only a preview). Use it when a task has completed and you need its actual result, or when it failed and you need the error. Read-only."
         }
       }
     },
@@ -31919,7 +31919,7 @@
           "name": "send_message",
           "mutatingApproved": true,
           "workspaceSurface": true,
-          "description": "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to one of YOUR OWN sessions or agent colleagues (ids from list_sessions). A task only reaches sessions you created: for another workspace's session, send the task to that workspace instead and let its manager route it.\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor a workspace/session target, `kind` \"note\" sends plain COMMUNICATION instead of work — coordination like \"when you finish, tell the planner session\" or \"I am editing that file, leave it alone\". A note may address ANY of your workspaces or sessions (no own-session restriction), creates no task, expects no report, and is not tracked; the receiver absorbs it and replies with a note only if yours asks for one. Never use a note to hand out work.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result addressed to whoever sent you the work — findings, numbers, paths, not just \"done\" (default; marks the task finished), `\"direct_to_user\"` = the FINAL result addressed to the USER themselves: it appears in their conversation as YOUR message, verbatim and never summarized, under a short `title` you must provide (the headline on the message box). Prefer \"direct_to_user\" whenever the user should read the answer itself — an overview, findings, a document, anything they asked to see — and \"report\" when the requester will act on it. Send exactly one final report/direct_to_user per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a TASK you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults — they are rejected on any other kind."
+          "description": "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to one of YOUR OWN sessions or agent colleagues (ids from list_sessions). A task only reaches sessions you created: for another workspace's session, send the task to that workspace instead and let its manager route it.\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor a workspace/session target, `kind` \"note\" sends plain COMMUNICATION instead of work — coordination like \"when you finish, tell the planner session\" or \"I am editing that file, leave it alone\". A note may address ANY of your workspaces or sessions (no own-session restriction), creates no task, expects no report, and is not tracked; the receiver absorbs it and replies with a note only if yours asks for one. Never use a note to hand out work.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result addressed to whoever sent you the work — findings, numbers, paths, not just \"done\" (default; marks the task finished), `\"direct_to_user\"` = the FINAL result addressed to the USER themselves: it appears in their conversation as YOUR message, verbatim and never summarized, under a short `title` you must provide (the headline on the message box). Prefer \"direct_to_user\" whenever the user should read the answer itself — an overview, findings, a document, anything they asked to see — and \"report\" when the requester will act on it. Send exactly one final report/direct_to_user per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_delegated_tasks / get_delegated_task. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a TASK you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults — they are rejected on any other kind."
         },
         "requestBody": {
           "content": {

@@ -3282,15 +3282,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/routing/background-runs": {
+    "/routing/delegated-tasks": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List the work handed off to workspaces and sessions, newest first. */
-        get: operations["getRoutingBackground-runs"];
+        /** List the tasks delegated to workspaces and sessions, newest first. */
+        get: operations["getRoutingDelegated-tasks"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3299,15 +3299,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/routing/background-runs/{jobId}": {
+    "/routing/delegated-tasks/{jobId}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get one background run, with the full text it reported back. */
-        get: operations["getRoutingBackground-runsByJobId"];
+        /** Get one delegated task, with the full text it reported back. */
+        get: operations["getRoutingDelegated-tasksByJobId"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15928,7 +15928,7 @@ export interface operations {
             };
         };
     };
-    "getRoutingBackground-runs": {
+    "getRoutingDelegated-tasks": {
         parameters: {
             query?: never;
             header?: never;
@@ -15937,7 +15937,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Array of background runs with status, target, and a result preview. */
+            /** @description Array of delegated tasks with status, target, and a result preview. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15959,7 +15959,7 @@ export interface operations {
             };
         };
     };
-    "getRoutingBackground-runsByJobId": {
+    "getRoutingDelegated-tasksByJobId": {
         parameters: {
             query?: never;
             header?: never;
@@ -15970,7 +15970,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The run, with its complete result and the task as handed off. */
+            /** @description The task, with its complete result and the text as handed off. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15991,7 +15991,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Unknown run, or not owned by this user. */
+            /** @description Unknown task, or not owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;

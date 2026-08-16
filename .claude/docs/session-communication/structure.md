@@ -14,7 +14,7 @@ This layer **owns no package and no table.** It is the addressing + delivery pol
 
 | Path | Role |
 |---|---|
-| ► `apps/local-api/src/routes/routing/index.ts` | the `routing` HTTP surface; `POST /message` is `send_message` — destination/kind cross-validation then a six-way dispatch. Also `GET /workspaces`, `GET /channels`, `POST /send-to-channel`, `POST /reply-to-channel`, `GET /background-runs[/:jobId]` |
+| ► `apps/local-api/src/routes/routing/index.ts` | the `routing` HTTP surface; `POST /message` is `send_message` — destination/kind cross-validation then a six-way dispatch. Also `GET /workspaces`, `GET /channels`, `POST /send-to-channel`, `POST /reply-to-channel`, `GET /delegated-tasks[/:jobId]` |
 | ► `apps/local-api/src/routes/routing/dispatch-message.ts` | the task + upward dispatch cores — one home so the resolutions can never drift; `resolveTaskSender` answers WHO hands a task down and `dispatchTaskToSession` enforces the OWN-CHILD rule (target grounding must equal the calling scope) |
 | `apps/local-api/src/routes/routing/resolve-upward-sender.ts` | the "who asked" addressing core, split out 2026-08-17 (`71f7146`, the register's known-clean split): `resolveUpwardSender` + `toResolvedRequester` + the requester rule, byte-for-byte |
 | `apps/local-api/src/routes/routing/dispatch-note.ts` | the NOTE dispatch (the lateral kind): `resolveNoteSender` (ambient-first — caller header names a delegated speaker precisely, interactive turns fall back to scope), the self-note guards, marker composition at enqueue |
@@ -58,7 +58,7 @@ None of these are in the OpenAPI contract. They are internal, server-stamped per
 | `replacePendingDelegationJobBody` (L243–259) | the in-place coalesce; CAS on `status='pending'` |
 | `markDelegationJobReported` (L515–520) | idempotent — first stamp wins |
 | `requeueOrphanedClaimedReportDeliveries` (L579–593) | boot reap; a report body is the only copy of a result, so deliveries requeue rather than die |
-| `listRecentDelegationJobsForUser` (L449–467) | `list_background_runs` — **task rows only** |
+| `listRecentDelegationJobsForUser` (L449–467) | `list_delegated_tasks` — **task rows only** (renamed from `list_background_runs`, Kafi 2026-08-17: the phrase read as an OS/shell process) |
 | `listDelegationJobsByThread` (L475–510) | one chain, oldest first |
 | `listDelegationJobsSince` (L600–617) | **every** kind — the node screen draws an edge whenever two conversations talk |
 
@@ -97,7 +97,7 @@ None of these are in the OpenAPI contract. They are internal, server-stamped per
 | `targetPrimarySessionId` | the target session/colleague | always `NULL` — leaves send messages, never receive them | the target session/colleague |
 | `requesterWorkspaceId` | who asked | — | the **sender's** workspace; `NULL` = a global sender (the nodes "from" end) |
 
-Row invariant: a `task` row and a `note` row each carry exactly one target. A delivery row is the **only** kind permitted to carry no target at all (both null = the global root). `WORK_JOB_KINDS` (`['task','agent-run']`) is the **positive** membership home beside `DELIVERY_JOB_KINDS`: background runs, the in-flight list, the root catch-up, the give-up push, and tool-card labels all filter on it, so a non-work kind like `note` stays out of every tracking view mechanically.
+Row invariant: a `task` row and a `note` row each carry exactly one target. A delivery row is the **only** kind permitted to carry no target at all (both null = the global root). `WORK_JOB_KINDS` (`['task','agent-run']`) is the **positive** membership home beside `DELIVERY_JOB_KINDS`: the delegated-task reads, the in-flight list, the root catch-up, the give-up push, and tool-card labels all filter on it, so a non-work kind like `note` stays out of every tracking view mechanically.
 
 Columns this seam depends on, and where they came from:
 
@@ -145,8 +145,8 @@ Mounted at `/routing` (`apps/local-api/src/app.ts:377`), user-scoped middleware 
 | GET | `/routing/channels` | channel targets | `list_routing_channels` |
 | POST | `/routing/send-to-channel` | proactive channel push | `send_to_channel` |
 | POST | `/routing/reply-to-channel` | answer the channel conversation that drove this turn | `reply_to_channel` |
-| GET | `/routing/background-runs` | what you handed off | `list_background_runs` |
-| GET | `/routing/background-runs/:jobId` | one run, full result text | `get_background_run` |
+| GET | `/routing/delegated-tasks` | what you handed off | `list_delegated_tasks` |
+| GET | `/routing/delegated-tasks/:jobId` | one task, full result text | `get_delegated_task` |
 
 ### `POST /routing/message` contract
 

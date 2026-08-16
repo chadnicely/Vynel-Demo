@@ -153,15 +153,16 @@ export {
   type MessageEdgeDirection,
 } from './queries/list-recent-message-edges.js'
 
-// What an AGENT can read back about the work it handed off — the reads that make
-// the `jobId` from send_task_to_workspace / send_task_to_session usable.
+// What an AGENT can read back about the work it handed off — the reads that
+// make the `jobId` from a send_message task usable. Renamed from "background
+// runs" (Kafi, 2026-08-17): nothing here is an OS/shell background process.
 export {
-  listBackgroundRuns,
-  getBackgroundRun,
-  type BackgroundRun,
-  type BackgroundRunDetail,
-  type BackgroundRunStatus,
-} from './queries/list-background-runs.js'
+  listDelegatedTasks,
+  getDelegatedTask,
+  type DelegatedTask,
+  type DelegatedTaskDetail,
+  type DelegatedTaskStatus,
+} from './queries/list-delegated-tasks.js'
 
 // LLM-native routing (Slice 4): the request-down / report-up coordinator the
 // global-root routing MCP tool invokes. Pure — the composing tier injects the

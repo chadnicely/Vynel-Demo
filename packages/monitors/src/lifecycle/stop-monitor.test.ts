@@ -45,7 +45,7 @@ describe('stopMonitor', () => {
   })
 
   // Unknown and not-owned must be indistinguishable, or the error confirms that
-  // a monitor id exists (the get_background_run precedent).
+  // a monitor id exists (the get_delegated_task precedent).
   it("treats another user's monitor exactly like an unknown one", async () => {
     await withTestDatabase((db) => {
       const owner = seedUserWorkspace(db)

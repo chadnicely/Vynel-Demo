@@ -18,7 +18,7 @@ export function stopMonitor(
 ): Monitor {
   const existing = monitorsRepository.findMonitorById(db, input.monitorId)
   // Unknown and not-owned are the SAME NotFound — a monitor id must not be
-  // confirmable by probing (the get_background_run precedent).
+  // confirmable by probing (the get_delegated_task precedent).
   if (existing === null || existing.userId !== input.userId) {
     throw new NotFoundError('Monitor not found')
   }

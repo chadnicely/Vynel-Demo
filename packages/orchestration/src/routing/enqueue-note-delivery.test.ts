@@ -105,7 +105,7 @@ describe('enqueueNoteDelivery', () => {
     })
   })
 
-  it('a note is invisible to every tracking view (background runs, in-flight)', async () => {
+  it('a note is invisible to every tracking view (delegated tasks, in-flight)', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))

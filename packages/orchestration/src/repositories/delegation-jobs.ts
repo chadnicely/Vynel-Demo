@@ -440,7 +440,7 @@ export function listInFlightDelegationsForUser(
 }
 
 // The user's delegated work, newest-first, across EVERY status — what the agent
-// that enqueued a task can read back about it (`list_background_runs`). The
+// that enqueued a task can read back about it (`list_delegated_tasks`). The
 // in-flight and unsurfaced-terminal queries above each answer one narrow
 // question for one consumer; this one answers "what did I hand off, and where
 // did it get to", so it spans queued → running → finished in a single list.

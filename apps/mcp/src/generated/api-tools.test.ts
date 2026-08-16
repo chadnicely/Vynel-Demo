@@ -200,13 +200,15 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   // Voice-in-calls (merged 2026-08-13): the call lifecycle rides the ROOT
   // surface — the brain joins, lists and leaves calls; speak predates them.
   'end_call',
-  'get_background_run',
   // The cross-session conversation reads (2026-08-10): rootSurface +
   // workspaceSurface — every tier reads any owned session's messages through
   // ONE tool pair; the global root's own thread is walled off route-side.
   'get_chat_session',
-  'list_background_runs',
+  // Renamed from get_background_run / list_background_runs (Kafi, 2026-08-17):
+  // "background run" read as an OS/shell process; these read tasks you SENT.
+  'get_delegated_task',
   'list_calls',
+  'list_delegated_tasks',
   'list_global_monitors',
   'list_routing_channels',
   'list_routing_workspaces',
@@ -239,8 +241,8 @@ const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
   'create_session',
   // The agent that can hand work off must be the agent that can read it back —
   // a workspace root delegates via send_message, so it needs these too.
-  'get_background_run',
-  'list_background_runs',
+  'get_delegated_task',
+  'list_delegated_tasks',
   'list_sessions',
 ] as const
 

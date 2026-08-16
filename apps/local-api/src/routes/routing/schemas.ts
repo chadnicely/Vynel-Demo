@@ -129,15 +129,17 @@ export const SendMessageResponseSchema = z.object({
   kind: z.enum(['task', 'note', 'report', 'update', 'direct_to_user']),
 })
 
-// ── Background runs (reading back a handed-off task) ────────────────
+// ── Delegated tasks (reading back a handed-off task) ────────────────
+// Renamed from "background runs" (Kafi, 2026-08-17): that phrase reads as an
+// OS/shell background process; what these actually read is a task you SENT.
 
 /** The agent-facing status vocabulary — NOT the queue's storage union
  *  (`claimed` describes a compare-and-swap and means nothing to a model). */
-const BackgroundRunStatusSchema = z.enum(['queued', 'running', 'completed', 'failed'])
+const DelegatedTaskStatusSchema = z.enum(['queued', 'running', 'completed', 'failed'])
 
-export const BackgroundRunSchema = z.object({
+export const DelegatedTaskSchema = z.object({
   jobId: z.string(),
-  status: BackgroundRunStatusSchema,
+  status: DelegatedTaskStatusSchema,
   target: z.string(),
   taskLabel: z.string(),
   partialSessionId: z.string().nullable(),
@@ -147,9 +149,9 @@ export const BackgroundRunSchema = z.object({
   errorMessage: z.string().nullable(),
 })
 
-export const ListBackgroundRunsResponseSchema = z.array(BackgroundRunSchema)
+export const ListDelegatedTasksResponseSchema = z.array(DelegatedTaskSchema)
 
-export const BackgroundRunDetailSchema = BackgroundRunSchema.omit({ resultPreview: true }).extend({
+export const DelegatedTaskDetailSchema = DelegatedTaskSchema.omit({ resultPreview: true }).extend({
   result: z.string().nullable(),
   taskText: z.string(),
 })

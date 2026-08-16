@@ -1,4 +1,4 @@
-// Tests for `listBackgroundRuns` / `getBackgroundRun` — the reads that make the
+// Tests for `listDelegatedTasks` / `getDelegatedTask` — the reads that make the
 // jobId from send_task_to_workspace usable. Real SQLite. Pins the agent-facing
 // status vocabulary, the preview/full-text split, tenant scoping, and the
 // exclusion of report-delivery rows (the notify mechanism, not handed-off work).
@@ -14,7 +14,7 @@ import {
   type DelegationJobKind,
   type DelegationJobStatus,
 } from '../repositories/index.js'
-import { getBackgroundRun, listBackgroundRuns } from './list-background-runs.js'
+import { getDelegatedTask, listDelegatedTasks } from './list-delegated-tasks.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -83,7 +83,7 @@ function seedJob(
   return id
 }
 
-describe('listBackgroundRuns', () => {
+describe('listDelegatedTasks', () => {
   // `claimed` is the queue's compare-and-swap word; it means nothing to a model
   // reading its own task list.
   it('maps queue statuses to the agent-facing vocabulary', async () => {
@@ -96,7 +96,7 @@ describe('listBackgroundRuns', () => {
       seedJob(db, { ...base, status: 'completed', resultText: 'all done' })
       seedJob(db, { ...base, status: 'failed', errorMessage: 'it broke' })
 
-      const runs = listBackgroundRuns(db, { userId: user.id })
+      const runs = listDelegatedTasks(db, { userId: user.id })
 
       expect(runs.map((r) => r.status).sort()).toEqual([
         'completed',
@@ -116,14 +116,14 @@ describe('listBackgroundRuns', () => {
       seedJob(db, { ...base, status: 'completed', taskText: 'older', createdAt: new Date(1_000) })
       seedJob(db, { ...base, status: 'pending', taskText: 'newer', createdAt: new Date(2_000) })
 
-      const runs = listBackgroundRuns(db, { userId: user.id })
+      const runs = listDelegatedTasks(db, { userId: user.id })
 
       expect(runs.map((r) => r.taskLabel)).toEqual(['newer', 'older'])
     })
   })
 
   // A list read must not be able to flood the agent's context; the full text is
-  // one get_background_run away.
+  // one get_delegated_task away.
   it('truncates a long result in the list but serves it whole from the detail read', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())
@@ -137,11 +137,11 @@ describe('listBackgroundRuns', () => {
         resultText: longResult,
       })
 
-      const [listed] = listBackgroundRuns(db, { userId: user.id })
+      const [listed] = listDelegatedTasks(db, { userId: user.id })
       expect(listed!.resultPreview!.length).toBeLessThan(longResult.length)
       expect(listed!.resultPreview!.endsWith('…')).toBe(true)
 
-      expect(getBackgroundRun(db, { userId: user.id, jobId })!.result).toBe(longResult)
+      expect(getDelegatedTask(db, { userId: user.id, jobId })!.result).toBe(longResult)
     })
   })
 
@@ -166,8 +166,8 @@ describe('listBackgroundRuns', () => {
         jobKind: 'task',
       })
 
-      expect(listBackgroundRuns(db, { userId: user.id })).toHaveLength(1)
-      expect(getBackgroundRun(db, { userId: user.id, jobId: deliveryId })).toBeNull()
+      expect(listDelegatedTasks(db, { userId: user.id })).toHaveLength(1)
+      expect(getDelegatedTask(db, { userId: user.id, jobId: deliveryId })).toBeNull()
     })
   })
 
@@ -181,12 +181,12 @@ describe('listBackgroundRuns', () => {
         status: 'pending',
       })
 
-      expect(listBackgroundRuns(db, { userId: user.id })[0]!.target).toBe('Session')
+      expect(listDelegatedTasks(db, { userId: user.id })[0]!.target).toBe('Session')
     })
   })
 })
 
-describe('getBackgroundRun', () => {
+describe('getDelegatedTask', () => {
   // Unknown and not-owned must be indistinguishable — the route maps both to one
   // 404, so a probe can't confirm a job id exists.
   it("returns null for another user's run, exactly as for an unknown id", async () => {
@@ -202,9 +202,9 @@ describe('getBackgroundRun', () => {
         resultText: 'private findings',
       })
 
-      expect(getBackgroundRun(db, { userId: stranger.id, jobId })).toBeNull()
-      expect(getBackgroundRun(db, { userId: stranger.id, jobId: randomUUID() })).toBeNull()
-      expect(getBackgroundRun(db, { userId: owner.id, jobId })).not.toBeNull()
+      expect(getDelegatedTask(db, { userId: stranger.id, jobId })).toBeNull()
+      expect(getDelegatedTask(db, { userId: stranger.id, jobId: randomUUID() })).toBeNull()
+      expect(getDelegatedTask(db, { userId: owner.id, jobId })).not.toBeNull()
     })
   })
 
@@ -221,7 +221,7 @@ describe('getBackgroundRun', () => {
         errorMessage: 'timed-out after 600000ms',
       })
 
-      const run = getBackgroundRun(db, { userId: user.id, jobId })!
+      const run = getDelegatedTask(db, { userId: user.id, jobId })!
 
       expect(run.status).toBe('failed')
       expect(run.errorMessage).toBe('timed-out after 600000ms')

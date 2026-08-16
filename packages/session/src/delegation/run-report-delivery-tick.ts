@@ -397,7 +397,7 @@ export async function runReportDeliveryJob(
       // A transient notify-turn failure (provider down, rate limit) requeues —
       // the report body is the ONLY copy of the child's result; before this a
       // failed delivery row was permanently invisible (excluded from both the
-      // catch-up net and list_background_runs). A stop never retries.
+      // catch-up net and list_delegated_tasks). A stop never retries.
       if (
         cancelHandle?.isCancelRequested() ||
         !requeueIfRecoverable(db, claimed, reason, deps.logger, queueLabel)

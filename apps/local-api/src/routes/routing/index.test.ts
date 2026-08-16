@@ -1293,7 +1293,7 @@ describe('POST /routing/message → kind direct_to_user (direct messages to the 
   })
 })
 
-describe('GET /routing/background-runs (reading back a handed-off task)', () => {
+describe('GET /routing/delegated-tasks (reading back a handed-off task)', () => {
   it('lists a delegated task as a run the agent can read, keyed by the jobId it was given', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
@@ -1309,7 +1309,7 @@ describe('GET /routing/background-runs (reading back a handed-off task)', () => 
       })
       const { jobId } = (await delegated.json()) as { jobId: string }
 
-      const res = await app.request('/routing/background-runs')
+      const res = await app.request('/routing/delegated-tasks')
       expect(res.status).toBe(200)
       const runs = (await res.json()) as { jobId: string; status: string; target: string }[]
       expect(runs).toHaveLength(1)
@@ -1330,7 +1330,7 @@ describe('GET /routing/background-runs (reading back a handed-off task)', () => 
       })
       const { jobId } = (await delegated.json()) as { jobId: string }
 
-      const res = await app.request(`/routing/background-runs/${jobId}`)
+      const res = await app.request(`/routing/delegated-tasks/${jobId}`)
       expect(res.status).toBe(200)
       expect(await res.json()).toMatchObject({
         jobId,
@@ -1343,7 +1343,7 @@ describe('GET /routing/background-runs (reading back a handed-off task)', () => 
 
   // An unknown id must 404 rather than 500 or leak. The OTHER half of this rule
   // — that a run owned by someone else is indistinguishable from an unknown one
-  // — is pinned a layer down in `list-background-runs.test.ts`, where a second
+  // — is pinned a layer down in `list-delegated-tasks.test.ts`, where a second
   // user's job can be seeded directly (this harness resolves one local user, and
   // widening the package's public API to seed one here isn't worth it).
   it('404s an unknown run', async () => {
@@ -1352,7 +1352,7 @@ describe('GET /routing/background-runs (reading back a handed-off task)', () => 
       seedWorkspace(db, user.id)
       const app = makeHarness(db)
 
-      const res = await app.request(`/routing/background-runs/${randomUUID()}`)
+      const res = await app.request(`/routing/delegated-tasks/${randomUUID()}`)
       expect(res.status).toBe(404)
     })
   })

@@ -1006,39 +1006,6 @@ export const getAppLogs: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
-export const getBackgroundRun: McpToolFactory = (scope, app) =>
-  (tool as unknown as McpToolFn)(
-    'get_background_run',
-    "Get one handed-off task by its jobId — its status and the FULL text it reported back (list_background_runs shows only a preview). Use it when a run has completed and you need its actual result, or when it failed and you need the error. Read-only.",
-    {
-    jobId: z.string(),
-  },
-    async (args: Record<string, unknown>) => {
-      try {
-        let pathStr = '/routing/background-runs/{jobId}'
-        pathStr = pathStr.replace('{jobId}', encodeURIComponent(String(args['jobId'] ?? '')))
-        const queryStr = ''
-        const requestBody: string | undefined = undefined
-        const url = pathStr + (queryStr ? '?' + queryStr : '')
-        const response = await app(url, { method: 'GET' })
-        const bodyText = await response.text()
-        if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
-            isError: true,
-          }
-        }
-        return { content: [{ type: 'text', text: bodyText }] }
-      } catch (err) {
-        return {
-          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-          isError: true,
-        }
-      }
-    },
-    { annotations: { readOnlyHint: true } },
-  )
-
 export const getChatSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_chat_session',
@@ -1080,6 +1047,39 @@ export const getCurrentUser: McpToolFactory = (scope, app) =>
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/users/me'
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const getDelegatedTask: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_delegated_task',
+    "Get one handed-off task by its jobId — its status and the FULL text it reported back (list_delegated_tasks shows only a preview). Use it when a task has completed and you need its actual result, or when it failed and you need the error. Read-only.",
+    {
+    jobId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/routing/delegated-tasks/{jobId}'
+        pathStr = pathStr.replace('{jobId}', encodeURIComponent(String(args['jobId'] ?? '')))
         const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -1622,36 +1622,6 @@ export const listAvailableSkills: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
-export const listBackgroundRuns: McpToolFactory = (scope, app) =>
-  (tool as unknown as McpToolFn)(
-    'list_background_runs',
-    "List the tasks you handed off with send_message, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a run you want the full result for. Read-only.",
-    {},
-    async (args: Record<string, unknown>) => {
-      try {
-        const pathStr = '/routing/background-runs'
-        const queryStr = ''
-        const requestBody: string | undefined = undefined
-        const url = pathStr + (queryStr ? '?' + queryStr : '')
-        const response = await app(url, { method: 'GET' })
-        const bodyText = await response.text()
-        if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
-            isError: true,
-          }
-        }
-        return { content: [{ type: 'text', text: bodyText }] }
-      } catch (err) {
-        return {
-          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-          isError: true,
-        }
-      }
-    },
-    { annotations: { readOnlyHint: true } },
-  )
-
 export const listCalls: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_calls',
@@ -1796,6 +1766,36 @@ export const listCuratedAgents: McpToolFactory = (scope, app) =>
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/agents/curated'
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listDelegatedTasks: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_delegated_tasks',
+    "List the tasks you handed off with send_message, newest first — each with its jobId, status (queued / running / completed / failed), where it went, and a preview of what it reported back. Use this to check on work you started earlier instead of assuming it finished, and to find the jobId of a task you want the full result for. Read-only.",
+    {},
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/routing/delegated-tasks'
         const queryStr = ''
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
@@ -3000,7 +3000,7 @@ export const searchMemory: McpToolFactory = (scope, app) =>
 export const sendMessage: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'send_message',
-    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to one of YOUR OWN sessions or agent colleagues (ids from list_sessions). A task only reaches sessions you created: for another workspace's session, send the task to that workspace instead and let its manager route it.\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor a workspace/session target, `kind` \"note\" sends plain COMMUNICATION instead of work — coordination like \"when you finish, tell the planner session\" or \"I am editing that file, leave it alone\". A note may address ANY of your workspaces or sessions (no own-session restriction), creates no task, expects no report, and is not tracked; the receiver absorbs it and replies with a note only if yours asks for one. Never use a note to hand out work.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result addressed to whoever sent you the work — findings, numbers, paths, not just \"done\" (default; marks the task finished), `\"direct_to_user\"` = the FINAL result addressed to the USER themselves: it appears in their conversation as YOUR message, verbatim and never summarized, under a short `title` you must provide (the headline on the message box). Prefer \"direct_to_user\" whenever the user should read the answer itself — an overview, findings, a document, anything they asked to see — and \"report\" when the requester will act on it. Send exactly one final report/direct_to_user per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_background_runs / get_background_run. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a TASK you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults — they are rejected on any other kind.",
+    "Send a message to another session. This is how sessions talk to each other — use it instead of describing what you would like to happen.\n\n`to` is one of:\n- `\"workspace:<workspaceId>\"` — hand a task down to a workspace (ids from list_routing_workspaces).\n- `\"session:<sessionId>\"` — hand a task to one of YOUR OWN sessions or agent colleagues (ids from list_sessions). A task only reaches sessions you created: for another workspace's session, send the task to that workspace instead and let its manager route it.\n- `\"requester\"` — speak back up to whoever asked you for this work. You never name them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\nFor a workspace/session target, `kind` \"note\" sends plain COMMUNICATION instead of work — coordination like \"when you finish, tell the planner session\" or \"I am editing that file, leave it alone\". A note may address ANY of your workspaces or sessions (no own-session restriction), creates no task, expects no report, and is not tracked; the receiver absorbs it and replies with a note only if yours asks for one. Never use a note to hand out work.\n\nFor \"requester\", `kind` picks the voice: `\"update\"` = an interim acknowledgment or progress line (\"Received — starting now\"; the task stays running), `\"report\"` = the FINAL result addressed to whoever sent you the work — findings, numbers, paths, not just \"done\" (default; marks the task finished), `\"direct_to_user\"` = the FINAL result addressed to the USER themselves: it appears in their conversation as YOUR message, verbatim and never summarized, under a short `title` you must provide (the headline on the message box). Prefer \"direct_to_user\" whenever the user should read the answer itself — an overview, findings, a document, anything they asked to see — and \"report\" when the requester will act on it. Send exactly one final report/direct_to_user per task.\n\nReturns IMMEDIATELY with { status: \"enqueued\", jobId }; the other session picks the message up in its own conversation shortly. Track a task you sent with list_delegated_tasks / get_delegated_task. Speaking upward only works on a background (delegated) turn — if there is no requester, just reply with your findings as text. For a TASK you may pick `model` (legal ids from list_available_chat_models) and `thinkingEffort`; omit both for the defaults — they are rejected on any other kind.",
     {
     to: z.string(),
     body: z.string(),
@@ -3889,10 +3889,10 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   createGlobalMonitor,
   createSession,
   endCall,
-  getBackgroundRun,
   getChatSession,
-  listBackgroundRuns,
+  getDelegatedTask,
   listCalls,
+  listDelegatedTasks,
   listGlobalMonitors,
   listRoutingChannels,
   listRoutingWorkspaces,
@@ -3914,8 +3914,8 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
 // fires and spawned-session targets never see it.
 export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   createSession,
-  getBackgroundRun,
-  listBackgroundRuns,
+  getDelegatedTask,
+  listDelegatedTasks,
   listSessions,
 ]
 

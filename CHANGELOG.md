@@ -33,6 +33,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   a root-assigned task's report could land in a workspace chat that never asked.
 - **`model`/`thinkingEffort` on a non-task message are now rejected** instead of
   being silently ignored on reports and updates.
+- **"Background runs" are now called what they are: delegated tasks.** The
+  read-back tools renamed to `list_delegated_tasks` / `get_delegated_task`
+  (routes `/routing/delegated-tasks[/:jobId]`) — the old name read like an
+  OS shell process running in the background, when what it lists is the tasks
+  you handed to other sessions.
 
 ### Fixed
 
