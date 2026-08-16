@@ -12,17 +12,30 @@ import type { CallSessionClient } from './call-session-client.js'
 
 // One live call's conversation loop: Cable-B segments → transcript → the pure
 // turn policy → the per-call session → spoken reply into the call sink.
-// Duplex by construction — call audio is NEVER gated on Vynel speaking (Cable B
-// is physically echo-free), and speech is cut, not queued behind:
-//   participant (1:1): any incoming speech cancels the in-flight line BEFORE
-//     transcription (snappy); every real utterance runs a turn, latest wins.
+// Duplex by construction — call audio is NEVER gated on Vynel speaking (the
+// capture side is echo-free), and speech is cut, not queued behind:
+//   participant (1:1): a real utterance cancels the in-flight line and runs a
+//     turn, latest wins. The cut happens AFTER transcription, never on raw VAD
+//     segments — the ears hear every sound the machine plays (far-end noise,
+//     dings, Vynel's own words echoed back off the far end's speaker), and
+//     cutting on sound alone made Vynel chop itself mid-sentence on a live
+//     Meet call. The price is one STT pass of barge-in latency.
 //   notetaker (group): cross-talk must not cut — only an ADDRESSED utterance
 //     cancels + responds; everything else batches into note flushes the session
 //     answers with the 'noted' sentinel unless it judges it should speak up.
+// Both modes drop transcripts that are echoes of recently spoken lines (the
+// far-end speaker→mic loop returns them as "user" speech — policy home:
+// isEchoOfSpokenLine).
 
 const NOTE_BATCH_SIZE = 8
 const NOTE_BATCH_MS = 60_000
 const CALL_TURN_FAILED_LINE = 'Sorry — I hit a problem with that.'
+// How long past the end of playback a line's echo can still arrive: the call
+// round-trip + the far end's speaker→mic pickup + VAD closing the segment.
+const ECHO_RETURN_WINDOW_MS = 4_000
+// Echoes only ever mirror the freshest lines — a short memory keeps the
+// swallow-a-genuine-parrot cost bounded.
+const ECHO_MEMORY_LINES = 4
 
 export interface CallConversationDeps {
   readonly logger: Logger
@@ -46,6 +59,7 @@ export class CallConversation {
   #pendingDirectLines: string[] = []
   #notes: string[] = []
   #noteFlushTimer: ReturnType<typeof setTimeout> | null = null
+  #recentSpokenLines: { line: string; hearableUntil: number }[] = []
   #stopped = false
 
   constructor(deps: CallConversationDeps) {
@@ -58,9 +72,6 @@ export class CallConversation {
     if (this.#stopped) return
     const segments = this.#deps.vad.push(audio)
     if (segments.length === 0) return
-    if (this.#deps.mode === 'participant' && this.#deps.lineSpeaker.isSpeaking) {
-      this.#deps.lineSpeaker.cancel()
-    }
     this.#segmentQueue.push(...segments)
     void this.#drainSegmentQueue()
   }
@@ -115,7 +126,16 @@ export class CallConversation {
     // must not run a turn into the dead call's session (it would leak into
     // the end-of-call report).
     if (this.#stopped) return
-    const decision = decideCallUtterance(this.#deps.mode, transcript, this.#deps.assistantName)
+    const now = performance.now()
+    const recentLines = this.#recentSpokenLines
+      .filter((spoken) => spoken.hearableUntil > now)
+      .map((spoken) => spoken.line)
+    const decision = decideCallUtterance(
+      this.#deps.mode,
+      transcript,
+      this.#deps.assistantName,
+      recentLines,
+    )
     if (decision.kind === 'ignore') return
     if (decision.kind === 'note') {
       this.#recordNote(transcript)
@@ -234,6 +254,12 @@ export class CallConversation {
   }
 
   async #speak(text: string): Promise<void> {
+    // Hearable from the first sample until the window past the END of playback
+    // (an echo of the line's start can return while its tail still plays) —
+    // the open bound closes when speakLine resolves, drained or cancelled.
+    const spoken = { line: text, hearableUntil: Number.POSITIVE_INFINITY }
+    this.#recentSpokenLines.push(spoken)
+    if (this.#recentSpokenLines.length > ECHO_MEMORY_LINES) this.#recentSpokenLines.shift()
     try {
       await this.#deps.lineSpeaker.speakLine(text)
     } catch (error) {
@@ -241,6 +267,8 @@ export class CallConversation {
         { callId: this.#deps.callId, error: error instanceof Error ? error.message : String(error) },
         'call speech failed — the line was not heard',
       )
+    } finally {
+      spoken.hearableUntil = performance.now() + ECHO_RETURN_WINDOW_MS
     }
   }
 

@@ -126,24 +126,70 @@ describe('CallConversation — participant mode', () => {
     expect(harness.spokenSentences).toEqual(['Checking.', 'All green.'])
   })
 
-  it('incoming speech cuts the in-flight line and the newest utterance wins', async () => {
+  // Expectation corrected 2026-08-16: the cut moved from raw VAD segments to
+  // post-transcription — cutting on sound alone let far-end noise and Vynel's
+  // own echo chop its lines mid-sentence on a live Meet call.
+  it('a transcribed utterance cuts the in-flight line and the newest one wins', async () => {
     const harness = conversationHarness({
       mode: 'participant',
       transcripts: { 1: 'first question', 2: 'actually, different question' },
       turnReplies: [replyOf('Long first answer.'), replyOf('Second answer.')],
       manualSynth: true,
+      manualTranscribe: true,
     })
 
     harness.hear(1)
+    harness.releaseTranscribe()
     await settle() // turn 1 replied; speech is now pending in synthesis
     expect(harness.spokenSentences).toEqual(['Long first answer.'])
 
-    harness.hear(2) // human talks over Vynel
+    harness.hear(2) // human talks over Vynel — a raw segment must NOT cut yet
+    await tick()
+    expect(harness.cutPlayback).not.toHaveBeenCalled()
+
+    harness.releaseTranscribe() // …its transcript is what cuts
+    await settle()
     expect(harness.cutPlayback).toHaveBeenCalled()
     harness.releaseSynth()
     await settle()
 
     expect(harness.turnMessages).toEqual(['first question', 'actually, different question'])
+  })
+
+  it("an echo of Vynel's own line neither cuts it nor runs a turn", async () => {
+    const harness = conversationHarness({
+      mode: 'participant',
+      transcripts: { 1: 'what is the deploy status?', 2: 'All green.' },
+      turnReplies: [replyOf('Checking. All green. Nothing to worry about.')],
+      manualSynth: true,
+    })
+
+    harness.hear(1)
+    await settle() // reply is mid-synthesis — the line is in flight
+    harness.hear(2) // the far end plays the line back; STT returns its fragment
+    await settle()
+
+    expect(harness.cutPlayback).not.toHaveBeenCalled()
+    expect(harness.turnMessages).toEqual(['what is the deploy status?'])
+  })
+
+  it('the same words are a real utterance again once the echo window closes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    const harness = conversationHarness({
+      mode: 'participant',
+      transcripts: { 1: 'status?', 2: 'All green.' },
+      turnReplies: [replyOf('All green.'), replyOf('Confirmed.')],
+    })
+
+    harness.hear(1)
+    await vi.advanceTimersByTimeAsync(0) // line spoken + drained
+    expect(harness.spokenSentences).toEqual(['All green.'])
+
+    await vi.advanceTimersByTimeAsync(5_000) // past ECHO_RETURN_WINDOW_MS
+    harness.hear(2) // a human genuinely saying the words now
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(harness.turnMessages).toEqual(['status?', 'All green.'])
   })
 
   it('a failed turn is acknowledged aloud instead of silence', async () => {

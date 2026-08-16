@@ -28,10 +28,39 @@ export function decideCallUtterance(
   mode: CallMode,
   transcript: string,
   assistantName: string,
+  recentSpokenLines: readonly string[] = [],
 ): CallUtteranceDecision {
   if (transcript.trim() === '') return { kind: 'ignore' }
+  if (isEchoOfSpokenLine(transcript, recentSpokenLines)) return { kind: 'ignore' }
   if (mode === 'participant') return { kind: 'respond' }
   return detectAddressed(assistantName, transcript) ? { kind: 'respond' } : { kind: 'note' }
+}
+
+/** A live call can hear Vynel's own words again: the far end plays them on a
+ *  speaker, its mic picks them up, and they arrive back as a "user" utterance
+ *  (observed verbatim on the 2026-08-16 Meet call — each echo then CUT the
+ *  next line, so Vynel kept interrupting itself). An utterance whose words sit
+ *  word-bounded inside a recently spoken line is that echo. The accepted cost:
+ *  a human genuinely parroting a phrase of Vynel's within the echo window is
+ *  swallowed too — far cheaper than the self-interruption loop. */
+export function isEchoOfSpokenLine(
+  transcript: string,
+  recentSpokenLines: readonly string[],
+): boolean {
+  const heard = normalizeForEchoMatch(transcript)
+  // One or two characters ("a", "it") carry no echo evidence.
+  if (heard.length < 3) return false
+  return recentSpokenLines.some((line) =>
+    ` ${normalizeForEchoMatch(line)} `.includes(` ${heard} `),
+  )
+}
+
+function normalizeForEchoMatch(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function escapeForRegex(text: string): string {

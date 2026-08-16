@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideCallUtterance, detectAddressed } from './call-turn-policy.js'
+import { decideCallUtterance, detectAddressed, isEchoOfSpokenLine } from './call-turn-policy.js'
 
 const NAME = 'Vynel'
 
@@ -45,5 +45,43 @@ describe('decideCallUtterance', () => {
     expect(decideCallUtterance('notetaker', 'the Q3 numbers came in above plan', NAME)).toEqual({
       kind: 'note',
     })
+  })
+
+  it('an echo of a recently spoken line is ignored in both modes', () => {
+    const lines = ['Got it. Anything else you want to talk about?']
+    expect(decideCallUtterance('participant', 'Got it', NAME, lines)).toEqual({ kind: 'ignore' })
+    expect(decideCallUtterance('notetaker', 'Got it', NAME, lines)).toEqual({ kind: 'ignore' })
+    expect(decideCallUtterance('participant', 'and what about the deadline?', NAME, lines)).toEqual({
+      kind: 'respond',
+    })
+  })
+})
+
+describe('isEchoOfSpokenLine', () => {
+  const LINE = "Cool. Let me know if you need anything else."
+
+  it('matches the whole line and any word-bounded fragment of it', () => {
+    expect(isEchoOfSpokenLine('Cool. Let me know if you need anything else.', [LINE])).toBe(true)
+    expect(isEchoOfSpokenLine('let me know if you need', [LINE])).toBe(true)
+    expect(isEchoOfSpokenLine('cool', [LINE])).toBe(true)
+  })
+
+  it('ignores punctuation and case differences — STT rarely returns them verbatim', () => {
+    expect(isEchoOfSpokenLine('cool let me know', [LINE])).toBe(true)
+    expect(isEchoOfSpokenLine('COOL!', [LINE])).toBe(true)
+  })
+
+  it('requires word boundaries — a word inside another word is not an echo', () => {
+    expect(isEchoOfSpokenLine('me kno', [LINE])).toBe(false)
+    expect(isEchoOfSpokenLine('anything else again', [LINE])).toBe(false)
+  })
+
+  it('one or two characters carry no echo evidence', () => {
+    expect(isEchoOfSpokenLine('me', [LINE])).toBe(false)
+    expect(isEchoOfSpokenLine('', [LINE])).toBe(false)
+  })
+
+  it('no recent lines, no echo', () => {
+    expect(isEchoOfSpokenLine('cool', [])).toBe(false)
   })
 })
