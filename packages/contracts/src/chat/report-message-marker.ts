@@ -12,6 +12,7 @@
 const MARKER_PREFIX = '[Report from '
 const UPDATE_MARKER_PREFIX = '[Update from '
 const DIRECT_MARKER_PREFIX = '[Message from '
+const NOTE_MARKER_PREFIX = '[Note from '
 
 export function composeReportMessageMarker(sourceLabel: string): string {
   return (
@@ -43,10 +44,34 @@ export function composeDirectMessageMarker(sourceLabel: string): string {
   )
 }
 
+/** The `note` variant (session-comms, the lateral kind): plain communication
+ *  from one session/workspace to another — never work, never a result. The
+ *  reply address rides IN the marker because the receiver may hold no listing
+ *  tool to discover it (a spawned session's plain set); the marker is still by
+ *  construction ONE line, so the shared strip keeps working. NOT `direct_` —
+ *  `[Message from …]` already means "addressed to the USER", and two markers
+ *  whose names rhyme but whose destinations oppose would be the exact
+ *  confusable pair the kind naming avoided. */
+export function composeNoteMessageMarker(sourceLabel: string, replyAddress?: string): string {
+  return (
+    `${NOTE_MARKER_PREFIX}${sourceLabel} — a note from another session, relayed ` +
+    'automatically by Vynel. It is NOT a task and NOT a message the user typed.' +
+    (replyAddress !== undefined
+      ? ` To answer it, send_message to "${replyAddress}" with kind "note".]`
+      : ']')
+  )
+}
+
 /** True when the body carries the INTERIM-update marker (vs the final report) —
  *  the UI's one reading for the Report/Update badge split. */
 export function isUpdateMessageBody(body: string): boolean {
   return body.startsWith(UPDATE_MARKER_PREFIX)
+}
+
+/** True when the body carries the note marker — the badge reads "Note": one
+ *  session telling another something, no task attached. */
+export function isNoteMessageBody(body: string): boolean {
+  return body.startsWith(NOTE_MARKER_PREFIX)
 }
 
 /** True when the body carries the direct-to-user marker — the badge reads
@@ -65,7 +90,8 @@ export function stripReportMessageMarker(body: string): string {
   if (
     !body.startsWith(MARKER_PREFIX) &&
     !body.startsWith(UPDATE_MARKER_PREFIX) &&
-    !body.startsWith(DIRECT_MARKER_PREFIX)
+    !body.startsWith(DIRECT_MARKER_PREFIX) &&
+    !body.startsWith(NOTE_MARKER_PREFIX)
   ) {
     return body
   }

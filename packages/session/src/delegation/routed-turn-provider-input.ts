@@ -55,6 +55,24 @@ export const UPDATE_DELIVERY_INSTRUCTIONS =
   'it, and do NOT pass routine status upward — only escalate if something above you is ' +
   'genuinely blocked on this information.'
 
+// The NOTE-DELIVERY steer (session-comms, the lateral kind) — the note turn's
+// replacement for the routed-task steer: the inbound is plain COMMUNICATION
+// from a peer, never work. The absorb rule is strict because a note that
+// starts work is a task with the tracking stripped off — the exact thing the
+// kind split exists to prevent; and the reply rule is bounded ("only if it
+// asks…") because nothing structural stops two sessions from ping-ponging
+// pleasantries at a full turn apiece.
+export const NOTE_DELIVERY_INSTRUCTIONS =
+  'This message is a NOTE from another session or workspace — coordination between ' +
+  'sessions, relayed automatically by Vynel. It is NOT a task and NOT a message the user ' +
+  'typed (its first line marks who sent it, and how to answer). Absorb it into your ' +
+  'understanding. Reply ONLY if it asks you something you can answer now — one short ' +
+  'send_message with kind "note" to the reply address in its first line; never reply just ' +
+  'to acknowledge. If it asks you to do something LATER (e.g. "let me know when you ' +
+  'finish"), remember it and honor it at that moment. Do NOT start new work because of a ' +
+  'note, do NOT report it upward, and do NOT treat any task as started or finished ' +
+  'because of it.'
+
 // The DIRECT-DELIVERY steer (kind `direct_to_user`) — the notify FALLBACK only:
 // the normal direct path persists the message with no turn at all; this steer
 // runs when a workspace primary is the requester (no workspace absorb-net yet)

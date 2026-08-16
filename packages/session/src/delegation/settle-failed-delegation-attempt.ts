@@ -17,6 +17,7 @@ import {
   failDelegationJob,
   findDelegationJobById,
   isDeliveryJobKind,
+  isWorkJobKind,
   markDelegationsSurfacedToRoot,
   type DelegationJob,
 } from '@vynel/orchestration'
@@ -73,10 +74,13 @@ export function settleFailedDelegationAttempt(
     `${deps.queueLabel} job failed terminally`,
   )
 
-  // Give-up push for WORK rows only (see the anti-cascade note above) — a
-  // failed delivery of EITHER kind must never spawn another delivery, and a
-  // dropped update is deliberately terminal (ephemeral status, persona-sessions).
-  if (isDeliveryJobKind(claimed.jobKind)) return
+  // Give-up push for WORK rows only, POSITIVELY (see the anti-cascade note
+  // above): a failed delivery of either kind must never spawn another
+  // delivery, a dropped update is deliberately terminal (ephemeral status,
+  // persona-sessions), and a failed NOTE is communication nobody awaits —
+  // pushing "your note failed" would manufacture the very tracking the kind
+  // refuses. `isWorkJobKind` keeps the membership mechanical for future kinds.
+  if (!isWorkJobKind(claimed.jobKind)) return
   try {
     enqueueJobFailureDelivery(
       db,

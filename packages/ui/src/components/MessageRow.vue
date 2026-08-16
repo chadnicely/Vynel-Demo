@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import {
   isDirectMessageBody,
+  isNoteMessageBody,
   isUpdateMessageBody,
   stripReportMessageMarker,
 } from "@vynel/contracts/chat/report-message-marker";
@@ -294,6 +295,12 @@ const isInboundDirect = computed(
   () => isInboundReport.value && isDirectMessageBody(props.message.body),
 );
 
+// A NOTE (the lateral kind) — one session telling this one something, no task
+// attached; it must never read as a result or as work arriving.
+const isInboundNote = computed(
+  () => isInboundReport.value && isNoteMessageBody(props.message.body),
+);
+
 // EVERY delivered message renders as a tool-card-style collapsible (Chad,
 // 2026-08-09, his mock — reports first, then "same to message and update"):
 // a kind ICON + the lead line as the TITLE, chevron at the line's end, the
@@ -325,7 +332,9 @@ const inboundKindWord = computed(() =>
     ? "update"
     : isInboundDirect.value
       ? "message"
-      : "report",
+      : isInboundNote.value
+        ? "note"
+        : "report",
 );
 
 const isExpanded = ref(false);
@@ -789,6 +798,29 @@ const collapsedPreview = computed(() => {
           >
             <path
               d="M2.5 4.25c0-.97.78-1.75 1.75-1.75h7.5c.97 0 1.75.78 1.75 1.75v4.5c0 .97-.78 1.75-1.75 1.75H8.5L5 13.25V10.5h-.75c-.97 0-1.75-.78-1.75-1.75z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <!-- NOTE: a sticky note — a peer telling this session something. -->
+          <svg
+            v-else-if="isInboundNote"
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M2.75 3.5c0-.41.34-.75.75-.75h9c.41 0 .75.34.75.75v6L9.75 13H3.5a.75.75 0 0 1-.75-.75z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M9.75 13V9.5h3.5"
               stroke="currentColor"
               stroke-width="1.3"
               stroke-linejoin="round"

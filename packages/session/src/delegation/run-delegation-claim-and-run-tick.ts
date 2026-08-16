@@ -51,7 +51,10 @@ import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { resolveColleagueAgent } from './resolve-colleague-agent.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
-import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
+import {
+  NOTE_DELIVERY_INSTRUCTIONS,
+  type RoutedTurnMcpAttachment,
+} from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
 import { delegateToAgentSession } from './delegate-to-agent-session.js'
 import { runAgentRunJob } from './run-agent-run-job.js'
@@ -214,6 +217,13 @@ export async function runDelegationClaimAndRunTick(
     )
   }
 
+  // Session-comms, the lateral kind: a 'note' row rides the TASK path below —
+  // the target resolution and the delegate wiring are identical (a note
+  // reaches all three target shapes) — under the note steer, with its
+  // marker-prefixed body as the inbound and none of the work semantics: no
+  // task label, no give-up push, always surfaced at terminal time.
+  const isNote = claimedKind === 'note'
+
   // Session-comms + persona-sessions: a DELIVERY row (report or update) runs
   // the NOTIFY branch — a real turn on the requester's conversation with the
   // child's message as the attributed inbound. The runner branches on the kind
@@ -261,10 +271,17 @@ export async function runDelegationClaimAndRunTick(
   deps.logger.info(
     {
       jobId: claimed.id,
-      target: claimed.workspaceName ?? claimed.targetPrimarySessionId,
+      kind: claimedKind,
+      // A note row's `workspaceName` carries the SENDER's label (the delivery
+      // reading), so its target reads off the target columns instead.
+      target: isNote
+        ? (claimed.targetPrimarySessionId ?? claimed.workspaceId)
+        : (claimed.workspaceName ?? claimed.targetPrimarySessionId),
       task: claimed.taskText.slice(0, 100),
     },
-    'delegation: claimed — running the delegated turn',
+    isNote
+      ? 'note: claimed — delivering the note turn on the target'
+      : 'delegation: claimed — running the delegated turn',
   )
 
   // Hoisted so the failure paths (failed envelope + the outer catch) can abandon any
@@ -293,7 +310,10 @@ export async function runDelegationClaimAndRunTick(
     ...(claimed.targetPrimarySessionId !== null
       ? { primarySessionId: claimed.targetPrimarySessionId }
       : {}),
-    taskLabel: deriveDelegationTaskLabel(claimed.taskText),
+    // A note body is not a task (the delivery precedent) — no taskLabel; the
+    // persona line carries the SENDER's label, which is what `workspaceName`
+    // holds on a note row.
+    ...(isNote ? {} : { taskLabel: deriveDelegationTaskLabel(claimed.taskText) }),
     ...(claimed.workspaceName !== null ? { personaName: claimed.workspaceName } : {}),
   })
   try {
@@ -510,6 +530,11 @@ export async function runDelegationClaimAndRunTick(
       claimed.requesterWorkspaceId !== null
         ? (findWorkspaceById(db, claimed.requesterWorkspaceId)?.name ?? 'Workspace')
         : 'Global'
+    // A NOTE's inbound speaks as its SENDER (the delivery precedent): the row's
+    // `workspaceName` carries the sender's enqueue-time label, and the steer
+    // swaps to the absorb voice. Tasks keep the shipped shape byte-for-byte.
+    const noteSenderLabel = claimed.workspaceName ?? 'A session'
+    const noteSteer = isNote ? { steerInstructions: NOTE_DELIVERY_INSTRUCTIONS } : {}
     const delegate: DelegateForRouting =
       spawnedTargetId !== null && agentTarget !== null
         ? (delegationInput) =>
@@ -525,11 +550,12 @@ export async function runDelegationClaimAndRunTick(
               agentDisallowedTools: agentTarget.disallowedTools,
               taskText: delegationInput.taskText,
               // The sender reads as Claude relaying the ask, labeled with its
-              // honest origin scope (redesign Phase-2b).
-              userAttribution: {
-                userSourceKind: 'global-root',
-                userSourceLabel: originScopeLabel,
-              },
+              // honest origin scope (redesign Phase-2b); a note speaks as the
+              // peer that sent it.
+              userAttribution: isNote
+                ? { userSourceKind: 'workspace-manager', userSourceLabel: noteSenderLabel }
+                : { userSourceKind: 'global-root', userSourceLabel: originScopeLabel },
+              ...noteSteer,
               ...sharedRunnerOptions,
               // The agent's own model backs the job's pick (job pick wins).
               ...(claimed.model === null && agentTarget.model !== null
@@ -545,7 +571,8 @@ export async function runDelegationClaimAndRunTick(
                 runCwdPath,
                 sessionName: targetName,
                 taskText: delegationInput.taskText,
-                userSourceLabel: originScopeLabel,
+                userSourceLabel: isNote ? noteSenderLabel : originScopeLabel,
+                ...noteSteer,
                 ...sharedRunnerOptions,
               })
           : (delegationInput) =>
@@ -553,7 +580,15 @@ export async function runDelegationClaimAndRunTick(
                 ...delegationInput,
                 workspaceName: targetName,
                 ...(managerName !== undefined ? { managerName } : {}),
-                userSourceLabel: originScopeLabel,
+                ...(isNote
+                  ? {
+                      inboundAttribution: {
+                        sourceKind: 'workspace-manager' as const,
+                        sourceLabel: noteSenderLabel,
+                      },
+                    }
+                  : { userSourceLabel: originScopeLabel }),
+                ...noteSteer,
                 ...sharedRunnerOptions,
               })
 
@@ -642,7 +677,10 @@ export async function runDelegationClaimAndRunTick(
       // answer that went straight to the user runs NO notify turn, so the row
       // stays UNSURFACED — the net is how the root learns it (presented
       // "already shown — absorb silently", never an echo).
-      const wentDirect = finalReportWentDirect(db, claimed)
+      // A NOTE never travels the direct path: it is always surfaced at
+      // completion, so the root's catch-up can never narrate a peer's note
+      // back as if it were a result.
+      const wentDirect = isNote ? false : finalReportWentDirect(db, claimed)
       try {
         withTransaction(db, (tx) => {
           completeDelegationJob(tx, claimed.id, outcome.result, new Date())
@@ -702,7 +740,9 @@ export async function runDelegationClaimAndRunTick(
 
       deps.logger.info(
         { jobId: claimed.id, resultPreview: userReply.slice(0, 120) },
-        'delegation: completed — report delivery enqueued for the creator conversation',
+        isNote
+          ? 'note: delivered — the target absorbed it in its own turn'
+          : 'delegation: completed — report delivery enqueued for the creator conversation',
       )
     } else if (outcome.status === 'timed-out') {
       // The workspace status vocabulary's problem signal — first call wins,

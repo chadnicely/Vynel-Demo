@@ -3325,7 +3325,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send a message to another session — a task down, or a result back up. */
+        /** Send a message to another session — a task down, a note across, or a result back up. */
         post: operations["postRoutingMessage"];
         delete?: never;
         options?: never;
@@ -16013,7 +16013,7 @@ export interface operations {
                     to: string;
                     body: string;
                     /** @enum {string} */
-                    kind?: "task" | "report" | "update" | "direct_to_user";
+                    kind?: "task" | "note" | "report" | "update" | "direct_to_user";
                     title?: string;
                     workspaceId?: string;
                     model?: string;
@@ -16035,7 +16035,7 @@ export interface operations {
                         jobId: string;
                         deliveredTo: string;
                         /** @enum {string} */
-                        kind: "task" | "report" | "update" | "direct_to_user";
+                        kind: "task" | "note" | "report" | "update" | "direct_to_user";
                     };
                 };
             };

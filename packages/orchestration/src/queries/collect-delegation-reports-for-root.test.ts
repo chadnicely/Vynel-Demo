@@ -115,6 +115,38 @@ describe('collectDelegationReportsForRoot', () => {
     })
   })
 
+  it('ignores a terminal NOTE row — communication is never an awareness row, even failed', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const now = new Date()
+      for (const status of ['completed', 'failed'] as const) {
+        insertDelegationJob(db, {
+          id: randomUUID(),
+          userId: user.id,
+          parentSessionId: 'sender-sdk',
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          workspaceName: 'Research: pricing',
+          taskText: '[Note from Research: pricing]\n\nheads up',
+          partialSessionId: randomUUID(),
+          jobKind: 'note',
+          status,
+          claimedAt: now,
+          completedAt: now,
+          resultText: status === 'completed' ? 'ok' : null,
+          errorMessage: status === 'failed' ? 'provider down' : null,
+          surfacedToRootAt: null,
+          createdAt: now,
+        })
+      }
+
+      const reports = collectDelegationReportsForRoot(db, { userId: user.id })
+      expect(reports.contextBlock).toBeNull()
+      expect(reports.jobIds).toEqual([])
+    })
+  })
+
   it('a REPORTED task reaching the net presents absorb-silently (its answer went direct_to_user) — never a restatable result', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())

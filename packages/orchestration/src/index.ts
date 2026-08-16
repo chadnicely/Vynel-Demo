@@ -77,6 +77,13 @@ export {
   enqueueUpdateDelivery,
   type EnqueueUpdateDeliveryInput,
 } from './routing/enqueue-update-delivery.js'
+// Session-comms (the lateral kind): plain COMMUNICATION to a task-style
+// target — a real turn, never work; the tick's note branch consumes these rows.
+export {
+  enqueueNoteDelivery,
+  type EnqueueNoteDeliveryInput,
+  type NoteDeliveryTarget,
+} from './routing/enqueue-note-delivery.js'
 export {
   consumeScheduleRunFailedEvent,
   type ScheduleRunFailedPayload,
@@ -101,6 +108,7 @@ export type { DelegationJobStatus, DelegationJobKind } from './schema/delegation
 // — never re-spell kind literals at branch sites.
 export {
   DELIVERY_JOB_KINDS,
+  WORK_JOB_KINDS,
   isDeliveryJobKind,
   isWorkJobKind,
 } from './schema/delegation-jobs.js'

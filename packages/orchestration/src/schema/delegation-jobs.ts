@@ -32,20 +32,27 @@ export type DelegationJobStatus = 'pending' | 'claimed' | 'completed' | 'failed'
 // delivers its result deterministically as a report; a 'direct-delivery' row
 // (kind `direct_to_user`) carries a final answer addressed to the USER — it
 // persists straight onto the requester's transcript with NO notify turn, and
-// the requester absorbs it silently via the catch-up net. Stored nullable —
-// NULL means 'task' (every legacy row), so the migration is a pure additive
-// ALTER.
+// the requester absorbs it silently via the catch-up net; a 'note' row
+// (session-comms, the lateral kind) carries plain COMMUNICATION to a
+// task-style target — a real turn on the target's conversation under the
+// absorb steer, but never work: it creates no run, expects no report, and
+// stays out of every tracking view. Stored nullable — NULL means 'task'
+// (every legacy row), so the migration is a pure additive ALTER.
 export type DelegationJobKind =
   | 'task'
   | 'report-delivery'
   | 'update-delivery'
   | 'direct-delivery'
   | 'agent-run'
+  | 'note'
 
 // The DELIVERY kinds — rows that carry a child's message to a requester rather
 // than handed-off work. ONE home for the membership so every "is this a
 // delivery / is this work" predicate stays mechanical when a kind is added
 // (the claim gate + queries take the array; TS branches take the predicates).
+// A 'note' row is deliberately NOT here: it targets like a task (its target
+// columns key the claim), so the requester-shaped delivery machinery must
+// never pick it up.
 export const DELIVERY_JOB_KINDS = ['report-delivery', 'update-delivery', 'direct-delivery'] as const
 
 export function isDeliveryJobKind(
@@ -54,10 +61,15 @@ export function isDeliveryJobKind(
   return kind !== null && (DELIVERY_JOB_KINDS as readonly string[]).includes(kind)
 }
 
-/** A WORK row — delegated/handed-off work the run views may show. NULL reads
- *  as 'task' (the additive-migration contract). */
+// The WORK kinds — delegated/handed-off work the run views may show. The
+// POSITIVE membership home: the tracking queries (background runs, in-flight,
+// the root catch-up) filter on this array, so any future non-work kind stays
+// out of every tracking view mechanically instead of by one more exclusion.
+export const WORK_JOB_KINDS = ['task', 'agent-run'] as const
+
+/** A WORK row. NULL reads as 'task' (the additive-migration contract). */
 export function isWorkJobKind(kind: DelegationJobKind | null): boolean {
-  return kind === null || kind === 'task' || kind === 'agent-run'
+  return kind === null || (WORK_JOB_KINDS as readonly string[]).includes(kind)
 }
 
 export const delegationJobs = table(

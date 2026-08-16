@@ -25,6 +25,7 @@ import {
 import type { Database } from '@vynel/db'
 import {
   DELIVERY_JOB_KINDS,
+  WORK_JOB_KINDS,
   delegationJobs,
   type DelegationJob,
   type NewDelegationJob,
@@ -389,13 +390,14 @@ export function listUnsurfacedTerminalDelegationsForUser(
         eq(delegationJobs.userId, userId),
         isNull(delegationJobs.surfacedToRootAt),
         inArray(delegationJobs.status, ['completed', 'failed']),
-        // WORK kinds (NULL-safe): tasks AND agent-runs — a mention run
-        // completes unsurfaced (the direct-reply tweak) so the net is how the
-        // root learns of the reply it never narrated; delivery kinds stay the
-        // notify MECHANISM, never awareness rows.
+        // WORK kinds only (NULL-safe, the POSITIVE membership): tasks AND
+        // agent-runs — a mention run completes unsurfaced (the direct-reply
+        // tweak) so the net is how the root learns of the reply it never
+        // narrated. Delivery kinds stay the notify MECHANISM and a 'note' is
+        // plain communication — neither is an awareness row.
         or(
           isNull(delegationJobs.jobKind),
-          notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
+          inArray(delegationJobs.jobKind, [...WORK_JOB_KINDS]),
         ),
       ),
     )
@@ -421,13 +423,14 @@ export function listInFlightDelegationsForUser(
         eq(delegationJobs.userId, userId),
         inArray(delegationJobs.status, ['pending', 'claimed']),
         // WORK rows only (session-review B7): a delivery hop is the notify
-        // MECHANISM, not work anyone handed off — surfacing it here grew ghost
-        // "task" cards labeled with the message body, whose Stop killed the
-        // delivery itself. One home: the DELIVERY_JOB_KINDS membership
-        // (NULL-safe — legacy NULL jobKind means 'task').
+        // MECHANISM and a 'note' is plain communication, not work anyone
+        // handed off — surfacing either here grew ghost "task" cards labeled
+        // with the message body, whose Stop killed the delivery itself. One
+        // home: the POSITIVE WORK_JOB_KINDS membership (NULL-safe — legacy
+        // NULL jobKind means 'task').
         or(
           isNull(delegationJobs.jobKind),
-          notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
+          inArray(delegationJobs.jobKind, [...WORK_JOB_KINDS]),
         ),
       ),
     )

@@ -91,15 +91,19 @@ export const MessageDestinationSchema = z
 
 export const SendMessageRequestSchema = z.object({
   to: MessageDestinationSchema,
-  /** The task to hand down, or the result/status to pass back up. */
+  /** The task to hand down, the note to pass across, or the result/status to
+   *  pass back up. */
   body: z.string().min(1).max(50000),
-  /** UPWARD messages only (persona-sessions): 'report' = the FINAL result
-   *  (marks the running task reported); 'update' = an interim ack/progress
-   *  line (never marks it — the task stays running); 'direct_to_user' = the
-   *  FINAL answer addressed to the USER — shown verbatim as your message,
-   *  never narrated (requires `title`; marks the task reported). Omitted =
-   *  'report' for "requester", derived 'task' for a workspace/session target. */
-  kind: z.enum(['task', 'report', 'update', 'direct_to_user']).optional(),
+  /** What the message IS. Downward: omitted derives 'task' for a
+   *  workspace/session target; 'note' (the lateral kind) sends plain
+   *  COMMUNICATION to the same targets — no run, no report expected, nothing
+   *  tracked. Upward (persona-sessions): 'report' = the FINAL result (marks
+   *  the running task reported); 'update' = an interim ack/progress line
+   *  (never marks it — the task stays running); 'direct_to_user' = the FINAL
+   *  answer addressed to the USER — shown verbatim as your message, never
+   *  narrated (requires `title`; marks the task reported). Omitted = 'report'
+   *  for "requester". */
+  kind: z.enum(['task', 'note', 'report', 'update', 'direct_to_user']).optional(),
   /** REQUIRED with kind 'direct_to_user' (rejected otherwise): the short
    *  headline the user's message box shows — the full text opens from it. */
   title: z.string().min(1).max(200).optional(),
@@ -120,9 +124,9 @@ export const SendMessageResponseSchema = z.object({
   /** What the message was addressed to, resolved — the workspace/session name,
    *  or the requester's label. Lets the caller confirm where it actually went. */
   deliveredTo: z.string(),
-  /** 'task' when sent down to a workspace/session; 'report'/'update'/
-   *  'direct_to_user' when passed up. */
-  kind: z.enum(['task', 'report', 'update', 'direct_to_user']),
+  /** 'task' when sent down to a workspace/session; 'note' for plain
+   *  communication across; 'report'/'update'/'direct_to_user' when passed up. */
+  kind: z.enum(['task', 'note', 'report', 'update', 'direct_to_user']),
 })
 
 // ── Background runs (reading back a handed-off task) ────────────────

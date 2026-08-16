@@ -25,6 +25,7 @@ import {
   enqueueWorkspaceDelegation,
   enqueueSessionDelegation,
   enqueueReportDelivery,
+  enqueueNoteDelivery,
   findDelegationJobById,
   findDelegationJobByPartialSessionId,
   markDelegationJobReported,
@@ -1796,6 +1797,134 @@ describe('runDelegationClaimAndRunTick — requester threading', () => {
       expect(composeWorkspaceMcpServers).toHaveBeenCalledWith(
         expect.not.objectContaining({ requesterWorkspaceId: expect.anything() }),
       )
+    })
+  })
+})
+
+// The LATERAL kind (session-comms; Kafi, 2026-08-17): a 'note' row rides the
+// task path's target machinery under the absorb steer, with none of the work
+// semantics — always surfaced at terminal time, never a give-up push.
+describe('runDelegationClaimAndRunTick → note delivery', () => {
+  it('delivers a WORKSPACE-target note as a real turn under the note steer, then surfaces it', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const jobId = enqueueNoteDelivery(db, {
+        userId: user.id,
+        senderSessionId: 'sender-sdk-1',
+        senderLabel: 'Research: pricing',
+        target: { kind: 'workspace', workspaceId: workspace.id, workspacePath: workspace.path },
+        noteBody: '[Note from Research: pricing]\n\nThe pricing pass just landed.',
+      })
+
+      const inputs: StartChatSessionInput[] = []
+      const processed = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: 'ws-note-turn',
+          resultText: 'Noted.',
+          startChatSessionInputs: inputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(processed).toBe(true)
+
+      // The turn ran with the marker'd note as the inbound and the NOTE steer,
+      // never the routed-task steer (no acknowledge-first, no report demand).
+      expect(inputs[0]!.userMessageText).toContain('The pricing pass just landed.')
+      expect(inputs[0]!.userMessageText.startsWith('[Note from Research: pricing')).toBe(true)
+      expect(inputs[0]!.systemPromptAppend).toContain('NOTE from another session')
+      expect(inputs[0]!.systemPromptAppend).not.toContain('send a one-line acknowledgment')
+
+      // Completed AND surfaced — the root's catch-up can never replay it.
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.status).toBe('completed')
+      expect(job?.surfacedToRootAt).not.toBeNull()
+
+      // Nothing else was enqueued: no report-delivery hop, no tracking rows.
+      const nextTick = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'none', resultText: 'x' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+      expect(nextTick).toBe(false)
+    })
+  })
+
+  it('delivers a SESSION-target note by resuming the target with the sender as the label', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-note-target' }),
+        { userId: user.id, name: 'Planner', purpose: 'p', workspacePath: '/tmp/x' },
+      )
+
+      const jobId = enqueueNoteDelivery(db, {
+        userId: user.id,
+        senderSessionId: 'sender-sdk-2',
+        senderLabel: 'Backlog digger',
+        target: {
+          kind: 'session',
+          targetPrimarySessionId: created.primarySessionId,
+          runCwdPath: '/tmp/x',
+        },
+        noteBody: '[Note from Backlog digger]\n\nDone — your turn.',
+      })
+
+      const inputs: StartChatSessionInput[] = []
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({
+          seededSessionId: created.sessionId,
+          resultText: 'Got it.',
+          startChatSessionInputs: inputs,
+        }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+
+      // The TARGET's continuing conversation was resumed with the note.
+      expect(inputs[0]!.resumeSessionId).toBe(created.sessionId)
+      expect(inputs[0]!.systemPromptAppend).toContain('NOTE from another session')
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.status).toBe('completed')
+      expect(job?.surfacedToRootAt).not.toBeNull()
+    })
+  })
+
+  it('a failed note settles terminally with NO give-up push — nobody awaits a note', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      const jobId = enqueueNoteDelivery(db, {
+        userId: user.id,
+        senderSessionId: 'sender-sdk-3',
+        senderLabel: 'Research: pricing',
+        target: { kind: 'workspace', workspaceId: workspace.id, workspacePath: workspace.path },
+        noteBody: '[Note from Research: pricing]\n\nheads up',
+      })
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new ThrowingTurnProvider(),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+      })
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.status).toBe('failed')
+
+      // No failure-delivery hop was enqueued (a task's give-up push would be
+      // claimable here) — the queue is empty.
+      const nextTick = await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ seededSessionId: 'none', resultText: 'x' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: makeGlobalReportRunner(),
+      })
+      expect(nextTick).toBe(false)
     })
   })
 })

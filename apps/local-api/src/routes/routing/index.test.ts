@@ -1861,3 +1861,256 @@ describe('POST /routing/message → a task records WHO asked', () => {
     })
   })
 })
+
+// The LATERAL kind (session-comms; Kafi, 2026-08-17): kind "note" — plain
+// communication to the same downward targets, anyone-to-anyone, tracked by
+// nothing. The contrast pins matter most: a note crosses the parent lines the
+// own-child TASK rule refuses, precisely because it cannot hand out work.
+describe('POST /routing/message → kind "note" (the lateral kind)', () => {
+  function primer(sessionId: string): AiAgentProvider {
+    return {
+      startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+        return (async function* () {
+          yield {
+            kind: 'session-started',
+            sessionId,
+            resumedFromExisting: false,
+            startedAt: new Date(),
+          } as NormalizedSessionEvent
+          yield {
+            kind: 'session-completed',
+            sessionId,
+            isNewSession: true,
+            completedAt: new Date(),
+          } as NormalizedSessionEvent
+        })()
+      },
+    } as unknown as AiAgentProvider
+  }
+
+  function seedSpawnedIn(
+    db: Database,
+    userId: string,
+    sdkSessionId: string,
+    workspace: { id: string; path: string },
+    name = 'Research: pricing',
+  ) {
+    return createSpawnedSession(db, primer(sdkSessionId), {
+      userId,
+      name,
+      purpose: 'p',
+      workspacePath: workspace.path,
+      workspaceId: workspace.id,
+    })
+  }
+
+  it('a note cannot address "requester", and model/effort ride tasks only (both are 400s)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id, 'Home')
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      const noteUp = await postJson(app, '/routing/message', {
+        to: 'requester',
+        body: 'x',
+        kind: 'note',
+      })
+      expect(noteUp.status).toBe(400)
+      expect(await noteUp.text()).toContain('note')
+
+      const noteWithModel = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'x',
+        kind: 'note',
+        model: 'claude-haiku-4-5',
+      })
+      expect(noteWithModel.status).toBe(400)
+
+      // The recorded sharp edge, closed: an upward send used to accept a legal
+      // model and silently drop it — now it is the same loud 400.
+      const reportWithModel = await postJson(app, '/routing/message', {
+        to: 'requester',
+        body: 'x',
+        kind: 'report',
+        model: 'claude-haiku-4-5',
+      })
+      expect(reportWithModel.status).toBe(400)
+      expect(await reportWithModel.text()).toContain('task')
+    })
+  })
+
+  it('the GLOBAL root notes a workspace: a kind-"note" row signed Global, nothing tracked', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id, 'Home')
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+
+      const res = await postJson(app, '/routing/message', {
+        to: `workspace:${workspace.id}`,
+        body: 'Heads up — the user will ask about invoices tomorrow.',
+        kind: 'note',
+      })
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string; kind: string }
+      expect(out.kind).toBe('note')
+      expect(out.deliveredTo).toBe('Home')
+
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.jobKind).toBe('note')
+      expect(job?.status).toBe('pending')
+      expect(job?.workspaceId).toBe(workspace.id)
+      expect(job?.targetPrimarySessionId).toBeNull()
+      // The sender rides the reused columns: label, session, workspace (none).
+      expect(job?.workspaceName).toBe('Global')
+      expect(job?.parentSessionId).toBe('g-1')
+      expect(job?.requesterWorkspaceId).toBeNull()
+      // The marker is composed at dispatch and leads the stored body.
+      expect(job?.taskText.startsWith('[Note from Global')).toBe(true)
+      expect(job?.taskText).toContain('invoices tomorrow')
+    })
+  })
+
+  it("a workspace notes ANOTHER workspace's session — allowed exactly where the task is refused", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const home = seedManagedWorkspace(db, user.id, 'Home')
+      const other = seedManagedWorkspace(db, user.id, 'Other')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, home.id, 'ws-home')
+      const spawned = await seedSpawnedIn(db, user.id, 'sdk-note-target', other, 'Backlog digger')
+      const app = makeHarness(db)
+
+      const asTask = await postJson(app, '/routing/message', {
+        to: `session:${spawned.sessionId}`,
+        body: 'dig',
+        workspaceId: home.id,
+      })
+      expect(asTask.status).toBe(400)
+
+      const asNote = await postJson(app, '/routing/message', {
+        to: `session:${spawned.sessionId}`,
+        body: 'When the backlog pass lands, tell the planner session.',
+        kind: 'note',
+        workspaceId: home.id,
+      })
+      expect(asNote.status).toBe(200)
+      const out = (await asNote.json()) as { jobId: string; deliveredTo: string }
+      expect(out.deliveredTo).toBe('Backlog digger')
+
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.jobKind).toBe('note')
+      expect(job?.targetPrimarySessionId).toBe(spawned.primarySessionId)
+      // Run cwd follows the TARGET's grounding.
+      expect(job?.workspacePath).toBe(other.path)
+      // The sender: the HOME primary, labeled persona-first, replyable by id.
+      expect(job?.workspaceName).toBe('Mark · Home')
+      expect(job?.parentSessionId).toBe('ws-home')
+      expect(job?.requesterWorkspaceId).toBe(home.id)
+      expect(job?.taskText).toContain(`workspace:${home.id}`)
+    })
+  })
+
+  it('a spawned session notes a sibling, signed as ITSELF with a session reply address', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id, 'Home')
+      const alpha = await seedSpawnedIn(db, user.id, 'sdk-alpha', workspace, 'Alpha helper')
+      const beta = await seedSpawnedIn(db, user.id, 'sdk-beta', workspace, 'Beta helper')
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/message',
+        {
+          to: `session:${beta.sessionId}`,
+          body: "When you're done, let me know — I'll start my task.",
+          kind: 'note',
+          workspaceId: workspace.id,
+        },
+        {
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'spawned-session',
+            targetPrimarySessionId: alpha.primarySessionId,
+          }),
+        },
+      )
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string }
+      expect(out.deliveredTo).toBe('Beta helper')
+
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.jobKind).toBe('note')
+      expect(job?.targetPrimarySessionId).toBe(beta.primarySessionId)
+      // Signed as the SESSION itself — never as its grounding workspace.
+      expect(job?.workspaceName).toBe('Alpha helper')
+      expect(job?.parentSessionId).toBe(alpha.sessionId)
+      expect(job?.requesterWorkspaceId).toBe(workspace.id)
+      expect(job?.taskText).toContain(`session:${alpha.sessionId}`)
+    })
+  })
+
+  it('self-notes are refused; a session noting its own grounding workspace is not a self-note', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const home = seedManagedWorkspace(db, user.id, 'Home')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, home.id, 'ws-home')
+      const alpha = await seedSpawnedIn(db, user.id, 'sdk-alpha-self', home, 'Alpha helper')
+      const app = makeHarness(db)
+      const alphaCaller = {
+        [REPORT_CALLER_HEADER]: serializeReportCaller({
+          kind: 'spawned-session',
+          targetPrimarySessionId: alpha.primarySessionId,
+        }),
+      }
+
+      const sessionSelf = await postJson(
+        app,
+        '/routing/message',
+        { to: `session:${alpha.sessionId}`, body: 'x', kind: 'note', workspaceId: home.id },
+        alphaCaller,
+      )
+      expect(sessionSelf.status).toBe(400)
+      expect(await sessionSelf.text()).toContain('itself')
+
+      const workspaceSelf = await postJson(app, '/routing/message', {
+        to: `workspace:${home.id}`,
+        body: 'x',
+        kind: 'note',
+        workspaceId: home.id,
+      })
+      expect(workspaceSelf.status).toBe(400)
+      expect(await workspaceSelf.text()).toContain('itself')
+
+      // A session telling its MANAGER something is legitimate coordination.
+      const toOwnManager = await postJson(
+        app,
+        '/routing/message',
+        { to: `workspace:${home.id}`, body: 'x', kind: 'note', workspaceId: home.id },
+        alphaCaller,
+      )
+      expect(toOwnManager.status).toBe(200)
+      const job = findDelegationJobById(
+        db,
+        ((await toOwnManager.json()) as { jobId: string }).jobId,
+      )
+      expect(job?.workspaceName).toBe('Alpha helper')
+      expect(job?.workspaceId).toBe(home.id)
+    })
+  })
+
+  it('unknown and foreign note targets answer the identical 404', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      await seedLinkedGlobalRoot(db, user.id)
+      const stranger = seedUser(db)
+      const foreign = seedManagedWorkspace(db, stranger.id, 'Theirs')
+      const app = makeHarness(db)
+
+      for (const to of [`workspace:${foreign.id}`, `workspace:${randomUUID()}`, 'session:nope']) {
+        const res = await postJson(app, '/routing/message', { to, body: 'x', kind: 'note' })
+        expect(res.status).toBe(404)
+      }
+    })
+  })
+})

@@ -66,6 +66,10 @@ export type DelegateToAgentSessionInput = {
   agentDisallowedTools?: string[]
   /** The task/message the colleague absorbs this turn. */
   taskText: string
+  /** The system steer for the resumed turn — the note branch passes
+   *  `NOTE_DELIVERY_INSTRUCTIONS` (same machinery, different voice). Omit for
+   *  the routed-task steer. */
+  steerInstructions?: string
   /** Who sent it — the inbound row's attribution (the mention's origin chat). */
   userAttribution?: {
     userSourceKind: ChatMessageSourceKind
@@ -123,7 +127,7 @@ export async function delegateToAgentSession(
   const resumeSessionId = primary.currentSdkSessionId
   const isNewSession = resumeSessionId === null
 
-  const systemPromptAppend = `${composeAgentColleaguePrompt(input.agentName, input.agentPrompt)}\n\n${composeRoutedTurnSystemPrompt(input.mcpAttachment)}`
+  const systemPromptAppend = `${composeAgentColleaguePrompt(input.agentName, input.agentPrompt)}\n\n${composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions)}`
   const mcpFields = routedTurnMcpSessionFields(input.mcpAttachment)
   const sessionEventStream = provider.startChatSession({
     workspacePath: input.runCwdPath,

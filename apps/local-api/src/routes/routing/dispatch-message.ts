@@ -61,8 +61,9 @@ export interface TaskDispatchOptions {
 
 type RoutingContext = Context<AppEnv>
 
-/** The four server-stamped values every dispatch threads onto its job row. */
-function readAmbientContext(c: RoutingContext) {
+/** The four server-stamped values every dispatch threads onto its job row.
+ *  Shared with the note dispatch (dispatch-note.ts) — one reader, never two. */
+export function readAmbientContext(c: RoutingContext) {
   return {
     origin: parseDelegationOriginHeader(c.req.header(DELEGATION_ORIGIN_HEADER)),
     permissionMode: parseDelegationModeHeader(c.req.header(DELEGATION_MODE_HEADER)),

@@ -74,6 +74,7 @@ import {
   dispatchDirectToUser,
   parseMessageDestination,
 } from './dispatch-message.js'
+import { dispatchNote } from './dispatch-note.js'
 
 export const routingApp = factory
   .createApp()
@@ -336,18 +337,21 @@ export const routingApp = factory
   // misroute, not an error.
   //
   // `kind` is derived for DOWNWARD sends ("workspace:"/"session:" = a task —
-  // it cannot disagree with the destination). UPWARD sends ("requester") take
-  // an optional kind: 'report' (final, marks the task reported — the default),
-  // 'update' (interim ack/progress, never marks it — persona-sessions), or
-  // 'direct_to_user' (final, addressed to the USER — lands verbatim as the
-  // sender's message, never narrated; requires `title`).
+  // it cannot disagree with the destination) unless it says 'note' (the
+  // lateral kind: plain communication to the same targets, no task attached).
+  // UPWARD sends ("requester") take an optional kind: 'report' (final, marks
+  // the task reported — the default), 'update' (interim ack/progress, never
+  // marks it — persona-sessions), or 'direct_to_user' (final, addressed to
+  // the USER — lands verbatim as the sender's message, never narrated;
+  // requires `title`).
   // A kind that contradicts the destination is a 400, never a silent misroute.
   // ──────────────────────────────────────────────────────────────────
   .post(
     '/message',
     describeRoute({
       tags: ['routing'],
-      summary: 'Send a message to another session — a task down, or a result back up.',
+      summary:
+        'Send a message to another session — a task down, a note across, or a result back up.',
       'x-sdk-name': 'routing.sendMessage',
       responses: {
         200: {
@@ -373,10 +377,18 @@ export const routingApp = factory
           '`to` is one of:\n' +
           '- `"workspace:<workspaceId>"` — hand a task down to a workspace (ids from ' +
           'list_routing_workspaces).\n' +
-          '- `"session:<sessionId>"` — hand a task to a session or agent colleague (ids from ' +
-          'list_sessions).\n' +
+          '- `"session:<sessionId>"` — hand a task to one of YOUR OWN sessions or agent ' +
+          'colleagues (ids from list_sessions). A task only reaches sessions you created: for ' +
+          "another workspace's session, send the task to that workspace instead and let its " +
+          'manager route it.\n' +
           '- `"requester"` — speak back up to whoever asked you for this work. You never name ' +
           'them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n' +
+          'For a workspace/session target, `kind` "note" sends plain COMMUNICATION instead of ' +
+          'work — coordination like "when you finish, tell the planner session" or "I am ' +
+          'editing that file, leave it alone". A note may address ANY of your workspaces or ' +
+          'sessions (no own-session restriction), creates no task, expects no report, and is ' +
+          'not tracked; the receiver absorbs it and replies with a note only if yours asks for ' +
+          'one. Never use a note to hand out work.\n\n' +
           'For "requester", `kind` picks the voice: `"update"` = an interim acknowledgment or ' +
           'progress line ("Received — starting now"; the task stays running), `"report"` = the ' +
           'FINAL result addressed to whoever sent you the work — findings, numbers, paths, not ' +
@@ -391,8 +403,9 @@ export const routingApp = factory
           'message up in its own conversation shortly. Track a task you sent with ' +
           'list_background_runs / get_background_run. Speaking upward only works on a ' +
           'background (delegated) turn — if there is no requester, just reply with your ' +
-          'findings as text. For a task you may pick `model` (legal ids from ' +
-          'list_available_chat_models) and `thinkingEffort`; omit both for the defaults.',
+          'findings as text. For a TASK you may pick `model` (legal ids from ' +
+          'list_available_chat_models) and `thinkingEffort`; omit both for the defaults — ' +
+          'they are rejected on any other kind.',
       },
     }),
     validator('json', SendMessageRequestSchema),
@@ -406,8 +419,13 @@ export const routingApp = factory
       }
 
       // A kind that contradicts the destination is a 400 — never a misroute.
-      if (destination.kind === 'requester' && kind === 'task') {
-        throw new ValidationError('kind "task" cannot address "requester" — tasks go DOWN.')
+      if (destination.kind === 'requester' && (kind === 'task' || kind === 'note')) {
+        throw new ValidationError(
+          kind === 'task'
+            ? 'kind "task" cannot address "requester" — tasks go DOWN.'
+            : 'kind "note" cannot address "requester" — to answer whoever asked, use ' +
+                '"update" or "report".',
+        )
       }
       if (
         destination.kind !== 'requester' &&
@@ -425,6 +443,15 @@ export const routingApp = factory
       }
       if (kind !== 'direct_to_user' && title !== undefined) {
         throw new ValidationError('`title` only accompanies kind "direct_to_user".')
+      }
+      // `model`/`thinkingEffort` steer a DELEGATED turn — tasks only. They used
+      // to be accepted and silently dropped on an upward send (the recorded
+      // sharp edge); strict cross-validation is this route's whole idiom.
+      if (
+        (model !== undefined || thinkingEffort !== undefined) &&
+        (kind === 'note' || destination.kind === 'requester')
+      ) {
+        throw new ValidationError('`model`/`thinkingEffort` only accompany a task.')
       }
 
       if (destination.kind === 'requester') {
@@ -451,6 +478,18 @@ export const routingApp = factory
         }
         const { jobId, deliveredTo } = await dispatchReportToRequester(c, { report: body })
         return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'report' as const })
+      }
+      // The lateral kind (session-comms): plain communication to the same
+      // downward targets — its own dispatch, because the sender resolves as
+      // WHOEVER IS SPEAKING (a spawned session as itself), not as the task
+      // dispatch's creator conversation.
+      if (kind === 'note') {
+        const { jobId, deliveredTo } = await dispatchNote(c, {
+          destination,
+          body,
+          ...(workspaceId !== undefined ? { workspaceId } : {}),
+        })
+        return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'note' as const })
       }
       // The CALLING workspace (Slice ④b, ambient-stamped by the workspace
       // surface) — the creator the job parents on AND the requester its target

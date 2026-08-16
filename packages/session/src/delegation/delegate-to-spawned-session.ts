@@ -63,6 +63,10 @@ export type DelegateToSpawnedSessionInput = {
   userSourceLabel?: string
   /** The task the global root delegates. */
   taskText: string
+  /** The system steer for the resumed turn — the note branch passes
+   *  `NOTE_DELIVERY_INSTRUCTIONS` (same machinery, different voice). Omit for
+   *  the routed-task steer. */
+  steerInstructions?: string
   /** The provider id stamped on the persisted rows. */
   providerId: AiAgentProviderId
   /** Optional model override for the delegated turn. */
@@ -141,7 +145,7 @@ export async function delegateToSpawnedSession(
     workspacePath: input.runCwdPath,
     resumeSessionId: primary.currentSdkSessionId,
     userMessageText: input.taskText,
-    systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment),
+    systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions),
     permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
     // Empty grants: the resumed session keeps its existing tool grants; the
     // behavior gate still cards the floor.
