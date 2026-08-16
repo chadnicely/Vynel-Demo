@@ -1,6 +1,6 @@
 // The `processes` HTTP surface — mounted at `/processes` (user-scoped):
 //
-//   POST /                     -> run_background_process   [mutating, ALWAYS cards — shell]
+//   POST /                     -> run_background_process   [mutating, ask-tier card]
 //   GET  /                     -> list_background_processes
 //   GET  /:processId           -> get_background_process
 //   POST /:processId/kill      -> kill_background_process  [mutating, uncarded — own process]
@@ -18,10 +18,12 @@
 // `process.completed` / `process.failed` filtered to this process — app-tier
 // composition of two leaves (processes cannot import monitors; siblings).
 //
-// CARDING: `run_background_process` executes arbitrary shell — it sits in the
-// vynel descriptors' `mutatingToolNames`, so it cards in EVERY mode, exactly
-// like the Bash floor it is equivalent to. `kill` only ends a process the
-// agent itself started (the stop_monitor rule: own bookkeeping, uncarded).
+// CARDING: `run_background_process` rides the ASK tier (`x-mcp.askApproval`
+// — the delete_agent shape): it cards in ask mode and runs uncarded in
+// auto/bypass, per Chad's 2026-07-26 approval stance (feature tools never
+// card in auto/bypass; the every-mode floor is native-tools-only). `kill`
+// only ends a process the agent itself started (the stop_monitor rule: own
+// bookkeeping, uncarded).
 
 import { resolver, validator } from 'hono-openapi/zod'
 import {
@@ -80,6 +82,12 @@ export const processesApp = factory
         exposed: true,
         name: 'run_background_process',
         mutatingApproved: true,
+        // The ask TIER, not the every-mode floor (Chad's 2026-07-26 stance,
+        // Kafi re-affirmed 2026-08-17): feature tools card in ask mode only;
+        // auto/bypass run uncarded — the apps start_app precedent. Note the
+        // recorded asymmetry: a delegated bypass turn's native Bash still
+        // cards via the provider floor while this does not.
+        askApproval: true,
         rootSurface: true,
         workspaceSurface: true,
         description:

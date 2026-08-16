@@ -31,8 +31,9 @@ package — read `docs/module-notes/background-processes.md` for the whole story
 (migration 0042), `BackgroundProcessRunner` (mechanical twin of apps' supervisor — sibling-import ban
 + Kafi's package-per-feature ruling = accepted duplication, cross-referenced in both files), exits
 co-commit `process.completed/failed`, and the run route AUTO-ARMS a monitor so the owner is WOKEN
-with the result (route test pins matcher-vs-real-event). `run_background_process` cards in EVERY
-mode (descriptors' `mutatingToolNames` — shell ≙ the Bash floor). Boot: sweep → runner → killAll at
+with the result (route test pins matcher-vs-real-event). `run_background_process` rides the ASK
+tier (Kafi re-affirmed Chad's stance: feature tools never card in auto/bypass); the review's
+descriptor-vs-policy strip catch is pinned at the composed level either way. Boot: sweep → runner → killAll at
 shutdown. Not yet: UI surface, live wake smoke.
 
 **Next steps here:** Kafi's workspace-manager pipeline note is still being written (`.notes/Workspace

@@ -360,27 +360,45 @@ describe('composeSessionMcpServers + desktopFeatureDescriptor', () => {
 
   // The 2026-08-17 review catch, pinned at the level that failed: the policy
   // layer's cardClass is AUTHORITATIVE (strip, then re-add), so a descriptor
-  // declaring an every-mode card is silently stripped unless the CATALOG also
-  // says 'always'. The descriptor test pins the declaration; THIS pins the
-  // composed output under the real default policies — on the scariest
-  // surface, a schedule fire.
-  describe('the every-mode card survives the real default policies', () => {
-    it('run_background_process stays in mutatingToolNames on every surface', async () => {
+  // declaration alone decides NOTHING — only the catalog's cardClass survives
+  // composition. run_background_process rides the ASK tier (Chad's stance:
+  // feature tools never card in auto/bypass), and this pins the composed
+  // output under the real default policies on the scariest surfaces — plus
+  // the inverse: a descriptor-only every-mode claim IS stripped, so nobody
+  // re-introduces one without also teaching the catalog.
+  describe('carding survives the real default policies at the composed level', () => {
+    it('run_background_process lands in the ASK tier, never the every-mode set', async () => {
       await withTestDatabase((db) => {
         const policies = resolveSessionToolPolicies(db, { userId: 'user-1' })
         const shellDescriptor = fakeDescriptor({
-          mutatingToolNames: ['mcp__vynel__run_background_process'],
+          mutatingToolNames: [],
+          askModeApprovalToolNames: ['mcp__vynel__run_background_process'],
         })
         for (const surfaceKind of ['schedule', 'workspace-interactive', 'spawned'] as const) {
           const composed = composeSessionMcpServers([shellDescriptor], context, {
             toolPolicies: policies,
             surfaceKind,
           })
-          expect(composed.mutatingToolNames).toContain('mcp__vynel__run_background_process')
+          expect(composed.askModeApprovalToolNames).toContain(
+            'mcp__vynel__run_background_process',
+          )
+          expect(composed.mutatingToolNames).not.toContain('mcp__vynel__run_background_process')
           expect(composed.deniedMcpToolPatterns).not.toContain(
             'mcp__vynel__run_background_process',
           )
         }
+      })
+    })
+
+    it('a descriptor-only every-mode declaration is STRIPPED by the default policies', async () => {
+      await withTestDatabase((db) => {
+        const policies = resolveSessionToolPolicies(db, { userId: 'user-1' })
+        const composed = composeSessionMcpServers(
+          [fakeDescriptor({ mutatingToolNames: ['mcp__vynel__run_background_process'] })],
+          context,
+          { toolPolicies: policies, surfaceKind: 'schedule' },
+        )
+        expect(composed.mutatingToolNames).not.toContain('mcp__vynel__run_background_process')
       })
     })
   })

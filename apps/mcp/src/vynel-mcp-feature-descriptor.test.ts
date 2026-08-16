@@ -39,7 +39,7 @@ describe('vynelWorkspaceDescriptor', () => {
   it('is a well-formed McpFeatureDescriptor for the vynel server', () => {
     expect(vynelWorkspaceDescriptor.serverName).toBe('vynel')
     // No vynel tool cards in EVERY mode — approval lives in the ask-mode tier.
-    expect(vynelWorkspaceDescriptor.mutatingToolNames).toEqual(['mcp__vynel__run_background_process'])
+    expect(vynelWorkspaceDescriptor.mutatingToolNames).toEqual([])
     // The ask-approval tier (DELETE routes + x-mcp.askApproval) cards in ask
     // mode only. The FULL set is pinned so a regenerate that drops ANY member
     // — e.g. register_workspace losing its route flag, the exact tool Chad
@@ -57,6 +57,10 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__end_call',
       'mcp__vynel__register_workspace',
       'mcp__vynel__remove_knowledge_source',
+      // Background processes (2026-08-17): running an ad-hoc shell command in
+      // the background cards in ask mode — the delete_agent shape, per Chad's
+      // stance that feature tools never card in auto/bypass.
+      'mcp__vynel__run_background_process',
       'mcp__vynel__start_call',
       'mcp__vynel__uninstall_marketplace_item',
     ])
@@ -203,7 +207,7 @@ describe('vynelWorkspaceInteractiveDescriptor (Slice ④b)', () => {
     expect(vynelWorkspaceInteractiveDescriptor.serverName).toBe('vynel')
     // The spawning tools are mutatingApproved-auto (the "Claude manages
     // freely" precedent) — nothing new cards.
-    expect(vynelWorkspaceInteractiveDescriptor.mutatingToolNames).toEqual(['mcp__vynel__run_background_process'])
+    expect(vynelWorkspaceInteractiveDescriptor.mutatingToolNames).toEqual([])
     // Same gate table object — capability toggles behave identically on both
     // workspace surfaces.
     expect(vynelWorkspaceInteractiveDescriptor.capabilityGatedTools).toBe(

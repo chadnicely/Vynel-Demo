@@ -15,8 +15,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   exits, the session that started it is woken with the exit code and the output
   tail (a completion watch is armed automatically). Companion tools list, fetch,
   and kill them; every process has a hard runtime ceiling, a restart settles
-  interrupted ones honestly, and starting one always asks for approval — it is
-  a shell command, and it cards like one.
+  interrupted ones honestly, and in ask mode starting
+  one shows an approval card first.
 
 - **Sessions can now talk to each other without handing out work.** `send_message`
   gained `kind: "note"` — plain coordination between any two of your conversations

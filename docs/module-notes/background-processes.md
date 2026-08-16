@@ -10,7 +10,7 @@ owner** instead of anyone polling.
 One new leaf package, one table, four tools, zero new delivery machinery:
 
 ```
-run_background_process        POST /processes            (mutating, ALWAYS cards — shell)
+run_background_process        POST /processes            (mutating, ask-tier card)
 list_background_processes     GET  /processes            (read)
 get_background_process        GET  /processes/:id        (read)
 kill_background_process       POST /processes/:id/kill   (mutating, uncarded — own process)
@@ -39,9 +39,14 @@ kill_background_process       POST /processes/:id/kill   (mutating, uncarded —
   the mechanics — settle-once ('error' vs 'close'), Windows tree-kill via taskkill,
   SIGTERM→SIGKILL grace, ring buffer. **The two files cross-reference each other; a
   process-mechanics fix in one must sweep the other.**
-- **`run_background_process` cards in EVERY mode** (`mutatingToolNames` in all three vynel
-  descriptors): it executes arbitrary shell, and the provider floor that cards Bash cannot see
-  an MCP-named tool — this is the floor-equivalent treatment. `kill` is own-bookkeeping
+- **`run_background_process` rides the ASK tier** (`x-mcp.askApproval`, the delete_agent
+  shape): cards in ask mode, uncarded in auto/bypass — Chad's 2026-07-26 stance (feature tools
+  never card in auto/bypass; the every-mode floor is native-tools-only), re-affirmed by Kafi
+  when an every-mode card was briefly tried. Recorded asymmetry: a delegated bypass turn's
+  native Bash still cards via the provider floor while this does not — Chad's knob if it ever
+  bothers him. The review's real catch stands either way: a descriptor-only card declaration
+  is STRIPPED by the policy layer unless the catalog's cardClass agrees (pinned at the
+  composed level in compose-session-mcp-servers.test.ts). `kill` is own-bookkeeping
   (the stop_monitor rule, uncarded).
 - **Naming**: "background process" — after the same session renamed "background runs" to
   delegated tasks. Three nouns, three things: *delegated task* = work given to a session ·

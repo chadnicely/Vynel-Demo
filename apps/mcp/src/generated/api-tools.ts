@@ -4086,6 +4086,7 @@ export const generatedAskModeApprovalToolNames: string[] = [
   'mcp__vynel__end_call',
   'mcp__vynel__register_workspace',
   'mcp__vynel__remove_knowledge_source',
+  'mcp__vynel__run_background_process',
   'mcp__vynel__start_call',
   'mcp__vynel__uninstall_marketplace_item',
 ]

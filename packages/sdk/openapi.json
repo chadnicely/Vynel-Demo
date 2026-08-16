@@ -20241,6 +20241,7 @@
           "exposed": true,
           "name": "run_background_process",
           "mutatingApproved": true,
+          "askApproval": true,
           "rootSurface": true,
           "workspaceSurface": true,
           "description": "Run a shell command in the BACKGROUND — it keeps running after this turn ends, and when it exits you are WOKEN with the exit code and the output tail (a completion watch is armed for you automatically). Use it for long work you should not sit through: test suites, builds, installs. The command runs at your scope’s folder (the workspace’s folder, or the global ground). `timeoutMs` is the runtime ceiling — the process is killed past it (default 30 minutes, max 24 hours). Returns IMMEDIATELY with { processId, status: \"running\" }; check on it with list_background_processes / get_background_process, end it early with kill_background_process. NOT for quick commands (use Bash — you get the answer in the same turn) and NOT for work another session should own (send_message a task)."

@@ -28,16 +28,6 @@ export const WORKSPACE_INTERACTIVE_TOOL_NAMES = [
 ]
 export const ROUTING_TOOL_NAMES = toVynelToolNames(generatedRoutingMcpTools)
 
-// Tools that card in EVERY mode — shell execution is Bash-floor-equivalent,
-// and the provider's floor cannot see an MCP-named tool. ONE home on purpose
-// (the 2026-08-17 review catch): the vynel descriptors declare this as their
-// `mutatingToolNames` AND the session tool catalog derives cardClass 'always'
-// from it — the policy layer's authoritative strip-then-re-add would otherwise
-// discard a descriptor-only declaration on every real turn, because the
-// catalog's default cardClass is 'never'.
-export const ALWAYS_CARD_TOOL_NAMES: readonly string[] = [
-  'mcp__vynel__run_background_process',
-]
 
 // The MCP tools each capability owns (server name `vynel` → `mcp__vynel__<x-mcp
 // name>`); the composer denies a capability's tools when that capability is off.
