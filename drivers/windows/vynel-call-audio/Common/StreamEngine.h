@@ -346,6 +346,10 @@ protected:
     // be null (then the render endpoint just discards, the pre-cable
     // behavior).
     CLoopbackRing* m_LoopbackRing;
+    // Diagnostics: mono frames this stream folded into the ring, flushed to
+    // the driver's Parameters key at ReleaseHardware (readable from user mode
+    // without admin — the field lab for cable-quality bugs).
+    ULONGLONG m_DiagFramesWritten;
 
     virtual
     __drv_maxIRQL(DISPATCH_LEVEL)
@@ -401,6 +405,13 @@ protected:
     // channels (silence on underrun). Device-owned; when null the engine
     // falls back to the sample's tone/wave generator.
     CLoopbackRing*  m_LoopbackRing;
+    // This STREAM's own ring cursor — per-reader by design, so concurrent
+    // capture streams (a call app + "listen" + a recorder) never steal
+    // samples from each other. Initialized to "now" at PrepareHardware.
+    ULONGLONG       m_RingReadPosition;
+    // Diagnostics, flushed to the Parameters key at ReleaseHardware.
+    ULONGLONG       m_DiagFramesRequested;
+    ULONGLONG       m_DiagFramesDelivered;
 
     virtual
     __drv_maxIRQL(DISPATCH_LEVEL)

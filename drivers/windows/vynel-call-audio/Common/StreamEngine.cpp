@@ -532,10 +532,83 @@ CStreamEngine::GetHWLatency(
 {
     PAGED_CODE();
 
-    *FifoSize = 128;
+    // A virtual cable has no hardware FIFO. The sample's hardcoded 128 bytes
+    // was a lie with consequences: a 10 ms mono packet (960 bytes) is not a
+    // 128-multiple, and anything sizing packets or latency around the claimed
+    // FIFO mis-frames the stream. One frame is the honest granularity.
+    *FifoSize = AcxDataFormatGetBlockAlign(m_StreamFormat);
     *Delay = 0;
 
     return STATUS_SUCCESS;
+}
+
+// Diagnostics: values dropped under the driver's own Parameters key
+// (HKLM\SYSTEM\CCS\Services\VynelCallAudio\Parameters), because that is
+// readable from user mode WITHOUT admin — the only feedback channel a
+// test-signed kernel driver has on a dev box mid-investigation. PASSIVE only.
+PAGED_CODE_SEG
+static VOID
+DiagWriteRegistryValue(
+    _In_ PCWSTR Name,
+    _In_ ULONGLONG Value
+)
+{
+    PAGED_CODE();
+
+    HANDLE key = NULL;
+    NTSTATUS status = IoOpenDriverRegistryKey(
+        WdfDriverWdmGetDriverObject(WdfGetDriver()),
+        DriverRegKeyParameters,
+        KEY_SET_VALUE,
+        0,
+        &key);
+    if (!NT_SUCCESS(status))
+    {
+        return; // diagnostics are best-effort — never fail the stream for them
+    }
+    UNICODE_STRING name;
+    RtlInitUnicodeString(&name, Name);
+    ZwSetValueKey(key, &name, 0, REG_QWORD, &Value, sizeof(Value));
+    ZwClose(key);
+}
+
+// The per-stream format + packet shape, written at PrepareHardware when both
+// are known. Prefix R/C = render/capture.
+PAGED_CODE_SEG
+static VOID
+DiagWriteStreamShape(
+    _In_ BOOLEAN IsRender,
+    _In_ ACXDATAFORMAT StreamFormat,
+    _In_ ULONG PacketSize,
+    _In_ ULONG PacketCount
+)
+{
+    PAGED_CODE();
+
+    PWAVEFORMATEXTENSIBLE pwfext =
+        (PWAVEFORMATEXTENSIBLE)AcxDataFormatGetWaveFormatExtensible(StreamFormat);
+    if (IsRender)
+    {
+        DiagWriteRegistryValue(L"DiagRPacketBytes", PacketSize);
+        DiagWriteRegistryValue(L"DiagRPacketCount", PacketCount);
+        if (pwfext != NULL)
+        {
+            DiagWriteRegistryValue(L"DiagRRate", pwfext->Format.nSamplesPerSec);
+            DiagWriteRegistryValue(L"DiagRChannels", pwfext->Format.nChannels);
+            DiagWriteRegistryValue(L"DiagRAvgBytesPerSec", pwfext->Format.nAvgBytesPerSec);
+        }
+    }
+    else
+    {
+        DiagWriteRegistryValue(L"DiagCPacketBytes", PacketSize);
+        DiagWriteRegistryValue(L"DiagCPacketCount", PacketCount);
+        if (pwfext != NULL)
+        {
+            DiagWriteRegistryValue(L"DiagCRate", pwfext->Format.nSamplesPerSec);
+            DiagWriteRegistryValue(L"DiagCChannels", pwfext->Format.nChannels);
+            DiagWriteRegistryValue(L"DiagCAvgBytesPerSec", pwfext->Format.nAvgBytesPerSec);
+        }
+    }
 }
 
 _Use_decl_annotations_
@@ -703,7 +776,8 @@ CRenderStreamEngine::CRenderStreamEngine(
 
 )
     : CStreamEngine(Stream, StreamFormat, Offload, CircuitPeakmeter),
-    m_LoopbackRing(LoopbackRing)
+    m_LoopbackRing(LoopbackRing),
+    m_DiagFramesWritten(0)
 {
     PAGED_CODE();
 }
@@ -729,6 +803,8 @@ CRenderStreamEngine::PrepareHardware()
     {
         goto exit;
     }
+
+    DiagWriteStreamShape(TRUE, m_StreamFormat, m_PacketSize, m_PacketsCount);
 
     status = m_SaveData.SetDataFormat((PKSDATAFORMAT)AcxDataFormatGetKsDataFormat(m_StreamFormat));
     if (!NT_SUCCESS(status))
@@ -764,6 +840,9 @@ CRenderStreamEngine::ReleaseHardware()
 
     m_SaveData.WaitAllWorkItems();
     m_SaveData.Cleanup();
+
+    DiagWriteRegistryValue(L"DiagRTicks", m_CurrentPacket);
+    DiagWriteRegistryValue(L"DiagRRingFramesWritten", m_DiagFramesWritten);
 
     return CStreamEngine::ReleaseHardware();
 }
@@ -884,6 +963,7 @@ CRenderStreamEngine::ProcessPacket()
     if (m_LoopbackRing != nullptr && m_RingChannels != 0)
     {
         m_LoopbackRing->WriteFrames(packetBuffer, m_PacketSize, m_RingChannels);
+        m_DiagFramesWritten += m_PacketSize / (m_RingChannels * sizeof(SHORT));
     }
 }
 
@@ -897,7 +977,10 @@ CCaptureStreamEngine::CCaptureStreamEngine(
 )
     : CStreamEngine(Stream, StreamFormat, FALSE, NULL),
     m_EnableWaveCapture(0),
-    m_LoopbackRing(LoopbackRing)
+    m_LoopbackRing(LoopbackRing),
+    m_RingReadPosition(0),
+    m_DiagFramesRequested(0),
+    m_DiagFramesDelivered(0)
 {
     PAGED_CODE();
 
@@ -934,12 +1017,16 @@ CCaptureStreamEngine::PrepareHardware()
         goto exit;
     }
 
-    // Drop any audio the render side buffered before this capture session
-    // opened, so a call never starts by playing out stale sound.
+    // Start THIS stream's cursor at "now": a call never begins by replaying
+    // audio the render side buffered earlier — and unlike the old global
+    // Reset(), opening a second capture stream (listen, a recorder) cannot
+    // yank the ring out from under a stream already mid-call.
     if (m_LoopbackRing != nullptr)
     {
-        m_LoopbackRing->Reset();
+        m_RingReadPosition = m_LoopbackRing->CurrentWritePosition();
     }
+
+    DiagWriteStreamShape(FALSE, m_StreamFormat, m_PacketSize, m_PacketsCount);
 
     (void)ReadRegistrySettings();
 
@@ -981,6 +1068,10 @@ CCaptureStreamEngine::ReleaseHardware()
     {
         m_WaveReader.WaitAllWorkItems();
     }
+
+    DiagWriteRegistryValue(L"DiagCTicks", m_CurrentPacket);
+    DiagWriteRegistryValue(L"DiagCFramesRequested", m_DiagFramesRequested);
+    DiagWriteRegistryValue(L"DiagCFramesDelivered", m_DiagFramesDelivered);
 
     return CStreamEngine::ReleaseHardware();
 }
@@ -1030,12 +1121,19 @@ CCaptureStreamEngine::ProcessPacket()
     }
 
     // The virtual cable: the mic outputs whatever the render endpoint played,
-    // each mono ring sample replicated across this stream's channels. Falls
-    // back to the sample's tone/wave only when no ring is wired; an
-    // unfoldable format keeps the cable but outputs silence.
+    // each mono ring sample replicated across this stream's channels — read
+    // from THIS stream's own cursor. Falls back to the sample's tone/wave
+    // only when no ring is wired; an unfoldable format keeps the cable but
+    // outputs silence.
     if (m_LoopbackRing != nullptr)
     {
-        m_LoopbackRing->ReadFrames(packetBuffer, m_PacketSize, m_RingChannels);
+        ULONG delivered =
+            m_LoopbackRing->ReadFrames(&m_RingReadPosition, packetBuffer, m_PacketSize, m_RingChannels);
+        if (m_RingChannels != 0)
+        {
+            m_DiagFramesRequested += m_PacketSize / (m_RingChannels * sizeof(SHORT));
+            m_DiagFramesDelivered += delivered;
+        }
     }
     else if (m_EnableWaveCapture)
     {
