@@ -10444,6 +10444,44 @@
                       "updatedAt": {
                         "type": "string"
                       },
+                      "sessionMode": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "ask",
+                          "auto",
+                          "bypass",
+                          null
+                        ]
+                      },
+                      "selectedModel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "thinkingEffort": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          null
+                        ]
+                      },
+                      "autoBuildout": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
                       "lastMessagePreview": {
                         "type": [
                           "string",
@@ -10468,6 +10506,10 @@
                       "startedAt",
                       "lastMessageAt",
                       "updatedAt",
+                      "sessionMode",
+                      "selectedModel",
+                      "thinkingEffort",
+                      "autoBuildout",
                       "lastMessagePreview"
                     ]
                   }
@@ -10738,6 +10780,44 @@
                         },
                         "updatedAt": {
                           "type": "string"
+                        },
+                        "sessionMode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "ask",
+                            "auto",
+                            "bypass",
+                            null
+                          ]
+                        },
+                        "selectedModel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "thinkingEffort": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max",
+                            null
+                          ]
+                        },
+                        "autoBuildout": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -10756,7 +10836,11 @@
                         "totalOutputTokens",
                         "startedAt",
                         "lastMessageAt",
-                        "updatedAt"
+                        "updatedAt",
+                        "sessionMode",
+                        "selectedModel",
+                        "thinkingEffort",
+                        "autoBuildout"
                       ]
                     },
                     "messages": {
@@ -11299,6 +11383,9 @@
                       "auto",
                       "bypass"
                     ]
+                  },
+                  "autoBuildout": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -11389,6 +11476,44 @@
                         },
                         "updatedAt": {
                           "type": "string"
+                        },
+                        "sessionMode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "ask",
+                            "auto",
+                            "bypass",
+                            null
+                          ]
+                        },
+                        "selectedModel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "thinkingEffort": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max",
+                            null
+                          ]
+                        },
+                        "autoBuildout": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -11407,7 +11532,11 @@
                         "totalOutputTokens",
                         "startedAt",
                         "lastMessageAt",
-                        "updatedAt"
+                        "updatedAt",
+                        "sessionMode",
+                        "selectedModel",
+                        "thinkingEffort",
+                        "autoBuildout"
                       ]
                     },
                     "messages": {
@@ -11927,6 +12056,44 @@
                     },
                     "updatedAt": {
                       "type": "string"
+                    },
+                    "sessionMode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "ask",
+                        "auto",
+                        "bypass",
+                        null
+                      ]
+                    },
+                    "selectedModel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thinkingEffort": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                        null
+                      ]
+                    },
+                    "autoBuildout": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -11945,7 +12112,11 @@
                     "totalOutputTokens",
                     "startedAt",
                     "lastMessageAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "sessionMode",
+                    "selectedModel",
+                    "thinkingEffort",
+                    "autoBuildout"
                   ]
                 }
               }
@@ -12214,6 +12385,44 @@
                     },
                     "updatedAt": {
                       "type": "string"
+                    },
+                    "sessionMode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "ask",
+                        "auto",
+                        "bypass",
+                        null
+                      ]
+                    },
+                    "selectedModel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thinkingEffort": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                        null
+                      ]
+                    },
+                    "autoBuildout": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -12232,7 +12441,11 @@
                     "totalOutputTokens",
                     "startedAt",
                     "lastMessageAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "sessionMode",
+                    "selectedModel",
+                    "thinkingEffort",
+                    "autoBuildout"
                   ]
                 }
               }
@@ -12344,6 +12557,44 @@
                     },
                     "updatedAt": {
                       "type": "string"
+                    },
+                    "sessionMode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "ask",
+                        "auto",
+                        "bypass",
+                        null
+                      ]
+                    },
+                    "selectedModel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thinkingEffort": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                        null
+                      ]
+                    },
+                    "autoBuildout": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -12362,7 +12613,11 @@
                     "totalOutputTokens",
                     "startedAt",
                     "lastMessageAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "sessionMode",
+                    "selectedModel",
+                    "thinkingEffort",
+                    "autoBuildout"
                   ]
                 }
               }
@@ -29792,6 +30047,44 @@
                         },
                         "updatedAt": {
                           "type": "string"
+                        },
+                        "sessionMode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "ask",
+                            "auto",
+                            "bypass",
+                            null
+                          ]
+                        },
+                        "selectedModel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "thinkingEffort": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max",
+                            null
+                          ]
+                        },
+                        "autoBuildout": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -29810,7 +30103,11 @@
                         "totalOutputTokens",
                         "startedAt",
                         "lastMessageAt",
-                        "updatedAt"
+                        "updatedAt",
+                        "sessionMode",
+                        "selectedModel",
+                        "thinkingEffort",
+                        "autoBuildout"
                       ]
                     },
                     "messages": {
@@ -30673,6 +30970,44 @@
                         },
                         "updatedAt": {
                           "type": "string"
+                        },
+                        "sessionMode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "ask",
+                            "auto",
+                            "bypass",
+                            null
+                          ]
+                        },
+                        "selectedModel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "thinkingEffort": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max",
+                            null
+                          ]
+                        },
+                        "autoBuildout": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -30691,7 +31026,11 @@
                         "totalOutputTokens",
                         "startedAt",
                         "lastMessageAt",
-                        "updatedAt"
+                        "updatedAt",
+                        "sessionMode",
+                        "selectedModel",
+                        "thinkingEffort",
+                        "autoBuildout"
                       ]
                     },
                     "messages": {
@@ -31209,6 +31548,44 @@
                         },
                         "updatedAt": {
                           "type": "string"
+                        },
+                        "sessionMode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "ask",
+                            "auto",
+                            "bypass",
+                            null
+                          ]
+                        },
+                        "selectedModel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "thinkingEffort": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max",
+                            null
+                          ]
+                        },
+                        "autoBuildout": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -31227,7 +31604,11 @@
                         "totalOutputTokens",
                         "startedAt",
                         "lastMessageAt",
-                        "updatedAt"
+                        "updatedAt",
+                        "sessionMode",
+                        "selectedModel",
+                        "thinkingEffort",
+                        "autoBuildout"
                       ]
                     },
                     "messages": {
@@ -31901,6 +32282,9 @@
                     ]
                   },
                   "voice": {
+                    "type": "boolean"
+                  },
+                  "autoBuildout": {
                     "type": "boolean"
                   }
                 },
@@ -33158,6 +33542,44 @@
                           "updatedAt": {
                             "type": "string"
                           },
+                          "sessionMode": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "ask",
+                              "auto",
+                              "bypass",
+                              null
+                            ]
+                          },
+                          "selectedModel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "thinkingEffort": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              null
+                            ]
+                          },
+                          "autoBuildout": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
                           "lastMessagePreview": {
                             "type": [
                               "string",
@@ -33182,6 +33604,10 @@
                           "startedAt",
                           "lastMessageAt",
                           "updatedAt",
+                          "sessionMode",
+                          "selectedModel",
+                          "thinkingEffort",
+                          "autoBuildout",
                           "lastMessagePreview"
                         ]
                       }
@@ -33915,6 +34341,44 @@
                         },
                         "updatedAt": {
                           "type": "string"
+                        },
+                        "sessionMode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "ask",
+                            "auto",
+                            "bypass",
+                            null
+                          ]
+                        },
+                        "selectedModel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "thinkingEffort": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "xhigh",
+                            "max",
+                            null
+                          ]
+                        },
+                        "autoBuildout": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -33933,7 +34397,11 @@
                         "totalOutputTokens",
                         "startedAt",
                         "lastMessageAt",
-                        "updatedAt"
+                        "updatedAt",
+                        "sessionMode",
+                        "selectedModel",
+                        "thinkingEffort",
+                        "autoBuildout"
                       ]
                     },
                     "messages": {
@@ -34459,6 +34927,204 @@
         }
       }
     },
+    "/sessions/{sessionId}/settings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ sessionMode, selectedModel, thinkingEffort, autoBuildout } — each null when the user never set it on this session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionMode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "ask",
+                        "auto",
+                        "bypass",
+                        null
+                      ]
+                    },
+                    "selectedModel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thinkingEffort": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                        null
+                      ]
+                    },
+                    "autoBuildout": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "sessionMode",
+                    "selectedModel",
+                    "thinkingEffort",
+                    "autoBuildout"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown session, or not owned."
+          }
+        },
+        "operationId": "getSessionsBySessionIdSettings",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Read a session's composer settings (null fields = never set).",
+        "x-sdk-name": "sessions.getSettings"
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "The updated settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionMode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "ask",
+                        "auto",
+                        "bypass",
+                        null
+                      ]
+                    },
+                    "selectedModel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thinkingEffort": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                        null
+                      ]
+                    },
+                    "autoBuildout": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "sessionMode",
+                    "selectedModel",
+                    "thinkingEffort",
+                    "autoBuildout"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown session, or not owned."
+          }
+        },
+        "operationId": "patchSessionsBySessionIdSettings",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update a session's composer settings (partial — only provided fields change).",
+        "x-sdk-name": "sessions.updateSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionMode": {
+                    "type": "string",
+                    "enum": [
+                      "ask",
+                      "auto",
+                      "bypass"
+                    ]
+                  },
+                  "selectedModel": {
+                    "type": "string",
+                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}$"
+                  },
+                  "thinkingEffort": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ]
+                  },
+                  "autoBuildout": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sessions/{sessionId}/stream": {
       "get": {
         "responses": {
@@ -34547,6 +35213,9 @@
                       "auto",
                       "bypass"
                     ]
+                  },
+                  "autoBuildout": {
+                    "type": "boolean"
                   }
                 },
                 "required": [

@@ -9,6 +9,8 @@
 //                     a normal continuing session as a tool
 //   POST /:sessionId/turn -> the user chats DIRECTLY into a spawned session
 //                     (sessions-surface Slice ③a; SSE, no x-mcp)
+//   GET  /:sessionId/settings   -> the per-session composer settings (no x-mcp)
+//   PATCH /:sessionId/settings  -> partial settings update (no x-mcp)
 //
 // Thin by design: parse → call the session-tier op → return. The overview op
 // returns the wire shape directly (ISO dates), so the panel and the tool read
@@ -22,7 +24,7 @@ import { getSessionsOverview } from '@vynel/session/overview'
 import { createSpawnedSession } from '@vynel/session/spawned'
 import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
-import { getChatSessionDetail, searchChatSessions } from '@vynel/chat'
+import { getChatSessionDetail, searchChatSessions, updateChatSessionSettings } from '@vynel/chat'
 import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
@@ -38,9 +40,27 @@ import {
   SearchSessionMessagesQuerySchema,
   SearchChatSessionsResponseSchema,
   ChatSessionDetailResponseSchema,
+  ChatSessionSettingsSchema,
+  UpdateChatSessionSettingsRequestSchema,
 } from './schemas.js'
 
 const SessionIdParamSchema = z.object({ sessionId: z.string().min(1) })
+
+// The settings routes' response shape — the four settings columns off the row,
+// nothing else (the full row stays on the detail/list reads).
+function toSessionSettings(session: {
+  sessionMode: string | null
+  selectedModel: string | null
+  thinkingEffort: string | null
+  autoBuildout: boolean | null
+}) {
+  return {
+    sessionMode: session.sessionMode,
+    selectedModel: session.selectedModel,
+    thinkingEffort: session.thinkingEffort,
+    autoBuildout: session.autoBuildout,
+  }
+}
 
 export const sessionsApp = factory
   .createApp()
@@ -235,6 +255,72 @@ export const sessionsApp = factory
         logger: c.var.logger,
       })
       return c.json({ status: 'created' as const, sessionId: created.sessionId, name: created.name })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /:sessionId/settings + PATCH /:sessionId/settings — the per-session
+  // composer settings (mode / model / effort / auto-buildout). USER-scoped on
+  // purpose: one settings surface for every scope the composer hosts — global
+  // thread segments (workspaceId null), workspace sessions, spawned sessions —
+  // where the workspace-prefixed chat surface can't reach the global rows.
+  // Ownership-gated like /:sessionId/stream (unknown and not-owned both 404);
+  // deliberately NO global-scope wall — this is the UI's own surface, not a
+  // tool door (no x-mcp).
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/:sessionId/settings',
+    describeRoute({
+      tags: ['sessions'],
+      summary: "Read a session's composer settings (null fields = never set).",
+      'x-sdk-name': 'sessions.getSettings',
+      responses: {
+        200: {
+          description:
+            '{ sessionMode, selectedModel, thinkingEffort, autoBuildout } — each null when the user never set it on this session.',
+          content: { 'application/json': { schema: resolver(ChatSessionSettingsSchema) } },
+        },
+        404: { description: 'Unknown session, or not owned.' },
+      },
+      // No x-mcp — the composer's own preference surface, not a tool.
+    }),
+    validator('param', SessionIdParamSchema),
+    ...userScoped,
+    async (c) => {
+      const { sessionId } = c.req.valid('param')
+      const session = findChatSessionById(c.var.db, sessionId)
+      if (session === null || session.userId !== c.var.user.id) {
+        throw new NotFoundError('session', sessionId)
+      }
+      return c.json(toSessionSettings(session))
+    },
+  )
+  .patch(
+    '/:sessionId/settings',
+    describeRoute({
+      tags: ['sessions'],
+      summary: "Update a session's composer settings (partial — only provided fields change).",
+      'x-sdk-name': 'sessions.updateSettings',
+      responses: {
+        200: {
+          description: 'The updated settings.',
+          content: { 'application/json': { schema: resolver(ChatSessionSettingsSchema) } },
+        },
+        404: { description: 'Unknown session, or not owned.' },
+      },
+      // No x-mcp — mutating a user preference; the model steers its own turns
+      // through the turn request, never by flipping the user's chips.
+    }),
+    validator('param', SessionIdParamSchema),
+    validator('json', UpdateChatSessionSettingsRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { sessionId } = c.req.valid('param')
+      const session = findChatSessionById(c.var.db, sessionId)
+      if (session === null || session.userId !== c.var.user.id) {
+        throw new NotFoundError('session', sessionId)
+      }
+      const updated = updateChatSessionSettings(c.var.db, sessionId, c.req.valid('json'))
+      return c.json(toSessionSettings(updated))
     },
   )
   // ──────────────────────────────────────────────────────────────────

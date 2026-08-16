@@ -12,6 +12,7 @@ import { findChatSessionById, listChatSessionsForWorkspace } from '../repositori
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { CHAT_SESSION_CREATED, type ChatSessionCreatedPayload } from '../chat-events.js'
 import { recordSwapSegmentSession } from './record-swap-segment-session.js'
+import { updateChatSessionSettings } from '../settings/update-chat-session-settings.js'
 
 function makeUser() {
   const now = new Date()
@@ -111,6 +112,57 @@ describe('recordSwapSegmentSession (core)', () => {
       expect(findChatSessionById(db, freshSdkSessionId)?.continuedFromSessionId).toBe(
         predecessorId,
       )
+    })
+  })
+
+  it('inherits the predecessor segment’s composer settings (a swap never resets them)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const predecessorId = `sdk-${randomUUID()}`
+      recordSwapSegmentSession(db, {
+        sessionId: predecessorId,
+        userId: user.id,
+        workspaceId: workspace.id,
+        providerId: 'claude',
+      })
+      updateChatSessionSettings(db, predecessorId, {
+        sessionMode: 'bypass',
+        selectedModel: 'claude-opus-4-8',
+        thinkingEffort: 'xhigh',
+        autoBuildout: true,
+      })
+
+      const segment = recordSwapSegmentSession(db, {
+        sessionId: `sdk-${randomUUID()}`,
+        userId: user.id,
+        workspaceId: workspace.id,
+        providerId: 'claude',
+        continuedFromSessionId: predecessorId,
+      })
+
+      expect(segment.sessionMode).toBe('bypass')
+      expect(segment.selectedModel).toBe('claude-opus-4-8')
+      expect(segment.thinkingEffort).toBe('xhigh')
+      expect(segment.autoBuildout).toBe(true)
+    })
+  })
+
+  it('a missing predecessor row leaves the settings unset (loose-ref swap)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const segment = recordSwapSegmentSession(db, {
+        sessionId: `sdk-${randomUUID()}`,
+        userId: user.id,
+        workspaceId: workspace.id,
+        providerId: 'claude',
+        continuedFromSessionId: `sdk-${randomUUID()}`, // no such row
+      })
+      expect(segment.sessionMode).toBeNull()
+      expect(segment.selectedModel).toBeNull()
+      expect(segment.thinkingEffort).toBeNull()
+      expect(segment.autoBuildout).toBeNull()
     })
   })
 })

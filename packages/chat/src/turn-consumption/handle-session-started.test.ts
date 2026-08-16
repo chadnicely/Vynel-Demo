@@ -12,6 +12,7 @@ import type { Database } from '@vynel/db'
 import { findChatSessionById, insertChatSession } from '../repositories/index.js'
 import { buildNewChatSessionRow } from './build-new-chat-session-row.js'
 import { handleSessionStarted } from './handle-session-started.js'
+import { updateChatSessionSettings } from '../settings/update-chat-session-settings.js'
 
 function seedUser(db: Database) {
   const now = new Date()
@@ -124,6 +125,27 @@ describe('handleSessionStarted — mid-turn swap (B4)', () => {
       expect(row.title).toBe('New session')
       expect(row.visibility).toBe('listed')
       expect(row.scope).toBe('global')
+    })
+  })
+
+  it('inherits the predecessor’s composer settings (a mid-turn swap never resets them)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      seedSpawnedSegment(db, user.id, 'sdk-old')
+      updateChatSessionSettings(db, 'sdk-old', {
+        sessionMode: 'auto',
+        selectedModel: 'claude-sonnet-5',
+        thinkingEffort: 'medium',
+        autoBuildout: true,
+      })
+
+      handleSessionStarted(swapInput(db, user.id))
+
+      const row = findChatSessionById(db, 'sdk-new')!
+      expect(row.sessionMode).toBe('auto')
+      expect(row.selectedModel).toBe('claude-sonnet-5')
+      expect(row.thinkingEffort).toBe('medium')
+      expect(row.autoBuildout).toBe(true)
     })
   })
 

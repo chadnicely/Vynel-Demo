@@ -5,10 +5,10 @@ import type {
   ChatTurnEvent,
 } from "@vynel/contracts/chat/chat-http";
 import { useVynel } from "../use-vynel.js";
-import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { streamChatTurnEvents } from "./chat-turn-stream.js";
 import type { TurnAttachmentInput } from "./turn-attachments.js";
+import type { ComposerSettings } from "./use-session-settings.js";
 import {
   applyChatTurnEvent,
   createActiveTurnView,
@@ -38,7 +38,6 @@ export function useChatTurn(options: {
   onSessionCreated?: (session: ChatSessionResponse) => void;
 }) {
   const vynel = useVynel();
-  const ui = useUiStore();
   const queryClient = useQueryClient();
   const activity = useActivityStore();
 
@@ -98,6 +97,10 @@ export function useChatTurn(options: {
     isContinuous: boolean;
     userText: string;
     attachments?: TurnAttachmentInput[];
+    /** The composer settings at send time (use-session-settings values) —
+     *  what the user SAW is what the turn runs with, and the server's
+     *  write-through persists them onto the session row. */
+    settings: ComposerSettings;
   }) {
     if (isStreaming.value) return;
 
@@ -115,11 +118,12 @@ export function useChatTurn(options: {
         scope,
         userMessageText: input.userText,
         ...(input.attachments?.length ? { attachments: input.attachments } : {}),
-        model: ui.composerModelId,
+        model: input.settings.modelId,
         // Both scopes carry the composer's session mode — a global turn's mode also
         // governs any delegation the brain enqueues (surface-up step 1).
-        mode: ui.composerMode,
-        thinkingEffort: ui.composerThinkingEffort,
+        mode: input.settings.mode,
+        thinkingEffort: input.settings.thinkingEffort,
+        autoBuildout: input.settings.autoBuildout,
         signal: abortController.signal,
         // Global root manages its own thread. A workspace turn continues its
         // primary, resumes a picked session, or starts fresh.

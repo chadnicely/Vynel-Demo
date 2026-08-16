@@ -634,30 +634,46 @@ describe('POST /root/turn (SSE)', () => {
     })
   })
 
-  it('runs the brain turn under the requested mode; absent → the bypass default (surface-up step 1)', async () => {
+  // test: correct expectation for the absent-mode turn — was "always the bypass
+  // default", now per-session settings resolve first (2026-08-17): a thread that
+  // never chose a mode still defaults to bypass; once a turn carries one, the
+  // thread REMEMBERS it and a later absent-mode turn runs under the stored mode.
+  it('runs the brain turn under the requested mode; absent → the stored setting, else the bypass default', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
       const app = makeHarness(db)
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
 
       await withVynelUserDataDir(dataDir, async () => {
+        // Fresh thread, no mode anywhere → the core's bypass default.
+        const fresh = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'hello brain' }),
+        })
+        expect(fresh.status).toBe(200)
+        await fresh.text() // drain the SSE body so the turn completes
+        expect(startChatSessionInputs[0]!.permissionMode).toBe('bypass-with-behavior-gate')
+
+        // An explicit mode governs the turn AND persists onto the thread.
         const asked = await app.request('/root/turn', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ userMessageText: 'hello brain', mode: 'ask' }),
+          body: JSON.stringify({ userMessageText: 'hello again', mode: 'ask' }),
         })
         expect(asked.status).toBe(200)
-        await asked.text() // drain the SSE body so the turn completes
-        expect(startChatSessionInputs[0]!.permissionMode).toBe('ask')
+        await asked.text()
+        expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')
 
-        const defaulted = await app.request('/root/turn', {
+        // A later absent-mode turn resolves the thread's stored setting.
+        const remembered = await app.request('/root/turn', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ userMessageText: 'hello again' }),
+          body: JSON.stringify({ userMessageText: 'once more' }),
         })
-        expect(defaulted.status).toBe(200)
-        await defaulted.text()
-        expect(startChatSessionInputs[1]!.permissionMode).toBe('bypass-with-behavior-gate')
+        expect(remembered.status).toBe(200)
+        await remembered.text()
+        expect(startChatSessionInputs[2]!.permissionMode).toBe('ask')
       })
     })
   })

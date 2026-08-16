@@ -27,6 +27,8 @@ import {
 import { listEnabledCapabilities } from '@vynel/capabilities'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
+import { findPrimaryConversation } from '@vynel/session/continuity'
+import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../factory.js'
 import { loadEnv } from '../env.js'
@@ -86,10 +88,27 @@ export async function streamChatTurn(
   const enabledFeatureKeys = resolveEnabledFeatureKeys(c.var.hubSession)
   // The admin's per-tool overrides (no desktop on this surface → []).
   const toolPolicies = resolveSessionToolPolicies(c.var.db, { userId: c.var.user.id })
+  // Per-session settings resolution: explicit input ?? the target session's
+  // persisted setting ?? the surface default. The settings row is read
+  // PRE-lock deliberately — settings are swap-stable (copied forward onto
+  // fresh segments), so a pressure swap between here and the in-lock resume
+  // resolution can't change the values; only the resume TARGET needs the lock.
+  const settingsSessionId =
+    input.resumeSessionId ??
+    (input.continueRoot === true && c.var.workspace!.continueEnabled
+      ? (findPrimaryConversation(c.var.db, {
+          userId: c.var.user.id,
+          workspaceId: c.var.workspace!.id,
+        })?.currentSdkSessionId ?? null)
+      : null)
+  const turnSettings = resolveTurnSessionSettings(
+    input,
+    settingsSessionId !== null ? findChatSessionById(c.var.db, settingsSessionId) : null,
+  )
   // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
   // (enqueued once the turn's session resolves) + the per-turn # study
   // descriptor. Never throws; null = a token-free turn.
-  const turnPermissionMode = toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE)
+  const turnPermissionMode = toPermissionMode(turnSettings.mode ?? DEFAULT_SESSION_MODE)
   const mentionPlan = await prepareComposerMentionTurn(
     c.var.db,
     {
@@ -98,8 +117,10 @@ export async function streamChatTurn(
       originWorkspaceId: c.var.workspace!.id,
       originWorkspacePath: c.var.workspace!.path,
       permissionMode: turnPermissionMode,
-      ...(input.model !== undefined ? { model: input.model } : {}),
-      ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+      ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+      ...(turnSettings.thinkingEffort !== undefined
+        ? { thinkingEffort: turnSettings.thinkingEffort }
+        : {}),
     },
     { logger: c.var.logger },
   )
@@ -193,6 +214,16 @@ export async function streamChatTurn(
     // the turn actually ran on, and its final context occupancy (input + cache).
     let effectiveSdkSessionId: string | null = resumeSessionId ?? null
     let occupancyTokens = 0
+    // Settings write-through, once per turn at session resolve: what the
+    // composer sent becomes the row's persisted truth (a fresh conversation's
+    // first turn stamps the row it just created). Input-only — omitted fields
+    // stay "never set". Best-effort inside the helper.
+    let settingsPersisted = false
+    const persistSettingsOnce = (sessionId: string): void => {
+      if (settingsPersisted) return
+      settingsPersisted = true
+      persistTurnSessionSettings(c.var.db, sessionId, input, { logger: c.var.logger })
+    }
 
     const turnStream = startChatTurn(
       c.var.db,
@@ -204,13 +235,15 @@ export async function streamChatTurn(
         ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
         userMessageText: input.userMessageText,
         ...(input.attachedImages !== undefined ? { attachedImages: input.attachedImages } : {}),
-        ...(input.model !== undefined ? { model: input.model } : {}),
-        ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
-        // Map the user-facing session mode → provider permission mode. The
-        // default is resolved here (DEFAULT_SESSION_MODE today; the persisted
-        // per-user setting once that lands). The mode is the user's trust
-        // level for the whole turn: ask cards the floor, auto defers to the
-        // classifier, bypass never asks (2026-07-30 stance).
+        ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+        ...(turnSettings.thinkingEffort !== undefined
+          ? { thinkingEffort: turnSettings.thinkingEffort }
+          : {}),
+        // Map the user-facing session mode → provider permission mode, after
+        // the per-session settings resolution above (explicit input ?? the
+        // session's persisted setting ?? DEFAULT_SESSION_MODE). The mode is
+        // the user's trust level for the whole turn: ask cards the floor,
+        // auto defers to the classifier, bypass never asks (2026-07-30 stance).
         permissionMode: turnPermissionMode,
         mcpServers: composedMcp.mcpServers,
         // Deny a disabled capability's tools (from the composer); the system prompt
@@ -272,11 +305,13 @@ export async function streamChatTurn(
           activity.sessionResolved(event.session.id)
           turnSession.resolve(event.session.id)
           mentionPlan?.onSessionResolved(event.session.id)
+          persistSettingsOnce(event.session.id)
         } else if (event.kind === 'user-message-persisted') {
           // A resumed turn never emits session-created — this is its identity.
           activity.sessionResolved(event.message.sessionId)
           turnSession.resolve(event.message.sessionId)
           mentionPlan?.onSessionResolved(event.message.sessionId)
+          persistSettingsOnce(event.message.sessionId)
         } else if (event.kind === 'usage-reported') {
           occupancyTokens =
             event.inputTokens + event.cacheReadInputTokens + event.cacheCreationInputTokens

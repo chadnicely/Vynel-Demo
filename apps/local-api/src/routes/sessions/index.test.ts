@@ -507,3 +507,106 @@ describe('POST /sessions/spawned (Slice ④ — create_session)', () => {
     })
   })
 })
+
+describe('GET + PATCH /sessions/:sessionId/settings (per-session composer settings)', () => {
+  it('reads null settings on a fresh session, patches partially, and reads back', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const ws = seedWorkspace(db, user.id, 'Mine')
+      const session = insertChatSession(db, makeSession(user.id, ws.id))
+      const app = makeHarness(db)
+
+      const fresh = await app.request(`/sessions/${session.id}/settings`)
+      expect(fresh.status).toBe(200)
+      expect(await fresh.json()).toEqual({
+        sessionMode: null,
+        selectedModel: null,
+        thinkingEffort: null,
+        autoBuildout: null,
+      })
+
+      const patched = await app.request(`/sessions/${session.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'auto', autoBuildout: true }),
+      })
+      expect(patched.status).toBe(200)
+      expect(await patched.json()).toEqual({
+        sessionMode: 'auto',
+        selectedModel: null,
+        thinkingEffort: null,
+        autoBuildout: true,
+      })
+
+      // A later partial patch leaves the untouched fields alone.
+      const second = await app.request(`/sessions/${session.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ selectedModel: 'claude-opus-4-8', thinkingEffort: 'max' }),
+      })
+      expect(await second.json()).toEqual({
+        sessionMode: 'auto',
+        selectedModel: 'claude-opus-4-8',
+        thinkingEffort: 'max',
+        autoBuildout: true,
+      })
+      // Persisted on the row itself, not just the response shape.
+      const row = findChatSessionById(db, session.id)
+      expect(row?.sessionMode).toBe('auto')
+      expect(row?.selectedModel).toBe('claude-opus-4-8')
+    })
+  })
+
+  it("reaches the global thread's segments (no scope wall — the composer's own surface)", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const globalThread = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'global' }),
+      )
+      const app = makeHarness(db)
+      const res = await app.request(`/sessions/${globalThread.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'bypass' }),
+      })
+      expect(res.status).toBe(200)
+      expect(((await res.json()) as { sessionMode: string }).sessionMode).toBe('bypass')
+    })
+  })
+
+  it("404s unknown ids and other users' sessions alike (no enumeration leak)", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const otherUser = seedUser(db)
+      const otherWs = seedWorkspace(db, otherUser.id, 'Theirs')
+      const theirs = insertChatSession(db, makeSession(otherUser.id, otherWs.id))
+      void user
+      const app = makeHarness(db)
+
+      expect((await app.request('/sessions/no-such/settings')).status).toBe(404)
+      expect((await app.request(`/sessions/${theirs.id}/settings`)).status).toBe(404)
+      const patch = await app.request(`/sessions/${theirs.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'auto' }),
+      })
+      expect(patch.status).toBe(404)
+    })
+  })
+
+  it('rejects an unknown mode/effort at the boundary (400)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const ws = seedWorkspace(db, user.id, 'Mine')
+      const session = insertChatSession(db, makeSession(user.id, ws.id))
+      const app = makeHarness(db)
+      const res = await app.request(`/sessions/${session.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'yolo' }),
+      })
+      expect(res.status).toBe(400)
+    })
+  })
+})

@@ -34,6 +34,9 @@ export interface StartTurnInput {
   /** The composer's thinking-effort pick. Both scopes; omitted = Auto (the
    *  provider's adaptive default — today's behavior, byte-for-byte). */
   thinkingEffort?: ThinkingEffortLevel;
+  /** The composer's Auto-buildout toggle — write-through persistence only
+   *  (rides the turn so a NEW conversation's first turn stamps its row). */
+  autoBuildout?: boolean;
   /** This turn came in by VOICE — the brain answers short + spoken (global scope). */
   voice?: boolean;
   signal: AbortSignal;
@@ -57,6 +60,9 @@ export async function* streamChatTurnEvents(
             ...(input.thinkingEffort
               ? { thinkingEffort: input.thinkingEffort }
               : {}),
+            ...(input.autoBuildout !== undefined
+              ? { autoBuildout: input.autoBuildout }
+              : {}),
             ...(input.voice ? { voice: true } : {}),
           },
           parseAs: "stream",
@@ -77,6 +83,9 @@ export async function* streamChatTurnEvents(
             ...(input.mode ? { mode: input.mode } : {}),
             ...(input.thinkingEffort
               ? { thinkingEffort: input.thinkingEffort }
+              : {}),
+            ...(input.autoBuildout !== undefined
+              ? { autoBuildout: input.autoBuildout }
               : {}),
           },
           parseAs: "stream",

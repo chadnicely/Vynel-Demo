@@ -83,11 +83,37 @@ const SESSION_MODE_VALUES = SESSION_MODES.map((entry) => entry.mode) as [
 export const StartSessionTurnRequestSchema = z.object({
   /** The user's message — a direct turn into the spawned session's chain head. */
   userMessageText: z.string().min(1).max(50000),
-  /** The model to run this turn. Omit to inherit the provider default. */
+  /** The model to run this turn. Omit to resolve the session's persisted
+   *  setting, else the provider default. */
   model: ChatModelIdSchema.optional(),
-  /** Reasoning effort for this turn. Omit for the adaptive default. */
+  /** Reasoning effort for this turn. Omit to resolve the session's persisted
+   *  setting, else the adaptive default. */
   thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
-  /** The user-facing session mode — same resolution as the workspace chat
-   *  stream (`toPermissionMode`, default `DEFAULT_SESSION_MODE` when omitted). */
+  /** The user-facing session mode — `toPermissionMode` after resolving
+   *  input ?? the session's persisted setting ?? `DEFAULT_SESSION_MODE`. */
   mode: z.enum(SESSION_MODE_VALUES).optional(),
+  /** The composer's Auto-buildout toggle — write-through persistence only
+   *  (nothing consumes it yet); rides the turn so a NEW conversation's first
+   *  turn stamps the row it creates. */
+  autoBuildout: z.boolean().optional(),
+})
+
+// ── Per-session composer settings (2026-08-17) ─────────────────────
+// What the user CHOSE for this session — nullable means "never set on this
+// session"; the UI falls back to its local defaults, the turn streams to
+// their surface defaults. One settings surface for every scope the composer
+// hosts (global segments, workspace sessions, spawned sessions).
+
+export const ChatSessionSettingsSchema = z.object({
+  sessionMode: z.enum(SESSION_MODE_VALUES).nullable(),
+  selectedModel: z.string().nullable(),
+  thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).nullable(),
+  autoBuildout: z.boolean().nullable(),
+})
+
+export const UpdateChatSessionSettingsRequestSchema = z.object({
+  sessionMode: z.enum(SESSION_MODE_VALUES).optional(),
+  selectedModel: ChatModelIdSchema.optional(),
+  thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
+  autoBuildout: z.boolean().optional(),
 })

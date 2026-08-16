@@ -9,8 +9,8 @@ import {
 import { useQueryClient } from "@tanstack/vue-query";
 import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
 import { useVynel } from "../use-vynel.js";
-import { useUiStore } from "../../stores/ui-store.js";
 import { useActivityStore } from "../../stores/activity-store.js";
+import type { ComposerSettings } from "../chat/use-session-settings.js";
 import { readChatTurnEvents } from "../chat/chat-turn-stream.js";
 import { sessionKeys } from "../chat/session-keys.js";
 import {
@@ -40,7 +40,6 @@ function isAbortError(candidate: unknown): boolean {
 
 export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
   const vynel = useVynel();
-  const ui = useUiStore();
   const queryClient = useQueryClient();
   const activity = useActivityStore();
 
@@ -65,7 +64,10 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
     () => view.value !== null && view.value.status === "streaming",
   );
 
-  async function startTurn(userMessageText: string): Promise<void> {
+  async function startTurn(
+    userMessageText: string,
+    settings: ComposerSettings,
+  ): Promise<void> {
     if (view.value !== null) return;
     const id = toValue(sessionId);
     view.value = createActiveTurnView();
@@ -79,12 +81,14 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
         params: { path: { sessionId: id } },
         body: {
           userMessageText,
-          // The shared composer selections — the same trio every chat turn
-          // sends. Plain string since the roster went dynamic (the ui-store
-          // restore shape-checks it; the engine is the real validator).
-          model: ui.composerModelId,
-          mode: ui.composerMode,
-          thinkingEffort: ui.composerThinkingEffort,
+          // The composer settings at send time (use-session-settings values) —
+          // the same set every chat turn sends; the server's write-through
+          // persists them onto the session row. Plain string model since the
+          // roster went dynamic (the engine is the real validator).
+          model: settings.modelId,
+          mode: settings.mode,
+          thinkingEffort: settings.thinkingEffort,
+          autoBuildout: settings.autoBuildout,
         },
         parseAs: "stream",
         signal: abortController.signal,

@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Each conversation now remembers its own mode, model, effort, and Auto
+  buildout.** The composer chips used to be one global setting — changing the
+  model in one chat silently retargeted every other conversation's next turn.
+  They now live on the session itself: a chip change persists to that session
+  immediately (no send needed), a turn sent without explicit settings runs on
+  what the session has stored (a Telegram or voice turn on the assistant thread
+  follows the mode/model you chose in the app), and a conversation that
+  continues onto a fresh segment keeps its settings. The chips only act as
+  defaults for brand-new chats; the first turn stamps them onto the new
+  session.
+
 - **Claude can run commands in the background and get woken when they finish.**
   `run_background_process` starts a shell command — a test suite, a build — that
   keeps running after the conversation moves on, even across its pauses; when it

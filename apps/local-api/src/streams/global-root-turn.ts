@@ -15,6 +15,8 @@ import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
 import type { ChatTurnEvent } from '@vynel/chat'
+import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/chat'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import {
   composeSessionAgents,
   recordAgentRunStarted,
@@ -118,10 +120,28 @@ export async function streamGlobalRootTurn(
   c: Context<AppEnv>,
   input: StartGlobalRootTurnInput,
 ): Promise<Response> {
+  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // record can key its rows by it (the SDK id is only assigned mid-stream).
+  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
+  // this early call cannot fight the authoritative in-lock `resolveTarget`.
+  // Also the settings row: the thread's CURRENT segment carries the user's
+  // persisted composer settings (swap-stable — copied forward onto fresh
+  // segments), so the pre-lock read resolves the same values as the head.
+  const conversationTarget = await resolveGlobalRootConversationTarget(c.var.db, {
+    userId: c.var.user.id,
+  })
+  const turnSettings = resolveTurnSessionSettings(
+    input,
+    conversationTarget.resumeSdkSessionId !== null
+      ? findChatSessionById(c.var.db, conversationTarget.resumeSdkSessionId)
+      : null,
+  )
   // The turn's permission mode (surface-up step 1): governs the brain's own tools AND
-  // rides the mode header so a delegation this turn enqueues inherits it. Absent →
-  // undefined → the core's bypass default + no header (pre-mode behavior).
-  const permissionMode = input.mode !== undefined ? toPermissionMode(input.mode) : undefined
+  // rides the mode header so a delegation this turn enqueues inherits it. Resolved
+  // input ?? the thread's persisted setting; nothing resolved → undefined → the
+  // core's bypass default + no header (pre-settings behavior).
+  const permissionMode =
+    turnSettings.mode !== undefined ? toPermissionMode(turnSettings.mode) : undefined
   const modeAwareAppRequest =
     permissionMode !== undefined
       ? wrapAppRequestWithMode(c.var.appRequest, permissionMode)
@@ -165,13 +185,6 @@ export async function streamGlobalRootTurn(
   const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
     '@vynel/desktop-control'
   )
-  // The global root's STABLE identity, resolved pre-lock so the desktop action
-  // record can key its rows by it (the SDK id is only assigned mid-stream).
-  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
-  // this early call cannot fight the authoritative in-lock `resolveTarget`.
-  const conversationTarget = await resolveGlobalRootConversationTarget(c.var.db, {
-    userId: c.var.user.id,
-  })
   // Chat-mentions: re-parse the message server-side — @/@Persona dispatches
   // (enqueued once the turn's session resolves) + the per-turn # study
   // descriptor. Never throws; null = a token-free turn. The global root
@@ -184,8 +197,10 @@ export async function streamGlobalRootTurn(
       originWorkspaceId: null,
       originWorkspacePath: ensureGlobalRootWorkspaceDir(),
       ...(permissionMode !== undefined ? { permissionMode } : {}),
-      ...(input.model !== undefined ? { model: input.model } : {}),
-      ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+      ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+      ...(turnSettings.thinkingEffort !== undefined
+        ? { thinkingEffort: turnSettings.thinkingEffort }
+        : {}),
     },
     { logger: c.var.logger },
   )
@@ -279,8 +294,10 @@ export async function streamGlobalRootTurn(
           ...(input.attachedImages !== undefined && input.attachedImages.length > 0
             ? { attachedImages: input.attachedImages }
             : {}),
-          ...(input.model !== undefined ? { model: input.model } : {}),
-          ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+          ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+          ...(turnSettings.thinkingEffort !== undefined
+            ? { thinkingEffort: turnSettings.thinkingEffort }
+            : {}),
           ...(permissionMode !== undefined ? { permissionMode } : {}),
           // A voice turn also RECORDS its origin — the transcript shows "via Voice".
           ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),
@@ -300,6 +317,11 @@ export async function streamGlobalRootTurn(
         new GlobalRootSseSink(stream, c.var.logger, activity, (sdkSessionId) => {
           turnSession.resolve(sdkSessionId)
           mentionPlan?.onSessionResolved(sdkSessionId)
+          // Settings write-through onto the resolved segment: what the composer
+          // sent becomes the row's persisted truth. Input-only — omitted fields
+          // stay "never set" (a bare voice turn writes nothing). Idempotent
+          // downstream like the other two callbacks.
+          persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
         }),
       )
     } finally {

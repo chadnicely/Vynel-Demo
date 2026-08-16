@@ -14,6 +14,8 @@ import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
+import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
+import type { ComposerSettings } from "../../composables/chat/use-session-settings.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
 // A session opened from the Sessions list or the monitor's live pane renders
@@ -162,9 +164,13 @@ function onDecideApproval(
 }
 
 // The composer runs text-only (`allow-attachments=false` — the session-turn
-// route takes no files), so a send is always just its text.
-function sendMessage(text: string) {
-  void turn.startTurn(text);
+// route takes no files), so a send is its text + the composer settings.
+function sendMessage(
+  text: string,
+  _attachments: TurnAttachmentInput[],
+  settings: ComposerSettings,
+) {
+  void turn.startTurn(text, settings);
 }
 
 // Mid-turn sends QUEUE and fire in order as each turn settles (the chat views'

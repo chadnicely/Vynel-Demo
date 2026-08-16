@@ -302,6 +302,13 @@
       "when": 1786914110875,
       "tag": "0042_cloudy_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1786921651879,
+      "tag": "0043_chat_session_composer_settings",
+      "breakpoints": true
     }
   ]
 }

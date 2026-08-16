@@ -32,6 +32,7 @@ import { useQueuedSend } from "../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
+import type { ComposerSettings } from "../composables/chat/use-session-settings.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useCustomizeStore } from "../stores/customize-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
@@ -282,13 +283,18 @@ function openFileOnCanvas(filePath: string) {
   shell.mainView = { kind: "file", filePath };
 }
 
-function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
+function sendMessage(
+  text: string,
+  attachments: TurnAttachmentInput[],
+  settings: ComposerSettings,
+) {
   // A fresh conversation's session id arrives via `session-created` — the turn's
   // onSessionCreated binds the shell to it; no synchronous binding here.
   void chatTurn.startTurn({
     sessionId: activeSessionId.value,
     isContinuous: shell.target === "continuous",
     userText: text,
+    settings,
     ...(attachments.length > 0 ? { attachments } : {}),
   });
 }

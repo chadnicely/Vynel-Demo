@@ -23,6 +23,8 @@ import { startChatTurn } from '@vynel/session/runtime'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
 import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
+import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/chat'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
 import { buildEnabledFeatureKeysReader } from '../sessions/enabled-feature-keys.js'
@@ -71,6 +73,12 @@ export async function streamSpawnedSessionTurn(
   // server. The desktop half is matched below; the vynel delta is pre-existing
   // and stays within ONE server name, so it never strips a server.
   const runCwdPath = resolveSpawnedSessionRunCwd(db, spawned)
+  // Per-session settings resolution: explicit input ?? the session's persisted
+  // setting ?? the surface default. Read off the HANDLE segment pre-lock —
+  // settings are swap-stable (copied forward onto fresh segments), so the
+  // post-wait head carries the same values.
+  const turnSettings = resolveTurnSessionSettings(input, findChatSessionById(db, sessionId))
+  const turnPermissionMode = toPermissionMode(turnSettings.mode ?? DEFAULT_SESSION_MODE)
   // The turn's own session identity — the segment it resumes (re-resolved
   // after the queue wait below, and again on a mid-turn compaction swap). The
   // dock the user has open on this thread is keyed by that same segment id.
@@ -139,9 +147,7 @@ export async function streamSpawnedSessionTurn(
           // The user IS here on this path — it is them typing into the session
           // — so the turn's own mode decides plan authority, exactly as it does
           // on the global-root chat.
-          desktopPlanConsent: deriveDesktopPlanConsent(
-            toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
-          ),
+          desktopPlanConsent: deriveDesktopPlanConsent(turnPermissionMode),
         },
         {
           toolPolicies: resolveSessionToolPolicies(db, {
@@ -171,9 +177,11 @@ export async function streamSpawnedSessionTurn(
       userMessageText: input.userMessageText,
       originWorkspaceId: spawned.workspaceId,
       originWorkspacePath: runCwdPath,
-      permissionMode: toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
-      ...(input.model !== undefined ? { model: input.model } : {}),
-      ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+      permissionMode: turnPermissionMode,
+      ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+      ...(turnSettings.thinkingEffort !== undefined
+        ? { thinkingEffort: turnSettings.thinkingEffort }
+        : {}),
     },
     { logger: c.var.logger },
   )
@@ -223,6 +231,9 @@ export async function streamSpawnedSessionTurn(
       const resumeSessionId = head.currentSdkSessionId
       // The head may have moved while we queued — re-stamp before the turn runs.
       turnSession.resolve(resumeSessionId)
+      // Settings write-through onto the head: what the composer sent becomes
+      // the row's persisted truth. Input-only — omitted fields stay "never set".
+      persistTurnSessionSettings(db, resumeSessionId, input, { logger })
 
       const turnStream = startChatTurn(
         db,
@@ -235,14 +246,15 @@ export async function streamSpawnedSessionTurn(
           providerId: DEFAULT_PROVIDER_ID,
           resumeSessionId,
           userMessageText: input.userMessageText,
-          ...(input.model !== undefined ? { model: input.model } : {}),
-          ...(input.thinkingEffort !== undefined
-            ? { thinkingEffort: input.thinkingEffort }
+          ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+          ...(turnSettings.thinkingEffort !== undefined
+            ? { thinkingEffort: turnSettings.thinkingEffort }
             : {}),
           // The same mode resolution as the workspace chat stream — the user
           // is talking directly, so the interactive default applies (NOT the
-          // routed-turn bypass default).
-          permissionMode: toPermissionMode(input.mode ?? DEFAULT_SESSION_MODE),
+          // routed-turn bypass default). Resolved through the session's
+          // persisted settings above.
+          permissionMode: turnPermissionMode,
           // The system prompt carries ONLY the MCP composer's per-feature
           // sections + the mention-dispatch note — never
           // ROUTED_TASK_INSTRUCTIONS (this is the user, not a routed

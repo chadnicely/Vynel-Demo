@@ -47,6 +47,7 @@ import { useInFlightDelegations } from "../composables/delegations/use-in-flight
 import { buildThreadPointers } from "../components/chat/thread-pointers.js";
 import { useOpenPointerTarget } from "../components/chat/open-pointer-target.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
+import type { ComposerSettings } from "../composables/chat/use-session-settings.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { useUiStore } from "../stores/ui-store.js";
@@ -283,13 +284,18 @@ const occupancy = useContextOccupancy(
   () => activeTurn.value,
 );
 
-function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
+function sendMessage(
+  text: string,
+  attachments: TurnAttachmentInput[],
+  settings: ComposerSettings,
+) {
   // A fresh conversation's session id arrives via `session-created` — the turn's
   // onSessionCreated binds the shell to it; no synchronous binding here.
   void chatTurn.startTurn({
     sessionId: activeSessionId.value,
     isContinuous: shell.target === "continuous",
     userText: text,
+    settings,
     ...(attachments.length > 0 ? { attachments } : {}),
   });
 }

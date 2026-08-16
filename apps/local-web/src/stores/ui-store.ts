@@ -355,9 +355,11 @@ export const useUiStore = defineStore("ui", () => {
   const viewingPlanId = ref<string | null>(null);
 
 
-  // Composer selections, shared by every chat surface — both the model
-  // allowlist and the mode vocabulary are the real contract/session ones.
-  // PERSISTED: a chosen mode silently reverting to 'ask' on reload read as
+  // Composer NEW-CHAT DEFAULTS (2026-08-17): once a session exists its
+  // settings live on ITS row (use-session-settings → sessions.updateSettings),
+  // so these refs only seed a composer with no session yet — and the first
+  // turn's server write-through stamps them onto the row it creates.
+  // PERSISTED: a chosen default silently reverting to 'ask' on reload read as
   // "modes don't work" — the selection must survive like the theme does.
   const composerModelId = ref<string>(readStoredComposerModel());
   const composerMode = ref<SessionMode>(readStoredComposerMode());

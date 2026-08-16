@@ -3607,6 +3607,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/{sessionId}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a session's composer settings (null fields = never set). */
+        get: operations["getSessionsBySessionIdSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a session's composer settings (partial — only provided fields change). */
+        patch: operations["patchSessionsBySessionIdSettings"];
+        trace?: never;
+    };
     "/sessions/{sessionId}/stream": {
         parameters: {
             query?: never;
@@ -7992,6 +8010,12 @@ export interface operations {
                         startedAt: string;
                         lastMessageAt: string;
                         updatedAt: string;
+                        /** @enum {string|null} */
+                        sessionMode: "ask" | "auto" | "bypass" | null;
+                        selectedModel: string | null;
+                        /** @enum {string|null} */
+                        thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                        autoBuildout: boolean | null;
                         lastMessagePreview: string | null;
                     }[];
                 };
@@ -8112,6 +8136,12 @@ export interface operations {
                             startedAt: string;
                             lastMessageAt: string;
                             updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
                         } | null;
                         messages: {
                             id: string;
@@ -8226,6 +8256,7 @@ export interface operations {
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                     /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
+                    autoBuildout?: boolean;
                 };
             };
         };
@@ -8284,6 +8315,12 @@ export interface operations {
                             startedAt: string;
                             lastMessageAt: string;
                             updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
                         };
                         messages: {
                             id: string;
@@ -8443,6 +8480,12 @@ export interface operations {
                         startedAt: string;
                         lastMessageAt: string;
                         updatedAt: string;
+                        /** @enum {string|null} */
+                        sessionMode: "ask" | "auto" | "bypass" | null;
+                        selectedModel: string | null;
+                        /** @enum {string|null} */
+                        thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                        autoBuildout: boolean | null;
                     };
                 };
             };
@@ -8567,6 +8610,12 @@ export interface operations {
                         startedAt: string;
                         lastMessageAt: string;
                         updatedAt: string;
+                        /** @enum {string|null} */
+                        sessionMode: "ask" | "auto" | "bypass" | null;
+                        selectedModel: string | null;
+                        /** @enum {string|null} */
+                        thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                        autoBuildout: boolean | null;
                     };
                 };
             };
@@ -8616,6 +8665,12 @@ export interface operations {
                         startedAt: string;
                         lastMessageAt: string;
                         updatedAt: string;
+                        /** @enum {string|null} */
+                        sessionMode: "ask" | "auto" | "bypass" | null;
+                        selectedModel: string | null;
+                        /** @enum {string|null} */
+                        thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                        autoBuildout: boolean | null;
                     };
                 };
             };
@@ -15461,6 +15516,12 @@ export interface operations {
                             startedAt: string;
                             lastMessageAt: string;
                             updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
                         } | null;
                         messages: {
                             id: string;
@@ -15686,6 +15747,12 @@ export interface operations {
                             startedAt: string;
                             lastMessageAt: string;
                             updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
                         };
                         messages: {
                             id: string;
@@ -15811,6 +15878,12 @@ export interface operations {
                             startedAt: string;
                             lastMessageAt: string;
                             updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
                         };
                         messages: {
                             id: string;
@@ -15988,6 +16061,7 @@ export interface operations {
                     /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
                     voice?: boolean;
+                    autoBuildout?: boolean;
                 };
             };
         };
@@ -16551,6 +16625,12 @@ export interface operations {
                             startedAt: string;
                             lastMessageAt: string;
                             updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
                             lastMessagePreview: string | null;
                         }[];
                         upcomingSchedules: {
@@ -16778,6 +16858,12 @@ export interface operations {
                             startedAt: string;
                             lastMessageAt: string;
                             updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
                         };
                         messages: {
                             id: string;
@@ -16906,6 +16992,89 @@ export interface operations {
             };
         };
     };
+    getSessionsBySessionIdSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { sessionMode, selectedModel, thinkingEffort, autoBuildout } — each null when the user never set it on this session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string|null} */
+                        sessionMode: "ask" | "auto" | "bypass" | null;
+                        selectedModel: string | null;
+                        /** @enum {string|null} */
+                        thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                        autoBuildout: boolean | null;
+                    };
+                };
+            };
+            /** @description Unknown session, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchSessionsBySessionIdSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    sessionMode?: "ask" | "auto" | "bypass";
+                    selectedModel?: string;
+                    /** @enum {string} */
+                    thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+                    autoBuildout?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The updated settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string|null} */
+                        sessionMode: "ask" | "auto" | "bypass" | null;
+                        selectedModel: string | null;
+                        /** @enum {string|null} */
+                        thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                        autoBuildout: boolean | null;
+                    };
+                };
+            };
+            /** @description Unknown session, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getSessionsBySessionIdStream: {
         parameters: {
             query?: never;
@@ -16951,6 +17120,7 @@ export interface operations {
                     thinkingEffort?: "low" | "medium" | "high" | "xhigh" | "max";
                     /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
+                    autoBuildout?: boolean;
                 };
             };
         };

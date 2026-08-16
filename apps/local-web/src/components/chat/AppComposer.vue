@@ -19,6 +19,8 @@ import {
 import type { SectionScope } from "../sections/section-scope.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import type { ComposerThinkingEffort } from "../../stores/ui-store.js";
+import { useSessionSettings } from "../../composables/chat/use-session-settings.js";
+import type { ComposerSettings } from "../../composables/chat/use-session-settings.js";
 import { useAvailableModels } from "../../composables/models/use-available-models.js";
 import { useAgents } from "../../composables/agents/use-agents.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -68,11 +70,23 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  send: [text: string, attachments: TurnAttachmentInput[]];
+  /** The settings ride the send — what the chips SHOWED at click time is what
+   *  the turn request carries (no PATCH-vs-send race). */
+  send: [
+    text: string,
+    attachments: TurnAttachmentInput[],
+    settings: ComposerSettings,
+  ];
   interrupt: [];
 }>();
 
 const ui = useUiStore();
+
+// Per-session composer settings (2026-08-17): chips read the ACTIVE session's
+// persisted settings and a change PATCHes that session only; with no session
+// yet, both fall back to the ui-store's localStorage new-chat defaults. This
+// is what killed "change it in one chat, it changes everywhere".
+const settings = useSessionSettings(() => props.sessionId ?? null);
 
 const draft = ref("");
 const dictation = useDictation(draft);
@@ -186,7 +200,12 @@ async function onSend(text: string, files: File[]) {
   // A marked turn rides out as the message's opening reference line, and the
   // mark is spent here — every surface that composes through this component
   // gets the pointer without wiring one of its own.
-  emit("send", applyTurnReference(props.sessionId, text), attachments);
+  emit(
+    "send",
+    applyTurnReference(props.sessionId, text),
+    attachments,
+    settings.values.value,
+  );
 }
 </script>
 
@@ -234,12 +253,12 @@ async function onSend(text: string, files: File[]) {
     :streaming="props.streaming"
     :models="modelOptions"
     :more-models="moreModelOptions"
-    :model-id="ui.composerModelId"
+    :model-id="settings.values.value.modelId"
     :modes="modeOptions"
-    :mode-id="ui.composerMode"
+    :mode-id="settings.values.value.mode"
     :efforts="effortOptions"
-    :effort-id="ui.composerThinkingEffort"
-    :auto-buildout="ui.composerAutoBuildout"
+    :effort-id="settings.values.value.thinkingEffort"
+    :auto-buildout="settings.values.value.autoBuildout"
     :context-fraction="props.contextFraction ?? null"
     :context-tooltip="props.contextTooltip ?? undefined"
     :allow-attachments="props.allowAttachments"
@@ -249,11 +268,11 @@ async function onSend(text: string, files: File[]) {
     show-voice
     :voice-active="dictation.isDictating.value"
     :notice="notice"
-    @update:auto-buildout="(on) => (ui.composerAutoBuildout = on)"
-    @update:model-id="(id) => (ui.composerModelId = id)"
-    @update:mode-id="(id) => (ui.composerMode = id as SessionMode)"
+    @update:auto-buildout="(on) => settings.update({ autoBuildout: on })"
+    @update:model-id="(id) => settings.update({ modelId: id })"
+    @update:mode-id="(id) => settings.update({ mode: id as SessionMode })"
     @update:effort-id="
-      (id) => (ui.composerThinkingEffort = id as ComposerThinkingEffort)
+      (id) => settings.update({ thinkingEffort: id as ComposerThinkingEffort })
     "
     @send="onSend"
     @interrupt="emit('interrupt')"

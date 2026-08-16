@@ -14,6 +14,8 @@ import { useDecideApproval } from "../../composables/approvals/use-decide-approv
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import type { SessionScope } from "../../composables/chat/session-scope.js";
+import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
+import type { ComposerSettings } from "../../composables/chat/use-session-settings.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
 // The sidebar's WORKSPACE conversation (redesign Case 1, 2c-2): the room's
@@ -123,11 +125,16 @@ function onDecideApproval(
   );
 }
 
-function sendMessage(text: string) {
+function sendMessage(
+  text: string,
+  _attachments: TurnAttachmentInput[],
+  settings: ComposerSettings,
+) {
   void chatTurn.startTurn({
     sessionId: null,
     isContinuous: true,
     userText: text,
+    settings,
   });
 }
 const queuedSend = useQueuedSend(chatTurn.view, sendMessage);

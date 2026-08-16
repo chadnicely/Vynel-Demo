@@ -13,6 +13,10 @@ export const sessionKeys = {
   // Under `all` on purpose: every turn-end invalidation (use-chat-turn) also
   // refreshes the cross-scope overview — no second invalidation site.
   overview: () => [...sessionKeys.all, "overview"] as const,
+  // The per-session composer settings (mode/model/effort/auto-buildout).
+  // Under `all` so the turn-end invalidation also reconciles a write-through
+  // the server did during the turn.
+  settings: (sessionId: string) => [...sessionKeys.all, "settings", sessionId] as const,
 };
 
 export function sessionScopeKey(scope: SessionScope): string {

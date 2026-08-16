@@ -11,6 +11,15 @@ import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { useSessionTurn } from "./use-session-turn.js";
+import type { ComposerSettings } from "../chat/use-session-settings.js";
+
+// Every send carries the composer settings (per-session settings arc).
+const SETTINGS: ComposerSettings = {
+  modelId: "claude-opus-4-8",
+  mode: "ask",
+  thinkingEffort: "high",
+  autoBuildout: false,
+};
 
 function sseFrame(kind: string, payload: object): Uint8Array {
   return new TextEncoder().encode(
@@ -80,7 +89,7 @@ async function settle() {
 describe("useSessionTurn", () => {
   it("folds the turn's frames, flags the queued sentinel, and settles AFTER the refetch", async () => {
     const { handle, invalidateSpy, turn } = makeHarness();
-    const started = turn().startTurn("What did you find?");
+    const started = turn().startTurn("What did you find?", SETTINGS);
     await settle();
     expect(turn().isStreaming.value).toBe(true);
 
@@ -115,7 +124,7 @@ describe("useSessionTurn", () => {
 
   it("a dropped stream is SAID — errorText set, streaming off, still reconciled", async () => {
     const { handle, invalidateSpy, turn } = makeHarness();
-    const started = turn().startTurn("hello");
+    const started = turn().startTurn("hello", SETTINGS);
     await settle();
 
     handle.failWith(new Error("network gone"));
@@ -128,7 +137,7 @@ describe("useSessionTurn", () => {
 
   it("the user's own interrupt stays silent — no error surfaced, view settles", async () => {
     const { turn } = makeHarness();
-    const started = turn().startTurn("hello");
+    const started = turn().startTurn("hello", SETTINGS);
     await settle();
 
     turn().interrupt();

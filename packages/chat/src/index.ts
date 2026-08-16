@@ -11,6 +11,7 @@ export type {
   ChatMessage,
   NewChatMessage,
   ChatMessageRole,
+  ChatSessionSelectedMode,
   AttachedImageMetadata,
   ChatToolCall,
   NewChatToolCall,
@@ -66,6 +67,19 @@ export { recordPushedReportMessage } from './records/record-pushed-report-messag
 export { recordDirectReplyMessage } from './records/record-direct-reply-message.js'
 export type { RecordPushedReportMessageInput } from './records/record-pushed-report-message.js'
 export { composeManagerSourceLabel } from './records/compose-manager-source-label.js'
+
+// Settings — the per-session composer settings (mode / model / effort /
+// auto-buildout): the settings route's op, the turn streams' resolution rule,
+// and the write-through at session resolve.
+export { updateChatSessionSettings } from './settings/update-chat-session-settings.js'
+export type { ChatSessionSettingsPatch } from './settings/update-chat-session-settings.js'
+export { resolveTurnSessionSettings } from './settings/resolve-turn-session-settings.js'
+export type {
+  TurnSettingsInput,
+  ResolvedTurnSettings,
+} from './settings/resolve-turn-session-settings.js'
+export { persistTurnSessionSettings } from './settings/persist-turn-session-settings.js'
+export type { TurnSettingsWriteInput } from './settings/persist-turn-session-settings.js'
 
 // History — session-list + detail CRUD.
 export { listChatSessionsForWorkspace } from './history/list-chat-sessions-for-workspace.js'

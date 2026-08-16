@@ -65,6 +65,13 @@ export function recordSwapSegmentSession(
   }
 
   return withTransaction(db, (tx) => {
+    // Composer settings follow the chain (the handle-session-started rule):
+    // the fresh segment inherits its predecessor's chosen mode/model/effort
+    // instead of silently resetting them to "never set".
+    const predecessor =
+      input.continuedFromSessionId !== undefined
+        ? chatRepository.findChatSessionById(tx, input.continuedFromSessionId)
+        : null
     const segment = chatRepository.insertChatSession(tx, {
       ...buildNewChatSessionRow({
         sessionId: input.sessionId,
@@ -82,6 +89,14 @@ export function recordSwapSegmentSession(
       // no predecessor; only a swap segment carries one.
       ...(input.continuedFromSessionId !== undefined
         ? { continuedFromSessionId: input.continuedFromSessionId }
+        : {}),
+      ...(predecessor !== null
+        ? {
+            sessionMode: predecessor.sessionMode,
+            selectedModel: predecessor.selectedModel,
+            thinkingEffort: predecessor.thinkingEffort,
+            autoBuildout: predecessor.autoBuildout,
+          }
         : {}),
     })
     insertOutboxEvent(tx, {

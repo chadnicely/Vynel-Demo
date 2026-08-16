@@ -22,6 +22,7 @@ import { desc } from 'drizzle-orm'
 import { table, id, text, timestamp, boolean, integer, index } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
+import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 
 // Sidebar curation (agent-base Slice 2). `'listed'` = a normal conversation
 // shown in the curated sidebar; `'hidden'` = recorded + browsable but kept out
@@ -41,6 +42,11 @@ export type ChatSessionVisibility = 'listed' | 'hidden'
 // created as a tool — global-grounded (`workspaceId` null) but LISTED under its
 // own name, unlike the hidden global-brain segments.
 export type ChatSessionScope = 'global' | 'workspace' | 'agent' | 'spawned'
+
+// The user's chosen session mode — mirrors `@vynel/session`'s `SessionMode`
+// (chat can't import a sibling leaf; the `ChatSessionScope` mirror precedent).
+// Drift is caught downstream where the value feeds `toPermissionMode`.
+export type ChatSessionSelectedMode = 'ask' | 'auto' | 'bypass'
 
 export const chatSessions = table(
   'chat_sessions',
@@ -80,6 +86,21 @@ export const chatSessions = table(
     // from, stamped by recordSwapSegmentSession at swap time. Null = chain
     // head. LOOSE ref (no FK) — segments purge independently.
     continuedFromSessionId: text(),
+    // ── Per-session composer settings (2026-08-17) ──────────────────
+    // What the user CHOSE for this conversation — distinct from `model` above,
+    // which records what actually ran. All four are nullable: null = the user
+    // never set it on this session (pre-existing rows, channel-born segments),
+    // so every reader falls back to its surface default instead of a value no
+    // one picked. Written by the settings route (chip changes) and the
+    // interactive turn streams (write-through at session resolve); copied
+    // forward onto swap segments so a continuity chain keeps its settings.
+    sessionMode: text().$type<ChatSessionSelectedMode>(),
+    selectedModel: text(),
+    thinkingEffort: text().$type<ThinkingEffortLevel>(),
+    // The composer's Auto-buildout toggle — persisted per session; nothing
+    // consumes it yet (the build engine is pending), same standing as the
+    // ui-store original.
+    autoBuildout: boolean(),
     deletedAt: timestamp(), // soft-delete (D14); null = active
     totalMessageCount: integer().notNull(),
     totalInputTokens: integer().notNull(),

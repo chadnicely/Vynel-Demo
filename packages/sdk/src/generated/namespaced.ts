@@ -1654,6 +1654,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getSettings: async (sessionId: NonNullable<paths["/sessions/{sessionId}/settings"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/sessions/{sessionId}/settings", {
+      params: { path: { sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   overview: async () => {
     const { data, error, response } = await client["GET"]("/sessions/overview")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -1677,6 +1684,14 @@ export function makeNamespaced(client: Client<paths>) {
   streamSession: async (sessionId: NonNullable<paths["/sessions/{sessionId}/stream"]["get"]['parameters']>['path']["sessionId"]) => {
     const { data, error, response } = await client["GET"]("/sessions/{sessionId}/stream", {
       params: { path: { sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  updateSettings: async (sessionId: NonNullable<paths["/sessions/{sessionId}/settings"]["patch"]['parameters']>['path']["sessionId"], input: NonNullable<paths["/sessions/{sessionId}/settings"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/sessions/{sessionId}/settings", {
+      params: { path: { sessionId: sessionId } },
+      body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data

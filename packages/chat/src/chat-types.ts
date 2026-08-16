@@ -18,6 +18,7 @@ export type {
   ChatMessageRole,
   ChatMessageSourceKind,
   ChatSessionVisibility,
+  ChatSessionSelectedMode,
   AttachedImageMetadata,
   ChatToolCall,
   NewChatToolCall,

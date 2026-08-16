@@ -2,10 +2,14 @@ import { ref, watch } from "vue";
 import type { ShallowRef } from "vue";
 import type { ActiveTurnView } from "./active-turn-view.js";
 import type { TurnAttachmentInput } from "./turn-attachments.js";
+import type { ComposerSettings } from "./use-session-settings.js";
 
 export interface QueuedMessage {
   text: string;
   attachments: TurnAttachmentInput[];
+  /** The composer settings at CLICK time — what the user saw is what the
+   *  drained turn carries, even when it fires minutes later. */
+  settings: ComposerSettings;
 }
 
 // While a turn is in flight, sends QUEUE instead of silently dropping (the
@@ -20,16 +24,24 @@ export interface QueuedMessage {
 //    the session; its queued follow-up must continue it, not fork a new one).
 export function useQueuedSend(
   turnView: Readonly<ShallowRef<ActiveTurnView | null>>,
-  send: (text: string, attachments: TurnAttachmentInput[]) => void,
+  send: (
+    text: string,
+    attachments: TurnAttachmentInput[],
+    settings: ComposerSettings,
+  ) => void,
 ) {
   const queued = ref<QueuedMessage[]>([]);
 
-  function submit(text: string, attachments: TurnAttachmentInput[]) {
+  function submit(
+    text: string,
+    attachments: TurnAttachmentInput[],
+    settings: ComposerSettings,
+  ) {
     if (turnView.value !== null) {
-      queued.value = [...queued.value, { text, attachments }];
+      queued.value = [...queued.value, { text, attachments, settings }];
       return;
     }
-    send(text, attachments);
+    send(text, attachments, settings);
   }
 
   function removeQueued(index: number) {
@@ -51,7 +63,7 @@ export function useQueuedSend(
     const next = queued.value[0];
     if (next === undefined) return;
     queued.value = queued.value.slice(1);
-    send(next.text, next.attachments);
+    send(next.text, next.attachments, next.settings);
   });
 
   return { queued, submit, removeQueued };

@@ -69,6 +69,14 @@ export interface ChatSessionResponse {
   lastMessageAt: string;
   /** ISO-8601 */
   updatedAt: string;
+  /** Per-session composer settings (2026-08-17) — what the user CHOSE,
+   *  distinct from `model` (what ran). Null = never set on this session.
+   *  The composer reads these through `sessions.getSettings`; present here
+   *  for wire-shape accuracy on the session reads that return full rows. */
+  sessionMode: "ask" | "auto" | "bypass" | null;
+  selectedModel: string | null;
+  thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+  autoBuildout: boolean | null;
 }
 
 /** The run that PRODUCED a delivered colleague message — resolved at serve

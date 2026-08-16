@@ -97,8 +97,13 @@ export const StartChatTurnRequestSchema = z.object({
   thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
   // The user-facing session mode (values from SESSION_MODE_VALUES above). The
   // server maps it to the provider permission mode (`toPermissionMode`) and
-  // resolves the default when omitted (the persisted setting, else `ask`).
+  // resolves the default when omitted (the session's persisted setting, else
+  // `ask` — real since the per-session settings landed, 2026-08-17).
   mode: z.enum(SESSION_MODE_VALUES).optional(),
+  // The composer's Auto-buildout toggle — write-through persistence only
+  // (nothing consumes it yet); rides the turn so a NEW conversation's first
+  // turn stamps the row it creates.
+  autoBuildout: z.boolean().optional(),
 });
 
 export const RenameChatSessionRequestSchema = z.object({
@@ -166,6 +171,12 @@ export const ChatSessionSchema = z.object({
   startedAt: z.string(),
   lastMessageAt: z.string(),
   updatedAt: z.string(),
+  // Per-session composer settings (2026-08-17) — what the user CHOSE, distinct
+  // from `model` (what ran). Null = never set on this session.
+  sessionMode: z.enum(SESSION_MODE_VALUES).nullable(),
+  selectedModel: z.string().nullable(),
+  thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).nullable(),
+  autoBuildout: z.boolean().nullable(),
 });
 
 // The list row = the session + a derived preview (repo correlated subquery).
