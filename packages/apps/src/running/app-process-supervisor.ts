@@ -196,7 +196,7 @@ export class AppProcessSupervisor {
   }
 
   private appendLogChunk(entry: SupervisedApp, chunk: string): void {
-    for (const line of chunk.split(/\r?\n/)) {
+    for (const line of stripAnsi(chunk).split(/\r?\n/)) {
       if (line === '') continue
       entry.logLines.push(line)
     }
@@ -204,4 +204,13 @@ export class AppProcessSupervisor {
       entry.logLines.splice(0, entry.logLines.length - RING_BUFFER_MAX_LINES)
     }
   }
+}
+
+// Terminal escape sequences stripped at CAPTURE (the processes runner's
+// 2026-08-17 fix, swept here per the twin cross-reference rule):
+// `get_app_logs` was serving raw ESC[36m color runs as garbage.
+const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]|\u001b/g
+
+function stripAnsi(chunk: string): string {
+  return chunk.replace(ANSI_ESCAPE_PATTERN, '')
 }

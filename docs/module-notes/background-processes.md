@@ -61,6 +61,12 @@ kill_background_process       POST /processes/:id/kill   (mutating, uncarded —
 - **agent-session callers** map to their workspace/global scope (monitors have no agent owner
   kind), so a colleague's wake lands on its grounding conversation.
 - `cwdRelative`, env-var injection, stdin: deferred until a real need.
+- **Live smoke PASSED (2026-08-17, Kafi):** run → background → wake → absorb → report, end
+  to end on a real workspace ("pnpm test passed — green"). Two polish fixes came out of it:
+  ANSI escapes now strip at capture (both twins — get_app_logs had the same garbage), and the
+  monitor wake renders the payload as readable lines (scalars first, multi-line tails as real
+  text blocks) instead of one JSON blob. The wake stays a VISIBLE collapsed card, not a hidden
+  message — the trust doctrine wants the "why did Claude wake" receipt one click away.
 - The wake's readable shape on a LIVE session (monitor fire → wake turn narrating exit code +
   tail) is pinned mechanically (matcher test) but not yet observed in a live smoke — check it
   in the next end-to-end pass alongside the note-kind smoke.

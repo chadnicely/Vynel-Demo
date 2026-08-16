@@ -66,6 +66,24 @@ export interface MonitorTickResult {
 // home — a drifted local copy would break short-page exhaustion detection).
 const OUTBOX_SCAN_PAGE_SIZE = OUTBOX_WINDOW_READ_MAX_LIMIT
 
+/** The payload as READABLE lines, never one JSON blob (live smoke,
+ *  2026-08-17: a process wake dumped an escape-encoded outputTail as a
+ *  single unreadable string). Scalars become `key: value` lines;
+ *  multi-line strings (an output tail) render as a labeled block with
+ *  REAL newlines, ordered last so the scalars stay scannable. */
+function formatWakeDetails(payload: Record<string, unknown>): string {
+  const scalars: string[] = []
+  const blocks: string[] = []
+  for (const [key, value] of Object.entries(payload)) {
+    if (typeof value === 'string' && value.includes('\n')) {
+      blocks.push(`${key}:\n${value.trim()}`)
+    } else {
+      scalars.push(`${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
+    }
+  }
+  return [...scalars, ...blocks].join('\n')
+}
+
 /** Compose the wake message. It must stand alone: the woken turn has no idea
  *  why it started, so the monitor's own words and the event that matched are
  *  the entire context it gets. */
@@ -74,7 +92,7 @@ function composeWakeBody(monitor: Monitor, event: WatchableEvent): string {
     `A monitor you set has triggered: ${monitor.description}`,
     '',
     `What happened: ${event.type}`,
-    `Details: ${JSON.stringify(event.payload)}`,
+    formatWakeDetails(event.payload),
     '',
     monitor.mode === 'once'
       ? 'This was a one-time watch and is now spent.'

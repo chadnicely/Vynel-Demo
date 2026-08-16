@@ -43,6 +43,24 @@ describe('BackgroundProcessRunner', () => {
     expect(runner.isRunning('p-ok')).toBe(false)
   })
 
+  it('strips terminal escape sequences at capture — tails read as text, not codes', async () => {
+    const { runner, settled } = makeRunnerWithSettle()
+    // The ESC bytes are COMPOSED at runtime on both sides so no quoting layer
+    // can eat them: the child prints a colored line, the tail must not.
+    runner.start({
+      processId: 'p-ansi',
+      command:
+        'node -e "process.stdout.write(String.fromCharCode(27)+\'[36mpainted\'+String.fromCharCode(27)+\'[0m plain\')"',
+      cwdPath: process.cwd(),
+      timeoutMs: 30_000,
+    })
+    const { outcome } = await settled
+    expect(outcome.outputTail).toContain('painted')
+    expect(outcome.outputTail).toContain('plain')
+    expect(outcome.outputTail).not.toContain(String.fromCharCode(27))
+    expect(outcome.outputTail).not.toContain('[36m')
+  })
+
   it('reports a non-zero exit code as-is (no failureReason — the code IS the story)', async () => {
     const { runner, settled } = makeRunnerWithSettle()
     runner.start({
