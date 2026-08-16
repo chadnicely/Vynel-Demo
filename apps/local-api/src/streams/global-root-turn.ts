@@ -130,9 +130,18 @@ export async function streamGlobalRootTurn(
   const conversationTarget = await resolveGlobalRootConversationTarget(c.var.db, {
     userId: c.var.user.id,
   })
+  // A VOICE turn is a surface with PINNED parameters, not the user's chips:
+  // the daemon always sends its own latency-tier model, renders no approval
+  // cards (an inherited 'ask' would hang a hands-free interaction on a card
+  // nobody can see), and must never stamp its pins over the user's chosen
+  // settings. So voice neither reads the thread's persisted settings nor
+  // writes them (the write-through below is gated the same way) — it runs on
+  // its raw input + the core's defaults, byte-for-byte the pre-settings
+  // behavior.
+  const isVoiceTurn = input.voice === true
   const turnSettings = resolveTurnSessionSettings(
     input,
-    conversationTarget.resumeSdkSessionId !== null
+    !isVoiceTurn && conversationTarget.resumeSdkSessionId !== null
       ? findChatSessionById(c.var.db, conversationTarget.resumeSdkSessionId)
       : null,
   )
@@ -319,9 +328,13 @@ export async function streamGlobalRootTurn(
           mentionPlan?.onSessionResolved(sdkSessionId)
           // Settings write-through onto the resolved segment: what the composer
           // sent becomes the row's persisted truth. Input-only — omitted fields
-          // stay "never set" (a bare voice turn writes nothing). Idempotent
-          // downstream like the other two callbacks.
-          persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
+          // stay "never set" — and NEVER for a voice turn: the daemon's pinned
+          // model would silently overwrite the user's chosen chip (the
+          // voice-clobber review finding). Idempotent downstream like the
+          // other two callbacks.
+          if (!isVoiceTurn) {
+            persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
+          }
         }),
       )
     } finally {

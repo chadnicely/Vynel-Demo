@@ -63,10 +63,11 @@ export function useSessionSettings(sessionId: MaybeRefOrGetter<string | null>) {
     queryKey: computed(() =>
       sessionKeys.settings(activeSessionId.value ?? "none"),
     ),
-    queryFn: () =>
-      vynel.sessions.getSettings(
-        activeSessionId.value!,
-      ) as Promise<SessionSettingsWire>,
+    // Typed assignment, not a cast — if the generated wire type drifts from
+    // SessionSettingsWire, this line fails to compile (drift is caught, never
+    // masked).
+    queryFn: (): Promise<SessionSettingsWire> =>
+      vynel.sessions.getSettings(activeSessionId.value!),
     enabled: computed(() => activeSessionId.value !== null),
     // Settings change through THIS composable (optimistic cache writes) or the
     // turn write-through (reconciled by the turn-end `sessionKeys.all`
@@ -87,14 +88,59 @@ export function useSessionSettings(sessionId: MaybeRefOrGetter<string | null>) {
     };
   });
 
+  const SETTINGS_MUTATION_KEY = ["session-settings-update"];
   const mutation = useMutation({
-    mutationFn: (input: { sessionId: string; patch: ComposerSettingsPatch }) =>
-      vynel.sessions.updateSettings(input.sessionId, toWirePatch(input.patch)),
-    // The optimistic write already painted the chip; on failure refetch the
-    // row's truth so the chip honestly snaps back.
-    onError: (_error, input) => {
+    mutationKey: SETTINGS_MUTATION_KEY,
+    mutationFn: (vars: {
+      sessionId: string;
+      patch: ComposerSettingsPatch;
+    }): Promise<SessionSettingsWire> =>
+      vynel.sessions.updateSettings(vars.sessionId, toWirePatch(vars.patch)),
+    onMutate: async (vars) => {
+      // Freeze any in-flight GET first — without this, a stale response
+      // resolving after the optimistic paint overwrites the cache with
+      // pre-PATCH values and the chip snaps back (review finding).
+      await queryClient.cancelQueries({
+        queryKey: sessionKeys.settings(vars.sessionId),
+      });
+      const previous = queryClient.getQueryData<SessionSettingsWire>(
+        sessionKeys.settings(vars.sessionId),
+      );
+      // Optimistic: paint the chip now, persist behind it.
+      queryClient.setQueryData<SessionSettingsWire>(
+        sessionKeys.settings(vars.sessionId),
+        {
+          sessionMode: vars.patch.mode ?? previous?.sessionMode ?? null,
+          selectedModel: vars.patch.modelId ?? previous?.selectedModel ?? null,
+          thinkingEffort:
+            vars.patch.thinkingEffort ?? previous?.thinkingEffort ?? null,
+          autoBuildout:
+            vars.patch.autoBuildout ?? previous?.autoBuildout ?? null,
+        },
+      );
+      return { previous };
+    },
+    onSuccess: (updated, vars) => {
+      // Reconcile with the server's answer — but only when no OTHER settings
+      // mutation is still in flight, or a slow first response would revert a
+      // faster second chip flip until its own response landed.
+      if (
+        queryClient.isMutating({ mutationKey: SETTINGS_MUTATION_KEY }) === 1
+      ) {
+        queryClient.setQueryData(sessionKeys.settings(vars.sessionId), updated);
+      }
+    },
+    onError: (_error, vars, context) => {
+      // Roll back to the pre-patch snapshot, then refetch the row's truth so
+      // the chip honestly snaps back.
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(
+          sessionKeys.settings(vars.sessionId),
+          context.previous,
+        );
+      }
       void queryClient.invalidateQueries({
-        queryKey: sessionKeys.settings(input.sessionId),
+        queryKey: sessionKeys.settings(vars.sessionId),
       });
     },
   });
@@ -112,16 +158,6 @@ export function useSessionSettings(sessionId: MaybeRefOrGetter<string | null>) {
         ui.composerAutoBuildout = patch.autoBuildout;
       return;
     }
-    // Optimistic: paint the chip now, persist behind it.
-    queryClient.setQueryData<SessionSettingsWire>(
-      sessionKeys.settings(id),
-      (previous) => ({
-        sessionMode: patch.mode ?? previous?.sessionMode ?? null,
-        selectedModel: patch.modelId ?? previous?.selectedModel ?? null,
-        thinkingEffort: patch.thinkingEffort ?? previous?.thinkingEffort ?? null,
-        autoBuildout: patch.autoBuildout ?? previous?.autoBuildout ?? null,
-      }),
-    );
     mutation.mutate({ sessionId: id, patch });
   }
 

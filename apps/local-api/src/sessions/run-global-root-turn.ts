@@ -265,8 +265,11 @@ export async function runGlobalRootTurn(
       desktopReader: deps.desktopReader,
       enableDesktopActions: deps.enableDesktopActions ?? false,
       // A channel turn carries no UI mode selector, so it runs under the
-      // brain's own bypass default (`routes/root/schemas.ts`) — and its desktop
-      // consent now says the same thing instead of contradicting it.
+      // brain's own bypass default — and its desktop consent now says the same
+      // thing instead of contradicting it. Deliberately UNTOUCHED by the
+      // per-session settings arc (2026-08-17): the interactive stream resolves
+      // the thread's stored mode, this unattended runner does not — a stored
+      // 'ask' would park channel turns on cards nobody renders.
       //
       // It used to pass `undefined` → 'display-only', on the reasoning that
       // authority stayed with standing per-app grants. Retiring those grants

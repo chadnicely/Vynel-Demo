@@ -620,6 +620,53 @@ describe('POST /root/turn (SSE)', () => {
     })
   })
 
+  it("a VOICE turn neither inherits nor overwrites the thread's per-session settings (the voice-clobber fix)", async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
+
+      await withVynelUserDataDir(dataDir, async () => {
+        // The user's app turn stamps mode + model onto the thread.
+        const typed = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            userMessageText: 'hello brain',
+            mode: 'ask',
+            model: 'claude-opus-4-8',
+          }),
+        })
+        expect(typed.status).toBe(200)
+        await typed.text() // drain the SSE body so the turn completes
+        expect(findChatSessionById(db, nextSdkSessionId)?.selectedModel).toBe('claude-opus-4-8')
+
+        // The voice daemon always pins its own latency-tier model — that pin
+        // governs THIS turn but must never touch the user's chips, and the
+        // stored 'ask' must not reach a surface that renders no cards.
+        const spoken = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            userMessageText: 'traffic in dhaka?',
+            voice: true,
+            model: 'claude-haiku-4-5',
+          }),
+        })
+        expect(spoken.status).toBe(200)
+        await spoken.text()
+
+        // The voice turn ran on its own pin + the unattended default…
+        expect(startChatSessionInputs[1]!.model).toBe('claude-haiku-4-5')
+        expect(startChatSessionInputs[1]!.permissionMode).toBe('bypass-with-behavior-gate')
+        // …and the thread's persisted settings are untouched.
+        const row = findChatSessionById(db, nextSdkSessionId)
+        expect(row?.selectedModel).toBe('claude-opus-4-8')
+        expect(row?.sessionMode).toBe('ask')
+      })
+    })
+  })
+
   it('400s on a model outside the curated allowlist', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
