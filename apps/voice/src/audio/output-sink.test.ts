@@ -54,12 +54,19 @@ describe('openOutputSink', () => {
     expect(createStream).toHaveBeenCalledWith('id:speakers', false, stereo32k, expect.any(Function))
 
     // 2 mono samples at 16 kHz → 4 at 32 kHz → 8 interleaved stereo values.
+    // Less than one 10 ms period (640 at 32 kHz stereo): the pump HOLDS it —
+    // the binding silently truncates sub-period writes — until endSpeech pads
+    // the tail with silence up to a whole period.
     sink.emitAudio({ samples: new Float32Array([0.5, 0.5]), sampleRate: 16_000 })
+    expect(writeToStream).not.toHaveBeenCalled()
+
+    sink.endSpeech()
     expect(writeToStream).toHaveBeenCalledTimes(1)
     const [handle, written] = writeToStream.mock.calls[0] as [unknown, Float32Array]
     expect(handle).toBe('handle-sink')
-    expect(written).toHaveLength(8)
+    expect(written).toHaveLength(640)
     expect(written[0]).toBeCloseTo(0.5, 5)
+    expect(written[8]).toBe(0) // the silence pad, not truncation
   })
 
   it('trickles keepalive silence while idle and pauses it while real audio flows', () => {
@@ -283,18 +290,33 @@ describe('openOutputSink', () => {
   const delivered = () =>
     writeToStream.mock.calls.reduce((total, [, data]) => total + (data as Float32Array).length, 0)
 
-  it('hands the device small chunks — never one oversized write', () => {
+  it('hands the device exact 10 ms periods — never an oversized or partial write', () => {
     const { sink } = openSink()
 
     sink.emitAudio(oneSecondOfSpeech())
 
-    // The binding throws "buffer full" on an oversized write, which used to
-    // abandon the rest of the line — every chunk must stay small.
-    expect(writeToStream.mock.calls.length).toBeGreaterThan(1)
+    // The binding throws "buffer full" on an oversized write and silently
+    // TRUNCATES a non-period-aligned one (measured: 512-frame chunks lost 32
+    // frames per call) — so every chunk must be exactly one period.
+    expect(writeToStream.mock.calls.length).toBe(100) // 1 s = 100 periods
     for (const [, data] of writeToStream.mock.calls) {
-      expect((data as Float32Array).length).toBeLessThanOrEqual(1024)
+      expect((data as Float32Array).length).toBe(640) // 32 kHz stereo, 10 ms
     }
     expect(delivered()).toBe(INTERLEAVED_PER_SECOND)
+  })
+
+  it('a sub-period tail waits for more audio and flushes padded at endSpeech', () => {
+    const { sink } = openSink()
+
+    // 1.25 periods of audio: one period writes, the quarter-period tail holds.
+    sink.emitAudio({ samples: new Float32Array(400), sampleRate: 32_000 })
+    expect(delivered()).toBe(640)
+
+    sink.emitAudio({ samples: new Float32Array(160), sampleRate: 32_000 }) // tail now 480
+    expect(delivered()).toBe(640) // still short of a period — still held
+
+    sink.endSpeech() // pad to a whole period and flush
+    expect(delivered()).toBe(1280)
   })
 
   it('treats "buffer full" as backpressure — the refused chunk is retried, not lost', () => {

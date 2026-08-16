@@ -26,8 +26,14 @@ const KEEPALIVE_IDLE_MS = 250
 // symptom was speech cutting out constantly. So the sink queues audio and
 // feeds it in small chunks, treating "buffer full" as backpressure: the
 // device's own drain rate is the clock, which needs no tuning to match it.
-// node-cpal's own example uses the same shape (~1024 samples, short sleep).
-const WRITE_CHUNK_SAMPLES = 1024
+//
+// Each chunk must be EXACTLY one 10 ms device period: writeToStream silently
+// DROPS the non-period-aligned tail of every call — no error, no return
+// value. The old 1024-sample chunk (512 stereo frames) lost 32 frames per
+// write, splicing 6% of all audio away; a seeded-noise probe measured the
+// skip at every packet, and period-aligned writes came back bit-perfect
+// (2026-08-16, driver exonerated by the same probe).
+const PERIODS_PER_SECOND = 100
 const WRITE_TICK_MS = 10
 
 export interface OutputSinkSource {
@@ -64,6 +70,10 @@ export function openOutputSink(
   // Audio accepted from the caller but not yet handed to the device, plus how
   // far into the head chunk the pump has read.
   const samplesPerSecond = config.sampleRate * config.channels
+  // One device period, in interleaved samples — the write granularity the
+  // binding accepts without truncation (see the header comment).
+  const writeChunkSamples =
+    Math.max(1, Math.round(config.sampleRate / PERIODS_PER_SECOND)) * config.channels
   let pending: Float32Array[] = []
   let pendingOffset = 0
   let pendingSamples = 0
@@ -76,17 +86,49 @@ export function openOutputSink(
 
   const pendingSeconds = (): number => pendingSamples / samplesPerSecond
 
-  // Top the device up until it says it is full, then leave the rest for the
-  // next tick. Only a successful write advances the cursor, so a rejected chunk
-  // is re-offered rather than lost.
-  const pump = (): void => {
-    while (handle !== null && pending.length > 0) {
+  // One period assembled across queue-array boundaries — an utterance's arrays
+  // rarely end period-aligned, and a partial write would lose its tail.
+  const staging = new Float32Array(writeChunkSamples)
+  const fillStaging = (): void => {
+    let filled = 0
+    let arrayIndex = 0
+    let offset = pendingOffset
+    while (filled < writeChunkSamples) {
+      const source = pending[arrayIndex]!
+      const take = Math.min(source.length - offset, writeChunkSamples - filled)
+      staging.set(source.subarray(offset, offset + take), filled)
+      filled += take
+      offset += take
+      if (offset >= source.length) {
+        arrayIndex += 1
+        offset = 0
+      }
+    }
+  }
+  const advanceQueueOnePeriod = (): void => {
+    let toDrop = writeChunkSamples
+    while (toDrop > 0) {
       const head = pending[0]!
-      const take = Math.min(head.length - pendingOffset, WRITE_CHUNK_SAMPLES)
-      // Copy rather than subarray — the binding reads a raw buffer and must not
-      // depend on a view's byte offset.
+      const take = Math.min(head.length - pendingOffset, toDrop)
+      pendingOffset += take
+      toDrop -= take
+      if (pendingOffset >= head.length) {
+        pending.shift()
+        pendingOffset = 0
+      }
+    }
+    pendingSamples -= writeChunkSamples
+  }
+
+  // Top the device up until it says it is full, then leave the rest for the
+  // next tick. Only whole periods are ever written (sub-period remainders wait
+  // for more audio, or for endSpeech's silence pad), and only a successful
+  // write advances the cursor — a rejected period is re-offered, never lost.
+  const pump = (): void => {
+    while (handle !== null && pendingSamples >= writeChunkSamples) {
+      fillStaging()
       try {
-        cpal.writeToStream(handle, head.slice(pendingOffset, pendingOffset + take))
+        cpal.writeToStream(handle, staging)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         if (message.includes('buffer full')) return
@@ -98,28 +140,25 @@ export function openOutputSink(
         pendingSamples = 0
         return
       }
-      pendingOffset += take
-      pendingSamples -= take
-      deviceBusyUntil = Math.max(performance.now(), deviceBusyUntil) + (take / samplesPerSecond) * 1000
-      if (pendingOffset >= head.length) {
-        pending.shift()
-        pendingOffset = 0
-      }
+      advanceQueueOnePeriod()
+      deviceBusyUntil =
+        Math.max(performance.now(), deviceBusyUntil) + (writeChunkSamples / samplesPerSecond) * 1000
     }
   }
   const pacer = setInterval(pump, WRITE_TICK_MS)
 
-  // ~KEEPALIVE_MS of silence, in the sink's own interleaved format.
-  const keepAliveFrame = new Float32Array(
-    Math.max(1, Math.round((config.sampleRate * config.channels * KEEPALIVE_MS) / 1000)),
-  )
+  // KEEPALIVE_MS of silence as WHOLE periods, so the binding never truncates it.
+  const keepAliveFrame = new Float32Array(writeChunkSamples * (KEEPALIVE_MS / WRITE_TICK_MS))
   let lastKeepAliveFaultLogAt = Number.NEGATIVE_INFINITY
   const keepAlive = setInterval(() => {
     if (handle === null) return
     // Real audio still in flight keeps the stream warm by itself, and silence
-    // queued behind it would land inside the line.
+    // queued behind it would land inside the line. A held SUB-period tail
+    // (< 10 ms, waiting for the next sentence or endSpeech's pad) must not
+    // suppress the trickle — through a long think-gap that would let the
+    // stream go cold, the exact failure keepalive exists for.
     const now = performance.now()
-    if (pendingSamples > 0 || now < deviceBusyUntil) return
+    if (pendingSamples >= writeChunkSamples || now < deviceBusyUntil) return
     if (now - lastRealEmitAt < KEEPALIVE_IDLE_MS) return
     try {
       cpal.writeToStream(handle, keepAliveFrame)
@@ -160,6 +199,16 @@ export function openOutputSink(
       pump()
     },
     endSpeech(): void {
+      // Period-align the line's tail: the pump holds a sub-period remainder
+      // (a partial write would be silently truncated), so pad it with silence
+      // up to one whole period and let it flush.
+      const remainder = pendingSamples % writeChunkSamples
+      if (remainder > 0) {
+        const pad = new Float32Array(writeChunkSamples - remainder)
+        pending.push(pad)
+        pendingSamples += pad.length
+        pump()
+      }
       const startedAt = playbackStartedAt ?? performance.now()
       const playedSeconds = (performance.now() - startedAt) / 1000
       // Audio still queued here has not even reached the device yet, so it
