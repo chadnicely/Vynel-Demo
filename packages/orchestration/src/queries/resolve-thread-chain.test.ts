@@ -104,6 +104,31 @@ describe('resolveThreadChain', () => {
     })
   })
 
+  it("a note hop reads as 'note', never as a task (its 'who' is the sender)", async () => {
+    await withTestDatabase((db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      const noteKey = randomUUID()
+      insertDelegationJob(db, {
+        id: randomUUID(),
+        userId: user.id,
+        parentSessionId: 'sender-sess',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: 'Research: pricing',
+        taskText: '[Note from Research: pricing]\n\nheads up',
+        partialSessionId: noteKey,
+        jobKind: 'note',
+        status: 'pending',
+        createdAt: new Date(),
+      })
+
+      const chain = resolveThreadChain(db, { userId: user.id, partialSessionId: noteKey })!
+      expect(chain.hops).toHaveLength(1)
+      expect(chain.hops[0]).toMatchObject({ kind: 'note', target: 'Research: pricing' })
+    })
+  })
+
   // Before threadId existed every hop WAS its own chain, so a NULL row must read
   // as exactly that — this is what lets migration 0020 skip a backfill.
   it('reads a legacy row (threadId NULL) as its own single-hop chain', async () => {

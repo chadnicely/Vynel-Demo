@@ -450,8 +450,14 @@ export async function runDelegationClaimAndRunTick(
               ? { targetPrimarySessionId: claimed.targetPrimarySessionId }
               : {}),
             // The originating chat's workspace (chat-mentions) — reports from
-            // this turn land there instead of the global root.
-            ...(claimed.requesterWorkspaceId !== null
+            // this turn land there instead of the global root. NEVER stamped on
+            // a note turn: there, the column holds the lateral SENDER's
+            // workspace, and no upward send is legitimate mid-note — a stamp's
+            // only possible effect would be rerouting a steer-disobeying
+            // report to a workspace that never asked (review catch,
+            // 2026-08-17). Unstamped, a stray upward send falls back to the
+            // receiver's own grounding — its real parent.
+            ...(claimed.requesterWorkspaceId !== null && !isNote
               ? { requesterWorkspaceId: claimed.requesterWorkspaceId }
               : {}),
             // The turn's mode — the SAME value the runner passes to the
@@ -571,7 +577,14 @@ export async function runDelegationClaimAndRunTick(
                 runCwdPath,
                 sessionName: targetName,
                 taskText: delegationInput.taskText,
-                userSourceLabel: isNote ? noteSenderLabel : originScopeLabel,
+                ...(isNote
+                  ? {
+                      inboundAttribution: {
+                        sourceKind: 'workspace-manager' as const,
+                        sourceLabel: noteSenderLabel,
+                      },
+                    }
+                  : { userSourceLabel: originScopeLabel }),
                 ...noteSteer,
                 ...sharedRunnerOptions,
               })

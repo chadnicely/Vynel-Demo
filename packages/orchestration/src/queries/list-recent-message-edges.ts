@@ -17,7 +17,7 @@ import {
   listDelegationJobsByThread,
   listDelegationJobsSince,
 } from '../repositories/index.js'
-import { isDeliveryJobKind, type DelegationJob } from '../schema/delegation-jobs.js'
+import { isDeliveryJobKind, isWorkJobKind, type DelegationJob } from '../schema/delegation-jobs.js'
 import { resolveThreadIdOf } from '../routing/resolve-thread-id.js'
 
 /** Which way the payload travelled. `ask` is work handed down; `reply` is a
@@ -47,7 +47,9 @@ export interface MessageEdge {
 // only records the reporting session. The thread is what closes that gap — the
 // ask that started the chain names the workspace the child ran in, so the reply
 // travels back along the line the ask drew. Without this a reply could only be
-// drawn as arriving from nowhere.
+// drawn as arriving from nowhere. WORK hops only, positively: a workspace-
+// target NOTE on the same thread also carries a `workspaceId`, but that is a
+// peer the child spoke to, never where it ran (review catch, 2026-08-17).
 function senderWorkspaceOfReply(
   db: Database,
   userId: string,
@@ -56,7 +58,7 @@ function senderWorkspaceOfReply(
   const threadId = resolveThreadIdOf(job)
   if (threadId === null) return null
   const askedIn = listDelegationJobsByThread(db, { userId, threadId }).find(
-    (hop) => !isDeliveryJobKind(hop.jobKind) && hop.workspaceId !== null,
+    (hop) => isWorkJobKind(hop.jobKind) && hop.workspaceId !== null,
   )
   return askedIn?.workspaceId ?? null
 }

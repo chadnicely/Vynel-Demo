@@ -8,7 +8,7 @@
 // jobs keep their taskText, so settled history enriches the same as live.
 
 import type { Database } from '@vynel/db'
-import { findDelegationJobByPartialSessionId, isDeliveryJobKind } from '@vynel/orchestration'
+import { findDelegationJobByPartialSessionId, isWorkJobKind } from '@vynel/orchestration'
 import { deriveDelegationTaskLabel } from '@vynel/contracts/chat/delegation-task-label'
 
 export function attachDelegationTaskLabels<
@@ -21,13 +21,13 @@ export function attachDelegationTaskLabels<
     if (key === null || key === undefined) return message
     if (!labelByKey.has(key)) {
       const job = findDelegationJobByPartialSessionId(db, key)
-      // A DELIVERY job's taskText is the report/update BODY, not a task — a
-      // chip labeled with it would read as nonsense (and the delivery turn's
-      // rows never chip anyway, session-comms). No label.
+      // WORK jobs only, positively: a DELIVERY job's taskText is the
+      // report/update BODY and a NOTE's leads with its marker — a chip labeled
+      // with either would read as nonsense. No label.
       const label =
-        job === null || isDeliveryJobKind(job.jobKind)
-          ? null
-          : deriveDelegationTaskLabel(job.taskText)
+        job !== null && isWorkJobKind(job.jobKind)
+          ? deriveDelegationTaskLabel(job.taskText)
+          : null
       labelByKey.set(key, label === '' ? null : label)
     }
     const label = labelByKey.get(key) ?? null

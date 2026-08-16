@@ -61,6 +61,11 @@ export type DelegateToSpawnedSessionInput = {
   /** The origin scope's display name for the task anchor row ("Claude · from
    *  <label>" — redesign Phase-2b). */
   userSourceLabel?: string
+  /** NOTE-DELIVERY variant: attribute the INBOUND row as coming from the peer
+   *  that sent it (the delegate-to-workspace-root shape) — the UI's delivered-
+   *  message card gates on this kind, so without it a note renders as plain
+   *  text with the marker unstripped. Omit → the shipped task attribution. */
+  inboundAttribution?: { sourceKind: 'workspace-manager'; sourceLabel: string }
   /** The task the global root delegates. */
   taskText: string
   /** The system steer for the resumed turn — the note branch passes
@@ -178,10 +183,15 @@ export async function delegateToSpawnedSession(
         ? { partialSessionId: input.partialSessionId }
         : {}),
       ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
-      userSourceKind: 'global-root',
-      ...(input.userSourceLabel !== undefined
-        ? { userSourceLabel: input.userSourceLabel }
-        : {}),
+      // A note's inbound row is attributed FROM the sending peer (the
+      // workspace-root delegate's shape); the default is the shipped task
+      // attribution ('global-root'), byte-for-byte.
+      userSourceKind: input.inboundAttribution?.sourceKind ?? 'global-root',
+      ...(input.inboundAttribution !== undefined
+        ? { userSourceLabel: input.inboundAttribution.sourceLabel }
+        : input.userSourceLabel !== undefined
+          ? { userSourceLabel: input.userSourceLabel }
+          : {}),
       assistantSourceKind: 'workspace-manager',
       assistantSourceLabel: composeManagerSourceLabel(input.sessionName),
     },

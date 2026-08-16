@@ -243,7 +243,9 @@ describe('startDelegationService', () => {
   })
 
   it('reclaims orphaned "claimed" jobs at startup, warns, and pushes failure deliveries for WORK rows only', () => {
-    // Two orphaned WORK rows + one delivery orphan (anti-cascade: no push).
+    // Two orphaned WORK rows + a delivery orphan (anti-cascade: no push) + a
+    // NOTE orphan (communication nobody awaits — a push would manufacture the
+    // tracking the kind refuses; review catch, 2026-08-17).
     const orphan = (overrides: Record<string, unknown>) => ({
       id: 'j-default',
       userId: 'u-1',
@@ -263,18 +265,20 @@ describe('startDelegationService', () => {
       orphan({ id: 'j-task', jobKind: null }),
       orphan({ id: 'j-agent', jobKind: 'agent-run', agentSlug: 'researcher' }),
       orphan({ id: 'j-delivery', jobKind: 'report-delivery' }),
+      orphan({ id: 'j-note', jobKind: 'note', taskText: '[Note from Nova]\n\nheads up' }),
     ])
     const options = fakeOptions()
     const service = startDelegationService(options)
 
     expect(reclaimMock).toHaveBeenCalledWith(options.db, expect.any(Date))
     expect(options.logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ reclaimed: 3 }),
+      expect.objectContaining({ reclaimed: 4 }),
       expect.stringContaining('reclaimed'),
     )
     // The restart-parity push: one delivery per WORK orphan, none for the
-    // delivery orphan (anti-cascade), each telling the requester it died —
-    // with the kind-aware retry hint (a colleague is re-mentioned).
+    // delivery orphan (anti-cascade) and none for the note orphan, each
+    // telling the requester it died — with the kind-aware retry hint (a
+    // colleague is re-mentioned).
     expect(failureDeliveryMock).toHaveBeenCalledTimes(2)
     expect(failureDeliveryMock).toHaveBeenCalledWith(
       options.db,

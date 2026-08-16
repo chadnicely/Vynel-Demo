@@ -26,7 +26,7 @@ import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import {
   failOrphanedClaimedDelegations,
-  isDeliveryJobKind,
+  isWorkJobKind,
   requeueOrphanedClaimedReportDeliveries,
 } from '@vynel/orchestration'
 import {
@@ -123,11 +123,13 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   }
   // Persona-sessions restart parity: with acknowledge-first, silent orphan
   // death breaks the child's spoken "will report when done" — push an honest
-  // failure delivery for each orphaned WORK row (task/agent-run). Delivery
-  // orphans stay silent (anti-cascade: a delivery must never spawn one), and
-  // a push failure never blocks boot.
+  // failure delivery for each orphaned WORK row (task/agent-run), POSITIVELY:
+  // delivery orphans stay silent (anti-cascade: a delivery must never spawn
+  // one) and an orphaned NOTE is communication nobody awaits — pushing "your
+  // note failed" would manufacture the tracking the kind refuses. A push
+  // failure never blocks boot.
   for (const orphan of reclaimed) {
-    if (isDeliveryJobKind(orphan.jobKind)) continue
+    if (!isWorkJobKind(orphan.jobKind)) continue
     try {
       enqueueJobFailureDelivery(
         db,

@@ -1809,11 +1809,20 @@ describe('runDelegationClaimAndRunTick → note delivery', () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const senderWorkspace = insertWorkspace(db, makeWorkspace(user.id))
+      const composeWorkspaceMcpServers = vi.fn(() => ({
+        mcpServers: { vynel: { name: 'vynel' } },
+        deniedMcpToolPatterns: [],
+        mutatingToolNames: [],
+        askModeApprovalToolNames: [],
+        systemPromptAppend: '',
+      }))
 
       const jobId = enqueueNoteDelivery(db, {
         userId: user.id,
         senderSessionId: 'sender-sdk-1',
         senderLabel: 'Research: pricing',
+        senderWorkspaceId: senderWorkspace.id,
         target: { kind: 'workspace', workspaceId: workspace.id, workspacePath: workspace.path },
         noteBody: '[Note from Research: pricing]\n\nThe pricing pass just landed.',
       })
@@ -1827,8 +1836,17 @@ describe('runDelegationClaimAndRunTick → note delivery', () => {
         }),
         logger: silentLogger,
         activityFeed: new SessionActivityFeed(),
+        composeWorkspaceMcpServers,
       })
       expect(processed).toBe(true)
+
+      // The note row carries the SENDER's workspace, but the note turn must
+      // NOT be stamped with it as a requester-override: no upward send is
+      // legitimate mid-note, so a stamp could only reroute a steer-disobeying
+      // report to a workspace that never asked (review catch, 2026-08-17).
+      expect(composeWorkspaceMcpServers).toHaveBeenCalledWith(
+        expect.not.objectContaining({ requesterWorkspaceId: expect.anything() }),
+      )
 
       // The turn ran with the marker'd note as the inbound and the NOTE steer,
       // never the routed-task steer (no acknowledge-first, no report demand).
@@ -1891,6 +1909,15 @@ describe('runDelegationClaimAndRunTick → note delivery', () => {
       const job = findDelegationJobById(db, jobId)
       expect(job?.status).toBe('completed')
       expect(job?.surfacedToRootAt).not.toBeNull()
+
+      // The persisted inbound is attributed FROM the sending peer — the UI's
+      // delivered-message card gates on this kind, so 'global-root' here would
+      // render the raw marker as plain text (review catch, 2026-08-17).
+      const inbound = listChatMessagesForSession(db, created.sessionId).find(
+        (message) => message.role === 'user',
+      )
+      expect(inbound?.sourceKind).toBe('workspace-manager')
+      expect(inbound?.sourceLabel).toBe('Backlog digger')
     })
   })
 
