@@ -24,6 +24,17 @@ for making continuity a uniform property of every session.*
      continues. There is no way to lose context when these bind together.
    - memories carry context tags at session level (workspace primary | child, with identity
      tag) — see §6 fork.
+4. **Per-identity continuity, NO cross context** (Kafi, 2026-08-17): the primary session gets
+   its continuity; a child session keeps HIS. A carry is composed ONLY from that identity's own
+   chain — a mailing-feature session's carry is mailing context, nothing else. Cross-session /
+   cross-feature context is never baked into a carry; on need the session PULLS it via the
+   memory / knowledge / journal / sessions tools.
+5. **One home for carry composition — the contextBuilder.** Continuity is simply: a session
+   starts → before it hits the context limit we prepare the next one. That preparation is ONE
+   function (`buildContinuityContext`, §4.3) used everywhere a seed is composed.
+6. **A `whoami` tool on every session** (§4.4): the session reads its own identity (scope,
+   workspace, agent slug, primary id, chain refs) — to tag what it saves to memory with its
+   identity, and so its identity can drive building its own context.
 
 ## 2. The bug (root cause, verified 2026-08-17)
 
@@ -128,6 +139,32 @@ call it from all five runners (inside each runner's lock). The op = link (existi
 bridge-if-pressured. No per-path variants — parameterized by the primary id, cwd, occupancy,
 model, threshold.
 
+### 4.3 `buildContinuityContext` — the contextBuilder (one home)
+The carry composition extracted into one function, `packages/session/src/runtime/
+build-continuity-context.ts`. Input: the identity (the primary row — scope, workspace,
+scopeRef), its own chain (predecessor SDK session id), the distilled summary, and the
+tail-read deps. Output: the carry string (§4.1's block). The bridge consumes it
+(`bridgePrimarySessionAfterTurn` → `startSeededSession`); `createSpawnedSession`'s
+purpose-as-seed priming can reuse it later.
+
+**Invariant enforced HERE (requirement 4):** the function reads ONLY the identity's own chain —
+its own `chat_messages`, its own summary, its own refs. It never queries another session,
+another workspace, or shared stores. Cross-context is the RUNNING session's pull via tools,
+never the builder's push.
+
+### 4.4 `whoami` — the session's identity read
+A per-session tool: returns scope (`global | workspace | spawned | agent`), workspace id/name,
+agent slug (scopeRef), primary session id, current segment id, predecessor ref. The composition
+already knows the identity at compose time (`composeSessionMcpServers` receives `sessionId`;
+the ambient turn-session header is the `set_todos` precedent) — wire per the mcp-development
+house paths, exposed on every surface (root + workspace-interactive + delegated), read-only,
+never cards.
+
+Why it earns its place: (a) the session TAGS what it writes to memory with its identity — the
+session-level memory tagging Kafi sketched, working NOW by convention, no schema change;
+(b) the identity is self-readable, so a session can rebuild/deepen its own context deliberately
+("what am I, what chain am I on, what should I recall") instead of only being told at seed time.
+
 ## 5. The slices
 
 ### Slice 1 — one op, wired everywhere (fixes the reported bug)
@@ -154,20 +191,28 @@ model, threshold.
    trigger tests (mock provider dep, the existing pattern); per-scope chain-display regression
    tests (swap → `resolvePrimaryTranscript` / `resolveSessionChainTranscript` spans segments).
 
-### Slice 2 — the richer carry (Kafi's A→B protocol)
-1. **Tail:** pull last-K messages (verbatim, role-labelled, K≈10, char-capped) from
-   `chat_messages` in `bridgePrimarySessionAfterTurn`'s `startSeededSession` composition; append
-   under the summary in the carry block.
-2. **Identity + refs + recovery block:** compose from the primary row (scope, workspace name,
-   scopeRef) + the superseded SDK session id; a fixed instruction paragraph naming the recall
-   tools and the notebook book. Composed in the session tier (it owns the primary), carried
-   through `runSeededSwapSession` unchanged (it already takes an opaque carry string).
-3. **Notebook book:** ship a curated "session-continuity" book (how to re-gather context:
+### Slice 2 — `buildContinuityContext` (the contextBuilder; Kafi's A→B protocol)
+1. **The function** (§4.3): one home composing the carry — distilled summary + verbatim last-K
+   message tail (role-labelled, K≈10, char-capped, from the identity's OWN `chat_messages`) +
+   identity line + predecessor refs + the recovery-instructions paragraph. Own-chain-only
+   invariant enforced inside. `bridgePrimarySessionAfterTurn` consumes it; carried through
+   `runSeededSwapSession` unchanged (opaque carry string).
+2. **Notebook book:** ship a curated "session-continuity" book (how to re-gather context:
    which tool for what, in what order) — content move in `@vynel/instructions`, no code.
-4. **Tests:** carry-composition unit tests (tail cap, identity per scope, refs present);
-   the live swap smoke extended to assert next-turn recall of a tail fact.
+3. **Tests:** contextBuilder unit tests (tail cap, identity per scope, refs present,
+   own-chain-only — a foreign session's rows never leak in); the live swap smoke extended to
+   assert next-turn recall of a tail fact.
 
-### Slice 3 — visible progress
+### Slice 3 — `whoami` (the identity tool)
+1. The per-session identity read (§4.4), wired per `mcp-development` (route-derived or
+   descriptor-owned — whichever the ambient-session seam makes cleaner), exposed on every
+   surface, read-only tier, parity guards green.
+2. The memory-tagging convention documented in the continuity notebook book: "when saving a
+   memory, stamp your whoami identity" — session-level memory tags working by convention.
+3. **Tests:** identity shape per scope (global / workspace / spawned / agent); tool census +
+   parity.
+
+### Slice 4 — visible progress
 1. `session.swapping` outbox event at bridge start (sibling of the existing `session.swapped`);
    activity-feed step ("Patching context…") around the bridge; a stream frame/composer status so
    an interactive turn shows the state instead of a dead composer; a turn arriving mid-swap
@@ -175,14 +220,16 @@ model, threshold.
 2. **Tests:** event co-commit + feed-step emission; frame shape pinned in the stream tests.
 
 Slice order is dependency order: 1 alone cures the amnesia; 2 rides 1's widened composition;
-3 is UI polish on 1's trigger points.
+3 is independent (can land any time after 1 — its tagging convention feeds 2's recall story);
+4 is UI polish on 1's trigger points.
 
 ## 6. Forks / deferred (decide deliberately, never slip in)
 
-- **Memory session-level identity tags** (Kafi's sketch, left box): memory rows today scope
-  global|workspace; tagging rows with session level/identity (workspace primary | child) is a
-  `@vynel/memory` SCHEMA change → its own planned move (drizzle generate, never hand-written).
-  Meanwhile the carry's identity line tells the session which scope to read with existing tools.
+- **Memory session-level identity tags, FIRST-CLASS** (Kafi's sketch, left box): the
+  by-convention tagging ships in Slice 3 (whoami identity stamped into saved memories). A
+  first-class tag COLUMN on memory rows (filterable, queryable) is a `@vynel/memory` SCHEMA
+  change → its own planned move (drizzle generate, never hand-written) — do it when the
+  convention proves the query patterns.
 - **In-swap active gathering** (tool-enabled priming turn): deferred per §4.1 — revisit only if
   on-demand recall proves insufficient in practice.
 - **Voice-scope primary runner:** voice turns ride the global primary today; the dormant
