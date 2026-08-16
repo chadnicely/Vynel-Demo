@@ -1,7 +1,29 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-16.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## ✅ 2026-08-17 SESSION-COMMS — the NOTE kind shipped + the own-child task rule
+
+**Read `.claude/docs/session-communication/` (overview → structure → followup) — updated same-day.**
+Three commits on main: `71f7146` (the register's known-clean `resolve-upward-sender.ts` split, done
+FIRST so no behavior rode a move) · `aa89c0a` (own-child rule: a task to `session:<id>` requires the
+target's grounding == the calling scope — grounding IS parenthood since a spawned session inherits
+its creator's scope at birth; actionable 400 naming the owning workspace; **flips two 2026-08-16
+pins deliberately, Kafi's call**; closes followup bug 3 by unreachability) · the note feature
+(`kind: "note"` — anyone→anyone plain communication: jobKind `'note'` rides the task path's target
+machinery under `NOTE_DELIVERY_INSTRUCTIONS` + a `[Note from …]` marker carrying the reply address;
+`WORK_JOB_KINDS` is the new positive one-home keeping notes out of every tracking view; turn-based
+delivery WON over the 08-16 persist-no-turn lean because an idle spawned session has no natural next
+turn to absorb; model/effort now 400 on every non-task kind — item 6 closed). Verified: 661/661
+local-api · 232 orchestration+session · 5/5 parity · full `pnpm test` NOT run (CPU rule).
+
+**Next steps here:** Kafi's workspace-manager pipeline note is still being written (`.notes/Workspace
+Manager.txt` — the manager NEVER does work itself, always routes; will need steering, not schema).
+Open register items: bug 1 (workspace task 400s when the calling workspace has no live primary),
+item 2 (model-settable `workspaceId` — now also picks a note's sender), items 4/5 (workspace-side
+absorb net). Nodes: a note row draws as an 'ask' edge with the sender workspace for free; richer
+per-kind arcs remain the recorded product call in `.claude/docs/nodes/followup.md`.
 
 ## ✅ 2026-08-16 VIRTUAL-AUDIO-DRIVER — ARC COMPLETE, MERGED TO MAIN
 

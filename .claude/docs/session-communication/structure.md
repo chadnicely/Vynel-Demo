@@ -14,9 +14,11 @@ This layer **owns no package and no table.** It is the addressing + delivery pol
 
 | Path | Role |
 |---|---|
-| ► `apps/local-api/src/routes/routing/index.ts` | the `routing` HTTP surface; `POST /message` (L346–472) is `send_message` — destination/kind cross-validation then a five-way dispatch. Also `GET /workspaces`, `GET /channels`, `POST /send-to-channel`, `POST /reply-to-channel`, `GET /background-runs[/:jobId]` |
-| ► `apps/local-api/src/routes/routing/dispatch-message.ts` | the five dispatch cores — one home so the resolutions can never drift; `resolveUpwardSender` (L285–362) is the load-bearing "who asked" resolver, `toResolvedRequester` (L223–235) the destination+label pairing it resolves through |
-| `apps/local-api/src/routes/routing/schemas.ts` | Zod request/response shapes; `MessageDestinationSchema` (L84–90) is the `to` grammar |
+| ► `apps/local-api/src/routes/routing/index.ts` | the `routing` HTTP surface; `POST /message` is `send_message` — destination/kind cross-validation then a six-way dispatch. Also `GET /workspaces`, `GET /channels`, `POST /send-to-channel`, `POST /reply-to-channel`, `GET /background-runs[/:jobId]` |
+| ► `apps/local-api/src/routes/routing/dispatch-message.ts` | the task + upward dispatch cores — one home so the resolutions can never drift; `resolveTaskSender` answers WHO hands a task down and `dispatchTaskToSession` enforces the OWN-CHILD rule (target grounding must equal the calling scope) |
+| `apps/local-api/src/routes/routing/resolve-upward-sender.ts` | the "who asked" addressing core, split out 2026-08-17 (`71f7146`, the register's known-clean split): `resolveUpwardSender` + `toResolvedRequester` + the requester rule, byte-for-byte |
+| `apps/local-api/src/routes/routing/dispatch-note.ts` | the NOTE dispatch (the lateral kind): `resolveNoteSender` (ambient-first — caller header names a delegated speaker precisely, interactive turns fall back to scope), the self-note guards, marker composition at enqueue |
+| `apps/local-api/src/routes/routing/schemas.ts` | Zod request/response shapes; `MessageDestinationSchema` is the `to` grammar; `kind` is the five-value enum incl. `note` |
 | `apps/mcp/src/generated/api-tools.ts` | the generated MCP tool — `sendMessage` factory L3000–3043; registered in **both** `generatedMcpTools` (L3866) and `generatedRoutingMcpTools` (L3901) |
 | `apps/mcp/src/vynel-mcp-feature-descriptor.ts` | the three `vynel` descriptors (workspace / workspace-interactive / routing) that attach the tool to a turn |
 | `apps/mcp/src/vynel-tool-gates.ts` | the declared inventories derived from the generated arrays (L24–29) |
@@ -43,6 +45,7 @@ None of these are in the OpenAPI contract. They are internal, server-stamped per
 | `enqueue-session-delegation.ts` | a `task` row targeting a spawned session / colleague primary |
 | `enqueue-report-delivery.ts` | `report-delivery`, or `direct-delivery` when `deliverDirectly` is set (L107) |
 | `enqueue-update-delivery.ts` | `update-delivery` — **coalesces** into a still-pending row first (L77–89) |
+| `enqueue-note-delivery.ts` | a `note` row — task-style target columns, the SENDER on the reused columns (label → `workspaceName`, session → `parentSessionId`, workspace → `requesterWorkspaceId`) |
 | `enqueue-agent-run.ts` | `agent-run` (the `@mention` path — a sibling producer, not a `send_message` destination) |
 | `resolve-thread-id.ts` | inherit the chain key, or seed one from this hop |
 
@@ -77,23 +80,24 @@ None of these are in the OpenAPI contract. They are internal, server-stamped per
 
 | Path | Role |
 |---|---|
-| `packages/contracts/src/chat/report-message-marker.ts` | composes/strips the three markers; `isUpdateMessageBody` / `isDirectMessageBody` drive the UI badge |
+| `packages/contracts/src/chat/report-message-marker.ts` | composes/strips the four markers (report/update/direct/note); `isUpdateMessageBody` / `isDirectMessageBody` / `isNoteMessageBody` drive the UI badge; the note marker also carries the reply address |
 | `packages/chat/src/records/record-direct-reply-message.ts` | persists a direct answer straight onto the root transcript |
 | `apps/local-web/src/components/chat/ThreadStream.vue` | strips the marker for display (L14, L415); places the delegation pointer under the sending tool call (L205–212) |
 
 ## Data & persistence
 
-**No owned table.** Every message becomes a row in `delegation_jobs` — orchestration's table (`packages/orchestration/src/schema/delegation-jobs.ts`). `jobKind` (L133) is the discriminator across **five row shapes**, and the columns are deliberately *reused* per kind rather than widened:
+**No owned table.** Every message becomes a row in `delegation_jobs` — orchestration's table (`packages/orchestration/src/schema/delegation-jobs.ts`). `jobKind` is the discriminator across **six row shapes**, and the columns are deliberately *reused* per kind rather than widened:
 
-| Column | On a `task` row | On a delivery row (`report-` / `update-` / `direct-delivery`) |
-|---|---|---|
-| `taskText` | the work handed down | **the message body** (a direct answer stores `title\n\nbody`) |
-| `workspaceName` | the target's enqueue-time name | **the sender's composed label** (`"Mark · Acme"` / session / agent name) |
-| `parentSessionId` | the delegating turn's SDK session | **the sender's** SDK session — provenance, the "from" side |
-| `workspaceId` | the target workspace | **the requester** workspace primary; `NULL` = the global root |
-| `targetPrimarySessionId` | the target session/colleague | always `NULL` — leaves send messages, never receive them |
+| Column | On a `task` row | On a delivery row (`report-` / `update-` / `direct-delivery`) | On a `note` row |
+|---|---|---|---|
+| `taskText` | the work handed down | **the message body** (a direct answer stores `title\n\nbody`) | the **marker-prefixed** note body (`[Note from …]\n\nbody`, composed at dispatch) |
+| `workspaceName` | the target's enqueue-time name | **the sender's composed label** (`"Mark · Acme"` / session / agent name) | the sender's composed label |
+| `parentSessionId` | the delegating turn's SDK session | **the sender's** SDK session — provenance, the "from" side | the sender's SDK session (also the reply address for a session sender) |
+| `workspaceId` | the target workspace | **the requester** workspace primary; `NULL` = the global root | the **target** workspace (task reading) |
+| `targetPrimarySessionId` | the target session/colleague | always `NULL` — leaves send messages, never receive them | the target session/colleague |
+| `requesterWorkspaceId` | who asked | — | the **sender's** workspace; `NULL` = a global sender (the nodes "from" end) |
 
-Row invariant: a `task` row carries exactly one target. A delivery row is the **only** kind permitted to carry no target at all (both null = the global root).
+Row invariant: a `task` row and a `note` row each carry exactly one target. A delivery row is the **only** kind permitted to carry no target at all (both null = the global root). `WORK_JOB_KINDS` (`['task','agent-run']`) is the **positive** membership home beside `DELIVERY_JOB_KINDS`: background runs, the in-flight list, the root catch-up, the give-up push, and tool-card labels all filter on it, so a non-work kind like `note` stays out of every tracking view mechanically.
 
 Columns this seam depends on, and where they came from:
 
@@ -115,16 +119,18 @@ All are nullable, so each migration stayed a pure additive `ALTER`. `requesterWo
 
 | Operation | What it does | Key calls / boundaries |
 |---|---|---|
-| `parseMessageDestination` | `to` string → `requester` \| `workspace` \| `session` | `dispatch-message.ts:455–466`; shape already validated by the schema, so a bad value here is a programming error |
-| `resolveTaskSender` | WHO is handing the task down: the calling workspace (ambient) + the conversation the job parents on. ONE home for both task dispatchers | `dispatch-message.ts:118–142` |
-| `dispatchTaskToWorkspace` | resolves the sender, ownership-checks the target, enqueues | `dispatch-message.ts:145–169` → `enqueueWorkspaceDelegation` |
-| `dispatchTaskToSession` | resolves the creator (calling workspace's primary, else the global root), resolves the target by segment id, enqueues | `dispatch-message.ts:172–198` → `findRoutableSessionBySegmentId`, `enqueueSessionDelegation` |
-| `toResolvedRequester` | pairs a resolved destination with its display name, so a branch cannot resolve one without the other | `dispatch-message.ts:223–235` |
-| `resolveRequesterWorkspace` | THE requester rule for every caller kind: whoever asked (override) → the sender's grounding → the global root | `dispatch-message.ts:258–275` |
-| `resolveUpwardSender` | **the addressing core** — caller header → reporter identity + label + requester (+ override) | `dispatch-message.ts:285–362` |
-| `dispatchReportToRequester` | enqueues a report delivery **and** marks the running job reported | `dispatch-message.ts:365–393` → `enqueueReportDelivery`, `markDelegationJobReported` |
-| `dispatchDirectToUser` | same, with `deliverDirectly: true` and the body composed as `` `${title}\n\n${message}` `` | `dispatch-message.ts:401–424` (L412 is the composition) |
-| `dispatchUpdateToRequester` | enqueues (or coalesces) an update; **never** marks reported | `dispatch-message.ts:429–446` → `enqueueUpdateDelivery` |
+| `parseMessageDestination` | `to` string → `requester` \| `workspace` \| `session` | `dispatch-message.ts`; shape already validated by the schema, so a bad value here is a programming error |
+| `resolveTaskSender` | WHO is handing the task down: the calling workspace (ambient) + the conversation the job parents on. ONE home for both task dispatchers | `dispatch-message.ts` |
+| `dispatchTaskToWorkspace` | resolves the sender, ownership-checks the target, enqueues | `dispatch-message.ts` → `enqueueWorkspaceDelegation` |
+| `dispatchTaskToSession` | resolves the creator, resolves the target by segment id, **enforces the own-child rule** (target grounding must equal the calling scope — owned-but-wrong-parent is an actionable 400 naming the owning workspace), enqueues | `dispatch-message.ts` → `findRoutableSessionBySegmentId`, `enqueueSessionDelegation` |
+| `resolveNoteSender` | WHO is speaking a note, ambient-first: caller header (spawned/agent/workspace-primary — a session signs as ITSELF), else the ambient workspace's primary, else the global root | `dispatch-note.ts` |
+| `dispatchNote` | resolves sender + target (any owned workspace/session — no own-child rule), self-note guards, composes the marker WITH the reply address into the stored body, enqueues | `dispatch-note.ts` → `enqueueNoteDelivery` |
+| `toResolvedRequester` | pairs a resolved destination with its display name, so a branch cannot resolve one without the other | `resolve-upward-sender.ts` |
+| `resolveRequesterWorkspace` | THE requester rule for every caller kind: whoever asked (override) → the sender's grounding → the global root | `resolve-upward-sender.ts` |
+| `resolveUpwardSender` | **the addressing core** — caller header → reporter identity + label + requester (+ override) | `resolve-upward-sender.ts` |
+| `dispatchReportToRequester` | enqueues a report delivery **and** marks the running job reported | `dispatch-message.ts` → `enqueueReportDelivery`, `markDelegationJobReported` |
+| `dispatchDirectToUser` | same, with `deliverDirectly: true` and the body composed as `` `${title}\n\n${message}` `` | `dispatch-message.ts` |
+| `dispatchUpdateToRequester` | enqueues (or coalesces) an update; **never** marks reported | `dispatch-message.ts` → `enqueueUpdateDelivery` |
 
 **Transaction boundaries** — two co-commits matter, both outside this layer's own code but caused by it: a direct delivery persists the message *and* completes its job in one transaction (`run-report-delivery-tick.ts:177–186`), and a completing task co-commits `complete` + `markSurfaced` (`run-delegation-claim-and-run-tick.ts:647–650`).
 
@@ -148,33 +154,36 @@ Mounted at `/routing` (`apps/local-api/src/app.ts:377`), user-scoped middleware 
 |---|---|---|
 | `to` | `^(requester\|workspace:.+\|session:.+)$` | always |
 | `body` | 1–50 000 | always |
-| `kind` | `task \| report \| update \| direct_to_user` | upward only; downward it is derived and merely validated |
+| `kind` | `task \| note \| report \| update \| direct_to_user` | upward + `note`; a downward send without a kind derives `task` |
 | `title` | 1–200 | **only** with `direct_to_user` |
-| `workspaceId` | — | **only** on the `session:` branch; ambiently stamped from MCP scope when omitted (`api-tools.ts:3021–3023`) |
-| `model` | curated allowlist | **only** on task branches |
-| `thinkingEffort` | `low\|medium\|high\|xhigh\|max` | **only** on task branches |
+| `workspaceId` | — | the `session:` + `note` branches; ambiently stamped from MCP scope when omitted |
+| `model` | curated allowlist | **only** on task branches — **rejected** on every other kind |
+| `thinkingEffort` | `low\|medium\|high\|xhigh\|max` | **only** on task branches — **rejected** on every other kind |
 
 Returns `{ status: 'enqueued', jobId, deliveredTo, kind }`.
 
-**Error matrix** (`index.ts:409–428` unless noted):
+**Error matrix** (`index.ts` unless noted):
 
 | Condition | Status |
 |---|---|
-| `kind:'task'` addressed to `requester` | 400 (L409–411) |
-| report/update/direct addressed to a workspace/session | 400 (L412–419) |
-| `direct_to_user` without `title` | 400 (L421–425) |
-| `title` on any other kind | 400 (L426–428) |
+| `kind:'task'` or `kind:'note'` addressed to `requester` | 400 |
+| report/update/direct addressed to a workspace/session | 400 |
+| `direct_to_user` without `title` | 400 |
+| `title` on any other kind | 400 |
+| `model`/`thinkingEffort` on any non-task kind (incl. every upward kind) | 400 |
 | unparseable `to`, empty/oversize `body`, bad `model`/`thinkingEffort` | 400 (schema) |
-| no calling workspace and the global root has no live turn | 400 (`dispatch-message.ts:131`) |
-| a calling workspace whose primary has no live turn | 400 (`dispatch-message.ts:131`) |
-| unknown or not-owned **calling** workspace | 404 (`dispatch-message.ts:125`) |
-| no caller header on an upward send | 400 (`dispatch-message.ts:289–295`) |
-| caller's primary has no linked SDK session | 400 (`dispatch-message.ts:354–360`) |
+| a TASK to a session the caller does not parent (own-child rule) | 400, naming the owning workspace (`dispatch-message.ts`) |
+| a note to yourself (session → itself; primary → its own workspace) | 400 (`dispatch-note.ts`) |
+| no calling workspace and the global root has no live turn | 400 (`dispatch-message.ts` / `dispatch-note.ts`) |
+| a calling workspace whose primary has no live turn | 400 |
+| unknown or not-owned **calling** workspace | 404 |
+| no caller header on an upward send | 400 (`resolve-upward-sender.ts`) |
+| caller's primary has no linked SDK session | 400 |
 | unknown **or** not-owned workspace/session | 404, identically |
 
 Both task destinations share one sender resolution, so these guards are **caller**-shaped, not destination-shaped: which of the two 400 messages you get depends on whether a calling workspace was stamped, never on whether you addressed a workspace or a session.
 
-Pinned end to end in `apps/local-api/src/routes/routing/index.test.ts` (1516 lines; the kind matrix at L1349–1433, the direct-message shape at L1110–1186, the double-report guard at L1451–1515).
+Pinned end to end in `apps/local-api/src/routes/routing/index.test.ts` (the kind matrix, the direct-message shape, the double-report guard, the own-child pins, and the note describe — incl. the contrast pin "a workspace notes ANOTHER workspace's session — allowed exactly where the task is refused").
 
 ## MCP surface
 
@@ -209,6 +218,7 @@ One consumer, polled in-process by `apps/local-api/src/services/delegation-servi
 | Row kind | Runner | Receiver experience |
 |---|---|---|
 | `task` | `run-delegation-claim-and-run-tick.ts` task path | a real turn on the target's conversation, under `ROUTED_TASK_INSTRUCTIONS` |
+| `note` | the same task path, note-flavored (`isNote`) | a real turn on the target (any of the three shapes), the `[Note from …]` marker riding the stored body, `NOTE_DELIVERY_INSTRUCTIONS` — absorb, never work; always surfaced at terminal time, no give-up push |
 | `report-delivery` | `run-report-delivery-tick.ts` | notify turn, `[Report from …]` marker, `REPORT_DELIVERY_INSTRUCTIONS` |
 | `update-delivery` | same | notify turn, `[Update from …]` marker, `UPDATE_DELIVERY_INSTRUCTIONS` — "task NOT done" |
 | `direct-delivery` | same, **fast path** | *no turn*: persisted onto the root transcript as the sender speaking (L169–208) |
@@ -294,7 +304,9 @@ flowchart LR
 
 - **`orchestration/structure.md` is stale on this table.** Mapped 2026-07-14, it predates `jobKind`, `threadId`, `reportedAt`, retry, and mentions entirely. Code wins; this file is current for those columns.
 - **The route test's header comment is stale.** `apps/local-api/src/routes/routing/index.test.ts:1–6` says `routingApp` "is not mounted in app.ts yet" and builds its own harness. It *is* mounted (`app.ts:377`) — the harness is now redundant, not wrong.
-- **`model` and `thinkingEffort` are silently dropped on an upward send.** The handler destructures them into `taskOptions` (`index.ts:401–406`) but spreads it only on the two task branches. An *illegal* model still 400s (schema runs first, pinned at `index.test.ts:353–358`); a legal one is accepted and discarded. Asymmetric with `kind`/`title`, which are strictly cross-validated.
+- **The own-child rule is TASK-only, and grounding IS parenthood** (Kafi, 2026-08-17). `dispatchTaskToSession` 400s any target whose grounding differs from the calling scope — safe because a spawned session inherits its creator's scope at birth (`create-spawned-session.ts`, locked fork 1). Notes deliberately skip the rule: cross-parent coordination is their entire purpose, and what keeps that safe is that a note cannot create work. Do not "fix" the asymmetry in either direction.
+- **A note row is task-shaped but never work.** It is NOT in `DELIVERY_JOB_KINDS` (the delivery machinery would resolve its target columns as a requester) and NOT in `WORK_JOB_KINDS` (the tracking views must never see it). If a seventh kind ever lands, it must choose a side in each array — the queries filter positively on `WORK_JOB_KINDS`, so forgetting it there fails closed (invisible), never open.
+- **`model` and `thinkingEffort` are strictly task-only** (closed 2026-08-17): any other kind — every upward kind included — answers 400 instead of silently dropping them.
 - **One requester rule, every caller kind (Chad, 2026-08-16).** A message travels to whoever ASKED — carried as the requester-override the tick stamps from the job's `requesterWorkspaceId` — then the sender's own grounding, then the global root. Both task dispatchers now record the calling workspace; recording NO requester is precisely how a global-root send makes the root the chain's terminus. Before this a task never recorded its asker at all: workspace→workspace parented on the ROOT and sent both the ack and the result to the global conversation, and a workspace-tasked session reported to its own grounding instead. Pinned in `index.test.ts` (“a task records WHO asked”) and `run-delegation-claim-and-run-tick.test.ts` (“requester threading”).
 - **A destination and its label are ONE value, never two statements.** `toResolvedRequester` (`dispatch-message.ts:223–235`) returns the requester *and* its `deliveredTo` name together, and every branch resolves through it. Load-bearing, not stylistic: the label used to be a separate assignment per branch, the spawned-session branch omitted it, and the fallback then reported the **sender's own name** as `deliveredTo` — a delivery that looked successful and named itself as the destination. Fixed 2026-08-16; all four upward paths are now pinned in `index.test.ts` (“deliveredTo names the DESTINATION, never the sender”). Do not reintroduce a fallback here.
 - **The no-turn direct path is global-requester only.** `run-report-delivery-tick.ts:169` gates on `isGlobalRequester`. With a *workspace* requester, `direct_to_user` still runs a full notify turn, just under `DIRECT_DELIVERY_INSTRUCTIONS` ("absorb silently, do not restate"). There is no workspace-side absorb net yet.
@@ -304,4 +316,4 @@ flowchart LR
 - **The attribution marker exists because a system steer decayed.** A 2026-07-27 smoke caught a workspace reasoning *"the user is reporting back…"* about a system-delivered report. The marker rides on the message body so the model always sees it; the UI strips it. Do not remove one end without the other (`report-message-marker.ts:1–10`).
 
 ---
-*Mapped from the code on disk, 2026-08-16. If you change this layer, update this file and [overview.md](./overview.md).*
+*Mapped from the code on disk, 2026-08-16; the note kind, the own-child task rule, and the `resolve-upward-sender` split folded in 2026-08-17 (line anchors from the 08-16 mapping may have shifted). If you change this layer, update this file and [overview.md](./overview.md).*

@@ -9,10 +9,30 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Sessions can now talk to each other without handing out work.** `send_message`
+  gained `kind: "note"` — plain coordination between any two of your conversations
+  ("when you finish, tell the planner session"; "I'm editing that file, leave it
+  alone"). A note reaches ANY workspace or session — including ones the sender
+  doesn't parent — precisely because it can't create work: no task, no report
+  expected, nothing tracked anywhere. The receiver reads it in its own
+  conversation under a "Note" badge, signed with who sent it and how to answer.
+
 - **A call can be told which app to listen to, by name.** `start_call` now
   takes the hosting app's name ('chrome' for a Meet tab, 'Zoom') and Vynel
   scopes its hearing to that app and its children — your music and
   notification sounds no longer leak into what the call hears.
+
+### Changed
+
+- **Tasks only travel to your own sessions.** A workspace can no longer hand a
+  task to another workspace's session (or to the global assistant's own
+  sessions), and the global assistant routes work through the owning workspace
+  instead of reaching past it — the refusal names the workspace to send to
+  instead. Work now always flows Global → Workspace → Session; cross-parent
+  *communication* is what notes are for. This also closes the recorded bug where
+  a root-assigned task's report could land in a workspace chat that never asked.
+- **`model`/`thinkingEffort` on a non-task message are now rejected** instead of
+  being silently ignored on reports and updates.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 # Session Communication — Overview
 
-> How Vynel's sessions talk to each other: one messaging verb that carries a task down the tree, an interim update back up, a final report to whoever asked, or an answer addressed straight to the user — always asynchronously, never with an address the model chose.
+> How Vynel's sessions talk to each other: one messaging verb that carries a task down the tree, a plain note across it, an interim update back up, a final report to whoever asked, or an answer addressed straight to the user — always asynchronously, never with an address the model chose.
 >
 > **Status:** shipped · **Depends on:** [session](../session/overview.md), [orchestration](../orchestration/overview.md), [chat](../chat/overview.md), [_apps/mcp](../_apps/mcp/overview.md), [_apps/local-api](../_apps/local-api/overview.md) · **Code map:** [structure.md](./structure.md) · **Open items:** [followup.md](./followup.md)
 
@@ -17,7 +17,8 @@ The result is a small tool with a lot of policy behind it. The sender names only
 ## What it can do
 
 - **Hand a task down to a workspace** — the global brain gives a workspace's continuing conversation a piece of work, and gets a queue handle back at once.
-- **Hand a task across to a session or agent colleague** — the same act aimed at a spawned session or a named persona, which picks it up in its own conversation with its own accumulated memory.
+- **Hand a task to one of its OWN sessions or agent colleagues** — the same act aimed at a spawned session or a named persona the caller itself parents, which picks it up in its own conversation with its own accumulated memory. Work never crosses parent lines: a task aimed at another manager's session is refused with the route to take instead — hand it to that workspace.
+- **Tell anyone something, without giving it work** — a note: plain coordination between any two of the user's conversations ("when you finish, tell the planner session"; "I'm editing that file, leave it alone"). Notes deliberately cross the parent lines tasks refuse — they can, precisely because they cannot hand out work: a note creates no run, expects no report, closes nothing, and is tracked by nothing. The receiver absorbs it in a real turn of its own, signed with who sent it and the address a reply travels back to.
 - **Choose how a delegated turn runs** — the sender may pick the model and the reasoning effort for the work it hands off, or omit both for the defaults.
 - **Acknowledge before starting** — a worker speaks a one-line interim update back to whoever asked ("received, starting now"), so the requester learns work began without waiting for the result.
 - **Send progress mid-task** — further interim updates on longer work; these never mark the task finished, and only the most recent one still waiting in the queue survives.
@@ -48,7 +49,8 @@ The result is a small tool with a lot of policy behind it. The sender names only
 | **Destination** | The one thing the sender genuinely chose: a named workspace, a named session or colleague, or the word for "whoever asked me". Never a person, never an inferred address. |
 | **Requester** | Whoever handed this turn its work. Resolved server-side from the running turn — the sender cannot name it, so it cannot be named wrongly. |
 | **Voice (kind)** | What a message *is*: a task going down, an interim update, a final report, or an answer addressed to the user. The voice decides both the receiver's framing and the task's lifecycle. |
-| **Task** | Work handed down the tree. Derived automatically from a downward destination — it can never disagree with where it is going. |
+| **Task** | Work handed down the tree. Derived automatically from a downward destination (unless the sender says "note") — it can never disagree with where it is going, and it only reaches the caller's own children. |
+| **Note** | Plain communication to any workspace or session — the lateral kind. Never work: no run, no report, no tracking. Signed with the sender's label and reply address; the receiver is steered to absorb, answer only if asked, and never start work over it. |
 | **Interim update** | An acknowledgement or progress line. Explicitly *not* a result: the task stays running and the requester is told so. |
 | **Report** | The single final result addressed to the requesting conversation. Sending it is what marks the task finished. |
 | **Direct answer** | A final result addressed to the *user* instead of the requester — carried verbatim under a short headline, shown as the sender speaking, never re-narrated by the conversation it lands in. |
@@ -63,6 +65,8 @@ The result is a small tool with a lot of policy behind it. The sender names only
 ## Rules & invariants
 
 - **The model names a destination, never a requester.** A destination is a choice; "who asked me" is a fact about the turn. Mixing the two would let one wrong token deliver a result to the wrong person's conversation, and there is no undo.
+- **Work stays inside parent lines; speech crosses them.** A task only reaches the caller's own children — grounding IS parenthood, because a session inherits its creator's scope at birth — and anything else is an actionable refusal naming the owning manager. A note reaches anyone, because it cannot make anyone work. One pair of rules, one tree: Global → Workspace → Session for work, anyone → anyone for words.
+- **A note is never work.** It creates no run, expects no reply, closes no task, appears in no tracking view, and a failed one tells nobody — communication nobody awaits must not manufacture the very tracking it refuses. The receiving turn is steered to absorb and answer only when the note itself asks.
 - **One name on every surface.** The same verb, spelled the same way, exists on every kind of turn — interactive chats, background runs, schedule fires, spawned sessions, colleagues. A comms tool named differently depending on who is calling forces the model to pick, and picking wrong is a silent misroute.
 - **A voice that contradicts its destination is rejected.** Asking to "report" to a workspace, or to send a "task" to whoever asked, is a loud error. The layer never guesses which half the sender meant.
 - **Speaking upward only works on delegated work.** A turn nobody requested — an interactive chat, a schedule fire, the global brain itself — has no requester, and says so plainly with an actionable message instead of delivering somewhere plausible.
@@ -86,6 +90,7 @@ stateDiagram-v2
 
     state running {
         [*] --> down: a task — resume the target's conversation and give it the work
+        [*] --> across: a note — resume the target's conversation to absorb it, never to work
         [*] --> up: an update or report — run a notify turn on the requester
         [*] --> direct: an answer to the user — persist it as the sender speaking, no turn at all
     }
@@ -104,4 +109,4 @@ Interim updates carry one extra rule before they are ever claimed: while one sti
 Session communication is the wiring between the [session](../session/overview.md) spine's nodes. [Orchestration](../orchestration/overview.md) supplies the durable queue and the claim machinery every message rides; [session](../session/overview.md) supplies the runners that turn a claimed row into a real conversation turn; [chat](../chat/overview.md) supplies the persistence, the attribution markers that keep a delivered message from being mistaken for the user's own words, and the rendering that shows a delivered message as an ordinary participant message. [_apps/mcp](../_apps/mcp/overview.md) is what puts the verb in front of a model at all, and [_apps/local-api](../_apps/local-api/overview.md) is where the addressing policy lives and where the ambient turn context is stamped. [Channels](../channels/overview.md) sit alongside rather than underneath: when a task that arrived from Telegram completes, its answer goes back out through the channel at *task completion*, on a different path from the chat-side delivery described here — the two never duplicate each other. Where [orchestration](../orchestration/overview.md) answers "how does work get run somewhere else", session communication answers the question that made a tree of conversations worth building: **how do they tell each other what happened.**
 
 ---
-*Mapped from the code on disk, 2026-08-16. If you change this layer, update this file and [structure.md](./structure.md).*
+*Mapped from the code on disk, 2026-08-16; the note kind + the own-child task rule folded in 2026-08-17. If you change this layer, update this file and [structure.md](./structure.md).*
