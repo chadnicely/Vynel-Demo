@@ -62,22 +62,18 @@ the same binary). Note the ring is **one instance per device context, shared by 
 holds before sizing. Dynamic per-call creation is ACX-supported (post-start `AcxDeviceAddCircuit` +
 a control IOCTL) and should be sized only after static N lands.
 
-### 2. `capturePid` is plumbed end to end but has no source
-**read** · `apps/local-api/src/routes/voice/calls-through-daemon.ts` ·
-`apps/voice/src/call/call-registry.ts:156-161` · `packages/instructions/tool-descriptions/start_call.md`
+### 2. Ears scoping now has a source — an app picker remains the richer future
+**verified** (name→pid live on the dev box) · `apps/voice/src/call/capture-process-lookup.ts` ·
+`apps/voice/src/call/call-endpoints.ts` · `packages/instructions/tool-descriptions/start_call.md`
 
-`start_call` accepts an optional `capturePid` that rides schema → route → daemon relay → include-mode
-process loopback. Nothing tells the conductor what a pid *is* — there is no app picker and no
-detection — so in practice the model always omits it (which the tool description correctly teaches).
+Closed 2026-08-16 in substance: `start_call` takes `captureProcessName` ("chrome", "Zoom") — the
+daemon resolves it to the root pid of the largest matching process tree and scopes include-tree
+loopback there, and the tool description teaches the conductor to pass it whenever the hosting app
+is known. `capturePid` stays as the raw form (give at most one of the two).
 
-Not blocking: the default is exclude-self, which is echo-free with zero app detection. But it
-captures **all** system audio except Vynel — music and notifications included. Scoping is the only
-way to narrow that, and scoping needs a pid source.
-
-**Fix shape** — a product feature (app picker, or desktop-control's window detection feeding the
-pid), deliberately out of the driver arc. Flagged to Chad as a consent-surface question: capturing
-non-call audio sits inside the call arc's envelope (explicit join + disclosure line), but it is worth
-an explicit call.
+What remains open is the richer product surface: an app picker / desktop-control detection for when
+the conversation never names the app, and Chad's consent-surface call on the unscoped default
+(exclude-self still hears music and notifications).
 
 ### 3. Linux cables are a boot-time pool, not per-call
 **reviewed** · `apps/voice/src/call/linux-null-sink-cables.ts`

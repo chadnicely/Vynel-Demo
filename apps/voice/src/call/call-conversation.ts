@@ -141,8 +141,9 @@ export class CallConversation {
       this.#recordNote(transcript)
       return
     }
-    // An addressed utterance always cuts an in-flight line (the participant
-    // path already cut pre-transcription; this covers the notetaker path).
+    // The ONE cut, both modes: only a transcribed non-echo utterance that
+    // deserves a response interrupts the in-flight line — raw sound never does
+    // (see the header: cutting on segments made Vynel chop itself).
     if (this.#deps.lineSpeaker.isSpeaking) this.#deps.lineSpeaker.cancel()
     if (this.#turnInFlight) {
       // Latest wins: a newer address supersedes a queued one — in a live call

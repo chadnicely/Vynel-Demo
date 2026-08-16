@@ -118,6 +118,30 @@ describe('openOutputSink', () => {
     writeToStream.mockReset()
   })
 
+  it('a keepalive device fault is logged (throttled) — never silently swallowed', () => {
+    const warn = vi.fn()
+    const logger = { warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as ReturnType<
+      typeof silentLogger
+    >
+    const sink = openOutputSink(
+      logger,
+      'speaker',
+      { device: { deviceId: 'id:speakers', name: 'Speakers' }, config: stereo32k },
+      vi.fn(),
+    )
+    writeToStream.mockImplementation(() => {
+      throw new Error('device disconnected')
+    })
+
+    vi.advanceTimersByTime(600) // several failing keepalive ticks past the idle window
+    expect(warn).toHaveBeenCalledTimes(1) // logged once, then throttled
+    vi.advanceTimersByTime(5_000) // throttle window passed — the fault logs again
+    expect(warn.mock.calls.length).toBeGreaterThan(1)
+
+    sink.stop()
+    writeToStream.mockReset()
+  })
+
   it('declares the sink drained only after queued audio + the playback tail', () => {
     const { sink, onDrained } = openSink()
 

@@ -135,6 +135,14 @@ export const voiceApp = factory
           reason: 'calls run on the desktop; this engine runs on a remote server',
         })
       }
+      // The daemon rejects this pair too, but by then the spawned call session
+      // below already exists — a caller bug would orphan one per attempt.
+      if (capturePid !== undefined && captureProcessName !== undefined) {
+        return c.json({
+          started: false,
+          reason: 'give capturePid or captureProcessName, not both',
+        })
+      }
       const created = await createSpawnedSession(c.var.db, c.var.aiProvider, {
         userId: c.var.user.id,
         name: label,

@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { listAllChatSessionsForUser } from '@vynel/chat/repositories'
 import { createApp } from '../../app.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -52,6 +53,27 @@ describe('the call tools on a remote engine', () => {
       const body = (await response.json()) as { started: boolean; reason?: string }
       expect(body.started).toBe(false)
       expect(body.reason).toContain('remote server')
+    })
+  })
+
+  it('start_call with capturePid AND captureProcessName refuses BEFORE creating the session', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      // Local engine: past the remote guard — the both-given check must be the
+      // one that stops it, and it must stop it before the session side effect
+      // (the daemon rejects the pair too, but by then a call session per
+      // attempt would already be orphaned in the Sessions panel).
+      const app = createApp({ db, logger: silentLogger, remoteEngine: false })
+      const response = await app.request('/voice/calls', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ label: 'meet', capturePid: 10, captureProcessName: 'chrome' }),
+      })
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as { started: boolean; reason?: string }
+      expect(body.started).toBe(false)
+      expect(body.reason).toContain('not both')
+      expect(listAllChatSessionsForUser(db, { userId: user.id })).toEqual([])
     })
   })
 

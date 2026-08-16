@@ -113,6 +113,7 @@ export function openOutputSink(
   const keepAliveFrame = new Float32Array(
     Math.max(1, Math.round((config.sampleRate * config.channels * KEEPALIVE_MS) / 1000)),
   )
+  let lastKeepAliveFaultLogAt = Number.NEGATIVE_INFINITY
   const keepAlive = setInterval(() => {
     if (handle === null) return
     // Real audio still in flight keeps the stream warm by itself, and silence
@@ -122,8 +123,16 @@ export function openOutputSink(
     if (now - lastRealEmitAt < KEEPALIVE_IDLE_MS) return
     try {
       cpal.writeToStream(handle, keepAliveFrame)
-    } catch {
-      return // buffer full — the stream is plainly not cold, which is the point
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      // Buffer full means the stream is plainly not cold — the point of the
+      // trickle. Anything else is a real device fault the 50 ms cadence would
+      // otherwise hide until the next speak; log it, throttled.
+      if (!message.includes('buffer full') && now - lastKeepAliveFaultLogAt > 5_000) {
+        lastKeepAliveFaultLogAt = now
+        logger.warn({ sink: label, device: device.name, error: message }, 'keepalive write failed')
+      }
+      return
     }
     // Count the trickle against the device too, so the guard above rate-limits
     // it to one frame at a time. Otherwise silence stacks up to the buffer's

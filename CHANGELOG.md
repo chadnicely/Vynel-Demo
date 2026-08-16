@@ -9,6 +9,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A call can be told which app to listen to, by name.** `start_call` now
+  takes the hosting app's name ('chrome' for a Meet tab, 'Zoom') and Vynel
+  scopes its hearing to that app and its children — your music and
+  notification sounds no longer leak into what the call hears.
+
+### Fixed
+
+- **Vynel no longer talks over itself or gets cut off by noise on calls.**
+  Three live-Meet findings fixed: the keep-warm silence trickle could land
+  inside a sentence and split words mid-speech; any sound on the machine —
+  including Vynel's own voice echoed back off the far end's speakers — would
+  cut Vynel off mid-line (interruption now happens only on a real transcribed
+  utterance); and those echoed lines were being answered as if a participant
+  had said them (they're now recognized and dropped).
+
 - **A Windows call just hears itself — no cable, no setup.** When Vynel's own
   audio device is installed, a call hears the meeting by capturing everything
   playing on the machine *except Vynel's own voice* (so no echo) — no capture

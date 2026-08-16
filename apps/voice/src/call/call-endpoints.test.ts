@@ -119,15 +119,21 @@ describe('call endpoints', () => {
   })
 
   it('POST rejects capturePid + captureProcessName together and bad name shapes', async () => {
+    // Each rejection is pinned by its MESSAGE — the not-running lookup default
+    // also 400s, so a bare status check could pass for the wrong reason.
+    const errorOf = async (response: Response) => ((await response.json()) as { error: string }).error
+
     const both = await appWith(fakeRoster()).request(
       '/',
       post({ capturePid: 10, captureProcessName: 'chrome' }),
     )
     expect(both.status).toBe(400)
+    expect(await errorOf(both)).toContain('not both')
 
     for (const bad of ['', '   ', 42, 'x'.repeat(65)]) {
       const rejected = await appWith(fakeRoster()).request('/', post({ captureProcessName: bad }))
       expect(rejected.status).toBe(400)
+      expect(await errorOf(rejected)).toContain('at most 64 characters')
     }
   })
 
