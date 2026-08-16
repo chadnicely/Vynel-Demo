@@ -35,6 +35,12 @@ for making continuity a uniform property of every session.*
 6. **A `whoami` tool on every session** (§4.4): the session reads its own identity (scope,
    workspace, agent slug, primary id, chain refs) — to tag what it saves to memory with its
    identity, and so its identity can drive building its own context.
+7. **Per-KIND duty notebooks — functionality now, content later** (Kafi, 2026-08-17): every
+   session KIND gets a duty notebook (global root, workspace manager, spawned, agent…) that
+   teaches it its duty; the session reads HIS kind's book and behaves with it. Kafi's drafts
+   live under `.notes/` (`Global Root.txt`, `Workspace Manager.txt`, `Workspace.txt`, plus
+   feature notes) — still being completed, attached later. We build the BINDING now (§4.5) so
+   the moment a book lands, sessions behave with it — zero code change at content time.
 
 ## 2. The bug (root cause, verified 2026-08-17)
 
@@ -165,6 +171,24 @@ session-level memory tagging Kafi sketched, working NOW by convention, no schema
 (b) the identity is self-readable, so a session can rebuild/deepen its own context deliberately
 ("what am I, what chain am I on, what should I recall") instead of only being told at seed time.
 
+### 4.5 Duty-book binding — kind → notebook, resolved not hardcoded
+The seam that makes requirement 7 work before the content exists:
+
+- **Convention:** one duty book per session kind, deterministic slug — `duty/global-root`,
+  `duty/workspace-manager`, `duty/spawned`, `duty/agent` (an agent colleague may later get a
+  per-slug override book; the kind book is the fallback). One tiny resolver
+  (`resolveDutyBookSlug(kind)`) owns the mapping — no string literals scattered.
+- **Self-discovery:** `whoami` returns `dutyBook: { slug, exists }` — the session learns from
+  its own identity which book is HIS and whether it's there yet.
+- **Standing pointer:** the per-kind session instructions (editable markdown,
+  `@vynel/instructions/session-instructions`) and the carry's recovery block both say the same
+  one line: "your duty book is `<slug>` — read it via the notebook tools when it exists."
+  Reading stays ON-DEMAND via the existing notebook list/read tools — never prompt-injected
+  (the locked notebook model).
+- **Graceful absence:** a missing book is a normal state — `exists: false`, no error, no log
+  noise, the session simply works without it. The day Kafi publishes the finished `.notes/`
+  drafts as books, every session of that kind starts reading its duty — no release, no code.
+
 ## 5. The slices
 
 ### Slice 1 — one op, wired everywhere (fixes the reported bug)
@@ -203,14 +227,18 @@ session-level memory tagging Kafi sketched, working NOW by convention, no schema
    own-chain-only — a foreign session's rows never leak in); the live swap smoke extended to
    assert next-turn recall of a tail fact.
 
-### Slice 3 — `whoami` (the identity tool)
+### Slice 3 — `whoami` + duty-book binding
 1. The per-session identity read (§4.4), wired per `mcp-development` (route-derived or
    descriptor-owned — whichever the ambient-session seam makes cleaner), exposed on every
    surface, read-only tier, parity guards green.
-2. The memory-tagging convention documented in the continuity notebook book: "when saving a
+2. The duty-book binding (§4.5): `resolveDutyBookSlug(kind)` + `dutyBook: { slug, exists }` on
+   whoami + the one-line standing pointer in each per-kind session instruction and in the
+   carry's recovery block. Graceful absence pinned by test (missing book → exists:false, no
+   error path).
+3. The memory-tagging convention documented in the continuity notebook book: "when saving a
    memory, stamp your whoami identity" — session-level memory tags working by convention.
-3. **Tests:** identity shape per scope (global / workspace / spawned / agent); tool census +
-   parity.
+4. **Tests:** identity shape per scope (global / workspace / spawned / agent); duty-slug
+   mapping; tool census + parity.
 
 ### Slice 4 — visible progress
 1. `session.swapping` outbox event at bridge start (sibling of the existing `session.swapped`);
@@ -224,6 +252,11 @@ Slice order is dependency order: 1 alone cures the amnesia; 2 rides 1's widened 
 4 is UI polish on 1's trigger points.
 
 ## 6. Forks / deferred (decide deliberately, never slip in)
+
+- **`.notes/` drafts are Kafi's working material** (Global Root, Workspace Manager, Workspace,
+  Memory, Knowledge) — he completes and attaches them as duty books later. Do NOT polish,
+  move, or publish them as part of this arc; the arc ships the BINDING only (§4.5). Build
+  start is currently gated on another in-flight session — this doc is the ready plan.
 
 - **Memory session-level identity tags, FIRST-CLASS** (Kafi's sketch, left box): the
   by-convention tagging ships in Slice 3 (whoami identity stamped into saved memories). A
