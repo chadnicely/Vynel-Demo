@@ -22,7 +22,7 @@ import {
   enqueueUpdateDelivery,
   markDelegationJobReported,
 } from '@vynel/orchestration'
-import { getWorkspaceById } from '@vynel/workspaces'
+import { getWorkspaceById, findWorkspaceById } from '@vynel/workspaces'
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId } from '@vynel/session/spawned'
 import { findChatSessionById } from '@vynel/chat/repositories'
@@ -167,6 +167,31 @@ export async function dispatchTaskToSession(
     sessionId: input.targetSessionId,
   })
   if (target === null) throw new NotFoundError('session', input.targetSessionId)
+
+  // OWN-CHILD RULE (Kafi, 2026-08-17): a task may only target the caller's OWN
+  // sessions — grounding IS parenthood, because a spawned session inherits its
+  // creator's scope at birth (`create-spawned-session.ts`, locked fork 1).
+  // Anything else routes through the owning manager, so the tree stays
+  // Global → Workspace → Session and a cross-tasked stranger can no longer
+  // report into a chat that never asked (the followup's bug 3, closed by
+  // making its trigger unreachable). Owned-but-wrong-parent is an actionable
+  // 400, not the unknown/foreign 404 — the caller legitimately sees this
+  // session and needs to learn the route, not be told it doesn't exist.
+  const callingWorkspaceId = sender.requesterWorkspaceId ?? null
+  if (target.workspaceId !== callingWorkspaceId) {
+    if (target.workspaceId === null) {
+      throw new ValidationError(
+        `Session "${input.targetSessionId}" is the global assistant's own session — a ` +
+          'workspace cannot task it directly.',
+      )
+    }
+    const owner = findWorkspaceById(c.var.db, target.workspaceId)
+    throw new ValidationError(
+      `Session "${input.targetSessionId}" belongs to workspace ` +
+        `"${owner?.name ?? 'another workspace'}" — send the task to ` +
+        `workspace:${target.workspaceId} and let its manager hand it to its own sessions.`,
+    )
+  }
   const sessionName = findChatSessionById(c.var.db, input.targetSessionId)?.title ?? 'Session'
 
   const jobId = enqueueSessionDelegation(c.var.db, {

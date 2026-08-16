@@ -654,19 +654,17 @@ describe('POST /routing/message → session task (ported from /routing/delegate-
         // Run cwd = the TARGET's ground (its creating workspace's path).
         expect(job?.workspacePath).toBe(workspace.path)
 
-        // A GLOBAL-spawned target keeps ITS ground (the hidden global dir)
-        // even when a workspace sends the task — cwd follows the target.
+        // OWN-CHILD RULE (Kafi, 2026-08-17 — flips the earlier "cwd follows the
+        // target" pin): a GLOBAL-grounded session is the root's own child, so a
+        // workspace tasking it is a 400, never a cross-parent delivery.
         const globalSpawned = await seedSpawnedSession(db, user.id, 'sdk-sp-global')
         const res2 = await postJson(app, '/routing/message', {
           to: `session:${globalSpawned.sessionId}`,
           body: 't',
           workspaceId: workspace.id,
         })
-        expect(res2.status).toBe(200)
-        const { jobId: jobId2 } = (await res2.json()) as { jobId: string }
-        expect(findDelegationJobById(db, jobId2)?.workspacePath).toBe(
-          path.join(dataDir, 'global-root'),
-        )
+        expect(res2.status).toBe(400)
+        expect(await res2.text()).toContain('global assistant')
       })
     })
   })
@@ -1706,7 +1704,67 @@ describe('POST /routing/message → a task records WHO asked', () => {
     })
   })
 
-  it('workspace → a GLOBAL-grounded session: the report goes to the workspace, not Global', async () => {
+  // OWN-CHILD RULE (Kafi, 2026-08-17 — flips the earlier "workspace → a
+  // GLOBAL-grounded session" pin): tasks only travel to a caller's OWN
+  // sessions; anything else routes through the owning manager. The upward
+  // half that pin also carried (a global-grounded spawned caller reporting to
+  // the override workspace) survives below, header-driven — the requester
+  // rule itself is unchanged.
+  it('a task to a session the caller does not parent is an actionable 400', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const home = seedManagedWorkspace(db, user.id, 'Home')
+      const other = seedManagedWorkspace(db, user.id, 'Other')
+      await seedLinkedGlobalRoot(db, user.id)
+      await seedLinkedWorkspacePrimaryFor(db, user.id, home.id, 'ws-home')
+      const globalSpawned = await createSpawnedSession(db, primer('sdk-ground'), {
+        userId: user.id,
+        name: 'Research: pricing',
+        purpose: 'compare pricing pages',
+        workspacePath: '/tmp/vynel/global-root',
+      })
+      const otherSpawned = await createSpawnedSession(db, primer('sdk-ground-other'), {
+        userId: user.id,
+        name: 'Backlog digger',
+        purpose: 'dig the backlog',
+        workspacePath: other.path,
+        workspaceId: other.id,
+      })
+      const app = makeHarness(db)
+
+      // A workspace tasking the root's own session → blocked.
+      const wsToGlobal = await postJson(app, '/routing/message', {
+        to: `session:${globalSpawned.sessionId}`,
+        body: 'compare pricing',
+        workspaceId: home.id,
+      })
+      expect(wsToGlobal.status).toBe(400)
+      expect(await wsToGlobal.text()).toContain('global assistant')
+
+      // A workspace tasking ANOTHER workspace's session → blocked, and the
+      // error teaches the route: hand it to the owning workspace instead.
+      const wsToOther = await postJson(app, '/routing/message', {
+        to: `session:${otherSpawned.sessionId}`,
+        body: 'dig',
+        workspaceId: home.id,
+      })
+      expect(wsToOther.status).toBe(400)
+      const wsToOtherText = await wsToOther.text()
+      expect(wsToOtherText).toContain('Other')
+      expect(wsToOtherText).toContain(`workspace:${other.id}`)
+
+      // The GLOBAL root tasking a workspace's session → blocked the same way
+      // (this is what made the followup's bug 3 reachable).
+      const rootToOther = await postJson(app, '/routing/message', {
+        to: `session:${otherSpawned.sessionId}`,
+        body: 'dig',
+      })
+      expect(rootToOther.status).toBe(400)
+      expect(await rootToOther.text()).toContain(`workspace:${other.id}`)
+    })
+  })
+
+  it('a GLOBAL-grounded spawned caller with a requester override reports to the override workspace', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
       const home = seedManagedWorkspace(db, user.id, 'Home')
@@ -1719,17 +1777,8 @@ describe('POST /routing/message → a task records WHO asked', () => {
       })
       const app = makeHarness(db)
 
-      const task = await postJson(app, '/routing/message', {
-        to: `session:${spawned.sessionId}`,
-        body: 'compare pricing',
-        workspaceId: home.id,
-      })
-      expect(task.status).toBe(200)
-      const taskJob = findDelegationJobById(db, ((await task.json()) as { jobId: string }).jobId)
-      expect(taskJob?.requesterWorkspaceId).toBe(home.id)
-
-      // The session is grounded in NO workspace — before, that alone sent its
-      // result to the global root and Home never heard back.
+      // The session is grounded in NO workspace — before the requester rule,
+      // that alone sent its result to the global root and Home never heard back.
       const res = await speakUp(
         app,
         { kind: 'spawned-session', targetPrimarySessionId: spawned.primarySessionId },
