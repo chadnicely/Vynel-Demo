@@ -66,6 +66,25 @@ describe('calls-through-daemon', () => {
     })
   })
 
+  it('rides captureProcessName through to the daemon when given', async () => {
+    const fetchSpy = stubFetch(new Response(JSON.stringify(descriptor), { status: 200 }))
+
+    await startCallThroughDaemon(DAEMON, {
+      label: 'meet',
+      mode: 'participant',
+      sessionId: 'sess-1',
+      captureProcessName: 'chrome',
+    })
+
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string)).toEqual({
+      label: 'meet',
+      mode: 'participant',
+      sessionId: 'sess-1',
+      captureProcessName: 'chrome',
+    })
+  })
+
   it("relays the daemon's own error message as the reason", async () => {
     stubFetch(
       new Response(JSON.stringify({ error: 'the cable pair is in use by call x', kind: 'pair-busy' }), {

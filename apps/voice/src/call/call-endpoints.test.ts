@@ -19,8 +19,12 @@ function fakeRoster(overrides: Partial<CallRoster> = {}): CallRoster {
   }
 }
 
-function appWith(roster: CallRoster, voice: CallVoice = { speakIntoCall: vi.fn(() => true) }) {
-  return createCallEndpoints(roster, voice, pino({ level: 'silent' }))
+function appWith(
+  roster: CallRoster,
+  voice: CallVoice = { speakIntoCall: vi.fn(() => true) },
+  resolveCaptureProcessId: (imageName: string) => Promise<number | null> = async () => null,
+) {
+  return createCallEndpoints(roster, voice, pino({ level: 'silent' }), resolveCaptureProcessId)
 }
 
 function post(body?: unknown) {
@@ -73,6 +77,56 @@ describe('call endpoints', () => {
 
     for (const bad of [0, -3, 1.5, 'nope']) {
       const rejected = await appWith(fakeRoster()).request('/', post({ capturePid: bad }))
+      expect(rejected.status).toBe(400)
+    }
+  })
+
+  it('POST resolves captureProcessName to the tree-root pid and starts with it', async () => {
+    const roster = fakeRoster()
+    const lookup = vi.fn(async () => 4321)
+    const response = await appWith(roster, undefined, lookup).request(
+      '/',
+      post({ label: 'meet', mode: 'participant', captureProcessName: ' chrome ' }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(lookup).toHaveBeenCalledWith('chrome')
+    expect(roster.startCall).toHaveBeenCalledWith({
+      label: 'meet',
+      mode: 'participant',
+      capturePid: 4321,
+    })
+  })
+
+  it('POST 400s when the named process is not running — a deaf call must not start', async () => {
+    const roster = fakeRoster()
+    const response = await appWith(roster, undefined, async () => null).request(
+      '/',
+      post({ captureProcessName: 'chrome' }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(roster.startCall).not.toHaveBeenCalled()
+  })
+
+  it('POST 400s when the lookup itself fails, with the actionable message', async () => {
+    const response = await appWith(fakeRoster(), undefined, async () => {
+      throw new Error('captureProcessName is Windows-only')
+    }).request('/', post({ captureProcessName: 'chrome' }))
+
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: string }).error).toContain('Windows-only')
+  })
+
+  it('POST rejects capturePid + captureProcessName together and bad name shapes', async () => {
+    const both = await appWith(fakeRoster()).request(
+      '/',
+      post({ capturePid: 10, captureProcessName: 'chrome' }),
+    )
+    expect(both.status).toBe(400)
+
+    for (const bad of ['', '   ', 42, 'x'.repeat(65)]) {
+      const rejected = await appWith(fakeRoster()).request('/', post({ captureProcessName: bad }))
       expect(rejected.status).toBe(400)
     }
   })

@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono'
 import type { Logger } from 'pino'
 import { CallRegistryError, type CallDescriptor, type CallMode, type StartCallRequest } from './call-registry.js'
+import { findCaptureProcessId } from './capture-process-lookup.js'
 
 // The /calls route group on the daemon's loopback server — the conductor's
 // wire. local-api's call tools (C2) relay here exactly like speak-through-
@@ -26,7 +27,12 @@ const STATUS_BY_KIND = {
   'unknown-call': 404,
 } as const
 
-export function createCallEndpoints(roster: CallRoster, voice: CallVoice, logger: Logger): Hono {
+export function createCallEndpoints(
+  roster: CallRoster,
+  voice: CallVoice,
+  logger: Logger,
+  resolveCaptureProcessId: (imageName: string) => Promise<number | null> = findCaptureProcessId,
+): Hono {
   return new Hono()
     .post('/:callId/speak', async (c) => {
       const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null
@@ -46,6 +52,7 @@ export function createCallEndpoints(roster: CallRoster, voice: CallVoice, logger
         mode?: unknown
         sessionId?: unknown
         capturePid?: unknown
+        captureProcessName?: unknown
       } | null
       // sessionId is FUNCTIONAL (it wires the brain), so an invalid one 400s
       // rather than coercing — a typo must not silently start a brainless call.
@@ -76,7 +83,41 @@ export function createCallEndpoints(roster: CallRoster, voice: CallVoice, logger
       ) {
         return c.json({ error: 'capturePid must be a positive integer when given' }, 400)
       }
-      const capturePid = typeof body?.capturePid === 'number' ? body.capturePid : undefined
+      let capturePid = typeof body?.capturePid === 'number' ? body.capturePid : undefined
+      // captureProcessName is the conductor-friendly alternative: it knows the
+      // app ("chrome"), never a pid. FUNCTIONAL like capturePid — bad shapes
+      // 400. Both at once 400s too: a silent precedence would hide a caller
+      // bug behind whichever ears happened to win.
+      if (
+        body?.captureProcessName !== undefined &&
+        (typeof body.captureProcessName !== 'string' ||
+          body.captureProcessName.trim() === '' ||
+          body.captureProcessName.trim().length > 64)
+      ) {
+        return c.json({ error: 'captureProcessName must be a non-empty string of at most 64 characters when given' }, 400)
+      }
+      const captureProcessName =
+        typeof body?.captureProcessName === 'string' ? body.captureProcessName.trim() : undefined
+      if (capturePid !== undefined && captureProcessName !== undefined) {
+        return c.json({ error: 'give capturePid or captureProcessName, not both' }, 400)
+      }
+      if (captureProcessName !== undefined) {
+        let resolved: number | null
+        try {
+          resolved = await resolveCaptureProcessId(captureProcessName)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          logger.warn({ captureProcessName, error: message }, 'capture process lookup failed')
+          return c.json({ error: `could not resolve captureProcessName: ${message}` }, 400)
+        }
+        if (resolved === null) {
+          return c.json(
+            { error: `no running process named '${captureProcessName}' — is the call app open?` },
+            400,
+          )
+        }
+        capturePid = resolved
+      }
       try {
         return c.json(
           roster.startCall({

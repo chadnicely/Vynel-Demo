@@ -24,6 +24,7 @@ export async function startCallThroughDaemon(
     mode: 'notetaker' | 'participant'
     sessionId: string
     capturePid?: number | undefined
+    captureProcessName?: string | undefined
   },
 ): Promise<DaemonCallResult<CallDescriptorWire>> {
   return relay(

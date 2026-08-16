@@ -40,6 +40,11 @@ export const StartCallRequestSchema = z.object({
    *  audio except Vynel's own (echo-free either way). Ignored for two-device
    *  cable pairs, which hear through their capture device. */
   capturePid: z.number().int().positive().optional(),
+  /** The conductor-friendly alternative to capturePid: the call app's image
+   *  name ("chrome", "Zoom"). The daemon resolves it to the process TREE's
+   *  root pid and scopes ears the same way. Windows-only; give one of the two
+   *  at most. */
+  captureProcessName: z.string().trim().min(1).max(64).optional(),
 })
 
 /** The daemon's descriptor shape, validated at this boundary. */
