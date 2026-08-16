@@ -57,3 +57,6 @@ dist-payloads/
 
 # Per-machine Claude Code settings (permission grants are local, never shared)
 .claude/settings.local.json
+
+# Diagnostic call recordings (smoke-record-mic.mts output)
+call-mic-recording-*.wav

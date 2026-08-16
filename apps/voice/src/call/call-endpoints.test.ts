@@ -19,12 +19,15 @@ function fakeRoster(overrides: Partial<CallRoster> = {}): CallRoster {
   }
 }
 
+// The mic-level restore default shells to real PowerShell — every test injects
+// a fake so a POST here never touches the machine's audio endpoints.
 function appWith(
   roster: CallRoster,
   voice: CallVoice = { speakIntoCall: vi.fn(() => true) },
   resolveCaptureProcessId: (imageName: string) => Promise<number | null> = async () => null,
+  restoreMicLevels: () => Promise<unknown> = async () => [],
 ) {
-  return createCallEndpoints(roster, voice, pino({ level: 'silent' }), resolveCaptureProcessId)
+  return createCallEndpoints(roster, voice, pino({ level: 'silent' }), resolveCaptureProcessId, restoreMicLevels)
 }
 
 function post(body?: unknown) {
@@ -116,6 +119,28 @@ describe('call endpoints', () => {
 
     expect(response.status).toBe(400)
     expect(((await response.json()) as { error: string }).error).toContain('Windows-only')
+  })
+
+  it('a successful start restores the call mic levels; a failed start does not', async () => {
+    const restore = vi.fn(async () => [])
+    const started = await appWith(fakeRoster(), undefined, async () => null, restore).request(
+      '/',
+      post({ label: 'meet' }),
+    )
+    expect(started.status).toBe(200)
+    if (process.platform === 'win32') {
+      expect(restore).toHaveBeenCalledTimes(1)
+    }
+
+    restore.mockClear()
+    const busyRoster = fakeRoster({
+      startCall: vi.fn(() => {
+        throw new CallRegistryError('pair-busy', 'all pairs are in use')
+      }),
+    })
+    const failed = await appWith(busyRoster, undefined, async () => null, restore).request('/', post({}))
+    expect(failed.status).toBe(409)
+    expect(restore).not.toHaveBeenCalled()
   })
 
   it('POST rejects capturePid + captureProcessName together and bad name shapes', async () => {

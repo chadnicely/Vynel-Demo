@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import type { Logger } from 'pino'
 import { CallRegistryError, type CallDescriptor, type CallMode, type StartCallRequest } from './call-registry.js'
 import { findCaptureProcessId } from './capture-process-lookup.js'
+import { restoreCallMicLevels } from './call-mic-level.js'
 
 // The /calls route group on the daemon's loopback server — the conductor's
 // wire. local-api's call tools (C2) relay here exactly like speak-through-
@@ -32,6 +33,7 @@ export function createCallEndpoints(
   voice: CallVoice,
   logger: Logger,
   resolveCaptureProcessId: (imageName: string) => Promise<number | null> = findCaptureProcessId,
+  restoreMicLevels: () => Promise<unknown> = () => restoreCallMicLevels(logger),
 ): Hono {
   return new Hono()
     .post('/:callId/speak', async (c) => {
@@ -119,14 +121,17 @@ export function createCallEndpoints(
         capturePid = resolved
       }
       try {
-        return c.json(
-          roster.startCall({
-            label,
-            mode,
-            ...(sessionId !== undefined ? { sessionId } : {}),
-            ...(capturePid !== undefined ? { capturePid } : {}),
-          }),
-        )
+        const descriptor = roster.startCall({
+          label,
+          mode,
+          ...(sessionId !== undefined ? { sessionId } : {}),
+          ...(capturePid !== undefined ? { capturePid } : {}),
+        })
+        // A call app's auto-gain drags the virtual mic's system slider (found
+        // live at 8% — quiet, garbled far end). Fire-and-forget: the restore
+        // is best-effort by contract and must not delay the start response.
+        if (process.platform === 'win32') void restoreMicLevels()
+        return c.json(descriptor)
       } catch (error) {
         return respondRegistryError(c, error, logger)
       }
