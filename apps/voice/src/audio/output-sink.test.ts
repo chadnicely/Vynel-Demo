@@ -84,6 +84,40 @@ describe('openOutputSink', () => {
     expect(writeToStream).toHaveBeenCalled()
   })
 
+  it('keepalive holds off while handed-over audio still drains inside the device', () => {
+    const { sink } = openSink()
+
+    // All writes are accepted instantly, so the queue reads empty — but the
+    // DEVICE now holds a full second of audio. Silence trickled during that
+    // second would land inside the sentence and split words.
+    sink.emitAudio(oneSecondOfSpeech())
+    writeToStream.mockClear()
+
+    vi.advanceTimersByTime(950) // device still busy until t=1000
+    expect(writeToStream).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(150) // drained — the trickle resumes
+    expect(writeToStream).toHaveBeenCalled()
+    const [, frame] = writeToStream.mock.calls[0] as [unknown, Float32Array]
+    expect(frame.every((sample) => sample === 0)).toBe(true)
+  })
+
+  it('a keepalive refused with "buffer full" is swallowed, not thrown into the timer', () => {
+    const { sink } = openSink()
+    writeToStream.mockImplementation(() => {
+      throw new Error('Failed to write to stream: buffer full')
+    })
+
+    // The stream is plainly not cold when it refuses silence — the tick must
+    // survive and keep trying, not crash the interval.
+    expect(() => vi.advanceTimersByTime(600)).not.toThrow()
+    expect(writeToStream.mock.calls.length).toBeGreaterThan(1)
+    sink.stop()
+    // clearAllMocks does not clear implementations — drop the throw here so it
+    // cannot leak into the next test's writes.
+    writeToStream.mockReset()
+  })
+
   it('declares the sink drained only after queued audio + the playback tail', () => {
     const { sink, onDrained } = openSink()
 

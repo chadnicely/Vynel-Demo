@@ -68,6 +68,12 @@ export function openOutputSink(
   let pendingOffset = 0
   let pendingSamples = 0
 
+  // When the audio already handed to the device finishes playing. The queue
+  // empties long before the device does — it holds ~340 ms — so pendingSamples
+  // alone reads "idle" mid-line and the keepalive would inject silence INTO
+  // the sentence, splitting words.
+  let deviceBusyUntil = 0
+
   const pendingSeconds = (): number => pendingSamples / samplesPerSecond
 
   // Top the device up until it says it is full, then leave the rest for the
@@ -94,6 +100,7 @@ export function openOutputSink(
       }
       pendingOffset += take
       pendingSamples -= take
+      deviceBusyUntil = Math.max(performance.now(), deviceBusyUntil) + (take / samplesPerSecond) * 1000
       if (pendingOffset >= head.length) {
         pending.shift()
         pendingOffset = 0
@@ -108,11 +115,20 @@ export function openOutputSink(
   )
   const keepAlive = setInterval(() => {
     if (handle === null) return
-    // Real audio still draining keeps the stream warm by itself, and silence
-    // queued behind it would gap the line.
-    if (pendingSamples > 0) return
-    if (performance.now() - lastRealEmitAt < KEEPALIVE_IDLE_MS) return
-    cpal.writeToStream(handle, keepAliveFrame)
+    // Real audio still in flight keeps the stream warm by itself, and silence
+    // queued behind it would land inside the line.
+    const now = performance.now()
+    if (pendingSamples > 0 || now < deviceBusyUntil) return
+    if (now - lastRealEmitAt < KEEPALIVE_IDLE_MS) return
+    try {
+      cpal.writeToStream(handle, keepAliveFrame)
+    } catch {
+      return // buffer full — the stream is plainly not cold, which is the point
+    }
+    // Count the trickle against the device too, so the guard above rate-limits
+    // it to one frame at a time. Otherwise silence stacks up to the buffer's
+    // full ~340 ms and the next sentence has to wait behind all of it.
+    deviceBusyUntil = Math.max(now, deviceBusyUntil) + KEEPALIVE_MS
   }, KEEPALIVE_MS)
 
   logger.info({ sink: label, device: device.name }, 'output sink opened')
@@ -172,6 +188,7 @@ export function openOutputSink(
       pending = []
       pendingOffset = 0
       pendingSamples = 0
+      deviceBusyUntil = 0
       try {
         cpal.closeStream(closing)
       } catch (error) {
