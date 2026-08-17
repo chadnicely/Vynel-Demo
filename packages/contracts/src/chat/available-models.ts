@@ -129,6 +129,34 @@ export function selectEffortOptionsForModel<T extends { id: ThinkingEffortLevel 
   return filtered.length > 0 ? filtered : [...options]
 }
 
+/** The picker's row name, with the generation in it (2026-08-17). The engine
+ *  labels its rows by FAMILY only — "Fable", "Sonnet", "Opus (1M context)" —
+ *  and puts the generation in the description ("Fable 5 · Most capable …"),
+ *  which a compact row has no space for. So the version is derived from the
+ *  id, which is exact, and folded into the engine's own label right after the
+ *  family word: "Fable" → "Fable 5", "Opus (1M context)" → "Opus 5 (1M
+ *  context)", "Haiku" → "Haiku 4.5".
+ *
+ *  Returned unchanged when the id carries no readable version, or when the
+ *  label already states one (the static floor's labels do). */
+export function formatVersionedModelLabel(
+  model: Pick<DiscoveredChatModel, 'id' | 'label'>,
+): string {
+  const { family, version } = parseClaudeModelId(model.id)
+  if (family === null || version === null) return model.label
+  const major = Math.floor(version / 100)
+  const minor = version % 100
+  const versionText = minor === 0 ? `${major}` : `${major}.${minor}`
+  // Already versioned (the floor's "Opus 4.8", an engine that spells it out).
+  if (new RegExp(`\\b${family}\\b\\s*\\d`, 'i').test(model.label)) return model.label
+  const familyWord = new RegExp(`\\b${family}\\b`, 'i')
+  // A label that never names the family (a pointer row) is left alone rather
+  // than guessed at.
+  return familyWord.test(model.label)
+    ? model.label.replace(familyWord, (match) => `${match} ${versionText}`)
+    : model.label
+}
+
 /** "1M" / "200K" — the picker's per-model context chip. */
 export function formatContextWindow(tokens: number): string {
   if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`

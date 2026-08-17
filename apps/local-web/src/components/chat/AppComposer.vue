@@ -6,6 +6,7 @@ import type { SessionMode } from "@vynel/session";
 import {
   availableChatModelsFloor,
   formatContextWindow,
+  formatVersionedModelLabel,
   groupAvailableModels,
   selectEffortOptionsForModel,
   type AvailableChatModel,
@@ -118,7 +119,9 @@ const groupedModels = computed(() =>
 function toComposerOption(model: AvailableChatModel) {
   return {
     id: model.id,
-    label: model.label,
+    // The engine names rows by family alone and keeps the generation in the
+    // description — too long for a row, so it is folded into the name.
+    label: formatVersionedModelLabel(model),
     hint: formatContextWindow(model.contextWindowTokens),
   };
 }

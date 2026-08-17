@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   availableChatModelsFloor,
   formatContextWindow,
+  formatVersionedModelLabel,
   groupAvailableModels,
   parseClaudeModelId,
   selectEffortOptionsForModel,
@@ -185,5 +186,36 @@ describe('context-variant model ids', () => {
       'claude-sonnet-5',
     ])
     expect(grouped.more).toEqual([])
+  })
+})
+
+// The picker's rows are compact, and the engine keeps the generation in the
+// description ("Fable 5 · Most capable …") — so the version is derived from
+// the id and folded into the engine's own label (Kafi, 2026-08-17).
+describe('formatVersionedModelLabel', () => {
+  it('adds the generation to a family-only engine label', () => {
+    expect(formatVersionedModelLabel({ id: 'claude-fable-5', label: 'Fable' })).toBe('Fable 5')
+    expect(formatVersionedModelLabel({ id: 'claude-sonnet-5', label: 'Sonnet' })).toBe('Sonnet 5')
+    expect(
+      formatVersionedModelLabel({ id: 'claude-haiku-4-5-20251001', label: 'Haiku' }),
+    ).toBe('Haiku 4.5')
+  })
+
+  it('keeps a variant qualifier intact, version in front of it', () => {
+    expect(
+      formatVersionedModelLabel({ id: 'claude-opus-5[1m]', label: 'Opus (1M context)' }),
+    ).toBe('Opus 5 (1M context)')
+  })
+
+  it('never doubles a version the label already states (the static floor)', () => {
+    expect(formatVersionedModelLabel({ id: 'claude-opus-4-8', label: 'Opus 4.8' })).toBe('Opus 4.8')
+    expect(formatVersionedModelLabel({ id: 'claude-fable-5', label: 'Fable 5' })).toBe('Fable 5')
+  })
+
+  it('leaves a label alone when the id has no readable version or the family is unnamed', () => {
+    expect(formatVersionedModelLabel({ id: 'mystery-model', label: 'Mystery' })).toBe('Mystery')
+    expect(
+      formatVersionedModelLabel({ id: 'claude-opus-5', label: 'Default (recommended)' }),
+    ).toBe('Default (recommended)')
   })
 })
