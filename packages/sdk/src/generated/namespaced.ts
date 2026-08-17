@@ -1316,6 +1316,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  refreshModels: async (providerId: NonNullable<paths["/providers/{providerId}/models/refresh"]["post"]['parameters']>['path']["providerId"]) => {
+    const { data, error, response } = await client["POST"]("/providers/{providerId}/models/refresh", {
+      params: { path: { providerId: providerId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   },
   root: {
   getContinuing: async () => {

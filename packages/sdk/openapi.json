@@ -28086,6 +28086,102 @@
         }
       }
     },
+    "/providers/{providerId}/models/refresh": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The roster after the refresh — `isDiscovered` false means the engine could not be asked and the curated floor is what you get.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "supportedEffortLevels": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high",
+                                "xhigh",
+                                "max"
+                              ]
+                            }
+                          },
+                          "contextWindowTokens": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "description",
+                          "supportedEffortLevels",
+                          "contextWindowTokens"
+                        ]
+                      }
+                    },
+                    "isDiscovered": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "models",
+                    "isDiscovered"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported providerId."
+          }
+        },
+        "operationId": "postProvidersByProviderIdModelsRefresh",
+        "tags": [
+          "providers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex",
+                "gemini",
+                "cursor"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "summary": "Re-ask the engine which models this account can run, then return the roster.",
+        "x-sdk-name": "providers.refreshModels"
+      }
+    },
     "/providers/{providerId}/skills": {
       "get": {
         "responses": {

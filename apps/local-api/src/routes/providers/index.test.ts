@@ -69,6 +69,7 @@ function makeFakeProvider(receivedDiscoverInputs: DiscoverSkillsInput[] = []): A
     getContextReport: async () => null,
     summarizeSession: async () => null,
     summarizeReport: async () => null,
+    discoverModels: async () => null,
   } as AiAgentProvider
 }
 
@@ -150,6 +151,78 @@ describe('providers routes', () => {
         expect(res.status).toBe(400)
         const body = (await res.json()) as { code: string }
         expect(body.code).toBe('validation_failed')
+      })
+    })
+  })
+
+  describe('POST /providers/:providerId/models/refresh', () => {
+    it('asks the ENGINE and serves what it answered (no chat turn needed)', async () => {
+      await withTestDatabase(async (db) => {
+        const provider = {
+          ...makeFakeProvider(),
+          discoverModels: async () => [
+            {
+              id: 'claude-opus-4-8',
+              label: 'Opus 4.8',
+              description: null,
+              supportedEffortLevels: ['low', 'medium', 'high'] as const,
+            },
+          ],
+        } as unknown as AiAgentProvider
+        const app = createApp({ db, logger: silentLogger, aiProvider: provider })
+
+        // Before: nothing discovered — the curated floor.
+        const before = (await (await app.request('/providers/claude/models')).json()) as {
+          isDiscovered: boolean
+        }
+        expect(before.isDiscovered).toBe(false)
+
+        const res = await app.request('/providers/claude/models/refresh', { method: 'POST' })
+        expect(res.status).toBe(200)
+        const body = (await res.json()) as {
+          isDiscovered: boolean
+          models: Array<{ id: string; supportedEffortLevels: string[] | null }>
+        }
+        expect(body.isDiscovered).toBe(true)
+        expect(body.models.map((model) => model.id)).toEqual(['claude-opus-4-8'])
+        expect(body.models[0]!.supportedEffortLevels).toEqual(['low', 'medium', 'high'])
+
+        // Persisted, so the plain read serves it too.
+        const after = (await (await app.request('/providers/claude/models')).json()) as {
+          isDiscovered: boolean
+        }
+        expect(after.isDiscovered).toBe(true)
+      })
+    })
+
+    it('a failed discovery changes nothing — the stored roster stands', async () => {
+      await withTestDatabase(async (db) => {
+        const good = {
+          ...makeFakeProvider(),
+          discoverModels: async () => [
+            { id: 'claude-opus-4-8', label: 'Opus 4.8', description: null, supportedEffortLevels: null },
+          ],
+        } as unknown as AiAgentProvider
+        const app = createApp({ db, logger: silentLogger, aiProvider: good })
+        await app.request('/providers/claude/models/refresh', { method: 'POST' })
+
+        // The engine goes away (not installed, logged out, wedged) → null.
+        const degraded = createApp({
+          db,
+          logger: silentLogger,
+          aiProvider: {
+            ...makeFakeProvider(),
+            discoverModels: async () => null,
+          } as unknown as AiAgentProvider,
+        })
+        const res = await degraded.request('/providers/claude/models/refresh', { method: 'POST' })
+        expect(res.status).toBe(200)
+        const body = (await res.json()) as {
+          isDiscovered: boolean
+          models: Array<{ id: string }>
+        }
+        expect(body.isDiscovered).toBe(true)
+        expect(body.models.map((model) => model.id)).toEqual(['claude-opus-4-8'])
       })
     })
   })

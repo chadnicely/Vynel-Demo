@@ -58,6 +58,7 @@ function makeFakeProvider(
     getContextReport: async () => null,
     summarizeSession: async () => null,
     summarizeReport: async () => null,
+    discoverModels: async () => null,
   } as AiAgentProvider
 }
 

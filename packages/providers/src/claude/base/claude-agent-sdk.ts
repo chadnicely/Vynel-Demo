@@ -19,4 +19,7 @@ export type {
   ModelInfo,
   Options,
   SDKMessage,
+  // Streaming-input mode's message type — model discovery opens a query whose
+  // input never yields one (the handshake is all it wants).
+  SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk'

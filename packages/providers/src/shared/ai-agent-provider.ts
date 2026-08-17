@@ -7,7 +7,11 @@ import type { AiAgentProviderId } from './ai-agent-provider-id.js'
 import type { AuthenticationStatus } from './authentication-status.js'
 import type { InstalledSkill, DiscoverSkillsInput } from './installed-skill.js'
 import type { McpServerConfig, ListMcpServersInput } from './mcp-server-config.js'
-import type { StartChatSessionInput } from './start-chat-session-input.js'
+import type {
+  StartChatSessionInput,
+  DiscoveredProviderModel,
+} from './start-chat-session-input.js'
+import type { DiscoverModelsInput } from './discover-models-input.js'
 import type { GetContextReportInput } from './get-context-report-input.js'
 import type { SummarizeSessionInput } from './summarize-session-input.js'
 import type { SummarizeReportInput } from './summarize-report-input.js'
@@ -112,6 +116,19 @@ export abstract class AiAgentProvider {
    * `summarizeSession`.
    */
   summarizeReport(_input: SummarizeReportInput): Promise<string | null> {
+    return Promise.resolve(null)
+  }
+
+  /**
+   * Asks the engine which models THIS account can actually run — the model
+   * picker's roster, without running a turn (the same list the engine reports
+   * at session startup, which is account-scoped: what a subscription serves
+   * today is not a constant). Returns `null` when this provider can't be
+   * asked, or when the engine didn't answer in time — callers keep the roster
+   * they already had. A best-effort read; never throws. Default: not
+   * supported, the `summarizeSession` shape.
+   */
+  discoverModels(_input: DiscoverModelsInput): Promise<DiscoveredProviderModel[] | null> {
     return Promise.resolve(null)
   }
 }

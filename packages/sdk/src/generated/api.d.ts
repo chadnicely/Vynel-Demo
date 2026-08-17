@@ -2958,6 +2958,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/providers/{providerId}/models/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-ask the engine which models this account can run, then return the roster. */
+        post: operations["postProvidersByProviderIdModelsRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/providers/{providerId}/skills": {
         parameters: {
             query?: never;
@@ -14871,6 +14888,44 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The model roster: discovered from the engine when a turn has run, else the curated static floor. Context windows derived per model. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        models: {
+                            id: string;
+                            label: string;
+                            description: string | null;
+                            supportedEffortLevels: ("low" | "medium" | "high" | "xhigh" | "max")[] | null;
+                            contextWindowTokens: number;
+                        }[];
+                        isDiscovered: boolean;
+                    };
+                };
+            };
+            /** @description Unsupported providerId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postProvidersByProviderIdModelsRefresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: "claude" | "codex" | "gemini" | "cursor";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The roster after the refresh — `isDiscovered` false means the engine could not be asked and the curated floor is what you get. */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -74,6 +74,8 @@ import {
   reapOrphanedSessionTurns,
 } from '@vynel/session/runtime'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
+import { refreshDiscoveredModels } from './sessions/refresh-discovered-models.js'
+import { ensureGlobalRootWorkspaceDir } from './sessions/global-root-workspace.js'
 import {
   createDesktopNotificationListener,
   resolveDesktopOs,
@@ -299,6 +301,25 @@ export async function boot(): Promise<void> {
   } catch (err) {
     logger.error({ err }, 'boot session-turn reap failed')
   }
+
+  // Warm the model roster from the ENGINE (2026-08-17). Fire-and-forget: the
+  // picker's list is account-scoped and used to arrive only as a side-effect
+  // of the user's first chat turn, so a fresh app showed the curated floor and
+  // a roster that changed between sessions never caught up. Discovery costs no
+  // tokens (the engine's startup handshake) and a failed one changes nothing —
+  // so boot never waits on it and never degrades what is already stored.
+  void refreshDiscoveredModels(
+    db,
+    resolveAiAgentProvider(DEFAULT_PROVIDER_ID),
+    { userId: user.id, workspacePath: ensureGlobalRootWorkspaceDir() },
+    { logger },
+  )
+    .then((refreshed) => {
+      if (refreshed) logger.info('boot model discovery refreshed the roster')
+    })
+    .catch((err: unknown) => {
+      logger.warn({ err }, 'boot model discovery failed — keeping the known roster')
+    })
 
   // The per-minute schedule poll — claims due schedules + fires each via a
   // headless workspace turn. MCP-intrinsic, so it lives in the api process (not

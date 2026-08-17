@@ -4,6 +4,8 @@
 //   GET /                    -> listProvidersWithStatus            [x-mcp: list_ai_agent_providers]
 //   GET /:providerId/auth    -> getProviderAuthenticationStatus    [x-mcp: get_ai_agent_provider_auth_status]
 //   GET /:providerId/skills  -> discoverInstalledSkillsForProvider [x-mcp: discover_installed_skills_for_provider]
+//   GET /:providerId/models  -> the stored roster (or the curated floor) [x-mcp: list_available_chat_models]
+//   POST /:providerId/models/refresh -> re-ask the ENGINE for it (no x-mcp)
 //
 // Locked Hono protocol per the knowledge/skills precedent: describeRoute
 // (from the local openapi.js wrapper — widens the type for x-mcp +
@@ -30,6 +32,8 @@ import {
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
+import { refreshDiscoveredModels } from '../../sessions/refresh-discovered-models.js'
+import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspace.js'
 import {
   DiscoverSkillsQuerySchema,
   ProviderIdParamSchema,
@@ -133,6 +137,56 @@ export const providersApp = factory
     ...userScoped,
     (c) => {
       const { providerId } = c.req.valid('param')
+      const discovered = findDiscoveredModels(c.var.db, c.var.user.id, providerId)
+      return c.json({
+        models:
+          discovered !== null ? toAvailableChatModels(discovered) : availableChatModelsFloor(),
+        isDiscovered: discovered !== null,
+      })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // POST /:providerId/models/refresh — ask the ENGINE for this account's
+  // roster right now (2026-08-17). The roster used to be a side-effect of
+  // chatting, so the picker showed the curated floor until a turn had run and
+  // never caught up with a mid-session change — which is what made a model
+  // appear one moment and be missing the next. Discovery costs no tokens (the
+  // engine's startup handshake, no turn) and a failed one changes nothing.
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/:providerId/models/refresh',
+    describeRoute({
+      tags: ['providers'],
+      summary: "Re-ask the engine which models this account can run, then return the roster.",
+      'x-sdk-name': 'providers.refreshModels',
+      responses: {
+        200: {
+          description:
+            'The roster after the refresh — `isDiscovered` false means the engine could not ' +
+            'be asked and the curated floor is what you get.',
+          content: {
+            'application/json': { schema: resolver(ListAvailableModelsResponseSchema) },
+          },
+        },
+        400: { description: 'Unsupported providerId.' },
+      },
+      // No x-mcp: the model already reads the roster through
+      // `list_available_chat_models`; re-asking the engine is the user's
+      // affordance, not a tool.
+    }),
+    validator('param', ProviderIdParamSchema),
+    ...userScoped,
+    async (c) => {
+      const { providerId } = c.req.valid('param')
+      await refreshDiscoveredModels(
+        c.var.db,
+        c.var.aiProvider,
+        {
+          userId: c.var.user.id,
+          workspacePath: ensureGlobalRootWorkspaceDir(),
+        },
+        { logger: c.var.logger },
+      )
       const discovered = findDiscoveredModels(c.var.db, c.var.user.id, providerId)
       return c.json({
         models:

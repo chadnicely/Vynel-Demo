@@ -21,7 +21,11 @@ import type { DiscoverSkillsInput, InstalledSkill } from '../shared/installed-sk
 import type { ListMcpServersInput, McpServerConfig } from '../shared/mcp-server-config.js'
 import type { NormalizedSessionEvent } from '../shared/normalized-session-event.js'
 import type { PersistedSessionRecord } from '../shared/persisted-session-record.js'
-import type { StartChatSessionInput } from '../shared/start-chat-session-input.js'
+import type {
+  StartChatSessionInput,
+  DiscoveredProviderModel,
+} from '../shared/start-chat-session-input.js'
+import type { DiscoverModelsInput } from '../shared/discover-models-input.js'
 import type { GetContextReportInput } from '../shared/get-context-report-input.js'
 import type { SummarizeSessionInput } from '../shared/summarize-session-input.js'
 import type { SummarizeReportInput } from '../shared/summarize-report-input.js'
@@ -33,6 +37,7 @@ import { runClaudeChatSession } from './session/run-claude-chat-session.js'
 import { runClaudeContextReport } from './session/run-claude-context-report.js'
 import { runClaudeSessionSummary } from './session/run-claude-session-summary.js'
 import { runClaudeReportSummary } from './session/run-claude-report-summary.js'
+import { runClaudeModelDiscovery } from './session/run-claude-model-discovery.js'
 import { synchronizeClaudePersistedSessions } from './history/synchronize-claude-persisted-sessions.js'
 
 export class ClaudeAiAgentProvider extends AiAgentProvider {
@@ -93,5 +98,11 @@ export class ClaudeAiAgentProvider extends AiAgentProvider {
 
   override async summarizeReport(input: SummarizeReportInput): Promise<string | null> {
     return runClaudeReportSummary(input)
+  }
+
+  override async discoverModels(
+    input: DiscoverModelsInput,
+  ): Promise<DiscoveredProviderModel[] | null> {
+    return runClaudeModelDiscovery(input)
   }
 }

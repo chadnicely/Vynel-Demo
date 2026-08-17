@@ -103,6 +103,26 @@ export function groupAvailableModels(models: AvailableChatModel[]): GroupedChatM
   return { current, more }
 }
 
+/** The effort levels to OFFER for a model (2026-08-17). The engine reports
+ *  what each model supports; until this was read, the picker offered all five
+ *  for every model and the engine silently downgraded an unsupported pick —
+ *  the chip said one thing and the turn did another. A model the engine said
+ *  nothing about (`null`, and every row of the static floor) keeps the full
+ *  set: never hide a level on a guess. Order follows the canonical options,
+ *  not the engine's. */
+export function selectEffortOptionsForModel<T extends { id: ThinkingEffortLevel }>(
+  options: readonly T[],
+  model: Pick<DiscoveredChatModel, 'supportedEffortLevels'> | undefined,
+): T[] {
+  const supported = model?.supportedEffortLevels ?? null
+  if (supported === null || supported.length === 0) return [...options]
+  const allowed = new Set<ThinkingEffortLevel>(supported)
+  const filtered = options.filter((option) => allowed.has(option.id))
+  // An engine answer that matches nothing we offer is a degraded answer, not a
+  // reason to render an empty picker.
+  return filtered.length > 0 ? filtered : [...options]
+}
+
 /** "1M" / "200K" — the picker's per-model context chip. */
 export function formatContextWindow(tokens: number): string {
   if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`

@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The model list is now asked for, not stumbled upon.** Which models the
+  picker offers is account-specific — and Vynel only ever learned the list as
+  a side-effect of you sending a message, so a freshly opened app showed the
+  built-in list and a list that changed (a different login, an entitlement
+  change) only caught up on your next chat. Vynel now asks the engine directly
+  at startup, and can be asked again at any time; it costs nothing (no message
+  is sent) and a failed ask never wipes the list it already had. The effort
+  picker also stops offering levels the chosen model can't run — it used to
+  show all five and let the engine quietly downgrade your pick.
+
 - **Conversations now carry a status light — including "stuck on an error".**
   When a turn dies (the account's session limit, a failed run), the error used
   to live only as red text inside the transcript: nothing in the Sessions list

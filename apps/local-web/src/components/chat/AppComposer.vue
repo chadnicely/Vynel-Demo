@@ -7,6 +7,7 @@ import {
   availableChatModelsFloor,
   formatContextWindow,
   groupAvailableModels,
+  selectEffortOptionsForModel,
   type AvailableChatModel,
 } from "@vynel/contracts/chat/available-models";
 import { THINKING_EFFORT_OPTIONS } from "@vynel/contracts/chat/thinking-effort";
@@ -129,7 +130,17 @@ const modeOptions = SESSION_MODES.map((mode) => ({
   label: mode.label,
 }));
 
-const effortOptions = [...THINKING_EFFORT_OPTIONS];
+// Only the levels the SELECTED model actually supports (the engine reports
+// them per model). Before this the picker offered all five everywhere and the
+// engine quietly downgraded an unsupported pick — the chip lied.
+const selectedModel = computed(() =>
+  [...groupedModels.value.current, ...groupedModels.value.more].find(
+    (model) => model.id === settings.values.value.modelId,
+  ),
+);
+const effortOptions = computed(() =>
+  selectEffortOptionsForModel(THINKING_EFFORT_OPTIONS, selectedModel.value),
+);
 
 // ── Mention-picker rosters (chat-mentions) ──────────────────────────
 // The insert tokens come from the contracts grammar's format helpers, so what

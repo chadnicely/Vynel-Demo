@@ -4,6 +4,7 @@ import {
   formatContextWindow,
   groupAvailableModels,
   parseClaudeModelId,
+  selectEffortOptionsForModel,
   toAvailableChatModels,
   type AvailableChatModel,
 } from './available-models.js'
@@ -104,5 +105,42 @@ describe('floor + derivation', () => {
       { id: 'claude-sonnet-5', label: 'Sonnet 5', description: null, supportedEffortLevels: null },
     ])
     expect(derived?.contextWindowTokens).toBe(1_000_000)
+  })
+})
+
+describe('selectEffortOptionsForModel', () => {
+  const OPTIONS = [
+    { id: 'low' as const, label: 'Low' },
+    { id: 'medium' as const, label: 'Medium' },
+    { id: 'high' as const, label: 'High' },
+    { id: 'xhigh' as const, label: 'Extra' },
+    { id: 'max' as const, label: 'Max' },
+  ]
+
+  it('offers only what the engine says the model supports', () => {
+    const filtered = selectEffortOptionsForModel(OPTIONS, {
+      supportedEffortLevels: ['low', 'medium', 'high'],
+    })
+    expect(filtered.map((option) => option.id)).toEqual(['low', 'medium', 'high'])
+  })
+
+  it('keeps the canonical order, not the enginesʼ', () => {
+    const filtered = selectEffortOptionsForModel(OPTIONS, {
+      supportedEffortLevels: ['max', 'low'],
+    })
+    expect(filtered.map((option) => option.id)).toEqual(['low', 'max'])
+  })
+
+  it('offers everything when the engine said nothing (and for the static floor)', () => {
+    expect(selectEffortOptionsForModel(OPTIONS, { supportedEffortLevels: null })).toHaveLength(5)
+    expect(selectEffortOptionsForModel(OPTIONS, undefined)).toHaveLength(5)
+    expect(selectEffortOptionsForModel(OPTIONS, { supportedEffortLevels: [] })).toHaveLength(5)
+  })
+
+  it('never renders an EMPTY picker on an answer that matches nothing', () => {
+    const filtered = selectEffortOptionsForModel(OPTIONS, {
+      supportedEffortLevels: ['ludicrous' as never],
+    })
+    expect(filtered).toHaveLength(5)
   })
 })
