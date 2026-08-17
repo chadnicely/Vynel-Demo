@@ -287,6 +287,9 @@ describe('consumeSessionEventStream — session lifecycle', () => {
       const errored = findChatMessageById(db, 'msg-partial')
       expect(errored?.errorCode).toBe('CONTEXT_OVERFLOW')
       expect(errored?.errorMessage).toBe('Conversation too long.')
+      // Marking an ALREADY-OPEN assistant row carries the severity too — the
+      // other half of the same write.
+      expect(errored?.errorIsRecoverable).toBe(false)
       expect(errored?.body).toBe('I was about to')
 
       const yielded = events.find((e) => e.kind === 'session-errored')
@@ -337,6 +340,9 @@ describe('consumeSessionEventStream — session lifecycle', () => {
       const failureRow = rows.find((row) => row.role === 'assistant')
       expect(failureRow?.errorCode).toBe('error_during_execution')
       expect(failureRow?.errorMessage).toBe('API Error: 529 Overloaded.')
+      // The severity travels onto the row so the status ladder can tell this
+      // dead turn from a transient hiccup.
+      expect(failureRow?.errorIsRecoverable).toBe(false)
       expect(failureRow?.completedAt?.toISOString()).toBe(erroredAt.toISOString())
 
       const session = findChatSessionById(db, 'session-dead')
@@ -382,6 +388,9 @@ describe('consumeSessionEventStream — session lifecycle', () => {
       const rows = listChatMessagesForSession(db, 'session-dead-resume')
       const failureRow = rows.find((row) => row.role === 'assistant')
       expect(failureRow?.errorCode).toBe('provider_start_timeout')
+      // A start timeout is RECOVERABLE — the row exists to explain the gap in
+      // the transcript, but it must not read as a problem on the status light.
+      expect(failureRow?.errorIsRecoverable).toBe(true)
       // The durability-persisted user row still precedes it.
       expect(rows.find((row) => row.role === 'user')?.body).toBe('Hello again')
     })

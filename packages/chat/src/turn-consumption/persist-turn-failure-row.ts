@@ -17,10 +17,13 @@ export function persistTurnFailureRow(input: {
   sessionId: string | null
   errorCode: string
   errorMessage: string
+  /** The provider's severity — a recoverable failure is persisted (the
+   *  transcript still owes an explanation) but must not read as a problem. */
+  isRecoverable: boolean
   erroredAt: Date
   attribution?: AssistantRowAttribution
 }): ChatMessage | null {
-  const { db, sessionId, errorCode, errorMessage, erroredAt, attribution } = input
+  const { db, sessionId, errorCode, errorMessage, isRecoverable, erroredAt, attribution } = input
   // A failure BEFORE session-started on a NEW session has no session row to
   // attach to — and nothing else of the turn persisted either, so there is no
   // half-told transcript to explain. The live client still gets the event.
@@ -43,6 +46,7 @@ export function persistTurnFailureRow(input: {
       attachedImagesMetadata: null,
       errorCode,
       errorMessage,
+      errorIsRecoverable: isRecoverable,
       startedAt: erroredAt,
       completedAt: erroredAt,
       createdAt: erroredAt,

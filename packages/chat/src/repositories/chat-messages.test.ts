@@ -334,6 +334,90 @@ describe('findSessionStatusMessageFacts', () => {
     })
   })
 
+  // The provider marks a transient failure recoverable and the turn envelope
+  // honours it (only `!isRecoverable` marks a turn failed). This read used to
+  // key purely off "errorMessage is not null", so a hiccup the provider
+  // expected to survive painted the conversation red until the next reply.
+  it('a RECOVERABLE failure is not a problem', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      const session = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      insertChatMessage(
+        db,
+        makeChatMessage(session.id, {
+          role: 'assistant',
+          body: '',
+          errorCode: 'provider_start_timeout',
+          errorMessage: 'the engine took too long to start',
+          errorIsRecoverable: true,
+          startedAt: new Date('2026-08-16T12:56:00Z'),
+        }),
+      )
+      expect(findSessionStatusMessageFacts(db, [session.id]).lastAssistantError).toBeNull()
+    })
+  })
+
+  it('a recoverable failure does not resurrect an older terminal one', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      const session = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      insertChatMessage(
+        db,
+        makeChatMessage(session.id, {
+          role: 'assistant',
+          body: '',
+          errorCode: 'error_during_execution',
+          errorMessage: "You've hit your session limit",
+          errorIsRecoverable: false,
+          startedAt: new Date('2026-08-16T12:00:00Z'),
+        }),
+      )
+      insertChatMessage(
+        db,
+        makeChatMessage(session.id, {
+          role: 'assistant',
+          body: '',
+          errorCode: 'provider_start_timeout',
+          errorMessage: 'the engine took too long to start',
+          errorIsRecoverable: true,
+          startedAt: new Date('2026-08-16T12:56:00Z'),
+        }),
+      )
+      // "The last thing that happened" stays the rule — the recoverable row is
+      // skipped, never looked PAST to an older failure.
+      expect(findSessionStatusMessageFacts(db, [session.id]).lastAssistantError).toBeNull()
+    })
+  })
+
+  it('a historical row with no severity recorded still reads as a problem', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      const session = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      insertChatMessage(
+        db,
+        makeChatMessage(session.id, {
+          role: 'assistant',
+          body: '',
+          errorCode: 'error_during_execution',
+          errorMessage: 'boom',
+          startedAt: new Date('2026-08-16T12:56:00Z'),
+        }),
+      )
+      expect(
+        findSessionStatusMessageFacts(db, [session.id]).lastAssistantError?.message,
+      ).toBe('boom')
+    })
+  })
+
   it('spans the WHOLE chain — a message-less swap segment inherits its history', async () => {
     await withTestDatabase((db) => {
       const user = makeUser()

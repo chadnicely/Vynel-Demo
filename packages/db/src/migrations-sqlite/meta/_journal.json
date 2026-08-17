@@ -316,6 +316,13 @@
       "when": 1786924172415,
       "tag": "0044_chat_session_status",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1786935167782,
+      "tag": "0045_chat_message_error_recoverable",
+      "breakpoints": true
     }
   ]
 }

@@ -53,8 +53,13 @@ export function listChatMessagesForSession(
 
 /** The session-status derivation's message-side facts (Move 3, 2026-08-17):
  *  the latest ASSISTANT message's error columns — "the last thing that
- *  happened errored", self-clearing when a later reply succeeds — and the
- *  latest USER message's start (the set-status supersession anchor).
+ *  happened errored TERMINALLY", self-clearing when a later reply succeeds —
+ *  and the latest USER message's start (the set-status supersession anchor).
+ *
+ *  Terminally: a recoverable failure is skipped rather than looked past, so a
+ *  transient hiccup can't resurrect an older error either. "The last thing
+ *  that happened" stays the rule; a recoverable last thing is simply not a
+ *  problem.
  *
  *  Asked over the WHOLE CHAIN, never one segment: a continuity swap mints a
  *  fresh segment with no messages on it, so a tail-only read reported "the
@@ -84,6 +89,7 @@ export function findSessionStatusMessageFacts(
     .select({
       errorCode: chatMessages.errorCode,
       errorMessage: chatMessages.errorMessage,
+      errorIsRecoverable: chatMessages.errorIsRecoverable,
       startedAt: chatMessages.startedAt,
     })
     .from(chatMessages)
@@ -102,7 +108,12 @@ export function findSessionStatusMessageFacts(
     .all();
   return {
     lastAssistantError:
-      latestAssistant !== undefined && latestAssistant.errorMessage !== null
+      latestAssistant !== undefined &&
+      latestAssistant.errorMessage !== null &&
+      // A RECOVERABLE failure is not a problem: the provider expected the turn
+      // to survive it, and the envelope agrees (only `!isRecoverable` marks a
+      // turn failed). Historical rows carry null here and read as terminal.
+      latestAssistant.errorIsRecoverable !== true
         ? {
             code: latestAssistant.errorCode,
             message: latestAssistant.errorMessage,

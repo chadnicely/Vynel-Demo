@@ -1,6 +1,6 @@
 # A RECOVERABLE turn error paints the conversation red until the next turn
 
-**Status:** open
+**Status:** FIXED 2026-08-17 — see [Resolution](#resolution) at the bottom.
 **Kind:** latent-defect
 **Area:** `packages/chat` (turn consumption) + `packages/contracts` (session status ladder)
 **Opened:** 2026-08-17 (raised by the code review of the session-status arc; accepted as-is to ship,
@@ -52,3 +52,45 @@ Not reproducible by hand today without forcing a provider timeout. Unit-level: e
 `session-errored` with `isRecoverable: true` through `consumeSessionEventStream`, then read
 `findSessionStatusMessageFacts` — `lastAssistantError` comes back populated, and
 `deriveSessionStatus` returns `problem`.
+
+---
+
+## Resolution
+
+Fixed 2026-08-17, the second of the two options the file listed: a nullable
+`chat_messages.error_is_recoverable` column (migration
+`0045_chat_message_error_recoverable`, drizzle-generated). Overloading
+`errorCode` was rejected for the reason recorded above — a severity signal
+smuggled into an identity field reads fine until someone filters on it.
+
+Null means "no severity recorded", which covers every historical row and every
+row that never errored, and reads as TERMINAL — so prior behaviour is preserved
+exactly where we have no better information.
+
+### Where it is written and read
+
+- `consume-session-event-stream.ts` — both error write paths carry
+  `event.isRecoverable`: marking an already-open assistant row, and
+  `persistTurnFailureRow` for a zero-output turn (whose `isRecoverable` is now
+  a required argument, so a future caller cannot forget it).
+- `findSessionStatusMessageFacts` — the latest assistant row counts as an error
+  only when `errorIsRecoverable !== true`.
+
+The read SKIPS a recoverable row rather than looking past it. "The last thing
+that happened" stays the rule: a recoverable last thing is simply not a
+problem, and must not resurrect an older terminal error underneath it. Pinned
+by its own test.
+
+### The sweep found no second instance
+
+Three delegation runners and `fire-schedule` also capture `session-errored`
+and treat it as failure without consulting `isRecoverable`. That is CORRECT,
+not the same bug: in `run-claude-chat-session.ts` every `isRecoverable: true`
+emission is followed by `return` — the stream ends — so a recoverable error
+still means the turn produced nothing usable and the job genuinely failed.
+"Recoverable" scopes the retry, it does not mean the stream continues.
+
+Only one recoverable code exists today (`provider_start_timeout`); the
+provider's own comment notes the full taxonomy is deferred. The column is the
+shape that taxonomy will need, and it is now the thing readers key on rather
+than the mere presence of text.

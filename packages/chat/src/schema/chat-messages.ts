@@ -16,7 +16,7 @@
 // themselves live in `<workspace.path>/.vynel/transcripts/<sessionId>/
 // images/<filename>` per D22.
 
-import { table, text, timestamp, integer, json, index } from '@vynel/db/dialect'
+import { table, text, timestamp, integer, boolean, json, index } from '@vynel/db/dialect'
 import { chatSessions } from './chat-sessions.js'
 
 export type ChatMessageRole = 'user' | 'assistant' | 'system'
@@ -82,6 +82,13 @@ export const chatMessages = table(
     attachedImagesMetadata: json<AttachedImageMetadata[]>(), // opaque-never-filtered; D25
     errorCode: text(), // non-null only if message errored mid-stream
     errorMessage: text(),
+    // The provider's own severity for that failure, carried so READERS can
+    // honour the distinction the turn envelope already makes (only a
+    // `!isRecoverable` failure marks a turn failed). Without it the session
+    // status ladder painted a conversation red for a transient hiccup the
+    // provider expected to survive. Null on historical rows and on any row
+    // that never errored — read as terminal, which preserves prior behaviour.
+    errorIsRecoverable: boolean(),
     startedAt: timestamp().notNull(),
     completedAt: timestamp(), // null while streaming; set on completion
     createdAt: timestamp().notNull(),
