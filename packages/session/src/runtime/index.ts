@@ -49,7 +49,9 @@ export {
 // runners wrap their turn in, and the one home for what a continuation says.
 export {
   runTurnWithContinuations,
+  runContinuingTurn,
   type RunTurnWithContinuationsInput,
+  type RunContinuingTurnInput,
 } from './run-turn-with-continuations.js'
 export { composeContinuationTurn, type ContinuationTurn } from './continuation-turn.js'
 export {

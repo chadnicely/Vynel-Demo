@@ -17,7 +17,7 @@ import {
   composeSessionCapabilities,
   resolvePrimaryConversationTarget,
   publishTurnActivityStep,
-  runTurnWithContinuations,
+  runContinuingTurn,
   type ContinuationTurn,
 } from '@vynel/session/runtime'
 import {
@@ -337,31 +337,23 @@ export async function streamChatTurn(
         // turnEvents: the turn tees onto its session channel (Watch everywhere).
         { logger: c.var.logger, turnEvents: c.var.turnEvents },
       )
-    // A continuation resumes the head the checkpoint's boundary swap produced
-    // — re-resolved, the swap moved it (the primary identity is unchanged).
-    const continueOnPrimaryHead = async function* (
-      continuation: ContinuationTurn,
-    ): AsyncIterable<ChatTurnEvent> {
-      const head = await resolvePrimaryConversationTarget(c.var.db, {
-        userId: c.var.user.id,
-        workspaceId,
-      })
-      yield* startOneTurn(head.resumeSdkSessionId ?? undefined, continuation)
-    }
     // The genuine turn, then — only when the model checkpointed — its
     // automatic continuations, all on this one SSE stream ("patching →
-    // continuing"). A plain session neither swaps nor continues.
-    const turnStream: AsyncIterable<ChatTurnEvent> =
-      primaryTarget === null
-        ? startOneTurn(resumeSessionId, null)
-        : runTurnWithContinuations({
-            primarySessionId: primaryTarget.primarySessionId,
-            runTurn: (continuation) =>
-              continuation === null
-                ? startOneTurn(resumeSessionId, null)
-                : continueOnPrimaryHead(continuation),
-            logger: c.var.logger,
+    // continuing"); a continuation resumes the head its swap produced
+    // (re-resolved). A plain session neither swaps nor continues.
+    const turnStream = runContinuingTurn({
+      primarySessionId: primaryTarget?.primarySessionId ?? null,
+      resumeSessionId,
+      resolveHead: async () =>
+        (
+          await resolvePrimaryConversationTarget(c.var.db, {
+            userId: c.var.user.id,
+            workspaceId,
           })
+        ).resumeSdkSessionId ?? undefined,
+      startOneTurn,
+      logger: c.var.logger,
+    })
     // Announce this turn on the session-activity feed so OTHER surfaces (a
     // second tab, the workspace thread elsewhere) go live while it runs.
     // Begun IMMEDIATELY before the try — nothing throwable may sit between

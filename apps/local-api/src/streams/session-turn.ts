@@ -25,7 +25,7 @@ import type { z } from 'zod'
 import { NotFoundError } from '@vynel/errors'
 import {
   startChatTurn,
-  runTurnWithContinuations,
+  runContinuingTurn,
   type ContinuationTurn,
 } from '@vynel/session/runtime'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
@@ -353,30 +353,20 @@ export async function streamSpawnedSessionTurn(
           // turnEvents: the turn tees onto its session channel (Watch everywhere).
           { logger, turnEvents },
         )
-      // A continuation resumes the head the checkpoint's boundary swap
-      // produced — re-read, the swap moved it (the identity is unchanged).
-      const continueOnHead = async function* (
-        continuation: ContinuationTurn,
-      ): AsyncIterable<ChatTurnEvent> {
-        const movedHead = findRoutableSessionById(db, { userId, primarySessionId: spawned.id })
-        if (movedHead === null || movedHead.currentSdkSessionId === null) {
-          logger.warn(
-            { primarySessionId: spawned.id },
-            'session continuation skipped — the spawned session disappeared after its checkpoint',
-          )
-          return
-        }
-        yield* startOneTurn(movedHead.currentSdkSessionId, continuation)
-      }
       // The genuine turn, then — only when the model checkpointed — its
       // automatic continuations, all on this one SSE stream ("patching →
-      // continuing").
-      const turnStream = runTurnWithContinuations({
+      // continuing"); a continuation resumes the head its swap produced
+      // (re-read — a spawned session deleted meanwhile skips it, logged).
+      const turnStream = runContinuingTurn({
         primarySessionId: spawned.id,
-        runTurn: (continuation) =>
-          continuation === null
-            ? startOneTurn(resumeSessionId, null)
-            : continueOnHead(continuation),
+        resumeSessionId,
+        resolveHead: async () =>
+          findRoutableSessionById(db, { userId, primarySessionId: spawned.id })
+            ?.currentSdkSessionId ?? undefined,
+        startOneTurn: (headSessionId, continuation) =>
+          // A DM turn always has a head to resume — the vanished case is the
+          // helper's skip, never a fresh conversation.
+          startOneTurn(headSessionId ?? resumeSessionId, continuation),
         logger,
       })
 

@@ -12,7 +12,7 @@ import {
   markPendingCheckpoint,
   peekPendingCheckpoint,
 } from '../continuity/pending-checkpoints.js'
-import { runTurnWithContinuations } from './run-turn-with-continuations.js'
+import { runContinuingTurn, runTurnWithContinuations } from './run-turn-with-continuations.js'
 import type { ContinuationTurn } from './continuation-turn.js'
 
 const PRIMARY = 'primary-continuations-loop-test'
@@ -177,6 +177,70 @@ describe('runTurnWithContinuations', () => {
       expect.stringContaining('never continues'),
     )
     expect(peekPendingCheckpoint(PRIMARY)).toBeNull()
+  })
+
+  it('runContinuingTurn: a plain conversation runs one turn; a continuing identity re-resolves the head per continuation; a vanished head skips it', async () => {
+    // Plain: exactly one turn, the loop never engages (a checkpoint the model
+    // leaves is never even taken — there is no identity to key it on).
+    const plainStarts: Array<[string | undefined, ContinuationTurn | null]> = []
+    await drain(
+      runContinuingTurn({
+        primarySessionId: null,
+        resumeSessionId: 'seg-plain',
+        resolveHead: async () => 'never-called',
+        startOneTurn: async function* (resumeSessionId, continuation) {
+          plainStarts.push([resumeSessionId, continuation])
+          yield* turnEvents('p1')
+        },
+      }),
+    )
+    expect(plainStarts).toEqual([['seg-plain', null]])
+
+    // Continuing: the genuine turn on the resolved head, the continuation on
+    // the head the swap produced.
+    const starts: Array<[string | undefined, string | null]> = []
+    let head = 'seg-a'
+    await drain(
+      runContinuingTurn({
+        primarySessionId: PRIMARY,
+        resumeSessionId: 'seg-a',
+        resolveHead: async () => head,
+        startOneTurn: async function* (resumeSessionId, continuation) {
+          starts.push([resumeSessionId, continuation?.checkpoint.nextStep ?? null])
+          if (continuation === null) {
+            markPendingCheckpoint(PRIMARY, 'finish the report')
+            head = 'seg-b' // the boundary swap moved the head
+          }
+          yield* turnEvents(continuation === null ? 't1' : 't2')
+        },
+      }),
+    )
+    expect(starts).toEqual([
+      ['seg-a', null],
+      ['seg-b', 'finish the report'],
+    ])
+
+    // Vanished: the identity is gone by the time the continuation would run.
+    const logger = { warn: vi.fn(), info: vi.fn() }
+    const goneStarts: Array<string | null> = []
+    await drain(
+      runContinuingTurn({
+        primarySessionId: PRIMARY,
+        resumeSessionId: 'seg-a',
+        resolveHead: async () => undefined,
+        startOneTurn: async function* (_resumeSessionId, continuation) {
+          goneStarts.push(continuation?.checkpoint.nextStep ?? null)
+          if (continuation === null) markPendingCheckpoint(PRIMARY, 'never runs')
+          yield* turnEvents('t1')
+        },
+        logger: logger as never,
+      }),
+    )
+    expect(goneStarts).toEqual([null])
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ primarySessionId: PRIMARY }),
+      expect.stringContaining('continuation skipped'),
+    )
   })
 
   it('a genuine turn drops a stale checkpoint left by an earlier turn instead of continuing it', async () => {

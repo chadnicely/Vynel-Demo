@@ -100,6 +100,55 @@ export async function* runTurnWithContinuations(
   }
 }
 
+export type RunContinuingTurnInput = {
+  /** The continuing identity — null for a plain conversation (opened by id /
+   *  fresh), which runs its one turn and never continues. */
+  primarySessionId: string | null
+  /** The head the genuine turn resumes (undefined = a fresh conversation). */
+  resumeSessionId: string | undefined
+  /** Re-resolve the identity's CURRENT head for a continuation — the
+   *  checkpoint's swap moved it. Undefined = the identity vanished meanwhile
+   *  (a deleted spawned session): the continuation is skipped, logged. */
+  resolveHead: () => Promise<string | undefined>
+  /** Start ONE turn on `resumeSessionId` — the genuine turn (`continuation`
+   *  null) or a continuation (its persisted body, provider text, attribution). */
+  startOneTurn: (
+    resumeSessionId: string | undefined,
+    continuation: ContinuationTurn | null,
+  ) => AsyncIterable<ChatTurnEvent>
+  logger?: StructuralLogger
+}
+
+/**
+ * The INTERACTIVE runners' shape over the loop — one home for the dance every
+ * stream used to spell out itself: a plain conversation runs its single turn;
+ * a continuing identity runs the genuine turn on the resolved head, then each
+ * continuation on the head its swap produced.
+ */
+export function runContinuingTurn(input: RunContinuingTurnInput): AsyncIterable<ChatTurnEvent> {
+  if (input.primarySessionId === null) return input.startOneTurn(input.resumeSessionId, null)
+  const primarySessionId = input.primarySessionId
+  return runTurnWithContinuations({
+    primarySessionId,
+    runTurn: async function* (continuation) {
+      if (continuation === null) {
+        yield* input.startOneTurn(input.resumeSessionId, null)
+        return
+      }
+      const head = await input.resolveHead()
+      if (head === undefined) {
+        input.logger?.warn(
+          { primarySessionId },
+          'continuation skipped — the conversation disappeared after its checkpoint',
+        )
+        return
+      }
+      yield* input.startOneTurn(head, continuation)
+    },
+    ...(input.logger !== undefined ? { logger: input.logger } : {}),
+  })
+}
+
 /** Yield one turn's events and report how it ended — the LAST terminal wins
  *  (a recoverable error followed by completion is a completed turn). */
 async function* runOneTurn(
