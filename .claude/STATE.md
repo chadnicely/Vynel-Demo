@@ -3,7 +3,15 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-18 (latest) LIVE-SMOKE FOLLOW-UPS — the "frozen tab" was the browser's 6-connection cap; watch sockets now gated on the feed
+## ✅ 2026-08-18 (latest) RELEASE 0.3.0 PUBLISHED — the first installer from OUR trunk
+
+`kafijunior/vynel-releases` v0.3.0 (Latest): `Vynel_0.3.0_x64-setup.exe` + `latest.json`, built from main
+`2e41421` (bump `73b891d`); the old design-branch `releases` lineage (0.2.5–0.2.8) is deleted, `releases`
+now tracks main at each release. Flow + the payload builder's dependency-range guard (all packages must
+agree on `@anthropic-ai/claude-agent-sdk` — aligned to ^0.3.231) are in the `desktop-release-cycle` memory.
+CHANGELOG `[Unreleased]` promoted to `[0.3.0]`.
+
+## ✅ 2026-08-18 LIVE-SMOKE FOLLOW-UPS — the "frozen tab" was the browser's 6-connection cap; watch sockets now gated on the feed
 
 Kafi's Slice-5 smoke (Seo workspace): checkpoint → swap → continuation → `ask_user` → answered → work
 finished — all real (DB-verified). The "app freezing / engine stuck / blank second tab" was NOT the
