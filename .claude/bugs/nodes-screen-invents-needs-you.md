@@ -90,12 +90,27 @@ A workspace reads **waiting** on exactly two facts, and nothing else:
 
 Talking recently is not waiting.
 
+## Partially fixed 2026-08-17 — the CONVERSATION dots
+
+The second-level (inside-a-project) conversation dots no longer invent anything:
+`resolveConversationNodeStatus` became a pure palette rename of the real ladder, fed by
+`deriveSessionStatus` per session (a live turn, a pending approval, the assistant's set state, the
+last turn's error) and by the ROOM's own status for "The build". They can now reach `problem`,
+which the window-based reading never could.
+
+**What is still open here is the FLEET screen** — the first-level project dots
+(`resolveFleetNodeStatus`), which still read the task queue + step dock and still call a
+mid-build pause "waiting on you". That is the divergence `node-status.ts` documents, and merging
+it changes visible colours, so it needs Chad.
+
 ## The fix, when we take it
 
-**A. Ground the child cards first** — blocked on
-[`spawned-session-approvals-record-null-workspace`](./spawned-session-approvals-record-null-workspace.md).
-Until that lands, rule (1) is unimplementable: a spawned session's approvals are recorded global, so
-the parent can never light for its own child.
+**A. Ground the child cards first** — ✅ **UNBLOCKED 2026-08-17.**
+[`spawned-session-approvals-record-null-workspace`](./spawned-session-approvals-record-null-workspace.md)
+is fixed: a spawned session's approvals now name their workspace (and their session), so rule (1)
+is implementable — a parent CAN light for its own child's card, and
+`use-workspace-status.ts` already routes a card by `row.workspaceId` with no change needed.
+Only historical rows stay mis-scoped.
 
 **B. Derive from the shared home.** Drop the invented ladder and read `use-workspace-status` like
 every other surface — it already computes `needs_input` from pending approvals + asks + the set

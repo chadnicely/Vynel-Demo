@@ -82,6 +82,16 @@ Also: overview sorts+caps BEFORE composing facts (500 chains fetched for a 50-en
 app-wide polled read); `liveTurnStartedAtForEntry` gains the global pre-resolution window (safe —
 spawned turns always carry a sessionId); `insertApprovalRequest` → `@vynel/approvals/test-support`.
 
+**Punch-list written to `.claude/bugs/` (2026-08-17)** — read those files, they are self-contained:
+`a-session-waiting-on-ask-user-reads-idle` (NEW defect: a workspace chat composes its toolset
+before its session id exists → asks record no session, AND the ladder counts approvals only —
+both halves needed) · `recoverable-turn-errors-read-as-problem` (NEW latent-defect: the ladder
+keys on `errorMessage`, ignoring the `isRecoverable` taxonomy the streams now use) ·
+`spawned-session-approvals-record-null-workspace` (**FIXED** `c9054a3` — also fixed a second,
+unreported symptom: a swap wrote the segment workspace-less, so a spawned session migrated out of
+its room's list) · `nodes-screen-invents-needs-you` (conversation dots FIXED; fleet dots still
+open + now UNBLOCKED for rule 1).
+
 **Open follow-ups from this arc:** ① live smoke of Move 2's discovery + a picker refresh
 affordance · ② extract the status-mark idiom (3 homes) · ③ channels (`runGlobalRootTurn`) still
 run the unattended bypass default and do NOT read per-session settings — deliberate, recorded in
