@@ -67,3 +67,25 @@ export type SessionSwappingEventPayload = {
   // ISO timestamp of when the swap began.
   startedAt: string
 }
+
+// The swap did NOT land — the sibling every `session.swapping` gets when no
+// `session.swapped` follows, so a monitor can tell "aborted" from "still
+// swapping" instead of waiting on a start that never ends. Not a state change
+// (the primary stays on its segment), so it is inserted on its own, like the
+// start signal. `reason`: the carry was unusable (the distill returned nothing
+// or a stub under the fidelity floor) or the swap threw (a seeding failure,
+// a distill deadline).
+export const SESSION_SWAP_ABORTED_EVENT_TYPE = 'session.swap-aborted'
+export type SessionSwapAbortedReason = 'no-usable-carry' | 'failed'
+export type SessionSwapAbortedEventPayload = {
+  primarySessionId: string
+  userId: string
+  scope: PrimarySessionScope
+  workspaceId: string | null
+  fromSdkSessionId: string
+  reason: SessionSwapAbortedReason
+  // The thrown failure's message when `reason` is 'failed'; null otherwise.
+  errorMessage: string | null
+  // ISO timestamp of the abort.
+  abortedAt: string
+}

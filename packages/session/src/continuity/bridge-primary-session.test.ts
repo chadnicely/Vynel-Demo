@@ -20,6 +20,7 @@ import {
   bridgePrimarySessionIfUnderPressure,
 } from './bridge-primary-session.js'
 import {
+  SESSION_SWAP_ABORTED_EVENT_TYPE,
   SESSION_SWAPPED_EVENT_TYPE,
   type SessionSwappedEventPayload,
 } from './session-continuity-events.js'
@@ -112,6 +113,8 @@ describe('bridgePrimarySession', () => {
       // session.swapped emitted for the future monitor.
       const events = listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)
       expect(events).toHaveLength(1)
+      // A landed swap never signals an abort.
+      expect(listOutboxEventsByType(db, SESSION_SWAP_ABORTED_EVENT_TYPE)).toHaveLength(0)
       const payload = events[0]!.payload as SessionSwappedEventPayload
       expect(payload.fromSdkSessionId).toBe('sdk-old')
       expect(payload.toSdkSessionId).toBe('sdk-new')
@@ -173,10 +176,44 @@ describe('bridgePrimarySession', () => {
       )
 
       expect(result).toBeNull()
-      // No fresh session started; primary unchanged; nothing emitted.
+      // No fresh session started; primary unchanged; nothing swapped —
+      // and the start signal got its END: swap-aborted, reason no-usable-carry.
       expect(startSeededSession).not.toHaveBeenCalled()
       expect(findPrimarySessionById(db, primary.id)?.currentSdkSessionId).toBe('sdk-old')
       expect(listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)).toHaveLength(0)
+      const aborted = listOutboxEventsByType(db, SESSION_SWAP_ABORTED_EVENT_TYPE)
+      expect(aborted).toHaveLength(1)
+      expect(aborted[0]!.payload).toMatchObject({
+        primarySessionId: primary.id,
+        fromSdkSessionId: 'sdk-old',
+        reason: 'no-usable-carry',
+        errorMessage: null,
+      })
+    })
+  })
+
+  it('a swap that THROWS (the seed fails) still ends its start signal — swap-aborted, reason failed', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const primary = seedPrimary(db, user.id, workspace.id, 'sdk-old')
+      await expect(
+        bridgePrimarySession(
+          db,
+          { primarySessionId: primary.id, userId: user.id },
+          {
+            summarizeSession: vi.fn().mockResolvedValue(USABLE_CARRY),
+            startSeededSession: vi.fn().mockRejectedValue(new Error('the CLI exited early')),
+          },
+        ),
+      ).rejects.toThrow('the CLI exited early')
+      expect(findPrimarySessionById(db, primary.id)?.currentSdkSessionId).toBe('sdk-old')
+      const aborted = listOutboxEventsByType(db, SESSION_SWAP_ABORTED_EVENT_TYPE)
+      expect(aborted).toHaveLength(1)
+      expect(aborted[0]!.payload).toMatchObject({
+        reason: 'failed',
+        errorMessage: 'the CLI exited early',
+      })
     })
   })
 

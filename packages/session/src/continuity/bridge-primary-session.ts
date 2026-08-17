@@ -25,8 +25,11 @@ import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import type { StructuralLogger } from './session-continuity-types.js'
 import { detectContextPressure, type ContextMeasurement } from './detect-context-pressure.js'
 import {
+  SESSION_SWAP_ABORTED_EVENT_TYPE,
   SESSION_SWAPPED_EVENT_TYPE,
   SESSION_SWAPPING_EVENT_TYPE,
+  type SessionSwapAbortedEventPayload,
+  type SessionSwapAbortedReason,
   type SessionSwappedEventPayload,
   type SessionSwappingEventPayload,
 } from './session-continuity-events.js'
@@ -78,7 +81,11 @@ export async function bridgePrimarySession(
   // the durable start signal (`session.swapping`) — the visible-swap half of
   // continuity. The mark lives INSIDE the try, so every exit — the outbox
   // insert throwing included — clears it; a stale mark would mislabel every
-  // later park as "patching context" until restart.
+  // later park as "patching context" until restart. Every start signal gets
+  // its end: `session.swapped` when it lands (co-committed with the repoint),
+  // `session.swap-aborted` otherwise — a null return or a throw alike.
+  let outcome: SessionSwapAbortedReason | 'landed' = 'failed'
+  let failure: unknown = null
   try {
     markPrimarySwapping(primary.id)
     const startedPayload: SessionSwappingEventPayload = {
@@ -96,9 +103,54 @@ export async function bridgePrimarySession(
       createdAt: new Date(),
       processedAt: null,
     })
-    return await runSwap(db, input, deps, primary, fromSdkSessionId)
+    const result = await runSwap(db, input, deps, primary, fromSdkSessionId)
+    outcome = result === null ? 'no-usable-carry' : 'landed'
+    return result
+  } catch (err) {
+    failure = err
+    throw err
   } finally {
     clearPrimarySwapping(primary.id)
+    if (outcome !== 'landed') {
+      recordSwapAborted(db, deps, {
+        primarySessionId: primary.id,
+        userId: primary.userId,
+        scope: primary.scope,
+        workspaceId: primary.workspaceId,
+        fromSdkSessionId,
+        reason: outcome,
+        errorMessage:
+          outcome === 'failed'
+            ? failure instanceof Error
+              ? failure.message
+              : String(failure)
+            : null,
+        abortedAt: new Date().toISOString(),
+      })
+    }
+  }
+}
+
+/** The abort signal — best-effort: an outbox insert failing here must not
+ *  mask the swap's own outcome (the caller already logs the abort). */
+function recordSwapAborted(
+  db: Database,
+  deps: BridgePrimarySessionDeps,
+  payload: SessionSwapAbortedEventPayload,
+): void {
+  try {
+    insertOutboxEvent(db, {
+      id: randomUUID(),
+      type: SESSION_SWAP_ABORTED_EVENT_TYPE,
+      payload,
+      createdAt: new Date(),
+      processedAt: null,
+    })
+  } catch (err) {
+    deps.logger?.warn(
+      { err, primarySessionId: payload.primarySessionId, reason: payload.reason },
+      'failed to record session.swap-aborted',
+    )
   }
 }
 

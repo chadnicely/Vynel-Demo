@@ -56,6 +56,9 @@ export {
   type SessionSwappedEventPayload,
   SESSION_SWAPPING_EVENT_TYPE,
   type SessionSwappingEventPayload,
+  SESSION_SWAP_ABORTED_EVENT_TYPE,
+  type SessionSwapAbortedEventPayload,
+  type SessionSwapAbortedReason,
 } from './session-continuity-events.js'
 
 // The mid-turn context nudge (the provider's PostToolUse channel) + the
