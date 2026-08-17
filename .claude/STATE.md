@@ -33,10 +33,22 @@ SDK's own `reinitialize` doc contrast proves it) then aborting: no message, no t
 (fire-and-forget) + `POST /providers/:id/models/refresh` (no x-mcp). **A null answer changes
 nothing** — a degraded engine can never blank a good roster (that asymmetry is the fix for
 "sometimes Opus is missing"). Effort chip now filtered by `selectEffortOptionsForModel`.
-⚠ **Needs a live smoke** — the handshake-only dispatch is unit-tested against a faked SDK only;
-Kafi should confirm the real CLI answers `initializationResult()` without a prompt (watch for a
-boot log line "boot model discovery refreshed the roster"). Follow-up: a refresh affordance on the
-picker itself (the route exists; ChatComposer has no menu-open hook yet).
+✅ **LIVE-SMOKED 2026-08-17** — the real CLI answers `initializationResult()` with no prompt sent.
+Follow-up: a refresh affordance on the picker itself (the route exists; ChatComposer has no
+menu-open hook yet).
+
+**The Opus bug (`fd3a594`) — found by reading the engine's REAL rows, not by reasoning.** Kafi's
+screenshot showed `Fable/Sonnet/Haiku` + "Default (recommended)" under More models. The live
+roster (probe against the CLI) is ALL aliases — no row satisfies `value === id`:
+`default → claude-opus-5[1m]`, `opus[1m] → claude-opus-5[1m]`, `claude-fable-5[1m] →
+claude-fable-5`, `sonnet → claude-sonnet-5`, `haiku → claude-haiku-4-5-20251001`. Three bugs:
+① first-row-wins gave Opus the generic pointer's LABEL → now RANKED (wire-id > named alias >
+`default`); ② `5[1m]` broke version parsing → Opus fell to "More" → suffix stripped in
+`parseClaudeModelId`; ③ **`CHAT_MODEL_ID_PATTERN` rejected brackets → choosing Opus 400'd the
+turn** → pattern accepts one short bracketed group. Verified end-to-end: the picker now reads
+**Fable · Opus (1M context) · Sonnet · Haiku**, all selectable. LESSON: the engine's roster is
+alias-shaped and carries context-variant ids — never assume an "explicit" row exists.
+⚠ The dev DB still holds the OLD mislabeled roster until the next api boot (or a refresh POST).
 
 **Move 3 (session status) — SHIPPED (`ee6d13b` server + `331e5c4` UI).** Landed: contracts
 `chat/session-status.ts` (deriveSessionStatus, one ladder: problem > needs_input > running >
