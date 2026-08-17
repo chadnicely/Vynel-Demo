@@ -22,7 +22,11 @@ ask/approval parks). Remaining diet ideas (not built): share the activity stream
 (SharedWorker), lazy `/voice/events` — the follow-up note for another session is
 `docs/module-notes/live-streams-socket-budget.md`. Continuity leftover CLOSED the same night: the
 identity-aware exclusion (the global root reads its own chain by id — `isTurnFromGlobalRoot` gates
-`get_chat_session` / `search_chat_messages`).
+`get_chat_session` / `search_chat_messages`). Then the rest of the leftovers, PUSHED to origin as main `788c10c`:
+`session.swap-aborted` (1ead024) · `McpToolFn` hoisted into mcp-contract (e551d2a) · `runContinuingTurn` one home
+for the streams (07ddc3b) · settings call settled by Kafi (a run keeps the model/effort/mode it was sent
+with; changes apply on the next chat) + voice auto-continue DEFERRED (788c10c). Arc complete; his live
+smokes (global swap, needs-input pill, second tab) remain his.
 
 ## ✅ 2026-08-18 SESSION CONTINUITY — Slice 5 (checkpoint + auto-continue) SHIPPED `2a5637a`; arc code-complete, live smokes remain
 
