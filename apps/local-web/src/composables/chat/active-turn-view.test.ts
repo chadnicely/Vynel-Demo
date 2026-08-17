@@ -6,6 +6,7 @@ import type {
 import {
   applyChatTurnEvent,
   createActiveTurnView,
+  liveClockStartMs,
 } from "./active-turn-view.js";
 
 function fold(events: ChatTurnEvent[]) {
@@ -172,7 +173,12 @@ describe("applyChatTurnEvent", () => {
     // The turn is DONE (the composer is free) while the swap runs — the view
     // carries the patching phase for the chip/pill to say so.
     expect(patching.status).toBe("completed");
-    expect(patching.contextPatch).toEqual({ phase: "patching", fromSessionId: "seg-a", toSessionId: null });
+    expect(patching.contextPatch).toEqual({
+      phase: "patching",
+      fromSessionId: "seg-a",
+      toSessionId: null,
+      startedAtMs: expect.any(Number),
+    });
 
     const landed = fold([
       { kind: "session-completed", sessionId: "seg-a" },
@@ -180,7 +186,12 @@ describe("applyChatTurnEvent", () => {
       { kind: "context-patched", sessionId: "seg-a", primarySessionId: "p-1", toSessionId: "seg-b" },
       { kind: "turn-stream-ended" },
     ]);
-    expect(landed.contextPatch).toEqual({ phase: "done", fromSessionId: "seg-a", toSessionId: "seg-b" });
+    expect(landed.contextPatch).toEqual({
+      phase: "done",
+      fromSessionId: "seg-a",
+      toSessionId: "seg-b",
+      startedAtMs: expect.any(Number),
+    });
     expect(landed.hasEnded).toBe(true);
 
     const stayed = fold([
@@ -192,6 +203,30 @@ describe("applyChatTurnEvent", () => {
     expect(stayed.contextPatch?.toSessionId).toBeNull();
     // No swap announced → nothing to show.
     expect(fold([{ kind: "session-completed", sessionId: "seg-a" }]).contextPatch).toBeNull();
+  });
+
+  it("the live clock counts the PHASE: the whole turn while working, the swap from patching start, a continuation from its start, the whole turn again once done", () => {
+    const base = { ...createActiveTurnView(), startedAtMs: 1_000 };
+    expect(liveClockStartMs(base)).toBe(1_000);
+    const patching = applyChatTurnEvent(
+      { ...base, status: "completed" },
+      { kind: "context-patching", sessionId: "seg-a", primarySessionId: "p-1" },
+    );
+    // "patching context · 7m" must never claim seven minutes of patching.
+    expect(liveClockStartMs(patching)).toBe(patching.contextPatch!.startedAtMs);
+    expect(patching.contextPatch!.startedAtMs).toBeGreaterThan(1_000);
+    const swapLanded: ChatTurnEvent[] = [
+      { kind: "context-patched", sessionId: "seg-a", primarySessionId: "p-1", toSessionId: "seg-b" },
+      { kind: "user-message-persisted", message: { id: "u2", sessionId: "seg-b", role: "user" } as never },
+    ];
+    const continuing = swapLanded.reduce(applyChatTurnEvent, {
+      ...patching,
+      userMessage: { id: "u1" } as never,
+    });
+    expect(liveClockStartMs(continuing)).toBe(continuing.continuations[0]!.startedAtMs);
+    // Finished: the whole turn's duration reads again.
+    const done = applyChatTurnEvent(continuing, { kind: "session-completed", sessionId: "seg-b" });
+    expect(liveClockStartMs(done)).toBe(1_000);
   });
 
   it("an automatic continuation after a checkpoint re-opens the same view: live again, anchor row placed, pill 'continuing'", () => {
@@ -224,8 +259,15 @@ describe("applyChatTurnEvent", () => {
     // again with the patch reading "continuing".
     expect(view.userMessage).toBe(userRow);
     expect(view.status).toBe("streaming");
-    expect(view.continuations).toEqual([{ userMessage: anchorRow, atSegmentIndex: 1 }]);
-    expect(view.contextPatch).toEqual({ phase: "continuing", fromSessionId: "seg-a", toSessionId: "seg-b" });
+    expect(view.continuations).toEqual([
+      { userMessage: anchorRow, atSegmentIndex: 1, startedAtMs: expect.any(Number) },
+    ]);
+    expect(view.contextPatch).toEqual({
+      phase: "continuing",
+      fromSessionId: "seg-a",
+      toSessionId: "seg-b",
+      startedAtMs: expect.any(Number),
+    });
 
     // Its output streams after the anchor; the end closes the view as usual.
     const continuationEvents: ChatTurnEvent[] = [

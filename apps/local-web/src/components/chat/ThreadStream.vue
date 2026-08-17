@@ -22,7 +22,10 @@ import {
   workspaceMonogram,
 } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
-import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
+import {
+  liveClockStartMs,
+  type ActiveTurnView,
+} from "../../composables/chat/active-turn-view.js";
 import LiveTurn from "./LiveTurn.vue";
 import PointerRow from "./PointerRow.vue";
 import { buildToolCallPointer } from "./thread-pointers.js";
@@ -599,7 +602,8 @@ function isFoldedSpeakingMember(
 // signature. Same composable as LiveTurn's chip (independent 1s ticks, so a
 // transient 1s disagreement is possible and harmless).
 const workingElapsed = useTickingElapsed(
-  () => props.activeTurn?.startedAtMs ?? null,
+  // The phase's own clock (the LiveTurn chip's one home).
+  () => (props.activeTurn ? liveClockStartMs(props.activeTurn) : null),
   () =>
     props.activeTurn?.status === "streaming" ||
     props.activeTurn?.contextPatch?.phase === "patching",

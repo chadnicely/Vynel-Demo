@@ -1,6 +1,9 @@
 // The standing thread watcher — the tab-switch reattach lifecycle: a mid-turn
 // attach seeds from the persisted rows and streams the tail; turn end settles
 // rows-first then re-subscribes; the own-turn overlay suppresses the echo.
+// Since the socket diet the watch attaches ONLY while the activity feed
+// reports a turn on the session (and someone would render it) — every case
+// that expects a connection first marks the turn live on the feed.
 
 import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref } from "vue";
@@ -31,9 +34,13 @@ function makeStreamHandle() {
     push: (kind: string, payload: object) =>
       controller.enqueue(sseFrame(kind, payload)),
     close: () => controller.close(),
+    // What a real fetch body does when its request signal aborts.
+    abort: () => controller.error(new DOMException("aborted", "AbortError")),
   };
 }
 
+// The persisted rows of the running turn — stamped AFTER the feed's turn
+// start (the seed bounds its absorb by it).
 function makeSnapshot(): WatchedTurnSnapshot {
   return {
     messages: [
@@ -42,12 +49,14 @@ function makeSnapshot(): WatchedTurnSnapshot {
         role: "user",
         body: "Hey",
         thinkingBody: null,
+        createdAt: "2026-07-31T00:00:01.000Z",
       },
       {
         id: "m-live",
         role: "assistant",
         body: "Hello wor",
         thinkingBody: null,
+        createdAt: "2026-07-31T00:00:02.000Z",
       },
     ] as WatchedTurnSnapshot["messages"],
     toolCallsByMessageId: {},
@@ -56,9 +65,12 @@ function makeSnapshot(): WatchedTurnSnapshot {
 
 function makeHarness(options?: { suppressed?: () => boolean }) {
   const handles: ReturnType<typeof makeStreamHandle>[] = [];
-  const GET = vi.fn(async () => {
+  const GET = vi.fn(async (_path: string, init?: { signal?: AbortSignal }) => {
     const handle = makeStreamHandle();
     handles.push(handle);
+    // Honor the request signal like fetch does — the registry's gate detaches
+    // an idle watch by aborting it.
+    init?.signal?.addEventListener("abort", () => handle.abort());
     return { data: handle.stream, response: { ok: true, status: 200 } };
   });
   const fakeClient = { GET } as never;
@@ -90,6 +102,24 @@ function makeHarness(options?: { suppressed?: () => boolean }) {
       provide: { [vynelClientKey as symbol]: fakeClient },
     },
   });
+  // The feed's word that a turn is on / off for a session — what the
+  // registry's attach gate reads.
+  const markLive = (id: string, startedAt = "2026-07-31T00:00:00.000Z") =>
+    activity.applyServerActivity({
+      kind: "turn-started",
+      turnId: `turn-${id}`,
+      scopeKind: "workspace",
+      workspaceId: "ws-1",
+      sessionId: id,
+      origin: "web",
+      startedAt,
+    });
+  const markEnded = (id: string) =>
+    activity.applyServerActivity({
+      kind: "turn-ended",
+      turnId: `turn-${id}`,
+      outcome: "ended",
+    } as never);
   return {
     wrapper,
     sessionId,
@@ -99,6 +129,8 @@ function makeHarness(options?: { suppressed?: () => boolean }) {
     invalidateQueries,
     watched: () => watched,
     activity: () => activity,
+    markLive,
+    markEnded,
   };
 }
 
@@ -112,6 +144,7 @@ describe("useWatchedTurn", () => {
 
   it("mid-turn attach seeds from the rows, dedupes the seam, then streams live", async () => {
     const harness = makeHarness();
+    harness.markLive("sdk-1");
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
 
@@ -172,8 +205,9 @@ describe("useWatchedTurn", () => {
     harness.wrapper.unmount();
   });
 
-  it("turn end settles rows-first, clears the overlay, and re-subscribes", async () => {
+  it("turn end settles rows-first, clears the overlay, and re-subscribes while the feed still says live", async () => {
     const harness = makeHarness();
+    harness.markLive("sdk-1");
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
     harness.handles[0]!.push("text-chunk", {
@@ -196,6 +230,7 @@ describe("useWatchedTurn", () => {
 
   it("a turn ending while the seed is in flight never resurrects the overlay", async () => {
     const harness = makeHarness();
+    harness.markLive("sdk-1");
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
 
@@ -217,20 +252,70 @@ describe("useWatchedTurn", () => {
     harness.wrapper.unmount();
   });
 
-  it("renders NOTHING for a turn the own overlay renders (render-time suppression)", async () => {
-    const harness = makeHarness({ suppressed: () => true });
+  it("a suppressed-only watch holds NO socket; it attaches the moment suppression lifts (the socket diet)", async () => {
+    const suppressed = ref(true);
+    const harness = makeHarness({ suppressed: () => suppressed.value });
+    harness.markLive("sdk-1");
+    harness.sessionId.value = "sdk-1";
+    // test: correct expectation — the own overlay renders this turn, so the
+    // shared watch would show nothing here; since the socket diet it no
+    // longer connects at all for a consumer that cannot render it (the
+    // browser's per-origin connection cap is what the diet protects).
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(harness.GET).not.toHaveBeenCalled();
+    expect(harness.watched().view.value).toBeNull();
+    // Own turn settles → the consumer would render → the watch attaches.
+    suppressed.value = false;
+    await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
+    harness.wrapper.unmount();
+  });
+
+  it("no live turn on the feed → no socket; the feed's turn-started attaches, its turn-ended detaches an idle watch", async () => {
+    const harness = makeHarness();
+    harness.sessionId.value = "sdk-1";
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(harness.GET).not.toHaveBeenCalled();
+    // The feed says a turn is on → attach.
+    harness.markLive("sdk-1");
+    await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
+    // The turn ended before any event reached this idle attach → detach; no
+    // re-attach until the feed says the next turn is on.
+    harness.markEnded("sdk-1");
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(harness.GET).toHaveBeenCalledTimes(1);
+    harness.markLive("sdk-1");
+    await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(2));
+    harness.wrapper.unmount();
+  });
+
+  it("a gate close mid-turn never cuts the turn: it settles first, then stays detached", async () => {
+    const harness = makeHarness();
+    harness.markLive("sdk-1");
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
     harness.handles[0]!.push("text-chunk", {
       kind: "text-chunk",
       messageId: "m-live",
-      textDelta: "own turn echo",
+      textDelta: "lo world",
     });
+    await vi.waitFor(() => expect(harness.watched().view.value).not.toBeNull());
+    // The feed's turn-ended lands BEFORE the channel's terminal frame (two
+    // connections, no ordering) — the overlay must keep streaming until the
+    // channel says the turn is over.
+    harness.markEnded("sdk-1");
+    harness.handles[0]!.push("text-chunk", {
+      kind: "text-chunk",
+      messageId: "m-live",
+      textDelta: "!",
+    });
+    await vi.waitFor(() =>
+      expect(harness.watched().view.value?.segments[0]?.text).toBe("Hello world!"),
+    );
+    harness.handles[0]!.push("turn-stream-ended", {});
+    await vi.waitFor(() => expect(harness.watched().view.value).toBeNull());
+    // Settled and detached — no idle re-attach without a live turn.
     await new Promise((resolve) => setTimeout(resolve, 120));
-    // test: correct expectation (B3) — suppression moved to RENDER time: the
-    // SHARED registry fold may still seed (another surface could be watching
-    // the same session), but this consumer renders nothing while suppressed.
-    expect(harness.watched().view.value).toBeNull();
+    expect(harness.GET).toHaveBeenCalledTimes(1);
     harness.wrapper.unmount();
   });
 
@@ -240,6 +325,7 @@ describe("useWatchedTurn", () => {
   // restores the stale-dock bug silently.
   it("refreshes the task + step views when a watched turn writes them", async () => {
     const harness = makeHarness();
+    harness.markLive("sdk-1");
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
     harness.invalidateQueries.mockClear();
@@ -261,6 +347,7 @@ describe("useWatchedTurn", () => {
 
   it("ignores a read tool — no refresh storm on every list call", async () => {
     const harness = makeHarness();
+    harness.markLive("sdk-1");
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
     harness.invalidateQueries.mockClear();
@@ -281,16 +368,22 @@ describe("useWatchedTurn", () => {
 
   it("a session retarget abandons the old watch and attaches the new session", async () => {
     const harness = makeHarness();
+    harness.markLive("sdk-1");
+    harness.markLive("sdk-2");
     harness.sessionId.value = "sdk-1";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
     harness.sessionId.value = "sdk-2";
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(2));
-    // A late frame from the abandoned stream never lands in the view.
-    harness.handles[0]!.push("text-chunk", {
-      kind: "text-chunk",
-      messageId: "m-live",
-      textDelta: "stale",
-    });
+    // The abandoned watch was ABORTED (its body errored like a real fetch on
+    // abort) — a late frame has no stream to land on; the new session's
+    // stream is the one attached, and nothing stale ever paints the view.
+    expect(() =>
+      harness.handles[0]!.push("text-chunk", {
+        kind: "text-chunk",
+        messageId: "m-live",
+        textDelta: "stale",
+      }),
+    ).toThrow();
     await new Promise((resolve) => setTimeout(resolve, 120));
     expect(harness.watched().view.value).toBeNull();
     harness.wrapper.unmount();

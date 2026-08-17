@@ -3,7 +3,25 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 5 (checkpoint + auto-continue) SHIPPED `2a5637a`; arc code-complete, live smokes remain
+## ✅ 2026-08-18 (latest) LIVE-SMOKE FOLLOW-UPS — the "frozen tab" was the browser's 6-connection cap; watch sockets now gated on the feed
+
+Kafi's Slice-5 smoke (Seo workspace): checkpoint → swap → continuation → `ask_user` → answered → work
+finished — all real (DB-verified). The "app freezing / engine stuck / blank second tab" was NOT the
+engine: (1) his own `pnpm dev` restarts (all node processes re-created at 21:53:16 UTC — and during
+earlier tests, MY file saves restarting the `node --watch` API mid-turn — never edit watched files while
+he live-tests); (2) the browser's HTTP/1.1 cap of 6 connections per origin, shared by all tabs on
+`localhost:18894`: activity `stream` + `/voice/events` + a standing session watch per displayed thread +
+the running turn's stream (now held through patching → continuing) → a second tab queued everything
+(DevTools waterfall: light "stalled" bars; the API answered curl in ms). Fix: the live-turn registry's
+ATTACH GATE (`stores/live-turn-registry.ts`) — a session watch holds a socket only while
+`activity.serverTurnForSession(id)` reports a turn AND some subscriber isn't suppressed by its own
+overlay; idle attaches are aborted on gate close, a mid-turn attach settles first; the adapter passes
+`isSuppressed` through. Plus: `liveClockStartMs` (phase clocks for the patching/continuing chip + pill),
+and `SessionThreadView` feeds the session ladder into ThreadStream's state pill ("Needs input" while an
+ask/approval parks). Remaining diet ideas (not built): share the activity stream across tabs
+(SharedWorker), lazy `/voice/events`.
+
+## ✅ 2026-08-18 SESSION CONTINUITY — Slice 5 (checkpoint + auto-continue) SHIPPED `2a5637a`; arc code-complete, live smokes remain
 
 Spike answered: the SDK's PostToolUse `hookSpecificOutput.additionalContext` IS the mid-turn channel
 (provider-owned hook, `build-claude-post-tool-use-hook.ts`; subagent hook calls carry `agent_id` and are

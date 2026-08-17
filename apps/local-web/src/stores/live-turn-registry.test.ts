@@ -10,6 +10,7 @@ import { mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../plugins/vynel-client.js";
+import { useActivityStore } from "./activity-store.js";
 import {
   useLiveTurnRegistry,
   type LiveTurnSubscription,
@@ -30,9 +31,11 @@ function makeHarness() {
     root: { getSession: vi.fn(async () => ({ messages: [], toolCallsByMessageId: {} })) },
   };
   let registry!: ReturnType<typeof useLiveTurnRegistry>;
+  let activity!: ReturnType<typeof useActivityStore>;
   const Host = defineComponent({
     setup() {
       registry = useLiveTurnRegistry();
+      activity = useActivityStore();
       return () => h("div");
     },
   });
@@ -48,7 +51,19 @@ function makeHarness() {
       provide: { [vynelClientKey as symbol]: fakeClient },
     },
   });
-  return { wrapper, GET, registry: () => registry };
+  // A session watch attaches only while the feed reports a turn on it (the
+  // socket diet) — mark one live before expecting a stream.
+  const markLive = (id: string) =>
+    activity.applyServerActivity({
+      kind: "turn-started",
+      turnId: `turn-${id}`,
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: id,
+      origin: "web",
+      startedAt: "2026-07-31T00:00:00.000Z",
+    } as never);
+  return { wrapper, GET, registry: () => registry, markLive };
 }
 
 describe("useLiveTurnRegistry", () => {
@@ -56,10 +71,12 @@ describe("useLiveTurnRegistry", () => {
     const harness = makeHarness();
     const registry = harness.registry();
 
+    harness.markLive("sdk-1");
     const first: LiveTurnSubscription = registry.subscribe({ kind: "session", id: "sdk-1" });
     const second: LiveTurnSubscription = registry.subscribe({ kind: "session", id: "sdk-1" });
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
     expect(registry.activeCount).toBe(1);
+    await vi.waitFor(() => expect(registry.attachedCount).toBe(1));
     // The shared fold: both handles see the same view ref.
     expect(first.view).toBe(second.view);
 
@@ -81,6 +98,7 @@ describe("useLiveTurnRegistry", () => {
       toolCallsByMessageId: {},
     }));
 
+    harness.markLive("sdk-1");
     // The provider subscribes FIRST (wins the slot), a plain survivor second.
     const provider = registry.subscribe(
       { kind: "session", id: "sdk-1" },
@@ -103,6 +121,8 @@ describe("useLiveTurnRegistry", () => {
     const harness = makeHarness();
     const registry = harness.registry();
 
+    harness.markLive("sdk-a");
+    harness.markLive("sdk-b");
     const a = registry.subscribe({ kind: "session", id: "sdk-a" });
     const b = registry.subscribe({ kind: "session", id: "sdk-b" });
     await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(2));
@@ -110,6 +130,44 @@ describe("useLiveTurnRegistry", () => {
     a.release();
     b.release();
     expect(registry.activeCount).toBe(0);
+    harness.wrapper.unmount();
+  });
+
+  it("an entry with subscribers but no live turn holds no socket — the entry lives, the connection waits for the feed", async () => {
+    const harness = makeHarness();
+    const registry = harness.registry();
+    const sub = registry.subscribe({ kind: "session", id: "sdk-idle" });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(registry.activeCount).toBe(1);
+    expect(registry.attachedCount).toBe(0);
+    expect(harness.GET).not.toHaveBeenCalled();
+    harness.markLive("sdk-idle");
+    await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(registry.attachedCount).toBe(1));
+    sub.release();
+    expect(registry.activeCount).toBe(0);
+    harness.wrapper.unmount();
+  });
+
+  it("two subscribers, both suppressed → no socket; one lifting suppression → one socket", async () => {
+    const harness = makeHarness();
+    const registry = harness.registry();
+    harness.markLive("sdk-1");
+    const firstSuppressed = ref(true);
+    const first = registry.subscribe(
+      { kind: "session", id: "sdk-1" },
+      { isSuppressed: () => firstSuppressed.value },
+    );
+    const second = registry.subscribe(
+      { kind: "session", id: "sdk-1" },
+      { isSuppressed: () => true },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(harness.GET).not.toHaveBeenCalled();
+    firstSuppressed.value = false;
+    await vi.waitFor(() => expect(harness.GET).toHaveBeenCalledTimes(1));
+    first.release();
+    second.release();
     harness.wrapper.unmount();
   });
 });

@@ -72,6 +72,8 @@ export interface ActiveTurnContinuation {
   /** The segment index this continuation's output starts at — the overlay
    *  renders the anchor row before that segment (after all, while none). */
   atSegmentIndex: number;
+  /** When the continuation began (client clock) — its own "continuing · Ns". */
+  startedAtMs: number;
 }
 
 export interface ActiveTurnView {
@@ -99,10 +101,27 @@ export interface ActiveTurnView {
     phase: "patching" | "done" | "continuing";
     fromSessionId: string;
     toSessionId: string | null;
+    /** When patching began (client clock) — the chip counts THIS, not the
+     *  whole turn ("patching context · 7m" must never claim seven minutes
+     *  of patching). */
+    startedAtMs: number;
   } | null;
   /** The automatic continuations this turn ran (session-continuity §4.6),
    *  in order — empty for an ordinary turn. */
   continuations: ActiveTurnContinuation[];
+}
+
+/** The clock the live status line reads: the whole turn's start — or, once
+ *  the boundary swap or an automatic continuation is what's showing, that
+ *  phase's OWN start ("patching context · 42s", "continuing · 1m 10s"). A
+ *  finished turn reads its whole duration again. ONE home — the LiveTurn chip
+ *  and the ThreadStream pill must never disagree on what they count. */
+export function liveClockStartMs(view: ActiveTurnView): number {
+  if (view.contextPatch?.phase === "patching") return view.contextPatch.startedAtMs;
+  if (view.status === "streaming" && view.contextPatch?.phase === "continuing") {
+    return view.continuations.at(-1)?.startedAtMs ?? view.startedAtMs;
+  }
+  return view.startedAtMs;
 }
 
 export function createActiveTurnView(): ActiveTurnView {
@@ -185,7 +204,11 @@ export function applyChatTurnEvent(
         error: null,
         continuations: [
           ...view.continuations,
-          { userMessage: event.message, atSegmentIndex: view.segments.length },
+          {
+            userMessage: event.message,
+            atSegmentIndex: view.segments.length,
+            startedAtMs: Date.now(),
+          },
         ],
         contextPatch:
           view.contextPatch !== null
@@ -337,7 +360,12 @@ export function applyChatTurnEvent(
     case "context-patching":
       return {
         ...view,
-        contextPatch: { phase: "patching", fromSessionId: event.sessionId, toSessionId: null },
+        contextPatch: {
+          phase: "patching",
+          fromSessionId: event.sessionId,
+          toSessionId: null,
+          startedAtMs: Date.now(),
+        },
       };
     case "context-patched":
       return {
@@ -346,6 +374,7 @@ export function applyChatTurnEvent(
           phase: "done",
           fromSessionId: event.sessionId,
           toSessionId: event.toSessionId,
+          startedAtMs: view.contextPatch?.startedAtMs ?? Date.now(),
         },
       };
     case "turn-stream-ended":

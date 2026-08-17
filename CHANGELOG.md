@@ -7,6 +7,30 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **A second browser tab no longer "freezes" the app while a conversation
+  works.** Every open thread used to hold a live-watch connection to its
+  session at all times, on top of the app's activity feed, the voice link and
+  a running turn's own stream — and browsers allow only six connections per
+  origin, shared across tabs. With two tabs open during a long turn (longer
+  still since a conversation now patches context and continues on the same
+  stream), every other request queued behind them: blank panes, spinners,
+  "the engine looks stuck", until something ended. A thread now opens its
+  watch only while the activity feed says a turn is running on that session
+  and this view would actually show it (a thread rendering its own turn
+  holds no second connection), and lets it go when the turn ends. Nothing is
+  missed — the persisted rows seed a late attach, as they always did.
+- **The "patching context" and "continuing" clocks now count their own
+  phase.** The chip read "patching context · 7m 39s" after a seven-minute
+  turn — the elapsed was the whole turn's. It now counts from when patching
+  (or the continuation) began; a finished turn reads its whole duration again.
+- **A session thread says "Needs input" while it waits on you.** When a
+  spawned session's turn parks on an `ask_user` form or an approval, its
+  thread now shows the same "Needs input" state the workspace thread does,
+  instead of a bare "continuing"/"working" pill — the corner toast is no
+  longer the only sign.
+
 ### Added
 
 - **A long task no longer stops at the context limit — the assistant checkpoints

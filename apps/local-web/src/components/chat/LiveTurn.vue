@@ -11,10 +11,11 @@ import {
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
 import { deriveActionKind } from "@vynel/approvals/action-kind";
-import type {
-  ActiveTurnContinuation,
-  ActiveTurnSegment,
-  ActiveTurnView,
+import {
+  liveClockStartMs,
+  type ActiveTurnContinuation,
+  type ActiveTurnSegment,
+  type ActiveTurnView,
 } from "../../composables/chat/active-turn-view.js";
 import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
 
@@ -88,7 +89,9 @@ const isPatchingContext = computed(
   () => props.view.contextPatch?.phase === "patching",
 );
 const elapsedLabel = useTickingElapsed(
-  () => props.view.startedAtMs,
+  // The phase's own clock: the swap counts from patching start, a
+  // continuation from its start, the whole turn otherwise.
+  () => liveClockStartMs(props.view),
   // Keeps ticking through the boundary swap — a "patching context" chip that
   // froze would read as hung.
   () => props.view.status === "streaming" || isPatchingContext.value,

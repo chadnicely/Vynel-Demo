@@ -20,8 +20,27 @@
 // Suppression ("one turn never renders twice") moved to RENDER time: the
 // registry always folds; a consumer whose OWN turn stream renders the same
 // turn simply doesn't display the shared view (visible-active-turn precedent).
+//
+// THE ATTACH GATE (the socket diet, 2026-08-18): a session watch holds an SSE
+// socket ONLY while the activity feed reports a turn on that session AND at
+// least one subscriber would actually render it. Browsers cap HTTP/1.1 at six
+// connections per origin, shared by every tab: standing idle watches (one per
+// displayed thread, per tab) plus the app's own feed/voice streams and a
+// running turn's stream were enough to queue every other request — the
+// "frozen tab". The server's contract already reads "an idle attach waits
+// silently … the activity feed drives the UI's attach lifecycle"; the client
+// now honors it: attach on the feed's turn-started, settle at turn end, and
+// detach instead of idling until the feed says the next turn is on. Nothing
+// is missed by attaching late — rows persist per chunk and the mid-turn seed
+// absorbs them; the feed's own replay covers a reconnect.
 
-import { computed, shallowReactive, shallowRef, type ShallowRef } from "vue";
+import {
+  computed,
+  shallowReactive,
+  shallowRef,
+  watch,
+  type ShallowRef,
+} from "vue";
 import { defineStore } from "pinia";
 import type {
   ChatMessageResponse,
@@ -94,6 +113,16 @@ interface RegistryEntry {
   fetchSnapshotOwner: symbol | null;
   abortController: AbortController | null;
   disposed: boolean;
+  /** Each subscriber's "I would render this" getter — the attach gate needs at
+   *  least one consumer that isn't suppressed by its own turn overlay. */
+  subscribers: Map<symbol, { isSuppressed: () => boolean }>;
+  /** The connect loop is alive (attached, seeding, or between turns). */
+  isRunning: boolean;
+  /** Folding a turn right now — a gate close never cuts a turn mid-way; the
+   *  loop settles it first and only then stops. */
+  isMidTurn: boolean;
+  /** Stops the gate watcher at disposal. */
+  stopGate: (() => void) | null;
 }
 
 export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
@@ -124,11 +153,56 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
     }
   }
 
+  /** The attach gate: a live turn on the session (per the feed) and someone
+   *  who would render it. Reactive — read inside the entry's gate watcher. */
+  function wantsSessionAttach(entry: RegistryEntry, sessionId: string): boolean {
+    if (activity.serverTurnForSession(sessionId) === null) return false;
+    for (const subscriber of entry.subscribers.values()) {
+      if (!subscriber.isSuppressed()) return true;
+    }
+    return false;
+  }
+
+  /** The gate flipped: start the loop when a turn is on and nobody is
+   *  attached; cut an IDLE attach when it goes off (a mid-turn attach settles
+   *  first — the loop re-checks the gate before re-attaching). */
+  function reconcileSessionAttach(entry: RegistryEntry, sessionId: string, wants: boolean): void {
+    if (entry.disposed) return;
+    if (wants) {
+      if (!entry.isRunning) void runSession(entry, sessionId);
+      return;
+    }
+    if (entry.isRunning && !entry.isMidTurn) entry.abortController?.abort();
+  }
+
   async function runSession(entry: RegistryEntry, sessionId: string) {
     const isCurrent = (): boolean => !entry.disposed;
-    while (isCurrent()) {
+    entry.isRunning = true;
+    try {
+      await runSessionLoop(entry, sessionId, isCurrent);
+    } finally {
+      entry.isRunning = false;
+      entry.isMidTurn = false;
+      entry.abortController = null;
+      if (isCurrent()) entry.isAttached.value = false;
+    }
+    // The gate may have re-opened while this loop was winding down (a feed
+    // flap: off, then on again before the abort settled) — the watcher saw
+    // isRunning still true and did nothing, so re-check here.
+    if (isCurrent() && wantsSessionAttach(entry, sessionId)) void runSession(entry, sessionId);
+  }
+
+  async function runSessionLoop(
+    entry: RegistryEntry,
+    sessionId: string,
+    isCurrent: () => boolean,
+  ) {
+    // The gate is re-read at every attach: after a settle the loop only comes
+    // back for the session's next turn when the feed says one is on.
+    while (isCurrent() && wantsSessionAttach(entry, sessionId)) {
       const controller = new AbortController();
       entry.abortController = controller;
+      entry.isMidTurn = false;
       let sawTurnEnd = false;
       try {
         const { data, response } = await vynel.GET("/sessions/{sessionId}/stream", {
@@ -141,7 +215,7 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
         entry.isAttached.value = true;
         entry.errorText.value = null;
 
-        let buffered: ChatTurnEvent[] = [];
+        const buffered: ChatTurnEvent[] = [];
         let isSeeding = false;
         let isSeeded = false;
         let isStreamLive = true;
@@ -180,6 +254,7 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
               sawTurnEnd = true;
               break;
             }
+            entry.isMidTurn = true;
             // A watched turn still writes the task list + step dock — refresh
             // them from the ONE fold site (the own-stream rule).
             if (
@@ -205,6 +280,8 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
           isStreamLive = false;
         }
       } catch (streamError) {
+        // Disposal or a gate-close abort of an idle attach — the loop ends;
+        // the gate watcher restarts it when a turn is on again.
         if (!isCurrent() || isAbortError(streamError)) return;
         entry.errorText.value =
           streamError instanceof Error
@@ -212,6 +289,7 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
             : "The live view dropped.";
       }
       entry.isAttached.value = false;
+      entry.isMidTurn = false;
       if (!isCurrent()) return;
       if (sawTurnEnd) {
         entry.hasEnded.value = true;
@@ -285,12 +363,17 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
       /** Settled-rows provider for session seeds/settles — the first
        *  subscriber offering one wins for the entry's lifetime. */
       fetchSnapshot?: () => Promise<WatchedTurnSnapshot | undefined>;
+      /** True while this consumer's OWN turn overlay renders the source (it
+       *  shows nothing from the fold) — a session watch nobody would render
+       *  holds no socket. Omit = always renders. */
+      isSuppressed?: () => boolean;
     } = {},
   ): LiveTurnSubscription {
     const key = sourceKey(source);
     let entry = entries.get(key);
+    const subscriberId = Symbol("live-turn-subscriber");
     if (entry === undefined) {
-      entry = {
+      const created: RegistryEntry = {
         refCount: 0,
         view: shallowRef(null),
         isAttached: shallowRef(false),
@@ -300,20 +383,39 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
         fetchSnapshotOwner: null,
         abortController: null,
         disposed: false,
+        subscribers: shallowReactive(new Map()),
+        isRunning: false,
+        isMidTurn: false,
+        stopGate: null,
       };
+      entry = created;
       entries.set(key, entry);
-      if (source.kind === "session") {
-        void runSession(entry, source.id);
-      } else {
+      if (source.kind === "trace") {
+        // A trace observe is one-attach-per-job-run — the consumer subscribes
+        // when its poll says the job is live, so attach at once.
         void runTrace(entry, source.id);
       }
     }
-    const subscriberId = Symbol("live-turn-subscriber");
     if (entry.fetchSnapshot === null && options.fetchSnapshot !== undefined) {
       entry.fetchSnapshot = options.fetchSnapshot;
       entry.fetchSnapshotOwner = subscriberId;
     }
     entry.refCount += 1;
+    entry.subscribers.set(subscriberId, {
+      isSuppressed: options.isSuppressed ?? (() => false),
+    });
+    if (source.kind === "session" && entry.stopGate === null) {
+      const gated = entry;
+      const sessionId = source.id;
+      // Installed after the first subscriber is registered so the immediate
+      // run sees it; suppression getters read reactive state, so the watcher
+      // re-evaluates as own overlays come and go.
+      gated.stopGate = watch(
+        () => wantsSessionAttach(gated, sessionId),
+        (wants) => reconcileSessionAttach(gated, sessionId, wants),
+        { immediate: true },
+      );
+    }
 
     let released = false;
     const release = (): void => {
@@ -328,9 +430,12 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
         entry.fetchSnapshot = null;
         entry.fetchSnapshotOwner = null;
       }
+      entry.subscribers.delete(subscriberId);
       entry.refCount -= 1;
       if (entry.refCount > 0) return;
       entry.disposed = true;
+      entry.stopGate?.();
+      entry.stopGate = null;
       entry.abortController?.abort();
       entries.delete(key);
     };
@@ -345,6 +450,10 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
 
   /** Test/diagnostic surface — how many live entries exist right now. */
   const activeCount = computed(() => entries.size);
+  /** How many entries hold a socket right now (the diet's measure). */
+  const attachedCount = computed(
+    () => [...entries.values()].filter((entry) => entry.isAttached.value).length,
+  );
 
-  return { subscribe, activeCount };
+  return { subscribe, activeCount, attachedCount };
 });

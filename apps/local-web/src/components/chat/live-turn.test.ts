@@ -123,8 +123,13 @@ describe("LiveTurn automatic continuation (checkpoint + auto-continue)", () => {
             { messageId: "m1", text: "Stopping here to swap.", thinking: "", toolCalls: [] },
             { messageId: "m2", text: "Summing the July receipts…", thinking: "", toolCalls: [] },
           ],
-          continuations: [{ userMessage: anchorRow, atSegmentIndex: 1 }],
-          contextPatch: { phase: "continuing", fromSessionId: "seg-a", toSessionId: "seg-b" },
+          continuations: [{ userMessage: anchorRow, atSegmentIndex: 1, startedAtMs: Date.now() }],
+          contextPatch: {
+            phase: "continuing",
+            fromSessionId: "seg-a",
+            toSessionId: "seg-b",
+            startedAtMs: Date.now(),
+          },
         },
       },
     });
@@ -150,7 +155,7 @@ describe("LiveTurn automatic continuation (checkpoint + auto-continue)", () => {
         view: {
           ...createActiveTurnView(),
           segments: [{ messageId: "m1", text: "Done with part one.", thinking: "", toolCalls: [] }],
-          continuations: [{ userMessage: anchorRow, atSegmentIndex: 1 }],
+          continuations: [{ userMessage: anchorRow, atSegmentIndex: 1, startedAtMs: Date.now() }],
         },
       },
     });

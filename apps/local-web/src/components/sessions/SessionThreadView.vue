@@ -9,6 +9,7 @@ import TodoDock from "../chat/TodoDock.vue";
 import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
 import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
 import { resolveChainHead } from "../../composables/sessions/resolve-chain-head.js";
+import { useSessionStatuses } from "../../composables/sessions/use-session-statuses.js";
 import { useSessionTurn } from "../../composables/sessions/use-session-turn.js";
 import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
@@ -74,6 +75,19 @@ const continuedNote = computed(() =>
     ? "This conversation continued onto a fresh session — showing the newest part."
     : null,
 );
+
+// The conversation's status light (the ONE session ladder, from the same
+// overview read) feeds the thread's state pill — "Needs input" while an
+// `ask_user` form or an approval is parked, "Hit a problem" after a failed
+// turn — the way the workspace thread already reads its scope's status. A
+// continuation that stops to ask you must not sit under "continuing" alone.
+const sessionStatuses = useSessionStatuses(() => overviewQuery.data.value);
+const threadStatus = computed(() => {
+  const status = sessionStatuses.statusFor(activeSessionId.value)?.status ?? null;
+  // The session ladder's quiet state has no pill; every other value is shared
+  // with the workspace vocabulary the thread renders.
+  return status === "idle" ? null : status;
+});
 
 const turn = useSessionTurn(() => activeSessionId.value);
 
@@ -202,6 +216,7 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
         :active-turn="activeTurn"
         :assistant-name="props.title"
         :session-model="sessionModel"
+        :workspace-status="threadStatus"
         :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
