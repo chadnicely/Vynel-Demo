@@ -60,11 +60,26 @@ project dots keep their queue reading (Chad-gated merge); `session-mark` CSS is 
 the mark idiom (tree-mark/tab-mark) — extraction to a shared `StatusMark` is the recorded
 follow-up.
 
+**Review fixes (`5561dea`) — the must-fix was REAL:** the status facts were read off the chain's
+TAIL, and a swap segment carries no messages → `latestUserMessageAt` null → supersession compared
+against -Infinity → every superseded `completed`/`problem` stood again (worst on the Assistant
+thread, which feeds the shell's global light), and a mid-turn swap's error went invisible.
+`findSessionStatusMessageFacts` is now CHAIN-scoped (`inArray` over segment ids) — the fix is the
+READ; deleting the copy-forward would lose a standing `problem`. Regression tests pin both halves.
+Also: overview sorts+caps BEFORE composing facts (500 chains fetched for a 50-entry answer on an
+app-wide polled read); `liveTurnStartedAtForEntry` gains the global pre-resolution window (safe —
+spawned turns always carry a sessionId); `insertApprovalRequest` → `@vynel/approvals/test-support`.
+
 **Open follow-ups from this arc:** ① live smoke of Move 2's discovery + a picker refresh
 affordance · ② extract the status-mark idiom (3 homes) · ③ channels (`runGlobalRootTurn`) still
 run the unattended bypass default and do NOT read per-session settings — deliberate, recorded in
 that file · ④ the spawned-approvals `workspace_id` NULL bug still blocks the WORKSPACE rollup
-(per-session status is unaffected — approvals' `sessionId` is always correct).
+(per-session status is unaffected — approvals' `sessionId` is always correct) · ⑤ review notes
+accepted as-is: a RECOVERABLE `session-errored` still reads as `problem` (the ladder keys on
+`errorMessage`, not the sinks' `!isRecoverable` taxonomy — "the last thing that happened errored");
+`needs_input` outranks `running` (workspace ladder verbatim); a background/channel-driven global
+turn carries no ambient header so `set_session_status` 400s there; `routes/sessions/index.ts` is
+497 lines, over the ~300 cap (one-fluent-chain constraint).
 
 ## ✅ 2026-08-17 SESSION-COMMS — the NOTE kind shipped + the own-child task rule
 
