@@ -463,6 +463,26 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
     })
   })
 
+  it('a WORKSPACE-grounded session’s mid-turn swap segment stays in its room (its own ground, never workspace-less)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-swap-ws-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const workspace = seedWorkspace(db, user.id)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-ws-old', workspace)
+        swapToSessionId = 'sdk-sp-ws-new'
+        const app = createApp({ db, logger: silentLogger })
+
+        await (await postTurn(app, spawned.sessionId, { userMessageText: 'swap me' })).text()
+
+        const swapSegment = findChatSessionById(db, 'sdk-sp-ws-new')
+        expect(swapSegment?.continuedFromSessionId).toBe('sdk-sp-ws-old')
+        expect(swapSegment?.workspaceId).toBe(workspace.id)
+        expect(swapSegment?.scope).toBe('spawned')
+      })
+    })
+  })
+
   it('link-on-swap: a mid-turn compaction swap advances the primary link and keeps the stock hidden segment presentation', async () => {
     await withTestDatabase(async (db) => {
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-swap-'))

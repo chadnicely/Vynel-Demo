@@ -243,9 +243,13 @@ export async function streamSpawnedSessionTurn(
         db,
         {
           userId,
-          // Workspace-less rows, the delegated-spawned-runner parity — the
-          // session's ground rides the cwd, not the row scope.
-          workspaceId: null,
+          // The session's OWN ground (the delegated-runner parity, 2026-08-17):
+          // null for a global-grounded session, its room's id for a
+          // workspace-grounded one — so an approval this turn cards files under
+          // the room that owns the session, and a mid-turn swap segment stays
+          // in that room's list instead of drifting workspace-less. The cwd is
+          // a separate fact.
+          workspaceId: spawned.workspaceId,
           workspacePath: runCwdPath,
           providerId: DEFAULT_PROVIDER_ID,
           resumeSessionId,

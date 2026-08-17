@@ -40,9 +40,10 @@ import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 
 export type StartChatTurnInput = {
   userId: string
-  /** Null for a SPAWNED session's user turn (sessions-surface Slice ③a) — its
-   *  ground is the run cwd and its rows persist workspace-less, matching the
-   *  delegated spawned runner byte-for-byte. Non-null for every workspace turn. */
+  /** The identity's OWN ground: a workspace turn's workspace; a spawned
+   *  session's or colleague's grounding workspace (null when global-grounded)
+   *  — the same value its delegated runner passes, so its rows, approvals and
+   *  swap segments file under the room that owns it. */
   workspaceId: string | null
   workspacePath: string
   providerId: AiAgentProviderId
