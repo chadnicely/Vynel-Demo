@@ -1,7 +1,7 @@
 ---
 id: session-continuity
 title: Continuing after a context swap
-oneLiner: Open this when your conversation was continued from an earlier session (a "carried context" hand-off) and you need to recover more than the hand-off holds — how to read your own history, memory, knowledge and journal, in what order, without restarting finished work.
+oneLiner: Open this when your conversation was continued from an earlier session (a "carried context" hand-off), when you need to recover more than the hand-off holds, or before saving memories — how to read your own history, memory, knowledge and journal in order, how to tag what you save as yours, and where your duty book is.
 ---
 
 # Continuing after a context swap
@@ -28,6 +28,16 @@ happened, and to pull more detail only when the next step needs it.
 - **Do not restart finished work.** If the summary says a file was written or
   a decision was made, it was — check the file, don't rewrite it.
 
+## Know who you are: `whoami`
+
+`whoami` (no arguments) tells you which conversation you are, your primary
+and segment ids and the segment you continue from, how full your context is
+(used tokens, the window, the swap threshold and how many tokens remain
+before it), your duty book, and your memory tags. Call it when you are
+unsure who you are, before saving memories, or when planning a long piece of
+work against the context you have left. It only ever describes YOU — it
+cannot name another session.
+
 ## Then, only on need: pull more (in this order)
 
 1. **Your own history** — the previous segment id is in the carry. If you have
@@ -47,6 +57,27 @@ happened, and to pull more detail only when the next step needs it.
 
 Pull the smallest thing that answers the next step. Do not preload
 everything "just in case" — that is how the new context fills up again.
+
+## Tag what you save as yours
+
+Every conversation saves memories under its own identity so they stay
+findable later — by you after a swap, and by anyone reading memory who wants
+to know which conversation learned what. `whoami` returns `memoryTags`
+(for example `identity:spawned`, `session:acaf5480`, and your name when you
+have one). When you call `create_memory_entry` or `update_memory_entry`,
+include those tags alongside any topical tags you add. Do not invent tags of
+your own for identity — take them from `whoami` so every session tags the
+same way.
+
+## Your duty book
+
+Every kind of session (the global assistant, a workspace's main conversation,
+a spawned session, an agent colleague, a plain conversation) has a duty book
+in the notebook that teaches it its duty. `whoami` returns its id under
+`dutyBook` and whether it is published yet. When it exists, read it with
+`read_playbook` and follow it — it is the standing description of your role,
+written by the team. When it does not exist yet, that is normal: carry on
+with the hand-off and the instructions you already have.
 
 ## Never mix contexts
 

@@ -45,6 +45,25 @@ vi.mock("@vynel/instructions", () => ({
     mutatingToolNames: [],
   },
 }));
+// whoami rides every background producer (continuity arc Slice 3). The marker
+// captures the identity the composer hands it — the stable primary id —
+// which is what the tool answers from.
+vi.mock("@vynel/session/mcp", () => ({
+  buildSessionFeatureDescriptor: () => ({
+    serverName: "vynel-session",
+    build: (context: { sessionId?: string }) => ({
+      marker: "session",
+      sessionId: context.sessionId,
+    }),
+    mutatingToolNames: [],
+  }),
+}));
+// The workspace-root target's identity is the workspace's own primary; the
+// stub db can't answer the real read, so the lookup is pinned here.
+vi.mock("@vynel/session/continuity", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  findPrimaryConversation: () => ({ id: "ws-primary-1" }),
+}));
 vi.mock("@vynel/capabilities", () => ({
   listEnabledCapabilities: () => [],
   // The global-grounded branch has no workspace row to read — it falls back
@@ -134,11 +153,18 @@ describe("buildDelegatedTurnMcpComposer", () => {
     const { appRequest } = makeSpyAppRequest();
     const compose = await buildDelegatedTurnMcpComposer(appRequest);
 
+    // test: correct expectation — vynel-session (whoami) joined every
+    // background producer (continuity arc Slice 3, 2026-08-18).
     const workspaceRoot = compose({ ...target, target: "workspace-root" });
     expect(Object.keys(workspaceRoot.mcpServers)).toEqual([
       "vynel-interactive",
       "vynel-notebook",
+      "vynel-session",
     ]);
+    // whoami answers as the WORKSPACE's own primary on a workspace-root run.
+    expect(workspaceRoot.mcpServers["vynel-session"]).toMatchObject({
+      sessionId: "ws-primary-1",
+    });
 
     const spawned = compose({
       ...target,
@@ -148,7 +174,10 @@ describe("buildDelegatedTurnMcpComposer", () => {
     expect(Object.keys(spawned.mcpServers)).toEqual([
       "vynel-interactive",
       "vynel-notebook",
+      "vynel-session",
     ]);
+    // …and as the SPAWNED primary the job names on a spawned run.
+    expect(spawned.mcpServers["vynel-session"]).toMatchObject({ sessionId: "sp-1" });
   });
 
   it("stamps the caller-identity header per target (session-comms): workspace-root = the workspace primary, spawned-session = the SESSION", async () => {
@@ -231,9 +260,11 @@ describe("buildDelegatedTurnMcpComposer — desktop attachment", () => {
       target: "spawned-session",
       targetPrimarySessionId: "sp-1",
     });
+    // test: correct expectation — vynel-session joined (continuity arc Slice 3).
     expect(Object.keys(spawned.mcpServers)).toEqual([
       "vynel-routing",
       "vynel-notebook",
+      "vynel-session",
       "desktop",
     ]);
   });
@@ -376,10 +407,19 @@ describe("buildWorkspaceBackgroundMcpComposer", () => {
     const { appRequest, callerHeaders } = makeSpyAppRequest();
     const compose = await buildWorkspaceBackgroundMcpComposer(appRequest);
     const composed = compose(target);
+    // test: correct expectation — vynel-session joined (continuity arc Slice 3).
+    // A schedule fire starts a FRESH session and names no primary: whoami
+    // answers as a plain conversation (no identity handed to it).
     expect(Object.keys(composed.mcpServers)).toEqual([
       "vynel-plain",
       "vynel-notebook",
+      "vynel-session",
     ]);
+    expect(composed.mcpServers["vynel-session"]).toMatchObject({ sessionId: undefined });
+    // A workspace-grounded spawned session DM'd directly names its primary.
+    expect(
+      compose({ ...target, primarySessionId: "sp-dm-1" }).mcpServers["vynel-session"],
+    ).toMatchObject({ sessionId: "sp-dm-1" });
     await dispatcherOf(composed.mcpServers["vynel-plain"])("/routing/message", {
       method: "POST",
     });

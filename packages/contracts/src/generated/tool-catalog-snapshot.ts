@@ -5,7 +5,7 @@
 import type { ToolCatalogEntry } from '../tool-policy/catalog.js'
 
 /** Every tool the product composes, with its declared defaults — sorted by
- *  (serverName, toolName). 133 entries. */
+ *  (serverName, toolName). 134 entries. */
 export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__desktop__act_on_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__act_on_desktop","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
@@ -138,6 +138,7 @@ export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__vynel-ask__ask_user","serverName":"vynel-ask","surfaces":["global-interactive","workspace-interactive","global-channel"],"cardClass":"never"},
   {"toolName":"mcp__vynel-notebook__list_playbooks","serverName":"vynel-notebook","surfaces":["global-interactive","global-channel","workspace-interactive","workspace-background","delegated-workspace","delegated-global","spawned","agent","schedule"],"cardClass":"never","capabilityId":"notebook"},
   {"toolName":"mcp__vynel-notebook__read_playbook","serverName":"vynel-notebook","surfaces":["global-interactive","global-channel","workspace-interactive","workspace-background","delegated-workspace","delegated-global","spawned","agent","schedule"],"cardClass":"never","capabilityId":"notebook"},
+  {"toolName":"mcp__vynel-session__whoami","serverName":"vynel-session","surfaces":["global-interactive","global-channel","workspace-interactive","workspace-background","delegated-workspace","delegated-global","spawned","agent","schedule"],"cardClass":"never"},
   {"toolName":"mcp__vynel-ssh__list_ssh_servers","serverName":"vynel-ssh","surfaces":["global-interactive","workspace-interactive"],"cardClass":"never","featureKey":"ssh"},
   {"toolName":"mcp__vynel-ssh__run_ssh_command","serverName":"vynel-ssh","surfaces":["global-interactive","workspace-interactive"],"cardClass":"never","featureKey":"ssh"},
 ]

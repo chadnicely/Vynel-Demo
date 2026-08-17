@@ -398,6 +398,11 @@ export async function boot(): Promise<void> {
     composeWorkspaceMcpServers,
     runGlobalRootReportTurn,
     targetLocks: sessionTargetLocks,
+    // The swap-threshold smoke knob reaches the delegated runners too — every
+    // runner swaps at one point, and whoami's report is true on all of them.
+    ...(env.VYNEL_CONTEXT_PRESSURE_THRESHOLD !== undefined
+      ? { pressureThreshold: env.VYNEL_CONTEXT_PRESSURE_THRESHOLD }
+      : {}),
   })
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.

@@ -163,6 +163,22 @@ describe('buildContinuityContext', () => {
       expect(carry).toContain('get_chat_session')
       expect(carry).toContain('search_memory')
       expect(carry).toContain('`session-continuity`')
+      // The duty-book pointer, honest either way (§4.5) — the lookup is
+      // injected so the live shelf's contents never decide this test.
+      expect(carry).toContain('`whoami` tells you who you are')
+      expect(carry).toContain('duty-workspace-manager')
+      const unpublished = buildContinuityContext(
+        db,
+        { primarySessionId: primary.id, userId: user.id, fromSdkSessionId: 'seg-a', summary: SUMMARY },
+        { bookExists: () => false },
+      )
+      expect(unpublished.carry).toContain('Your duty book is `duty-workspace-manager` — not published yet')
+      const published = buildContinuityContext(
+        db,
+        { primarySessionId: primary.id, userId: user.id, fromSdkSessionId: 'seg-a', summary: SUMMARY },
+        { bookExists: (slug) => slug === 'duty-workspace-manager' },
+      )
+      expect(published.carry).toContain('Your duty book `duty-workspace-manager` is on the shelf')
       expect(carry).toContain("Never mix in\n  another session's context")
     })
   })

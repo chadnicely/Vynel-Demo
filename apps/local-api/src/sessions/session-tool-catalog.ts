@@ -36,23 +36,25 @@ import {
 } from '@vynel/capabilities'
 import { bakedToolPolicyDefaults } from './baked-tool-policy-defaults.js'
 
-/** The servers a surface kind composes (the read model; see file header). */
+/** The servers a surface kind composes (the read model; see file header).
+ *  `vynel-session` (`whoami`) rides EVERY kind — self-knowledge is a property
+ *  of every session (continuity arc requirement 2), so no surface may lack it. */
 export const SURFACE_DESCRIPTOR_SETS: Readonly<Record<SessionSurfaceKind, readonly string[]>> = {
-  'global-interactive': ['vynel', 'vynel-notebook', 'vynel-ask', 'desktop', 'vynel-ssh'],
+  'global-interactive': ['vynel', 'vynel-notebook', 'vynel-session', 'vynel-ask', 'desktop', 'vynel-ssh'],
   // vynel-ask rides channel turns BOUNDED (the ask slice): the Telegram
   // nudge exists, and a 10-min expiry keeps an unanswered form from parking
   // the background job forever.
-  'global-channel': ['vynel', 'vynel-notebook', 'vynel-ask', 'desktop'],
-  'workspace-interactive': ['vynel', 'vynel-notebook', 'vynel-ask', 'vynel-ssh'],
-  'workspace-background': ['vynel', 'vynel-notebook'],
+  'global-channel': ['vynel', 'vynel-notebook', 'vynel-session', 'vynel-ask', 'desktop'],
+  'workspace-interactive': ['vynel', 'vynel-notebook', 'vynel-session', 'vynel-ask', 'vynel-ssh'],
+  'workspace-background': ['vynel', 'vynel-notebook', 'vynel-session'],
   // Desktop never composes here: DESKTOP_CAPABLE_DELEGATED_TARGETS is
   // {'spawned-session'}, and that target always reclassifies to 'spawned' /
   // 'delegated-global' — a workspace-root delegation is desktop-free.
-  'delegated-workspace': ['vynel', 'vynel-notebook'],
-  'delegated-global': ['vynel', 'vynel-notebook', 'desktop'],
-  spawned: ['vynel', 'vynel-notebook', 'desktop'],
-  agent: ['vynel', 'vynel-notebook'],
-  schedule: ['vynel', 'vynel-notebook'],
+  'delegated-workspace': ['vynel', 'vynel-notebook', 'vynel-session'],
+  'delegated-global': ['vynel', 'vynel-notebook', 'vynel-session', 'desktop'],
+  spawned: ['vynel', 'vynel-notebook', 'vynel-session', 'desktop'],
+  agent: ['vynel', 'vynel-notebook', 'vynel-session'],
+  schedule: ['vynel', 'vynel-notebook', 'vynel-session'],
 }
 
 // WHICH vynel variant each surface composes decides a vynel tool's surfaces.
@@ -120,6 +122,14 @@ const FIXED_SERVERS: readonly FixedServer[] = [
     serverName: 'vynel-ask',
     toolNames: ['mcp__vynel-ask__ask_user'],
     surfaces: ['global-interactive', 'workspace-interactive', 'global-channel'],
+  },
+  {
+    // Every surface — derived from the map so the two can never drift.
+    serverName: 'vynel-session',
+    toolNames: ['mcp__vynel-session__whoami'],
+    surfaces: Object.entries(SURFACE_DESCRIPTOR_SETS)
+      .filter(([, servers]) => servers.includes('vynel-session'))
+      .map(([kind]) => kind as SessionSurfaceKind),
   },
   {
     serverName: 'desktop',

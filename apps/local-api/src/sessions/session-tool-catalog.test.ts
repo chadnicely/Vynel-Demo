@@ -55,6 +55,15 @@ describe('buildSessionToolCatalog', () => {
     expect(SURFACE_DESCRIPTOR_SETS['global-channel']).toContain('vynel-ask')
   })
 
+  it("whoami rides EVERY surface — self-knowledge is every session's (continuity arc)", () => {
+    const whoami = catalog.find((entry) => entry.toolName === 'mcp__vynel-session__whoami')!
+    expect([...whoami.surfaces].sort()).toEqual([...Object.keys(SURFACE_DESCRIPTOR_SETS)].sort())
+    for (const servers of Object.values(SURFACE_DESCRIPTOR_SETS)) {
+      expect(servers).toContain('vynel-session')
+    }
+    expect(whoami.cardClass).toBe('never')
+  })
+
   it('covers every server the surface map names', () => {
     const serversInMap = new Set(Object.values(SURFACE_DESCRIPTOR_SETS).flat())
     const serversInCatalog = new Set(catalog.map((entry) => entry.serverName))

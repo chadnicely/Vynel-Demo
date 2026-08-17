@@ -3,7 +3,23 @@
 **Updated 2026-08-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 2 (contextBuilder) SHIPPED; next Slice 3 whoami + duty books
+## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 3 (whoami + duty-book binding) SHIPPED; next Slice 4 visible swap
+
+`whoami` = descriptor-owned tool (`vynel-session`, `packages/session/src/mcp/`, new `@vynel/session/mcp`
+subpath) on ALL 9 surface kinds — catalog + every composition site + `pnpm api:generate` (snapshot
+134 entries, parity green). `resolveWhoamiReport` (runtime): kind / identity prose (one home
+`describeContinuingIdentity`, shared with the carry) / ids / context state (used, window, fraction,
+threshold, tokens-until) / `dutyBook {slug, exists}` / `memoryTags`. Duty-book binding
+(`duty-book.ts`: kind → `duty-*` verified-shelf id; `exists` via the new light
+`@vynel/instructions/playbooks` subpath). Standing pointer lines in the carry, `global-root.md`,
+`workspace-agent.md`; memory-tagging convention in the `session-continuity` book. Details §5d of
+`docs/module-notes/session-continuity.md`. Publishing Kafi's `.notes/` = drop `duty-*.md` books
+into `packages/instructions/notebooks/` (frontmatter id/title/oneLiner) — no code.
+**⏭ NEXT:** Slice 4 (visible "Patching context…" — `session.swapping` event + feed step + composer
+state) → Slice 5 (checkpoint + auto-continue; SPIKE the mid-turn nudge channel first). Kafi's live
+smokes still open: the GLOBAL path swap; `whoami` on a spawned session.
+
+## ✅ 2026-08-18 SESSION CONTINUITY — Slice 2 (contextBuilder) SHIPPED; next Slice 3 whoami + duty books
 
 Slice 2 built on top of Slice 1: `buildContinuityContext` (session/runtime) = THE carry composer
 (identity per scope + distill + verbatim tail + predecessor ref + recovery instructions; own-chain

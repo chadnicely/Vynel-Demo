@@ -83,6 +83,10 @@ export interface DelegationServiceOptions {
    *  same-target exclusion reads `busyKeys()` and every claimed run holds its
    *  key for the run's life. */
   targetLocks: SessionTargetLocks
+  /** Context-pressure threshold override for the delegated runners' boundary
+   *  continuity step (the env smoke knob) — the same value the interactive
+   *  streams honor, so every runner swaps at one point. Omit = 0.85. */
+  pressureThreshold?: number
 }
 
 export function startDelegationService(options: DelegationServiceOptions): { stop: () => void } {
@@ -96,6 +100,7 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     composeWorkspaceMcpServers,
     runGlobalRootReportTurn,
     targetLocks,
+    pressureThreshold,
   } = options
 
   // Report deliveries orphaned mid-delivery REQUEUE instead of failing: the
@@ -186,6 +191,7 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
         },
         ...(turnEvents !== undefined ? { turnEvents } : {}),
         ...(cancelRegistry !== undefined ? { cancelRegistry } : {}),
+        ...(pressureThreshold !== undefined ? { pressureThreshold } : {}),
       })
         .catch((err) => logger.error({ err }, 'delegation claim-and-run tick failed'))
         .finally(() => {

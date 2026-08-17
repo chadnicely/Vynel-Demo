@@ -33,6 +33,8 @@ import {
   type ReportCaller,
 } from './report-caller-header.js'
 import { wrapAppRequestWithReportRequester } from './report-requester-header.js'
+import { findPrimaryConversation } from '@vynel/session/continuity'
+import { loadEnv } from '../env.js'
 
 export type WorkspaceBackgroundMcpComposer = (input: {
   db: Database
@@ -42,6 +44,10 @@ export type WorkspaceBackgroundMcpComposer = (input: {
    *  overrides key on it. The one builder serves schedule fires AND
    *  workspace-grounded spawned-session turns, so the caller names it. */
   surfaceKind: SessionSurfaceKind
+  /** The continuing identity this turn runs AS (a spawned primary DM'd
+   *  directly), when there is one — `whoami` keys on it. A schedule fire
+   *  starts a fresh session and passes none: a plain conversation. */
+  primarySessionId?: string
 }) => ComposedSessionMcpServers
 
 export async function buildWorkspaceBackgroundMcpComposer(
@@ -50,15 +56,22 @@ export async function buildWorkspaceBackgroundMcpComposer(
 ): Promise<WorkspaceBackgroundMcpComposer> {
   const { vynelWorkspaceDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
-  return ({ db, userId, workspaceId, surfaceKind }) => {
+  const sessionFeatureDescriptor = await buildSessionDescriptorWithSwapThreshold()
+  return ({ db, userId, workspaceId, surfaceKind, primarySessionId }) => {
     // Read the entitlement PER COMPOSITION — the hub session refreshes while
     // the process runs; absent reader/entitlement = fail-open (no tier filter).
     const enabledFeatureKeys = readEnabledFeatureKeys?.()
     // Admin overrides, resolved per turn (no desktop on this composer).
     const toolPolicies = resolveSessionToolPolicies(db, { userId })
     return composeSessionMcpServers(
-      [vynelWorkspaceDescriptor, notebookFeatureDescriptor],
-      { db, userId, workspaceId, appRequest },
+      [vynelWorkspaceDescriptor, notebookFeatureDescriptor, sessionFeatureDescriptor],
+      {
+        db,
+        userId,
+        workspaceId,
+        appRequest,
+        ...(primarySessionId !== undefined ? { sessionId: primarySessionId } : {}),
+      },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
@@ -151,6 +164,15 @@ export type DelegatedTurnMcpComposer = (input: {
   permissionMode?: string
 }) => ComposedSessionMcpServers
 
+// The `whoami` descriptor for every background producer — built once per
+// composer with the swap threshold in force (the env knob the boundary op
+// honors), so what a session reads about itself matches what will happen to it.
+async function buildSessionDescriptorWithSwapThreshold() {
+  const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
+  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  return buildSessionFeatureDescriptor(swapThreshold !== undefined ? { swapThreshold } : {})
+}
+
 export async function buildDelegatedTurnMcpComposer(
   appRequest: HonoAppRequestFn,
   desktop: DelegatedTurnDesktopContext = {},
@@ -160,6 +182,7 @@ export async function buildDelegatedTurnMcpComposer(
     '@vynel/mcp'
   )
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  const sessionFeatureDescriptor = await buildSessionDescriptorWithSwapThreshold()
   const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
     '@vynel/desktop-control'
   )
@@ -279,10 +302,23 @@ export async function buildDelegatedTurnMcpComposer(
       userId,
       desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
     })
+    // The continuing identity this delegated turn runs AS — the spawned /
+    // colleague primary the job names, or the workspace's own primary for a
+    // workspace-root delegation. A READ, not get-or-create (this closure is
+    // sync; the runner get-or-creates right after): the brain's very first
+    // delegated turn into a workspace the user never opened composes with no
+    // identity and reads as `plain` for that one turn — every later turn
+    // finds the primary the runner created. Accepted edge (Slice 3 review).
+    const identityPrimaryId =
+      targetPrimarySessionId ??
+      (target === 'workspace-root' && workspaceId !== null
+        ? (findPrimaryConversation(db, { userId, workspaceId })?.id ?? undefined)
+        : undefined)
+    const identityContext = identityPrimaryId !== undefined ? { sessionId: identityPrimaryId } : {}
     if (workspaceId === null) {
       return composeSessionMcpServers(
-        [vynelRoutingDescriptor, notebookFeatureDescriptor, ...desktopDescriptors],
-        { db, userId, appRequest: jobAwareAppRequest, ...desktopContext },
+        [vynelRoutingDescriptor, notebookFeatureDescriptor, sessionFeatureDescriptor, ...desktopDescriptors],
+        { db, userId, appRequest: jobAwareAppRequest, ...identityContext, ...desktopContext },
         {
           enabledCapabilityIds: defaultEnabledCapabilityIds(),
           ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
@@ -292,8 +328,13 @@ export async function buildDelegatedTurnMcpComposer(
       )
     }
     return composeSessionMcpServers(
-      [vynelWorkspaceInteractiveDescriptor, notebookFeatureDescriptor, ...desktopDescriptors],
-      { db, userId, workspaceId, appRequest: jobAwareAppRequest, ...desktopContext },
+      [
+        vynelWorkspaceInteractiveDescriptor,
+        notebookFeatureDescriptor,
+        sessionFeatureDescriptor,
+        ...desktopDescriptors,
+      ],
+      { db, userId, workspaceId, appRequest: jobAwareAppRequest, ...identityContext, ...desktopContext },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),

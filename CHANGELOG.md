@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Every conversation can ask who it is.** A new read-only `whoami` tool
+  rides every kind of session — the global assistant, a project's main
+  conversation, spawned sessions, agent colleagues, scheduled runs — and
+  answers from Vynel's own records: which conversation it is, which segment
+  it continues from, how full its context is against the point where it will
+  continue on a fresh one, which *duty book* teaches its role (and whether that
+  book is published yet), and the memory tags to stamp on anything it saves so
+  what it learned stays findable as its own. Duty books are wired now and
+  filled in later: the moment a book for a kind lands on the notebook shelf,
+  every session of that kind starts reading it — no release needed.
+
 - **A richer hand-off when a conversation continues on a fresh context.** The
   fresh session now starts knowing *who it is* (the global assistant, a
   project's main conversation, a named spawned session or agent colleague),

@@ -110,6 +110,11 @@ export type DelegateToWorkspaceRootInput = {
    *  the tick feeds the cancel registry with it so a user Stop can interrupt
    *  exactly this session. */
   onSessionResolved?: (sdkSessionId: string) => void
+  /** Context-pressure threshold override for the boundary continuity step
+   *  (the env smoke knob the interactive streams honor — forwarded so EVERY
+   *  runner swaps at the same point, and what `whoami` reports is true here
+   *  too). Omit for the production default (0.85). */
+  pressureThreshold?: number
   logger?: Logger
 }
 
@@ -326,6 +331,7 @@ export async function delegateToWorkspaceRoot(
       userId: input.userId,
       workspacePath: input.workspacePath,
       providerId: input.providerId,
+      ...(input.pressureThreshold !== undefined ? { threshold: input.pressureThreshold } : {}),
     },
     { provider, ...(input.logger !== undefined ? { logger: input.logger } : {}) },
   )

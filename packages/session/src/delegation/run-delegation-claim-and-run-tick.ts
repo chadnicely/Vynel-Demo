@@ -95,6 +95,10 @@ export interface RunDelegationTickDeps {
   cancelRegistry?: DelegationCancelRegistry
   /** Wait budget for one job's turn (ms). Defaults to DELEGATION_RUN_BUDGET_MS. */
   budgetMs?: number
+  /** Context-pressure threshold override for the runners' boundary continuity
+   *  step (the env smoke knob) — forwarded so delegated turns swap at the same
+   *  point the interactive streams do. Omit for the production default. */
+  pressureThreshold?: number
   /** Targets with a live run this process — the claim skips them (the pool's
    *  same-target exclusion; single-writer per conversation). A target key is
    *  the job's workspaceId OR its targetPrimarySessionId (Slice ④). */
@@ -549,6 +553,9 @@ export async function runDelegationClaimAndRunTick(
               userId: delegationInput.userId,
               targetPrimarySessionId: spawnedTargetId,
               runCwdPath,
+              ...(deps.pressureThreshold !== undefined
+                ? { pressureThreshold: deps.pressureThreshold }
+                : {}),
               agentSlug: agentTarget.slug,
               agentName: agentTarget.name,
               agentPrompt: agentTarget.prompt,
@@ -575,6 +582,9 @@ export async function runDelegationClaimAndRunTick(
                 userId: delegationInput.userId,
                 targetPrimarySessionId: spawnedTargetId,
                 runCwdPath,
+                ...(deps.pressureThreshold !== undefined
+                  ? { pressureThreshold: deps.pressureThreshold }
+                  : {}),
                 sessionName: targetName,
                 taskText: delegationInput.taskText,
                 ...(isNote
@@ -592,6 +602,9 @@ export async function runDelegationClaimAndRunTick(
               delegateToWorkspaceRoot(db, deps.provider, {
                 ...delegationInput,
                 workspaceName: targetName,
+                ...(deps.pressureThreshold !== undefined
+                  ? { pressureThreshold: deps.pressureThreshold }
+                  : {}),
                 ...(managerName !== undefined ? { managerName } : {}),
                 ...(isNote
                   ? {

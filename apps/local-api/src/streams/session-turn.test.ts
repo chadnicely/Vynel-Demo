@@ -277,10 +277,15 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         expect(input.resumeSessionId).toBe('sdk-sp-global')
         // Ground: the hidden global-root cwd, exactly like its delegated runs.
         expect(input.workspacePath).toBe(path.join(dataDir, 'global-root'))
-        // Locked decision 1 (global-grounded half): NOTHING attaches — its
-        // delegated turns run bare, so its user turns do too.
-        expect(input.mcpServers).toBeUndefined()
-        expect(input.systemPromptAppend).toBeUndefined()
+        // Locked decision 1 (global-grounded half): this path attaches nothing
+        // of its own. (Its DELEGATED turns have composed the root toolset since
+        // 2026-07-26 — a per-origin difference recorded as a deferred call.)
+        // test: correct expectation — was "no MCP attachment at all"; now the
+        // ONE server every session carries, whoami (continuity arc Slice 3).
+        expect(Object.keys(input.mcpServers ?? {})).toEqual(['vynel-session'])
+        // …and whoami's one standing prompt line is the ONLY prompt contribution.
+        expect(input.systemPromptAppend).toContain('You can call whoami')
+        expect(input.systemPromptAppend).not.toContain('routed from')
         // Interactive default — the workspace chat stream's mode resolution,
         // NOT the routed-turn bypass default.
         expect(input.permissionMode).toBe('ask')

@@ -124,6 +124,33 @@ export async function streamChatTurn(
     },
     { logger: c.var.logger },
   )
+  // Primary-as-thread (Slice 1) + continue-mode activation (Slice 2): when the
+  // turn runs on the workspace's continuing PRIMARY conversation AND the
+  // workspace has continue-mode enabled, the active conversation follows the
+  // primary (a swap underneath stays invisible). continueEnabled is the
+  // per-workspace off-switch — when off, a `continueRoot` request is ignored
+  // and this is a normal session turn. Any non-primary turn (resume by id, or
+  // new) is byte-for-byte today's behavior.
+  const isContinueActive = input.continueRoot === true && c.var.workspace!.continueEnabled
+  // The workspace's STABLE identity, resolved BEFORE composition so the turn's
+  // tools know who they are (whoami keys on it) — idempotent get-or-create;
+  // the in-lock re-resolve below stays authoritative for the session to resume.
+  const continuingPrimaryId = isContinueActive
+    ? (
+        await resolvePrimaryConversationTarget(c.var.db, {
+          userId: c.var.user.id,
+          workspaceId: c.var.workspace!.id,
+        })
+      ).primarySessionId
+    : null
+  // Dev/test swap-trigger override (Slice 2 live UI smoke); unset → production 0.85.
+  const pressureThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  // whoami — built with the swap threshold in force so what it reports matches
+  // what the boundary op will do.
+  const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
+  const sessionFeatureDescriptor = buildSessionFeatureDescriptor(
+    pressureThreshold !== undefined ? { swapThreshold: pressureThreshold } : {},
+  )
   // The turn's own session identity, stamped onto every request its tools make
   // (`set_todos` writes the dock of exactly this session). Created BEFORE
   // composition and resolved below/from the stream — a fresh conversation has
@@ -133,6 +160,7 @@ export async function streamChatTurn(
     [
       vynelWorkspaceInteractiveDescriptor,
       notebookFeatureDescriptor,
+      sessionFeatureDescriptor,
       askFeatureDescriptor,
       ...sshFeatureDescriptors,
       ...(mentionPlan?.studyDescriptor ? [mentionPlan.studyDescriptor] : []),
@@ -141,6 +169,9 @@ export async function streamChatTurn(
       db: c.var.db,
       userId: c.var.user.id,
       workspaceId: c.var.workspace!.id,
+      // The continuing identity, when this turn IS the workspace's primary
+      // conversation — a plain session (by id / fresh) has none and says so.
+      ...(continuingPrimaryId !== null ? { sessionId: continuingPrimaryId } : {}),
       // The same carrier read lazily — a tool that RECORDS this conversation
       // (an ask row) needs the id a fresh chat only learns mid-stream.
       resolveChatSessionId: turnSession.current,
@@ -154,17 +185,6 @@ export async function streamChatTurn(
     },
   )
 
-  // Primary-as-thread (Slice 1) + continue-mode activation (Slice 2): when the
-  // turn runs on the workspace's continuing PRIMARY conversation AND the
-  // workspace has continue-mode enabled, resolve the stable primary + the SDK
-  // session to resume. The active conversation follows the primary, so a swap
-  // underneath stays invisible. continueEnabled is the per-workspace off-switch
-  // — when off, a `continueRoot` request is ignored and this is a normal
-  // session turn. Any non-primary turn (resume by id, or new) is byte-for-byte
-  // today's behavior.
-  const isContinueActive = input.continueRoot === true && c.var.workspace!.continueEnabled
-  // Dev/test swap-trigger override (Slice 2 live UI smoke); unset → production 0.85.
-  const pressureThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
   const locks = c.var.sessionTargetLocks
   const workspaceId = c.var.workspace!.id
 

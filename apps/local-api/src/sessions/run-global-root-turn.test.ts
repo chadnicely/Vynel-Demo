@@ -47,6 +47,15 @@ vi.mock("@vynel/instructions", () => ({
     build: () => null,
   },
 }));
+// Same treatment for whoami (continuity arc Slice 3) — a null build keeps the
+// composed set empty for these drain-sink tests.
+vi.mock("@vynel/session/mcp", () => ({
+  buildSessionFeatureDescriptor: () => ({
+    serverName: "vynel-session",
+    build: () => null,
+    mutatingToolNames: [],
+  }),
+}));
 // The runner composes user-scope agents against the real db — these tests
 // drive a stub `{}` db, so the composition (and its lifecycle records, which
 // only fire when agents exist) is stubbed empty.

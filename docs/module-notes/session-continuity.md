@@ -428,6 +428,60 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
   purpose through the swap priming prompt — route the birth through the builder next time the
   spawned rails are touched.
 
+## 5d. Slice 3 — SHIPPED 2026-08-18 (`whoami` + the duty-book binding)
+
+- **`whoami`** = a descriptor-owned tool (`vynel-session` server, `mcp__vynel-session__whoami`,
+  `packages/session/src/mcp/`), on EVERY surface kind (catalog + composition sites; parity
+  regenerated). Path B, not a route: a route would need the ambient turn-session header the
+  delegated background runners never stamp — and spawned / colleague sessions are exactly the
+  identities that most need to know who they are. The answer is computed at CALL time from the
+  compose context: `sessionId` (the stable PRIMARY id), the ground, the LAZY chat id, and the
+  swap threshold the apps edge passes (factory, the `vynel-ask` precedent — a 5% smoke never
+  reads "85%").
+- **`resolveWhoamiReport`** (runtime) answers: kind (primary scope, or `plain` for a
+  conversation with no continuing identity), the identity prose (`describeContinuingIdentity`
+  — the ONE home the carry's IDENTITY line shares), primary / current segment / previous
+  segment ids, context state from the current segment's persisted row (used tokens, window,
+  fraction, swap threshold, tokens until the threshold and until the window — the numbers
+  Slice 5's checkpoint reasons about), `dutyBook: { slug, exists }`, `memoryTags`.
+- **Duty-book binding** (`duty-book.ts`): kind → kebab shelf id — `duty-global-root` (voice
+  reads it too), `duty-workspace-manager`, `duty-spawned-session`, `duty-agent-colleague`,
+  `duty-workspace-session` (plain). `exists` reads the VERIFIED shelf (only it carries ids a
+  binding can name; user notebook docs are UUID-keyed) through the new light subpath
+  `@vynel/instructions/playbooks` — the barrel would put the SDK builder on session's
+  module-load path. Publishing Kafi's `.notes/` drafts = dropping files with those ids into
+  `packages/instructions/notebooks/`; `exists` flips true with zero code change.
+- **The standing pointer** lives in three places, one line each: the carry's recovery block
+  (present / not-published-yet, honestly), `global-root.md` (its slug), `workspace-agent.md`
+  (via whoami — that prompt serves several kinds), plus `whoami`'s own `contributePrompt`
+  line ("call whoami … use its memory tags").
+- **Memory-tagging convention** (in the `session-continuity` book): stamp `whoami`'s
+  `memoryTags` — `identity:<kind>`, `session:<8-char primary handle>`, the identity's name —
+  on every `create_memory_entry` / `update_memory_entry`. Working by convention now; a
+  first-class memory column stays the §6 fork.
+- **Identity per site:** global (both runners) pass the global primary; the workspace stream
+  resolves the workspace primary BEFORE composition when continue-mode is active (idempotent
+  get-or-create); the DM stream passes the spawned/colleague primary (global-grounded spawned
+  gets whoami standalone — its one server); the delegated composer derives it from the job's
+  target primary or, for workspace-root, `findPrimaryConversation`; schedule fires start a
+  fresh session and pass none → `plain`, honestly.
+- **Reviewer pass: 0 must-fix, 5 should-fixes — 4 taken, 1 accepted:** `previousSegmentId` reads
+  the ROW chain first (the primary's supersession marker is bridge-only and goes stale across a
+  later mid-turn swap) · the swap-threshold knob now reaches EVERY runner's boundary op (tick
+  deps → the three delegation runners; the channel runner; the DM stream — so whoami's report is
+  true on all of them, and a 5% smoke swaps everywhere) · duty-book existence is injectable and
+  the tests no longer pin the LIVE shelf (the day the `duty-*` books land, no test goes red) ·
+  the DM stream's stale "no ground → nothing" rationale rewritten (its DELEGATED turns compose
+  the root toolset since 2026-07-26 — a per-origin toolset difference recorded as a deferred
+  product call: route that branch through `buildDelegatedTurnMcpComposer`) · ACCEPTED: the
+  brain's very first delegated turn into a never-opened workspace reads `plain` for that one
+  turn (the composer READS the primary; the runner get-or-creates right after).
+- **Recorded follow-up (Slice 3 item from §5c):** `get_chat_session` / `search_chat_messages`
+  still exclude the global assistant's own thread — with whoami the caller identity is known,
+  so an identity-aware exclusion (the global root may read ITS OWN chain by id) is the next
+  touch on those routes. Deferred-improves: hoist the `McpToolFn` twin into `@vynel/mcp-contract`
+  (four copies now); the stream files stay over the ~300 cap (pre-existing).
+
 ## 6. Forks / deferred (decide deliberately, never slip in)
 
 - **`.notes/` drafts are Kafi's working material** (Global Root, Workspace Manager, Workspace,

@@ -52,8 +52,29 @@ export {
   buildContinuityContext,
   DEFAULT_TAIL_MESSAGE_LIMIT,
   type BuildContinuityContextInput,
+  type BuildContinuityContextDeps,
   type ContinuityContext,
 } from './build-continuity-context.js'
+// Who a conversation is (one home for the carry's identity line + `whoami`),
+// the duty-book binding, and the `whoami` report op.
+export {
+  describeContinuingIdentity,
+  type ContinuingIdentityDescription,
+} from './describe-continuing-identity.js'
+export {
+  resolveDutyBook,
+  resolveDutyBookSlug,
+  DUTY_BOOK_SLUGS,
+  type DutyBook,
+  type DutyBookKind,
+} from './duty-book.js'
+export {
+  resolveWhoamiReport,
+  type WhoamiReport,
+  type WhoamiContextState,
+  type ResolveWhoamiReportInput,
+  type ResolveWhoamiReportDeps,
+} from './resolve-whoami-report.js'
 
 // The per-turn capability PROMPT contribution (Vynel operating-rules + each
 // enabled capability's contribution). Composed at the edge, forwarded into the

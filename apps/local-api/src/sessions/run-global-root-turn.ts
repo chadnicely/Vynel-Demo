@@ -48,6 +48,7 @@ import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
+import { loadEnv } from '../env.js'
 
 // How long a channel turn's ask_user form waits before expiring — matched to
 // the approvals reaper's ~10-minute real-world bound, the app's standing
@@ -237,6 +238,13 @@ export async function runGlobalRootTurn(
   const { desktopFeatureDescriptor, deriveDesktopPlanConsent } = await import(
     '@vynel/desktop-control'
   )
+  // whoami — the channel-driven brain knows who it is too (built with the swap
+  // threshold in force, the env knob the boundary op honors).
+  const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
+  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  const sessionFeatureDescriptor = buildSessionFeatureDescriptor(
+    swapThreshold !== undefined ? { swapThreshold } : {},
+  )
   // The global root's STABLE identity, resolved pre-lock so the desktop action
   // record can key its rows by it (the SDK id is only assigned mid-stream).
   // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
@@ -270,6 +278,7 @@ export async function runGlobalRootTurn(
     [
       vynelRoutingDescriptor,
       notebookFeatureDescriptor,
+      sessionFeatureDescriptor,
       ...askFeatureDescriptors,
       desktopFeatureDescriptor,
     ],
@@ -409,6 +418,8 @@ export async function runGlobalRootTurn(
         askModeApprovalToolNames: composedMcp.askModeApprovalToolNames,
         mcpSystemPromptAppend: composedMcp.systemPromptAppend,
         ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
+        // The same swap-threshold knob whoami above was built with.
+        ...(swapThreshold !== undefined ? { pressureThreshold: swapThreshold } : {}),
       },
       sink,
     )

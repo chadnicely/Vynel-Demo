@@ -178,6 +178,12 @@ export async function streamGlobalRootTurn(
   // streamChatTurn precedent).
   const { vynelRoutingDescriptor } = await import('@vynel/mcp')
   const { notebookFeatureDescriptor } = await import('@vynel/instructions')
+  // whoami — every session knows who it is; built with the swap threshold in
+  // force so what it reports matches what the boundary op will do.
+  const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
+  const sessionFeatureDescriptor = buildSessionFeatureDescriptor(
+    pressureThreshold !== undefined ? { swapThreshold: pressureThreshold } : {},
+  )
   // ask_user here waits UNBOUNDED — this stream is the app's global chat, the
   // user is present. The background channel runner (`runGlobalRootTurn`)
   // attaches it too, with a bounded timeout.
@@ -233,6 +239,7 @@ export async function streamGlobalRootTurn(
     [
       vynelRoutingDescriptor,
       notebookFeatureDescriptor,
+      sessionFeatureDescriptor,
       askFeatureDescriptor,
       desktopFeatureDescriptor,
       ...sshFeatureDescriptors,

@@ -45,6 +45,7 @@ import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
 import { writeSseSafely } from './write-sse-safely.js'
+import { loadEnv } from '../env.js'
 import type { StartSessionTurnRequestSchema } from '../routes/sessions/schemas.js'
 
 type StartSessionTurnInput = z.infer<typeof StartSessionTurnRequestSchema>
@@ -96,6 +97,10 @@ export async function streamSpawnedSessionTurn(
   // own send_message updates/reports resolve their requester correctly, and
   // its toolset never flip-flops by turn origin (the deferred-tool trap).
   const readEnabledFeatureKeys = buildEnabledFeatureKeysReader(c.var.hubSession)
+  // whoami for the one branch no shared composer covers (below) — built with
+  // the swap threshold in force, like every other site.
+  const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
+  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
   const composedBackgroundMcp =
     spawned.scope === 'agent'
       ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest, {}, readEnabledFeatureKeys))({
@@ -111,8 +116,26 @@ export async function streamSpawnedSessionTurn(
             userId,
             workspaceId: spawned.workspaceId,
             surfaceKind: 'spawned',
+            primarySessionId: spawned.id,
           })
-        : null
+        : // A GLOBAL-grounded spawned session composes NOTHING else on this
+          // path today — while its DELEGATED turns compose the root toolset
+          // (`buildDelegatedTurnMcpComposer`, 2026-07-26): a per-origin
+          // toolset difference the one-toolset rule warns about, recorded as
+          // a deferred product call (route this branch through the delegated
+          // composer). It still knows who it is: whoami is every session's
+          // (continuity arc requirement 2).
+          composeSessionMcpServers(
+            [buildSessionFeatureDescriptor(swapThreshold !== undefined ? { swapThreshold } : {})],
+            {
+              db,
+              userId,
+              sessionId: spawned.id,
+              resolveChatSessionId: turnSession.current,
+              appRequest: turnSessionAppRequest,
+            },
+            { toolPolicies: resolveSessionToolPolicies(db, { userId }), surfaceKind: 'spawned' },
+          )
 
   // DESKTOP PARITY WITH THIS SESSION'S DELEGATED TURNS (desktop-autopilot).
   // The delegated composer attaches the desktop server to a 'spawned-session'
@@ -379,6 +402,7 @@ export async function streamSpawnedSessionTurn(
             userId,
             workspacePath: runCwdPath,
             providerId: DEFAULT_PROVIDER_ID,
+            ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
           },
           { logger },
         )

@@ -25,11 +25,17 @@
 
 import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
-import { findWorkspaceById } from '@vynel/workspaces'
 import type { ChatMessage } from '@vynel/chat/repositories'
 import * as primarySessionsRepository from '../repositories/index.js'
-import type { PrimarySessionRow } from '../repositories/index.js'
-import { listSessionChainTailMessages, resolveListedOriginTitle } from './resolve-primary-transcript.js'
+import { listSessionChainTailMessages } from './resolve-primary-transcript.js'
+import { describeContinuingIdentity } from './describe-continuing-identity.js'
+import { resolveDutyBook, type DutyBook } from './duty-book.js'
+
+export type BuildContinuityContextDeps = {
+  /** The duty-book existence lookup — defaults to the verified shelf; tests
+   *  inject so the day the books are published needs no test change. */
+  bookExists?: (slug: string) => boolean
+}
 
 export type BuildContinuityContextInput = {
   primarySessionId: string
@@ -64,31 +70,50 @@ const TAIL_READ_MULTIPLIER = 4
 const TAIL_MESSAGE_MAX_CHARS = 600
 const TAIL_TOTAL_MAX_CHARS = 5_000
 
-const RECOVERY_INSTRUCTIONS = [
-  'HOW TO RECOVER MORE (on demand — pull what the next step needs, do not preload everything):',
-  '- The full earlier conversation is RECORDED across your segment chain. If session tools are',
-  '  available: `get_chat_session` with the previous segment id above reads it in full,',
-  '  `search_chat_messages` finds specifics, `list_sessions` shows every session (the global',
-  '  assistant thread itself is summarized here, not readable by id).',
-  '- If memory / knowledge / journal tools are available: memory (`search_memory`,',
-  '  `list_memory_entries`), knowledge (`search_knowledge`) and the journal',
-  '  (`list_journal_entries`) hold what was saved deliberately — check them before',
-  '  re-deriving anything.',
-  '- The notebook book `session-continuity` (`read_playbook`) has the full recovery routine.',
-  '- Do not restart finished work; continue from where the hand-off leaves off. Never mix in',
-  "  another session's context — this carry is yours alone.",
-].join('\n')
+// The standing pointer to the identity's duty book — the same one line
+// `whoami` and the per-kind session instructions carry (§4.5): present or not
+// yet published, said honestly either way.
+function dutyBookLine(dutyBook: DutyBook): string {
+  return dutyBook.exists
+    ? `- Your duty book \`${dutyBook.slug}\` is on the shelf — \`read_playbook\` it to re-learn your duty.`
+    : `- Your duty book is \`${dutyBook.slug}\` — not published yet; \`whoami\` tells you when it lands.`
+}
+
+function recoveryInstructions(dutyBook: DutyBook): string {
+  return [
+    'HOW TO RECOVER MORE (on demand — pull what the next step needs, do not preload everything):',
+    '- `whoami` tells you who you are, how full your context is, and the memory tags that are yours.',
+    '- The full earlier conversation is RECORDED across your segment chain. If session tools are',
+    '  available: `get_chat_session` with the previous segment id above reads it in full,',
+    '  `search_chat_messages` finds specifics, `list_sessions` shows every session (the global',
+    '  assistant thread itself is summarized here, not readable by id).',
+    '- If memory / knowledge / journal tools are available: memory (`search_memory`,',
+    '  `list_memory_entries`), knowledge (`search_knowledge`) and the journal',
+    '  (`list_journal_entries`) hold what was saved deliberately — check them before',
+    '  re-deriving anything.',
+    '- The notebook book `session-continuity` (`read_playbook`) has the full recovery routine.',
+    dutyBookLine(dutyBook),
+    '- Do not restart finished work; continue from where the hand-off leaves off. Never mix in',
+    "  another session's context — this carry is yours alone.",
+  ].join('\n')
+}
 
 export function buildContinuityContext(
   db: Database,
   input: BuildContinuityContextInput,
+  deps: BuildContinuityContextDeps = {},
 ): ContinuityContext {
   const primary = primarySessionsRepository.findPrimarySessionById(db, input.primarySessionId)
   if (!primary || primary.userId !== input.userId) {
     throw new NotFoundError('primary session', input.primarySessionId)
   }
 
-  const identityLine = describeIdentity(db, primary, input.fromSdkSessionId)
+  const identity = describeContinuingIdentity(db, primary, input.fromSdkSessionId)
+  const identityLine = identity.line
+  const dutyBook = resolveDutyBook(
+    identity.kind,
+    deps.bookExists !== undefined ? { bookExists: deps.bookExists } : {},
+  )
   const tail = readTail(db, input)
   const summary = input.summary?.trim() ?? ''
 
@@ -99,35 +124,9 @@ export function buildContinuityContext(
   if (tail.lines.length > 0) {
     sections.push(`LAST MESSAGES (verbatim, oldest first, newest last):\n${tail.lines.join('\n')}`)
   }
-  sections.push(RECOVERY_INSTRUCTIONS)
+  sections.push(recoveryInstructions(dutyBook))
 
   return { carry: sections.join('\n\n'), identityLine, tailMessageCount: tail.lines.length }
-}
-
-// The identity's own description — scope + its own name, from its own rows.
-function describeIdentity(db: Database, primary: PrimarySessionRow, fromSdkSessionId: string): string {
-  const workspaceName =
-    primary.workspaceId !== null ? findWorkspaceById(db, primary.workspaceId)?.name ?? null : null
-  const ground = workspaceName !== null ? `workspace “${workspaceName}”` : 'the global scope'
-  switch (primary.scope) {
-    case 'global':
-      return "the global assistant — the continuing conversation above all of the user's workspaces"
-    case 'voice':
-      return "the user's voice conversation — the continuing spoken thread above all workspaces"
-    case 'workspace':
-      return `the continuing main conversation of ${workspaceName !== null ? `workspace “${workspaceName}”` : 'this workspace'}`
-    case 'spawned': {
-      // Its name lives on its LISTED identity row (the chain's origin) — a
-      // swap never moves it; a mid-chain "Continued conversation" is not a name.
-      const name = resolveListedOriginTitle(db, { userId: primary.userId, headSessionId: fromSdkSessionId })
-      return `the spawned session${name !== null ? ` “${name}”` : ''}, grounded in ${ground}`
-    }
-    case 'agent': {
-      const name = resolveListedOriginTitle(db, { userId: primary.userId, headSessionId: fromSdkSessionId })
-      const slug = primary.scopeRef !== null ? ` (agent “${primary.scopeRef}”)` : ''
-      return `the agent colleague${name !== null ? ` “${name}”` : ''}${slug}, grounded in ${ground}`
-    }
-  }
 }
 
 function readTail(db: Database, input: BuildContinuityContextInput): { lines: string[] } {

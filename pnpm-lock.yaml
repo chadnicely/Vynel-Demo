@@ -1398,6 +1398,9 @@ importers:
 
   packages/session:
     dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.213
+        version: 0.3.231(@anthropic-ai/sdk@0.109.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
       '@vynel/agents':
         specifier: workspace:*
         version: link:../agents
@@ -1431,6 +1434,9 @@ importers:
       '@vynel/logger':
         specifier: workspace:*
         version: link:../logger
+      '@vynel/mcp-contract':
+        specifier: workspace:*
+        version: link:../mcp-contract
       '@vynel/memory':
         specifier: workspace:*
         version: link:../memory
@@ -1452,6 +1458,9 @@ importers:
       pino:
         specifier: ^9.5.0
         version: 9.14.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       '@vynel/testing':
         specifier: workspace:*
