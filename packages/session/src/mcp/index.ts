@@ -8,7 +8,9 @@ export {
   resolveWhoamiScope,
   SESSION_PROMPT_INSTRUCTIONS,
   WHOAMI_TOOL_NAME,
+  CHECKPOINT_TOOL_NAME,
   type SessionFeatureDescriptorDeps,
 } from './session-mcp-feature-descriptor.js'
 export { buildSessionMcpServer, SESSION_MCP_SERVER_NAME } from './build-session-mcp-server.js'
 export { buildWhoamiResponse, type WhoamiToolScope } from './whoami-tool.js'
+export { buildCheckpointResponse, type CheckpointToolScope } from './checkpoint-tool.js'

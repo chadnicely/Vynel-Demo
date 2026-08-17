@@ -30,7 +30,11 @@ import {
   composeManagerSourceLabel,
   type ChatTurnEvent,
 } from '@vynel/chat'
-import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import {
+  buildCompactionCapture,
+  buildContextNudge,
+  linkPrimarySessionToSdkSession,
+} from '../continuity/index.js'
 import { resolvePrimaryConversationTarget } from '../runtime/index.js'
 import { withBoundaryContinuity } from '../runtime/with-boundary-continuity.js'
 import type { Logger } from 'pino'
@@ -115,6 +119,10 @@ export type DelegateToWorkspaceRootInput = {
    *  runner swaps at the same point, and what `whoami` reports is true here
    *  too). Omit for the production default (0.85). */
   pressureThreshold?: number
+  /** False for a DELIVERY turn (a report / note the target absorbs — never
+   *  work): no mid-turn context nudge, since nothing would continue it.
+   *  Default true (a task turn). */
+  armContextNudge?: boolean
   logger?: Logger
 }
 
@@ -156,6 +164,17 @@ export async function delegateToWorkspaceRoot(
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
     // Layer-1 capture (session.compacted) — the same hook every runner binds.
     onCompaction: buildCompactionCapture(db, input.logger !== undefined ? { logger: input.logger } : {}),
+    // The mid-turn context nudge (session-continuity §4.6) — armed at the same
+    // threshold the boundary swap uses, so the model checkpoints instead of
+    // running into its limit; the tick then enqueues the continuation job.
+    // Not on a delivery turn (nothing would continue it).
+    ...(input.armContextNudge !== false
+      ? {
+          onToolResultContext: buildContextNudge(
+            input.pressureThreshold !== undefined ? { threshold: input.pressureThreshold } : {},
+          ),
+        }
+      : {}),
   })
 
   // 3. Consume through the shared pipeline — every row persists as it streams,

@@ -14,7 +14,12 @@ import type { ChatTurnEvent } from '@vynel/chat'
 import type { Database } from '@vynel/db'
 import type { StartChatSessionInput } from '@vynel/providers'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
-import { getOrCreatePrimarySession, SESSION_SWAPPED_EVENT_TYPE } from '../continuity/index.js'
+import {
+  getOrCreatePrimarySession,
+  markPendingCheckpoint,
+  peekPendingCheckpoint,
+  SESSION_SWAPPED_EVENT_TYPE,
+} from '../continuity/index.js'
 import { findPrimarySessionById } from '../repositories/index.js'
 import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
 import { runGlobalRootTurnCore } from './run-global-root-turn-core.js'
@@ -187,6 +192,100 @@ describe('runGlobalRootTurnCore — boundary continuity', () => {
         'what was the codename?',
         'Noted.',
       ])
+    })
+  })
+
+  it('a checkpointed turn continues AUTOMATICALLY after its swap: the continuation resumes the fresh segment, persists its anchor row, and hands the model the next step', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      const startInputs: StartChatSessionInput[] = []
+      // Three starts through one fake, ONE core call: turn 1 (A, pressured —
+      // the model checkpoints mid-turn), the swap's priming (B), then the
+      // automatic continuation resuming B (relaxed).
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a', 'global-b', 'global-b'],
+        resultText: 'Working.',
+        usageReports: [PRESSURED_USAGE, undefined, RELAXED_USAGE],
+        summary: USABLE_CARRY,
+        startChatSessionInputs: startInputs,
+        onStartChatSession: (_input, ordinal) => {
+          // What the `checkpoint` tool does when the model calls it on turn 1.
+          if (ordinal === 1) markPendingCheckpoint(primary.id, 'sum the July receipts')
+        },
+      })
+      const sink = new CollectingSink()
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        bareTurnInput(user.id, 'reconcile the receipts'),
+        sink,
+      )
+      expect(sink.ended).toBe(true)
+      expect(sink.errors).toEqual([])
+
+      // ONE sink, in order: turn 1 → patching → patched onto B → the
+      // continuation's own row → its turn → its (relaxed) end.
+      const kinds = sink.events.map((e) => e.kind)
+      const patchedAt = kinds.indexOf('context-patched')
+      expect(patchedAt).toBeGreaterThan(0)
+      expect(kinds.slice(patchedAt, patchedAt + 3)).toEqual([
+        'context-patched',
+        'user-message-persisted',
+        'text-chunk',
+      ])
+      expect(kinds.at(-1)).toBe('session-completed')
+      expect(kinds.filter((k) => k === 'context-patching')).toHaveLength(1)
+
+      // The continuation resumed the FRESH head with the instruction; the
+      // persisted row is the short anchor, stamped as a relayed anchor row.
+      expect(startInputs).toHaveLength(3)
+      expect(startInputs[2]?.resumeSessionId).toBe('global-b')
+      expect(startInputs[2]?.userMessageText).toContain('NEXT STEP: sum the July receipts')
+      expect(startInputs[2]?.userMessageText).toContain('This message is from Vynel, not the user')
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
+      expect(transcript.session?.id).toBe('global-b')
+      const anchorRow = transcript.messages.find((m) => m.body.startsWith('Continuing after patching context'))
+      expect(anchorRow).toMatchObject({
+        role: 'user',
+        body: 'Continuing after patching context — next: sum the July receipts',
+        sourceKind: 'global-root',
+        sessionId: 'global-b',
+      })
+      expect(transcript.messages.map((m) => m.body)).toEqual([
+        'reconcile the receipts',
+        'Working.',
+        'Continuing after patching context — next: sum the July receipts',
+        'Working.',
+      ])
+      // Consumed — nothing pending after the loop.
+      expect(peekPendingCheckpoint(primary.id)).toBeNull()
+    })
+  })
+
+  it('autoContinue: false (a delivery turn the root absorbs) arms no nudge and drops a checkpoint instead of continuing', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      const startInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a', 'global-b'],
+        resultText: 'Absorbed.',
+        usage: RELAXED_USAGE,
+        startChatSessionInputs: startInputs,
+        onStartChatSession: () => markPendingCheckpoint(primary.id, 'a delivery never continues'),
+      })
+      const sink = new CollectingSink()
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        { ...bareTurnInput(user.id, '[Report from Nova] all done'), autoContinue: false },
+        sink,
+      )
+      expect(sink.ended).toBe(true)
+      // ONE turn, no nudge armed, the stray checkpoint gone.
+      expect(startInputs).toHaveLength(1)
+      expect(startInputs[0]?.onToolResultContext).toBeUndefined()
+      expect(sink.events.filter((e) => e.kind === 'user-message-persisted')).toHaveLength(1)
+      expect(peekPendingCheckpoint(primary.id)).toBeNull()
     })
   })
 

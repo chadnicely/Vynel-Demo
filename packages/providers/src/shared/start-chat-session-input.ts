@@ -149,6 +149,17 @@ export type StartChatSessionInput = {
   onCompaction?: (capture: { sdkSessionId: string; summary: string }) => void | Promise<void>
 
   /**
+   * MID-TURN context channel (session-continuity's nudge). Called after every
+   * tool result on the main thread with the session's live context occupancy
+   * (the last assistant request's input side + the model); return a line to
+   * deliver to the model beside the tool result, or null to say nothing. A
+   * long agentic turn has no next user message to ride, so this is the only
+   * way to tell the model it crossed the swap threshold while it works.
+   * Structural (no core type leak); best-effort inside the provider.
+   */
+  onToolResultContext?: (state: { usedTokens: number; model: string | null }) => string | null
+
+  /**
    * Model-roster discovery (best-effort bonus, the `onCompaction` shape).
    * When provided, the provider reads the runtime's initialize response once
    * the session starts and calls this with the models the engine actually

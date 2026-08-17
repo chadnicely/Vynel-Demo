@@ -13,6 +13,10 @@ import type { PendingApprovalRegistry } from '../../shared/pending-approval-regi
 import type { StartChatSessionInput } from '../../shared/start-chat-session-input.js'
 import { buildClaudeCanUseToolCallback } from '../approvals/build-claude-can-use-tool-callback.js'
 import { buildClaudePostCompactHook } from '../approvals/build-claude-post-compact-hook.js'
+import {
+  buildClaudePostToolUseHook,
+  type LiveContextHolder,
+} from '../approvals/build-claude-post-tool-use-hook.js'
 import { buildClaudeSdkOptions } from '../base/build-claude-sdk-options.js'
 import {
   readAssistantMessageIdFromStreamStart,
@@ -73,6 +77,9 @@ export async function* runClaudeChatSession(
   // decides which card in ask mode (`tool-approval-policy.ts`).
   const askModeApprovalToolNames =
     input.askModeApprovalToolNames !== undefined ? new Set(input.askModeApprovalToolNames) : undefined
+  // The session's live context occupancy, as the usage translation sees it —
+  // the mid-turn nudge hook reads it when a tool result lands.
+  const liveContext: LiveContextHolder = { current: null }
 
   const sdkOptions = buildClaudeSdkOptions({
     workspacePath: input.workspacePath,
@@ -102,6 +109,17 @@ export async function* runClaudeChatSession(
       ? {
           postCompactHook: buildClaudePostCompactHook(
             input.onCompaction,
+            input.logger !== undefined ? { logger: input.logger } : {},
+          ),
+        }
+      : {}),
+    // Session-continuity's mid-turn context channel — bound only when the
+    // caller supplied a callback (a plain conversation says nothing).
+    ...(input.onToolResultContext !== undefined
+      ? {
+          postToolUseHook: buildClaudePostToolUseHook(
+            input.onToolResultContext,
+            liveContext,
             input.logger !== undefined ? { logger: input.logger } : {},
           ),
         }
@@ -273,6 +291,17 @@ export async function* runClaudeChatSession(
         sessionId,
         currentAssistantMessageId,
       })) {
+        // The same occupancy the chat consumer persists — the LAST assistant
+        // request's input side — kept live for the mid-turn nudge hook.
+        if (normalizedEvent.kind === 'usage-reported') {
+          liveContext.current = {
+            usedTokens:
+              normalizedEvent.inputTokens +
+              (normalizedEvent.cacheReadInputTokens ?? 0) +
+              (normalizedEvent.cacheCreationInputTokens ?? 0),
+            model: normalizedEvent.model ?? liveContext.current?.model ?? null,
+          }
+        }
         yield normalizedEvent
       }
     }

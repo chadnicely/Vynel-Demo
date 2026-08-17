@@ -44,6 +44,12 @@ export type FakeAiAgentProviderOptions = {
   /** Captures every `startChatSession` input the test makes assertions on. */
   startChatSessionInputs?: StartChatSessionInput[]
   /**
+   * Called at every `startChatSession` with its input and the 1-based call
+   * ordinal — a test's seam to act MID-TURN the way a tool would (mark a
+   * checkpoint on the turn's identity), since the fake has no tools of its own.
+   */
+  onStartChatSession?: (input: StartChatSessionInput, callOrdinal: number) => void
+  /**
    * When set, `startChatSession` yields a `text-chunk` with this body between
    * `session-started` and `session-completed`, so a by-reference leaf drain
    * (`drainLeafTurn`) captures a non-empty result. Unset = the swap-priming
@@ -102,8 +108,12 @@ export class FakeAiAgentProvider extends AiAgentProvider {
     super()
   }
 
+  private startCallCount = 0
+
   startChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
     this.options.startChatSessionInputs?.push(input)
+    this.startCallCount += 1
+    this.options.onStartChatSession?.(input, this.startCallCount)
     const sessionId = this.options.sessionIds?.shift() ?? this.options.seededSessionId ?? 'sdk-seeded'
     const { resultText, approvalToolName, toolCallName } = this.options
     const usage =

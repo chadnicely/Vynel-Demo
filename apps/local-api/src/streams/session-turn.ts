@@ -23,11 +23,19 @@ import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { z } from 'zod'
 import { NotFoundError } from '@vynel/errors'
-import { startChatTurn } from '@vynel/session/runtime'
+import {
+  startChatTurn,
+  runTurnWithContinuations,
+  type ContinuationTurn,
+} from '@vynel/session/runtime'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
 import { isPrimarySwapping, linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
-import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/chat'
+import {
+  resolveTurnSessionSettings,
+  persistTurnSessionSettings,
+  type ChatTurnEvent,
+} from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
@@ -265,72 +273,112 @@ export async function streamSpawnedSessionTurn(
       // the row's persisted truth. Input-only — omitted fields stay "never set".
       persistTurnSessionSettings(db, resumeSessionId, input, { logger })
 
-      const turnStream = startChatTurn(
-        db,
-        {
-          userId,
-          // The session's OWN ground (the delegated-runner parity, 2026-08-17):
-          // null for a global-grounded session, its room's id for a
-          // workspace-grounded one — so an approval this turn cards files under
-          // the room that owns the session, and a mid-turn swap segment stays
-          // in that room's list instead of drifting workspace-less. The cwd is
-          // a separate fact.
-          workspaceId: spawned.workspaceId,
-          workspacePath: runCwdPath,
-          providerId: DEFAULT_PROVIDER_ID,
-          resumeSessionId,
-          // The continuing identity: the boundary continuity step rides the
-          // stream (`context-patching` / swap / `context-patched` at pressure)
-          // — the same one every delegated turn into this session runs.
-          continuity: {
-            primarySessionId: spawned.id,
-            ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
+      // ONE provider turn on `turnResumeSessionId` — the genuine turn
+      // (`continuation` null) or an automatic continuation after a checkpoint
+      // (session-continuity §4.6): the short anchor row persists, the model
+      // reads the fuller instruction.
+      const startOneTurn = (
+        turnResumeSessionId: string,
+        continuation: ContinuationTurn | null,
+      ): AsyncIterable<ChatTurnEvent> =>
+        startChatTurn(
+          db,
+          {
+            userId,
+            // The session's OWN ground (the delegated-runner parity, 2026-08-17):
+            // null for a global-grounded session, its room's id for a
+            // workspace-grounded one — so an approval this turn cards files under
+            // the room that owns the session, and a mid-turn swap segment stays
+            // in that room's list instead of drifting workspace-less. The cwd is
+            // a separate fact.
+            workspaceId: spawned.workspaceId,
+            workspacePath: runCwdPath,
+            providerId: DEFAULT_PROVIDER_ID,
+            resumeSessionId: turnResumeSessionId,
+            // The continuing identity: the boundary continuity step rides the
+            // stream (`context-patching` / swap / `context-patched` at pressure)
+            // — the same one every delegated turn into this session runs.
+            continuity: {
+              primarySessionId: spawned.id,
+              ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
+            },
+            userMessageText: continuation?.persistedBody ?? input.userMessageText,
+            ...(continuation !== null
+              ? {
+                  providerUserMessageText: continuation.providerText,
+                  messageAttribution: continuation.attribution,
+                }
+              : {}),
+            ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+            ...(turnSettings.thinkingEffort !== undefined
+              ? { thinkingEffort: turnSettings.thinkingEffort }
+              : {}),
+            // The same mode resolution as the workspace chat stream — the user
+            // is talking directly, so the interactive default applies (NOT the
+            // routed-turn bypass default). Resolved through the session's
+            // persisted settings above.
+            permissionMode: turnPermissionMode,
+            // The system prompt carries ONLY the MCP composer's per-feature
+            // sections + the mention-dispatch note — never
+            // ROUTED_TASK_INSTRUCTIONS (this is the user, not a routed
+            // background task); the session's identity rides its transcript.
+            ...(composedMcp !== null
+              ? {
+                  mcpServers: composedMcp.mcpServers,
+                  deniedToolNames: composedMcp.deniedMcpToolPatterns,
+                  ...(composedMcp.mutatingToolNames.length > 0
+                    ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
+                    : {}),
+                  ...(composedMcp.askModeApprovalToolNames.length > 0
+                    ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
+                    : {}),
+                }
+              : {}),
+            ...(() => {
+              const sections = [
+                composedMcp?.systemPromptAppend ?? '',
+                mentionPlan?.systemPromptAppend ?? '',
+              ].filter((section) => section !== '')
+              return sections.length > 0 ? { systemPromptAppend: sections.join('\n\n') } : {}
+            })(),
+            // A mid-turn compaction swap keeps the stock hidden presentation —
+            // the spawned entry's identity stays its first (listed, named)
+            // segment (the delegateToSpawnedSession shape).
+            newSessionOptions: {
+              visibility: 'hidden',
+              title: 'Continued conversation',
+              skipAutoTitle: true,
+            },
           },
-          userMessageText: input.userMessageText,
-          ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
-          ...(turnSettings.thinkingEffort !== undefined
-            ? { thinkingEffort: turnSettings.thinkingEffort }
-            : {}),
-          // The same mode resolution as the workspace chat stream — the user
-          // is talking directly, so the interactive default applies (NOT the
-          // routed-turn bypass default). Resolved through the session's
-          // persisted settings above.
-          permissionMode: turnPermissionMode,
-          // The system prompt carries ONLY the MCP composer's per-feature
-          // sections + the mention-dispatch note — never
-          // ROUTED_TASK_INSTRUCTIONS (this is the user, not a routed
-          // background task); the session's identity rides its transcript.
-          ...(composedMcp !== null
-            ? {
-                mcpServers: composedMcp.mcpServers,
-                deniedToolNames: composedMcp.deniedMcpToolPatterns,
-                ...(composedMcp.mutatingToolNames.length > 0
-                  ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
-                  : {}),
-                ...(composedMcp.askModeApprovalToolNames.length > 0
-                  ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
-                  : {}),
-              }
-            : {}),
-          ...(() => {
-            const sections = [
-              composedMcp?.systemPromptAppend ?? '',
-              mentionPlan?.systemPromptAppend ?? '',
-            ].filter((section) => section !== '')
-            return sections.length > 0 ? { systemPromptAppend: sections.join('\n\n') } : {}
-          })(),
-          // A mid-turn compaction swap keeps the stock hidden presentation —
-          // the spawned entry's identity stays its first (listed, named)
-          // segment (the delegateToSpawnedSession shape).
-          newSessionOptions: {
-            visibility: 'hidden',
-            title: 'Continued conversation',
-            skipAutoTitle: true,
-          },
-        },
-        // turnEvents: the turn tees onto its session channel (Watch everywhere).
-        { logger, turnEvents },
-      )
+          // turnEvents: the turn tees onto its session channel (Watch everywhere).
+          { logger, turnEvents },
+        )
+      // A continuation resumes the head the checkpoint's boundary swap
+      // produced — re-read, the swap moved it (the identity is unchanged).
+      const continueOnHead = async function* (
+        continuation: ContinuationTurn,
+      ): AsyncIterable<ChatTurnEvent> {
+        const movedHead = findRoutableSessionById(db, { userId, primarySessionId: spawned.id })
+        if (movedHead === null || movedHead.currentSdkSessionId === null) {
+          logger.warn(
+            { primarySessionId: spawned.id },
+            'session continuation skipped — the spawned session disappeared after its checkpoint',
+          )
+          return
+        }
+        yield* startOneTurn(movedHead.currentSdkSessionId, continuation)
+      }
+      // The genuine turn, then — only when the model checkpointed — its
+      // automatic continuations, all on this one SSE stream ("patching →
+      // continuing").
+      const turnStream = runTurnWithContinuations({
+        primarySessionId: spawned.id,
+        runTurn: (continuation) =>
+          continuation === null
+            ? startOneTurn(resumeSessionId, null)
+            : continueOnHead(continuation),
+        logger,
+      })
 
       // Announce on the liveness feed — a spawned session is global-scoped on
       // the feed (the delegation tick's session-target shape); an agent

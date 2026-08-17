@@ -1,9 +1,38 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-17.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 4 (visible swap) SHIPPED; next Slice 5 checkpoint + auto-continue (spike first)
+## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 5 (checkpoint + auto-continue) SHIPPED; arc code-complete, live smokes remain
+
+Spike answered: the SDK's PostToolUse `hookSpecificOutput.additionalContext` IS the mid-turn channel
+(provider-owned hook, `build-claude-post-tool-use-hook.ts`; subagent hook calls carry `agent_id` and are
+skipped; live occupancy from `usage-reported` in `run-claude-chat-session.ts`). Session tier:
+`continuity/context-nudge.ts` (`buildContextNudge` — one nudge per turn at the threshold in force, then
+every +5%; headroom-aware text quoting tokens + %), `continuity/pending-checkpoints.ts` (process-wide
+register keyed by primary id; `beginGenuineTurn` resets the runaway guard + drops a stale checkpoint;
+`beginContinuation` caps at 3), `mcp/checkpoint-tool.ts` (`checkpoint({ nextStep })` — descriptor-owned,
+all 9 surfaces, never cards; keys on the compose-time primary id), `runtime/continuation-turn.ts`
+(ONE home: persisted anchor "Continuing after patching context — next: …" stamped `global-root` +
+the provider instruction), `runtime/run-turn-with-continuations.ts` (the loop the interactive runners
+wrap: genuine turn → continuation per pending checkpoint ONLY after `session-completed` — Stop /
+failure drop it; `autoContinue: false` for delivery turns; one stream: `… context-patched →
+user-message-persisted → …`), `delegation/enqueue-checkpoint-continuation.ts` (the ticks enqueue a
+same-shape follow-up job with the SHORT anchor as task text, remembered in the register so its claim
+counts toward the cap and runs under `CONTINUATION_TASK_INSTRUCTIONS`; task + agent-run kinds; a
+note/delivery never continues). `startChatTurn` gained `providerUserMessageText` +
+`messageAttribution` and arms the nudge for continuing identities; the global core extracted
+`runOneGlobalTurn`; the carry gains a CHECKPOINT line. Web: second `user-message-persisted` on one
+stream = continuation (`ActiveTurnView.continuations`, contextPatch phase `'continuing'`, LiveTurn
+anchor row + "continuing" chip, ThreadStream pill). Catalog snapshot 135 entries, parity green.
+Details §5f of `docs/module-notes/session-continuity.md`.
+**⏭ NEXT:** Kafi's live smokes — the GLOBAL swap; `whoami` on a spawned session; the Slice-5 checkpoint
+behaviour (set `VYNEL_CONTEXT_PRESSURE_THRESHOLD=0.05`, give a workspace a multi-step task, watch: CONTEXT
+CHECK → checkpoint → "patching context" → "continuing" → the anchor row → the work goes on). Open call
+for Kafi/Chad: the continuation runs under the row's CURRENT settings (shipped default) or pins the
+checkpointing turn's. Follow-ups recorded in §6.
+
+## ✅ 2026-08-18 SESSION CONTINUITY — Slice 4 (visible swap) SHIPPED; next Slice 5 checkpoint + auto-continue (spike first)
 
 Continuity now RIDES the turn stream: `withBoundaryContinuity` (session/runtime) wraps every
 runner's event stream INSIDE the session-channel tee and yields `context-patching` →

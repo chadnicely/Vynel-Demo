@@ -45,6 +45,13 @@ export {
   type BoundaryContinuityInput,
   type BoundaryContinuityDeps,
 } from './with-boundary-continuity.js'
+// The automatic continuation after a checkpoint: the loop the interactive
+// runners wrap their turn in, and the one home for what a continuation says.
+export {
+  runTurnWithContinuations,
+  type RunTurnWithContinuationsInput,
+} from './run-turn-with-continuations.js'
+export { composeContinuationTurn, type ContinuationTurn } from './continuation-turn.js'
 export {
   bridgePrimarySessionAfterTurn,
   type BridgePrimarySessionAfterTurnInput,

@@ -245,6 +245,14 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.hooks?.PreToolUse).toBeDefined()
   })
 
+  it('registers a supplied PostToolUse hook (the mid-turn context channel) only when supplied', () => {
+    expect(buildClaudeSdkOptions({ ...base, permissionMode: 'ask' }).hooks?.PostToolUse).toBeUndefined()
+    const noopHook = (async () => ({})) as never
+    const options = buildClaudeSdkOptions({ ...base, permissionMode: 'ask', postToolUseHook: noopHook })
+    expect(options.hooks?.PostToolUse?.[0]?.hooks?.[0]).toBe(noopHook)
+    expect(options.hooks?.PreToolUse).toBeDefined()
+  })
+
   it('registers a supplied PostCompact hook alongside PreToolUse', () => {
     const noopHook = (async () => ({})) as never
     const options = buildClaudeSdkOptions({

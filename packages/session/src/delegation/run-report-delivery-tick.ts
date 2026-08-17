@@ -39,7 +39,7 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import { recordDirectReplyMessage, type ChatTurnEvent } from '@vynel/chat'
-import { findPrimaryConversation } from '../continuity/index.js'
+import { findPrimaryConversation, takePendingCheckpoint } from '../continuity/index.js'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import {
@@ -343,6 +343,8 @@ export async function runReportDeliveryJob(
               // interim status without treating the task as done).
               inboundAttribution: { sourceKind: 'workspace-manager', sourceLabel },
               steerInstructions,
+              // A delivery is never work: no context nudge (nothing continues it).
+              armContextNudge: false,
               ...(turnEvents !== undefined ? { turnEvents } : {}),
               ...(turnEvents !== undefined && partialSessionId !== undefined
                 ? {
@@ -363,6 +365,19 @@ export async function runReportDeliveryJob(
           waitGate,
         },
       )
+      // A checkpoint the model still left on a notify turn is dropped: a
+      // delivery never continues as work (session-continuity §4.6).
+      const primary = findPrimaryConversation(db, {
+        userId: claimed.userId,
+        workspaceId: requesterWorkspaceId,
+      })
+      const stray = primary !== null ? takePendingCheckpoint(primary.id) : null
+      if (stray !== null) {
+        deps.logger.warn(
+          { jobId: claimed.id, primarySessionId: primary!.id, nextStep: stray.nextStep },
+          `${queueLabel}: checkpoint dropped — a delivery turn never continues as work`,
+        )
+      }
     }
 
     if (outcome.status === 'completed' && cancelHandle?.isCancelRequested()) {

@@ -17,6 +17,8 @@ import {
   composeSessionCapabilities,
   resolvePrimaryConversationTarget,
   publishTurnActivityStep,
+  runTurnWithContinuations,
+  type ContinuationTurn,
 } from '@vynel/session/runtime'
 import {
   composeSessionAgents,
@@ -27,7 +29,11 @@ import { listEnabledCapabilities } from '@vynel/capabilities'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
 import { findPrimaryConversation } from '@vynel/session/continuity'
-import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/chat'
+import {
+  resolveTurnSessionSettings,
+  persistTurnSessionSettings,
+  type ChatTurnEvent,
+} from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../factory.js'
 import { loadEnv } from '../env.js'
@@ -249,72 +255,113 @@ export async function streamChatTurn(
       persistTurnSessionSettings(c.var.db, sessionId, input, { logger: c.var.logger })
     }
 
-    const turnStream = startChatTurn(
-      c.var.db,
-      {
+    // ONE provider turn on `turnResumeSessionId` — the genuine turn
+    // (`continuation` null) or an automatic continuation after a checkpoint
+    // (session-continuity §4.6): the short anchor row persists, the model
+    // reads the fuller instruction; attachments ride the genuine turn only.
+    const startOneTurn = (
+      turnResumeSessionId: string | undefined,
+      continuation: ContinuationTurn | null,
+    ): AsyncIterable<ChatTurnEvent> =>
+      startChatTurn(
+        c.var.db,
+        {
+          userId: c.var.user.id,
+          workspaceId: c.var.workspace!.id,
+          workspacePath: c.var.workspace!.path,
+          providerId: DEFAULT_PROVIDER_ID,
+          ...(turnResumeSessionId !== undefined ? { resumeSessionId: turnResumeSessionId } : {}),
+          // The continuing identity: the boundary continuity step rides the
+          // stream (link → measure → `context-patching` / swap / `context-patched`
+          // at pressure), inside the session-channel tee. A plain session (by
+          // id / fresh) passes none and neither swaps nor carries context.
+          ...(primaryTarget !== null
+            ? {
+                continuity: {
+                  primarySessionId: primaryTarget.primarySessionId,
+                  ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
+                },
+              }
+            : {}),
+          userMessageText: continuation?.persistedBody ?? input.userMessageText,
+          ...(continuation !== null
+            ? {
+                providerUserMessageText: continuation.providerText,
+                messageAttribution: continuation.attribution,
+              }
+            : {}),
+          ...(continuation === null && input.attachedImages !== undefined
+            ? { attachedImages: input.attachedImages }
+            : {}),
+          ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+          ...(turnSettings.thinkingEffort !== undefined
+            ? { thinkingEffort: turnSettings.thinkingEffort }
+            : {}),
+          // Map the user-facing session mode → provider permission mode, after
+          // the per-session settings resolution above (explicit input ?? the
+          // session's persisted setting ?? DEFAULT_SESSION_MODE). The mode is
+          // the user's trust level for the whole turn: ask cards the floor,
+          // auto defers to the classifier, bypass never asks (2026-07-30 stance).
+          permissionMode: turnPermissionMode,
+          mcpServers: composedMcp.mcpServers,
+          // Deny a disabled capability's tools (from the composer); the system prompt
+          // joins composeSessionCapabilities (Vynel operating-rules + memory snapshot
+          // etc.) with the MCP composer's per-feature prompt sections (notebook /
+          // tasks / ask standing lines). The MCP half used to be dropped here — a
+          // silent divergence from the global-root stream (found in the ask build;
+          // the notebook's standing line never reached workspace turns).
+          deniedToolNames: composedMcp.deniedMcpToolPatterns,
+          systemPromptAppend: [
+            composed.systemPromptAppend,
+            composedMcp.systemPromptAppend,
+            // The mention-dispatch note (chat-mentions) — the model must know
+            // the mentioned work is already running.
+            mentionPlan?.systemPromptAppend ?? '',
+          ]
+            .filter((section) => section !== '')
+            .join('\n\n'),
+          // A feature's declared mutating tools card even under bypass (additive to
+          // the provider's static floor).
+          ...(composedMcp.mutatingToolNames.length > 0
+            ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
+            : {}),
+          ...(composedMcp.askModeApprovalToolNames.length > 0
+            ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
+            : {}),
+          // Only attach when the workspace has enabled agents — keep the SDK
+          // options clean for the common no-agents turn.
+          ...(Object.keys(sessionAgents).length > 0 ? { agents: sessionAgents } : {}),
+          // Persist the roster the engine reports — feeds the model picker.
+          onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
+        },
+        // turnEvents: the turn tees onto its session channel (Watch everywhere).
+        { logger: c.var.logger, turnEvents: c.var.turnEvents },
+      )
+    // A continuation resumes the head the checkpoint's boundary swap produced
+    // — re-resolved, the swap moved it (the primary identity is unchanged).
+    const continueOnPrimaryHead = async function* (
+      continuation: ContinuationTurn,
+    ): AsyncIterable<ChatTurnEvent> {
+      const head = await resolvePrimaryConversationTarget(c.var.db, {
         userId: c.var.user.id,
-        workspaceId: c.var.workspace!.id,
-        workspacePath: c.var.workspace!.path,
-        providerId: DEFAULT_PROVIDER_ID,
-        ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
-        // The continuing identity: the boundary continuity step rides the
-        // stream (link → measure → `context-patching` / swap / `context-patched`
-        // at pressure), inside the session-channel tee. A plain session (by
-        // id / fresh) passes none and neither swaps nor carries context.
-        ...(primaryTarget !== null
-          ? {
-              continuity: {
-                primarySessionId: primaryTarget.primarySessionId,
-                ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
-              },
-            }
-          : {}),
-        userMessageText: input.userMessageText,
-        ...(input.attachedImages !== undefined ? { attachedImages: input.attachedImages } : {}),
-        ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
-        ...(turnSettings.thinkingEffort !== undefined
-          ? { thinkingEffort: turnSettings.thinkingEffort }
-          : {}),
-        // Map the user-facing session mode → provider permission mode, after
-        // the per-session settings resolution above (explicit input ?? the
-        // session's persisted setting ?? DEFAULT_SESSION_MODE). The mode is
-        // the user's trust level for the whole turn: ask cards the floor,
-        // auto defers to the classifier, bypass never asks (2026-07-30 stance).
-        permissionMode: turnPermissionMode,
-        mcpServers: composedMcp.mcpServers,
-        // Deny a disabled capability's tools (from the composer); the system prompt
-        // joins composeSessionCapabilities (Vynel operating-rules + memory snapshot
-        // etc.) with the MCP composer's per-feature prompt sections (notebook /
-        // tasks / ask standing lines). The MCP half used to be dropped here — a
-        // silent divergence from the global-root stream (found in the ask build;
-        // the notebook's standing line never reached workspace turns).
-        deniedToolNames: composedMcp.deniedMcpToolPatterns,
-        systemPromptAppend: [
-          composed.systemPromptAppend,
-          composedMcp.systemPromptAppend,
-          // The mention-dispatch note (chat-mentions) — the model must know
-          // the mentioned work is already running.
-          mentionPlan?.systemPromptAppend ?? '',
-        ]
-          .filter((section) => section !== '')
-          .join('\n\n'),
-        // A feature's declared mutating tools card even under bypass (additive to
-        // the provider's static floor).
-        ...(composedMcp.mutatingToolNames.length > 0
-          ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
-          : {}),
-        ...(composedMcp.askModeApprovalToolNames.length > 0
-          ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
-          : {}),
-        // Only attach when the workspace has enabled agents — keep the SDK
-        // options clean for the common no-agents turn.
-        ...(Object.keys(sessionAgents).length > 0 ? { agents: sessionAgents } : {}),
-        // Persist the roster the engine reports — feeds the model picker.
-        onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
-      },
-      // turnEvents: the turn tees onto its session channel (Watch everywhere).
-      { logger: c.var.logger, turnEvents: c.var.turnEvents },
-    )
+        workspaceId,
+      })
+      yield* startOneTurn(head.resumeSdkSessionId ?? undefined, continuation)
+    }
+    // The genuine turn, then — only when the model checkpointed — its
+    // automatic continuations, all on this one SSE stream ("patching →
+    // continuing"). A plain session neither swaps nor continues.
+    const turnStream: AsyncIterable<ChatTurnEvent> =
+      primaryTarget === null
+        ? startOneTurn(resumeSessionId, null)
+        : runTurnWithContinuations({
+            primarySessionId: primaryTarget.primarySessionId,
+            runTurn: (continuation) =>
+              continuation === null
+                ? startOneTurn(resumeSessionId, null)
+                : continueOnPrimaryHead(continuation),
+            logger: c.var.logger,
+          })
     // Announce this turn on the session-activity feed so OTHER surfaces (a
     // second tab, the workspace thread elsewhere) go live while it runs.
     // Begun IMMEDIATELY before the try — nothing throwable may sit between
@@ -343,7 +390,9 @@ export async function streamChatTurn(
           mentionPlan?.onSessionResolved(event.session.id)
           persistSettingsOnce(event.session.id)
         } else if (event.kind === 'user-message-persisted') {
-          // A resumed turn never emits session-created — this is its identity.
+          // A resumed turn never emits session-created — this is its identity
+          // (a continuation's row names the head it resumed).
+          effectiveSdkSessionId = event.message.sessionId
           activity.sessionResolved(event.message.sessionId)
           turnSession.resolve(event.message.sessionId)
           mentionPlan?.onSessionResolved(event.message.sessionId)

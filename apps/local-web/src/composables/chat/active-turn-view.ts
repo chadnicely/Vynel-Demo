@@ -63,6 +63,17 @@ export interface AgentActivityView {
 export type ActiveTurnStatus =
   "streaming" | "completed" | "interrupted" | "errored";
 
+/** An automatic continuation inside the same live turn: the model
+ *  checkpointed (its context was nearly full), the boundary swap landed, and
+ *  Vynel continued the work on the fresh head — its anchor row ("Continuing
+ *  after patching context — next: …") sits before the segments that follow. */
+export interface ActiveTurnContinuation {
+  userMessage: ChatMessageResponse;
+  /** The segment index this continuation's output starts at — the overlay
+   *  renders the anchor row before that segment (after all, while none). */
+  atSegmentIndex: number;
+}
+
 export interface ActiveTurnView {
   status: ActiveTurnStatus;
   /** When the user hit send (client clock) — the working chip's elapsed timer. */
@@ -82,12 +93,16 @@ export interface ActiveTurnView {
   hasEnded: boolean;
   /** The visible context swap at the turn's boundary: the conversation is
    *  being continued on a fresh context ('patching'), then landed
-   *  (`toSessionId` set) or stayed (null). Null while no swap is announced. */
+   *  (`toSessionId` set) or stayed (null); 'continuing' once an automatic
+   *  continuation runs on the result. Null while no swap is announced. */
   contextPatch: {
-    phase: "patching" | "done";
+    phase: "patching" | "done" | "continuing";
     fromSessionId: string;
     toSessionId: string | null;
   } | null;
+  /** The automatic continuations this turn ran (session-continuity §4.6),
+   *  in order — empty for an ordinary turn. */
+  continuations: ActiveTurnContinuation[];
 }
 
 export function createActiveTurnView(): ActiveTurnView {
@@ -104,6 +119,7 @@ export function createActiveTurnView(): ActiveTurnView {
     error: null,
     hasEnded: false,
     contextPatch: null,
+    continuations: [],
   };
 }
 
@@ -157,7 +173,25 @@ export function applyChatTurnEvent(
     case "session-created":
       return { ...view, session: event.session };
     case "user-message-persisted":
-      return { ...view, userMessage: event.message };
+      // The FIRST row is the user's message. A LATER one on the same stream is
+      // an automatic continuation (the model checkpointed; the swap landed;
+      // Vynel continues the work): the turn is live again in the same card,
+      // the anchor row lands before whatever streams next, and the patch that
+      // led here reads "continuing".
+      if (view.userMessage === null) return { ...view, userMessage: event.message };
+      return {
+        ...view,
+        status: "streaming",
+        error: null,
+        continuations: [
+          ...view.continuations,
+          { userMessage: event.message, atSegmentIndex: view.segments.length },
+        ],
+        contextPatch:
+          view.contextPatch !== null
+            ? { ...view.contextPatch, phase: "continuing" }
+            : null,
+      };
     case "session-titled":
       return view.session
         ? { ...view, session: { ...view.session, title: event.title } }

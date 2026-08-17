@@ -7,8 +7,11 @@
 //   2. SUMMARY   — the provider's distilled hand-off (the caller's summarize).
 //   3. TAIL      — the last messages VERBATIM, so the concrete wording of the
 //                  latest exchange survives the distill.
-//   4. REFS      — the superseded segment id + "the chain is recorded".
-//   5. RECOVERY  — how to gather more on demand (session / memory / knowledge /
+//   4. CHECKPOINT — the next step the model named when it checkpointed to swap
+//                  (§4.6), so the fresh context knows the cut even if the
+//                  automatic continuation never runs (cap reached, disconnect).
+//   5. REFS      — the superseded segment id + "the chain is recorded".
+//   6. RECOVERY  — how to gather more on demand (session / memory / knowledge /
 //                  journal tools, the notebook book) — pull, never push.
 //
 // THE INVARIANT (requirement 4 — no cross context): the builder reads ONLY the
@@ -27,6 +30,7 @@ import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
 import type { ChatMessage } from '@vynel/chat/repositories'
 import * as primarySessionsRepository from '../repositories/index.js'
+import { peekPendingCheckpoint } from '../continuity/pending-checkpoints.js'
 import { listSessionChainTailMessages } from './resolve-primary-transcript.js'
 import { describeContinuingIdentity } from './describe-continuing-identity.js'
 import { resolveDutyBook, type DutyBook } from './duty-book.js'
@@ -123,6 +127,13 @@ export function buildContinuityContext(
   if (summary.length > 0) sections.push(`HAND-OFF SUMMARY:\n${summary}`)
   if (tail.lines.length > 0) {
     sections.push(`LAST MESSAGES (verbatim, oldest first, newest last):\n${tail.lines.join('\n')}`)
+  }
+  // Peeked, never taken — the runner that continues the work consumes it.
+  const checkpoint = peekPendingCheckpoint(input.primarySessionId)
+  if (checkpoint !== null) {
+    sections.push(
+      `CHECKPOINT: you stopped here to swap contexts, mid-task. The next step you named: ${checkpoint.nextStep}`,
+    )
   }
   sections.push(recoveryInstructions(dutyBook))
 

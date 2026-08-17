@@ -193,4 +193,59 @@ describe("applyChatTurnEvent", () => {
     // No swap announced → nothing to show.
     expect(fold([{ kind: "session-completed", sessionId: "seg-a" }]).contextPatch).toBeNull();
   });
+
+  it("an automatic continuation after a checkpoint re-opens the same view: live again, anchor row placed, pill 'continuing'", () => {
+    const userRow = {
+      id: "u1",
+      sessionId: "seg-a",
+      role: "user" as const,
+      body: "reconcile the receipts",
+      createdAt: "2026-08-18T10:00:00.000Z",
+    } as never;
+    const anchorRow = {
+      id: "u2",
+      sessionId: "seg-b",
+      role: "user" as const,
+      sourceKind: "global-root" as const,
+      body: "Continuing after patching context — next: sum the July receipts",
+      createdAt: "2026-08-18T10:05:00.000Z",
+    } as never;
+    const view = fold([
+      { kind: "user-message-persisted", message: userRow },
+      { kind: "text-chunk", messageId: "m1", textDelta: "Stopping here to swap." },
+      { kind: "session-completed", sessionId: "seg-a" },
+      { kind: "context-patching", sessionId: "seg-a", primarySessionId: "p-1" },
+      { kind: "context-patched", sessionId: "seg-a", primarySessionId: "p-1", toSessionId: "seg-b" },
+      // The continuation's own row — the SECOND user row on the one stream.
+      { kind: "user-message-persisted", message: anchorRow },
+    ]);
+    // The user's message stays; the continuation is recorded after the first
+    // turn's segments (index 1 — its output starts there); the turn is live
+    // again with the patch reading "continuing".
+    expect(view.userMessage).toBe(userRow);
+    expect(view.status).toBe("streaming");
+    expect(view.continuations).toEqual([{ userMessage: anchorRow, atSegmentIndex: 1 }]);
+    expect(view.contextPatch).toEqual({ phase: "continuing", fromSessionId: "seg-a", toSessionId: "seg-b" });
+
+    // Its output streams after the anchor; the end closes the view as usual.
+    const continuationEvents: ChatTurnEvent[] = [
+      { kind: "text-chunk", messageId: "m2", textDelta: "Summing the July receipts…" },
+      { kind: "session-completed", sessionId: "seg-b" },
+      { kind: "turn-stream-ended" },
+    ];
+    const done = continuationEvents.reduce(applyChatTurnEvent, view);
+    expect(done.segments.map((segment) => segment.messageId)).toEqual(["m1", "m2"]);
+    expect(done.status).toBe("completed");
+    expect(done.hasEnded).toBe(true);
+    // A continuation without a swap (a spurious checkpoint) still re-opens
+    // the view — nothing to say about a patch that never happened.
+    const noSwap = fold([
+      { kind: "user-message-persisted", message: userRow },
+      { kind: "session-completed", sessionId: "seg-a" },
+      { kind: "user-message-persisted", message: anchorRow },
+    ]);
+    expect(noSwap.status).toBe("streaming");
+    expect(noSwap.contextPatch).toBeNull();
+    expect(noSwap.continuations[0]?.atSegmentIndex).toBe(0);
+  });
 });

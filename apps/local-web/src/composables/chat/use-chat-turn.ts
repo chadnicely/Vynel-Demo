@@ -83,6 +83,11 @@ export function useChatTurn(options: {
   function ingest(event: ChatTurnEvent) {
     if (!view.value) return;
     view.value = applyChatTurnEvent(view.value, event);
+    // A continuation after a checkpoint resumes the head its swap produced —
+    // its user row names that segment, and Stop must target it.
+    if (event.kind === "user-message-persisted") {
+      activeSessionId.value = event.message.sessionId;
+    }
     if (event.kind === "session-created") {
       activeSessionId.value = event.session.id;
       options.onSessionCreated?.(event.session);

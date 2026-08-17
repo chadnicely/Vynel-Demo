@@ -25,6 +25,8 @@ import {
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
+  markPendingCheckpoint,
+  peekPendingCheckpoint,
 } from '../continuity/index.js'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tick.js'
@@ -83,6 +85,7 @@ async function seedLinkedWorkspacePrimary(
     }),
   )
   linkPrimarySessionToSdkSession(db, { primarySessionId: primary.id, userId, sdkSessionId })
+  return primary
 }
 
 describe('update-delivery jobs (persona-sessions)', () => {
@@ -133,6 +136,40 @@ describe('update-delivery jobs (persona-sessions)', () => {
       expect(messages[1]!.threadId).toBe(threadId)
 
       // Anti-cascade: a completed update enqueues NOTHING further.
+      expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
+    })
+  })
+
+  it('a WORKSPACE notify turn is never work: no context nudge is armed, and a checkpoint the model still leaves is dropped, not continued', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const primary = await seedLinkedWorkspacePrimary(db, user.id, workspace.id, 'ws-primary-u2')
+      enqueueUpdateDelivery(db, {
+        threadId: randomUUID(),
+        userId: user.id,
+        reporterSessionId: 'colleague-sdk-1',
+        reporterLabel: 'Nova',
+        updateBody: 'Halfway there.',
+        requester: { kind: 'workspace-primary', workspaceId: workspace.id, workspacePath: workspace.path },
+      })
+      const notifyInputs: StartChatSessionInput[] = []
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({
+            seededSessionId: 'ws-primary-u2',
+            resultText: 'Noted.',
+            startChatSessionInputs: notifyInputs,
+            // A confused model checkpoints on the notify turn.
+            onStartChatSession: () => markPendingCheckpoint(primary.id, 'should never run'),
+          }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+        }),
+      ).toBe(true)
+      expect(notifyInputs[0]!.onToolResultContext).toBeUndefined()
+      expect(peekPendingCheckpoint(primary.id)).toBeNull()
+      // Nothing continues a delivery.
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
     })
   })

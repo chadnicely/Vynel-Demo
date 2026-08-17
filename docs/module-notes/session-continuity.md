@@ -526,7 +526,114 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
   thread does) — pre-existing for "busy", inherited; the queued reason is one-shot at park
   time (a turn parked before the swap begins reads "busy" — the feed still narrates the swap).
 
+## 5f. Slice 5 — SHIPPED 2026-08-18 (checkpoint + auto-continue)
+
+- **Spike answer:** the SDK's `PostToolUse` hook returns `hookSpecificOutput.additionalContext`
+  — text the model reads beside the tool result. That IS the mid-turn channel: a provider-owned
+  hook (`packages/providers/src/claude/approvals/build-claude-post-tool-use-hook.ts`, the
+  PreToolUse-backstop sibling) calls an `onToolResultContext(liveState)` callback with the turn's
+  LIVE occupancy (`{ usedTokens, model }`, kept by `run-claude-chat-session.ts` from every
+  `usage-reported` — input + cache-read + cache-creation) and injects whatever it returns.
+  Subagent hook calls carry `agent_id` and are skipped (a subagent's context is not the turn's).
+  The between-turns marker the plan mentioned is NOT built: a turn that ENDS over the threshold
+  swaps at the boundary on its own — the nudge is a mid-turn-only concern.
+- **The nudge (one home):** `continuity/context-nudge.ts` — `buildContextNudge({ threshold?,
+  checkpointToolName? })` returns one turn's stateful callback: silent under the threshold in
+  force (the same value the boundary swap uses — the env smoke knob included), speaks once on
+  crossing ("CONTEXT CHECK (from Vynel, not the user): you have crossed 85% … (170k of 200k
+  tokens; about 30k remain before the hard limit). Finish the slice you are on … call the
+  `checkpoint` tool with the single next step, and end this turn with one line telling the user
+  you will continue after patching context …"), then again only at every further +5% of the
+  window ("still going: you are now at 91%"). Measured against the MODEL's window
+  (`resolveContextWindow`) so a 1M model hears real headroom (140k), Haiku hears 30k. Armed by
+  `startChatTurn` only when a `continuity` input is present (a plain conversation neither swaps
+  nor continues), by the global core, and by the three delegation runners.
+- **The tool:** `checkpoint({ nextStep })` — descriptor-owned on `vynel-session` beside
+  `whoami` (every surface, never cards; catalog snapshot 135 entries, parity green). It marks
+  the pending checkpoint on the turn's OWN identity (the compose-time primary id — never model
+  input, so it cannot checkpoint another session), replies "Checkpoint noted … Now END this
+  turn with one line …", and a plain conversation (no primary) is told plainly it cannot
+  checkpoint. Register: `continuity/pending-checkpoints.ts` — process-wide map keyed by primary
+  id (deliberate v1, no table: a minutes-scale intent between a turn's end and the swap that
+  follows it in the same process; the tool call itself is already recorded on the chat row).
+  `beginGenuineTurn` = a real turn starting: resets the runaway guard AND drops a stale
+  checkpoint (a client that disconnected mid-turn would otherwise have its old "next step"
+  hijack the next real message's turn); `takePendingCheckpoint` consumes exactly once;
+  `beginContinuation` refuses past `MAX_CONSECUTIVE_CONTINUATIONS = 3`.
+- **The carry gains a CHECKPOINT line** (`buildContinuityContext`, peeked never taken): "you
+  stopped here to swap contexts, mid-task. The next step you named: …" — so the fresh context
+  knows the cut even when the automatic continuation cannot run (cap reached, disconnect).
+- **Auto-continue, interactive:** `runtime/run-turn-with-continuations.ts` — the ONE loop the
+  interactive runners wrap their turn in: genuine turn → while a checkpoint is pending and
+  under the cap → `runTurn(continuation)`. Each runner passes a `runTurn(continuation)` closure
+  (only it knows how to start its kind of turn) that RE-RESOLVES the head for a continuation
+  (the swap moved it): the workspace stream (`resolvePrimaryConversationTarget`), the DM stream
+  (`findRoutableSessionById`), the global core (`deps.resolveTarget()`, extracted
+  `runOneGlobalTurn`). One event stream, one SSE response, one activity turn: `… session-completed
+  → context-patching → context-patched → user-message-persisted (the continuation's row) → …
+  → turn-stream-ended` (pinned through the full HTTP stack in `chat-turn.test.ts` and on the
+  core with real SQLite). `composeContinuationTurn` (`runtime/continuation-turn.ts`) is the one
+  home for what a continuation says: the PERSISTED row "Continuing after patching context —
+  next: <step>" stamped `sourceKind: 'global-root'` with NO label (renders as Claude continuing —
+  a label would invent an origin chip; `deriveMessageOrigin` reads it as system-relayed, never
+  the user), and the PROVIDER text ("This message is from Vynel, not the user … NEXT STEP …
+  Do not restart finished work … if your context fills again, finish the slice and checkpoint
+  again") — carried by `startChatTurn`'s new `providerUserMessageText` (the voice-marker
+  precedent) + `messageAttribution`. Attachments ride the genuine turn only. A spurious
+  checkpoint (turn under threshold) still continues — on the same head; harmless.
+  **The terminal gate (reviewer catch):** a continuation runs ONLY after `session-completed` —
+  a user Stop (`session-interrupted`) or a non-recoverable `session-errored` DROPS the pending
+  checkpoint (logged): Stop always wins at terminal time, and a failing engine must not get
+  three more turns fired into it. A recoverable error followed by completion counts as
+  completed. `autoContinue: false` is the DELIVERY shape (the global root absorbing a child's
+  report/update — `runGlobalRootTurn` passes it whenever `inboundAttribution` is set): no nudge
+  armed, a stray checkpoint dropped, nothing continues — a delivery is never work.
+- **Auto-continue, delegated:** `delegation/enqueue-checkpoint-continuation.ts` — the ticks call
+  `beginDelegatedTurn` before the turn and `enqueueCheckpointContinuation` after a COMPLETED
+  job: a same-shape follow-up job (same target, chain/threadId, mode/model/effort, channel
+  origin, requester) whose task text is the SHORT anchor ("Continuing after patching context —
+  next: …" — the runners persist task text verbatim, so both halves render the same row); the
+  follow-up's id is remembered in the register (`markContinuationJob` / `takeContinuationJob`)
+  so its claim reads as a CONTINUATION — the runaway guard keeps counting (reviewer catch: a
+  plain row would have reset the guard on every hop and never capped) and the run gets the
+  continuation steer (`CONTINUATION_TASK_INSTRUCTIONS`, the routed rules underneath). In-process
+  like the checkpoints: after a restart the follow-up runs as a genuine turn (guard resets, the
+  anchor row still names the step). FIFO on the target key claims it AFTER the swap that ran
+  inside the finished turn. Kinds: task (workspace / spawned / colleague targets) and
+  `agent-run` (`runAgentRunJob` — the colleague's own follow-up run via `enqueueAgentRun`; its
+  `workspaceId` is the grounding, never the identity — the runner passes the resolved colleague
+  id). A NOTE never continues (its checkpoint is dropped), and a DELIVERY (the report tick's
+  workspace notify turn) arms no nudge (`armContextNudge: false`) and drops a stray checkpoint.
+- **Web:** `ActiveTurnView.continuations[{ userMessage, atSegmentIndex }]` — a SECOND
+  `user-message-persisted` on one stream re-opens the view (status streaming, error cleared,
+  `contextPatch.phase = 'continuing'`); LiveTurn interleaves the anchor row (`MessageRow`)
+  where its output begins (after all segments while none), the chip reads "continuing", the
+  ThreadStream pill "<assistant> continuing"; overlay ids include the anchors (no double render
+  on a mid-turn refetch); `use-chat-turn` retargets `activeSessionId` from the continuation's
+  row so Stop interrupts the right segment. The Watch registry needs nothing: a continuation
+  is a fresh turn on the (moved) head's channel, exactly like any swap.
+- **Settings:** the continuation runs under the row's CURRENT settings (the open call's default);
+  the alternative (pin the checkpointing turn's) is one closure away if Chad prefers it.
+- **Tests (all real SQLite where the DB is involved):** nudge cadence/text/model window;
+  register semantics (once, replace, cap, genuine reset, stale drop, per-identity);
+  checkpoint tool responses; the loop (none / one / capped / stale); the composer via the loop;
+  the delegated enqueue (workspace + session shapes, no identity, note, cap + reset);
+  `startChatTurn` (nudge armed only with continuity; provider text vs persisted anchor);
+  the global core end-to-end (three provider starts, one sink, the anchor row on B); the
+  workspace stream end-to-end (one SSE response, order pinned); the tick end-to-end (follow-up
+  job claimed and run with the instruction); the web fold + LiveTurn rows; catalog + descriptor
+  pins; the PostToolUse hook + SDK options + live occupancy pins in providers.
+
 ## 6. Forks / deferred (decide deliberately, never slip in)
+
+- **Slice 5 follow-ups (recorded, not built):** a durable checkpoint / continuation-job column
+  if either ever has to survive a process restart (the register is in-process by design — a
+  restart degrades to "the follow-up runs as a genuine turn"); `identity-aware exclusion` so
+  the global root can read its own chain by id; the anchor row reads "after patching context"
+  even on a spurious checkpoint that swapped nothing (Kafi's wording; the web shows no patch); the runners over ~300 lines (the streams grew with the loop closures) — split when the
+  next change touches them; a VOICE turn that checkpoints continues server-side (the daemon frees at
+  the first `session-completed` and the continuation's reply lands in the transcript, unspoken) —
+  speak it when voice grows a continuation cue.
 
 - **`.notes/` drafts are Kafi's working material** (Global Root, Workspace Manager, Workspace,
   Memory, Knowledge) — he completes and attaches them as duty books later. Do NOT polish,

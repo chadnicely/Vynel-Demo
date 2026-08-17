@@ -21,13 +21,17 @@ import { buildSessionMcpServer, SESSION_MCP_SERVER_NAME } from './build-session-
 import type { WhoamiToolScope } from './whoami-tool.js'
 
 export const WHOAMI_TOOL_NAME = `mcp__${SESSION_MCP_SERVER_NAME}__whoami`
+export const CHECKPOINT_TOOL_NAME = `mcp__${SESSION_MCP_SERVER_NAME}__checkpoint`
 
 // The one standing line every turn carries about self-knowledge — the tool
 // description says the rest at call time.
 export const SESSION_PROMPT_INSTRUCTIONS =
   'You can call whoami to learn which conversation you are, how full your context is before it ' +
   'continues on a fresh one, which duty book teaches your kind, and the memory tags that mark ' +
-  'what you save as yours — use those tags whenever you save a memory.'
+  'what you save as yours — use those tags whenever you save a memory. If a CONTEXT CHECK tells ' +
+  'you your context is nearly full while you still have work to do, finish the slice you are on, ' +
+  'call checkpoint with the single next step, and end the turn with one line — Vynel continues ' +
+  'you on a fresh context automatically.'
 
 export type SessionFeatureDescriptorDeps = {
   /** The swap threshold in force (the env override the runners honor); omit for the default. */
@@ -56,11 +60,11 @@ export function buildSessionFeatureDescriptor(
 ): McpFeatureDescriptor {
   return {
     serverName: SESSION_MCP_SERVER_NAME,
-    toolNames: [WHOAMI_TOOL_NAME],
+    toolNames: [WHOAMI_TOOL_NAME, CHECKPOINT_TOOL_NAME],
     build: (context) =>
       // The one documented producer-boundary cast — see file header.
       buildSessionMcpServer(context.db as Database, resolveWhoamiScope(context, deps)),
-    // Reading yourself is never carded.
+    // Reading yourself / marking your own checkpoint is own bookkeeping — never carded.
     mutatingToolNames: [],
     contributePrompt: () => SESSION_PROMPT_INSTRUCTIONS,
   }

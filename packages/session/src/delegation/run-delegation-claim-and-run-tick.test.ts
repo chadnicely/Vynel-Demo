@@ -27,7 +27,6 @@ import {
   enqueueReportDelivery,
   enqueueNoteDelivery,
   findDelegationJobById,
-  findDelegationJobByPartialSessionId,
   markDelegationJobReported,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
 } from '@vynel/orchestration'
@@ -36,6 +35,8 @@ import { insertChannel, listOutboundMessagesForChannel } from '@vynel/channels/t
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
+  markPendingCheckpoint,
+  MAX_CONSECUTIVE_CONTINUATIONS,
 } from '../continuity/index.js'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {
@@ -603,6 +604,118 @@ describe('runDelegationClaimAndRunTick', () => {
     })
   })
 
+  it('a job whose turn CHECKPOINTED completes and leaves a same-shape follow-up job on the queue — the delegated auto-continue', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const jobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'reconcile the receipts',
+        permissionMode: 'ask',
+      })
+      // The workspace's continuing identity (the runner would get-or-create
+      // the same row) — what the `checkpoint` tool keys on mid-turn.
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id, workspaceId: workspace.id })
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-ckpt',
+        resultText: 'Stopping here to swap — will continue after patching context.',
+        onStartChatSession: () => markPendingCheckpoint(primary.id, 'sum the July receipts'),
+      })
+      expect(
+        await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() }),
+      ).toBe(true)
+      expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
+
+      // The follow-up: same target + mode, pending, carrying the short anchor
+      // row — the next tick claims it (FIFO on the target) and runs it under
+      // the CONTINUATION steer.
+      const startInputs: StartChatSessionInput[] = []
+      const provider2 = new FakeAiAgentProvider({
+        seededSessionId: 'ws-root-ckpt',
+        resultText: 'Summed.',
+        startChatSessionInputs: startInputs,
+      })
+      expect(
+        await runDelegationClaimAndRunTick(db, { provider: provider2, logger: silentLogger, activityFeed: new SessionActivityFeed() }),
+      ).toBe(true)
+      expect(startInputs).toHaveLength(1)
+      // The model reads the anchor as its message and the continuation steer
+      // in the system prompt (over the routed-task steer, which still rides).
+      expect(startInputs[0]?.userMessageText).toBe('Continuing after patching context — next: sum the July receipts')
+      expect(startInputs[0]?.systemPromptAppend).toContain('it continues YOUR OWN task')
+      expect(startInputs[0]?.systemPromptAppend).toContain('send_message')
+      // A continuation may need to checkpoint again — the nudge stays armed.
+      expect(startInputs[0]?.onToolResultContext).toBeDefined()
+      // Resumed the workspace's continuing conversation (the same head — no
+      // swap under the relaxed fake) with the job's own mode.
+      expect(startInputs[0]?.resumeSessionId).toBe('ws-root-ckpt')
+      expect(startInputs[0]?.permissionMode).toBe('ask')
+      const rowsOnHead = listChatMessagesForSession(db, 'ws-root-ckpt').map((m) => [m.role, m.body])
+      expect(rowsOnHead).toEqual([
+        ['user', 'reconcile the receipts'],
+        ['assistant', 'Stopping here to swap — will continue after patching context.'],
+        ['user', 'Continuing after patching context — next: sum the July receipts'],
+        ['assistant', 'Summed.'],
+      ])
+      // Nothing else queued — the continuation ran once.
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'never' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+          runGlobalRootReportTurn: makeGlobalReportRunner(),
+        }),
+      ).toBe(false)
+    })
+  })
+
+  it('a colleague that checkpoints on EVERY turn is capped by the tick — the follow-ups stop, the queue drains', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const spawned = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-runaway' }),
+        { userId: user.id, name: 'Runaway', purpose: 'never stops checkpointing', workspacePath: '/tmp/vynel/hidden' },
+      )
+      enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: spawned.primarySessionId,
+        runCwdPath: '/tmp/vynel/hidden',
+        taskText: 'a task that never ends',
+      })
+      // Every claimed run checkpoints; the tick must chain the follow-ups
+      // (each claim reads as a CONTINUATION, not a genuine turn) and refuse
+      // past the cap: the genuine run + the capped continuations, then empty.
+      let runs = 0
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: spawned.sessionId,
+        resultText: 'still going',
+        onStartChatSession: () => {
+          runs += 1
+          markPendingCheckpoint(spawned.primarySessionId, `step ${runs}`)
+        },
+      })
+      const tick = () =>
+        runDelegationClaimAndRunTick(db, {
+          provider,
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+          runGlobalRootReportTurn: makeGlobalReportRunner(),
+        })
+      let processed = 0
+      while (await tick()) processed += 1
+      expect(runs).toBe(1 + MAX_CONSECUTIVE_CONTINUATIONS)
+      expect(processed).toBe(1 + MAX_CONSECUTIVE_CONTINUATIONS)
+    })
+  })
+
   it('returns false when the queue is empty', async () => {
     await withTestDatabase(async (db) => {
       const provider = new FakeAiAgentProvider({ seededSessionId: 'x', resultText: 'y' })
@@ -719,7 +832,6 @@ describe('runDelegationClaimAndRunTick', () => {
         workspaceName: workspace.name,
         taskText: 'stopped before the turn even started',
       })
-      const partialSessionId = findDelegationJobById(db, jobId)!.partialSessionId!
 
       const cancelRegistry = new DelegationCancelRegistry()
       // The Stop lands the instant the run registers — before any session id.

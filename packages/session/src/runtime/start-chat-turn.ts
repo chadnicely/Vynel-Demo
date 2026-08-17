@@ -33,8 +33,9 @@ import {
   type ChatTurnEvent,
   type NewSessionOptions,
   type StructuralLogger,
+  type TurnMessageAttribution,
 } from '@vynel/chat'
-import { buildCompactionCapture } from '../continuity/index.js'
+import { buildCompactionCapture, buildContextNudge } from '../continuity/index.js'
 import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 import { withBoundaryContinuity } from './with-boundary-continuity.js'
@@ -51,6 +52,19 @@ export type StartChatTurnInput = {
   /** Omit to start a new session; provide to resume an existing one. */
   resumeSessionId?: string
   userMessageText: string
+  /**
+   * PROVIDER INPUT ONLY — what the model reads when it differs from the
+   * persisted body (the voice-marker precedent). A continuation turn persists
+   * a short "continuing after patching context" row and hands the model the
+   * fuller instruction. Omit → the model reads `userMessageText`.
+   */
+  providerUserMessageText?: string
+  /**
+   * The persisted rows' attribution when the turn is not the user speaking as
+   * themselves — a continuation turn's row is "from Vynel". Omit → the plain
+   * user shape (unchanged).
+   */
+  messageAttribution?: TurnMessageAttribution
   /** Images attached to this turn — inline base64; sent to the provider + persisted for re-display. */
   attachedImages?: AttachedImageBytes[]
   /** The model to run this turn (per-chat picker). Omit to inherit the CLI default. */
@@ -153,7 +167,7 @@ export async function* startChatTurn(
   const sessionEventStream = provider.startChatSession({
     workspacePath: input.workspacePath,
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
-    userMessageText: input.userMessageText,
+    userMessageText: input.providerUserMessageText ?? input.userMessageText,
     ...(chatMessageImages !== undefined ? { attachedImages: chatMessageImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
@@ -179,6 +193,16 @@ export async function* startChatTurn(
     // linked to this SDK session (the swap unit) AND the SDK fires
     // PostCompact. Layer 2 (the explicit swap) does NOT depend on it.
     onCompaction: buildCompactionCapture(db, deps.logger !== undefined ? { logger: deps.logger } : {}),
+    // The mid-turn context nudge rides only a CONTINUING identity's turns (a
+    // plain conversation neither swaps nor continues) — one nudge per turn,
+    // armed at the same threshold the boundary swap uses.
+    ...(input.continuity !== undefined
+      ? {
+          onToolResultContext: buildContextNudge(
+            input.continuity.threshold !== undefined ? { threshold: input.continuity.threshold } : {},
+          ),
+        }
+      : {}),
     ...(input.onModelsDiscovered !== undefined
       ? { onModelsDiscovered: input.onModelsDiscovered }
       : {}),
@@ -206,6 +230,7 @@ export async function* startChatTurn(
     // startup (the unbounded hang point), so a stuck start never loses it.
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
     ...(input.newSessionOptions !== undefined ? { newSessionOptions: input.newSessionOptions } : {}),
+    ...(input.messageAttribution !== undefined ? { messageAttribution: input.messageAttribution } : {}),
     ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
   })
   // 4. A continuing identity gets its boundary continuity ON the stream — the

@@ -13,6 +13,7 @@ import { insertPrimarySession } from '../repositories/index.js'
 import {
   buildSessionFeatureDescriptor,
   resolveWhoamiScope,
+  CHECKPOINT_TOOL_NAME,
   SESSION_PROMPT_INSTRUCTIONS,
   WHOAMI_TOOL_NAME,
 } from './session-mcp-feature-descriptor.js'
@@ -39,8 +40,12 @@ describe('vynel-session descriptor', () => {
   it('declares its inventory, never cards, and carries the one standing prompt line', () => {
     const descriptor = buildSessionFeatureDescriptor()
     expect(descriptor.serverName).toBe('vynel-session')
-    expect(descriptor.toolNames).toEqual([WHOAMI_TOOL_NAME])
+    // whoami + checkpoint (Slice 5): the checkpoint marks the turn's OWN
+    // pending continuation — bookkeeping, never carded.
+    expect(descriptor.toolNames).toEqual([WHOAMI_TOOL_NAME, CHECKPOINT_TOOL_NAME])
     expect(WHOAMI_TOOL_NAME).toBe('mcp__vynel-session__whoami')
+    expect(CHECKPOINT_TOOL_NAME).toBe('mcp__vynel-session__checkpoint')
+    expect(SESSION_PROMPT_INSTRUCTIONS).toContain('checkpoint')
     expect(descriptor.mutatingToolNames).toEqual([])
     expect(descriptor.askModeApprovalToolNames).toBeUndefined()
     expect(descriptor.contributePrompt?.({} as never)).toBe(SESSION_PROMPT_INSTRUCTIONS)

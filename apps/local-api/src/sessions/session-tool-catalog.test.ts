@@ -62,6 +62,11 @@ describe('buildSessionToolCatalog', () => {
       expect(servers).toContain('vynel-session')
     }
     expect(whoami.cardClass).toBe('never')
+    // checkpoint (Slice 5) rides the same surfaces: any continuing identity
+    // may stop to swap and continue — its own bookkeeping, never carded.
+    const checkpoint = catalog.find((entry) => entry.toolName === 'mcp__vynel-session__checkpoint')!
+    expect([...checkpoint.surfaces].sort()).toEqual([...whoami.surfaces].sort())
+    expect(checkpoint.cardClass).toBe('never')
   })
 
   it('covers every server the surface map names', () => {

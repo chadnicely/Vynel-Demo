@@ -225,6 +225,53 @@ describe('runClaudeChatSession', () => {
     expect(queryArg?.options?.hooks?.PreToolUse).toBeDefined()
   })
 
+  it('binds a PostToolUse context hook fed by the LIVE usage when onToolResultContext is provided', async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      fakeAssistantMessageStep({ id: 'msg-1', text: 'working…', usage: { input_tokens: 1_000, cache_read_input_tokens: 899_000, output_tokens: 20 } }),
+      fakeSuccessResultStep(),
+    ])
+    const seen: Array<{ usedTokens: number; model: string | null }> = []
+    await collect(
+      runClaudeChatSession({
+        input: {
+          ...BASE_INPUT,
+          onToolResultContext: (state) => {
+            seen.push(state)
+            return 'nudge'
+          },
+        },
+        activeSessionRegistry: new ActiveSessionRegistry(),
+        pendingApprovalRegistry: new PendingApprovalRegistry(),
+      }),
+    )
+
+    const queryArg = mockQuery.mock.calls.at(-1)?.[0]
+    const postToolUseHook = queryArg?.options?.hooks?.PostToolUse?.[0]?.hooks?.[0]
+    expect(typeof postToolUseHook).toBe('function')
+    // Fired after the stream ran, the hook hands the callback the occupancy the
+    // usage translation left behind (input + cache read + cache creation) and
+    // returns its line as additionalContext.
+    const output = await postToolUseHook!(
+      {
+        hook_event_name: 'PostToolUse',
+        session_id: 'sdk-7',
+        transcript_path: '',
+        cwd: '/work/demo',
+        tool_name: 'Read',
+        tool_input: {},
+        tool_response: 'ok',
+        tool_use_id: 'tu-1',
+      } as never,
+      undefined,
+      { signal: new AbortController().signal },
+    )
+    expect(seen).toEqual([{ usedTokens: 900_000, model: null }])
+    expect(output).toEqual({
+      hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'nudge' },
+    })
+  })
+
   it('binds a PostCompact capture hook into query() when onCompaction is provided (Q2)', async () => {
     installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
     const captured: Array<{ sdkSessionId: string; summary: string }> = []

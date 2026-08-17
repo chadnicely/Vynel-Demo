@@ -18,6 +18,12 @@
 // The runner contract types (`GlobalRootTarget`, the deps + input) live in
 // `session-types.ts` — the runtime's type surface (file-size cap split).
 //
+// CHECKPOINT + AUTO-CONTINUE (session-continuity §4.6): the turn runs inside
+// `runTurnWithContinuations` — when the model checkpointed (its context was
+// nearly full), the boundary swap lands and a continuation turn runs on the
+// fresh head, still under the same lock and into the same sink; the sink sees
+// `… context-patched → user-message-persisted (the continuation's row) → …`.
+//
 // SERIALIZED PER USER (brain-tree Ch4): the WHOLE turn runs under
 // `runUnderRootTurnLock`. There is ONE root SDK session per user; a web turn racing
 // a channel turn would clobber the session-swap write. The lock lives HERE and is
@@ -25,10 +31,22 @@
 // promise-chain serializer, so a nested same-user acquire would deadlock).
 
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
-import { consumeSessionEventStream, attachedImagesMetadataFor } from '@vynel/chat'
-import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import {
+  consumeSessionEventStream,
+  attachedImagesMetadataFor,
+  type ChatTurnEvent,
+} from '@vynel/chat'
+import type { AiAgentProvider } from '@vynel/providers'
+import {
+  buildCompactionCapture,
+  buildContextNudge,
+  linkPrimarySessionToSdkSession,
+} from '../continuity/index.js'
 import { withBoundaryContinuity } from './with-boundary-continuity.js'
+import { runTurnWithContinuations } from './run-turn-with-continuations.js'
+import type { ContinuationTurn } from './continuation-turn.js'
 import type {
+  GlobalRootTarget,
   RunGlobalRootTurnCoreDeps,
   RunGlobalRootTurnCoreInput,
   SessionSink,
@@ -71,127 +89,25 @@ export async function runGlobalRootTurnCore(
       // SDK cwd (and ensure the dir exists). INSIDE the lock — it reads
       // `currentSdkSessionId`, so a wrapper around only the loop would resume stale.
       const target = await deps.resolveTarget()
-
       const provider = deps.provider ?? resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
-      const resumeSessionId = target.resumeSdkSessionId ?? undefined
 
-      // The PROVIDER input — the clean text plus the per-message decorations
-      // (delegation catch-up, voice/channel markers); the persister below keeps
-      // the clean original. See `composeGlobalRootProviderMessage`.
-      const providerUserMessageText = composeGlobalRootProviderMessage(deps.db, {
-        userId: input.userId,
-        userMessageText: input.userMessageText,
-        ...(input.voice === true ? { voice: true } : {}),
-        ...(input.channelReplyMarker !== undefined
-          ? { channelReplyMarker: input.channelReplyMarker }
-          : {}),
-      })
-
-      const attachedImages = input.attachedImages ?? []
-
-      const sessionEventStream = provider.startChatSession({
-        workspacePath: target.workspacePath,
-        ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
-        userMessageText: providerUserMessageText,
-        ...(attachedImages.length > 0 ? { attachedImages } : {}),
-        ...(input.model !== undefined ? { model: input.model } : {}),
-        ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
-        permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
-        // Empty native allowlist; the MCP servers register below and their
-        // calls gate through the provider's canUseTool policy map. The
-        // manager has no native tools.
-        allowedToolNames: [],
-        deniedToolNames: input.deniedMcpToolPatterns,
-        // SDK widening at the chat boundary — `StartChatSessionInput.mcpServers` is
-        // `Record<string, unknown>`; the provider casts back at the SDK edge.
-        mcpServers: input.mcpServers,
-        // A feature's declared mutating tools card even under bypass (additive to
-        // the static floor) — what makes the desktop act_on_app card once enabled.
-        ...(input.mutatingToolNames.length > 0
-          ? { alwaysRequireApprovalToolNames: input.mutatingToolNames }
-          : {}),
-        ...(input.askModeApprovalToolNames.length > 0
-          ? { askModeApprovalToolNames: input.askModeApprovalToolNames }
-          : {}),
-        ...(input.agents !== undefined && Object.keys(input.agents).length > 0
-          ? { agents: input.agents }
-          : {}),
-        systemPromptAppend: buildSystemPromptAppend(input),
-        logger: deps.logger,
-        // Layer-1 capture (session.compacted) — the same hook the workspace
-        // turn binds, so an SDK auto-compaction on the brain is recorded too.
-        onCompaction: buildCompactionCapture(deps.db, { logger: deps.logger }),
-        ...(input.onModelsDiscovered !== undefined
-          ? { onModelsDiscovered: input.onModelsDiscovered }
-          : {}),
-      })
-
-      // Persist this turn's messages + translate to ChatTurnEvent through the ONE
-      // shared path (the session unification). workspaceId null + scope 'global' (the
-      // brain is the session ABOVE all workspaces); the brain's presentation (hidden,
-      // 'Global brain', no auto-title) via newSessionOptions. The brain now persists
-      // EVERYTHING a workspace session does — text, thinking, TOOL CALLS, usage — and
-      // the sink receives the same `ChatTurnEvent` the workspace chat does, which is
-      // what makes the brain chat render tool calls + thinking. The CLEAN user message
-      // (NOT the catch-up block) is the persisted body.
-      const turnStream = consumeSessionEventStream({
-        db: deps.db,
-        sessionEventStream,
-        userMessageInput: {
-          id: crypto.randomUUID(),
-          body: input.userMessageText,
-          attachedImagesMetadata: attachedImagesMetadataFor(attachedImages),
-          ...(attachedImages.length > 0 ? { attachedImages } : {}),
-          ...(input.originChannel !== undefined
-            ? { originChannel: input.originChannel }
-            : {}),
-        },
-        userId: input.userId,
-        workspaceId: null,
-        // The root's hidden user-data cwd — attachment bytes persist under its
-        // D22 transcripts layout so a reopened brain thread can re-display them.
-        workspacePath: target.workspacePath,
-        providerId: DEFAULT_PROVIDER_ID,
-        isNewSession: resumeSessionId === undefined,
-        // Durability-first: a resumed turn's user row persists before provider
-        // startup (the unbounded hang point), so a stuck start never loses it.
-        ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
-        newSessionOptions: { visibility: 'hidden', title: 'Global brain', skipAutoTitle: true },
-        // The notify-turn attribution (session-comms) — absent on every other
-        // turn, so the shipped rows stay byte-for-byte.
-        ...(input.messageAttribution !== undefined
-          ? { messageAttribution: input.messageAttribution }
-          : {}),
+      // The genuine turn on the resolved head; each automatic continuation
+      // re-resolves the head — the checkpoint's boundary swap moved it.
+      const turnStream = runTurnWithContinuations({
+        primarySessionId: target.primarySessionId,
+        runTurn: (continuation) =>
+          continuation === null
+            ? runOneGlobalTurn(deps, input, provider, target, null)
+            : continueGlobalTurn(deps, input, provider, continuation),
+        ...(input.autoContinue !== undefined ? { autoContinue: input.autoContinue } : {}),
         logger: deps.logger,
       })
-
-      // Continuity at the turn boundary rides the stream — STILL under the
-      // per-user lock, so a swap is serialized ahead of the brain's next turn
-      // (the same one wrapper the workspace stream and the routed runners use).
-      // Reads the segment's persisted occupancy; at ≥ 0.85 it announces
-      // `context-patching`, distills + seed-fresh swaps, then `context-patched`
-      // — the next turn resumes the fresh segment. Best-effort inside: the
-      // turn already streamed, a failure is logged, never surfaced.
-      const continuedStream = withBoundaryContinuity(
-        turnStream,
-        {
-          primarySessionId: target.primarySessionId,
-          priorSdkSessionId: target.resumeSdkSessionId,
-          userId: input.userId,
-          workspacePath: target.workspacePath,
-          providerId: DEFAULT_PROVIDER_ID,
-          ...(input.pressureThreshold !== undefined
-            ? { threshold: input.pressureThreshold }
-            : {}),
-        },
-        { db: deps.db, logger: deps.logger, provider },
-      )
       // Tee onto the session's live channel when a broadcaster is wired —
       // the brain's turns are watchable like any other (Slice ③).
       const observedStream =
         deps.turnEvents !== undefined
-          ? publishTurnEventsToSessionChannel(continuedStream, deps.turnEvents)
-          : continuedStream
+          ? publishTurnEventsToSessionChannel(turnStream, deps.turnEvents)
+          : turnStream
       for await (const event of observedStream) {
         // Link the root to the SDK session whenever a NEW (or compaction-swapped)
         // segment is created — `session-created` fires only on the new-session branch,
@@ -222,4 +138,158 @@ export async function runGlobalRootTurnCore(
       throw err
     }
   }
+}
+
+/** A continuation resumes the head the checkpoint's swap produced — re-read
+ *  inside the lock, exactly like the genuine turn's resolve. */
+async function* continueGlobalTurn(
+  deps: RunGlobalRootTurnCoreDeps,
+  input: RunGlobalRootTurnCoreInput,
+  provider: AiAgentProvider,
+  continuation: ContinuationTurn,
+): AsyncIterable<ChatTurnEvent> {
+  const head = await deps.resolveTarget()
+  yield* runOneGlobalTurn(deps, input, provider, head, continuation)
+}
+
+/**
+ * ONE provider turn on `target` — the genuine turn (`continuation` null) or an
+ * automatic continuation — persisted through the shared consumer and wrapped in
+ * the boundary continuity step. Yields the turn's events; the caller drives the
+ * sink.
+ */
+async function* runOneGlobalTurn(
+  deps: RunGlobalRootTurnCoreDeps,
+  input: RunGlobalRootTurnCoreInput,
+  provider: AiAgentProvider,
+  target: GlobalRootTarget,
+  continuation: ContinuationTurn | null,
+): AsyncIterable<ChatTurnEvent> {
+  const resumeSessionId = target.resumeSdkSessionId ?? undefined
+
+  // The PROVIDER input — the clean text plus the per-message decorations
+  // (delegation catch-up, voice/channel markers); the persister below keeps
+  // the clean original. See `composeGlobalRootProviderMessage`. A continuation
+  // hands the model its fuller instruction and persists its short anchor row.
+  const providerUserMessageText = composeGlobalRootProviderMessage(deps.db, {
+    userId: input.userId,
+    userMessageText: continuation?.providerText ?? input.userMessageText,
+    ...(input.voice === true ? { voice: true } : {}),
+    ...(input.channelReplyMarker !== undefined
+      ? { channelReplyMarker: input.channelReplyMarker }
+      : {}),
+  })
+  const persistedUserMessageText = continuation?.persistedBody ?? input.userMessageText
+  const messageAttribution = continuation?.attribution ?? input.messageAttribution
+
+  // Attachments ride the genuine turn only.
+  const attachedImages = continuation === null ? (input.attachedImages ?? []) : []
+
+  const sessionEventStream = provider.startChatSession({
+    workspacePath: target.workspacePath,
+    ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
+    userMessageText: providerUserMessageText,
+    ...(attachedImages.length > 0 ? { attachedImages } : {}),
+    ...(input.model !== undefined ? { model: input.model } : {}),
+    ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+    permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
+    // Empty native allowlist; the MCP servers register below and their
+    // calls gate through the provider's canUseTool policy map. The
+    // manager has no native tools.
+    allowedToolNames: [],
+    deniedToolNames: input.deniedMcpToolPatterns,
+    // SDK widening at the chat boundary — `StartChatSessionInput.mcpServers` is
+    // `Record<string, unknown>`; the provider casts back at the SDK edge.
+    mcpServers: input.mcpServers,
+    // A feature's declared mutating tools card even under bypass (additive to
+    // the static floor) — what makes the desktop act_on_app card once enabled.
+    ...(input.mutatingToolNames.length > 0
+      ? { alwaysRequireApprovalToolNames: input.mutatingToolNames }
+      : {}),
+    ...(input.askModeApprovalToolNames.length > 0
+      ? { askModeApprovalToolNames: input.askModeApprovalToolNames }
+      : {}),
+    ...(input.agents !== undefined && Object.keys(input.agents).length > 0
+      ? { agents: input.agents }
+      : {}),
+    systemPromptAppend: buildSystemPromptAppend(input),
+    logger: deps.logger,
+    // Layer-1 capture (session.compacted) — the same hook the workspace
+    // turn binds, so an SDK auto-compaction on the brain is recorded too.
+    onCompaction: buildCompactionCapture(deps.db, { logger: deps.logger }),
+    // The mid-turn context nudge — armed at the same threshold the
+    // boundary swap uses (§4.6): the model learns it is near the limit
+    // and checkpoints instead of running into it. Not on a delivery turn
+    // (nothing to continue).
+    ...(input.autoContinue !== false
+      ? {
+          onToolResultContext: buildContextNudge(
+            input.pressureThreshold !== undefined ? { threshold: input.pressureThreshold } : {},
+          ),
+        }
+      : {}),
+    ...(input.onModelsDiscovered !== undefined
+      ? { onModelsDiscovered: input.onModelsDiscovered }
+      : {}),
+  })
+
+  // Persist this turn's messages + translate to ChatTurnEvent through the ONE
+  // shared path (the session unification). workspaceId null + scope 'global' (the
+  // brain is the session ABOVE all workspaces); the brain's presentation (hidden,
+  // 'Global brain', no auto-title) via newSessionOptions. The brain now persists
+  // EVERYTHING a workspace session does — text, thinking, TOOL CALLS, usage — and
+  // the sink receives the same `ChatTurnEvent` the workspace chat does, which is
+  // what makes the brain chat render tool calls + thinking. The CLEAN user message
+  // (NOT the catch-up block) is the persisted body.
+  const turnStream = consumeSessionEventStream({
+    db: deps.db,
+    sessionEventStream,
+    userMessageInput: {
+      id: crypto.randomUUID(),
+      body: persistedUserMessageText,
+      attachedImagesMetadata: attachedImagesMetadataFor(attachedImages),
+      ...(attachedImages.length > 0 ? { attachedImages } : {}),
+      ...(input.originChannel !== undefined
+        ? { originChannel: input.originChannel }
+        : {}),
+    },
+    userId: input.userId,
+    workspaceId: null,
+    // The root's hidden user-data cwd — attachment bytes persist under its
+    // D22 transcripts layout so a reopened brain thread can re-display them.
+    workspacePath: target.workspacePath,
+    providerId: DEFAULT_PROVIDER_ID,
+    isNewSession: resumeSessionId === undefined,
+    // Durability-first: a resumed turn's user row persists before provider
+    // startup (the unbounded hang point), so a stuck start never loses it.
+    ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
+    newSessionOptions: { visibility: 'hidden', title: 'Global brain', skipAutoTitle: true },
+    // The notify-turn attribution (session-comms) / the continuation's
+    // relayed-anchor stamp — absent on every other turn, so the shipped
+    // rows stay byte-for-byte.
+    ...(messageAttribution !== undefined ? { messageAttribution } : {}),
+    logger: deps.logger,
+  })
+
+  // Continuity at the turn boundary rides the stream — STILL under the
+  // per-user lock, so a swap is serialized ahead of the brain's next turn
+  // (the same one wrapper the workspace stream and the routed runners use).
+  // Reads the segment's persisted occupancy; at ≥ 0.85 it announces
+  // `context-patching`, distills + seed-fresh swaps, then `context-patched`
+  // — the next turn resumes the fresh segment. Best-effort inside: the
+  // turn already streamed, a failure is logged, never surfaced.
+  yield* withBoundaryContinuity(
+    turnStream,
+    {
+      primarySessionId: target.primarySessionId,
+      priorSdkSessionId: target.resumeSdkSessionId,
+      userId: input.userId,
+      workspacePath: target.workspacePath,
+      providerId: DEFAULT_PROVIDER_ID,
+      ...(input.pressureThreshold !== undefined
+        ? { threshold: input.pressureThreshold }
+        : {}),
+    },
+    { db: deps.db, logger: deps.logger, provider },
+  )
 }

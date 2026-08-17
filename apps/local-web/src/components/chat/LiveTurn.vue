@@ -3,6 +3,7 @@ import { computed } from "vue";
 import {
   ApprovalCard,
   ClaudeMark,
+  MessageRow,
   ThinkingBlock,
   ToolCallList,
   MarkdownText,
@@ -10,7 +11,11 @@ import {
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
 import { deriveActionKind } from "@vynel/approvals/action-kind";
-import type { ActiveTurnView } from "../../composables/chat/active-turn-view.js";
+import type {
+  ActiveTurnContinuation,
+  ActiveTurnSegment,
+  ActiveTurnView,
+} from "../../composables/chat/active-turn-view.js";
 import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
 
 // The in-flight turn: everything the assistant is doing RIGHT NOW —
@@ -39,6 +44,43 @@ const lastSegmentId = computed(
   () => props.view.segments.at(-1)?.messageId ?? null,
 );
 
+// The overlay's rows in order: the segments, with each automatic
+// continuation's anchor row ("Continuing after patching context — next: …")
+// placed before the segment its output starts at — after every segment while
+// it has produced none yet. The settled thread will read the same.
+type LiveRow =
+  | { key: string; kind: "segment"; segment: ActiveTurnSegment }
+  | { key: string; kind: "continuation"; continuation: ActiveTurnContinuation };
+function continuationRowsAt(index: number): LiveRow[] {
+  return props.view.continuations
+    .filter((continuation) => continuation.atSegmentIndex === index)
+    .map((continuation) => ({
+      key: continuation.userMessage.id,
+      kind: "continuation" as const,
+      continuation,
+    }));
+}
+const liveRows = computed<LiveRow[]>(() => {
+  const rows: LiveRow[] = [];
+  props.view.segments.forEach((segment, index) => {
+    rows.push(...continuationRowsAt(index));
+    rows.push({ key: segment.messageId, kind: "segment", segment });
+  });
+  // Started continuations with no output yet — after every segment (a
+  // continuation is recorded at the segment count of its moment, and
+  // segments only grow, so none can sit past the end).
+  rows.push(...continuationRowsAt(props.view.segments.length));
+  return rows;
+});
+// What the chip says the assistant is doing — "continuing" names an
+// automatic continuation after a checkpoint (the swap landed, work goes on).
+const liveChipLabel = computed(() => {
+  if (props.view.isThinkingLive) return "thinking";
+  return props.view.contextPatch?.phase === "continuing"
+    ? "continuing"
+    : "working";
+});
+
 // How long this turn has been running — ticks beside "working" so a long run
 // reads as alive, not frozen (shared clock: the thread's working pill reads
 // the same composable).
@@ -65,40 +107,45 @@ const elapsedLabel = useTickingElapsed(
 
     <!-- One block per assistant message, in arrival order — the SAME
          thinking → text → tool-calls shape MessageRow gives the settled row,
-         so the thread never reformats when the turn completes. -->
-    <div
-      v-for="segment in props.view.segments"
-      :key="segment.messageId"
-      class="segment"
-    >
-      <ThinkingBlock
-        v-if="segment.thinking"
-        :text="segment.thinking"
-        :streaming="
-          props.view.isThinkingLive && segment.messageId === lastSegmentId
-        "
+         so the thread never reformats when the turn completes. A
+         continuation's anchor row sits where its output begins. -->
+    <template v-for="row in liveRows" :key="row.key">
+      <MessageRow
+        v-if="row.kind === 'continuation'"
+        :message="row.continuation.userMessage"
+        class="continuation-row"
       />
-
-      <div v-if="segment.text" class="answer">
-        <!-- The SAME reply voice MessageRow gives the settled row: the thread
-             must not reformat when the turn completes. -->
-        <MarkdownText variant="reply" :source="segment.text" />
-        <span
-          v-if="
-            props.view.status === 'streaming' &&
-            segment.messageId === lastSegmentId
+      <div v-else class="segment">
+        <ThinkingBlock
+          v-if="row.segment.thinking"
+          :text="row.segment.thinking"
+          :streaming="
+            props.view.isThinkingLive &&
+            row.segment.messageId === lastSegmentId
           "
-          class="stream-cursor"
-          aria-hidden="true"
+        />
+
+        <div v-if="row.segment.text" class="answer">
+          <!-- The SAME reply voice MessageRow gives the settled row: the
+               thread must not reformat when the turn completes. -->
+          <MarkdownText variant="reply" :source="row.segment.text" />
+          <span
+            v-if="
+              props.view.status === 'streaming' &&
+              row.segment.messageId === lastSegmentId
+            "
+            class="stream-cursor"
+            aria-hidden="true"
+          />
+        </div>
+
+        <ToolCallList
+          v-if="row.segment.toolCalls.length > 0"
+          :tool-calls="row.segment.toolCalls"
+          :agent-activity="props.view.agentActivity"
         />
       </div>
-
-      <ToolCallList
-        v-if="segment.toolCalls.length > 0"
-        :tool-calls="segment.toolCalls"
-        :agent-activity="props.view.agentActivity"
-      />
-    </div>
+    </template>
 
     <template
       v-for="approval in props.view.approvals"
@@ -128,8 +175,7 @@ const elapsedLabel = useTickingElapsed(
          a quiet "done" through the settle window instead of vanishing. -->
     <p v-if="props.view.status === 'streaming'" class="live-status">
       <span class="live-chip"
-        >{{ props.view.isThinkingLive ? "thinking" : "working" }} ·
-        {{ elapsedLabel }}</span
+        >{{ liveChipLabel }} · {{ elapsedLabel }}</span
       >
     </p>
     <!-- The turn is done but its conversation is being continued on a fresh
@@ -148,6 +194,12 @@ const elapsedLabel = useTickingElapsed(
 .live-turn {
   display: grid;
   gap: 8px;
+}
+
+/* The continuation anchor row reads like its settled MessageRow will —
+   the same component; only the live card's rhythm around it is ours. */
+.continuation-row {
+  margin-top: 6px;
 }
 
 .segment {

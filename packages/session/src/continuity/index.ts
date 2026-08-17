@@ -58,6 +58,28 @@ export {
   type SessionSwappingEventPayload,
 } from './session-continuity-events.js'
 
+// The mid-turn context nudge (the provider's PostToolUse channel) + the
+// pending-checkpoint register the `checkpoint` tool writes and the runners
+// consume for the automatic continuation.
+export {
+  buildContextNudge,
+  composeContextNudgeText,
+  type ContextNudgeInput,
+  type LiveContextState,
+} from './context-nudge.js'
+export {
+  markPendingCheckpoint,
+  peekPendingCheckpoint,
+  takePendingCheckpoint,
+  beginContinuation,
+  beginGenuineTurn,
+  markContinuationJob,
+  takeContinuationJob,
+  clearPendingCheckpoint,
+  MAX_CONSECUTIVE_CONTINUATIONS,
+  type PendingCheckpoint,
+} from './pending-checkpoints.js'
+
 // The process-wide "swapping right now" register — the streams read it when
 // a turn parks behind an identity's lock (say "patching context", not "busy").
 export {

@@ -17,7 +17,7 @@
 // leaf's fail-closed denial — a colleague turn is a routed turn like any
 // other; `permissionMode` threads from the job row.
 
-import { withTransaction, type Database } from '@vynel/db'
+import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import {
   ApprovalWaitGate,
@@ -47,7 +47,14 @@ import {
 import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
-import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
+import {
+  CONTINUATION_TASK_INSTRUCTIONS,
+  type RoutedTurnMcpAttachment,
+} from './routed-turn-provider-input.js'
+import {
+  beginDelegatedTurn,
+  enqueueCheckpointContinuation,
+} from './enqueue-checkpoint-continuation.js'
 
 export interface RunAgentRunJobDeps {
   provider: AiAgentProvider
@@ -212,6 +219,15 @@ export async function runAgentRunJob(
     })
 
     const turnEvents = deps.turnEvents
+    // Auto-continue (session-continuity §4.6): a follow-up run CONTINUES the
+    // colleague's own checkpoint (the guard keeps counting; the continuation
+    // steer); a genuine mention resets the guard and drops a stale checkpoint.
+    const delegatedTurn = beginDelegatedTurn(
+      db,
+      claimed,
+      { logger: deps.logger },
+      { primarySessionId: colleague.id },
+    )
     const outcome = await routeRequest(
       {
         userId: claimed.userId,
@@ -258,6 +274,9 @@ export async function runAgentRunJob(
                 ? { model: agent.model }
                 : {}),
             ...(claimed.thinkingEffort !== null ? { thinkingEffort: claimed.thinkingEffort } : {}),
+            ...(delegatedTurn.continuation !== null
+              ? { steerInstructions: CONTINUATION_TASK_INSTRUCTIONS }
+              : {}),
             ...(mcpAttachment !== undefined ? { mcpAttachment } : {}),
             approvalHandler: handler,
             ...(turnEvents !== undefined ? { turnEvents } : {}),
@@ -302,6 +321,21 @@ export async function runAgentRunJob(
         { jobId: claimed.id, resultPreview: outcome.result.slice(0, 120) },
         'agent-run: completed — the colleague speaks for itself (no harvest)',
       )
+      // The colleague checkpointed mid-task: enqueue the follow-up run that
+      // continues it on the fresh head. Best-effort — the job is complete.
+      try {
+        enqueueCheckpointContinuation(
+          db,
+          claimed,
+          { logger: deps.logger },
+          { primarySessionId: colleague.id },
+        )
+      } catch (err) {
+        deps.logger.warn(
+          { err, jobId: claimed.id },
+          'failed to enqueue the checkpoint continuation (the run is still completed)',
+        )
+      }
     } else if (outcome.status === 'timed-out') {
       activityHandle.end('failed')
       await approvalHandler.abandonParked()

@@ -20,12 +20,15 @@ import {
   findDelegationJobById,
   claimNextPendingDelegationJob,
 } from '@vynel/orchestration'
-import { getOrCreateContinuingSession } from '../continuity/index.js'
+import { getOrCreateContinuingSession, markPendingCheckpoint } from '../continuity/index.js'
 import { findPrimarySessionById } from '../repositories/index.js'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tick.js'
 import { SessionActivityFeed } from '../runtime/session-activity-feed.js'
-import { ROUTED_TASK_INSTRUCTIONS } from './routed-turn-provider-input.js'
+import {
+  CONTINUATION_TASK_INSTRUCTIONS,
+  ROUTED_TASK_INSTRUCTIONS,
+} from './routed-turn-provider-input.js'
 
 const silentLogger = { info() {}, warn() {}, error() {}, debug() {} } as unknown as Logger
 
@@ -152,6 +155,65 @@ describe('agent-run jobs (persona-sessions)', () => {
       // THE RETIREMENT: a completed colleague turn enqueues NO delivery — its
       // spoken send_message is the only report path.
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
+    })
+  })
+
+  it('a colleague that CHECKPOINTS mid-run continues as an agent-run follow-up on itself (the delegated auto-continue)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      await makeReviewerAgent(db, user.id)
+      const colleague = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        workspaceId: workspace.id,
+        scopeRef: 'code-reviewer',
+      })
+      const jobId = enqueueAgentRun(db, {
+        userId: user.id,
+        parentSessionId: 'ws-primary-sdk',
+        agentSlug: 'code-reviewer',
+        agentName: 'Code Reviewer',
+        taskText: '@code-reviewer review the whole PR',
+        workspaceId: workspace.id,
+        runCwdPath: workspace.path,
+        targetPrimarySessionId: colleague.id,
+        requesterWorkspaceId: workspace.id,
+      })
+      const turnInputs: StartChatSessionInput[] = []
+      let runs = 0
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: 'colleague-sdk-ckpt',
+        resultText: 'Reviewed half — continuing after patching context.',
+        startChatSessionInputs: turnInputs,
+        // The colleague checkpoints on its FIRST run only (what the tool does).
+        onStartChatSession: () => {
+          runs += 1
+          if (runs === 1) markPendingCheckpoint(colleague.id, 'review the second half of the PR')
+        },
+      })
+      const tick = () =>
+        runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() })
+      expect(await tick()).toBe(true)
+      expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
+      // The follow-up agent-run job: claimed by the next tick, resuming the
+      // colleague with the short anchor + the CONTINUATION steer on top of the
+      // persona; the nudge stays armed.
+      expect(await tick()).toBe(true)
+      expect(await tick()).toBe(false)
+      expect(turnInputs).toHaveLength(2)
+      expect(turnInputs[1]!.resumeSessionId).toBe('colleague-sdk-ckpt')
+      expect(turnInputs[1]!.userMessageText).toBe('Continuing after patching context — next: review the second half of the PR')
+      expect(turnInputs[1]!.systemPromptAppend).toContain('You are "Code Reviewer"')
+      expect(turnInputs[1]!.systemPromptAppend).toContain(CONTINUATION_TASK_INSTRUCTIONS)
+      expect(turnInputs[1]!.onToolResultContext).toBeDefined()
+      const messages = listChatMessagesForSession(db, 'colleague-sdk-ckpt')
+      expect(messages.map((m) => [m.role, m.body])).toEqual([
+        ['user', '@code-reviewer review the whole PR'],
+        ['assistant', 'Reviewed half — continuing after patching context.'],
+        ['user', 'Continuing after patching context — next: review the second half of the PR'],
+        ['assistant', 'Reviewed half — continuing after patching context.'],
+      ])
     })
   })
 

@@ -155,4 +155,9 @@ export interface RunGlobalRootTurnCoreInput {
    *  0.85). The apps edge forwards `VYNEL_CONTEXT_PRESSURE_THRESHOLD` (the
    *  live-smoke knob) — the core stays env-free. */
   pressureThreshold?: number
+  /** False for a DELIVERY turn (a report / update / note the root absorbs —
+   *  never work): no mid-turn context nudge, and a checkpoint the model still
+   *  leaves is dropped instead of continued (session-continuity §4.6). Omit
+   *  (true) for every genuine turn — the user's, a channel's. */
+  autoContinue?: boolean
 }

@@ -153,3 +153,16 @@ export function routedTurnMcpSessionFields(
       : {}),
   }
 }
+
+// The CONTINUATION steer (session-continuity §4.6) — a follow-up job that
+// continues the target's OWN checkpointed work after a context swap: the
+// inbound row is Vynel's short anchor ("Continuing after patching context —
+// next: …"), not a new task from anyone. The routed-task rules still apply
+// underneath (brief updates, ONE final report to the requester when done).
+export const CONTINUATION_TASK_INSTRUCTIONS =
+  'This message is from Vynel, not the user or your requester: it continues YOUR OWN task. You ' +
+  'checkpointed because your context was nearly full; the conversation was continued on a fresh ' +
+  'context (the hand-off you were seeded with is your own) and the message names the next step. ' +
+  'Continue from that checkpoint now — do not restart finished work, and do not treat the original ' +
+  'task as new. If your context fills again, finish the slice you are on and checkpoint again.\n\n' +
+  ROUTED_TASK_INSTRUCTIONS

@@ -412,6 +412,9 @@ export async function runGlobalRootTurn(
         ...(input.steerPromptAppend !== undefined
           ? { steerPromptAppend: input.steerPromptAppend }
           : {}),
+        // A delivery turn (a child's report / update absorbed by the root)
+        // is never work: no context nudge, no automatic continuation.
+        ...(input.inboundAttribution !== undefined ? { autoContinue: false } : {}),
         mcpServers: composedMcp.mcpServers,
         deniedMcpToolPatterns: composedMcp.deniedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,

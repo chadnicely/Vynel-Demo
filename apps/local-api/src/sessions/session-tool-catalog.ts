@@ -37,8 +37,9 @@ import {
 import { bakedToolPolicyDefaults } from './baked-tool-policy-defaults.js'
 
 /** The servers a surface kind composes (the read model; see file header).
- *  `vynel-session` (`whoami`) rides EVERY kind — self-knowledge is a property
- *  of every session (continuity arc requirement 2), so no surface may lack it. */
+ *  `vynel-session` (`whoami` + `checkpoint`) rides EVERY kind — self-knowledge
+ *  and the checkpoint-to-continue are properties of every session (continuity
+ *  arc requirement 2), so no surface may lack them. */
 export const SURFACE_DESCRIPTOR_SETS: Readonly<Record<SessionSurfaceKind, readonly string[]>> = {
   'global-interactive': ['vynel', 'vynel-notebook', 'vynel-session', 'vynel-ask', 'desktop', 'vynel-ssh'],
   // vynel-ask rides channel turns BOUNDED (the ask slice): the Telegram
@@ -126,7 +127,7 @@ const FIXED_SERVERS: readonly FixedServer[] = [
   {
     // Every surface — derived from the map so the two can never drift.
     serverName: 'vynel-session',
-    toolNames: ['mcp__vynel-session__whoami'],
+    toolNames: ['mcp__vynel-session__whoami', 'mcp__vynel-session__checkpoint'],
     surfaces: Object.entries(SURFACE_DESCRIPTOR_SETS)
       .filter(([, servers]) => servers.includes('vynel-session'))
       .map(([kind]) => kind as SessionSurfaceKind),

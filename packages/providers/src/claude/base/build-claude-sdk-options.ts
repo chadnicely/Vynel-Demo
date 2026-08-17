@@ -54,6 +54,12 @@ export type BuildClaudeSdkOptionsInput = {
    */
   postCompactHook?: HookCallback
   /**
+   * Optional PostToolUse hook (session-continuity's mid-turn context channel):
+   * delivers a line of `additionalContext` to the model after a tool result.
+   * Built + bound per-session by the caller (`buildClaudePostToolUseHook`).
+   */
+  postToolUseHook?: HookCallback
+  /**
    * Per-turn feature mutating tools, forwarded to the PreToolUse backstop and
    * UNIONED with the static floor there. ADDITIVE; the floor always cards.
    */
@@ -146,6 +152,11 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
       // site as PreToolUse, per the session-continuity brief.
       ...(input.postCompactHook !== undefined
         ? { PostCompact: [{ hooks: [input.postCompactHook] }] }
+        : {}),
+      // Session-continuity's mid-turn nudge: a line of context after a tool
+      // result. Only registered when the caller supplied the callback.
+      ...(input.postToolUseHook !== undefined
+        ? { PostToolUse: [{ hooks: [input.postToolUseHook] }] }
         : {}),
     },
   }

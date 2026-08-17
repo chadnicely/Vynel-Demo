@@ -9,6 +9,24 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A long task no longer stops at the context limit — the assistant checkpoints
+  and continues by itself.** While a conversation is working (a long agentic
+  turn), Vynel now tells the model, beside a tool result, when it has crossed
+  the hand-off point — how much room is left in tokens, not just a percentage
+  — and asks it to finish the slice it is on, name the single next step with a
+  new `checkpoint` tool, and end the turn with a one-line note to you
+  ("I'll continue after patching context"). The usual hand-off then runs
+  (visibly: "patching context"), and Vynel starts the next turn itself on the
+  fresh context — no message from you needed — with a short "Continuing after
+  patching context — next: …" row in the thread and the pill reading
+  "continuing". Works the same for the global assistant, project chats,
+  spawned sessions and agent colleagues; a delegated background task
+  continues as a follow-up job on the same task. Only a checkpointed turn
+  continues automatically (an idle conversation or a finished task never
+  restarts on its own), a runaway is capped at three continuations in a row,
+  and the hand-off itself now names the checkpoint's next step so nothing is
+  lost even if the continuation cannot run.
+
 - **You can see a conversation continue onto a fresh context.** When a long
   conversation is handed off to a fresh context, the chat now says so for
   those seconds — a "patching context" chip where "done" would sit, the

@@ -104,6 +104,61 @@ describe("LiveTurn live status line", () => {
   });
 });
 
+describe("LiveTurn automatic continuation (checkpoint + auto-continue)", () => {
+  it("places the continuation's anchor row where its output begins and says continuing at the live edge", () => {
+    const anchorRow = {
+      id: "u2",
+      sessionId: "seg-b",
+      role: "user",
+      sourceKind: "global-root",
+      sourceLabel: null,
+      body: "Continuing after patching context — next: sum the July receipts",
+      createdAt: "2026-08-18T10:05:00.000Z",
+    } as never;
+    const wrapper = mount(LiveTurn, {
+      props: {
+        view: {
+          ...createActiveTurnView(),
+          segments: [
+            { messageId: "m1", text: "Stopping here to swap.", thinking: "", toolCalls: [] },
+            { messageId: "m2", text: "Summing the July receipts…", thinking: "", toolCalls: [] },
+          ],
+          continuations: [{ userMessage: anchorRow, atSegmentIndex: 1 }],
+          contextPatch: { phase: "continuing", fromSessionId: "seg-a", toSessionId: "seg-b" },
+        },
+      },
+    });
+    // Order: turn-1 segment, the anchor row, the continuation's segment.
+    const rows = wrapper.findAll(".segment, .continuation-row");
+    expect(rows.map((row) => row.classes().includes("continuation-row"))).toEqual([false, true, false]);
+    expect(rows[1]!.text()).toContain("Continuing after patching context — next: sum the July receipts");
+    expect(wrapper.get(".live-status .live-chip").text()).toContain("continuing");
+  });
+
+  it("a just-started continuation with no output yet renders its anchor after every segment", () => {
+    const anchorRow = {
+      id: "u2",
+      sessionId: "seg-b",
+      role: "user",
+      sourceKind: "global-root",
+      sourceLabel: null,
+      body: "Continuing after patching context — next: keep going",
+      createdAt: "2026-08-18T10:05:00.000Z",
+    } as never;
+    const wrapper = mount(LiveTurn, {
+      props: {
+        view: {
+          ...createActiveTurnView(),
+          segments: [{ messageId: "m1", text: "Done with part one.", thinking: "", toolCalls: [] }],
+          continuations: [{ userMessage: anchorRow, atSegmentIndex: 1 }],
+        },
+      },
+    });
+    const rows = wrapper.findAll(".segment, .continuation-row");
+    expect(rows.map((row) => row.classes().includes("continuation-row"))).toEqual([false, true]);
+  });
+});
+
 describe("LiveTurn inline approval card", () => {
   it("derives the action kind so a shell command renders as danger", () => {
     const wrapper = mountWithApproval("Bash");

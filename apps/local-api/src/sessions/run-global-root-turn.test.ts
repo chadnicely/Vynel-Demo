@@ -320,6 +320,7 @@ describe("runGlobalRootTurn", () => {
     const coreInput = coreMock.mock.calls[0]?.[1] as {
       messageAttribution?: Record<string, unknown>;
       steerPromptAppend?: string;
+      autoContinue?: boolean;
     };
     expect(coreInput.messageAttribution).toEqual({
       userSourceKind: "workspace-manager",
@@ -327,6 +328,8 @@ describe("runGlobalRootTurn", () => {
       partialSessionId: "delivery-trace-1",
     });
     expect(coreInput.steerPromptAppend).toBe(REPORT_DELIVERY_INSTRUCTIONS);
+    // A delivery turn is never work: the core neither nudges nor continues it.
+    expect(coreInput.autoContinue).toBe(false);
   });
 
   it("a normal turn threads NEITHER notify field (the shipped core input, byte-for-byte)", async () => {
@@ -346,6 +349,8 @@ describe("runGlobalRootTurn", () => {
     const coreInput = coreMock.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(coreInput).not.toHaveProperty("messageAttribution");
     expect(coreInput).not.toHaveProperty("steerPromptAppend");
+    // …and stays a genuine turn: it may checkpoint + continue.
+    expect(coreInput).not.toHaveProperty("autoContinue");
   });
 
   it("buildGlobalRootReportTurnRunner runs ONE notify turn and returns the session id + reply", async () => {

@@ -276,6 +276,9 @@ const settledMessages = computed(() => {
   if (turn === null) return props.messages;
   const overlayIds = new Set(turn.segments.map((segment) => segment.messageId));
   if (turn.userMessage) overlayIds.add(turn.userMessage.id);
+  for (const continuation of turn.continuations) {
+    overlayIds.add(continuation.userMessage.id);
+  }
   return props.messages.filter((message) => !overlayIds.has(message.id));
 });
 
@@ -969,6 +972,21 @@ watch(
               <span class="status-pill-sep" aria-hidden="true" />
               <span class="status-pill-time">{{ workingElapsed }}</span>
             </template>
+          </span>
+          <!-- An automatic continuation after a checkpoint (session-continuity
+               §4.6): the swap landed and the work goes on — the pill says so. -->
+          <span
+            v-else-if="
+              props.activeTurn.status === 'streaming' &&
+              props.activeTurn.contextPatch?.phase === 'continuing' &&
+              workingElapsed
+            "
+            class="working-pill"
+          >
+            <Disc :size="13" class="working-disc" aria-hidden="true" />
+            <span class="working-label">{{ props.assistantName }} continuing</span>
+            <span class="working-sep" aria-hidden="true" />
+            <span class="working-time">{{ workingElapsed }}</span>
           </span>
           <span
             v-else-if="props.activeTurn.status === 'streaming' && workingElapsed"

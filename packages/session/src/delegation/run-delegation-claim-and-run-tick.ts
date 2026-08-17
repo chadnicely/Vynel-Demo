@@ -52,12 +52,17 @@ import * as primarySessionsRepository from '../repositories/index.js'
 import { resolveColleagueAgent } from './resolve-colleague-agent.js'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import {
+  CONTINUATION_TASK_INSTRUCTIONS,
   NOTE_DELIVERY_INSTRUCTIONS,
   type RoutedTurnMcpAttachment,
 } from './routed-turn-provider-input.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
 import { delegateToAgentSession } from './delegate-to-agent-session.js'
 import { runAgentRunJob } from './run-agent-run-job.js'
+import {
+  beginDelegatedTurn,
+  enqueueCheckpointContinuation,
+} from './enqueue-checkpoint-continuation.js'
 import { runReportDeliveryJob, type RunGlobalRootReportTurn } from './run-report-delivery-tick.js'
 import { resolveSpawnedSessionDisplayName } from './resolve-spawned-session-name.js'
 import {
@@ -545,6 +550,16 @@ export async function runDelegationClaimAndRunTick(
     // swaps to the absorb voice. Tasks keep the shipped shape byte-for-byte.
     const noteSenderLabel = claimed.workspaceName ?? 'A session'
     const noteSteer = isNote ? { steerInstructions: NOTE_DELIVERY_INSTRUCTIONS } : {}
+    // Auto-continue (session-continuity §4.6): a follow-up job CONTINUES its
+    // checkpoint (the runaway guard keeps counting; the run gets the
+    // continuation steer over the routed one); a genuine job resets the guard
+    // and drops a stale checkpoint. A note is never work — no context nudge.
+    const delegatedTurn = beginDelegatedTurn(db, claimed, { logger: deps.logger })
+    const continuationSteer =
+      delegatedTurn.continuation !== null
+        ? { steerInstructions: CONTINUATION_TASK_INSTRUCTIONS }
+        : {}
+    const nudgeArming = isNote ? { armContextNudge: false } : {}
     const delegate: DelegateForRouting =
       spawnedTargetId !== null && agentTarget !== null
         ? (delegationInput) =>
@@ -569,6 +584,8 @@ export async function runDelegationClaimAndRunTick(
                 ? { userSourceKind: 'workspace-manager', userSourceLabel: noteSenderLabel }
                 : { userSourceKind: 'global-root', userSourceLabel: originScopeLabel },
               ...noteSteer,
+              ...continuationSteer,
+              ...nudgeArming,
               ...sharedRunnerOptions,
               // The agent's own model backs the job's pick (job pick wins).
               ...(claimed.model === null && agentTarget.model !== null
@@ -596,6 +613,8 @@ export async function runDelegationClaimAndRunTick(
                     }
                   : { userSourceLabel: originScopeLabel }),
                 ...noteSteer,
+                ...continuationSteer,
+                ...nudgeArming,
                 ...sharedRunnerOptions,
               })
           : (delegationInput) =>
@@ -615,6 +634,8 @@ export async function runDelegationClaimAndRunTick(
                     }
                   : { userSourceLabel: originScopeLabel }),
                 ...noteSteer,
+                ...continuationSteer,
+                ...nudgeArming,
                 ...sharedRunnerOptions,
               })
 
@@ -730,6 +751,19 @@ export async function runDelegationClaimAndRunTick(
             'delegation surfaced-mark retry failed — the next root turn may echo the reply',
           )
         }
+      }
+
+      // Auto-continue (session-continuity §4.6): the model checkpointed
+      // because its context was nearly full — the boundary swap already ran
+      // inside the turn; enqueue the follow-up job that continues the work
+      // on the fresh head. Best-effort: the job is complete either way.
+      try {
+        enqueueCheckpointContinuation(db, claimed, { logger: deps.logger })
+      } catch (err) {
+        deps.logger.warn(
+          { err, jobId: claimed.id },
+          'failed to enqueue the checkpoint continuation (the job is still completed)',
+        )
       }
 
       // Ch4 (channel-aware OUTPUT): if a CHANNEL drove this delegation, deliver the reply

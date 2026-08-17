@@ -23,10 +23,18 @@ let nextSdkSessionId = 'sdk-smoke-1'
 // then the swap's priming session) and needs the turn to report its occupancy.
 const queuedSessionIds: string[] = []
 let usageTokensForTurn: number | null = null
+// Per-call usage (shifted; exhausted → usageTokensForTurn) — the auto-continue
+// case lands the turn pressured and its continuation relaxed.
+const queuedUsageTokens: Array<number | null> = []
 const startChatSessionInputs: StartChatSessionInput[] = []
+// A test's seam to act MID-TURN the way a tool would (mark a checkpoint on
+// the turn's identity) — the fake has no tools of its own.
+let onStartChatSession: ((input: StartChatSessionInput, ordinal: number) => void) | null = null
 function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
   startChatSessionInputs.push(input)
+  onStartChatSession?.(input, startChatSessionInputs.length)
   const sessionId = queuedSessionIds.shift() ?? nextSdkSessionId
+  const usageTokens = queuedUsageTokens.length > 0 ? queuedUsageTokens.shift()! : usageTokensForTurn
   async function* events(): AsyncIterable<NormalizedSessionEvent> {
     yield {
       kind: 'session-started',
@@ -41,13 +49,13 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
       textDelta: 'Hello from the fake provider.',
       isFinalChunk: true,
     }
-    if (usageTokensForTurn !== null) {
+    if (usageTokens !== null) {
       yield {
         kind: 'usage-reported',
         sessionId,
         messageId: 'assistant-m1',
         model: 'claude-haiku-4-5',
-        inputTokens: usageTokensForTurn,
+        inputTokens: usageTokens,
         outputTokens: 5,
       }
     }
@@ -75,6 +83,7 @@ import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/rep
 import {
   findPrimaryConversation,
   linkPrimarySessionToSdkSession,
+  markPendingCheckpoint,
 } from '@vynel/session/continuity'
 import { SessionTargetLocks } from '@vynel/session/delegation'
 import { createApp } from '../app.js'
@@ -87,7 +96,9 @@ beforeEach(() => {
   nextSdkSessionId = `sdk-${randomUUID()}`
   queuedSessionIds.length = 0
   usageTokensForTurn = null
+  queuedUsageTokens.length = 0
   startChatSessionInputs.length = 0
+  onStartChatSession = null
 })
 
 function seedWorld(db: Database) {
@@ -223,6 +234,51 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
       expect(primary!.currentSdkSessionId).toBe('sdk-ws-b')
       expect(findChatSessionById(db, 'sdk-ws-b')?.continuedFromSessionId).toBe('sdk-ws-a')
+    })
+  })
+
+  it('continueRoot: a CHECKPOINTED turn continues on the SAME stream after its swap — patched → the continuation row on the fresh head → its end → ended', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      // Three SDK starts, ONE request: the turn (A, pressured — the model
+      // checkpoints mid-turn), the swap's priming (B), the continuation (B, relaxed).
+      queuedSessionIds.push('sdk-ws-a', 'sdk-ws-b', 'sdk-ws-b')
+      queuedUsageTokens.push(190_000, null, 10_000)
+      onStartChatSession = (_input, ordinal) => {
+        if (ordinal !== 1) return
+        // What the `checkpoint` tool does when the model calls it: the
+        // primary exists before composition (whoami / checkpoint key on it).
+        const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
+        markPendingCheckpoint(primary!.id, 'sum the July receipts')
+      }
+      const app = createApp({ db, logger: silentLogger })
+
+      const frames = await (
+        await postTurn(app, workspace.id, { userMessageText: 'reconcile the receipts', continueRoot: true })
+      ).text()
+
+      // One stream: patching → patched onto B → the continuation's own user
+      // row → its completion → the single terminal frame.
+      const at = (marker: string) => frames.indexOf(marker)
+      const patchedAt = at('event: context-patched')
+      expect(patchedAt).toBeGreaterThan(at('event: context-patching'))
+      const continuationRowAt = frames.indexOf('event: user-message-persisted', patchedAt)
+      expect(continuationRowAt).toBeGreaterThan(patchedAt)
+      expect(frames.indexOf('event: session-completed', continuationRowAt)).toBeGreaterThan(continuationRowAt)
+      expect(at('event: turn-stream-ended')).toBeGreaterThan(continuationRowAt)
+      expect(frames.split('event: turn-stream-ended')).toHaveLength(2)
+      expect(frames).toContain('Continuing after patching context — next: sum the July receipts')
+
+      // The continuation RESUMED the fresh head with the instruction; its
+      // anchor row persisted on B, stamped as a relayed anchor (not the user).
+      expect(startChatSessionInputs).toHaveLength(3)
+      expect(startChatSessionInputs[2]?.resumeSessionId).toBe('sdk-ws-b')
+      expect(startChatSessionInputs[2]?.userMessageText).toContain('NEXT STEP: sum the July receipts')
+      const rowsOnB = listChatMessagesForSession(db, 'sdk-ws-b')
+      const anchor = rowsOnB.find((row) => row.role === 'user' && row.body.startsWith('Continuing after patching context'))
+      expect(anchor).toMatchObject({ sourceKind: 'global-root', sourceLabel: null })
+      // Turn 1's own row stayed on A — nothing was lost or re-persisted.
+      expect(listChatMessagesForSession(db, 'sdk-ws-a').map((row) => row.body)).toContain('reconcile the receipts')
     })
   })
 
