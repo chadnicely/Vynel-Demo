@@ -1,7 +1,8 @@
 // Core op — full-text search over the user's chat messages, optionally
 // narrowed to one workspace. Returns message-level hits (per D6) — UI groups
-// by sessionId in SearchResults.vue. The global root's own thread is always
-// excluded at the repo layer (the cross-session MCP wall — see chat-search.ts).
+// by sessionId in SearchResults.vue. The global root's own thread is excluded
+// at the repo layer (the cross-session MCP wall — see chat-search.ts) unless
+// the caller IS the global root reading itself (`includeGlobalThread`).
 //
 // Defense-in-depth on the minimum query length: the Zod schema enforces
 // min(2) at the HTTP boundary; this guard catches non-HTTP callers (CLI,
@@ -25,6 +26,9 @@ export type SearchChatSessionsInput = {
   workspaceId?: string
   query: string
   limit?: number
+  /** The identity-aware exception to the scope wall — the global root reading
+   *  its own chain (the route resolves the caller; never model input). */
+  includeGlobalThread?: boolean
 }
 
 export function searchChatSessions(
@@ -39,6 +43,7 @@ export function searchChatSessions(
     ...(input.workspaceId !== undefined ? { workspaceId: input.workspaceId } : {}),
     query: trimmed,
     limit,
+    ...(input.includeGlobalThread === true ? { includeGlobalScope: true } : {}),
   })
 }
 

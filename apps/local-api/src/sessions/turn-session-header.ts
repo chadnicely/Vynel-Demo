@@ -19,6 +19,8 @@
 // turn's first event (see `session-turn-channel.ts`) and it precedes the
 // model's first tool call by a full network round trip.
 
+import type { Database } from '@vynel/db'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import type { HonoAppRequestFn } from '../factory.js'
 
 export const TURN_SESSION_HEADER = 'x-vynel-turn-session'
@@ -30,6 +32,24 @@ export function parseTurnSessionHeader(headerValue: string | undefined): string 
   return headerValue
 }
 
+/**
+ * Whether the tool call comes from the GLOBAL ASSISTANT's own turn — the
+ * identity-aware exception to the cross-session scope wall: the brain's
+ * private thread never surfaces to another identity, but the brain may read
+ * ITSELF (the continuity carry points a fresh segment at its own earlier
+ * chain). Resolved from the server-stamped header only — a spoofed or foreign
+ * id is not the brain, and no header (an external MCP client, a schedule fire)
+ * keeps the wall up.
+ */
+export function isTurnFromGlobalRoot(
+  db: Database,
+  userId: string,
+  turnSessionId: string | undefined,
+): boolean {
+  if (turnSessionId === undefined) return false
+  const session = findChatSessionById(db, turnSessionId)
+  return session !== null && session.userId === userId && session.scope === 'global'
+}
 export interface TurnSessionCarrier {
   /** Wrap the in-process dispatcher so every request this turn's MCP tools make
    *  carries whatever session identity is known AT THAT MOMENT. */

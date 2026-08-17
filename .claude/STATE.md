@@ -19,7 +19,10 @@ overlay; idle attaches are aborted on gate close, a mid-turn attach settles firs
 `isSuppressed` through. Plus: `liveClockStartMs` (phase clocks for the patching/continuing chip + pill),
 and `SessionThreadView` feeds the session ladder into ThreadStream's state pill ("Needs input" while an
 ask/approval parks). Remaining diet ideas (not built): share the activity stream across tabs
-(SharedWorker), lazy `/voice/events`.
+(SharedWorker), lazy `/voice/events` — the follow-up note for another session is
+`docs/module-notes/live-streams-socket-budget.md`. Continuity leftover CLOSED the same night: the
+identity-aware exclusion (the global root reads its own chain by id — `isTurnFromGlobalRoot` gates
+`get_chat_session` / `search_chat_messages`).
 
 ## ✅ 2026-08-18 SESSION CONTINUITY — Slice 5 (checkpoint + auto-continue) SHIPPED `2a5637a`; arc code-complete, live smokes remain
 

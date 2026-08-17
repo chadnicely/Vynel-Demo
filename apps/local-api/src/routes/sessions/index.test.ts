@@ -242,19 +242,50 @@ describe('GET /sessions/search (cross-session FTS)', () => {
     })
   })
 
-  it("never surfaces the global root's own thread", async () => {
+  it("never surfaces the global root's own thread — except to the global root itself", async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
+      const otherUser = seedUser(db)
       const globalThread = insertChatSession(
         db,
         makeSession(user.id, '', { workspaceId: null, scope: 'global' }),
       )
       insertChatMessage(db, makeMessage(globalThread.id, 'muffin secret plans'))
+      const ws = seedWorkspace(db, user.id, 'Mine')
+      const workspaceSession = insertChatSession(db, makeSession(user.id, ws.id))
+      const theirGlobal = insertChatSession(
+        db,
+        makeSession(otherUser.id, '', { workspaceId: null, scope: 'global' }),
+      )
 
       const app = makeHarness(db)
-      const res = await app.request('/sessions/search?query=muffin')
-      expect(res.status).toBe(200)
-      expect(await res.json()).toEqual([])
+      // No caller identity (an external client, a schedule fire): walled.
+      expect(await (await app.request('/sessions/search?query=muffin')).json()).toEqual([])
+      // A WORKSPACE turn: walled — another identity never reads the brain.
+      expect(
+        await (
+          await app.request('/sessions/search?query=muffin', {
+            headers: { [TURN_SESSION_HEADER]: workspaceSession.id },
+          })
+        ).json(),
+      ).toEqual([])
+      // A spoofed header naming ANOTHER user's global segment: walled.
+      expect(
+        await (
+          await app.request('/sessions/search?query=muffin', {
+            headers: { [TURN_SESSION_HEADER]: theirGlobal.id },
+          })
+        ).json(),
+      ).toEqual([])
+      // The brain's own turn (the server-stamped header names its segment):
+      // it reads itself — the continuity carry's "recover more from your own
+      // history" is honored for the one identity that started the arc.
+      const own = (await (
+        await app.request('/sessions/search?query=muffin', {
+          headers: { [TURN_SESSION_HEADER]: globalThread.id },
+        })
+      ).json()) as Array<{ sessionId: string }>
+      expect(own.map((hit) => hit.sessionId)).toEqual([globalThread.id])
     })
   })
 })
@@ -291,11 +322,46 @@ describe('GET /sessions/:sessionId/messages (cross-session detail)', () => {
       )
       const otherWs = seedWorkspace(db, otherUser.id, 'Theirs')
       const theirs = insertChatSession(db, makeSession(otherUser.id, otherWs.id))
+      const ws = seedWorkspace(db, user.id, 'Mine')
+      const workspaceSession = insertChatSession(db, makeSession(user.id, ws.id))
 
       const app = makeHarness(db)
       expect((await app.request(`/sessions/${globalThread.id}/messages`)).status).toBe(404)
       expect((await app.request('/sessions/no-such-session/messages')).status).toBe(404)
       expect((await app.request(`/sessions/${theirs.id}/messages`)).status).toBe(404)
+      // A workspace turn asking for the brain's thread: still 404 (another
+      // identity never reads it) — the wall is identity-aware, not open.
+      expect(
+        (
+          await app.request(`/sessions/${globalThread.id}/messages`, {
+            headers: { [TURN_SESSION_HEADER]: workspaceSession.id },
+          })
+        ).status,
+      ).toBe(404)
+    })
+  })
+
+  it("the global root reads its OWN chain by id — the previous segment the continuity carry points at", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      // Two segments of the brain's chain: the superseded one holds the fact.
+      const earlier = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'global' }),
+      )
+      insertChatMessage(db, makeMessage(earlier.id, 'the codename is BLUEHERON'))
+      const current = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'global' }),
+      )
+
+      const app = makeHarness(db)
+      const res = await app.request(`/sessions/${earlier.id}/messages`, {
+        headers: { [TURN_SESSION_HEADER]: current.id },
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { messages: Array<{ body: string }> }
+      expect(body.messages.map((m) => m.body)).toEqual(['the codename is BLUEHERON'])
     })
   })
 })

@@ -44,9 +44,10 @@ cannot name another session.
    the session tools: `get_chat_session` with that id reads the whole earlier
    conversation (messages and tool calls); `search_chat_messages` finds a
    specific phrase, decision or file name across your sessions;
-   `list_sessions` shows every session with its context usage. (The global
-   assistant's own thread is summarized, not readable by id — its memory and
-   journal below carry its long-term state.)
+   `list_sessions` shows every session with its context usage. A thread is
+   readable only by the identity that owns it: the global assistant reads its
+   own earlier segments this way; no other session can read the assistant's
+   thread (its memory and journal below carry what was saved for everyone).
 2. **Memory** — `search_memory` / `list_memory_entries` hold what was saved
    deliberately as lasting context (preferences, decisions, facts about the
    user's work). Check memory before re-deriving anything you "think" you knew.

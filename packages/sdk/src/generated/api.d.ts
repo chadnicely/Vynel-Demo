@@ -17034,7 +17034,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Unknown session, not owned, or the global assistant thread. */
+            /** @description Unknown session, not owned, or the global assistant thread (readable only by the global assistant itself). */
             404: {
                 headers: {
                     [name: string]: unknown;

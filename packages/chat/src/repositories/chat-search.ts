@@ -5,11 +5,16 @@
 // only). Joins chat_messages_fts → chat_messages → chat_sessions for
 // user scoping + soft-delete filtering, with an optional workspace filter.
 //
-// The global root's own thread (`scope = 'global'`) is excluded UNCONDITIONALLY:
+// The global root's own thread (`scope = 'global'`) is excluded by DEFAULT:
 // this search feeds the cross-session MCP tool every workspace/session/agent
 // turn carries, and the brain's private conversation must never surface through
-// it (Chad, 2026-08-10). Workspace-filtered calls never matched those rows
-// anyway (their workspace_id is NULL), so the UI search is byte-for-byte.
+// it to ANOTHER identity (Chad, 2026-08-10). The one exception is the brain
+// reading ITSELF — the continuity carry points a fresh segment at its own
+// earlier chain (session-continuity requirement 3), so the caller that IS the
+// global root passes `includeGlobalScope` (the route resolves the caller from
+// the server-stamped turn-session header, never from model input).
+// Workspace-filtered calls never matched those rows anyway (their
+// workspace_id is NULL), so the UI search is byte-for-byte.
 //
 // Phase 2: Postgres branch — tsvector + ts_rank. Signature flips to async
 // when the Postgres migration baseline ships.
@@ -33,6 +38,9 @@ export type SearchChatMessagesInput = {
   workspaceId?: string
   query: string
   limit?: number
+  /** Include the global assistant's own thread — ONLY for the global root
+   *  reading itself (the identity-aware exception to the scope wall). */
+  includeGlobalScope?: boolean
 }
 
 const DEFAULT_LIMIT = 50
@@ -61,8 +69,10 @@ function searchChatMessagesSqlite(
   const limit = Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
   const workspaceFilter =
     input.workspaceId !== undefined ? sql`AND s.workspace_id = ${input.workspaceId}` : sql``
+  // The scope wall (file header) — lifted only for the brain reading itself.
+  const scopeFilter = input.includeGlobalScope === true ? sql`` : sql`AND s.scope != 'global'`
   try {
-    return runSqliteSearch(db, input, workspaceFilter, limit)
+    return runSqliteSearch(db, input, sql`${scopeFilter} ${workspaceFilter}`, limit)
   } catch (error) {
     // FTS5 parses the query STRING itself (`"unbalanced`, `NEAR(`, `foo:bar`
     // where foo is read as a column) — malformed input is a no-match, not a
@@ -88,7 +98,7 @@ function isFts5QueryInputError(error: unknown): boolean {
 function runSqliteSearch(
   db: Database,
   input: SearchChatMessagesInput,
-  workspaceFilter: SQL,
+  filters: SQL,
   limit: number,
 ): ChatMessageSearchResult[] {
   return db.all<ChatMessageSearchResult>(sql`
@@ -102,9 +112,8 @@ function runSqliteSearch(
       JOIN chat_sessions s ON s.id = m.session_id
     WHERE chat_messages_fts MATCH ${input.query}
       AND s.user_id = ${input.userId}
-      AND s.scope != 'global'
       AND s.deleted_at IS NULL
-      ${workspaceFilter}
+      ${filters}
     ORDER BY chat_messages_fts.rank
     LIMIT ${limit}
   `)

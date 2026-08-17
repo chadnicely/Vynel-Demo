@@ -177,6 +177,13 @@ describe('searchChatMessages (FTS5 external-content)', () => {
       })
       insertChatMessage(db, makeMessage(globalThread.id, 'muffin secret plans'))
       expect(searchChatMessages(db, { userId: user.id, query: 'muffin' })).toEqual([])
+      // The identity-aware exception: the brain reading ITSELF (the route
+      // sets the flag only for the global root's own turn).
+      expect(
+        searchChatMessages(db, { userId: user.id, query: 'muffin', includeGlobalScope: true }).map(
+          (hit) => hit.sessionId,
+        ),
+      ).toEqual([globalThread.id])
     })
   })
 

@@ -626,10 +626,14 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
 
 ## 6. Forks / deferred (decide deliberately, never slip in)
 
+- **Identity-aware exclusion — SHIPPED 2026-08-18:** `get_chat_session` / `search_chat_messages`
+  lift the global-scope wall for exactly one caller — the global root itself, resolved from the
+  server-stamped turn-session header (`isTurnFromGlobalRoot`, beside the header module); a
+  workspace turn, a spoofed/foreign id, or no header keeps the wall (route tests pin all four).
+  The carry's recovery line and the `session-continuity` book now say so.
 - **Slice 5 follow-ups (recorded, not built):** a durable checkpoint / continuation-job column
   if either ever has to survive a process restart (the register is in-process by design — a
-  restart degrades to "the follow-up runs as a genuine turn"); `identity-aware exclusion` so
-  the global root can read its own chain by id; the anchor row reads "after patching context"
+  restart degrades to "the follow-up runs as a genuine turn"); the anchor row reads "after patching context"
   even on a spurious checkpoint that swapped nothing (Kafi's wording; the web shows no patch); the runners over ~300 lines (the streams grew with the loop closures) — split when the
   next change touches them; a VOICE turn that checkpoints continues server-side (the daemon frees at
   the first `session-completed` and the continuation's reply lands in the transcript, unspoken) —

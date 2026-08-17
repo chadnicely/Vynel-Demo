@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **The global assistant can now read its own earlier context after a
+  hand-off.** When a long conversation continues on a fresh context, the
+  hand-off tells the assistant which earlier segment to read for more — but
+  the read tools walled off the global assistant's own thread from *everyone*,
+  including the global assistant, so that pointer was a dead end for exactly
+  the conversation the whole continuity work started from. The wall is now
+  identity-aware: the global assistant reads its own segments (search and
+  read-by-id); no workspace, spawned session, agent or outside client can
+  read them — same as before.
+
 - **A second browser tab no longer "freezes" the app while a conversation
   works.** Every open thread used to hold a live-watch connection to its
   session at all times, on top of the app's activity feed, the voice link and

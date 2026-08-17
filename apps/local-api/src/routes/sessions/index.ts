@@ -34,6 +34,7 @@ import {
 } from '@vynel/chat'
 import {
   TURN_SESSION_HEADER,
+  isTurnFromGlobalRoot,
   parseTurnSessionHeader,
 } from '../../sessions/turn-session-header.js'
 import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
@@ -162,21 +163,30 @@ export const sessionsApp = factory
         ambientWorkspace: false,
         description:
           'Full-text search across ALL of the user’s session conversations — workspace chats and ' +
-          'spawned/agent sessions alike (the global assistant thread is excluded). Pass ' +
-          'workspaceId to restrict to one workspace; omit it to search the entire system. ' +
-          'Returns message-level hits with <mark> snippets and each hit’s sessionId — pass that ' +
-          'to get_chat_session to read the full conversation. Read-only.',
+          'spawned/agent sessions alike (the global assistant thread is included only for the ' +
+          'global assistant itself — its own earlier context). Pass workspaceId to restrict to ' +
+          'one workspace; omit it to search the entire system. Returns message-level hits with ' +
+          '<mark> snippets and each hit’s sessionId — pass that to get_chat_session to read the ' +
+          'full conversation. Read-only.',
       },
     }),
     validator('query', SearchSessionMessagesQuerySchema),
     ...userScoped,
     async (c) => {
       const query = c.req.valid('query')
+      // The identity-aware wall: the brain reading ITSELF sees its own thread;
+      // every other caller (and no caller) never does.
+      const fromGlobalRoot = isTurnFromGlobalRoot(
+        c.var.db,
+        c.var.user.id,
+        parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)),
+      )
       const results = searchChatSessions(c.var.db, {
         userId: c.var.user.id,
         query: query.query,
         ...(query.workspaceId !== undefined ? { workspaceId: query.workspaceId } : {}),
         ...(query.limit !== undefined ? { limit: query.limit } : {}),
+        ...(fromGlobalRoot ? { includeGlobalThread: true } : {}),
       })
       return c.json(results)
     },
@@ -184,9 +194,12 @@ export const sessionsApp = factory
   // ──────────────────────────────────────────────────────────────────
   // GET /:sessionId/messages — get_chat_session: one owned session's full
   // conversation (2026-08-10). Owner-gated, any grounding — EXCEPT the global
-  // root's own thread (same 404 as unknown/not-owned; no enumeration leak).
-  // The UI's scope-routed reads (chat.getSession / root.getSession) stay
-  // untouched — this is the tool surface's door.
+  // root's own thread (same 404 as unknown/not-owned; no enumeration leak),
+  // unless the caller IS the global root reading its own chain (the
+  // continuity carry's "read your previous segment" — identity-aware, from
+  // the server-stamped turn-session header). The UI's scope-routed reads
+  // (chat.getSession / root.getSession) stay untouched — this is the tool
+  // surface's door.
   // ──────────────────────────────────────────────────────────────────
   .get(
     '/:sessionId/messages',
@@ -199,7 +212,10 @@ export const sessionsApp = factory
           description: '{ session, messages, toolCallsByMessageId } — the full session detail.',
           content: { 'application/json': { schema: resolver(ChatSessionDetailResponseSchema) } },
         },
-        404: { description: 'Unknown session, not owned, or the global assistant thread.' },
+        404: {
+          description:
+            'Unknown session, not owned, or the global assistant thread (readable only by the global assistant itself).',
+        },
       },
       'x-mcp': {
         exposed: true,
@@ -209,9 +225,10 @@ export const sessionsApp = factory
         description:
           'Read one session’s full conversation (messages + tool calls) by sessionId — works for ' +
           'any of the user’s sessions across workspaces, including spawned and agent sessions ' +
-          '(the global assistant thread is excluded). Get sessionIds from list_sessions or ' +
-          'search_chat_messages. Transcripts can be long — prefer search_chat_messages when you ' +
-          'only need to find something. Read-only.',
+          '(the global assistant thread is readable only by the global assistant itself — its ' +
+          'own earlier segments). Get sessionIds from list_sessions or search_chat_messages. ' +
+          'Transcripts can be long — prefer search_chat_messages when you only need to find ' +
+          'something. Read-only.',
       },
     }),
     validator('param', SessionIdParamSchema),
@@ -220,10 +237,16 @@ export const sessionsApp = factory
       const { sessionId } = c.req.valid('param')
       // `forbiddenScopes: ['global']` is the wall: the brain's private
       // conversation never leaves through the tool surface — same 404 as
-      // unknown/not-owned (Chad, 2026-08-10).
+      // unknown/not-owned (Chad, 2026-08-10) — lifted for exactly one caller:
+      // the brain itself, reading its own chain (session-continuity req. 3).
+      const fromGlobalRoot = isTurnFromGlobalRoot(
+        c.var.db,
+        c.var.user.id,
+        parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)),
+      )
       const detail = getChatSessionDetail(c.var.db, sessionId, {
         ownerUserId: c.var.user.id,
-        forbiddenScopes: ['global'],
+        forbiddenScopes: fromGlobalRoot ? [] : ['global'],
       })
       return c.json(enrichChatSessionDetail(c.var.db, detail))
     },
