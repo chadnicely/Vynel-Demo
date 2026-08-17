@@ -12,6 +12,8 @@ import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provi
 import { createSpawnedSession } from '../spawned/index.js'
 import { insertPrimarySession } from '../repositories/index.js'
 import { attachSpawnedSessionNames } from './attach-spawned-session-names.js'
+import { recordSwapSegmentSession } from '@vynel/chat'
+import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -80,6 +82,32 @@ describe('attachSpawnedSessionNames', () => {
 
       expect(enriched[0]!.sessionName).toBe('Session')
       expect(enriched[1]!.sessionName).toBe('Session')
+    })
+  })
+
+  it('keeps naming the session from its LISTED identity row after a continuity swap moved the head', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const created = await seedSpawnedSession(db, user.id)
+      // A boundary swap: a hidden "Continued conversation" segment chained to
+      // the identity row becomes the head. The name must not follow it.
+      recordSwapSegmentSession(db, {
+        sessionId: 'sdk-spawned-2',
+        userId: user.id,
+        workspaceId: null,
+        providerId: 'claude',
+        continuedFromSessionId: created.sessionId,
+      })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: created.primarySessionId,
+        userId: user.id,
+        sdkSessionId: 'sdk-spawned-2',
+      })
+
+      const enriched = attachSpawnedSessionNames(db, [
+        { targetPrimarySessionId: created.primarySessionId, taskLabel: 'compare' },
+      ])
+      expect(enriched[0]).toMatchObject({ sessionName: 'Research: pricing' })
     })
   })
 })

@@ -27,7 +27,8 @@ import type { StructuralLogger } from '@vynel/logger'
 export type RunSeededSwapSessionInput = {
   /** Workspace folder — the seeded session's cwd. */
   workspacePath: string
-  /** The distilled hand-off summary to seed into the fresh session. */
+  /** What the fresh session is seeded with — a swap's composed hand-off
+   *  (`buildContinuityContext`), or a spawned session's purpose at birth. */
   carry: string
   /** Model for the cheap priming turn. Omit for the runtime default. */
   model?: string
@@ -45,11 +46,15 @@ const DEFAULT_PRIMING_TIMEOUT_MS = 120_000
 
 // Frames the carry as established background of an ONGOING conversation — the
 // priming agent must absorb it and wait, NOT start new work or act on the NEXT
-// items (that's the next real user turn's job). It never uses tools.
+// items (that's the next real user turn's job). It never uses tools. The carry
+// itself is the contextBuilder's structured hand-off (identity, summary, the
+// last messages verbatim, refs, how to recover more) — or, for a spawned
+// session's birth, its purpose.
 function buildPrimingPrompt(carry: string): string {
   return [
     'This conversation is being continued from an earlier session whose context was',
-    'condensed to free space. Below is the hand-off summary of where things stand.',
+    'condensed to free space. Below is the hand-off: who you are, where things stand,',
+    'the last messages as they were said, and how to recover more when you need it.',
     'Treat it as the established background of THIS ongoing conversation — do NOT start',
     'new work, do NOT use any tools, and do NOT act on the NEXT items yet. Simply absorb',
     "it and wait for the user's next message. Reply with exactly: Ready to continue.",

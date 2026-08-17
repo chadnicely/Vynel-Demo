@@ -3,7 +3,23 @@
 **Updated 2026-08-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-17 (latest) SESSION CONTINUITY EVERYWHERE — Slice 1 SHIPPED; Slices 2–4 planned
+## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 2 (contextBuilder) SHIPPED; next Slice 3 whoami + duty books
+
+Slice 2 built on top of Slice 1: `buildContinuityContext` (session/runtime) = THE carry composer
+(identity per scope + distill + verbatim tail + predecessor ref + recovery instructions; own-chain
+only, owner-gated); `bridgePrimarySessionAfterTurn` composes through it; two lean chain readers
+(`resolveSessionChainOrigin`, `listSessionChainTailMessages`); `resolveSpawnedSessionDisplayName`
+reads the origin row (post-swap "Session" regression fixed); notebook book `session-continuity`
+shipped (shelf tests recast 11→12). Details + decisions: `docs/module-notes/session-continuity.md`
+§5c. Slice 5 (checkpoint + auto-continue, Kafi's refinement) is planned in §4.6 — spike the
+mid-turn nudge channel (PostToolUse hook context) before building it. Live proof so far: the Seo
+workspace swapped twice at Kafi's 5% override with full recall (see §5b/§5c) — the GLOBAL path's
+live smoke is still Kafi's to run.
+**⏭ NEXT:** Slice 3 — `whoami` (identity + occupancy/window/thresholds + dutyBook slug/exists) +
+duty-book binding (`resolveDutyBookSlug`), memory-tagging convention in the book → Slice 4
+visible swap → Slice 5.
+
+## ✅ 2026-08-17 SESSION CONTINUITY EVERYWHERE — Slice 1 SHIPPED; Slices 2–4 planned
 
 Kafi's report: the GLOBAL brain hit its context limit and continued on a blank session (amnesia).
 Root cause: the seed-fresh swap fired from ONE call site (the interactive workspace route); the

@@ -161,6 +161,9 @@ describe('bridgePrimarySessionAfterTurn', () => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const primary = seedPrimary(db, user.id, workspace.id, 'sdk-old')
+      // The superseded segment + its last exchange — the contextBuilder's tail.
+      seedSegmentRow(db, { sessionId: 'sdk-old', userId: user.id, workspaceId: workspace.id, ...PRESSURED })
+      seedUserMessage(db, 'sdk-old', 'remember: the codename is BLUEHERON')
       const summarizeSessionInputs: SummarizeSessionCall[] = []
       const startChatSessionInputs: StartChatSessionInput[] = []
       const provider = new FakeAiAgentProvider({
@@ -191,6 +194,15 @@ describe('bridgePrimarySessionAfterTurn', () => {
       expect(summarizeSessionInputs[0]?.model).toBe('claude-opus-4-8')
       expect(startChatSessionInputs).toHaveLength(1)
       expect(startChatSessionInputs[0]?.model).toBe('claude-haiku-4-5')
+      // The priming turn is seeded with the contextBuilder's carry — the
+      // distilled summary wrapped in identity, the verbatim tail, the
+      // predecessor ref and the recovery instructions (one home, §4.3).
+      const primingText = startChatSessionInputs[0]?.userMessageText ?? ''
+      expect(primingText).toContain(USABLE_CARRY)
+      expect(primingText).toContain('IDENTITY: You are the continuing main conversation of workspace “WS”')
+      expect(primingText).toContain('previous session segment (sdk-old)')
+      expect(primingText).toContain('[user] remember: the codename is BLUEHERON')
+      expect(primingText).toContain('HOW TO RECOVER MORE')
 
       expect(result?.fromSdkSessionId).toBe('sdk-old')
       expect(result?.toSdkSessionId).toBe('sdk-fresh')

@@ -396,6 +396,38 @@ straight into a limit error is not bridged by measurement (the row still says
 <0.85). Slice 2's contextBuilder adds the DB-tail carry that needs no SDK
 distill; pair it with a "limit-errored turn → force the bridge" rule then.
 
+## 5c. Slice 2 — SHIPPED 2026-08-18 (the contextBuilder)
+
+- **`buildContinuityContext`** (`packages/session/src/runtime/build-continuity-context.ts`) is
+  the one home for the carry: IDENTITY (per scope — global / voice / workspace by name / spawned
+  + colleague named from the chain's LISTED origin row) → HAND-OFF SUMMARY (the distill) → LAST
+  MESSAGES (verbatim: newest 10 non-empty rows, 600 chars each, 5k total, `[role · sourceLabel]`)
+  → the predecessor ref → fixed RECOVERY instructions (session/memory/knowledge/journal tools +
+  the notebook book). Own-chain-only, owner-gated — a stranger's or an unrelated session's rows
+  can never ride in (test-pinned). `bridgePrimarySessionAfterTurn` composes through it; the
+  bridge still requires a usable summary (the fidelity floor) — the builder's nullable summary is
+  the seam the forced-bridge follow-up will use for a tail-only carry.
+- **Two lean chain readers** beside the transcript resolvers: `resolveSessionChainOrigin`
+  (the identity row) and `listSessionChainTailMessages` (newest N across the chain, no tool
+  calls). `resolveSpawnedSessionDisplayName` now reads the ORIGIN row — a boundary swap on a
+  spawned session (routine since Slice 1) had made it read "Session".
+- **Notebook book `session-continuity`** shipped on the verified shelf: read the carry
+  properly → pull more only on need, in order (own history → memory → knowledge → journal) →
+  never mix contexts → don't announce the swap.
+- **Recovery instructions are capability-conditional** ("if session tools are available…"): a
+  global-grounded spawned session runs toolless (bare) and `get_chat_session` /
+  `search_chat_messages` exclude the global assistant's own thread today — so the paragraph
+  promises nothing a surface lacks. Slice 3 (whoami) makes it precise per identity; letting the
+  global root read its OWN chain by id is a Slice-3 item (identity-aware exclusion).
+- **Priming prompt** reworded to frame the structured hand-off; same walls (no tools, absorb,
+  "Ready to continue").
+- **Reviewer pass: clean, 0 must-fix; 3 should-fixes taken** — one home for "the name is the
+  LISTED origin row" (`resolveListedOriginTitle`, used by the carry and the delegation labels),
+  the carry log carries ids + counts only (never the identity prose), `toThrow(NotFoundError)`;
+  plus voice-identity + total-cap tests. Recorded nit: a spawned session's BIRTH still seeds its
+  purpose through the swap priming prompt — route the birth through the builder next time the
+  spawned rails are touched.
+
 ## 6. Forks / deferred (decide deliberately, never slip in)
 
 - **`.notes/` drafts are Kafi's working material** (Global Root, Workspace Manager, Workspace,

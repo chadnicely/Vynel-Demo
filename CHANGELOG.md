@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A richer hand-off when a conversation continues on a fresh context.** The
+  fresh session now starts knowing *who it is* (the global assistant, a
+  project's main conversation, a named spawned session or agent colleague),
+  the distilled summary of where things stand, the last few messages exactly
+  as they were said, which earlier segment it continues from, and how to look
+  up more when it needs it (its own recorded history, memory, knowledge, the
+  journal, and a new notebook book, *Continuing after a context swap*). It is
+  composed only from that conversation's own history — never another
+  session's. Also fixed: a spawned session's name no longer flips to "Session"
+  in task labels after its context continues on a fresh segment.
+
 - **Every conversation now keeps its context across the limit — the global
   assistant included.** Vynel already knew how to hand a long conversation off
   to a fresh one before it hit the model's ceiling (a distilled hand-off, then

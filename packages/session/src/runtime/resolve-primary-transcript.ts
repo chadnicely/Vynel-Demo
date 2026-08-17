@@ -1,6 +1,9 @@
 // Reconstruct a primary conversation's full history — the messages across its
 // swap-segment chain — for the continuing-thread views (the global brain AND
-// each workspace's main chat). One resolver for every scope: the tester-DB
+// each workspace's main chat); plus the lean chain reads the swap carry and
+// the delegation labels share (`resolveSessionChainOrigin`,
+// `resolveListedOriginTitle`, `listSessionChainTailMessages`) — one home for
+// the walk. One resolver for every scope: the tester-DB
 // incident (2026-08-14) showed the workspace thread binding to the CURRENT
 // segment only, so a context-pressure swap emptied the visible conversation
 // while all pre-swap rows sat one chain-link away. The chain walk that fixed
@@ -177,4 +180,64 @@ function pullChainMessages(
     }
   }
   return { messages, toolCallsByMessageId }
+}
+
+export type SessionChainReadInput = {
+  userId: string
+  /** The chain's newest segment (the identity's current or just-superseded head). */
+  headSessionId: string
+}
+
+// The chain's ORIGIN segment — the oldest row the walk reaches from `head`.
+// For a spawned session or an agent colleague that is the LISTED identity row
+// (its name lives in that title); a swap never moves it. Owner-gated like the
+// transcript reads: an unknown or foreign head resolves to null, never to a
+// stranger's segment. Null also when the head itself is gone.
+export function resolveSessionChainOrigin(
+  db: Database,
+  input: SessionChainReadInput,
+): ChatSession | null {
+  const head = findChatSessionById(db, input.headSessionId)
+  if (head === null || head.userId !== input.userId) return null
+  const chain = reconstructPrimaryThread(db, {
+    currentSdkSessionId: input.headSessionId,
+    userId: input.userId,
+  })
+  const originId = chain[0]
+  if (originId === undefined) return null
+  return originId === head.id ? head : findChatSessionById(db, originId)
+}
+
+// The identity's NAME — the title of the chain's origin row, but only while
+// that row is LISTED (a spawned session's or colleague's identity row; the
+// first segment of a manager thread is hidden and titles nothing). Null when
+// the chain has no listed origin. The one home for the reading: the carry's
+// identity line and the delegation labels both name a session through it.
+export function resolveListedOriginTitle(db: Database, input: SessionChainReadInput): string | null {
+  const origin = resolveSessionChainOrigin(db, input)
+  return origin !== null && origin.visibility === 'listed' ? origin.title : null
+}
+
+// The chain's newest `limit` MESSAGES (chronological), pulled newest-segment
+// first across the identity's OWN chain only — the swap carry's verbatim tail.
+// A lean sibling of `resolveSessionChainTranscript`: no tool calls, no session
+// envelope (a swap on a huge segment must not haul its whole tool-call table
+// into the carry). Owner-gated the same way — an unknown or foreign head yields
+// nothing, so a stranger's rows can never ride into another user's carry.
+export function listSessionChainTailMessages(
+  db: Database,
+  input: SessionChainReadInput & { limit: number },
+): ChatMessage[] {
+  const head = findChatSessionById(db, input.headSessionId)
+  if (head === null || head.userId !== input.userId) return []
+  const sessionIds = reconstructPrimaryThread(db, {
+    currentSdkSessionId: input.headSessionId,
+    userId: input.userId,
+  })
+  const messages: ChatMessage[] = []
+  for (let index = sessionIds.length - 1; index >= 0 && messages.length < input.limit; index--) {
+    const remaining = input.limit - messages.length
+    messages.unshift(...listRecentChatMessagesForSession(db, sessionIds[index]!, remaining))
+  }
+  return messages
 }

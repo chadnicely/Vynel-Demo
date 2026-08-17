@@ -6,11 +6,14 @@
 // Layering: `bridgePrimarySession` (session-continuity) stays pure — it never
 // imports chat's repo. This composition layer (allowed to touch both domains)
 // supplies the two SDK-facing deps and records the chat segment:
-//   - `summarizeSession` — distill the just-finished SDK session into the carry
-//     (provider read-op; cheap model; no tools).
-//   - `startSeededSession` — mint a fresh seeded SDK session
-//     (`runSeededSwapSession`) AND record it as a browsable chat segment
-//     (`recordSwapSegmentSession`, chat-domain), returning the new id.
+//   - `summarizeSession` — distill the just-finished SDK session into the
+//     hand-off summary (provider read-op; the turn's own model; no tools).
+//   - `startSeededSession` — compose the full carry from that summary through
+//     the contextBuilder (`buildContinuityContext`: identity + summary +
+//     verbatim tail + refs + recovery instructions, own-chain-only), mint a
+//     fresh seeded SDK session (`runSeededSwapSession`) AND record it as a
+//     browsable chat segment (`recordSwapSegmentSession`, chat-domain),
+//     returning the new id.
 // `bridgePrimarySession` then repoints the primary + emits `session.swapped`
 // atomically. The next primary turn resumes the fresh session — invisibly.
 //
@@ -32,6 +35,7 @@ import {
 import { recordSwapSegmentSession } from '@vynel/chat'
 import type { StructuralLogger } from '@vynel/logger'
 import { runSeededSwapSession } from './run-seeded-swap-session.js'
+import { buildContinuityContext } from './build-continuity-context.js'
 
 // The priming turn is a one-word acknowledgement over a short carry — a cheap
 // model is right there. The SUMMARY distill is different: it RESUMES the
@@ -97,10 +101,28 @@ export async function bridgePrimarySessionAfterTurn(
           ...(input.model !== null ? { model: input.model } : {}),
           ...(logger !== undefined ? { logger } : {}),
         }),
-      startSeededSession: async (carry, fromSdkSessionId) => {
+      startSeededSession: async (summary, fromSdkSessionId) => {
+        // The carry = the distilled summary wrapped by the contextBuilder —
+        // ONE home for what a fresh segment learns about itself and how to
+        // recover more; composed from the identity's own chain only.
+        const context = buildContinuityContext(db, {
+          primarySessionId: input.primarySessionId,
+          userId: input.userId,
+          fromSdkSessionId,
+          summary,
+        })
+        logger?.info(
+          {
+            primarySessionId: input.primarySessionId,
+            fromSdkSessionId,
+            tailMessageCount: context.tailMessageCount,
+            carryLength: context.carry.length,
+          },
+          'composed the continuity carry',
+        )
         const seededSessionId = await runSeededSwapSession(provider, {
           workspacePath: input.workspacePath,
-          carry,
+          carry: context.carry,
           model: SWAP_PRIMING_MODEL,
           ...(logger !== undefined ? { logger } : {}),
         })

@@ -71,6 +71,10 @@ describe('listPlaybooks', () => {
         // shipped shelf (notebook arc, 2026-07-27).
         'node-mcp-server',
         'node-sdk-from-api',
+        // test: correct expectation — the session-continuity book joined the
+        // shipped shelf (continuity arc Slice 2, 2026-08-18): the recovery
+        // routine a fresh segment reads after a context swap.
+        'session-continuity',
         'starting-a-project-from-scratch',
         // test: correct expectation — the task-planner and vue/nuxt frontend
         // playbooks joined the shipped shelf (notebook arc, 2026-07-27).

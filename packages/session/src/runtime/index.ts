@@ -45,6 +45,15 @@ export {
   runSeededSwapSession,
   type RunSeededSwapSessionInput,
 } from './run-seeded-swap-session.js'
+// The contextBuilder — the ONE home composing the carry a fresh segment is
+// seeded with (identity + summary + verbatim tail + refs + recovery), from the
+// identity's own chain only.
+export {
+  buildContinuityContext,
+  DEFAULT_TAIL_MESSAGE_LIMIT,
+  type BuildContinuityContextInput,
+  type ContinuityContext,
+} from './build-continuity-context.js'
 
 // The per-turn capability PROMPT contribution (Vynel operating-rules + each
 // enabled capability's contribution). Composed at the edge, forwarded into the
@@ -57,8 +66,13 @@ export {
 // The continuing-thread settled-transcript read — ONE chain-walking resolver
 // for both scopes (`/root/transcript` and the workspace
 // `/chat/continuing/transcript`): a context-pressure swap must never empty
-// the visible conversation.
+// the visible conversation. Plus the lean chain reads the swap carry and the
+// delegation labels share (origin row / listed origin title / message tail).
 export {
+  resolveSessionChainOrigin,
+  resolveListedOriginTitle,
+  listSessionChainTailMessages,
+  type SessionChainReadInput,
   resolvePrimaryTranscript,
   resolveSessionChainTranscript,
   type PrimaryTranscript,
