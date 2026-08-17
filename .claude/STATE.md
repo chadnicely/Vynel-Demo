@@ -20,7 +20,25 @@ route-test-pinned; channel runner (`runGlobalRootTurn`) deliberately untouched (
 default stays). Verified: repo typecheck 106/106 · 5/5 parity · local-api+chat 848 · local-web 698
 · session 249. Full `pnpm test` NOT run (CPU rule).
 
-**Move 3 (session status) — SERVER HALF SHIPPED (`ee6d13b`), UI half NEXT.** Landed: contracts
+**ALL THREE MOVES SHIPPED** — `7242cef`+`d6b1b09` (Move 1 settings), `ee6d13b`+`331e5c4` (Move 3
+status), `062ae7b` (Move 2 discovery). Gate on the last full sweep: repo typecheck 106/106 · 5/5
+parity · 1779–1969 tests green across providers/contracts/chat/session/local-api/local-web. Full
+`pnpm test` NOT run (CPU rule).
+
+**Move 2 (model discovery, `062ae7b`):** `AiAgentProvider.discoverModels` (default-null seam
+shape) + `runClaudeModelDiscovery` — a STREAMING-INPUT query whose input never yields, taking
+`initializationResult()` (resolves from the CLI's startup handshake, NOT a control request — the
+SDK's own `reinitialize` doc contrast proves it) then aborting: no message, no turn, no JSONL,
+20s timeout. `refreshDiscoveredModels` (apps/local-api/src/sessions/) is the ONE home — boot warm
+(fire-and-forget) + `POST /providers/:id/models/refresh` (no x-mcp). **A null answer changes
+nothing** — a degraded engine can never blank a good roster (that asymmetry is the fix for
+"sometimes Opus is missing"). Effort chip now filtered by `selectEffortOptionsForModel`.
+⚠ **Needs a live smoke** — the handshake-only dispatch is unit-tested against a faked SDK only;
+Kafi should confirm the real CLI answers `initializationResult()` without a prompt (watch for a
+boot log line "boot model discovery refreshed the roster"). Follow-up: a refresh affordance on the
+picker itself (the route exists; ChatComposer has no menu-open hook yet).
+
+**Move 3 (session status) — SHIPPED (`ee6d13b` server + `331e5c4` UI).** Landed: contracts
 `chat/session-status.ts` (deriveSessionStatus, one ladder: problem > needs_input > running >
 completed > idle; set-status = FACT superseded by the user's next message — carried as
 `latestUserMessageAt` on the facts); `chat_sessions` status trio (migration 0044, copy-forward in
@@ -31,20 +49,22 @@ pendingApprovalCount via ONE `listPendingApprovalsForUser` pass + supersession a
 door), census-pinned both arrays; BOTH global sinks now stamp `'failed'` outcomes
 (GlobalRootSseSink + GlobalRootDrainSink → `activity.end(sink.turnOutcome)` → session_turns).
 
-**UI half remaining (all read-side):** (1) SessionRow badge + note — SessionsView derives via
-`deriveSessionStatus(entry.statusFacts, {liveTurnStartedAt})`; hoist the live-turn lookup
-(SessionsView `isWorking` has the chain-segment scan; need startedAt not boolean). (2) nodes:
-rewrite `resolveConversationNodeStatus` to consume the derived view (map: running→building,
-needs_input→waiting, problem→problem [SceneNode has 'problem' already], completed→done,
-idle→idle — kills the invented within-hour "waiting"); fleet/workspace dot divergence stays
-(Chad-gated). (3) "The build" node: extend `GET /continuing` response with statusFacts (chat deps
-approvals — compose trio + message facts + per-session approvals). (4) `globalStatus` in
-use-workspace-status: consume the overview's scope-global entry → problem reachable. (5) root
-route test for the failed envelope (harness needs a turnRecorder-wired SessionActivityFeed + an
-erroring fake provider toggle). Then api-tools census verify via test run + regen parity + UI
-tests + review + CHANGELOG. Move 2 (model discovery) after: dedicated provider discovery entry
-point (initializationResult().models) at boot + picker refresh, floor→bootstrap-only, effort chip
-filtered by supportedEffortLevels.
+**UI half (`331e5c4`):** `use-session-statuses.ts` = the one home (overview facts × activity
+liveness → `deriveSessionStatus`); SessionRow wears the tree's `data-status` mark + the one-line
+why; `resolveConversationNodeStatus` became a pure palette rename of the real ladder (kills the
+invented within-hour "waiting", reaches red) with **"The build" node taking the WORKSPACE status**
+(one truth with the tree — `/continuing` statusFacts deliberately NOT added); `globalStatus` gains
+problem/needs_input/completed from the assistant thread's overview entry. Deliberate calls: no
+client retention of `turn-ended.outcome` (durable facts + turn-end invalidation cover it); FLEET
+project dots keep their queue reading (Chad-gated merge); `session-mark` CSS is a THIRD copy of
+the mark idiom (tree-mark/tab-mark) — extraction to a shared `StatusMark` is the recorded
+follow-up.
+
+**Open follow-ups from this arc:** ① live smoke of Move 2's discovery + a picker refresh
+affordance · ② extract the status-mark idiom (3 homes) · ③ channels (`runGlobalRootTurn`) still
+run the unattended bypass default and do NOT read per-session settings — deliberate, recorded in
+that file · ④ the spawned-approvals `workspace_id` NULL bug still blocks the WORKSPACE rollup
+(per-session status is unaffected — approvals' `sessionId` is always correct).
 
 ## ✅ 2026-08-17 SESSION-COMMS — the NOTE kind shipped + the own-child task rule
 
