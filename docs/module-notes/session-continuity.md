@@ -217,8 +217,14 @@ model-written · no forced mid-tool interruption (cutting a tool loop loses in-f
 SDK's own compaction — Layer 1 captures its summary — is the last resort) · the ladder is
 threshold-nudge 0.85 (headroom-aware) → boundary swap when the turn lands → SDK compaction
 ~0.9x if a turn ignores both.
-**Open (needs Chad/Kafi):** does the auto-continuation turn follow the row's CURRENT settings
-(default: yes — the user may have changed the chip meanwhile) or pin the checkpointing turn's?
+**Settled 2026-08-18 (Kafi):** the continuation runs with the SAME model / thinking effort /
+mode as the turn that checkpointed — by construction: the interactive streams resolve
+`turnSettings` once per request and the continuation closure reuses it, a delegated follow-up
+job copies the original job's columns, the global core reuses its input. Since a chip change in
+the composer only persists on the next SEND, "the row's current settings" and "the checkpointing
+turn's" are the same values today; honoring a mid-run chip change would need the chip to persist
+immediately AND the loop to re-read the row before each continuation — not wanted; keep it
+predictable: what you sent with is what the whole run (continuations included) uses.
 
 ### 4.5 Duty-book binding — kind → notebook, resolved not hardcoded
 The seam that makes requirement 7 work before the content exists:
@@ -611,8 +617,8 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
   on a mid-turn refetch); `use-chat-turn` retargets `activeSessionId` from the continuation's
   row so Stop interrupts the right segment. The Watch registry needs nothing: a continuation
   is a fresh turn on the (moved) head's channel, exactly like any swap.
-- **Settings:** the continuation runs under the row's CURRENT settings (the open call's default);
-  the alternative (pin the checkpointing turn's) is one closure away if Chad prefers it.
+- **Settings:** the continuation runs with the checkpointing turn's own settings (the same
+  `turnSettings` closure / the same job columns / the same core input) — settled, see §4.6.
 - **Tests (all real SQLite where the DB is involved):** nudge cadence/text/model window;
   register semantics (once, replace, cap, genuine reset, stale drop, per-identity);
   checkpoint tool responses; the loop (none / one / capped / stale); the composer via the loop;
@@ -645,9 +651,13 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
   if either ever has to survive a process restart (the register is in-process by design — a
   restart degrades to "the follow-up runs as a genuine turn"); the anchor row reads "after patching context"
   even on a spurious checkpoint that swapped nothing (Kafi's wording; the web shows no patch); the runners over ~300 lines (the streams grew with the loop closures) — split when the
-  next change touches them; a VOICE turn that checkpoints continues server-side (the daemon frees at
-  the first `session-completed` and the continuation's reply lands in the transcript, unspoken) —
-  speak it when voice grows a continuation cue.
+  next change touches them.
+- **Voice auto-continue — DEFERRED (Kafi, 2026-08-18):** a VOICE turn that checkpoints continues
+  server-side, but the daemon frees at the first `session-completed` and the continuation's reply
+  lands in the transcript unspoken. To build later: the daemon keeps reading past
+  `session-completed` when a `context-patching` frame follows, speaks the continuation's text as a
+  second utterance (mic stays with the assistant until `turn-stream-ended`), and the voice-turn
+  marker tells the model a continuation on voice must stay short. Park with the voice work.
 
 - **`.notes/` drafts are Kafi's working material** (Global Root, Workspace Manager, Workspace,
   Memory, Knowledge) — he completes and attaches them as duty books later. Do NOT polish,
