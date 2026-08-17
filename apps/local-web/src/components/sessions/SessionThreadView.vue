@@ -232,7 +232,11 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
       />
       <p v-if="turn.isQueued.value" class="queued-note">
         <PresenceDot state="live" />
-        Working on a task — your message is queued.
+        {{
+          turn.queuedReason.value === "context-patching"
+            ? "Patching context — your message continues right after."
+            : "Working on a task — your message is queued."
+        }}
       </p>
       <p v-if="turn.errorText.value" class="turn-error-note">
         {{ turn.errorText.value }}

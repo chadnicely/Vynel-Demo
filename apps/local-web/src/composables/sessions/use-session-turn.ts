@@ -32,7 +32,9 @@ import type { ActiveTurnView } from "../chat/active-turn-view.js";
 //
 // The sentinel is not a ChatTurnEvent kind — widen the decoded stream at the
 // transport boundary, exactly like the server's `turn-stream-ended` precedent.
-type SessionTurnStreamEvent = ChatTurnEvent | { kind: "turn-queued" };
+type SessionTurnStreamEvent =
+  | ChatTurnEvent
+  | { kind: "turn-queued"; reason?: "busy" | "context-patching" };
 
 function isAbortError(candidate: unknown): boolean {
   return candidate instanceof Error && candidate.name === "AbortError";
@@ -49,6 +51,9 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
   /** Parked behind a running delegated task on this session — clears the
    *  moment the first real event arrives. */
   const isQueued = ref(false);
+  /** WHY it is parked — the session's own context swap ("patching context")
+   *  or a running delegated task ("working on a task"). */
+  const queuedReason = ref<"busy" | "context-patching" | null>(null);
   const errorText = ref<string | null>(null);
   let abortController: AbortController | null = null;
   // View re-keys (tab/session switches) must not leave an orphaned reader
@@ -108,9 +113,11 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
       for await (const event of events) {
         if (event.kind === "turn-queued") {
           isQueued.value = true;
+          queuedReason.value = event.reason ?? "busy";
           continue;
         }
         isQueued.value = false;
+        queuedReason.value = null;
         if (view.value !== null) {
           view.value = applyChatTurnEvent(view.value, event);
         }
@@ -177,5 +184,5 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
     abortController?.abort();
   }
 
-  return { view, isStreaming, isQueued, errorText, startTurn, interrupt };
+  return { view, isStreaming, isQueued, queuedReason, errorText, startTurn, interrupt };
 }

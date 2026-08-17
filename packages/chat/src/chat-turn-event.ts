@@ -82,6 +82,20 @@ export type ChatTurnEvent =
       cacheCreationInputTokens: number
     }
   | { kind: 'session-completed'; sessionId: string }
+  // The visible swap (session-continuity): after the turn's own events, the
+  // runtime tells every consumer the conversation is being continued on a
+  // fresh context — `context-patching` while the carry is distilled + seeded
+  // (the composer says "patching context", the feed narrates it), then
+  // `context-patched` with the fresh segment (`toSessionId` null = the swap
+  // aborted and the conversation stays on this segment). `sessionId` is the
+  // segment being superseded — the one the turn ran on.
+  | { kind: 'context-patching'; sessionId: string; primarySessionId: string }
+  | {
+      kind: 'context-patched'
+      sessionId: string
+      primarySessionId: string
+      toSessionId: string | null
+    }
   | { kind: 'session-interrupted'; sessionId: string }
   | {
       kind: 'session-errored'

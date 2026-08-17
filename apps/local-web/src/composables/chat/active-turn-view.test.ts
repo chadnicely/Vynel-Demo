@@ -163,4 +163,34 @@ describe("applyChatTurnEvent", () => {
     expect(errored.error?.code).toBe("provider-crash");
     expect(errored.hasEnded).toBe(true);
   });
+
+  it("shows the boundary context swap: patching, then landed on the fresh segment (or stayed)", () => {
+    const patching = fold([
+      { kind: "session-completed", sessionId: "seg-a" },
+      { kind: "context-patching", sessionId: "seg-a", primarySessionId: "p-1" },
+    ]);
+    // The turn is DONE (the composer is free) while the swap runs — the view
+    // carries the patching phase for the chip/pill to say so.
+    expect(patching.status).toBe("completed");
+    expect(patching.contextPatch).toEqual({ phase: "patching", fromSessionId: "seg-a", toSessionId: null });
+
+    const landed = fold([
+      { kind: "session-completed", sessionId: "seg-a" },
+      { kind: "context-patching", sessionId: "seg-a", primarySessionId: "p-1" },
+      { kind: "context-patched", sessionId: "seg-a", primarySessionId: "p-1", toSessionId: "seg-b" },
+      { kind: "turn-stream-ended" },
+    ]);
+    expect(landed.contextPatch).toEqual({ phase: "done", fromSessionId: "seg-a", toSessionId: "seg-b" });
+    expect(landed.hasEnded).toBe(true);
+
+    const stayed = fold([
+      { kind: "session-completed", sessionId: "seg-a" },
+      { kind: "context-patching", sessionId: "seg-a", primarySessionId: "p-1" },
+      { kind: "context-patched", sessionId: "seg-a", primarySessionId: "p-1", toSessionId: null },
+    ]);
+    expect(stayed.contextPatch?.phase).toBe("done");
+    expect(stayed.contextPatch?.toSessionId).toBeNull();
+    // No swap announced → nothing to show.
+    expect(fold([{ kind: "session-completed", sessionId: "seg-a" }]).contextPatch).toBeNull();
+  });
 });

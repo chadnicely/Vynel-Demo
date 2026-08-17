@@ -1,9 +1,10 @@
 // `applyPrimaryTurnContinuity` — THE post-turn continuity step, one op for every
 // continuing identity (workspace primary, global root, spawned session, agent
-// colleague — any `primary_sessions` row). Every runner calls it once the
+// colleague — any `primary_sessions` row). Every runner runs it once the
 // turn's stream has drained, still inside that runner's serialization lock, so
-// a swap is ordered ahead of the identity's next turn. Two steps, both
-// invisible to the user:
+// a swap is ordered ahead of the identity's next turn. Two steps, invisible in
+// effect and VISIBLE in progress (the swap events the boundary wrapper yields
+// — `with-boundary-continuity.ts`):
 //
 //   1. LINK — ensure the primary points at the SDK session this turn actually
 //      ran on. On an identity's first turn the primary was created with no
@@ -13,6 +14,11 @@
 //   2. BRIDGE — read the finished turn's context occupancy and, only if it
 //      crossed the pressure threshold, seed-fresh swap BEFORE the next turn.
 //      Delegates to `bridgePrimarySessionAfterTurn` (provider deps + segment row).
+//
+// Split in two phases so the boundary wrapper can announce a swap BEFORE it
+// runs: `prepareTurnContinuity` (link + measure + detect — cheap, no provider
+// call) yields a plan; `runTurnContinuitySwap` executes it. `apply…` composes
+// both for callers that need no announcement.
 //
 // The identity DRIVES the step (no caller-supplied ground): the primary row
 // supplies its own `workspaceId` (null = workspace-less) and its scope decides
@@ -33,8 +39,11 @@
 import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
 import {
+  detectContextPressure,
   linkPrimarySessionToSdkSession,
   type BridgePrimarySessionResult,
+  type ContextMeasurement,
+  type ContextPressure,
 } from '../continuity/index.js'
 import * as primarySessionsRepository from '../repositories/index.js'
 import type { PrimarySessionScope } from '../repositories/index.js'
@@ -60,6 +69,22 @@ export type ApplyPrimaryTurnContinuityInput = {
   threshold?: number
 }
 
+/** What `prepareTurnContinuity` decided — linked, measured, pressure detected.
+ *  Everything `runTurnContinuitySwap` needs, and what an announcer reads. */
+export type TurnContinuityPlan = {
+  primarySessionId: string
+  userId: string
+  effectiveSdkSessionId: string
+  /** The identity's OWN ground (null = workspace-less), from its primary row. */
+  workspaceId: string | null
+  workspacePath: string
+  providerId: AiAgentProviderId
+  measurement: ContextMeasurement
+  model: string | null
+  pressure: ContextPressure
+  threshold?: number
+}
+
 // A MANAGER primary's first segment (workspace brain, global root, the voice
 // twin) is the continuing thread itself — created by the normal new-session
 // flow as a listed "New session", it must hide so the thread shows as ONE
@@ -70,11 +95,12 @@ function hidesFirstSegment(scope: PrimarySessionScope): boolean {
   return scope !== 'spawned' && scope !== 'agent'
 }
 
-export async function applyPrimaryTurnContinuity(
+/** Phase 1 — link the primary to the segment the turn ran on, read the
+ *  segment's persisted occupancy, detect pressure. No provider call. */
+export function prepareTurnContinuity(
   db: Database,
   input: ApplyPrimaryTurnContinuityInput,
-  deps: BridgePrimarySessionAfterTurnDeps = {},
-): Promise<BridgePrimarySessionResult | null> {
+): TurnContinuityPlan {
   const primary = primarySessionsRepository.findPrimarySessionById(db, input.primarySessionId)
   if (!primary || primary.userId !== input.userId) {
     throw new NotFoundError('primary session', input.primarySessionId)
@@ -92,50 +118,61 @@ export async function applyPrimaryTurnContinuity(
     }
   }
 
-  // 2. Evaluate pressure from the effective segment's persisted occupancy +
-  //    swap if over threshold. No row / no usage yet → nothing measured →
-  //    nothing to bridge (a fresh identity's very first turn, or a turn that
-  //    failed before its first assistant message).
+  // 2. Measure from the effective segment's persisted occupancy. No row / no
+  //    usage yet → nothing measured → nothing to bridge (a fresh identity's very
+  //    first turn, or a turn that failed before its first assistant message).
   const segment = findChatSessionById(db, input.effectiveSdkSessionId)
   const usedTokens = segment?.lastContextTokens ?? 0
   const model = segment?.model ?? null
+  const measurement: ContextMeasurement = { usedTokens, contextWindow: resolveContextWindow(model) }
+  const pressure = detectContextPressure(
+    measurement,
+    input.threshold !== undefined ? { threshold: input.threshold } : {},
+  )
+  return {
+    primarySessionId: input.primarySessionId,
+    userId: input.userId,
+    effectiveSdkSessionId: input.effectiveSdkSessionId,
+    workspaceId: primary.workspaceId,
+    workspacePath: input.workspacePath,
+    providerId: input.providerId,
+    measurement,
+    model,
+    pressure,
+    ...(input.threshold !== undefined ? { threshold: input.threshold } : {}),
+  }
+}
+
+/** Phase 2 — the seed-fresh swap for a plan that crossed the threshold. */
+export async function runTurnContinuitySwap(
+  db: Database,
+  plan: TurnContinuityPlan,
+  deps: BridgePrimarySessionAfterTurnDeps = {},
+): Promise<BridgePrimarySessionResult | null> {
   return bridgePrimarySessionAfterTurn(
     db,
     {
-      primarySessionId: input.primarySessionId,
-      userId: input.userId,
-      workspaceId: primary.workspaceId,
-      workspacePath: input.workspacePath,
-      providerId: input.providerId,
-      measurement: { usedTokens, contextWindow: resolveContextWindow(model) },
+      primarySessionId: plan.primarySessionId,
+      userId: plan.userId,
+      workspaceId: plan.workspaceId,
+      workspacePath: plan.workspacePath,
+      providerId: plan.providerId,
+      measurement: plan.measurement,
       // The summary distill runs on the turn's model — its window provably
       // covers the session it just ran (the carry-fidelity rule).
-      model,
-      ...(input.threshold !== undefined ? { threshold: input.threshold } : {}),
+      model: plan.model,
+      ...(plan.threshold !== undefined ? { threshold: plan.threshold } : {}),
     },
     deps,
   )
 }
 
-/**
- * The best-effort form every runner calls at its turn boundary: the turn
- * already streamed and persisted, so a continuity failure (link or bridge) is
- * logged and swallowed — the next turn re-resolves the primary and re-evaluates
- * pressure. Returns the bridge result, or null (no pressure / aborted / failed).
- * One home for the contract, so no runner re-implements the guard.
- */
-export async function applyPrimaryTurnContinuityBestEffort(
+export async function applyPrimaryTurnContinuity(
   db: Database,
   input: ApplyPrimaryTurnContinuityInput,
   deps: BridgePrimarySessionAfterTurnDeps = {},
 ): Promise<BridgePrimarySessionResult | null> {
-  try {
-    return await applyPrimaryTurnContinuity(db, input, deps)
-  } catch (err) {
-    deps.logger?.warn(
-      { err, primarySessionId: input.primarySessionId, sdkSessionId: input.effectiveSdkSessionId },
-      'continuity failed after the turn — the next turn re-evaluates',
-    )
-    return null
-  }
+  const plan = prepareTurnContinuity(db, input)
+  if (!plan.pressure.isUnderPressure) return null
+  return runTurnContinuitySwap(db, plan, deps)
 }

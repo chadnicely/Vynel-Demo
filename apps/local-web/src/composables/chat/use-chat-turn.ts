@@ -25,7 +25,12 @@ import {
 // A continue-mode workspace turn parked behind a running delegated task leads
 // with the `turn-queued` transport sentinel (B3 — the session-turn precedent);
 // it is not a ChatTurnEvent kind, so the decoded stream widens at the boundary.
-type ChatTurnStreamEvent = ChatTurnEvent | { kind: "turn-queued" };
+// The queued sentinel names WHY the turn waits: the conversation's own context
+// swap ("patching context") or a running task ("working on a task").
+export type TurnQueuedReason = "busy" | "context-patching";
+type ChatTurnStreamEvent =
+  | ChatTurnEvent
+  | { kind: "turn-queued"; reason?: TurnQueuedReason };
 
 // Drives one live turn against the real SSE stream. Each ChatTurnEvent folds
 // into the active-turn view (transport-blind — the same pure fold the parser
@@ -45,6 +50,9 @@ export function useChatTurn(options: {
   /** Parked behind a delegated run on this workspace (the B3 queued sentinel)
    *  — the composer says "queued" instead of looking frozen. */
   const isQueuedBehindTask = shallowRef(false);
+  /** WHY it is parked — the sentinel's reason ('busy' when an older server
+   *  omits it); the note reads "patching context" vs "working on a task". */
+  const queuedReason = shallowRef<TurnQueuedReason | null>(null);
   /** The session the in-flight turn renders into — known up front for a resume/
    *  continue, or learned from `session-created` for a fresh conversation. */
   const activeSessionId = shallowRef<string | null>(null);
@@ -110,6 +118,7 @@ export function useChatTurn(options: {
     startedContinuous.value = input.isContinuous;
     errorText.value = null;
     isQueuedBehindTask.value = false;
+    queuedReason.value = null;
     activity.turnStarted();
     abortController = new AbortController();
 
@@ -141,9 +150,11 @@ export function useChatTurn(options: {
         // instead of looking frozen (the sidebar's workspace thread shows it).
         if (event.kind === "turn-queued") {
           isQueuedBehindTask.value = true;
+          queuedReason.value = event.reason ?? "busy";
           continue;
         }
         isQueuedBehindTask.value = false;
+        queuedReason.value = null;
         ingest(event);
       }
       // The stream closed with NO terminal frame at all — a server crash
@@ -216,6 +227,7 @@ export function useChatTurn(options: {
       });
     }
     isQueuedBehindTask.value = false;
+    queuedReason.value = null;
     ingest({ kind: "turn-stream-ended" });
   }
 
@@ -242,6 +254,7 @@ export function useChatTurn(options: {
     startedContinuous,
     isStreaming,
     isQueuedBehindTask,
+    queuedReason,
     errorText,
     startTurn,
     interrupt,

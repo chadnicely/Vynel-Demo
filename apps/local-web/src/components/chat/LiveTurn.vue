@@ -42,9 +42,14 @@ const lastSegmentId = computed(
 // How long this turn has been running — ticks beside "working" so a long run
 // reads as alive, not frozen (shared clock: the thread's working pill reads
 // the same composable).
+const isPatchingContext = computed(
+  () => props.view.contextPatch?.phase === "patching",
+);
 const elapsedLabel = useTickingElapsed(
   () => props.view.startedAtMs,
-  () => props.view.status === "streaming",
+  // Keeps ticking through the boundary swap — a "patching context" chip that
+  // froze would read as hung.
+  () => props.view.status === "streaming" || isPatchingContext.value,
 );
 </script>
 
@@ -127,6 +132,12 @@ const elapsedLabel = useTickingElapsed(
         {{ elapsedLabel }}</span
       >
     </p>
+    <!-- The turn is done but its conversation is being continued on a fresh
+         context (the boundary swap) — say so instead of a silent "done" that
+         sits there for the swap's seconds. -->
+    <p v-else-if="props.view.status === 'completed' && isPatchingContext" class="live-status">
+      <span class="patching-chip">patching context · {{ elapsedLabel }}</span>
+    </p>
     <p v-else-if="props.view.status === 'completed'" class="live-status">
       <span class="done-chip">done · {{ elapsedLabel }}</span>
     </p>
@@ -205,6 +216,19 @@ const elapsedLabel = useTickingElapsed(
   border-radius: 99px;
 }
 
+/* The boundary swap — the same breathing gold as "working": the conversation
+   is being continued on a fresh context, not finished and not hung. */
+.patching-chip {
+  color: var(--gold);
+  font: 400 10px/1.4 var(--font-ui);
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 99px;
+  background: var(--gold-soft);
+  animation: live-chip-breathe 1.6s var(--ease-out) infinite;
+}
+
 @keyframes live-chip-breathe {
   0%,
   100% {
@@ -216,7 +240,8 @@ const elapsedLabel = useTickingElapsed(
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live-chip {
+  .live-chip,
+  .patching-chip {
     animation: none;
   }
 }

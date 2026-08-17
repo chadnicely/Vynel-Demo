@@ -54,4 +54,14 @@ export {
   type SessionCompactedEventPayload,
   SESSION_SWAPPED_EVENT_TYPE,
   type SessionSwappedEventPayload,
+  SESSION_SWAPPING_EVENT_TYPE,
+  type SessionSwappingEventPayload,
 } from './session-continuity-events.js'
+
+// The process-wide "swapping right now" register — the streams read it when
+// a turn parks behind an identity's lock (say "patching context", not "busy").
+export {
+  isPrimarySwapping,
+  markPrimarySwapping,
+  clearPrimarySwapping,
+} from './swapping-primaries.js'

@@ -50,3 +50,20 @@ export type SessionSwappedEventPayload = {
   // ISO timestamp of the swap.
   swappedAt: string
 }
+
+// Emitted by `bridgePrimarySession` when a seed-fresh swap STARTS (before the
+// distill) — the durable "patching context" signal a monitor can subscribe
+// to; `session.swapped` follows when the fresh segment is live. Not a state
+// change of its own (the primary repoints only at the end), so it is inserted
+// on its own — a notification, not a co-committed transition.
+export const SESSION_SWAPPING_EVENT_TYPE = 'session.swapping'
+export type SessionSwappingEventPayload = {
+  primarySessionId: string
+  userId: string
+  scope: PrimarySessionScope
+  workspaceId: string | null
+  // The session about to be superseded — the one the carry is distilled from.
+  fromSdkSessionId: string
+  // ISO timestamp of when the swap began.
+  startedAt: string
+}

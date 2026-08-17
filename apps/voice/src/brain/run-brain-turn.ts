@@ -7,7 +7,17 @@ import { parseSseFrames, type SseFrame } from './sse-frames.js'
 // carry the full `ChatTurnEvent` union; voice only needs the text + the terminal.
 
 /** Map one SSE frame to a `VoiceBrainEvent`, or null for frames voice ignores
- *  (thinking, tool calls, approvals, usage). Pure — unit-tested. */
+ *  (thinking, tool calls, approvals, usage, the context-swap frames). Pure —
+ *  unit-tested.
+ *
+ *  The turn is COMPLETE at `session-completed` — the answer is fully spoken /
+ *  written by then. `turn-stream-ended` (the transport's terminal frame) can
+ *  arrive tens of seconds later when the conversation continues on a fresh
+ *  context at the turn boundary (`context-patching` → `context-patched` ride
+ *  the stream in between); voice has no chip to show for that, so a daemon
+ *  waiting on the terminal frame sat "thinking" through the whole swap with the
+ *  reply queued behind it. Completing on the session's own end frees the loop
+ *  the moment the answer is done; the swap finishes server-side regardless. */
 export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   if (frame.event === 'turn-stream-ended') return { kind: 'completed' }
 
@@ -23,6 +33,7 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   if (event.kind === 'text-chunk' && typeof event.textDelta === 'string') {
     return { kind: 'text', delta: event.textDelta }
   }
+  if (event.kind === 'session-completed') return { kind: 'completed' }
   if (event.kind === 'session-errored') {
     return {
       kind: 'failed',
@@ -68,7 +79,9 @@ export async function* streamTurnEvents(
   for await (const frame of parseSseFrames(Readable.fromWeb(response.body))) {
     const brainEvent = mapFrameToBrainEvent(frame)
     if (brainEvent !== null) yield brainEvent
-    if (frame.event === 'turn-stream-ended') return
+    // Done at the session's own end OR the transport terminal — whichever comes
+    // first; the rest of the stream (a boundary context swap) is the server's.
+    if (brainEvent?.kind === 'completed' || frame.event === 'turn-stream-ended') return
   }
   // The stream ended without an explicit terminal frame — treat as complete.
   yield { kind: 'completed' }

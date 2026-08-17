@@ -149,6 +149,12 @@ describe('runGlobalRootTurnCore — boundary continuity', () => {
       await runGlobalRootTurnCore(deps, bareTurnInput(user.id, 'remember: the codename is BLUEHERON'), sink1)
       expect(sink1.ended).toBe(true)
 
+      // The swap is VISIBLE on the sink: after the turn's own events, before
+      // the stream ends — patching, then patched onto the fresh segment.
+      const kinds1 = sink1.events.map((e) => e.kind)
+      expect(kinds1.slice(-3)).toEqual(['session-completed', 'context-patching', 'context-patched'])
+      expect(sink1.events.at(-1)).toMatchObject({ kind: 'context-patched', sessionId: 'global-a', toSessionId: 'global-b' })
+
       const primaryAfterTurn1 = await getOrCreatePrimarySession(db, { userId: user.id })
       expect(primaryAfterTurn1.currentSdkSessionId).toBe('global-b')
       expect(primaryAfterTurn1.supersededFromSdkSessionId).toBe('global-a')

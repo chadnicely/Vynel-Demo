@@ -32,7 +32,7 @@ import {
 } from '@vynel/chat'
 import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
 import { resolvePrimaryConversationTarget } from '../runtime/index.js'
-import { applyPrimaryTurnContinuityBestEffort } from '../runtime/apply-primary-turn-continuity.js'
+import { withBoundaryContinuity } from '../runtime/with-boundary-continuity.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
@@ -207,10 +207,27 @@ export async function delegateToWorkspaceRoot(
   let streamError: { code: string; message: string } | null = null
 
   // Tee onto the workspace session's live channel when a broadcaster is wired.
+  // Continuity at the turn boundary RIDES the stream (the one wrapper every
+  // runner uses): after the turn's events it announces `context-patching`,
+  // distills + seed-fresh swaps at pressure, then `context-patched` — under
+  // the tick's target lock, so the swap lands before the next task resumes
+  // this brain; observers, the feed and the Watch channel see it.
+  const continuedStream = withBoundaryContinuity(
+    turnStream,
+    {
+      primarySessionId: target.primarySessionId,
+      priorSdkSessionId: target.resumeSdkSessionId,
+      userId: input.userId,
+      workspacePath: input.workspacePath,
+      providerId: input.providerId,
+      ...(input.pressureThreshold !== undefined ? { threshold: input.pressureThreshold } : {}),
+    },
+    { db, provider, ...(input.logger !== undefined ? { logger: input.logger } : {}) },
+  )
   const observedTurnStream =
     input.turnEvents !== undefined
-      ? publishTurnEventsToSessionChannel(turnStream, input.turnEvents)
-      : turnStream
+      ? publishTurnEventsToSessionChannel(continuedStream, input.turnEvents)
+      : continuedStream
 
   try {
     for await (const event of observedTurnStream) {
@@ -314,27 +331,6 @@ export async function delegateToWorkspaceRoot(
       'delegateToWorkspaceRoot: the runtime did not assign a session id for the routed turn',
     )
   }
-
-  // Continuity at the turn boundary — the ONE op every continuing identity
-  // runs (the interactive stream + the global core call the same). Under the
-  // tick's target lock, so a swap lands before the next task resumes this
-  // brain; a background-driven workspace no longer rides to the ceiling
-  // waiting for an interactive turn to measure it. Best-effort: the turn's
-  // rows are persisted — a failure is logged and the outcome below is
-  // reported as it happened.
-  await applyPrimaryTurnContinuityBestEffort(
-    db,
-    {
-      primarySessionId: target.primarySessionId,
-      priorSdkSessionId: target.resumeSdkSessionId,
-      effectiveSdkSessionId: sessionId,
-      userId: input.userId,
-      workspacePath: input.workspacePath,
-      providerId: input.providerId,
-      ...(input.pressureThreshold !== undefined ? { threshold: input.pressureThreshold } : {}),
-    },
-    { provider, ...(input.logger !== undefined ? { logger: input.logger } : {}) },
-  )
 
   if (streamError !== null) {
     throw new Error(

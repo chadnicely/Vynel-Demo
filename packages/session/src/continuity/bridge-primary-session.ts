@@ -26,8 +26,11 @@ import type { StructuralLogger } from './session-continuity-types.js'
 import { detectContextPressure, type ContextMeasurement } from './detect-context-pressure.js'
 import {
   SESSION_SWAPPED_EVENT_TYPE,
+  SESSION_SWAPPING_EVENT_TYPE,
   type SessionSwappedEventPayload,
+  type SessionSwappingEventPayload,
 } from './session-continuity-events.js'
+import { clearPrimarySwapping, markPrimarySwapping } from './swapping-primaries.js'
 
 export type BridgePrimarySessionInput = {
   primarySessionId: string
@@ -70,6 +73,42 @@ export async function bridgePrimarySession(
     throw new ValidationError('Cannot bridge a primary session that has no current SDK session.')
   }
 
+  // The swap is now IN PROGRESS: mark the process-wide register (a turn that
+  // parks behind this identity's lock can say "patching context") and emit
+  // the durable start signal (`session.swapping`) — the visible-swap half of
+  // continuity. The mark lives INSIDE the try, so every exit — the outbox
+  // insert throwing included — clears it; a stale mark would mislabel every
+  // later park as "patching context" until restart.
+  try {
+    markPrimarySwapping(primary.id)
+    const startedPayload: SessionSwappingEventPayload = {
+      primarySessionId: primary.id,
+      userId: primary.userId,
+      scope: primary.scope,
+      workspaceId: primary.workspaceId,
+      fromSdkSessionId,
+      startedAt: new Date().toISOString(),
+    }
+    insertOutboxEvent(db, {
+      id: randomUUID(),
+      type: SESSION_SWAPPING_EVENT_TYPE,
+      payload: startedPayload,
+      createdAt: new Date(),
+      processedAt: null,
+    })
+    return await runSwap(db, input, deps, primary, fromSdkSessionId)
+  } finally {
+    clearPrimarySwapping(primary.id)
+  }
+}
+
+async function runSwap(
+  db: Database,
+  input: BridgePrimarySessionInput,
+  deps: BridgePrimarySessionDeps,
+  primary: NonNullable<ReturnType<typeof primarySessionsRepository.findPrimarySessionById>>,
+  fromSdkSessionId: string,
+): Promise<BridgePrimarySessionResult | null> {
   // 1. Distill the live session into the carry.
   const summary = await deps.summarizeSession(fromSdkSessionId)
   if (summary === null || summary.trim().length < MIN_CARRY_SUMMARY_LENGTH) {

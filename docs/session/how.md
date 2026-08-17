@@ -85,6 +85,7 @@ generated SDK, not by importing this package).
 
 | Event | Direction | Trigger | Payload highlights |
 | --- | --- | --- | --- |
+| `session.swapping` | published | `bridgePrimarySession` STARTS a seed-fresh swap (before the distill) — the visible-swap start signal; not a state change, inserted on its own | `primarySessionId`, `userId`, `scope`, `workspaceId`, `fromSdkSessionId`, `startedAt` |
 | `session.swapped` | published | `bridgePrimarySession` repoints a primary at its fresh seeded segment (co-committed with the repoint) | `primarySessionId`, `userId`, `scope`, `workspaceId`, `fromSdkSessionId`, `toSdkSessionId` |
 | `session.compacted` | published | PostCompact capture — the runtime auto-compacted a session mid-turn (Layer 1) | compaction summary capture |
 

@@ -171,7 +171,11 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
       />
       <p v-if="chatTurn.isQueuedBehindTask.value" class="queued-note">
         <PresenceDot state="live" />
-        Working on a task — your message is queued.
+        {{
+          chatTurn.queuedReason.value === "context-patching"
+            ? "Patching context — your message continues right after."
+            : "Working on a task — your message is queued."
+        }}
       </p>
       <p v-if="chatTurn.errorText.value" class="turn-error-note">
         {{ chatTurn.errorText.value }}

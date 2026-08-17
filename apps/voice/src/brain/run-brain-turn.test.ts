@@ -14,6 +14,18 @@ describe('mapFrameToBrainEvent', () => {
     })
   })
 
+  it("maps session-completed to completed — the answer is done there; the boundary swap frames after it are not voice's to wait on", () => {
+    expect(
+      mapFrameToBrainEvent({ event: 'session-completed', data: '{"kind":"session-completed","sessionId":"s"}' }),
+    ).toEqual({ kind: 'completed' })
+    expect(
+      mapFrameToBrainEvent({ event: 'context-patching', data: '{"kind":"context-patching","sessionId":"s","primarySessionId":"p"}' }),
+    ).toBeNull()
+    expect(
+      mapFrameToBrainEvent({ event: 'context-patched', data: '{"kind":"context-patched","sessionId":"s","primarySessionId":"p","toSessionId":"t"}' }),
+    ).toBeNull()
+  })
+
   it('maps session-errored to a failure with the message', () => {
     expect(
       mapFrameToBrainEvent({

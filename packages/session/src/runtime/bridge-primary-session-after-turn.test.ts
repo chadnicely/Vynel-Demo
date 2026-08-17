@@ -27,11 +27,25 @@ import {
 import type { PrimarySessionScope } from '../repositories/index.js'
 import { resolvePrimaryTranscript, resolveSessionChainTranscript } from './resolve-primary-transcript.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
-import { SESSION_SWAPPED_EVENT_TYPE } from '../continuity/index.js'
+import { SESSION_SWAPPED_EVENT_TYPE, SESSION_SWAPPING_EVENT_TYPE, isPrimarySwapping } from '../continuity/index.js'
 import {
   FakeAiAgentProvider,
   type SummarizeSessionCall,
 } from './test-support/fake-ai-agent-provider.js'
+
+// Observes the process-wide "swapping now" register from INSIDE the swap (the
+// distill is the first thing the bridge awaits) — the only place that can
+// prove the mark is held while the swap runs, not merely cleared after.
+class RegisterObservingProvider extends FakeAiAgentProvider {
+  swappingDuringDistill: boolean | null = null
+  constructor(private readonly watchedPrimaryId: string, options: ConstructorParameters<typeof FakeAiAgentProvider>[0]) {
+    super(options)
+  }
+  override summarizeSession(input: SummarizeSessionCall): Promise<string | null> {
+    this.swappingDuringDistill = isPrimarySwapping(this.watchedPrimaryId)
+    return super.summarizeSession(input)
+  }
+}
 import type { StartChatSessionInput } from '@vynel/providers'
 import { bridgePrimarySessionAfterTurn } from './bridge-primary-session-after-turn.js'
 import { applyPrimaryTurnContinuity } from './apply-primary-turn-continuity.js'
@@ -166,7 +180,7 @@ describe('bridgePrimarySessionAfterTurn', () => {
       seedUserMessage(db, 'sdk-old', 'remember: the codename is BLUEHERON')
       const summarizeSessionInputs: SummarizeSessionCall[] = []
       const startChatSessionInputs: StartChatSessionInput[] = []
-      const provider = new FakeAiAgentProvider({
+      const provider = new RegisterObservingProvider(primary.id, {
         seededSessionId: 'sdk-fresh',
         summary: USABLE_CARRY,
         summarizeSessionInputs,
@@ -226,8 +240,13 @@ describe('bridgePrimarySessionAfterTurn', () => {
         listChatSessionsForWorkspace(db, workspace.id, { includeHidden: true }).map((s) => s.id),
       ).toContain('sdk-fresh')
 
-      // session.swapped emitted for the future monitor.
+      // session.swapping (the visible start) + session.swapped emitted for the
+      // monitor; the process-wide "swapping now" register is HELD while the swap
+      // runs (observed from inside the distill) and released after.
+      expect(listOutboxEventsByType(db, SESSION_SWAPPING_EVENT_TYPE)).toHaveLength(1)
       expect(listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)).toHaveLength(1)
+      expect(provider.swappingDuringDistill).toBe(true)
+      expect(isPrimarySwapping(primary.id)).toBe(false)
     })
   })
 
@@ -255,6 +274,7 @@ describe('bridgePrimarySessionAfterTurn', () => {
       expect(result).toBeNull()
       expect(findPrimarySessionById(db, primary.id)?.currentSdkSessionId).toBe('sdk-old')
       expect(findChatSessionById(db, 'sdk-fresh')).toBeNull()
+      expect(listOutboxEventsByType(db, SESSION_SWAPPING_EVENT_TYPE)).toHaveLength(0)
       expect(listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)).toHaveLength(0)
     })
   })

@@ -37,6 +37,7 @@ import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import { loadEnv } from '../env.js'
+import { isPrimarySwapping } from '@vynel/session/continuity'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
 import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
@@ -317,6 +318,12 @@ export async function streamGlobalRootTurn(
         persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
       }
     })
+    // A turn arriving while the brain is mid context-swap parks on the
+    // per-user root lock inside the core — tell the composer WHY before it
+    // waits (the workspace/DM streams' queued sentinel, one reason).
+    if (isPrimarySwapping(conversationTarget.primarySessionId)) {
+      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason: 'context-patching' }) })
+    }
     try {
       await runGlobalRootTurnCore(
         {

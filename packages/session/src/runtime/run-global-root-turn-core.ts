@@ -27,7 +27,7 @@
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { consumeSessionEventStream, attachedImagesMetadataFor } from '@vynel/chat'
 import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
-import { applyPrimaryTurnContinuityBestEffort } from './apply-primary-turn-continuity.js'
+import { withBoundaryContinuity } from './with-boundary-continuity.js'
 import type {
   RunGlobalRootTurnCoreDeps,
   RunGlobalRootTurnCoreInput,
@@ -165,26 +165,42 @@ export async function runGlobalRootTurnCore(
         logger: deps.logger,
       })
 
+      // Continuity at the turn boundary rides the stream — STILL under the
+      // per-user lock, so a swap is serialized ahead of the brain's next turn
+      // (the same one wrapper the workspace stream and the routed runners use).
+      // Reads the segment's persisted occupancy; at ≥ 0.85 it announces
+      // `context-patching`, distills + seed-fresh swaps, then `context-patched`
+      // — the next turn resumes the fresh segment. Best-effort inside: the
+      // turn already streamed, a failure is logged, never surfaced.
+      const continuedStream = withBoundaryContinuity(
+        turnStream,
+        {
+          primarySessionId: target.primarySessionId,
+          priorSdkSessionId: target.resumeSdkSessionId,
+          userId: input.userId,
+          workspacePath: target.workspacePath,
+          providerId: DEFAULT_PROVIDER_ID,
+          ...(input.pressureThreshold !== undefined
+            ? { threshold: input.pressureThreshold }
+            : {}),
+        },
+        { db: deps.db, logger: deps.logger, provider },
+      )
       // Tee onto the session's live channel when a broadcaster is wired —
       // the brain's turns are watchable like any other (Slice ③).
       const observedStream =
         deps.turnEvents !== undefined
-          ? publishTurnEventsToSessionChannel(turnStream, deps.turnEvents)
-          : turnStream
-      // The segment the turn actually ran on — the resumed id, advanced by a
-      // `session-created` (fresh root or mid-turn swap). The continuity step
-      // below reads its persisted occupancy.
-      let effectiveSdkSessionId: string | null = resumeSessionId ?? null
+          ? publishTurnEventsToSessionChannel(continuedStream, deps.turnEvents)
+          : continuedStream
       for await (const event of observedStream) {
         // Link the root to the SDK session whenever a NEW (or compaction-swapped)
         // segment is created — `session-created` fires only on the new-session branch,
         // exactly when the root's currentSdkSessionId must advance to the live segment.
         // A normal resumed turn keeps the existing link. Best-effort — a link failure
-        // must never break the live turn. (The post-turn step below re-links as a
+        // must never break the live turn. (The boundary wrapper re-links as a
         // reconcile; this in-stream link is the durable one — it holds even if
         // the turn dies mid-way.)
         if (event.kind === 'session-created') {
-          effectiveSdkSessionId = event.session.id
           try {
             linkPrimarySessionToSdkSession(deps.db, {
               primarySessionId: target.primarySessionId,
@@ -198,30 +214,6 @@ export async function runGlobalRootTurnCore(
         await sink.onEvent(event)
       }
       await sink.onEnd?.()
-
-      // Continuity at the turn boundary — STILL under the per-user lock, so a
-      // swap is serialized ahead of the brain's next turn (the same one op the
-      // workspace stream and the routed runners call). Reads the segment's
-      // persisted occupancy; at ≥ 0.85 it distills + seed-fresh swaps, and the
-      // next turn resumes the fresh segment invisibly. Best-effort: the turn
-      // already streamed — a failure is logged, never surfaced.
-      if (effectiveSdkSessionId !== null) {
-        await applyPrimaryTurnContinuityBestEffort(
-          deps.db,
-          {
-            primarySessionId: target.primarySessionId,
-            priorSdkSessionId: target.resumeSdkSessionId,
-            effectiveSdkSessionId,
-            userId: input.userId,
-            workspacePath: target.workspacePath,
-            providerId: DEFAULT_PROVIDER_ID,
-            ...(input.pressureThreshold !== undefined
-              ? { threshold: input.pressureThreshold }
-              : {}),
-          },
-          { provider, logger: deps.logger },
-        )
-      }
     })
   } catch (err) {
     if (sink.onError !== undefined) {

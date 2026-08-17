@@ -33,9 +33,18 @@ export {
 } from './resolve-primary-conversation.js'
 export {
   applyPrimaryTurnContinuity,
-  applyPrimaryTurnContinuityBestEffort,
+  prepareTurnContinuity,
+  runTurnContinuitySwap,
   type ApplyPrimaryTurnContinuityInput,
+  type TurnContinuityPlan,
 } from './apply-primary-turn-continuity.js'
+// Continuity that RIDES a turn stream — the boundary step announced as
+// `context-patching` / `context-patched` events on the same stream.
+export {
+  withBoundaryContinuity,
+  type BoundaryContinuityInput,
+  type BoundaryContinuityDeps,
+} from './with-boundary-continuity.js'
 export {
   bridgePrimarySessionAfterTurn,
   type BridgePrimarySessionAfterTurnInput,

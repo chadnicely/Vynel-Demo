@@ -482,6 +482,50 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
   touch on those routes. Deferred-improves: hoist the `McpToolFn` twin into `@vynel/mcp-contract`
   (four copies now); the stream files stay over the ~300 cap (pre-existing).
 
+## 5e. Slice 4 — SHIPPED 2026-08-18 (the visible swap)
+
+- **Continuity now RIDES the turn stream** — `withBoundaryContinuity(turnStream, input, deps)`
+  (`packages/session/src/runtime/with-boundary-continuity.ts`): the wrapper yields the turn's
+  events, tracks the effective segment, and at the stream's clean end runs the two-phase op
+  (`prepareTurnContinuity` = link + measure + detect · `runTurnContinuitySwap` = the bridge),
+  yielding two NEW `ChatTurnEvent` kinds around the swap: `context-patching` → (swap) →
+  `context-patched { toSessionId | null }`. Wired INSIDE the session-channel tee on every
+  runner (`startChatTurn`'s new `continuity` input → workspace + DM streams; the global core;
+  the three delegation runners), so SSE frames, the drain sink, observers, the feed step tap
+  and the Watch channel all carry the state — no per-surface plumbing, and a new runner cannot
+  forget it. `applyPrimaryTurnContinuityBestEffort` is gone (the wrapper owns best-effort).
+- **Frame order on a swap:** `session-completed` → `context-patching` → `context-patched` →
+  `turn-stream-ended`. The composer frees at `session-completed` (as before); the live chip /
+  thread pill reads "patching context · Ns" (breathing gold) for the swap's seconds instead
+  of a silent "done".
+- **A turn arriving mid-swap:** the `turn-queued` sentinel now carries `{ reason:
+  'context-patching' | 'busy' }` — read off a process-wide "swapping now" register
+  (`continuity/swapping-primaries.ts`, marked/cleared by `bridgePrimarySession` in a
+  try/finally); the workspace + DM streams check their identity's primary, the global SSE
+  stream checks the brain pre-core. The note reads "Patching context — your message continues
+  right after."
+- **Signals:** `session.swapping` outbox event at swap start (a monitor can subscribe; not a
+  state change, inserted on its own); feed steps `turn-context-patching` /
+  `turn-context-patched` (contracts `SessionTurnStep`) — the activity store tolerates them;
+  the web feed composable re-reads the session views on `turn-context-patched` (the head moved).
+- **Web:** `ActiveTurnView.contextPatch { phase, fromSessionId, toSessionId }`; `LiveTurn`
+  patching chip; `ThreadStream` "Patching context" pill; `use-chat-turn` + the DM
+  `use-session-turn` `queuedReason`; the sidebar + session-thread notes per reason.
+- **Voice completes at `session-completed`** (reviewer catch): the daemon used to complete a
+  turn only on `turn-stream-ended`, which now arrives AFTER a boundary swap — the spoken reply
+  would have queued behind tens of seconds of "thinking". Voice has no chip to show, so it
+  frees the loop at the session's own end; the swap finishes server-side regardless (the
+  abandoned stream's writes no-op).
+- **Reviewer pass: 0 must-fix in the packages, 1 regression (voice, above) + 3 should-fixes
+  taken:** the swapping mark lives INSIDE the bridge's try (an outbox-insert throw could have
+  left a stale mark → every later park mislabelled), the DM web surface honors the queued
+  reason, and the mark is now PINNED as held during the swap (observed from inside the distill
+  by a subclassed fake). Recorded: `session.swapping` has no abort/failure sibling — a monitor
+  can't tell "aborted" from "still swapping" (add `session.swap-aborted` when a consumer needs
+  it); the main GlobalChatView/WorkspaceView render no queued note at all (only the sidebar
+  thread does) — pre-existing for "busy", inherited; the queued reason is one-shot at park
+  time (a turn parked before the swap begins reads "busy" — the feed still narrates the swap).
+
 ## 6. Forks / deferred (decide deliberately, never slip in)
 
 - **`.notes/` drafts are Kafi's working material** (Global Root, Workspace Manager, Workspace,

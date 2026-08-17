@@ -96,6 +96,8 @@ import {
   getOrCreateContinuingSession,
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
+  markPrimarySwapping,
+  clearPrimarySwapping,
 } from '@vynel/session/continuity'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { SessionTargetLocks } from '@vynel/session/delegation'
@@ -520,6 +522,31 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
     })
   })
 
+  it("a turn parked behind the session's OWN context swap says so — queued reason context-patching", async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-queued-swap-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-swapping')
+        const locks = new SessionTargetLocks()
+        const release = await locks.acquire(spawned.primarySessionId)
+        markPrimarySwapping(spawned.primarySessionId)
+        const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+        try {
+          const pending = postTurn(app, spawned.sessionId, { userMessageText: 'while it patches' })
+          await sleep(50)
+          clearPrimarySwapping(spawned.primarySessionId)
+          release()
+          const frames = await (await pending).text()
+          expect(frames).toContain('event: turn-queued')
+          expect(frames).toContain('"reason":"context-patching"')
+        } finally {
+          clearPrimarySwapping(spawned.primarySessionId)
+        }
+      })
+    })
+  })
+
   it('boundary continuity: a direct turn that leaves the session over the threshold swaps it before its next turn', async () => {
     await withTestDatabase(async (db) => {
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-bridge-'))
@@ -533,6 +560,12 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
           await postTurn(app, spawned.sessionId, { userMessageText: 'keep going' })
         ).text()
         expect(frames).toContain('event: turn-stream-ended')
+        // The swap is VISIBLE on the stream, in order, before the terminal frame.
+        const at = (marker: string) => frames.indexOf(marker)
+        expect(at('event: context-patching')).toBeGreaterThan(at('event: session-completed'))
+        expect(at('event: context-patched')).toBeGreaterThan(at('event: context-patching'))
+        expect(at('event: turn-stream-ended')).toBeGreaterThan(at('event: context-patched'))
+        expect(frames).toContain('"toSessionId":"')
 
         // The turn ran on the head; the swap's priming session was a second,
         // FRESH start; the distill ran once.

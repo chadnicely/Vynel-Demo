@@ -74,6 +74,11 @@ export type SessionTurnStep =
   | { kind: 'turn-tool-settled'; toolUseId: string; status: SessionTurnStepStatus }
   | { kind: 'turn-approval-requested'; approvalRequestId: string; toolName: string }
   | { kind: 'turn-approval-resolved'; approvalRequestId: string }
+  // The visible swap on the feed: the turn's conversation is being continued
+  // on a fresh context (patching), then landed on `toSessionId` (null = the
+  // swap aborted and the conversation stayed on `fromSessionId`).
+  | { kind: 'turn-context-patching'; fromSessionId: string }
+  | { kind: 'turn-context-patched'; fromSessionId: string; toSessionId: string | null }
 
 export type SessionActivityEvent =
   | ({ kind: 'turn-started' } & SessionTurnActivity)

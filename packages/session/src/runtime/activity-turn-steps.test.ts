@@ -111,6 +111,19 @@ describe('turnStepFromChatTurnEvent', () => {
     ).toEqual({ kind: 'turn-approval-resolved', approvalRequestId: 'ap-1' })
   })
 
+  it('narrates the visible swap: context-patching / context-patched map to feed steps', () => {
+    expect(
+      turnStepFromChatTurnEvent({ kind: 'context-patching', sessionId: 'seg-a', primarySessionId: 'p-1' }),
+    ).toEqual({ kind: 'turn-context-patching', fromSessionId: 'seg-a' })
+    expect(
+      turnStepFromChatTurnEvent({ kind: 'context-patched', sessionId: 'seg-a', primarySessionId: 'p-1', toSessionId: 'seg-b' }),
+    ).toEqual({ kind: 'turn-context-patched', fromSessionId: 'seg-a', toSessionId: 'seg-b' })
+    // A swap that aborted still settles the step — the conversation stayed.
+    expect(
+      turnStepFromChatTurnEvent({ kind: 'context-patched', sessionId: 'seg-a', primarySessionId: 'p-1', toSessionId: null }),
+    ).toEqual({ kind: 'turn-context-patched', fromSessionId: 'seg-a', toSessionId: null })
+  })
+
   it('everything else is not a step (chunks, lifecycle, usage)', () => {
     const nonSteps: ChatTurnEvent[] = [
       { kind: 'text-chunk', messageId: 'm', textDelta: 'hi' },

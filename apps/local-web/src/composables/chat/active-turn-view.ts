@@ -80,6 +80,14 @@ export interface ActiveTurnView {
   usage: ActiveTurnUsage | null;
   error: { code: string; message: string; isRecoverable: boolean } | null;
   hasEnded: boolean;
+  /** The visible context swap at the turn's boundary: the conversation is
+   *  being continued on a fresh context ('patching'), then landed
+   *  (`toSessionId` set) or stayed (null). Null while no swap is announced. */
+  contextPatch: {
+    phase: "patching" | "done";
+    fromSessionId: string;
+    toSessionId: string | null;
+  } | null;
 }
 
 export function createActiveTurnView(): ActiveTurnView {
@@ -95,6 +103,7 @@ export function createActiveTurnView(): ActiveTurnView {
     usage: null,
     error: null,
     hasEnded: false,
+    contextPatch: null,
   };
 }
 
@@ -287,6 +296,22 @@ export function applyChatTurnEvent(
           code: event.errorCode,
           message: event.errorMessage,
           isRecoverable: event.isRecoverable,
+        },
+      };
+    // The visible swap: the composer says "patching context" while the carry
+    // is distilled + seeded, then the fresh segment (or "stayed") is known.
+    case "context-patching":
+      return {
+        ...view,
+        contextPatch: { phase: "patching", fromSessionId: event.sessionId, toSessionId: null },
+      };
+    case "context-patched":
+      return {
+        ...view,
+        contextPatch: {
+          phase: "done",
+          fromSessionId: event.sessionId,
+          toSessionId: event.toSessionId,
         },
       };
     case "turn-stream-ended":

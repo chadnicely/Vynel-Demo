@@ -597,7 +597,9 @@ function isFoldedSpeakingMember(
 // transient 1s disagreement is possible and harmless).
 const workingElapsed = useTickingElapsed(
   () => props.activeTurn?.startedAtMs ?? null,
-  () => props.activeTurn?.status === "streaming",
+  () =>
+    props.activeTurn?.status === "streaming" ||
+    props.activeTurn?.contextPatch?.phase === "patching",
 );
 
 // The state treatments (the Needs Input / Problem / Completed canvases): the
@@ -974,6 +976,17 @@ watch(
           >
             <Disc :size="13" class="working-disc" aria-hidden="true" />
             <span class="working-label">{{ props.assistantName }} working</span>
+            <span class="working-sep" aria-hidden="true" />
+            <span class="working-time">{{ workingElapsed }}</span>
+          </span>
+          <!-- The boundary swap: the turn is done, the conversation is being
+               continued on a fresh context — the pill says so for those seconds. -->
+          <span
+            v-else-if="props.activeTurn.contextPatch?.phase === 'patching' && workingElapsed"
+            class="working-pill"
+          >
+            <Disc :size="13" class="working-disc" aria-hidden="true" />
+            <span class="working-label">Patching context</span>
             <span class="working-sep" aria-hidden="true" />
             <span class="working-time">{{ workingElapsed }}</span>
           </span>

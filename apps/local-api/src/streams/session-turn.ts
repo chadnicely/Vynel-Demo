@@ -14,18 +14,18 @@
 //      (the shared `SessionTargetLocks` FIFO); a `turn-queued` SSE sentinel
 //      (the `turn-stream-ended` precedent — no ChatTurnEvent kind) tells the
 //      composer it is waiting.
-//   4. The turn ends with the ONE continuity step every continuing identity
-//      runs (`applyPrimaryTurnContinuity`, still under the target lock): a
-//      session driven only by direct messages must not ride to the ceiling
-//      while its delegated turns would have swapped it.
+//   4. The turn carries the ONE continuity step every continuing identity
+//      runs (`withBoundaryContinuity` on the stream, still under the target
+//      lock): a session driven only by direct messages must not ride to the
+//      ceiling while its delegated turns would have swapped it.
 
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { z } from 'zod'
 import { NotFoundError } from '@vynel/errors'
-import { startChatTurn, applyPrimaryTurnContinuityBestEffort } from '@vynel/session/runtime'
+import { startChatTurn } from '@vynel/session/runtime'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
-import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
+import { isPrimarySwapping, linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
 import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
@@ -238,7 +238,10 @@ export async function streamSpawnedSessionTurn(
     // queued sentinel goes out BEFORE parking so the composer can say
     // "working on a task — queued" instead of looking frozen.
     if (locks.isBusy(spawned.id)) {
-      await stream.writeSSE({ event: 'turn-queued', data: '{}' })
+      // WHY it waits: this session's own context swap ("patching context") or
+      // a running delegated task ("working on a task").
+      const reason = isPrimarySwapping(spawned.id) ? 'context-patching' : 'busy'
+      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason }) })
     }
     const releaseTargetLock = await locks.acquire(spawned.id)
     try {
@@ -276,6 +279,13 @@ export async function streamSpawnedSessionTurn(
           workspacePath: runCwdPath,
           providerId: DEFAULT_PROVIDER_ID,
           resumeSessionId,
+          // The continuing identity: the boundary continuity step rides the
+          // stream (`context-patching` / swap / `context-patched` at pressure)
+          // — the same one every delegated turn into this session runs.
+          continuity: {
+            primarySessionId: spawned.id,
+            ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
+          },
           userMessageText: input.userMessageText,
           ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
           ...(turnSettings.thinkingEffort !== undefined
@@ -340,9 +350,6 @@ export async function streamSpawnedSessionTurn(
       })
       // 'failed' when the drain sees a terminal session-errored or throws.
       let turnOutcome: 'ended' | 'failed' = 'ended'
-      // The segment the turn actually ran on — the head, advanced by a
-      // mid-turn swap; the boundary continuity step reads its occupancy.
-      let effectiveSdkSessionId = resumeSessionId
       try {
         for await (const event of turnStream) {
           if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
@@ -350,7 +357,6 @@ export async function streamSpawnedSessionTurn(
             // Mid-turn compaction swap — advance the primary's link so the
             // NEXT turn resumes the new head (event-driven, the
             // delegateToSpawnedSession shape).
-            effectiveSdkSessionId = event.session.id
             linkPrimarySessionToSdkSession(db, {
               primarySessionId: spawned.id,
               userId,
@@ -388,24 +394,6 @@ export async function streamSpawnedSessionTurn(
         await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
         // Fires even on client disconnect (generator cleanup). Best-effort.
         activity.end(turnOutcome)
-        // Continuity at the turn boundary — the same one op the session's
-        // delegated turns run, still under the target lock so a swap lands
-        // before the next turn (direct or delegated) resumes this identity.
-        // After the terminal frame (the chat-turn.ts ordering): the client is
-        // released while the swap, when one is due, runs behind the lock.
-        await applyPrimaryTurnContinuityBestEffort(
-          db,
-          {
-            primarySessionId: spawned.id,
-            priorSdkSessionId: resumeSessionId,
-            effectiveSdkSessionId,
-            userId,
-            workspacePath: runCwdPath,
-            providerId: DEFAULT_PROVIDER_ID,
-            ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
-          },
-          { logger },
-        )
       }
     } finally {
       // The single-writer hand-over: a queued delegated job (or user turn) on

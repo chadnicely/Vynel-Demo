@@ -3,7 +3,23 @@
 **Updated 2026-08-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 3 (whoami + duty-book binding) SHIPPED; next Slice 4 visible swap
+## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 4 (visible swap) SHIPPED; next Slice 5 checkpoint + auto-continue (spike first)
+
+Continuity now RIDES the turn stream: `withBoundaryContinuity` (session/runtime) wraps every
+runner's event stream INSIDE the session-channel tee and yields `context-patching` →
+`context-patched { toSessionId | null }` around the swap (two-phase op: `prepareTurnContinuity` +
+`runTurnContinuitySwap`; `applyPrimaryTurnContinuityBestEffort` removed). `turn-queued` sentinel
+carries `{ reason: 'context-patching' | 'busy' }` (process-wide register `swapping-primaries.ts`,
+marked in `bridgePrimarySession`); `session.swapping` outbox event; feed steps
+`turn-context-patching/patched`. Web: `contextPatch` on the active-turn view → LiveTurn
+"patching context" chip, ThreadStream pill, sidebar queued note per reason. Details §5e of
+`docs/module-notes/session-continuity.md`.
+**⏭ NEXT:** Slice 5 — SPIKE the mid-turn nudge channel (PostToolUse hook context vs our own tool
+results), then nudge (headroom-aware, tokens + %) + slim `checkpoint({ nextStep })` + auto-continue
+(only when a checkpoint is pending). Open call for Kafi/Chad: the continuation runs under the row's
+CURRENT settings (default) or pins the checkpointing turn's.
+
+## ✅ 2026-08-18 SESSION CONTINUITY — Slice 3 (whoami + duty-book binding) SHIPPED; next Slice 4 visible swap
 
 `whoami` = descriptor-owned tool (`vynel-session`, `packages/session/src/mcp/`, new `@vynel/session/mcp`
 subpath) on ALL 9 surface kinds — catalog + every composition site + `pnpm api:generate` (snapshot

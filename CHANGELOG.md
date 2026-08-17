@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **You can see a conversation continue onto a fresh context.** When a long
+  conversation is handed off to a fresh context, the chat now says so for
+  those seconds — a "patching context" chip where "done" would sit, the
+  thread's pill reads "Patching context", and a message sent in the middle of
+  it says "Patching context — your message continues right after" instead of
+  the generic "working on a task". Other surfaces (the activity feed, a
+  watched session) narrate it too. Nothing about the hand-off itself changed
+  — it is simply no longer invisible.
+
 - **Every conversation can ask who it is.** A new read-only `whoami` tool
   rides every kind of session — the global assistant, a project's main
   conversation, spawned sessions, agent colleagues, scheduled runs — and

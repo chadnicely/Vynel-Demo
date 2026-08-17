@@ -82,6 +82,11 @@ export function useSessionActivityFeed() {
           if (event.kind === "turn-started" || event.kind === "turn-ended") {
             settleSessionViews(event);
           }
+          // A context swap moved a conversation onto a fresh segment — the
+          // sessions panel + continuing threads re-read their heads.
+          if (event.kind === "turn-context-patched") {
+            void queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+          }
         }
         // The server closed (shutdown/restart) — fall through and reconnect.
       } catch {

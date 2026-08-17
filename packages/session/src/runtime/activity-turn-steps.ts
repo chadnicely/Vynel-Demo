@@ -102,6 +102,16 @@ export function turnStepFromChatTurnEvent(event: ChatTurnEvent): SessionTurnStep
       // An auto-resolved card may or may not have been announced — resolving an
       // unannounced id is harmless, missing a resolution leaks a stale card.
       return { kind: 'turn-approval-resolved', approvalRequestId: event.approvalRequestId }
+    // The visible swap — every surface on the feed learns the conversation is
+    // patching its context, then where it landed.
+    case 'context-patching':
+      return { kind: 'turn-context-patching', fromSessionId: event.sessionId }
+    case 'context-patched':
+      return {
+        kind: 'turn-context-patched',
+        fromSessionId: event.sessionId,
+        toSessionId: event.toSessionId,
+      }
     default:
       return null
   }

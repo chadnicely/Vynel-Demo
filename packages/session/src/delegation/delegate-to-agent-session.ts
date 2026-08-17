@@ -19,9 +19,9 @@
 //     stays the first listed segment.
 //   - GRANTS: the agent's allow/deny lists apply on EVERY turn (the leaf
 //     precedent) — merged with the MCP attachment's denies.
-//   - CONTINUITY: the same one op every identity runs at the turn boundary
-//     (`applyPrimaryTurnContinuity`) — a colleague keeps ITS OWN continuity,
-//     its carry distilled from its own chain, never another session's.
+//   - CONTINUITY: the same boundary wrapper every identity's stream carries
+//     (`withBoundaryContinuity`) — a colleague keeps ITS OWN continuity, its
+//     carry distilled from its own chain, never another session's.
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
@@ -34,7 +34,7 @@ import {
 } from '@vynel/orchestration'
 import { consumeSessionEventStream, type ChatTurnEvent } from '@vynel/chat'
 import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
-import { applyPrimaryTurnContinuityBestEffort } from '../runtime/apply-primary-turn-continuity.js'
+import { withBoundaryContinuity } from '../runtime/with-boundary-continuity.js'
 import * as primarySessionsRepository from '../repositories/index.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
@@ -193,10 +193,28 @@ export async function delegateToAgentSession(
   let wasInterrupted = false
   let streamError: { code: string; message: string } | null = null
 
+  // Continuity at the turn boundary RIDES the stream (the one wrapper every
+  // runner uses): after the turn's events it announces `context-patching`,
+  // distills + seed-fresh swaps at pressure, then `context-patched` — under
+  // the tick's target lock, so the swap lands before the next task resumes
+  // this colleague (its first segment is its listed identity row — never
+  // hidden); observers, the feed and the Watch channel see it.
+  const continuedStream = withBoundaryContinuity(
+    turnStream,
+    {
+      primarySessionId: primary.id,
+      priorSdkSessionId: resumeSessionId,
+      userId: input.userId,
+      workspacePath: input.runCwdPath,
+      providerId: input.providerId,
+      ...(input.pressureThreshold !== undefined ? { threshold: input.pressureThreshold } : {}),
+    },
+    { db, provider, ...(input.logger !== undefined ? { logger: input.logger } : {}) },
+  )
   const observedTurnStream =
     input.turnEvents !== undefined
-      ? publishTurnEventsToSessionChannel(turnStream, input.turnEvents)
-      : turnStream
+      ? publishTurnEventsToSessionChannel(continuedStream, input.turnEvents)
+      : continuedStream
 
   try {
     for await (const event of observedTurnStream) {
@@ -279,25 +297,6 @@ export async function delegateToAgentSession(
       'delegateToAgentSession: the runtime did not assign a session id for the colleague turn',
     )
   }
-
-  // Continuity at the turn boundary — the ONE op every continuing identity
-  // runs. Under the tick's target lock, so a swap lands before the next
-  // mention resumes this colleague. The op knows a colleague's first segment
-  // is its listed identity row (never hidden). Best-effort — logged, and the
-  // outcome below is reported as it happened.
-  await applyPrimaryTurnContinuityBestEffort(
-    db,
-    {
-      primarySessionId: primary.id,
-      priorSdkSessionId: resumeSessionId,
-      effectiveSdkSessionId: sessionId,
-      userId: input.userId,
-      workspacePath: input.runCwdPath,
-      providerId: input.providerId,
-      ...(input.pressureThreshold !== undefined ? { threshold: input.pressureThreshold } : {}),
-    },
-    { provider, ...(input.logger !== undefined ? { logger: input.logger } : {}) },
-  )
 
   if (streamError !== null) {
     throw new Error(

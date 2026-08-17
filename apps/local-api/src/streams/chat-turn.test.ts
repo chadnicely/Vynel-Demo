@@ -18,10 +18,15 @@ import type { NormalizedSessionEvent, StartChatSessionInput } from '@vynel/provi
 // Configurable per test: the SDK session id the fake assigns, plus a capture of
 // every startChatSession input for composition assertions.
 let nextSdkSessionId = 'sdk-smoke-1'
+// Per-call ids (shifted; exhausted → nextSdkSessionId) + an optional usage
+// report — a boundary-swap case drives TWO starts through one fake (the turn,
+// then the swap's priming session) and needs the turn to report its occupancy.
+const queuedSessionIds: string[] = []
+let usageTokensForTurn: number | null = null
 const startChatSessionInputs: StartChatSessionInput[] = []
 function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
   startChatSessionInputs.push(input)
-  const sessionId = nextSdkSessionId
+  const sessionId = queuedSessionIds.shift() ?? nextSdkSessionId
   async function* events(): AsyncIterable<NormalizedSessionEvent> {
     yield {
       kind: 'session-started',
@@ -36,16 +41,33 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
       textDelta: 'Hello from the fake provider.',
       isFinalChunk: true,
     }
+    if (usageTokensForTurn !== null) {
+      yield {
+        kind: 'usage-reported',
+        sessionId,
+        messageId: 'assistant-m1',
+        model: 'claude-haiku-4-5',
+        inputTokens: usageTokensForTurn,
+        outputTokens: 5,
+      }
+    }
     yield { kind: 'session-completed', sessionId, isNewSession: true, completedAt: new Date() }
   }
   return events()
 }
 
+// A carry that clears the swap's fidelity floor (the boundary-swap case).
+const USABLE_CARRY =
+  'GOAL: keep the workspace moving. DONE: answered. NEXT: await the next message. FACTS: the fake provider said hello.'
+
 vi.mock('@vynel/providers', async () => {
   const actual = await vi.importActual<typeof import('@vynel/providers')>('@vynel/providers')
   return {
     ...actual,
-    resolveAiAgentProvider: () => ({ startChatSession: fakeStartChatSession }),
+    resolveAiAgentProvider: () => ({
+      startChatSession: fakeStartChatSession,
+      summarizeSession: async () => USABLE_CARRY,
+    }),
   }
 })
 
@@ -63,6 +85,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 beforeEach(() => {
   nextSdkSessionId = `sdk-${randomUUID()}`
+  queuedSessionIds.length = 0
+  usageTokensForTurn = null
   startChatSessionInputs.length = 0
 })
 
@@ -172,6 +196,33 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       expect(primary!.currentSdkSessionId).toBe(nextSdkSessionId)
       // The first primary segment is hidden from the curated sidebar (Slice 2).
       expect(findChatSessionById(db, nextSdkSessionId)?.visibility).toBe('hidden')
+    })
+  })
+
+  it('continueRoot: a turn that leaves the primary over the threshold swaps it VISIBLY — patching → patched → ended, on the stream', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      // Two SDK starts: the turn (segment A, 0.95 of Haiku's window), then the
+      // swap's priming session (segment B).
+      queuedSessionIds.push('sdk-ws-a', 'sdk-ws-b')
+      usageTokensForTurn = 190_000
+      const app = createApp({ db, logger: silentLogger })
+
+      const frames = await (
+        await postTurn(app, workspace.id, { userMessageText: 'keep going', continueRoot: true })
+      ).text()
+
+      // The swap is announced on the stream, in order, before the terminal frame.
+      const at = (marker: string) => frames.indexOf(marker)
+      expect(at('event: session-completed')).toBeGreaterThan(-1)
+      expect(at('event: context-patching')).toBeGreaterThan(at('event: session-completed'))
+      expect(at('event: context-patched')).toBeGreaterThan(at('event: context-patching'))
+      expect(at('event: turn-stream-ended')).toBeGreaterThan(at('event: context-patched'))
+      expect(frames).toContain('"toSessionId":"sdk-ws-b"')
+      // …and it really happened: the primary continues on B, chained to A.
+      const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
+      expect(primary!.currentSdkSessionId).toBe('sdk-ws-b')
+      expect(findChatSessionById(db, 'sdk-ws-b')?.continuedFromSessionId).toBe('sdk-ws-a')
     })
   })
 

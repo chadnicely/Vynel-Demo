@@ -374,6 +374,7 @@ describe('delegateToWorkspaceRoot', () => {
         summary: 'GOAL: finish the routed task. DONE: the docs are summarized. NEXT: await the next task. FACTS: three docs, all current.',
       })
 
+      const observedKinds: string[] = []
       const result = await delegateToWorkspaceRoot(db, provider, {
         parentSessionId: 'global-sdk-1',
         userId: user.id,
@@ -382,10 +383,13 @@ describe('delegateToWorkspaceRoot', () => {
         workspaceName: workspace.name,
         taskText: 'summarize the docs',
         providerId: 'claude',
+        observer: { onTurnEvent: (event) => observedKinds.push(event.kind), onTurnEnded: () => {} },
       })
 
-      // The task itself ran (and is reported) on segment A.
+      // The task itself ran (and is reported) on segment A. Observers (the
+      // tick's feed tap, the observe stream) saw the swap announced in-stream.
       expect(result.reference).toBe('ws-root-a')
+      expect(observedKinds.slice(-3)).toEqual(['session-completed', 'context-patching', 'context-patched'])
       expect(result.resultText).toBe('Acme has 3 docs; all current.')
 
       // Boundary swap: the primary now points at the fresh seeded segment B,

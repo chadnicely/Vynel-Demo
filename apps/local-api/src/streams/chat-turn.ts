@@ -16,7 +16,6 @@ import {
   startChatTurn,
   composeSessionCapabilities,
   resolvePrimaryConversationTarget,
-  applyPrimaryTurnContinuityBestEffort,
   publishTurnActivityStep,
 } from '@vynel/session/runtime'
 import {
@@ -32,6 +31,7 @@ import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/c
 import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AppEnv } from '../factory.js'
 import { loadEnv } from '../env.js'
+import { isPrimarySwapping } from '@vynel/session/continuity'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
@@ -233,9 +233,10 @@ export async function streamChatTurn(
         c.var.logger.warn({ err }, 'failed to record agent.run-started')
       }
     }
-    // Primary-continuity bookkeeping captured from the stream: the SDK session
-    // the turn actually ran on (its occupancy is read from the persisted row
-    // at the boundary — the consumer's usage handler is the one measuring home).
+    // The SDK session the turn actually ran on — names the error frame's
+    // session on a mid-stream failure (a NEW session's id is only known at
+    // session-created). Continuity itself rides the stream (the `continuity`
+    // input on startChatTurn below), so nothing else here tracks it.
     let effectiveSdkSessionId: string | null = resumeSessionId ?? null
     // Settings write-through, once per turn at session resolve: what the
     // composer sent becomes the row's persisted truth (a fresh conversation's
@@ -256,6 +257,18 @@ export async function streamChatTurn(
         workspacePath: c.var.workspace!.path,
         providerId: DEFAULT_PROVIDER_ID,
         ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
+        // The continuing identity: the boundary continuity step rides the
+        // stream (link → measure → `context-patching` / swap / `context-patched`
+        // at pressure), inside the session-channel tee. A plain session (by
+        // id / fresh) passes none and neither swaps nor carries context.
+        ...(primaryTarget !== null
+          ? {
+              continuity: {
+                primarySessionId: primaryTarget.primarySessionId,
+                ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
+              },
+            }
+          : {}),
         userMessageText: input.userMessageText,
         ...(input.attachedImages !== undefined ? { attachedImages: input.attachedImages } : {}),
         ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
@@ -389,30 +402,6 @@ export async function streamChatTurn(
           c.var.logger.warn({ err }, 'failed to record agent.run-completed')
         }
       }
-
-      // Primary-as-thread continuity at the turn boundary — the ONE op every
-      // continuing identity runs (the global core + the routed runners call the
-      // same): link the primary to the session this turn ran on, then seed-fresh
-      // swap if its persisted occupancy crossed the pressure threshold (so the
-      // NEXT turn runs on a fresh session). Awaited before the stream closes so a
-      // swap is serialized ahead of the next turn; on a non-pressured turn this
-      // is just a cheap link + pure pressure check, no SDK call. Best-effort — a
-      // failure must never surface to the user.
-      if (primaryTarget && effectiveSdkSessionId) {
-        await applyPrimaryTurnContinuityBestEffort(
-          c.var.db,
-          {
-            primarySessionId: primaryTarget.primarySessionId,
-            priorSdkSessionId: primaryTarget.resumeSdkSessionId,
-            effectiveSdkSessionId,
-            userId: c.var.user.id,
-            workspacePath: c.var.workspace!.path,
-            providerId: DEFAULT_PROVIDER_ID,
-            ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
-          },
-          { logger: c.var.logger },
-        )
-      }
     }
   }
 
@@ -431,7 +420,13 @@ export async function streamChatTurn(
       return
     }
     if (locks.isBusy(workspaceId)) {
-      await stream.writeSSE({ event: 'turn-queued', data: '{}' })
+      // WHY it waits: behind this workspace's own context swap (the composer
+      // says "patching context") or behind a running task ("working on a task").
+      const reason =
+        continuingPrimaryId !== null && isPrimarySwapping(continuingPrimaryId)
+          ? 'context-patching'
+          : 'busy'
+      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason }) })
     }
     const releaseTargetLock = await locks.acquire(workspaceId)
     try {

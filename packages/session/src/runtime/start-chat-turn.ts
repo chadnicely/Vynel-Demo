@@ -37,6 +37,7 @@ import {
 import { buildCompactionCapture } from '../continuity/index.js'
 import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
+import { withBoundaryContinuity } from './with-boundary-continuity.js'
 
 export type StartChatTurnInput = {
   userId: string
@@ -104,6 +105,20 @@ export type StartChatTurnInput = {
    * provider. A failure never affects the turn.
    */
   onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
+  /**
+   * The CONTINUING identity this turn runs as, when there is one (a workspace's
+   * primary conversation, a spawned session / colleague DM'd directly). Turns
+   * the boundary continuity step on: after the turn's events the stream carries
+   * `context-patching` / `context-patched` around the seed-fresh swap, inside
+   * the session-channel tee so Watch sees it too (`with-boundary-continuity.ts`).
+   * Omit for a plain conversation (opened by id / started fresh) — it neither
+   * swaps nor carries context.
+   */
+  continuity?: {
+    primarySessionId: string
+    /** Pressure threshold override (the env smoke knob); omit for 0.85. */
+    threshold?: number
+  }
 }
 
 export type StartChatTurnDeps = {
@@ -193,7 +208,26 @@ export async function* startChatTurn(
     ...(input.newSessionOptions !== undefined ? { newSessionOptions: input.newSessionOptions } : {}),
     ...(deps.logger !== undefined ? { logger: deps.logger } : {}),
   })
+  // 4. A continuing identity gets its boundary continuity ON the stream — the
+  //    wrapper announces the swap as events, so it must sit INSIDE the tee.
+  const continuedStream =
+    input.continuity !== undefined
+      ? withBoundaryContinuity(
+          turnStream,
+          {
+            primarySessionId: input.continuity.primarySessionId,
+            priorSdkSessionId: input.resumeSessionId ?? null,
+            userId: input.userId,
+            workspacePath: input.workspacePath,
+            providerId: input.providerId,
+            ...(input.continuity.threshold !== undefined
+              ? { threshold: input.continuity.threshold }
+              : {}),
+          },
+          { db, provider, ...(deps.logger !== undefined ? { logger: deps.logger } : {}) },
+        )
+      : turnStream
   yield* deps.turnEvents !== undefined
-    ? publishTurnEventsToSessionChannel(turnStream, deps.turnEvents)
-    : turnStream
+    ? publishTurnEventsToSessionChannel(continuedStream, deps.turnEvents)
+    : continuedStream
 }

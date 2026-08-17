@@ -334,6 +334,17 @@ export type ChatTurnEvent =
       cacheCreationInputTokens: number;
     }
   | { kind: "session-completed"; sessionId: string }
+  // The visible swap: the conversation is being continued on a fresh context
+  // (after the turn's own events) — `context-patching` while the carry is
+  // distilled + seeded, then `context-patched` naming the fresh segment
+  // (`toSessionId` null = the swap aborted; the conversation stays put).
+  | { kind: "context-patching"; sessionId: string; primarySessionId: string }
+  | {
+      kind: "context-patched";
+      sessionId: string;
+      primarySessionId: string;
+      toSessionId: string | null;
+    }
   | { kind: "session-interrupted"; sessionId: string }
   | {
       kind: "session-errored";
