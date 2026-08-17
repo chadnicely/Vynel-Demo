@@ -52,6 +52,7 @@ export function useWorkspaceStatusReports() {
 export function useWorkspaceStatuses(): {
   statusByWorkspaceId: ComputedRef<Record<string, WorkspaceStatusView>>;
   globalStatus: ComputedRef<WorkspaceEffectiveStatus>;
+  hasAnsweredStatuses: ComputedRef<boolean>;
 } {
   const activity = useActivityStore();
   const approvalsQuery = usePendingApprovals();
@@ -131,7 +132,17 @@ export function useWorkspaceStatuses(): {
     return "not_running";
   });
 
-  return { statusByWorkspaceId, globalStatus };
+  // Every source of a POSITIVE claim has answered. A surface that renders a
+  // colour per row (the node screen) waits on this rather than painting its
+  // fallback over the whole fleet while the polls are in flight.
+  const hasAnsweredStatuses = computed(
+    () =>
+      reportsQuery.data.value !== undefined &&
+      approvalsQuery.data.value !== undefined &&
+      asksQuery.data.value !== undefined,
+  );
+
+  return { statusByWorkspaceId, globalStatus, hasAnsweredStatuses };
 }
 
 /** The precedence, in one place — exported for its colocated test. `liveTurnStartMs`

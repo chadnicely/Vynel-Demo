@@ -65,7 +65,7 @@ const projectNodes = useProjectNodes(drilledProjectId);
 
 /** What the current level draws — projects out here, sessions in there. */
 const displayNodes = computed(() =>
-  isInsideProject.value ? projectNodes.nodes.value : fleetNodes.value,
+  isInsideProject.value ? projectNodes.nodes.value : fleetNodes.nodes.value,
 );
 
 // The arcs — a line between two dots when they talk. Only ever asked for while
@@ -80,7 +80,7 @@ const sceneMessages = computed<SceneMessage[]>(() => {
   if (!isInsideProject.value) {
     return fleetMessages(
       edges,
-      new Set(fleetNodes.value.map((node) => node.id)),
+      new Set(fleetNodes.nodes.value.map((node) => node.id)),
     );
   }
   return projectMessages(edges, {
@@ -98,7 +98,7 @@ const isFleetEmpty = computed(
   () =>
     !isInsideProject.value &&
     overviewQuery.data.value !== undefined &&
-    fleetNodes.value.length === 0,
+    fleetNodes.nodes.value.length === 0,
 );
 
 /** The project level with nothing to show yet — its own quiet invitation. */

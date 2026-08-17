@@ -1,0 +1,1 @@
+ALTER TABLE `chat_messages` DROP COLUMN `error_is_recoverable`;

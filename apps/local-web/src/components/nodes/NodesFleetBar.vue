@@ -28,7 +28,11 @@ const MODES: Array<{ id: NodesMode; label: string }> = [
 
 const isInsideProject = computed(() => props.drilledProjectName !== null);
 
+// One vocabulary with the dots (Kafi, 2026-08-17). `problem` used to have no
+// chip at all here, so a failed project was counted under "paused" — the bar
+// contradicting the red dot beside it.
 const counts = computed(() => ({
+  problem: props.nodes.filter((row) => row.status === "problem").length,
   building: props.nodes.filter((row) => row.status === "building").length,
   waiting: props.nodes.filter((row) => row.status === "waiting").length,
   done: props.nodes.filter((row) => row.status === "done").length,
@@ -74,6 +78,9 @@ const counts = computed(() => ({
       </button>
     </nav>
     <p class="counts">
+      <span v-if="counts.problem" class="count"
+        ><i class="dot problem" />{{ counts.problem }} need attention</span
+      >
       <span class="count"
         ><i class="dot building" />{{ counts.building }} working</span
       >
@@ -84,7 +91,7 @@ const counts = computed(() => ({
         ><i class="dot done" />{{ counts.done }} done</span
       >
       <span class="count"
-        ><i class="dot paused" />{{ counts.paused }} paused</span
+        ><i class="dot paused" />{{ counts.paused }} idle</span
       >
     </p>
   </header>
@@ -172,6 +179,11 @@ const counts = computed(() => ({
   width: 7px;
   height: 7px;
   border-radius: 50%;
+}
+/* The scene's own palette (constellation-scene.ts COL) — the chip and the dot
+   it counts must be the same colour. */
+.dot.problem {
+  background: #ef4444;
 }
 .dot.building {
   background: #b5abfc;

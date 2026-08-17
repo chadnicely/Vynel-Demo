@@ -7,7 +7,7 @@ import { sessionKeys, sessionScopeKey } from "../chat/session-keys.js";
 import { useVynel } from "../use-vynel.js";
 import { initialsOf } from "../../utils/constellation-layout.js";
 import type { SceneNode } from "../../utils/constellation-scene.js";
-import { resolveConversationNodeStatus } from "./node-status.js";
+import { resolveNodeStatus } from "./node-status.js";
 
 // The SECOND level of the node screen (Chad, 2026-08-11): step inside one
 // project and the dots become its own conversations — the continuing build
@@ -59,7 +59,7 @@ export function useProjectNodes(projectId: MaybeRefOrGetter<string | null>) {
         id: `continuing:${workspaceId}`,
         name: "The build",
         initials: "BD",
-        status: resolveConversationNodeStatus(
+        status: resolveNodeStatus(
           workspaceStatuses.statusByWorkspaceId.value[workspaceId]?.status ??
             "not_running",
         ),
@@ -71,7 +71,7 @@ export function useProjectNodes(projectId: MaybeRefOrGetter<string | null>) {
         id: `session:${row.sessionId}`,
         name: row.title,
         initials: initialsOf(row.title),
-        status: resolveConversationNodeStatus(
+        status: resolveNodeStatus(
           sessionStatuses.statusFor(row.sessionId)?.status ?? "idle",
         ),
       });

@@ -456,9 +456,6 @@ export async function* consumeSessionEventStream(
             chatRepository.updateChatMessage(db, lastAssistantMessage.id, {
               errorCode: event.errorCode,
               errorMessage: event.errorMessage,
-              // Carried so the status ladder can tell a transient hiccup from a
-              // dead turn — the same distinction the envelope below makes.
-              errorIsRecoverable: event.isRecoverable,
               completedAt: new Date(),
             })
           } else {
@@ -470,7 +467,6 @@ export async function* consumeSessionEventStream(
               sessionId: sessionId ?? input.resumeSessionId ?? null,
               errorCode: event.errorCode,
               errorMessage: event.errorMessage,
-              isRecoverable: event.isRecoverable,
               erroredAt: event.erroredAt,
               ...(assistantAttribution !== undefined
                 ? { attribution: assistantAttribution }
