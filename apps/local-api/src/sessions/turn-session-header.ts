@@ -36,6 +36,11 @@ export interface TurnSessionCarrier {
   wrapAppRequest(appRequest: HonoAppRequestFn): HonoAppRequestFn
   /** The turn resolved its session — stamp it from here on. */
   resolve(sessionId: string): void
+  /** Whatever id is known RIGHT NOW — undefined before the turn resolves one.
+   *  The read half of the same carrier: a feature tool that RECORDS the
+   *  conversation (an ask row) reads this at call time instead of taking a
+   *  build-time value that a fresh conversation cannot have yet. */
+  current(): string | undefined
 }
 
 /** One carrier per turn. Seed it with the session being resumed when the
@@ -54,6 +59,9 @@ export function createTurnSessionCarrier(seedSessionId?: string): TurnSessionCar
     },
     resolve(resolvedSessionId) {
       if (resolvedSessionId !== '') sessionId = resolvedSessionId
+    },
+    current() {
+      return sessionId
     },
   }
 }

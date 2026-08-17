@@ -34250,6 +34250,9 @@
                           "pendingApprovalCount": {
                             "type": "integer"
                           },
+                          "pendingAskCount": {
+                            "type": "integer"
+                          },
                           "latestUserMessageAt": {
                             "type": [
                               "string",
@@ -34263,6 +34266,7 @@
                           "statusSetAt",
                           "lastError",
                           "pendingApprovalCount",
+                          "pendingAskCount",
                           "latestUserMessageAt"
                         ]
                       },

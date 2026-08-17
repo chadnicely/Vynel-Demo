@@ -20,6 +20,7 @@ import {
   type ChatSession,
 } from '@vynel/chat/repositories'
 import { listPendingApprovalsForUser } from '@vynel/approvals'
+import { listPendingAsks } from '@vynel/asks'
 import { findWorkspaceById } from '@vynel/workspaces'
 import * as primarySessionsRepository from '../repositories/index.js'
 
@@ -81,6 +82,21 @@ export function getSessionsOverview(
     pendingApprovalCountBySessionId.set(
       approval.sessionId,
       (pendingApprovalCountBySessionId.get(approval.sessionId) ?? 0) + 1,
+    )
+  }
+
+  // Pending `ask_user` forms, read the same way. Both queues mean "waiting on
+  // you", and a turn parked on either is still LIVE on the activity feed — so
+  // without this the conversation rendered "working" while it sat on a form
+  // nobody had told the user about. The row's session id is nullable (a
+  // channel-driven global turn may have no watching conversation); those rows
+  // simply never match a segment.
+  const pendingAskCountBySessionId = new Map<string, number>()
+  for (const ask of listPendingAsks(db, { userId: input.userId })) {
+    if (ask.sessionId === null) continue
+    pendingAskCountBySessionId.set(
+      ask.sessionId,
+      (pendingAskCountBySessionId.get(ask.sessionId) ?? 0) + 1,
     )
   }
 
@@ -170,6 +186,10 @@ export function getSessionsOverview(
             },
       pendingApprovalCount: segmentIds.reduce(
         (count, segmentId) => count + (pendingApprovalCountBySessionId.get(segmentId) ?? 0),
+        0,
+      ),
+      pendingAskCount: segmentIds.reduce(
+        (count, segmentId) => count + (pendingAskCountBySessionId.get(segmentId) ?? 0),
         0,
       ),
       latestUserMessageAt: messageFacts.latestUserMessageAt?.toISOString() ?? null,

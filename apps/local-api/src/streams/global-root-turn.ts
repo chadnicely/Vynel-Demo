@@ -240,6 +240,9 @@ export async function streamGlobalRootTurn(
       db: c.var.db,
       userId: c.var.user.id,
       sessionId: conversationTarget.primarySessionId,
+      // The CHAT session (the segment this turn runs on), distinct from the
+      // stable primary above — the ask row and the sessions overview key on it.
+      resolveChatSessionId: turnSession.current,
       appRequest,
       desktopReader: c.var.desktopNotifications,
       enableDesktopActions: c.var.desktopActionsEnabled,

@@ -1404,6 +1404,9 @@ importers:
       '@vynel/approvals':
         specifier: workspace:*
         version: link:../approvals
+      '@vynel/asks':
+        specifier: workspace:*
+        version: link:../asks
       '@vynel/capabilities':
         specifier: workspace:*
         version: link:../capabilities

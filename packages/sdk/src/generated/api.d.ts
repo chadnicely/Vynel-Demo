@@ -16861,6 +16861,7 @@ export interface operations {
                                 at: string;
                             } | null;
                             pendingApprovalCount: number;
+                            pendingAskCount: number;
                             latestUserMessageAt: string | null;
                         };
                         segments: {

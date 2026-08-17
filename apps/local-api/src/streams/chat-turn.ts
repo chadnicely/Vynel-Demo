@@ -141,6 +141,9 @@ export async function streamChatTurn(
       db: c.var.db,
       userId: c.var.user.id,
       workspaceId: c.var.workspace!.id,
+      // The same carrier read lazily — a tool that RECORDS this conversation
+      // (an ask row) needs the id a fresh chat only learns mid-stream.
+      resolveChatSessionId: turnSession.current,
       appRequest: turnSession.wrapAppRequest(c.var.appRequest),
     },
     {

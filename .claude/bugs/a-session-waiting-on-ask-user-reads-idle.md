@@ -1,6 +1,10 @@
 # A conversation blocked on `ask_user` reads idle everywhere
 
-**Status:** open
+**Status:** FIXED 2026-08-17 — see [Resolution](#resolution) at the bottom.
+**Correction:** the title is half wrong. It reads idle only when the turn is
+already over; while the turn is parked — the normal case — it reads **running**,
+which is worse: the conversation looks like it is working when it is in fact
+waiting on the person. See the resolution.
 **Kind:** defect
 **Area:** `apps/local-api` (MCP composition) + `packages/contracts` (session status ladder)
 **Opened:** 2026-08-17 (found while fixing the spawned-approvals grounding — see
@@ -80,3 +84,65 @@ sqlite3 .data/vynel.dev.db "select id, workspace_id, session_id, status from ask
 ```
 
 A workspace-chat ask comes back with a workspace and a NULL session.
+
+---
+
+## Resolution
+
+Fixed 2026-08-17. Both halves landed together, as predicted — either alone
+changes nothing.
+
+### The symptom was misstated
+
+`idle` is what a *settled* conversation shows. A turn parked in
+`runAskUserBridge` is blocked inside the stream's `for await`, and
+`activity.begin()` fires before the `try` with `activity.end()` in the
+`finally` — so the activity entry is still LIVE and the ladder returned
+**running**. Both readings are real (the ladder's own test now pins each), but
+`running` is the one a user actually hits, and it is the worse lie: "working"
+hides that Claude is waiting on them. `needs_input` already outranks `running`
+in the ladder, which is exactly why counting the ask is the whole fix.
+
+### The bug file's proposed fix shape was wrong on the id space
+
+It said to thread a getter for `context.sessionId`. That would not have worked:
+`SessionToolContext.sessionId` is the `primary_sessions` row id (its own doc
+says "NEVER the SDK's session id", and desktop-control depends on that), while
+the sessions overview keys on `chat_sessions.id` — the space approvals live in,
+because `recordApprovalRequest` is called from `consume-session-event-stream.ts`.
+Reusing that field would have made workspace asks carry chat ids and left
+global asks on primary ids: one of the two would still never count.
+
+So the two id spaces are now named separately:
+
+- `SessionToolContext.resolveChatSessionId?: () => string | undefined` — new,
+  lazy, the CHAT session. Documented beside `sessionId` with why they differ;
+  that missing pairing is why the bug existed.
+- `TurnSessionCarrier.current()` — the read half of the carrier the streams
+  already own. The three attach sites pass it straight through.
+- `resolveAskScope(context)` in the ask descriptor — a named seam so the choice
+  is a testable decision rather than a spread buried in a factory.
+
+`ask_requests.sessionId` now means what its own schema comment always said
+("the chat session whose turn asked"). The global path used to write a primary
+id there, which was off-contract; nothing read the column, so correcting it
+broke nothing.
+
+### Files
+
+- `packages/mcp-contract/src/mcp-feature-descriptor.ts` — the lazy accessor + the id-space note
+- `apps/local-api/src/sessions/turn-session-header.ts` — `current()`
+- `packages/asks/src/mcp/ask-user-tool.ts` — scope takes `resolveSessionId`, read at CALL time
+- `packages/asks/src/mcp/ask-mcp-feature-descriptor.ts` — `resolveAskScope`
+- `apps/local-api/src/streams/chat-turn.ts`, `streams/global-root-turn.ts`,
+  `sessions/run-global-root-turn.ts` — the three attach sites (the channel
+  runner grew a carrier; its drain sink fills it from the stream's first frame)
+- `packages/contracts/src/chat/session-status.ts` — `pendingAskCount` + the ladder
+- `packages/session/src/overview/get-sessions-overview.ts` — chain-scoped count,
+  mirroring the approval read (one user-wide `listPendingAsks`, grouped)
+
+### Not done, deliberately
+
+Existing ask rows carry primary ids and will never match a segment. One row in
+the dev DB; not worth a backfill, and it ages out — the same call already made
+for the mis-scoped historical approval rows.

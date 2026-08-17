@@ -13,7 +13,13 @@
 // needs_input → running → completed → idle. Detection adds: the LATEST
 // assistant message errored and nothing runs → problem (the "stuck on the
 // session limit" signal, carrying the error text as the note); a pending
-// approval on the conversation → needs_input; a live turn → running.
+// approval OR `ask_user` form on the conversation → needs_input; a live turn
+// → running.
+//
+// needs_input deliberately outranks running, and that ordering is the whole
+// point for both waiting kinds: a turn parked on a card or a form is still
+// live on the activity feed, so without the precedence it would render as
+// "working" and hide the fact that it is waiting on the person.
 
 export const SESSION_SET_STATUSES = ['completed', 'problem', 'needs_input'] as const
 export type SessionSetStatus = (typeof SESSION_SET_STATUSES)[number]
@@ -41,6 +47,10 @@ export interface SessionStatusFacts {
   lastError: { code: string | null; message: string; at: string } | null
   /** Pending approvals raised by any of the conversation's segments. */
   pendingApprovalCount: number
+  /** Pending `ask_user` forms raised by any of the conversation's segments.
+   *  Counted SEPARATELY from approvals — both mean "waiting on you", but the
+   *  UI may one day want to say which, and merging them would hide that. */
+  pendingAskCount: number
   /** ISO-8601 start of the latest USER message — the supersession anchor: a
    *  set status stands until the user speaks again ("completed shows until
    *  the next message", the workspace rule). Null when the user never has. */
@@ -87,7 +97,9 @@ export function deriveSessionStatus(
   const status: SessionEffectiveStatus =
     setStanding === 'problem' || errorStanding
       ? 'problem'
-      : facts.pendingApprovalCount > 0 || setStanding === 'needs_input'
+      : facts.pendingApprovalCount > 0 ||
+          facts.pendingAskCount > 0 ||
+          setStanding === 'needs_input'
         ? 'needs_input'
         : isRunning
           ? 'running'

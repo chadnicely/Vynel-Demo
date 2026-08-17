@@ -59,6 +59,23 @@ export interface SessionToolContext {
    * (the desktop action log) then record without one.
    */
   readonly sessionId?: string
+  /**
+   * The turn's CHAT session id — the `chat_sessions` row the turn is speaking
+   * into. A DIFFERENT id space from `sessionId` above, and the two are not
+   * interchangeable: the sessions overview, the approvals queue and the
+   * per-conversation status all key on THIS one, while `sessionId` keys the
+   * stable primary a whole continuity chain shares.
+   *
+   * LAZY on purpose. A fresh conversation learns this id mid-stream, long
+   * after the context is built, so an eager field would be permanently absent
+   * on the workspace path — which is exactly how `ask_user` ended up invisible
+   * to its own conversation's status light. Call it at TOOL-CALL time: every
+   * turn's first event (`user-message-persisted`) resolves it, a full network
+   * round trip before the model can call anything.
+   *
+   * Returns undefined when the turn has no chat session yet (or never will).
+   */
+  readonly resolveChatSessionId?: () => string | undefined
   readonly appRequest: HonoAppRequestFn
   /** The process-wide desktop-notification reader. `unknown` here — the `desktop` producer casts it. */
   readonly desktopReader?: unknown

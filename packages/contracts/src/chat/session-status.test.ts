@@ -13,6 +13,7 @@ function facts(overrides: Partial<SessionStatusFacts> = {}): SessionStatusFacts 
     statusSetAt: null,
     lastError: null,
     pendingApprovalCount: 0,
+    pendingAskCount: 0,
     latestUserMessageAt: null,
     ...overrides,
   }
@@ -51,6 +52,19 @@ describe('deriveSessionStatus', () => {
       liveTurnStartedAt: '2026-08-16T13:00:00Z',
     })
     expect(view.status).toBe('needs_input')
+  })
+
+  // A turn parked on `ask_user` is still LIVE on the activity feed — the whole
+  // defect was that it rendered "working" while it sat waiting on the person.
+  it('a pending ask is needs_input and outranks running', () => {
+    const view = deriveSessionStatus(facts({ pendingAskCount: 1 }), {
+      liveTurnStartedAt: '2026-08-16T13:00:00Z',
+    })
+    expect(view.status).toBe('needs_input')
+  })
+
+  it('a pending ask is needs_input on a quiet conversation too', () => {
+    expect(deriveSessionStatus(facts({ pendingAskCount: 1 }), QUIET).status).toBe('needs_input')
   })
 
   it('problem outranks needs_input (the workspace precedence)', () => {

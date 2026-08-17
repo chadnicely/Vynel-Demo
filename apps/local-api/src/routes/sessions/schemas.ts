@@ -33,6 +33,7 @@ export const SessionStatusFactsSchema = z.object({
     })
     .nullable(),
   pendingApprovalCount: z.number().int(),
+  pendingAskCount: z.number().int(),
   latestUserMessageAt: z.string().nullable(),
 })
 

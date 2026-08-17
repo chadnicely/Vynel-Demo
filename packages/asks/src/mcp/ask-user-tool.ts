@@ -33,9 +33,17 @@ const TOOL_DESCRIPTION =
 export interface AskUserToolScope {
   userId: string
   workspaceId: string | null // null = a global-root turn
-  /** Vynel's stable primary-session id when the turn knows it — stamped on
-   *  the ask row so the wizard can point back at the asking conversation. */
-  sessionId?: string
+  /** The CHAT session whose turn is asking, read at CALL time — stamped on the
+   *  ask row so the wizard can point back at the asking conversation AND so
+   *  that conversation's status light can say it is waiting on the user.
+   *
+   *  A getter, not a value: a fresh workspace conversation has no session id
+   *  when its tools are composed, so a build-time value was always absent
+   *  there and the ask recorded nothing. By the time the model can call this
+   *  tool the turn has long since resolved its session. Omitted (or resolving
+   *  to undefined) = a turn with no watching conversation; the column is
+   *  nullable for exactly that. */
+  resolveSessionId?: () => string | undefined
 }
 
 export interface AskUserToolDeps {
@@ -63,12 +71,15 @@ export async function runAskUserBridge(
   deps: AskUserToolDeps,
   questions: AskQuestion[],
 ): Promise<AskOutcome> {
+  // Read the conversation NOW, not when the toolset was composed — see the
+  // getter's note on AskUserToolScope.
+  const sessionId = scope.resolveSessionId?.()
   const ask = createAskRequest(
     db,
     {
       userId: scope.userId,
       workspaceId: scope.workspaceId,
-      ...(scope.sessionId !== undefined ? { sessionId: scope.sessionId } : {}),
+      ...(sessionId !== undefined ? { sessionId } : {}),
       questions,
     },
     deps.logger !== undefined ? { logger: deps.logger } : {},

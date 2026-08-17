@@ -42,6 +42,7 @@ import {
 import type { DelegationOrigin } from '@vynel/orchestration'
 import type { HonoAppRequestFn } from '../factory.js'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
+import { createTurnSessionCarrier, type TurnSessionCarrier } from './turn-session-header.js'
 import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
 import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
@@ -158,6 +159,10 @@ class GlobalRootDrainSink implements SessionSink {
     private readonly onApprovalRequested?: RunGlobalRootTurnInput['onApprovalRequested'],
     /** The turn's activity-feed handle — session identity + tool-step narration. */
     private readonly activity?: SessionTurnActivityHandle,
+    /** The turn's session carrier — composed BEFORE this sink exists, so the
+     *  sink hands it the id the moment the stream reveals one. Feature tools
+     *  that record the conversation (asks) read it from there. */
+    private readonly turnSession?: TurnSessionCarrier,
   ) {}
 
   onEvent(event: SessionEvent): void {
@@ -172,12 +177,14 @@ class GlobalRootDrainSink implements SessionSink {
       // resumed turn without a session id and `requireResult` would throw.
       this.sessionId = event.message.sessionId
       this.activity?.sessionResolved(event.message.sessionId)
+      this.turnSession?.resolve(event.message.sessionId)
     } else if (event.kind === 'session-created') {
       // A fresh root or a mid-turn swap — follow it so the result reports the
       // segment the reply actually landed on (user-message-persisted now
       // arrives first, carrying the pre-swap id on resumed turns).
       this.sessionId = event.session.id
       this.activity?.sessionResolved(event.session.id)
+      this.turnSession?.resolve(event.session.id)
     } else if (event.kind === 'text-chunk') {
       this.resultText += event.textDelta
     } else if (event.kind === 'approval-requested') {
@@ -217,6 +224,10 @@ export async function runGlobalRootTurn(
   // Origin-wrap at the edge — the core stays origin-agnostic (the additive invariant).
   const appRequest =
     input.origin !== undefined ? wrapAppRequestWithOrigin(deps.appRequest, input.origin) : deps.appRequest
+  // This turn's chat-session identity. Composed here (before the toolset) and
+  // filled by the drain sink from the stream's first frame — the read half is
+  // what lets an `ask_user` on a channel turn name the conversation it parked.
+  const turnSession = createTurnSessionCarrier()
 
   // Compose the global root's MCP attachment: the routing tools (the root is a
   // MANAGER — list + delegate + channel-send). No workspaceId — the global root
@@ -266,6 +277,9 @@ export async function runGlobalRootTurn(
       db: deps.db,
       userId: input.userId,
       sessionId: conversationTarget.primarySessionId,
+      // The CHAT session, distinct from the stable primary above — filled by
+      // the drain sink from the stream's first frame (see the carrier below).
+      resolveChatSessionId: turnSession.current,
       appRequest,
       desktopReader: deps.desktopReader,
       enableDesktopActions: deps.enableDesktopActions ?? false,
@@ -347,7 +361,7 @@ export async function runGlobalRootTurn(
       ? { personaName: input.inboundAttribution.sourceLabel }
       : {}),
   })
-  const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity)
+  const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity, turnSession)
   try {
     await runGlobalRootTurnCore(
       {

@@ -101,19 +101,62 @@ describe('runAskUserBridge', () => {
     })
   })
 
-  it('stamps the asking session on the row when the turn knows it', async () => {
+  it('stamps the asking chat session on the row when the turn knows it', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedUserWorkspace(db)
       const waiters = new PendingAskRegistry()
 
       const bridge = runAskUserBridge(
         db,
-        { userId, workspaceId, sessionId: 'primary-1' },
+        { userId, workspaceId, resolveSessionId: () => 'chat-session-1' },
         { waiters, turnKey: 'turn-1' },
         makeQuestions(),
       )
       const [pending] = listPendingAskRequestsForUser(db, userId)
-      expect(pending!.sessionId).toBe('primary-1')
+      expect(pending!.sessionId).toBe('chat-session-1')
+      waiters.cancelForTurn('turn-1')
+      await bridge
+    })
+  })
+
+  // THE regression. A fresh workspace conversation composes its toolset before
+  // it has a session id, so a build-time value was always absent and the ask
+  // recorded nothing — which left the conversation's status light saying
+  // "working" while it was in fact parked on a form. Reading the getter at CALL
+  // time is what fixes it; with an eager field this comes back null.
+  it('a session resolved AFTER the toolset was composed still lands on the row', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const waiters = new PendingAskRegistry()
+      // The carrier's state at composition time: nothing yet.
+      let turnSessionId: string | undefined
+
+      const scope = { userId, workspaceId, resolveSessionId: () => turnSessionId }
+
+      // The stream's first frame resolves it, long before the model can call.
+      turnSessionId = 'chat-session-late'
+
+      const bridge = runAskUserBridge(db, scope, { waiters, turnKey: 'turn-1' }, makeQuestions())
+      const [pending] = listPendingAskRequestsForUser(db, userId)
+      expect(pending!.sessionId).toBe('chat-session-late')
+      waiters.cancelForTurn('turn-1')
+      await bridge
+    })
+  })
+
+  it('records no session when the turn has no watching conversation', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId } = seedUserWorkspace(db)
+      const waiters = new PendingAskRegistry()
+
+      const bridge = runAskUserBridge(
+        db,
+        { userId, workspaceId: null, resolveSessionId: () => undefined },
+        { waiters, turnKey: 'turn-1' },
+        makeQuestions(),
+      )
+      const [pending] = listPendingAskRequestsForUser(db, userId)
+      expect(pending!.sessionId).toBeNull()
       waiters.cancelForTurn('turn-1')
       await bridge
     })

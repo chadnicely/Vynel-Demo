@@ -13,6 +13,7 @@ import {
   type NewChatSession,
 } from '@vynel/chat/repositories'
 import { insertApprovalRequest } from '@vynel/approvals/test-support'
+import { insertAskRequest, makeAskRequest } from '@vynel/asks/test-support'
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
@@ -419,6 +420,7 @@ describe('getSessionsOverview — statusFacts (Move 3)', () => {
           at: '2026-07-02T00:31:00.000Z',
         },
         pendingApprovalCount: 1,
+        pendingAskCount: 0,
         latestUserMessageAt: '2026-07-02T00:30:00.000Z',
       })
     })
@@ -436,6 +438,7 @@ describe('getSessionsOverview — statusFacts (Move 3)', () => {
         statusSetAt: null,
         lastError: null,
         pendingApprovalCount: 0,
+        pendingAskCount: 0,
         latestUserMessageAt: null,
       })
     })
@@ -479,6 +482,65 @@ describe('getSessionsOverview — statusFacts (Move 3)', () => {
       expect(entry?.sessionId).toBe('sdk-b')
       // The anchor survives the swap, so the set state stays superseded.
       expect(entry?.statusFacts.latestUserMessageAt).toBe('2026-07-01T11:00:00.000Z')
+    })
+  })
+
+  // A conversation parked on `ask_user` used to be indistinguishable from one
+  // that was working: the turn blocks inside the stream, so its activity entry
+  // stays live and the ladder rendered `running`. Counting the ask is what
+  // lets `needs_input` outrank it.
+  it('a pending ask on the conversation counts', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id, { id: 'sdk-a' }))
+      insertAskRequest(db, makeAskRequest(user.id, ws.id, { sessionId: 'sdk-a' }))
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.statusFacts.pendingAskCount).toBe(1)
+    })
+  })
+
+  it('a resolved ask, or one on another conversation, does not count', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id, { id: 'sdk-a' }))
+      insertAskRequest(
+        db,
+        makeAskRequest(user.id, ws.id, {
+          sessionId: 'sdk-a',
+          status: 'answered',
+          resolvedAt: new Date(),
+        }),
+      )
+      insertAskRequest(db, makeAskRequest(user.id, ws.id, { sessionId: 'someone-elses' }))
+      // A channel turn with no watching conversation records no session at all.
+      insertAskRequest(db, makeAskRequest(user.id, null))
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.statusFacts.pendingAskCount).toBe(0)
+    })
+  })
+
+  it('an ask raised before a swap still counts on the chain', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id, { id: 'sdk-a' }))
+      insertAskRequest(db, makeAskRequest(user.id, ws.id, { sessionId: 'sdk-a' }))
+      insertChatSession(
+        db,
+        makeSession(user.id, ws.id, {
+          id: 'sdk-b',
+          continuedFromSessionId: 'sdk-a',
+          lastMessageAt: new Date('2026-07-01T12:00:00Z'),
+        }),
+      )
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.sessionId).toBe('sdk-b')
+      expect(entry?.statusFacts.pendingAskCount).toBe(1)
     })
   })
 

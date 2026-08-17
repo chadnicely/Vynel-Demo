@@ -14,9 +14,9 @@
 // producer boundary that owns the ask server, so it casts to `Database` once.
 
 import type { Database } from '@vynel/db'
-import type { McpFeatureDescriptor } from '@vynel/mcp-contract'
+import type { McpFeatureDescriptor, SessionToolContext } from '@vynel/mcp-contract'
 import { buildAskMcpServer } from './build-ask-mcp-server.js'
-import type { AskUserToolDeps } from './ask-user-tool.js'
+import type { AskUserToolDeps, AskUserToolScope } from './ask-user-tool.js'
 
 // The one standing line an interactive turn carries about asking. WHEN to ask
 // lives here; HOW (types, plain language, one form) lives in the tool
@@ -31,6 +31,30 @@ export const ASK_PROMPT_INSTRUCTIONS =
   'your call to make. If the result comes back unanswered or expired, proceed with your best ' +
   'judgment and say what you assumed.'
 
+/**
+ * Who is asking, for one turn. Named because the session half is a decision,
+ * not plumbing: TWO ids reach this context and only one belongs on an ask row.
+ *
+ * The column means "the chat session whose turn asked" — the id the sessions
+ * overview folds into a conversation and the per-conversation status counts
+ * pending asks by. `context.sessionId` is the OTHER one (the stable
+ * `primary_sessions` id a whole continuity chain shares); recording that would
+ * match no conversation, which is how a parked `ask_user` ended up rendering
+ * as "working" instead of "waiting on you".
+ *
+ * Threaded as the context's GETTER, never a value: a fresh workspace
+ * conversation has no chat session when its toolset is composed.
+ */
+export function resolveAskScope(context: SessionToolContext): AskUserToolScope {
+  return {
+    userId: context.userId,
+    workspaceId: context.workspaceId ?? null,
+    ...(context.resolveChatSessionId !== undefined
+      ? { resolveSessionId: context.resolveChatSessionId }
+      : {}),
+  }
+}
+
 export function buildAskFeatureDescriptor(deps: AskUserToolDeps): McpFeatureDescriptor {
   return {
     serverName: 'vynel-ask',
@@ -39,11 +63,7 @@ export function buildAskFeatureDescriptor(deps: AskUserToolDeps): McpFeatureDesc
       buildAskMcpServer(
         // The one documented producer-boundary cast — see file header.
         context.db as Database,
-        {
-          userId: context.userId,
-          workspaceId: context.workspaceId ?? null,
-          ...(context.sessionId !== undefined ? { sessionId: context.sessionId } : {}),
-        },
+        resolveAskScope(context),
         deps,
       ),
     // Asking is reversible plumbing — never carded.

@@ -28,6 +28,7 @@ function makeEntry(
       statusSetAt: null,
       lastError: null,
       pendingApprovalCount: 0,
+      pendingAskCount: 0,
       latestUserMessageAt: null,
     },
     segments: [
