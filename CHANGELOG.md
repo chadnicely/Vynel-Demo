@@ -7,6 +7,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.3.0] — 2026-08-18
+
+The first release cut from the rebuilt trunk (`main`); earlier 0.2.x installers were cut from the
+design branch. Everything below is what the trunk gained since the 2026-07-04 keystone.
+
 ### Added
 
 - **A context hand-off that could not land now says so.** Alongside the
