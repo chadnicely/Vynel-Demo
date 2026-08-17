@@ -1,6 +1,6 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
-import type { McpToolFn, McpToolContent } from './mcp-tool-fn.js'
+import type { McpToolFn, McpToolContent } from '@vynel/mcp-contract'
 import { screenshotApp, type AppScreenshot } from '../a11y/screenshot-adapter.js'
 
 const TOOL_DESCRIPTION =

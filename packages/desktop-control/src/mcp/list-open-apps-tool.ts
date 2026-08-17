@@ -1,5 +1,5 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import { listOpenApps, type OpenApp } from '../a11y/xa11y-adapter.js'
 
 // The `accessTier` column is GONE with the per-app grant model (2026-08-13).

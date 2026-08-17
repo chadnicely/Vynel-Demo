@@ -1,6 +1,6 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import type { DesktopNotificationReader } from '../notifications/desktop-notification.js'
 
 // Written for the LLM, not the API user (sdk-mcp.md "Tool description quality

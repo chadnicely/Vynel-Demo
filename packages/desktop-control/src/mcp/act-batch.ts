@@ -14,7 +14,7 @@
 // exactly which steps ran, which one stopped it, and which never ran, so the
 // model can re-observe and resume rather than guess.
 
-import type { McpToolContent } from './mcp-tool-fn.js'
+import type { McpToolContent } from '@vynel/mcp-contract'
 
 export type BatchStepResult = { ok: boolean; detail: string }
 

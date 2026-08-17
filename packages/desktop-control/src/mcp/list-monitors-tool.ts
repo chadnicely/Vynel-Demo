@@ -1,5 +1,5 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import { listMonitors, type MonitorInfo } from '../a11y/monitors.js'
 
 // Ungated like `list_open_apps` and `list_installed_apps`: knowing a screen

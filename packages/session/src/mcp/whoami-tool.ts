@@ -10,7 +10,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import type { Database } from '@vynel/db'
 import { resolveWhoamiReport, type ResolveWhoamiReportInput } from '../runtime/resolve-whoami-report.js'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 
 const TOOL_DESCRIPTION =
   'Read your OWN identity and state: which conversation you are (the global assistant, a ' +

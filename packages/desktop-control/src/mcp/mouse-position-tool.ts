@@ -6,7 +6,7 @@
 // monitor rectangle, so it answers "which screen is the user actually on".
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import { readCursorPosition, type CursorPosition } from '../input/cursor-position.js'
 
 const TOOL_DESCRIPTION =

@@ -14,7 +14,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import { markPendingCheckpoint } from '../continuity/pending-checkpoints.js'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 
 const TOOL_DESCRIPTION =
   'Checkpoint your work because your context is nearly full (a CONTEXT CHECK told you so): pass ' +

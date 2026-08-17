@@ -5,7 +5,7 @@
 // target to resolve and nothing to confine.
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import { formatSystemStatus, readSystemStatus, type SystemSnapshot } from '../system/system-status.js'
 
 const TOOL_DESCRIPTION =

@@ -9,3 +9,5 @@ export type {
   HonoAppRequestFn,
   DesktopPlanConsent,
 } from './mcp-feature-descriptor.js'
+// The SDK `tool()` widening every producer casts through — one home, no twins.
+export type { McpToolFn, McpToolContent } from './mcp-tool-fn.js'

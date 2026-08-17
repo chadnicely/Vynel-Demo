@@ -18,7 +18,7 @@ import type { McpFeatureDescriptor } from '@vynel/mcp-contract'
 import { listSshServers } from '../queries/list-ssh-servers.js'
 import { runServerCommand } from '../connecting/run-server-command.js'
 import type { StructuralLogger } from '../ssh-types.js'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 
 export const SSH_PROMPT_INSTRUCTIONS =
   'The user may have remote servers registered (list_ssh_servers). Before any server work, ' +

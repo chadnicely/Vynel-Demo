@@ -13,7 +13,7 @@
 import { createSdkMcpServer, tool, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { McpFeatureDescriptor } from '@vynel/mcp-contract'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import {
   getWorkspaceOverviewForStudy,
   listWorkspaceFilesForStudy,

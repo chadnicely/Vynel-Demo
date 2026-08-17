@@ -17,7 +17,7 @@ import { expireAskRequests } from '../lifecycle/expire-ask-requests.js'
 import type { Database } from '@vynel/db'
 import type { AskOutcome, StructuralLogger } from '../asks-types.js'
 import type { PendingAskRegistry } from '../waiting/pending-ask-registry.js'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 
 const TOOL_DESCRIPTION =
   'Ask the user for inputs through a friendly form (a step-by-step wizard in the app). Use this ' +

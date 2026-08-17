@@ -18,7 +18,7 @@
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import { readClipboard, writeClipboard } from '../input/clipboard.js'
 import type { DesktopPlanEnvelope } from '../plan/desktop-plan-envelope.js'
 import { unattendedRefusalError } from '../plan/plan-gated-authorization.js'

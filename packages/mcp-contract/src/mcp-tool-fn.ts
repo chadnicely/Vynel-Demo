@@ -1,13 +1,16 @@
+// The Claude Agent SDK's `tool()` is overloaded; every MCP-tool producer
+// widens it at the call site (`(tool as unknown as McpToolFn)(…)`) so no
+// package binds to the SDK's exact generic shape. ONE home for that widening
+// (it used to be a structural twin copied into six packages) — the contract
+// package already carries the SDK builder types, and `zod` here is type-only.
+
 import type { z } from 'zod'
 
-// One MCP content block — text for the tree/list tools, image for screenshots.
+/** One block of a tool result — text, or an image the SDK forwards inline. */
 export type McpToolContent =
   | { type: 'text'; text: string }
   | { type: 'image'; data: string; mimeType: string }
 
-// The Claude Agent SDK's `tool()` is overloaded; we widen at the call site (the
-// pattern @vynel/mcp's generated registry uses) so we don't bind to its exact
-// generic shape. Shared by every desktop tool factory.
 export type McpToolFn = (
   name: string,
   description: string,

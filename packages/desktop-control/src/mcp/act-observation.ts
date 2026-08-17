@@ -10,7 +10,7 @@
 
 import { screenshotApp } from '../a11y/screenshot-adapter.js'
 import { screenshotDesktop } from '../a11y/screenshot-desktop.js'
-import type { McpToolContent } from './mcp-tool-fn.js'
+import type { McpToolContent } from '@vynel/mcp-contract'
 
 /** Enough for a UI to repaint after a click; not enough for a page load. */
 export const OBSERVE_SETTLE_DEFAULT_MS = 400

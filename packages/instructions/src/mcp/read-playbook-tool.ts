@@ -1,7 +1,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { Database } from '@vynel/db'
-import type { McpToolFn } from './mcp-tool-fn.js'
+import type { McpToolFn } from '@vynel/mcp-contract'
 import { findPlaybookById, type PlaybookShelfScope } from './playbook-shelf.js'
 
 const TOOL_DESCRIPTION =
