@@ -42,6 +42,18 @@ export function liveTurnStartedAtForEntry(
     );
     if (inRoom !== undefined) return inRoom.startedAt;
   }
+  // The assistant thread's own pre-resolution window. A global turn announces
+  // itself before its session id is known, and on a COLD start that gap is the
+  // whole engine spawn — long enough for a retry after a failed turn to show
+  // red while it is in fact running (problem outranks running in the ladder).
+  // Safe to claim: every OTHER global-scope turn on the feed is a spawned
+  // session's, and those always carry their session id from the start.
+  if (entry.scope === "global") {
+    const brainTurn = turns.find(
+      (turn) => turn.scopeKind === "global" && turn.sessionId === null,
+    );
+    if (brainTurn !== undefined) return brainTurn.startedAt;
+  }
   return null;
 }
 

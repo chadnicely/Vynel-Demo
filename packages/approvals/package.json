@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./action-kind": "./src/derive-action-kind.ts"
+    "./action-kind": "./src/derive-action-kind.ts",
+    "./test-support": "./src/test-support/index.ts"
   },
   "scripts": {
     "build": "tsc",

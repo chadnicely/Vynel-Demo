@@ -281,7 +281,7 @@ describe('findSessionStatusMessageFacts', () => {
       const workspace = makeWorkspace(user.id)
       insertWorkspace(db, workspace)
       const session = insertChatSession(db, makeChatSession(user.id, workspace.id))
-      expect(findSessionStatusMessageFacts(db, session.id)).toEqual({
+      expect(findSessionStatusMessageFacts(db, [session.id])).toEqual({
         lastAssistantError: null,
         latestUserMessageAt: null,
       })
@@ -309,7 +309,7 @@ describe('findSessionStatusMessageFacts', () => {
         }),
       )
 
-      const errored = findSessionStatusMessageFacts(db, session.id)
+      const errored = findSessionStatusMessageFacts(db, [session.id])
       expect(errored.lastAssistantError).toEqual({
         code: 'error_during_execution',
         message: "You've hit your session limit · resets 2:20pm",
@@ -328,9 +328,52 @@ describe('findSessionStatusMessageFacts', () => {
           startedAt: new Date('2026-08-16T14:31:00Z'),
         }),
       )
-      const recovered = findSessionStatusMessageFacts(db, session.id)
+      const recovered = findSessionStatusMessageFacts(db, [session.id])
       expect(recovered.lastAssistantError).toBeNull()
       expect(recovered.latestUserMessageAt).toEqual(t3)
+    })
+  })
+
+  it('spans the WHOLE chain — a message-less swap segment inherits its history', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      const older = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      const fresh = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      const t1 = new Date('2026-08-16T12:00:00Z')
+      insertChatMessage(db, makeChatMessage(older.id, { role: 'user', startedAt: t1 }))
+      insertChatMessage(
+        db,
+        makeChatMessage(older.id, {
+          role: 'assistant',
+          body: '',
+          errorCode: 'error_during_execution',
+          errorMessage: 'limit',
+          startedAt: new Date('2026-08-16T12:01:00Z'),
+        }),
+      )
+
+      // The fresh segment alone knows nothing — which is exactly how a swap
+      // used to resurrect a superseded status and hide a real error.
+      expect(findSessionStatusMessageFacts(db, [fresh.id])).toEqual({
+        lastAssistantError: null,
+        latestUserMessageAt: null,
+      })
+
+      const chain = findSessionStatusMessageFacts(db, [older.id, fresh.id])
+      expect(chain.latestUserMessageAt).toEqual(t1)
+      expect(chain.lastAssistantError?.message).toBe('limit')
+    })
+  })
+
+  it('an empty chain asks nothing', async () => {
+    await withTestDatabase((db) => {
+      expect(findSessionStatusMessageFacts(db, [])).toEqual({
+        lastAssistantError: null,
+        latestUserMessageAt: null,
+      })
     })
   })
 })

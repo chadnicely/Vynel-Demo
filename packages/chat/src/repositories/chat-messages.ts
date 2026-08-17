@@ -7,7 +7,7 @@
 // No `delete*ChatMessage` — messages are deleted by cascade when their
 // session is hard-deleted by the purge job.
 
-import { and, asc, desc, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@vynel/db";
 import {
   chatMessages,
@@ -54,8 +54,15 @@ export function listChatMessagesForSession(
 /** The session-status derivation's message-side facts (Move 3, 2026-08-17):
  *  the latest ASSISTANT message's error columns — "the last thing that
  *  happened errored", self-clearing when a later reply succeeds — and the
- *  latest USER message's start (the set-status supersession anchor). Two
- *  indexed lookups on `(session_id, started_at)`. */
+ *  latest USER message's start (the set-status supersession anchor).
+ *
+ *  Asked over the WHOLE CHAIN, never one segment: a continuity swap mints a
+ *  fresh segment with no messages on it, so a tail-only read reported "the
+ *  user has never spoken" and every superseded `completed`/`problem` came back
+ *  from the dead (a swap made the row lie exactly where this feature exists to
+ *  stop it lying). The same read also keeps an error visible when a MID-TURN
+ *  swap left it stamped on the predecessor. Two indexed lookups on
+ *  `(session_id, started_at)`. */
 export interface SessionStatusMessageFacts {
   lastAssistantError: {
     code: string | null;
@@ -67,8 +74,12 @@ export interface SessionStatusMessageFacts {
 
 export function findSessionStatusMessageFacts(
   db: Database,
-  sessionId: string,
+  sessionIds: readonly string[],
 ): SessionStatusMessageFacts {
+  if (sessionIds.length === 0) {
+    return { lastAssistantError: null, latestUserMessageAt: null };
+  }
+  const ids = [...sessionIds];
   const [latestAssistant] = db
     .select({
       errorCode: chatMessages.errorCode,
@@ -77,7 +88,7 @@ export function findSessionStatusMessageFacts(
     })
     .from(chatMessages)
     .where(
-      and(eq(chatMessages.sessionId, sessionId), eq(chatMessages.role, "assistant")),
+      and(inArray(chatMessages.sessionId, ids), eq(chatMessages.role, "assistant")),
     )
     .orderBy(desc(chatMessages.startedAt))
     .limit(1)
@@ -85,7 +96,7 @@ export function findSessionStatusMessageFacts(
   const [latestUser] = db
     .select({ startedAt: chatMessages.startedAt })
     .from(chatMessages)
-    .where(and(eq(chatMessages.sessionId, sessionId), eq(chatMessages.role, "user")))
+    .where(and(inArray(chatMessages.sessionId, ids), eq(chatMessages.role, "user")))
     .orderBy(desc(chatMessages.startedAt))
     .limit(1)
     .all();

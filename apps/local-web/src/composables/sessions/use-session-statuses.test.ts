@@ -101,6 +101,25 @@ describe("liveTurnStartedAtForEntry", () => {
     expect(liveTurnStartedAtForEntry(entry, turns)).toBe(STARTED_AT);
   });
 
+  // The Assistant entry's cold-start window: a global turn announces before
+  // its session id is known, and without this a retry after a failed turn
+  // shows red (problem outranks running) for the whole engine spawn.
+  it("the GLOBAL entry claims the brain's turn before its session resolves", () => {
+    const entry = makeEntry({ scope: "global", sessionId: "sdk-brain" });
+    const turns = {
+      "turn-1": makeTurn({ scopeKind: "global", sessionId: null }),
+    };
+    expect(liveTurnStartedAtForEntry(entry, turns)).toBe(STARTED_AT);
+  });
+
+  it("…but never a spawned session's turn, which carries its id from the start", () => {
+    const entry = makeEntry({ scope: "global", sessionId: "sdk-brain" });
+    const turns = {
+      "turn-1": makeTurn({ scopeKind: "global", sessionId: "sdk-spawned" }),
+    };
+    expect(liveTurnStartedAtForEntry(entry, turns)).toBeNull();
+  });
+
   it("a spawned (workspace-less) entry never borrows a room's turn", () => {
     const turns = {
       "turn-1": makeTurn({

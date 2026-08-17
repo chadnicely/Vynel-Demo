@@ -12,7 +12,7 @@ import {
   updateChatSession,
   type NewChatSession,
 } from '@vynel/chat/repositories'
-import { insertApprovalRequest } from '@vynel/approvals'
+import { insertApprovalRequest } from '@vynel/approvals/test-support'
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
@@ -71,6 +71,24 @@ function makeSession(
     lastMessageAt: now,
     updatedAt: now,
     ...overrides,
+  }
+}
+
+function makeMessage(sessionId: string, role: 'user' | 'assistant', startedAt: Date) {
+  return {
+    id: randomUUID(),
+    sessionId,
+    role,
+    body: 'hello',
+    thinkingBody: null,
+    inputTokens: null,
+    outputTokens: null,
+    attachedImagesMetadata: null,
+    errorCode: null,
+    errorMessage: null,
+    startedAt,
+    completedAt: startedAt,
+    createdAt: startedAt,
   }
 }
 
@@ -420,6 +438,101 @@ describe('getSessionsOverview — statusFacts (Move 3)', () => {
         pendingApprovalCount: 0,
         latestUserMessageAt: null,
       })
+    })
+  })
+
+  // The swap bug (review catch, 2026-08-17): the facts used to be read off the
+  // TAIL alone, and a swap segment carries no messages — so "the user never
+  // spoke" made every superseded status stand again. The most swap-prone
+  // conversation in the app is the assistant thread, whose entry feeds the
+  // shell's global light, so a stale green `completed` (or red `problem`) with
+  // an old note was exactly the lie this feature exists to prevent.
+  it('a swap does NOT resurrect a superseded status — facts span the whole chain', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      const head = insertChatSession(db, makeSession(user.id, ws.id, { id: 'sdk-a' }))
+      // The assistant said "done" …
+      updateChatSession(db, head.id, {
+        status: 'completed',
+        statusNote: 'All three drafts are in your inbox.',
+        statusSetAt: new Date('2026-07-01T10:00:00Z'),
+      })
+      // … then the user asked for something else (this supersedes it) …
+      insertChatMessage(db, makeMessage('sdk-a', 'user', new Date('2026-07-01T11:00:00Z')))
+      // … and the conversation swapped onto a fresh, message-less segment that
+      // inherited the trio (copy-forward — deleting that would lose a standing
+      // `problem`, so the fix is the READ, not the copy).
+      insertChatSession(
+        db,
+        makeSession(user.id, ws.id, {
+          id: 'sdk-b',
+          continuedFromSessionId: 'sdk-a',
+          status: 'completed',
+          statusNote: 'All three drafts are in your inbox.',
+          statusSetAt: new Date('2026-07-01T10:00:00Z'),
+          lastMessageAt: new Date('2026-07-01T12:00:00Z'),
+        }),
+      )
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.sessionId).toBe('sdk-b')
+      // The anchor survives the swap, so the set state stays superseded.
+      expect(entry?.statusFacts.latestUserMessageAt).toBe('2026-07-01T11:00:00.000Z')
+    })
+  })
+
+  it('an error a MID-TURN swap left on the predecessor stays visible', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id, { id: 'sdk-a' }))
+      insertChatMessage(db, makeMessage('sdk-a', 'user', new Date('2026-07-01T11:00:00Z')))
+      insertChatMessage(db, {
+        ...makeMessage('sdk-a', 'assistant', new Date('2026-07-01T11:01:00Z')),
+        body: '',
+        errorCode: 'error_during_execution',
+        errorMessage: "You've hit your session limit · resets 2:20pm",
+      })
+      insertChatSession(
+        db,
+        makeSession(user.id, ws.id, {
+          id: 'sdk-b',
+          continuedFromSessionId: 'sdk-a',
+          lastMessageAt: new Date('2026-07-01T12:00:00Z'),
+        }),
+      )
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.statusFacts.lastError?.message).toBe(
+        "You've hit your session limit · resets 2:20pm",
+      )
+    })
+  })
+
+  it('a later successful reply anywhere in the chain clears the error', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id, { id: 'sdk-a' }))
+      insertChatMessage(db, {
+        ...makeMessage('sdk-a', 'assistant', new Date('2026-07-01T11:01:00Z')),
+        body: '',
+        errorCode: 'error_during_execution',
+        errorMessage: 'limit',
+      })
+      insertChatSession(
+        db,
+        makeSession(user.id, ws.id, {
+          id: 'sdk-b',
+          continuedFromSessionId: 'sdk-a',
+          lastMessageAt: new Date('2026-07-01T12:00:00Z'),
+        }),
+      )
+      insertChatMessage(db, makeMessage('sdk-b', 'assistant', new Date('2026-07-01T12:01:00Z')))
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.statusFacts.lastError).toBeNull()
     })
   })
 })

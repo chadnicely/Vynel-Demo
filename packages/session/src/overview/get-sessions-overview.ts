@@ -93,7 +93,14 @@ export function getSessionsOverview(
     return workspaceNameById.get(workspaceId) ?? null
   }
 
-  const entries: SessionsOverviewEntry[] = []
+  // Fold every chain first (cheap, in-memory), then cap, then compose the
+  // per-entry status facts for the survivors only (see the slice below).
+  const folded: Array<{
+    tail: ChatSession
+    chain: ChatSession[]
+    title: string
+    model: string | null
+  }> = []
   for (const head of heads) {
     const chain: ChatSession[] = []
     for (
@@ -125,13 +132,30 @@ export function getSessionsOverview(
     const model =
       tail.model ?? [...chain].reverse().find((segment) => segment.model !== null)?.model ?? null
 
-    // The durable status facts (Move 3): the assistant-set trio rides the tail
-    // (copy-forward keeps it there across swaps), the message facts are the
-    // tail's — "the last thing that happened" lives on the current segment —
-    // and pending approvals count across the whole chain. Derivation stays in
-    // ONE home (`deriveSessionStatus`, contracts); liveness is the activity
-    // feed's, married client-side.
-    const messageFacts = findSessionStatusMessageFacts(db, tail.id)
+    folded.push({ tail, chain, title, model })
+  }
+
+  // Sort + CAP before composing per-entry status facts: the row fetch spans up
+  // to 500 chains while the answer is 50, so composing first meant ~950
+  // discarded statements on a read the whole app now polls (AppShell holds it
+  // open; every turn boundary invalidates it).
+  const cap = Math.min(input.limit ?? DEFAULT_ENTRY_LIMIT, MAX_ENTRY_LIMIT)
+  const visible = folded
+    .sort((a, b) => (a.tail.lastMessageAt < b.tail.lastMessageAt ? 1 : -1))
+    .slice(0, cap)
+
+  const entries: SessionsOverviewEntry[] = []
+  for (const { tail, chain, title, model } of visible) {
+    // The durable status facts (Move 3), all CONVERSATION-scoped: the
+    // assistant-set trio rides the tail (copy-forward keeps it there across
+    // swaps), while the message facts and the approval count span the whole
+    // chain. Asking the tail alone for messages was the swap bug — a fresh
+    // segment has none, so "the user never spoke" resurrected every
+    // superseded status and hid an error a mid-turn swap left behind.
+    // Derivation stays in ONE home (`deriveSessionStatus`, contracts);
+    // liveness is the activity feed's, married client-side.
+    const segmentIds = chain.map((segment) => segment.id)
+    const messageFacts = findSessionStatusMessageFacts(db, segmentIds)
     const statusFacts: SessionStatusFacts = {
       setStatus: tail.status,
       statusNote: tail.statusNote,
@@ -144,8 +168,8 @@ export function getSessionsOverview(
               message: messageFacts.lastAssistantError.message,
               at: messageFacts.lastAssistantError.at.toISOString(),
             },
-      pendingApprovalCount: chain.reduce(
-        (count, segment) => count + (pendingApprovalCountBySessionId.get(segment.id) ?? 0),
+      pendingApprovalCount: segmentIds.reduce(
+        (count, segmentId) => count + (pendingApprovalCountBySessionId.get(segmentId) ?? 0),
         0,
       ),
       latestUserMessageAt: messageFacts.latestUserMessageAt?.toISOString() ?? null,
@@ -176,8 +200,5 @@ export function getSessionsOverview(
     })
   }
 
-  const cap = Math.min(input.limit ?? DEFAULT_ENTRY_LIMIT, MAX_ENTRY_LIMIT)
   return entries
-    .sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1))
-    .slice(0, cap)
 }

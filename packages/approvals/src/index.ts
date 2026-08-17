@@ -47,10 +47,6 @@ export type { ResolveApprovalInput, RememberRuleInput } from './requests/resolve
 // sessions/workspaces + the brain (the "answer from any screen" surface; its HTTP
 // route lands with apps/api).
 export { listPendingApprovalsForUser } from './repositories/index.js'
-// The raw row insert — consumers' test fixtures seed pending cards with it
-// (the sessions-overview statusFacts tests); production writes go through
-// `recordApprovalRequest`.
-export { insertApprovalRequest } from './repositories/index.js'
 
 // Workspace-scoped reads for the HTTP surface (apps/local-api): the pending /
 // recent audit views, the rules panel list, and the decide route's workspace

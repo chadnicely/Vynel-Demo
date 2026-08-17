@@ -48,6 +48,13 @@ export function useProjectNodes(projectId: MaybeRefOrGetter<string | null>) {
       // status — the same one the tree row shows (it reaches `problem` from a
       // failed turn, `needs_input` from an approval or the assistant's own
       // set state).
+      //
+      // KNOWN OVER-CLAIM (inherited from the workspace ladder, and the reason
+      // this note is worth keeping): an AGENT colleague's turn announces under
+      // its grounding workspace, so a failing colleague can light this dot as
+      // well as its own. The build chain is hidden from the overview, so it
+      // has no per-conversation facts of its own to read instead; splitting
+      // them is the fix if the double-dot ever bites.
       rows.push({
         id: `continuing:${workspaceId}`,
         name: "The build",
