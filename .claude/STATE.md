@@ -3,7 +3,7 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 5 (checkpoint + auto-continue) SHIPPED; arc code-complete, live smokes remain
+## ✅ 2026-08-18 (latest) SESSION CONTINUITY — Slice 5 (checkpoint + auto-continue) SHIPPED `2a5637a`; arc code-complete, live smokes remain
 
 Spike answered: the SDK's PostToolUse `hookSpecificOutput.additionalContext` IS the mid-turn channel
 (provider-owned hook, `build-claude-post-tool-use-hook.ts`; subagent hook calls carry `agent_id` and are
