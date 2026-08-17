@@ -35,6 +35,12 @@ for making continuity a uniform property of every session.*
 6. **A `whoami` tool on every session** (§4.4): the session reads its own identity (scope,
    workspace, agent slug, primary id, chain refs) — to tag what it saves to memory with its
    identity, and so its identity can drive building its own context.
+8. **Model-participating checkpoint handoff** (Kafi, 2026-08-17, after the first live swap): the
+   boundary swap can't save a task that outgrows its window INSIDE a turn. Tell Claude — quietly —
+   that a swap is coming; let it reach a clean checkpoint, write its own hand-off, tell the user
+   "I'll continue after patching context", and have the fresh session pick the task up on its
+   own while the UI shows patching → continuing. Self-orientation: the model can read its own
+   context state and decide the cut. See §4.6 + Slice 5.
 7. **Per-KIND duty notebooks — functionality now, content later** (Kafi, 2026-08-17): every
    session KIND gets a duty notebook (global root, workspace manager, spawned, agent…) that
    teaches it its duty; the session reads HIS kind's book and behaves with it. Kafi's drafts
@@ -172,6 +178,37 @@ session-level memory tagging Kafi sketched, working NOW by convention, no schema
 (b) the identity is self-readable, so a session can rebuild/deepen its own context deliberately
 ("what am I, what chain am I on, what should I recall") instead of only being told at seed time.
 
+### 4.6 Checkpoint handoff — the model participates in its own swap
+Three cooperating pieces, layered on §4.1–4.3 (never replacing the boundary swap):
+
+- **The nudge (soft, ~0.70):** when a turn's LIVE occupancy (the consumer already sees
+  `usage-reported` per assistant message) crosses a nudge threshold, the NEXT provider input
+  carries a per-message marker (the voice/channel-marker precedent — recency wins, system-prompt
+  blocks decay): "context at 72% — finish the current step, then call `checkpoint_handoff`
+  before starting another large one." `whoami` (§4.4) also reports occupancy / window /
+  thresholds, so the model can ask "where am I" and plan the cut itself.
+- **The tool (`checkpoint_handoff`):** the model calls it with its OWN hand-off (done / in
+  progress / next, files touched, decisions, open questions). The tool records the pending
+  handoff for the identity and answers "acknowledged — end this turn with a one-line note to the
+  user". At the turn boundary the swap runs seeded with the MODEL's hand-off + the contextBuilder
+  extras (tail, identity, refs, recovery instructions) — the model knows what matters better
+  than an external distill; the 0.85 distill stays as the safety net for a turn that never
+  checkpointed. Same tool on every surface (requirement 2).
+- **Auto-continue:** ONLY when the checkpoint carried a continue-intent (next steps non-empty,
+  task mid-flight): the runtime starts a continuation turn on the fresh segment ("resume from
+  your checkpoint") under the row's inherited mode/model/effort; the UI shows "Patching context…"
+  → "Continuing…" and the same thread keeps flowing. A boundary swap of an idle conversation
+  never auto-runs anything — the user's next message continues it, as today. For delegated /
+  spawned / colleague runs the continuation is a follow-up job on the same target through the
+  delegation queue.
+
+**Trade-offs settled (Kafi may overrule):** model-authored carry PRIMARY + external distill as
+the floor (never rely on the model alone) · no forced mid-tool interruption (cutting a tool loop
+loses in-flight work; the SDK's own compaction — Layer 1 captures its summary — is the last
+resort) · nudge 0.70 / swap 0.85 / SDK compaction ~0.9x is the ladder.
+**Open (needs Chad/Kafi):** does the auto-continuation turn follow the row's CURRENT settings
+(default: yes — the user may have changed the chip meanwhile) or pin the checkpointing turn's?
+
 ### 4.5 Duty-book binding — kind → notebook, resolved not hardcoded
 The seam that makes requirement 7 work before the content exists:
 
@@ -248,9 +285,23 @@ The seam that makes requirement 7 work before the content exists:
    (parked on the lock) shows the same state (the `turn-queued` sentinel precedent).
 2. **Tests:** event co-commit + feed-step emission; frame shape pinned in the stream tests.
 
+### Slice 5 — checkpoint handoff (§4.6; the model participates)
+1. **Nudge:** live-occupancy watch in the shared consumer / runners → the per-message marker on
+   the next provider input above the nudge threshold (one home: a `composeContextNudge` beside
+   the voice/channel markers); `whoami` grows occupancy / window / thresholds.
+2. **Tool:** `checkpoint_handoff` (descriptor-owned, every surface, never cards) → records the
+   pending handoff on the identity; the boundary op prefers a pending model hand-off over the
+   distill when composing the carry (`buildContinuityContext` takes it as an input).
+3. **Auto-continue:** continuation turn on the fresh segment when the handoff carries a
+   continue-intent — interactive streams run it in-place (the SSE stream stays open: "patching →
+   continuing"), delegated targets enqueue a follow-up job.
+4. **Tests:** nudge threshold + marker composition; handoff row + carry preference; auto-continue
+   gating (idle boundary swap never continues); per-runner continuation.
+
 Slice order is dependency order: 1 alone cures the amnesia; 2 rides 1's widened composition;
 3 is independent (can land any time after 1 — its tagging convention feeds 2's recall story);
-4 is UI polish on 1's trigger points.
+4 is UI polish on 1's trigger points; 5 needs all three (2's builder composes the seed, 3's
+whoami gives self-orientation, 4's states show patching → continuing).
 
 ## 5b. Slice 1 — SHIPPED 2026-08-17 (decisions taken while building)
 
