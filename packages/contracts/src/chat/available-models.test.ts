@@ -144,3 +144,46 @@ describe('selectEffortOptionsForModel', () => {
     expect(filtered).toHaveLength(5)
   })
 })
+
+// The engine's CONTEXT-VARIANT ids (`claude-opus-5[1m]`) — live-verified
+// 2026-08-17. The suffix used to defeat both the id shape check (so choosing
+// that model 400'd the turn) and version parsing (so the NEWEST Opus sorted
+// behind "More models" while older families sat up front).
+describe('context-variant model ids', () => {
+  it('parses the family and version through the suffix', () => {
+    expect(parseClaudeModelId('claude-opus-5[1m]')).toEqual({ family: 'opus', version: 500 })
+    expect(parseClaudeModelId('claude-fable-5[1m]')).toEqual({ family: 'fable', version: 500 })
+  })
+
+  it('still refuses to read a date suffix as a version', () => {
+    expect(parseClaudeModelId('claude-haiku-4-5-20251001')).toEqual({
+      family: 'haiku',
+      version: 405,
+    })
+  })
+
+  it('groups the variant as its family’s CURRENT model, not "More"', () => {
+    const roster: AvailableChatModel[] = [
+      {
+        id: 'claude-opus-5[1m]',
+        label: 'Opus (1M context)',
+        description: null,
+        supportedEffortLevels: null,
+        contextWindowTokens: 1_000_000,
+      },
+      {
+        id: 'claude-sonnet-5',
+        label: 'Sonnet',
+        description: null,
+        supportedEffortLevels: null,
+        contextWindowTokens: 1_000_000,
+      },
+    ]
+    const grouped = groupAvailableModels(roster)
+    expect(grouped.current.map((model) => model.id)).toEqual([
+      'claude-opus-5[1m]',
+      'claude-sonnet-5',
+    ])
+    expect(grouped.more).toEqual([])
+  })
+})

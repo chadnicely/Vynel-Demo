@@ -40,12 +40,18 @@ type ClaudeModelFamily = (typeof FAMILY_ORDER)[number]
  *  ORDERABLE version (major*100+minor: 4.8 → 408, 5 → 500 — encoding, not
  *  display, so 4.10 can never sort below 4.9). Version segments are the ≤2
  *  small numbers adjacent to the family token — an 8-digit date suffix is
- *  never a version. */
+ *  never a version, and the engine's CONTEXT-VARIANT suffix
+ *  (`claude-opus-5[1m]`) is not part of one: without stripping it, `5[1m]`
+ *  read as "no version" and the newest Opus fell behind "More models" while
+ *  older families sat up front (live-verified, 2026-08-17). */
 export function parseClaudeModelId(id: string): {
   family: ClaudeModelFamily | null
   version: number | null
 } {
-  const segments = id.toLowerCase().split('-')
+  const segments = id
+    .toLowerCase()
+    .split('-')
+    .map((segment) => segment.replace(/\[[^\]]*\]$/, ''))
   const familyIndex = segments.findIndex((segment) =>
     (FAMILY_ORDER as readonly string[]).includes(segment),
   )

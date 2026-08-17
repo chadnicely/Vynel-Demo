@@ -39,8 +39,14 @@ export const CHAT_MODELS: readonly ChatModelOption[] = [
 /** Boundary-validation shape for a model id now that the roster is DISCOVERED
  *  (the closed enum can't exist anymore): a `claude-…` id, nothing else. The
  *  engine is the real validator — an id it doesn't serve fails the turn with a
- *  visible, persisted error. */
-export const CHAT_MODEL_ID_PATTERN = /^claude-[a-z0-9][a-z0-9.-]{0,60}$/
+ *  visible, persisted error.
+ *
+ *  The trailing `[…]` group is the engine's CONTEXT-VARIANT suffix
+ *  (`claude-opus-5[1m]` = Opus 5 with the 1M window) — a real id it both
+ *  reports and accepts. Without it here the picker offered Opus and every
+ *  turn that chose it was rejected at this boundary before reaching the
+ *  engine (live-verified against the CLI's own roster, 2026-08-17). */
+export const CHAT_MODEL_ID_PATTERN = /^claude-[a-z0-9][a-z0-9.-]{0,60}(?:\[[a-z0-9]{1,8}\])?$/
 
 /** The one request-schema home for a turn's `model` field (all four turn
  *  routes). Legal values come from `providers.listModels` at runtime; agents

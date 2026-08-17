@@ -11364,7 +11364,7 @@
                   },
                   "model": {
                     "type": "string",
-                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}$"
+                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}(?:\\[[a-z0-9]{1,8}\\])?$"
                   },
                   "thinkingEffort": {
                     "type": "string",
@@ -32357,7 +32357,7 @@
                   },
                   "model": {
                     "type": "string",
-                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}$"
+                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}(?:\\[[a-z0-9]{1,8}\\])?$"
                   },
                   "thinkingEffort": {
                     "type": "string",
@@ -32950,7 +32950,7 @@
                   },
                   "model": {
                     "type": "string",
-                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}$"
+                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}(?:\\[[a-z0-9]{1,8}\\])?$"
                   },
                   "thinkingEffort": {
                     "type": "string",
@@ -35358,7 +35358,7 @@
                   },
                   "selectedModel": {
                     "type": "string",
-                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}$"
+                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}(?:\\[[a-z0-9]{1,8}\\])?$"
                   },
                   "thinkingEffort": {
                     "type": "string",
@@ -35449,7 +35449,7 @@
                   },
                   "model": {
                     "type": "string",
-                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}$"
+                    "pattern": "^claude-[a-z0-9][a-z0-9.-]{0,60}(?:\\[[a-z0-9]{1,8}\\])?$"
                   },
                   "thinkingEffort": {
                     "type": "string",

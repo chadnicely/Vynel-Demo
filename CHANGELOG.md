@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Fixed: Opus appeared as "Default (recommended)" under "More models", and
+  picking it failed the turn.** The engine names its models with aliases and
+  reports the 1M-context Opus as `claude-opus-5[1m]`. Three things went wrong
+  with that: the generic "default" pointer won the naming race, so Opus wore
+  that label instead of its own; the bracketed suffix made the version
+  unreadable, so the newest Opus sorted behind "More models" while older
+  families sat up front; and the same suffix failed an id check, so choosing
+  Opus was rejected before the request ever reached the engine. The picker now
+  reads **Fable · Opus (1M context) · Sonnet · Haiku**, and every one of them
+  runs.
+
 - **The model list is now asked for, not stumbled upon.** Which models the
   picker offers is account-specific — and Vynel only ever learned the list as
   a side-effect of you sending a message, so a freshly opened app showed the
