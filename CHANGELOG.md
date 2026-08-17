@@ -9,6 +9,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Fixed: a conversation waiting on your answer looked like it was still
+  working.** When Claude puts a question form in front of you, the turn pauses
+  until you answer — but the conversation kept showing the "working" light, so
+  nothing told you it was your move. Worse, in a project chat the question was
+  filed without recording which conversation it came from at all. Both are
+  fixed: a conversation waiting on a form now shows the same "needs you" light
+  as one waiting on an approval, on its Sessions row, its dot on the node
+  screen, and the Assistant row in the shell.
+
+- **Fixed: a hiccup Vynel expected to recover from left the conversation
+  marked red.** Some failures are transient — the engine taking too long to
+  start, for instance — and Vynel already knew the difference, but the status
+  light didn't: any error at all painted the conversation as having a problem
+  until the next successful reply. Now only a genuine failure does. The
+  explanation still appears in the transcript either way, so a missing answer
+  is never left unexplained.
+
 - **Fixed: a project never lit up when its own background session needed your
   approval.** When Claude handed work to a session it spawned inside a
   project, any approval that session raised was filed as belonging to nobody —

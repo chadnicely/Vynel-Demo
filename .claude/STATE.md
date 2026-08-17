@@ -82,26 +82,35 @@ Also: overview sorts+caps BEFORE composing facts (500 chains fetched for a 50-en
 app-wide polled read); `liveTurnStartedAtForEntry` gains the global pre-resolution window (safe —
 spawned turns always carry a sessionId); `insertApprovalRequest` → `@vynel/approvals/test-support`.
 
-**Punch-list written to `.claude/bugs/` (2026-08-17)** — read those files, they are self-contained:
-`a-session-waiting-on-ask-user-reads-idle` (NEW defect: a workspace chat composes its toolset
-before its session id exists → asks record no session, AND the ladder counts approvals only —
-both halves needed) · `recoverable-turn-errors-read-as-problem` (NEW latent-defect: the ladder
-keys on `errorMessage`, ignoring the `isRecoverable` taxonomy the streams now use) ·
+**Punch-list written to `.claude/bugs/` (2026-08-17), then WORKED** — each file carries its own
+resolution; read those, they are self-contained:
+`a-session-waiting-on-ask-user-reads-idle` (**FIXED** `e64e5ca`) ·
+`recoverable-turn-errors-read-as-problem` (**FIXED** `5a7ee8b`) ·
 `spawned-session-approvals-record-null-workspace` (**FIXED** `c9054a3` — also fixed a second,
 unreported symptom: a swap wrote the segment workspace-less, so a spawned session migrated out of
 its room's list) · `nodes-screen-invents-needs-you` (conversation dots FIXED; fleet dots still
-open + now UNBLOCKED for rule 1).
+open + now UNBLOCKED for rule 1 — the colour change needs Chad).
+
+Two things worth carrying forward from the ask fix:
+- **The context has TWO session ids and they are not interchangeable.**
+  `SessionToolContext.sessionId` = the stable `primary_sessions` id (what desktop-control keys
+  per-task records on); the NEW `resolveChatSessionId()` = the `chat_sessions` id the overview,
+  the approvals queue and the per-conversation status all key on. Documented as a pair in
+  `mcp-feature-descriptor.ts` — the missing pairing is what caused the bug. It is LAZY because a
+  fresh workspace conversation has no chat session when its toolset is composed.
+- **A parked conversation renders `running`, not `idle`** (the bug title was half wrong): the turn
+  blocks inside the stream, so its activity entry stays live. `needs_input` outranking `running` is
+  what makes counting the ask the whole fix.
 
 **Open follow-ups from this arc:** ① live smoke of Move 2's discovery + a picker refresh
 affordance · ② extract the status-mark idiom (3 homes) · ③ channels (`runGlobalRootTurn`) still
 run the unattended bypass default and do NOT read per-session settings — deliberate, recorded in
-that file · ④ the spawned-approvals `workspace_id` NULL bug still blocks the WORKSPACE rollup
-(per-session status is unaffected — approvals' `sessionId` is always correct) · ⑤ review notes
-accepted as-is: a RECOVERABLE `session-errored` still reads as `problem` (the ladder keys on
-`errorMessage`, not the sinks' `!isRecoverable` taxonomy — "the last thing that happened errored");
-`needs_input` outranks `running` (workspace ladder verbatim); a background/channel-driven global
-turn carries no ambient header so `set_session_status` 400s there; `routes/sessions/index.ts` is
-497 lines, over the ~300 cap (one-fluent-chain constraint).
+that file · ④ ~~the spawned-approvals `workspace_id` NULL bug~~ FIXED `c9054a3` · ⑤ ~~a RECOVERABLE
+`session-errored` reads as `problem`~~ FIXED `5a7ee8b` (severity now persisted on the message row;
+the sweep confirmed the delegation runners are correct as-is — a recoverable emission always ends
+the stream, so the job really did produce nothing) · ⑥ still open, accepted as-is: a
+background/channel-driven global turn carries no ambient header so `set_session_status` 400s there;
+`routes/sessions/index.ts` is 497 lines, over the ~300 cap (one-fluent-chain constraint).
 
 ## ✅ 2026-08-17 SESSION-COMMS — the NOTE kind shipped + the own-child task rule
 
