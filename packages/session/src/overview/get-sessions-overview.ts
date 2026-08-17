@@ -9,67 +9,48 @@
 
 import type { Database } from '@vynel/db'
 import { resolveContextWindow } from '@vynel/contracts/chat/model-context-window'
-import type {
-  SessionsOverviewEntry,
-  SessionsOverviewSegment,
+import {
+  isSessionInScope,
+  type SessionsOverviewEntry,
+  type SessionsOverviewSegment,
 } from '@vynel/contracts/chat/sessions-overview'
 import type { SessionStatusFacts } from '@vynel/contracts/chat/session-status'
-import {
-  listAllChatSessionsForUser,
-  findSessionStatusMessageFacts,
-  type ChatSession,
-} from '@vynel/chat/repositories'
+import { findSessionStatusMessageFacts } from '@vynel/chat/repositories'
 import { listPendingApprovalsForUser } from '@vynel/approvals'
 import { listPendingAsks } from '@vynel/asks'
 import { findWorkspaceById } from '@vynel/workspaces'
 import * as primarySessionsRepository from '../repositories/index.js'
+import { foldSessionChains } from './fold-session-chains.js'
 
 export type GetSessionsOverviewInput = {
   userId: string
   limit?: number
+  /** How many entries to skip — the infinite-scroll cursor. The sort is
+   *  stable (`lastMessageAt` desc), so offset paging is safe here; a
+   *  conversation that speaks mid-scroll can shift one row across a page
+   *  boundary, which is the accepted cost of not carrying a cursor. */
+  offset?: number
+  /** Curate to ONE scope before capping, so a page is dense: a workspace id
+   *  for that room's conversations, `null` for the global library (the root's
+   *  own spawned children). Omit for every scope — what the app-wide status
+   *  read wants. Shares its predicate with the view and the menu count. */
+  scope?: { workspaceId: string | null }
 }
 
 const DEFAULT_ENTRY_LIMIT = 50
-const MAX_ENTRY_LIMIT = 100
-
-// Fork B: the global brain's rows are all `hidden` with fixed internal titles
-// ("Global brain" / "Continued conversation") — the entry the USER sees is the
-// assistant itself.
-const ASSISTANT_ENTRY_TITLE = 'Assistant'
-// The swap segment's stock title — never a useful ENTRY title; chains prefer
-// their newest listed segment's real title over it.
-const SWAP_SEGMENT_TITLE = 'Continued conversation'
+// Raised from 100 with paging (2026-08-17): the library scrolls, so a caller
+// that wants a big first page can ask for one instead of being silently cut.
+const MAX_ENTRY_LIMIT = 200
 
 export function getSessionsOverview(
   db: Database,
   input: GetSessionsOverviewInput,
 ): SessionsOverviewEntry[] {
-  const rows = listAllChatSessionsForUser(db, { userId: input.userId })
   const primaries = primarySessionsRepository.listPrimarySessionsForUser(db, input.userId)
   const currentSdkSessionIds = new Set(
     primaries
       .map((primary) => primary.currentSdkSessionId)
       .filter((sessionId): sessionId is string => sessionId !== null),
-  )
-
-  // Chain fold: child-of links → walk each head to its tail. A parent outside
-  // the fetched window (pruned/purged predecessor) makes its child a head —
-  // the chain renders from what still exists.
-  const rowIds = new Set(rows.map((row) => row.id))
-  const childByParentId = new Map<string, ChatSession>()
-  for (const row of rows) {
-    if (row.continuedFromSessionId !== null && rowIds.has(row.continuedFromSessionId)) {
-      // Rows iterate newest-first, so first-write-wins keeps the NEWEST child
-      // when corruption gives one parent two claimants (a crashed double
-      // swap) — the newer child is the live segment; the older one drops.
-      if (!childByParentId.has(row.continuedFromSessionId)) {
-        childByParentId.set(row.continuedFromSessionId, row)
-      }
-    }
-  }
-  const heads = rows.filter(
-    (row) =>
-      row.continuedFromSessionId === null || !rowIds.has(row.continuedFromSessionId),
   )
 
   // Pending approvals per SDK session id — ONE user-wide query (already how
@@ -109,56 +90,25 @@ export function getSessionsOverview(
     return workspaceNameById.get(workspaceId) ?? null
   }
 
-  // Fold every chain first (cheap, in-memory), then cap, then compose the
-  // per-entry status facts for the survivors only (see the slice below).
-  const folded: Array<{
-    tail: ChatSession
-    chain: ChatSession[]
-    title: string
-    model: string | null
-  }> = []
-  for (const head of heads) {
-    const chain: ChatSession[] = []
-    for (
-      let segment: ChatSession | undefined = head;
-      segment !== undefined;
-      segment = childByParentId.get(segment.id)
-    ) {
-      chain.push(segment)
-    }
-    const tail = chain[chain.length - 1]!
+  // Fold every chain first (cheap, in-memory, newest-first), then curate, then
+  // page, then compose the per-entry status facts for the survivors only.
+  const folded = foldSessionChains(db, input.userId)
 
-    // A workspace/agent chain that is hidden END TO END has no user-facing
-    // doorway (the global brain is the deliberate exception — fork B).
-    const hasListedSegment = chain.some((segment) => segment.visibility === 'listed')
-    if (tail.scope !== 'global' && !hasListedSegment) continue
-
-    const title =
-      tail.scope === 'global'
-        ? ASSISTANT_ENTRY_TITLE
-        : ([...chain]
-            .reverse()
-            .find(
-              (segment) => segment.visibility === 'listed' && segment.title !== SWAP_SEGMENT_TITLE,
-            )?.title ??
-          tail.title)
-
-    // A fresh swap segment reports no model until its first turn — the chain's
-    // last-known model keeps the meter's denominator honest across the swap.
-    const model =
-      tail.model ?? [...chain].reverse().find((segment) => segment.model !== null)?.model ?? null
-
-    folded.push({ tail, chain, title, model })
-  }
+  // Curate FIRST when a scope was asked for, so a page is dense: filtering
+  // after the cap would hand back a page of 50 that yields three rows for the
+  // drilled room, and infinite scroll would look broken.
+  const inScope =
+    input.scope === undefined
+      ? folded
+      : folded.filter((chain) => isSessionInScope(chain.tail, input.scope!.workspaceId))
 
   // Sort + CAP before composing per-entry status facts: the row fetch spans up
-  // to 500 chains while the answer is 50, so composing first meant ~950
-  // discarded statements on a read the whole app now polls (AppShell holds it
+  // to 500 chains while the answer is one page, so composing first meant ~950
+  // discarded statements on a read the whole app polls (AppShell holds it
   // open; every turn boundary invalidates it).
   const cap = Math.min(input.limit ?? DEFAULT_ENTRY_LIMIT, MAX_ENTRY_LIMIT)
-  const visible = folded
-    .sort((a, b) => (a.tail.lastMessageAt < b.tail.lastMessageAt ? 1 : -1))
-    .slice(0, cap)
+  const offset = Math.max(input.offset ?? 0, 0)
+  const visible = inScope.slice(offset, offset + cap)
 
   const entries: SessionsOverviewEntry[] = []
   for (const { tail, chain, title, model } of visible) {
@@ -221,4 +171,30 @@ export function getSessionsOverview(
   }
 
   return entries
+}
+
+/**
+ * How many conversations a scope holds — the menu badge's read, and the number
+ * the library's "showing N of M" would use.
+ *
+ * A real total, not a page length: the badge used to be
+ * `getSessionsOverview(...).length`, which meant it inherited the list's cap
+ * and quietly stopped counting at 50 alongside a list that stopped showing at
+ * 50. Now that the list scrolls, that would have been a badge frozen at the
+ * first page.
+ *
+ * Shares `foldSessionChains` and `isSessionInScope` with the list, so the two
+ * still agree on what one conversation is — the invariant the whole
+ * section-counts arc rests on. Deliberately skips the per-entry composition
+ * (status facts, approval/ask counts, workspace names): a count needs
+ * membership, not contents.
+ */
+export function countSessionsOverview(
+  db: Database,
+  input: { userId: string; scope?: { workspaceId: string | null } },
+): number {
+  const folded = foldSessionChains(db, input.userId)
+  return input.scope === undefined
+    ? folded.length
+    : folded.filter((chain) => isSessionInScope(chain.tail, input.scope!.workspaceId)).length
 }

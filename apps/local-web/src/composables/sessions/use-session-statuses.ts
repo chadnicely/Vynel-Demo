@@ -1,4 +1,4 @@
-import { computed } from "vue";
+import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import type { SessionsOverviewEntry } from "@vynel/contracts/chat/sessions-overview";
 import type { SessionTurnActivity } from "@vynel/contracts/chat/session-activity";
 import {
@@ -57,13 +57,26 @@ export function liveTurnStartedAtForEntry(
   return null;
 }
 
-export function useSessionStatuses() {
+/**
+ * @param entries A caller's OWN list of entries, when it has one. The Sessions
+ * library pages its rows, and a row scrolled in on page three is not in the
+ * shared (capped) overview — so without this its status light would be blank
+ * for exactly the conversations paging exists to reach. Passing entries also
+ * skips subscribing to the shared read, since the facts already rode in on
+ * each entry. Omit it and the shared overview is the source, as before.
+ */
+export function useSessionStatuses(
+  entries?: MaybeRefOrGetter<readonly SessionsOverviewEntry[] | undefined>,
+) {
   const activity = useActivityStore();
-  const overviewQuery = useSessionsOverview(true);
+  const overviewQuery = useSessionsOverview(entries === undefined);
+  const source = computed<readonly SessionsOverviewEntry[]>(
+    () => toValue(entries) ?? overviewQuery.data.value ?? [],
+  );
 
   const statusBySessionId = computed<Record<string, SessionStatusView>>(() => {
     const views: Record<string, SessionStatusView> = {};
-    for (const entry of overviewQuery.data.value ?? []) {
+    for (const entry of source.value) {
       views[entry.sessionId] = deriveSessionStatus(entry.statusFacts, {
         liveTurnStartedAt: liveTurnStartedAtForEntry(entry, activity.serverTurns),
       });
@@ -75,9 +88,7 @@ export function useSessionStatuses() {
    *  keeps the brain's chain in the overview as the "Assistant" entry). Null
    *  until the overview lands. */
   const globalStatusView = computed<SessionStatusView | null>(() => {
-    const globalEntry = (overviewQuery.data.value ?? []).find(
-      (entry) => entry.scope === "global",
-    );
+    const globalEntry = source.value.find((entry) => entry.scope === "global");
     return globalEntry === undefined
       ? null
       : (statusBySessionId.value[globalEntry.sessionId] ?? null);

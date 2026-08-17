@@ -45,6 +45,7 @@ import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspa
 import { streamSpawnedSessionTurn } from '../../streams/session-turn.js'
 import {
   SessionsOverviewResponseSchema,
+  SessionsOverviewQuerySchema,
   CreateSpawnedSessionRequestSchema,
   CreateSpawnedSessionResponseSchema,
   StartSessionTurnRequestSchema,
@@ -101,6 +102,10 @@ export const sessionsApp = factory
         name: 'list_sessions',
         rootSurface: true,
         workspaceInteractiveSurface: true,
+        // The default answer is EVERY session — never let the generator stamp
+        // the turn's own workspace onto the optional `workspaceId` and quietly
+        // narrow the planning root's view to one room.
+        ambientWorkspace: false,
         description:
           "List every session — yours (scope 'spawned' = sessions you created), the user's " +
           'workspaces, and the assistant thread — with per-session context usage: contextTokens ' +
@@ -109,9 +114,24 @@ export const sessionsApp = factory
           'sessionId is what send_message’s "session:<sessionId>" destination accepts. Read-only.',
       },
     }),
+    validator('query', SessionsOverviewQuerySchema),
     ...userScoped,
     async (c) => {
-      return c.json(getSessionsOverview(c.var.db, { userId: c.var.user.id }))
+      const query = c.req.valid('query')
+      // `scope` present ⇒ curate server-side so a page is dense; absent ⇒
+      // every scope, which is what the app-wide status read wants.
+      return c.json(
+        getSessionsOverview(c.var.db, {
+          userId: c.var.user.id,
+          ...(query.limit !== undefined ? { limit: query.limit } : {}),
+          ...(query.offset !== undefined ? { offset: query.offset } : {}),
+          ...(query.scope === 'workspace' && query.workspaceId !== undefined
+            ? { scope: { workspaceId: query.workspaceId } }
+            : query.scope === 'global'
+              ? { scope: { workspaceId: null } }
+              : {}),
+        }),
+      )
     },
   )
   // ──────────────────────────────────────────────────────────────────

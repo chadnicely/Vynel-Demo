@@ -61,7 +61,18 @@ export function selectSessionsForScope(
   entries: SessionsOverviewEntry[],
   workspaceId: string | null,
 ): SessionsOverviewEntry[] {
+  return entries.filter((entry) => isSessionInScope(entry, workspaceId))
+}
+
+/** The membership half of `selectSessionsForScope`, on the two fields that
+ *  decide it — so the SERVER can page a scope densely (filter, then cap)
+ *  without importing the whole composed entry. One predicate, three callers:
+ *  the view's filter, the menu's count, and the paged read. */
+export function isSessionInScope(
+  entry: Pick<SessionsOverviewEntry, 'scope' | 'workspaceId'>,
+  workspaceId: string | null,
+): boolean {
   return workspaceId !== null
-    ? entries.filter((entry) => entry.workspaceId === workspaceId)
-    : entries.filter((entry) => entry.scope === 'spawned' && entry.workspaceId === null)
+    ? entry.workspaceId === workspaceId
+    : entry.scope === 'spawned' && entry.workspaceId === null
 }

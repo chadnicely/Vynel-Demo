@@ -7,14 +7,17 @@
 // its Chat), the session-turn composer (queued sentinel, error notes), and
 // the carried list intents (percent-hidden-until-usage, chain pins).
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createAppRouter } from "../router.js";
 import { vynelClientKey } from "../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
-import type { SessionsOverviewEntry } from "@vynel/contracts/chat/sessions-overview";
+import {
+  isSessionInScope,
+  type SessionsOverviewEntry,
+} from "@vynel/contracts/chat/sessions-overview";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import SessionsView from "./SessionsView.vue";
@@ -158,10 +161,29 @@ async function mountView(
     response: { ok: true, status: 200 },
   }));
   const client = {
-    // A fresh payload per read (like the real route) — returning the caller's
-    // array by reference would defeat structural sharing when a test mutates
-    // it to simulate a server-side change.
-    sessions: { overview: async () => [...entries] },
+    // Stands in for the real route, which CURATES and PAGES server-side
+    // (2026-08-17) — so the fake applies the same shared predicate and slice.
+    // Returning everything regardless of scope would let a broken scope or a
+    // broken page pass here. Fresh payload per read (like the route): handing
+    // back the caller's array by reference would defeat structural sharing
+    // when a test mutates it to simulate a server-side change.
+    sessions: {
+      overview: async (query?: {
+        scope?: "workspace" | "global";
+        workspaceId?: string;
+        limit?: number;
+        offset?: number;
+      }) => {
+        const scoped =
+          query?.scope === undefined
+            ? entries
+            : entries.filter((entry) =>
+                isSessionInScope(entry, query.scope === "global" ? null : (query.workspaceId ?? null)),
+              );
+        const offset = query?.offset ?? 0;
+        return scoped.slice(offset, offset + (query?.limit ?? 50));
+      },
+    },
     root: { getSession, getSessionTranscript },
     GET,
     POST,
@@ -706,5 +728,98 @@ describe("SessionsView", () => {
     const { wrapper } = await mountView([]);
     expect(wrapper.text()).toContain("No conversations yet");
     expect(wrapper.text()).toContain("Pick a session");
+  });
+});
+
+// ── Infinite scroll (2026-08-17) ───────────────────────────────────
+// Past 50 conversations the library showed the newest 50 and said nothing
+// about the rest — older ones were unreachable from the UI. jsdom has no
+// IntersectionObserver, so the sentinel's callback is captured and fired by
+// hand: what is under test is the view's reaction to the sentinel coming into
+// view, not the browser's scroll detection.
+describe("SessionsView — infinite scroll", () => {
+  let fireIntersection: (() => void) | null = null;
+
+  beforeEach(() => {
+    fireIntersection = null;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(private readonly callback: IntersectionObserverCallback) {}
+        observe() {
+          fireIntersection = () =>
+            this.callback(
+              [{ isIntersecting: true } as IntersectionObserverEntry],
+              this as unknown as IntersectionObserver,
+            );
+        }
+        disconnect() {
+          fireIntersection = null;
+        }
+        unobserve() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function manyEntries(count: number): SessionsOverviewEntry[] {
+    return Array.from({ length: count }, (_unused, index) =>
+      makeEntry({
+        sessionId: `sp-${index}`,
+        title: `Conversation ${index}`,
+        segments: [makeSegment({ sessionId: `sp-${index}`, title: `Conversation ${index}` })],
+      }),
+    );
+  }
+
+  it("shows one page, then loads the next when the sentinel comes into view", async () => {
+    const { wrapper } = await mountView(manyEntries(60));
+
+    expect(wrapper.findAll(".session-row")).toHaveLength(50);
+    expect(wrapper.find(".sentinel").exists()).toBe(true);
+
+    fireIntersection?.();
+    await flushPromises();
+
+    // The whole point: the 10 conversations past the old ceiling are reachable.
+    expect(wrapper.findAll(".session-row")).toHaveLength(60);
+    expect(wrapper.text()).toContain("Conversation 0");
+  });
+
+  it("stops at the last page — a short page ends the scroll", async () => {
+    const { wrapper } = await mountView(manyEntries(60));
+    fireIntersection?.();
+    await flushPromises();
+    // 60 rows in, the second page came back short, so there is nothing more to
+    // ask for and the sentinel is gone.
+    expect(wrapper.find(".sentinel").exists()).toBe(false);
+  });
+
+  it("a scrolled-in row still gets its status light", async () => {
+    const entries = manyEntries(60);
+    entries[59] = makeEntry({
+      sessionId: "sp-59",
+      title: "Conversation 59",
+      segments: [makeSegment({ sessionId: "sp-59", title: "Conversation 59" })],
+      statusFacts: {
+        setStatus: null,
+        statusNote: null,
+        statusSetAt: null,
+        lastError: null,
+        pendingApprovalCount: 1,
+        pendingAskCount: 0,
+        latestUserMessageAt: null,
+      },
+    });
+    const { wrapper } = await mountView(entries);
+    fireIntersection?.();
+    await flushPromises();
+
+    // The status source is THIS view's pages — the shared overview only ever
+    // knows the first 50, so page two would otherwise render unlit.
+    expect(wrapper.find('.session-mark[data-status="needs_input"]').exists()).toBe(true);
   });
 });

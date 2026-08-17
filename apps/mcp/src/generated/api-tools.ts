@@ -2739,11 +2739,21 @@ export const listSessions: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_sessions',
     "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is what send_message’s \"session:<sessionId>\" destination accepts. Read-only.",
-    {},
+    {
+    scope: z.enum(['workspace', 'global']).optional(),
+    workspaceId: z.string().optional(),
+    limit: z.number().optional(),
+    offset: z.number().optional(),
+  },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/sessions/overview'
-        const queryStr = ''
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope', 'workspaceId', 'limit', 'offset']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'GET' })

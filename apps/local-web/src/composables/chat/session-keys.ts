@@ -13,6 +13,12 @@ export const sessionKeys = {
   // Under `all` on purpose: every turn-end invalidation (use-chat-turn) also
   // refreshes the cross-scope overview — no second invalidation site.
   overview: () => [...sessionKeys.all, "overview"] as const,
+  // The Sessions library's PAGED read — a separate cache entry per scope, and
+  // separate from `overview()` because the two answer different questions: the
+  // overview is "the recent conversations everything derives status from", the
+  // library is "every conversation in this scope, a page at a time". Also
+  // under `all`, so a turn-end invalidation refreshes both.
+  library: (scopeKey: string) => [...sessionKeys.all, "library", scopeKey] as const,
   // The per-session composer settings (mode/model/effort/auto-buildout).
   // Under `all` so the turn-end invalidation also reconciles a write-through
   // the server did during the turn.

@@ -18,7 +18,7 @@ import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
 } from '../continuity/index.js'
-import { getSessionsOverview } from './get-sessions-overview.js'
+import { getSessionsOverview, countSessionsOverview } from './get-sessions-overview.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -595,6 +595,145 @@ describe('getSessionsOverview — statusFacts (Move 3)', () => {
 
       const [entry] = getSessionsOverview(db, { userId: user.id })
       expect(entry?.statusFacts.lastError).toBeNull()
+    })
+  })
+})
+
+// ── Paging + scope (2026-08-17) ────────────────────────────────────
+// The library used to show the newest 50 and say nothing about the rest, so
+// older conversations were unreachable from the UI. Paging is what fixes it;
+// the scope has to be applied BEFORE the cap or the pages come back sparse and
+// the scroll stalls with plenty left.
+describe('paging', () => {
+  function seedConversations(db: Parameters<typeof getSessionsOverview>[0], count: number) {
+    const user = insertUser(db, makeUser())
+    const ws = insertWorkspace(db, makeWorkspace(user.id))
+    for (let index = 0; index < count; index += 1) {
+      insertChatSession(
+        db,
+        makeSession(user.id, ws.id, {
+          id: `sdk-${String(index).padStart(3, '0')}`,
+          title: `Conversation ${index}`,
+          // Newest first: a HIGHER index is more recent.
+          lastMessageAt: new Date(Date.parse('2026-07-01T00:00:00Z') + index * 60_000),
+        }),
+      )
+    }
+    return { user, ws }
+  }
+
+  it('defaults to the newest 50 — the shipped behaviour, unchanged', async () => {
+    await withTestDatabase((db) => {
+      const { user } = seedConversations(db, 60)
+      const entries = getSessionsOverview(db, { userId: user.id })
+      expect(entries).toHaveLength(50)
+      expect(entries[0]?.title).toBe('Conversation 59')
+    })
+  })
+
+  it('offset walks past the first page and reaches the oldest rows', async () => {
+    await withTestDatabase((db) => {
+      const { user } = seedConversations(db, 60)
+      const secondPage = getSessionsOverview(db, { userId: user.id, limit: 50, offset: 50 })
+      // 10 left — a SHORT page, which is how the client knows it is the last.
+      expect(secondPage).toHaveLength(10)
+      expect(secondPage[0]?.title).toBe('Conversation 9')
+      expect(secondPage.at(-1)?.title).toBe('Conversation 0')
+    })
+  })
+
+  it('pages do not overlap or skip', async () => {
+    await withTestDatabase((db) => {
+      const { user } = seedConversations(db, 25)
+      const ids = [
+        ...getSessionsOverview(db, { userId: user.id, limit: 10, offset: 0 }),
+        ...getSessionsOverview(db, { userId: user.id, limit: 10, offset: 10 }),
+        ...getSessionsOverview(db, { userId: user.id, limit: 10, offset: 20 }),
+      ].map((entry) => entry.sessionId)
+      expect(ids).toHaveLength(25)
+      expect(new Set(ids).size).toBe(25)
+    })
+  })
+
+  it('scope curates BEFORE the cap, so a page is dense', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const room = insertWorkspace(db, makeWorkspace(user.id, 'Room'))
+      const other = insertWorkspace(db, makeWorkspace(user.id, 'Other'))
+      // 30 in the other room are NEWER, so an unscoped first page of 5 would
+      // contain none of the room's — the sparse-page failure this prevents.
+      for (let index = 0; index < 3; index += 1) {
+        insertChatSession(
+          db,
+          makeSession(user.id, room.id, {
+            title: `Room ${index}`,
+            lastMessageAt: new Date(Date.parse('2026-07-01T00:00:00Z') + index * 1000),
+          }),
+        )
+      }
+      for (let index = 0; index < 30; index += 1) {
+        insertChatSession(
+          db,
+          makeSession(user.id, other.id, {
+            title: `Other ${index}`,
+            lastMessageAt: new Date(Date.parse('2026-07-02T00:00:00Z') + index * 1000),
+          }),
+        )
+      }
+
+      const page = getSessionsOverview(db, {
+        userId: user.id,
+        scope: { workspaceId: room.id },
+        limit: 5,
+      })
+      expect(page).toHaveLength(3)
+      expect(page.every((entry) => entry.workspaceId === room.id)).toBe(true)
+    })
+  })
+})
+
+describe('countSessionsOverview', () => {
+  it('counts every conversation past the page cap', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      for (let index = 0; index < 60; index += 1) {
+        insertChatSession(db, makeSession(user.id, ws.id, { title: `C${index}` }))
+      }
+      // The badge used to be the list's length, so it froze at the cap.
+      expect(getSessionsOverview(db, { userId: user.id })).toHaveLength(50)
+      expect(countSessionsOverview(db, { userId: user.id })).toBe(60)
+    })
+  })
+
+  it('counts a scope the same way the list curates it', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const room = insertWorkspace(db, makeWorkspace(user.id, 'Room'))
+      const other = insertWorkspace(db, makeWorkspace(user.id, 'Other'))
+      insertChatSession(db, makeSession(user.id, room.id))
+      insertChatSession(db, makeSession(user.id, room.id))
+      insertChatSession(db, makeSession(user.id, other.id))
+
+      expect(countSessionsOverview(db, { userId: user.id, scope: { workspaceId: room.id } })).toBe(2)
+      expect(
+        getSessionsOverview(db, { userId: user.id, scope: { workspaceId: room.id } }),
+      ).toHaveLength(2)
+    })
+  })
+
+  // A chain is why no `chat_sessions` row count can answer this — the count
+  // and the list must fold identically or the badge disagrees with the rows.
+  it('counts a continuity chain as ONE conversation, like the list', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id, { id: 'chain-a' }))
+      insertChatSession(
+        db,
+        makeSession(user.id, ws.id, { id: 'chain-b', continuedFromSessionId: 'chain-a' }),
+      )
+      expect(countSessionsOverview(db, { userId: user.id })).toBe(1)
     })
   })
 })

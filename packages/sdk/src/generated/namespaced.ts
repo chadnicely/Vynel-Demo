@@ -1668,8 +1668,10 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  overview: async () => {
-    const { data, error, response } = await client["GET"]("/sessions/overview")
+  overview: async (options?: NonNullable<paths["/sessions/overview"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/sessions/overview", {
+      params: { ...(options && { query: options }) },
+    })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },

@@ -34338,7 +34338,44 @@
         "tags": [
           "sessions"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "workspace",
+                "global"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "summary": "List every session across scopes — continuity chains folded into single entries, newest first.",
         "x-sdk-name": "sessions.overview",
         "x-mcp": {
@@ -34346,6 +34383,7 @@
           "name": "list_sessions",
           "rootSurface": true,
           "workspaceInteractiveSurface": true,
+          "ambientWorkspace": false,
           "description": "List every session — yours (scope 'spawned' = sessions you created), the user's workspaces, and the assistant thread — with per-session context usage: contextTokens used of contextWindow. Check these numbers BEFORE choosing where to send work: a session near its window is a poor target; create a new one instead. Each entry’s sessionId is what send_message’s \"session:<sessionId>\" destination accepts. Read-only."
         }
       }

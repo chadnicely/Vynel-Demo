@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { PhClockCounterClockwise as History } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
-import { selectSessionsForScope } from "@vynel/contracts/chat/sessions-overview";
 import type {
   SessionsOverviewEntry,
   SessionsOverviewSegment,
 } from "@vynel/contracts/chat/sessions-overview";
-import { useSessionsOverview } from "../composables/sessions/use-sessions-overview.js";
+import { useSessionsLibrary } from "../composables/sessions/use-sessions-library.js";
 import { useSessionStatuses } from "../composables/sessions/use-session-statuses.js";
 import { sessionOpenAffordance } from "../composables/sessions/session-open-affordance.js";
-import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 import SessionRow from "../components/sessions/SessionRow.vue";
@@ -29,33 +27,57 @@ import SessionThreadView from "../components/sessions/SessionThreadView.vue";
 const route = useRoute();
 const router = useRouter();
 const ui = useUiStore();
-const activity = useActivityStore();
 
 const workspaceScopeId = computed(() =>
   typeof route.query.workspace === "string" ? route.query.workspace : null,
 );
 
-const overviewQuery = useSessionsOverview(true, () =>
-  activity.isTurnRunning ? 5000 : false,
-);
-
-// The curation moved to `selectSessionsForScope` (contracts) so the menu's
-// `Sessions N` counts exactly these rows — see its doc comment.
-const entries = computed<SessionsOverviewEntry[]>(() =>
-  selectSessionsForScope(overviewQuery.data.value ?? [], workspaceScopeId.value),
-);
+// PAGED (2026-08-17): the library used to take the shared capped read and
+// filter it here, which meant it showed the newest 50 conversations and said
+// nothing about the rest — older ones were simply unreachable. The scope now
+// curates server-side so each page is dense, and the sentinel below asks for
+// the next one as it comes into view.
+const { query: libraryQuery, entries } = useSessionsLibrary(workspaceScopeId);
 
 const errorText = computed(() =>
-  overviewQuery.isError.value
-    ? formatSdkError(overviewQuery.error.value)
+  libraryQuery.isError.value
+    ? formatSdkError(libraryQuery.error.value)
     : null,
 );
 
 // Each row's status light — the ONE derivation every surface reads (the live
 // turn that used to be this view's private `isWorking` is now one fact inside
 // it, alongside pending approvals, the assistant's set state, and the last
-// turn's error).
-const sessionStatuses = useSessionStatuses();
+// turn's error). Fed THIS view's pages, so a conversation scrolled in on page
+// three lights up like any other; the shared overview only knows the first 50.
+const sessionStatuses = useSessionStatuses(entries);
+
+// ── Infinite scroll ────────────────────────────────────────────────
+// An IntersectionObserver on a sentinel under the last row, rather than a
+// scroll listener: it fires once when the row enters, costs nothing while
+// idle, and needs no scroll maths. A turn running elsewhere re-fetches the
+// pages already loaded (vue-query), so the list stays live without polling
+// its way to the end.
+const sentinel = ref<HTMLElement | null>(null);
+let observer: IntersectionObserver | null = null;
+
+watch(sentinel, (element) => {
+  observer?.disconnect();
+  observer = null;
+  if (element === null) return;
+  observer = new IntersectionObserver((records) => {
+    if (!records.some((record) => record.isIntersecting)) return;
+    if (libraryQuery.hasNextPage.value && !libraryQuery.isFetchingNextPage.value) {
+      void libraryQuery.fetchNextPage();
+    }
+  });
+  observer.observe(element);
+});
+
+onBeforeUnmount(() => {
+  observer?.disconnect();
+  observer = null;
+});
 
 // ── Opening ────────────────────────────────────────────────────────
 interface OpenThread {
@@ -128,7 +150,7 @@ function openSegment(
       </header>
 
       <div class="list-body">
-        <p v-if="overviewQuery.isPending.value" class="state-note">
+        <p v-if="libraryQuery.isPending.value" class="state-note">
           Loading conversations…
         </p>
 
@@ -148,6 +170,10 @@ function openSegment(
             @open="openEntry(entry)"
             @open-segment="(segment) => openSegment(entry, segment)"
           />
+          <!-- Crossing into view asks for the next page. -->
+          <div v-if="libraryQuery.hasNextPage.value" ref="sentinel" class="sentinel">
+            <span v-if="libraryQuery.isFetchingNextPage.value">Loading more…</span>
+          </div>
         </template>
       </div>
     </aside>
@@ -214,6 +240,14 @@ function openSegment(
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.sentinel {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 16px;
+  color: var(--ink-3);
+  font: 400 11px var(--font-ui);
 }
 
 .state-note {

@@ -153,3 +153,17 @@ export const SessionStatusResponseSchema = z.object({
   statusNote: z.string().nullable(),
   statusSetAt: z.string(),
 })
+
+// ── The library's paging (2026-08-17) ──────────────────────────────
+// Past 50 conversations the library used to show the newest 50 and say
+// nothing about the rest. `scope` curates SERVER-side so a page is dense —
+// filtering after the cap would return a page of 50 that yields three rows
+// for the drilled room, and the scroll would stall looking broken.
+export const SessionsOverviewQuerySchema = z.object({
+  /** 'workspace' needs `workspaceId`; 'global' is the root's own spawned
+   *  children; omitted is every scope (what the app-wide status read wants). */
+  scope: z.enum(['workspace', 'global']).optional(),
+  workspaceId: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+})

@@ -16826,7 +16826,12 @@ export interface operations {
     };
     getSessionsOverview: {
         parameters: {
-            query?: never;
+            query?: {
+                scope?: "workspace" | "global";
+                workspaceId?: string;
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;

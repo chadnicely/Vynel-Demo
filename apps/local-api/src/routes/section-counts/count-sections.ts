@@ -15,8 +15,7 @@
 // the list read opens every one of them. The shared membership predicate lives
 // inside the skills module, which is what keeps the two honest.
 
-import { getSessionsOverview } from '@vynel/session/overview'
-import { selectSessionsForScope } from '@vynel/contracts/chat/sessions-overview'
+import { countSessionsOverview } from '@vynel/session/overview'
 import { listAgentsForWorkspace } from '@vynel/agents'
 import { listInstalledSkillsForContext, countAllRuleFilesForScope } from '@vynel/skills'
 import { listApps } from '@vynel/apps'
@@ -64,10 +63,12 @@ export async function countSections(
       ? countAllRuleFilesForScope('user')
       : countAllRuleFilesForScope('workspace', workspace.path)
 
-  const sessions = selectSessionsForScope(getSessionsOverview(db, { userId }), workspaceId)
+  // A real total, not a page length — the library scrolls now, so taking the
+  // list read's length would have frozen the badge at the first page.
+  const sessions = countSessionsOverview(db, { userId, scope: { workspaceId } })
 
   return {
-    sessions: sessions.length,
+    sessions,
     agents: agents.length,
     skills: skills.length,
     rules,
