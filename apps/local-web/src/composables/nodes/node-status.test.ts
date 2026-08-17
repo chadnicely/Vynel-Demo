@@ -127,66 +127,31 @@ describe("resolveFleetNodeStatus", () => {
   });
 });
 
+// test: correct expectation for conversation dots — was "spoke within the
+// hour ⇒ waiting", now the real ladder's rename (Move 3, 2026-08-17). The old
+// spec asserted the ball was in your court from the ABSENCE of evidence,
+// which is the recorded `nodes-screen-invents-needs-you` bug; the derivation
+// (a live turn, a pending approval, the assistant's set state, the last
+// error) lives in `deriveSessionStatus` / `use-workspace-status` and is
+// pinned there. What remains here is the palette rename.
 describe("resolveConversationNodeStatus", () => {
-  // The bug this fixes (Kafi, 2026-08-15): every session node was hardcoded
-  // `idle`, so a conversation visibly running tool calls still drew grey and
-  // its strand never streamed.
-  it("a conversation running a turn is working", () => {
-    expect(
-      resolveConversationNodeStatus({
-        hasLiveTurn: true,
-        lastMessageAt: null,
-        nowMs: NOW,
-      }),
-    ).toBe("building");
+  it("renames a session's status into the scene's palette", () => {
+    expect(resolveConversationNodeStatus("running")).toBe("building");
+    expect(resolveConversationNodeStatus("needs_input")).toBe("waiting");
+    expect(resolveConversationNodeStatus("problem")).toBe("problem");
+    expect(resolveConversationNodeStatus("completed")).toBe("done");
+    expect(resolveConversationNodeStatus("idle")).toBe("idle");
   });
 
-  it("spoke recently, so the ball is in your court", () => {
-    expect(
-      resolveConversationNodeStatus({
-        hasLiveTurn: false,
-        lastMessageAt: justNow,
-        nowMs: NOW,
-      }),
-    ).toBe("waiting");
+  // "The build" node passes the ROOM's status — same ladder, one extra name.
+  it("accepts a workspace status too — not_running is the same quiet grey", () => {
+    expect(resolveConversationNodeStatus("not_running")).toBe("idle");
+    expect(resolveConversationNodeStatus("problem")).toBe("problem");
   });
 
-  it("quiet past the hour is idle", () => {
-    expect(
-      resolveConversationNodeStatus({
-        hasLiveTurn: false,
-        lastMessageAt: new Date(NOW - (ACTIVE_WINDOW_MS + 60_000)).toISOString(),
-        nowMs: NOW,
-      }),
-    ).toBe("idle");
-  });
-
-  it("a conversation that has never spoken is idle, not waiting", () => {
-    expect(
-      resolveConversationNodeStatus({
-        hasLiveTurn: false,
-        lastMessageAt: null,
-        nowMs: NOW,
-      }),
-    ).toBe("idle");
-  });
-
-  it("shares the fleet's window exactly — the two levels agree on 'recent'", () => {
-    const atTheEdge = new Date(NOW - (ACTIVE_WINDOW_MS - 1000)).toISOString();
-    expect(
-      resolveConversationNodeStatus({
-        hasLiveTurn: false,
-        lastMessageAt: atTheEdge,
-        nowMs: NOW,
-      }),
-    ).toBe("waiting");
-    expect(
-      resolveFleetNodeStatus({
-        liveTurn: false,
-        queue: undefined,
-        progress: { done: 1, total: 3, lastWorkedAt: atTheEdge },
-        nowMs: NOW,
-      }),
-    ).toBe("waiting");
+  // The colour that could never appear before: a conversation whose last turn
+  // died (the session-limit error) now draws red instead of grey.
+  it("reaches problem — the state the old window-based reading could not", () => {
+    expect(resolveConversationNodeStatus("problem")).not.toBe("idle");
   });
 });

@@ -20,16 +20,31 @@ route-test-pinned; channel runner (`runGlobalRootTurn`) deliberately untouched (
 default stays). Verified: repo typecheck 106/106 · 5/5 parity · local-api+chat 848 · local-web 698
 · session 249. Full `pnpm test` NOT run (CPU rule).
 
-**Next: Move 3 (session status), then Move 2 (model discovery)** — full research + plan in this
-session's transcript. Move 3 = derived status ladder `running|needs_input|problem|completed|idle`
-(one home in contracts; feeds: activity turn, per-session pending approvals (indexed query exists),
-latest `chat_messages.errorCode`) + self-set session status via MCP (mirror `set_workspace_status`)
-+ TWO feeder bug fixes: `global-root-turn.ts` `activity.end()` never passes 'failed' (workspace
-streams do — `chat-turn.ts:267→311` pattern) and `activity-store.ts` discards `turn-ended.outcome`;
-surface on `SessionsOverviewEntry` + nodes; orphan-reap → 'interrupted' not 'problem'. Move 2 =
-dedicated discovery entry point in providers (spawn query → `initializationResult().models` —
-account-entitlement list, why Opus flickers) at boot + picker refresh, floor demoted to bootstrap,
-effort chip filtered by `supportedEffortLevels`.
+**Move 3 (session status) — SERVER HALF SHIPPED (`ee6d13b`), UI half NEXT.** Landed: contracts
+`chat/session-status.ts` (deriveSessionStatus, one ladder: problem > needs_input > running >
+completed > idle; set-status = FACT superseded by the user's next message — carried as
+`latestUserMessageAt` on the facts); `chat_sessions` status trio (migration 0044, copy-forward in
+both swap homes); `setSessionStatus` op + `chat.session-status-set` outbox; overview entries carry
+`statusFacts` (set trio + latest-assistant error via `findSessionStatusMessageFacts` + chain-wide
+pendingApprovalCount via ONE `listPendingApprovalsForUser` pass + supersession anchor);
+`set_session_status` x-mcp tool `PUT /sessions/status` on the AMBIENT turn session (set_todos
+door), census-pinned both arrays; BOTH global sinks now stamp `'failed'` outcomes
+(GlobalRootSseSink + GlobalRootDrainSink → `activity.end(sink.turnOutcome)` → session_turns).
+
+**UI half remaining (all read-side):** (1) SessionRow badge + note — SessionsView derives via
+`deriveSessionStatus(entry.statusFacts, {liveTurnStartedAt})`; hoist the live-turn lookup
+(SessionsView `isWorking` has the chain-segment scan; need startedAt not boolean). (2) nodes:
+rewrite `resolveConversationNodeStatus` to consume the derived view (map: running→building,
+needs_input→waiting, problem→problem [SceneNode has 'problem' already], completed→done,
+idle→idle — kills the invented within-hour "waiting"); fleet/workspace dot divergence stays
+(Chad-gated). (3) "The build" node: extend `GET /continuing` response with statusFacts (chat deps
+approvals — compose trio + message facts + per-session approvals). (4) `globalStatus` in
+use-workspace-status: consume the overview's scope-global entry → problem reachable. (5) root
+route test for the failed envelope (harness needs a turnRecorder-wired SessionActivityFeed + an
+erroring fake provider toggle). Then api-tools census verify via test run + regen parity + UI
+tests + review + CHANGELOG. Move 2 (model discovery) after: dedicated provider discovery entry
+point (initializationResult().models) at boot + picker refresh, floor→bootstrap-only, effort chip
+filtered by supportedEffortLevels.
 
 ## ✅ 2026-08-17 SESSION-COMMS — the NOTE kind shipped + the own-child task rule
 

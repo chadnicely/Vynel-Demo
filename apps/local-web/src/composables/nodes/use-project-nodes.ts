@@ -1,21 +1,24 @@
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useSessionsOverview } from "../sessions/use-sessions-overview.js";
+import { useSessionStatuses } from "../sessions/use-session-statuses.js";
+import { useWorkspaceStatuses } from "../workspaces/use-workspace-status.js";
 import { sessionKeys, sessionScopeKey } from "../chat/session-keys.js";
 import { useVynel } from "../use-vynel.js";
-import { useActivityStore } from "../../stores/activity-store.js";
 import { initialsOf } from "../../utils/constellation-layout.js";
 import type { SceneNode } from "../../utils/constellation-scene.js";
 import { resolveConversationNodeStatus } from "./node-status.js";
-import { useActiveNowTick } from "./use-active-window.js";
 
 // The SECOND level of the node screen (Chad, 2026-08-11): step inside one
 // project and the dots become its own conversations — the continuing build
-// first, then every session it holds.
+// first, then every session it holds. Both readings come from main's real
+// ladders (Move 3): each session's own derived status, and — for the build —
+// the ROOM's status, since the continuing thread is what the room's status
+// already describes (one truth, tree and node screen alike).
 export function useProjectNodes(projectId: MaybeRefOrGetter<string | null>) {
   const vynel = useVynel();
-  const activity = useActivityStore();
-  const nowTick = useActiveNowTick();
+  const sessionStatuses = useSessionStatuses();
+  const workspaceStatuses = useWorkspaceStatuses();
   const id = computed(() => toValue(projectId));
 
   const sessionsQuery = useSessionsOverview(() => id.value !== null);
@@ -35,31 +38,23 @@ export function useProjectNodes(projectId: MaybeRefOrGetter<string | null>) {
     staleTime: 15_000,
   });
 
-  function statusOfConversation(
-    sessionId: string | null,
-    lastMessageAt: string | null,
-  ): SceneNode["status"] {
-    return resolveConversationNodeStatus({
-      hasLiveTurn:
-        sessionId !== null && activity.serverTurnForSession(sessionId) !== null,
-      lastMessageAt,
-      nowMs: nowTick.value,
-    });
-  }
-
   const nodes = computed<SceneNode[]>(() => {
     const workspaceId = id.value;
     if (workspaceId === null) return [];
     const rows: SceneNode[] = [];
     const continuing = continuingQuery.data.value;
     if ((continuing?.rootSessionId ?? null) !== null) {
+      // The build IS the room's ongoing conversation, so it wears the room's
+      // status — the same one the tree row shows (it reaches `problem` from a
+      // failed turn, `needs_input` from an approval or the assistant's own
+      // set state).
       rows.push({
         id: `continuing:${workspaceId}`,
         name: "The build",
         initials: "BD",
-        status: statusOfConversation(
-          continuing?.currentSdkSessionId ?? null,
-          continuing?.lastMessageAt ?? null,
+        status: resolveConversationNodeStatus(
+          workspaceStatuses.statusByWorkspaceId.value[workspaceId]?.status ??
+            "not_running",
         ),
       });
     }
@@ -69,7 +64,9 @@ export function useProjectNodes(projectId: MaybeRefOrGetter<string | null>) {
         id: `session:${row.sessionId}`,
         name: row.title,
         initials: initialsOf(row.title),
-        status: statusOfConversation(row.sessionId, row.lastMessageAt),
+        status: resolveConversationNodeStatus(
+          sessionStatuses.statusFor(row.sessionId)?.status ?? "idle",
+        ),
       });
     }
     return rows;

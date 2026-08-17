@@ -9,6 +9,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Conversations now carry a status light — including "stuck on an error".**
+  When a turn dies (the account's session limit, a failed run), the error used
+  to live only as red text inside the transcript: nothing in the Sessions list
+  or on the node screen could tell you a conversation was stuck. Each
+  conversation now shows its own state — working, waiting on you, hit a
+  problem, completed — with the one-line reason beside it (the limit message
+  itself, or the assistant's own note). Claude can set it deliberately too
+  (`set_session_status`, the per-conversation twin of the workspace one), and
+  it clears itself when you send the next message. The Global row can finally
+  show a problem, and conversation dots on the node screen show the real state
+  instead of guessing "waiting on you" from the clock.
+
 - **Each conversation now remembers its own mode, model, effort, and Auto
   buildout.** The composer chips used to be one global setting — changing the
   model in one chat silently retargeted every other conversation's next turn.

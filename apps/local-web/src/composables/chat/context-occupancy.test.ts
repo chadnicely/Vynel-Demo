@@ -20,6 +20,16 @@ function makeEntry(
     contextTokens: 166_000,
     contextWindow: 200_000,
     lastMessageAt: "2026-07-21T10:00:00.000Z",
+    // Quiet by default (Move 3): no set state, no error, nothing pending —
+    // these fixtures exercise the row/chain shape, not the status ladder.
+    statusFacts: {
+      setStatus: null,
+      statusNote: null,
+      statusSetAt: null,
+      lastError: null,
+      pendingApprovalCount: 0,
+      latestUserMessageAt: null,
+    },
     segments: [
       {
         sessionId: "s-old",

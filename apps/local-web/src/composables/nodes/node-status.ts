@@ -1,3 +1,5 @@
+import type { SessionEffectiveStatus } from "@vynel/contracts/chat/session-status";
+import type { WorkspaceEffectiveStatus } from "@vynel/contracts/workspaces/workspace-status";
 import {
   isCompletedAndClear,
   isQueueWorking,
@@ -47,29 +49,32 @@ export function resolveFleetNodeStatus(
   return "waiting";
 }
 
-export interface ConversationNodeStatusInput {
-  /** A turn running on THIS conversation right now. Asked per session, never
-   *  per workspace: a spawned session's turn is workspace-scoped too, so a
-   *  workspace-wide check lights every dot in the room instead of the one that
-   *  is actually running. */
-  hasLiveTurn: boolean;
-  /** When it last spoke; null until it has. */
-  lastMessageAt: string | null;
-  nowMs: number;
-}
-
-// What colour one CONVERSATION's dot wears, one level down. Deliberately the
-// same three readings and the same hour as a project gets, so stepping inside
-// a room shows the same picture rather than a different vocabulary: it is
-// running, it spoke recently and the ball is in your court, or it is quiet.
+// What colour one CONVERSATION's dot wears, one level down — now a pure
+// rename of main's REAL status ladder into the scene's palette (Move 3,
+// 2026-08-17). It used to invent `waiting` from "spoke within the hour",
+// which asserted the ball was in your court from the absence of evidence
+// (the recorded `nodes-screen-invents-needs-you` bug). The caller passes the
+// derived status instead: a session's (`deriveSessionStatus` — live turn,
+// pending approval, the assistant's own set state, the last error) or, for a
+// room's continuing build, the workspace's (`use-workspace-status`) — so a
+// dot here and the row in the tree can never disagree.
 //
-// `done` is not reachable here — a conversation is never finished the way a
-// task queue is drained.
+// The FLEET dots above keep their own queue-based reading
+// (`resolveFleetNodeStatus`) until Chad merges the two vocabularies.
 export function resolveConversationNodeStatus(
-  input: ConversationNodeStatusInput,
+  status: SessionEffectiveStatus | WorkspaceEffectiveStatus,
 ): SceneNode["status"] {
-  if (input.hasLiveTurn) return "building";
-  return isWithinActiveWindow(input.lastMessageAt, input.nowMs)
-    ? "waiting"
-    : "idle";
+  switch (status) {
+    case "running":
+      return "building";
+    case "needs_input":
+      return "waiting";
+    case "problem":
+      return "problem";
+    case "completed":
+      return "done";
+    // 'idle' (a conversation) / 'not_running' (a room) — one quiet grey.
+    default:
+      return "idle";
+  }
 }

@@ -9,6 +9,7 @@ import type {
   SessionsOverviewSegment,
 } from "@vynel/contracts/chat/sessions-overview";
 import { useSessionsOverview } from "../composables/sessions/use-sessions-overview.js";
+import { useSessionStatuses } from "../composables/sessions/use-session-statuses.js";
 import { sessionOpenAffordance } from "../composables/sessions/session-open-affordance.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
@@ -50,22 +51,11 @@ const errorText = computed(() =>
     : null,
 );
 
-/** A turn running in this entry's session right now: its room's turn for the
- *  workspace conversation, or (any scope) a server turn on one of the entry's
- *  chain segments — how a spawned session's delegated task lights the dot. */
-function isWorking(entry: SessionsOverviewEntry): boolean {
-  if (
-    entry.scope === "workspace" &&
-    entry.workspaceId !== null &&
-    activity.hasServerTurnInWorkspace(entry.workspaceId)
-  ) {
-    return true;
-  }
-  const segmentIds = new Set(entry.segments.map((segment) => segment.sessionId));
-  return Object.values(activity.serverTurns).some(
-    (turn) => turn.sessionId !== null && segmentIds.has(turn.sessionId),
-  );
-}
+// Each row's status light — the ONE derivation every surface reads (the live
+// turn that used to be this view's private `isWorking` is now one fact inside
+// it, alongside pending approvals, the assistant's set state, and the last
+// turn's error).
+const sessionStatuses = useSessionStatuses();
 
 // ── Opening ────────────────────────────────────────────────────────
 interface OpenThread {
@@ -154,7 +144,7 @@ function openSegment(
             :key="entry.sessionId"
             :entry="entry"
             :is-active="openThread?.sessionId === entry.sessionId"
-            :is-working="isWorking(entry)"
+            :status="sessionStatuses.statusFor(entry.sessionId)"
             @open="openEntry(entry)"
             @open-segment="(segment) => openSegment(entry, segment)"
           />

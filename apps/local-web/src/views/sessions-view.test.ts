@@ -71,6 +71,16 @@ function makeEntry(
     contextTokens: 40_000,
     contextWindow: 200_000,
     lastMessageAt: "2026-07-21T10:00:00.000Z",
+    // Quiet by default (Move 3): no set state, no error, nothing pending —
+    // these fixtures exercise the row/chain shape, not the status ladder.
+    statusFacts: {
+      setStatus: null,
+      statusNote: null,
+      statusSetAt: null,
+      lastError: null,
+      pendingApprovalCount: 0,
+      latestUserMessageAt: null,
+    },
     segments: [makeSegment()],
     ...overrides,
   };
@@ -308,6 +318,75 @@ describe("SessionsView", () => {
     const rows = wrapper.findAll(".session-row");
     expect(rows[0]!.find(".working-dot").exists()).toBe(true);
     expect(rows[1]!.find(".working-dot").exists()).toBe(false);
+  });
+
+  // Move 3: the error that used to live ONLY as red text inside the
+  // transcript now marks the conversation itself — the whole point of the
+  // status arc ("we need to know it's on an error so we can focus").
+  it("marks a conversation whose last turn errored, and says why", async () => {
+    const { wrapper } = await mountView([
+      makeEntry({
+        statusFacts: {
+          setStatus: null,
+          statusNote: null,
+          statusSetAt: null,
+          lastError: {
+            code: "error_during_execution",
+            message: "You've hit your session limit · resets 2:20pm",
+            at: "2026-07-21T10:00:00.000Z",
+          },
+          pendingApprovalCount: 0,
+          latestUserMessageAt: "2026-07-21T09:59:00.000Z",
+        },
+      }),
+    ]);
+
+    const row = wrapper.findAll(".session-row")[0]!;
+    expect(row.find('.session-mark[data-status="problem"]').exists()).toBe(true);
+    expect(row.text()).toContain("You've hit your session limit · resets 2:20pm");
+    // A stopped conversation is not a working one.
+    expect(row.find(".working-dot").exists()).toBe(false);
+  });
+
+  it("a pending approval marks the row as waiting on you", async () => {
+    const { wrapper } = await mountView([
+      makeEntry({
+        statusFacts: {
+          setStatus: null,
+          statusNote: null,
+          statusSetAt: null,
+          lastError: null,
+          pendingApprovalCount: 1,
+          latestUserMessageAt: null,
+        },
+      }),
+    ]);
+    const row = wrapper.findAll(".session-row")[0]!;
+    expect(row.find('.session-mark[data-status="needs_input"]').exists()).toBe(
+      true,
+    );
+  });
+
+  // The assistant's own light, with its one-line why — superseded by the
+  // user's next message (the ladder's rule, pinned in contracts).
+  it("shows the assistant's set status and note", async () => {
+    const { wrapper } = await mountView([
+      makeEntry({
+        statusFacts: {
+          setStatus: "completed",
+          statusNote: "All three drafts are in your inbox.",
+          statusSetAt: "2026-07-21T10:05:00.000Z",
+          lastError: null,
+          pendingApprovalCount: 0,
+          latestUserMessageAt: "2026-07-21T10:00:00.000Z",
+        },
+      }),
+    ]);
+    const row = wrapper.findAll(".session-row")[0]!;
+    expect(row.find('.session-mark[data-status="completed"]').exists()).toBe(
+      true,
+    );
+    expect(row.text()).toContain("All three drafts are in your inbox.");
   });
 
   it("expands a continued conversation into its chain with fork percentages", async () => {

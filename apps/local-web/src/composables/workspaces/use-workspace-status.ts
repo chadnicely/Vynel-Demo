@@ -10,6 +10,7 @@ import { workspaceKeys } from "./workspace-keys.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { usePendingApprovals } from "../approvals/use-pending-approvals.js";
 import { usePendingAsks } from "../asks/use-pending-asks.js";
+import { useSessionStatuses } from "../sessions/use-session-statuses.js";
 
 // THE one home for the workspace status vocabulary (redesign Arc 5b — "one
 // status, one colour"): every navigation surface (tree rows, tab strip, work
@@ -56,6 +57,7 @@ export function useWorkspaceStatuses(): {
   const approvalsQuery = usePendingApprovals();
   const asksQuery = usePendingAsks();
   const reportsQuery = useWorkspaceStatusReports();
+  const sessionStatuses = useSessionStatuses();
 
   const attention = computed(() => {
     const ids = new Set<string>();
@@ -111,9 +113,21 @@ export function useWorkspaceStatuses(): {
     return views;
   });
 
+  // The global row reads the ASSISTANT THREAD's own status (Move 3) on top of
+  // the live signals it always had. Before this it could only ever be
+  // running / needs_input / not_running — a brain turn that died on the
+  // session limit left the row grey, which is exactly how a limit error stayed
+  // invisible outside the transcript. Precedence is main's, unchanged:
+  // problem → needs_input → running → completed → not_running. The polled
+  // asks stay a separate needs_input source (they are not in `statusFacts`).
   const globalStatus = computed<WorkspaceEffectiveStatus>(() => {
+    const thread = sessionStatuses.globalStatusView.value;
+    if (thread?.status === "problem") return "problem";
     if (attention.value.global) return "needs_input";
-    if (activity.hasGlobalServerTurn) return "running";
+    if (thread?.status === "needs_input") return "needs_input";
+    if (activity.hasGlobalServerTurn || thread?.status === "running")
+      return "running";
+    if (thread?.status === "completed") return "completed";
     return "not_running";
   });
 

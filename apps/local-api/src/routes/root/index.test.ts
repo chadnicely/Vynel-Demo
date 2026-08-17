@@ -26,16 +26,31 @@ import type { NormalizedSessionEvent, StartChatSessionInput } from '@vynel/provi
 // Configurable per test: the SDK session id the fake assigns, plus a capture of
 // every startChatSession input for composition assertions.
 let nextSdkSessionId = 'sdk-root-smoke-1'
+/** The next turn dies the way a real one does on the account's session limit:
+ *  a terminal, non-recoverable `session-errored` and no completion. */
+let nextTurnFailsWith: string | null = null
 const startChatSessionInputs: StartChatSessionInput[] = []
 function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
   startChatSessionInputs.push(input)
   const sessionId = nextSdkSessionId
+  const failureMessage = nextTurnFailsWith
   async function* events(): AsyncIterable<NormalizedSessionEvent> {
     yield {
       kind: 'session-started',
       sessionId,
       resumedFromExisting: input.resumeSessionId !== undefined,
       startedAt: new Date(),
+    }
+    if (failureMessage !== null) {
+      yield {
+        kind: 'session-errored',
+        sessionId,
+        errorCode: 'error_during_execution',
+        errorMessage: failureMessage,
+        isRecoverable: false,
+        erroredAt: new Date(),
+      }
+      return
     }
     yield {
       kind: 'text-chunk',
@@ -109,6 +124,7 @@ const silentLogger = pino({ level: 'silent' })
 
 beforeEach(() => {
   nextSdkSessionId = `sdk-${randomUUID()}`
+  nextTurnFailsWith = null
   startChatSessionInputs.length = 0
   interruptChatSessionMock.mockClear()
 })
@@ -118,8 +134,9 @@ function makeHarness(
   db: Database,
   turnEvents: TurnEventBroadcaster = new TurnEventBroadcaster(),
   delegationCancels: DelegationCancelRegistry = new DelegationCancelRegistry(),
+  /** Pass one in to watch the turn-liveness frames (the outcome assertions). */
+  activityFeed: SessionActivityFeed = new SessionActivityFeed(),
 ) {
-  const activityFeed = new SessionActivityFeed()
   // Without a waiter registry the stream's turn-end ask cleanup throws into
   // hono's swallowed streaming error path (noisy stderr, silently skipped).
   const askWaiters = new PendingAskRegistry()
@@ -617,6 +634,67 @@ describe('POST /root/turn (SSE)', () => {
         ['traffic in dhaka?', 'voice'],
         ['and by keyboard', null],
       ])
+    })
+  })
+
+  // The limit-error incident (2026-08-16): the turn died, the red line landed
+  // in the transcript, and the turn envelope still recorded a clean 'ended' —
+  // so nothing above the message could tell the thread was stuck. Both halves
+  // are pinned here: the durable error on the assistant row (what the status
+  // ladder reads) and the FAILED outcome on the feed (what the workspace
+  // ladder and the durable envelope read).
+  it('a terminal session-errored ends the turn as FAILED and persists the error', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const activityFeed = new SessionActivityFeed()
+      const app = makeHarness(
+        db,
+        new TurnEventBroadcaster(),
+        new DelegationCancelRegistry(),
+        activityFeed,
+      )
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
+      const endedOutcomes: string[] = []
+      const unsubscribe = activityFeed.subscribe(user.id, (event) => {
+        if (event.kind === 'turn-ended') endedOutcomes.push(event.outcome)
+      })
+
+      try {
+        await withVynelUserDataDir(dataDir, async () => {
+          nextTurnFailsWith = "You've hit your session limit · resets 2:20pm"
+          const failed = await app.request('/root/turn', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ userMessageText: 'join my meet call' }),
+          })
+          expect(failed.status).toBe(200)
+          await failed.text() // drain the SSE body so the turn completes
+
+          // The envelope: 'failed', not the silent 'ended' this path recorded
+          // before (the workspace streams always got this right).
+          expect(endedOutcomes).toEqual(['failed'])
+
+          // The durable fact the status ladder reads: the error on the
+          // conversation's latest assistant row.
+          const errored = listChatMessagesForSession(db, nextSdkSessionId).find(
+            (message) => message.role === 'assistant',
+          )
+          expect(errored?.errorMessage).toBe("You've hit your session limit · resets 2:20pm")
+
+          // A healthy turn still ends clean — the outcome tracks the turn, not the stream.
+          nextTurnFailsWith = null
+          const healthy = await app.request('/root/turn', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ userMessageText: 'and again' }),
+          })
+          expect(healthy.status).toBe(200)
+          await healthy.text()
+          expect(endedOutcomes).toEqual(['failed', 'ended'])
+        })
+      } finally {
+        unsubscribe()
+      }
     })
   })
 

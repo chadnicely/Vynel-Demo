@@ -34,6 +34,7 @@ import type {
 } from '@vynel/providers'
 import type { AppEnv } from '../../factory.js'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
+import { TURN_SESSION_HEADER } from '../../sessions/turn-session-header.js'
 import { sessionsApp } from './index.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -605,6 +606,87 @@ describe('GET + PATCH /sessions/:sessionId/settings (per-session composer settin
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionMode: 'yolo' }),
+      })
+      expect(res.status).toBe(400)
+    })
+  })
+})
+
+describe('PUT /sessions/status (set_session_status)', () => {
+  it("sets the CALLING session's status from the ambient turn header — never a body id", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const ws = seedWorkspace(db, user.id, 'Mine')
+      const session = insertChatSession(db, makeSession(user.id, ws.id))
+      const app = makeHarness(db)
+
+      const res = await app.request('/sessions/status', {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          [TURN_SESSION_HEADER]: session.id,
+        },
+        body: JSON.stringify({ status: 'problem', note: 'Blocked: the repo needs a login.' }),
+      })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({
+        status: 'problem',
+        statusNote: 'Blocked: the repo needs a login.',
+      })
+
+      const row = findChatSessionById(db, session.id)
+      expect(row?.status).toBe('problem')
+      expect(row?.statusSetAt).not.toBeNull()
+    })
+  })
+
+  it('400s when the turn has no watching session (a schedule fire, a delegation tick)', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const res = await app.request('/sessions/status', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      })
+      expect(res.status).toBe(400)
+    })
+  })
+
+  it("404s when the header names another user's session (no cross-tenant writes)", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const otherUser = seedUser(db)
+      const otherWs = seedWorkspace(db, otherUser.id, 'Theirs')
+      const theirs = insertChatSession(db, makeSession(otherUser.id, otherWs.id))
+      void user
+      const app = makeHarness(db)
+
+      const res = await app.request('/sessions/status', {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          [TURN_SESSION_HEADER]: theirs.id,
+        },
+        body: JSON.stringify({ status: 'completed' }),
+      })
+      expect(res.status).toBe(404)
+    })
+  })
+
+  it('rejects a status outside the vocabulary', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const ws = seedWorkspace(db, user.id, 'Mine')
+      const session = insertChatSession(db, makeSession(user.id, ws.id))
+      const app = makeHarness(db)
+      const res = await app.request('/sessions/status', {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          [TURN_SESSION_HEADER]: session.id,
+        },
+        body: JSON.stringify({ status: 'on-fire' }),
       })
       expect(res.status).toBe(400)
     })
