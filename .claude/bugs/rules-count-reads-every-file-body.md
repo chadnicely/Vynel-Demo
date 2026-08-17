@@ -1,6 +1,6 @@
 # The menu's `Rules N` reads every rule file's full body to produce an integer
 
-**Status:** open
+**Status:** FIXED 2026-08-17 — Kafi overruled the trade-off; see Resolution.
 **Kind:** accepted-tradeoff
 **Area:** `packages/skills` (rules) → `apps/local-api/src/routes/section-counts`
 **Opened:** 2026-08-15 (raised by the section-counts reviewer gate)
@@ -53,3 +53,23 @@ its skip logic — never a predicate re-derived in the route.
 Leave it. Local disk, kilobytes, and correctness-by-construction is the better trade at this
 size. Revisit if a rules folder reaches ~100 files or the menu measurably lags — and decide the
 unreadable-file question deliberately when you do.
+
+---
+
+## Resolution
+
+Fixed 2026-08-17 (`f2b6486`). This was filed as an accepted trade-off, on the
+arc's rule that *every count calls the same core read its list route calls*.
+Kafi's call: "should just read file counts."
+
+The rule survives, restated to what it was actually protecting. It is about the
+QUESTION, not the call — the count must not disagree with the rows. So the
+membership predicate moved into one private helper
+(`listRuleFileNamesForScope`) that both the list and the new
+`countAllRuleFilesForScope` use. Rules are files, so counting them is a
+directory listing; nothing is opened, parsed, or discarded.
+
+One deliberate hair's-breadth difference, documented at the function: the list
+SKIPS a file it cannot read, the count includes it. An unreadable `.md` is
+still a rule sitting in the folder, and opening five files just to notice one
+is missing is precisely the cost this exists to avoid.

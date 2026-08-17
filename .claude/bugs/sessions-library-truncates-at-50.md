@@ -1,6 +1,6 @@
 # The Sessions library silently truncates at 50 conversations
 
-**Status:** open
+**Status:** FIXED 2026-08-17 — Kafi chose infinite scroll; see Resolution.
 **Kind:** latent-defect
 **Area:** `packages/session` (overview) → the Sessions view + the menu's `Sessions N`
 **Opened:** 2026-08-15 (surfaced by the section-counts reviewer gate)
@@ -61,3 +61,35 @@ predicate as `selectSessionsForScope`) rather than the page length.
 
 Seed 60+ listed, non-archived conversations for one user, then open `/sessions`: exactly 50 rows,
 no indication of more. `curl -s localhost:18892/sessions/overview | jq length` → 50.
+
+---
+
+## Resolution
+
+Fixed 2026-08-17 (`36c9aae`). Kafi picked **infinite scroll** from the four
+options this file listed.
+
+Taken where the file said to take it — in `getSessionsOverview`, so the view
+and the count follow from one place. The file also predicted the count would
+need a real total, and it did: `countSessionsOverview` shares the chain fold
+and the scope predicate with the list, so the badge and the rows still agree on
+what one conversation is (the invariant the section-counts arc rests on) while
+the badge is no longer a page length.
+
+**One thing the file did not anticipate.** It warned "do not give the count its
+own limit" — right, but the deeper trap was the *scope*. The library filtered
+client-side, so paging the shared read would have handed a drilled room a page
+of 50 that yielded three rows, and the scroll would have stalled with plenty
+left. The scope is now applied server-side BEFORE the cap, which is what makes
+a page dense. `selectSessionsForScope` split into `isSessionInScope` so the
+view, the count and the paged read all share the predicate.
+
+Also: the library got its own query. `useSessionsOverview` is read by seven
+surfaces (statuses, the composer's context ring, the node screen), and they
+want the recent-and-capped set, not every conversation. `useSessionStatuses`
+now accepts a caller's own entries so a row scrolled in on page three still
+lights up — without it, page two would render unlit for exactly the
+conversations paging exists to reach.
+
+The subtlety this file called out about the Global row reading low is gone with
+it: the scope is applied before the cap, so the count is per-scope and honest.

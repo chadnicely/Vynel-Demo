@@ -9,6 +9,27 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **One status rule everywhere.** A project, a conversation and the row in the
+  sidebar now mean exactly the same thing by the same colour: *needs you* is a
+  question waiting, an approval waiting, or Claude saying so itself — and
+  *problem* is the engine unreachable, a turn that finished failed, or a limit
+  error. The node screen used to run its own reading over the task queue, where
+  "NEEDS YOU" was the leftover branch — so projects that had merely chatted in
+  the last hour wore amber with nothing pending, on the one screen named for
+  showing you what needs you. It also had no red at all, so a project whose
+  last turn failed was red in the sidebar and grey there. The Grid tab said
+  only "Working now" or "Nothing running", and the top bar counted a failed
+  project under "paused"; both now name every state.
+
+- **The Sessions library scrolls.** Past 50 conversations it showed the newest
+  50 and said nothing about the rest — older ones were unreachable. It now
+  loads more as you reach the bottom, and the menu's `Sessions` count is a real
+  total instead of stopping at 50 too.
+
+- **The menu's `Rules` count stopped reading your rule files.** Counting them
+  opened every file and parsed it just to produce a number, on a path the menu
+  refreshes constantly. It counts the files now.
+
 - **Fixed: a conversation waiting on your answer looked like it was still
   working.** When Claude puts a question form in front of you, the turn pauses
   until you answer — but the conversation kept showing the "working" light, so
@@ -17,14 +38,6 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   fixed: a conversation waiting on a form now shows the same "needs you" light
   as one waiting on an approval, on its Sessions row, its dot on the node
   screen, and the Assistant row in the shell.
-
-- **Fixed: a hiccup Vynel expected to recover from left the conversation
-  marked red.** Some failures are transient — the engine taking too long to
-  start, for instance — and Vynel already knew the difference, but the status
-  light didn't: any error at all painted the conversation as having a problem
-  until the next successful reply. Now only a genuine failure does. The
-  explanation still appears in the transcript either way, so a missing answer
-  is never left unexplained.
 
 - **Fixed: a project never lit up when its own background session needed your
   approval.** When Claude handed work to a session it spawned inside a

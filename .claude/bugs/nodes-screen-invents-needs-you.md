@@ -1,6 +1,6 @@
 # The node screen says NEEDS YOU when nothing needs you
 
-**Status:** open
+**Status:** FIXED 2026-08-17 — Kafi approved the merge; see Resolution.
 **Kind:** defect
 **Area:** `apps/local-web` (the Nodes screen) → `composables/nodes`
 **Opened:** 2026-08-16 (Kafi hit it on `/nodes` with four idle projects)
@@ -134,3 +134,43 @@ Open a chat in any workspace that holds **no tasks**, say anything, then open `/
 hour: that project reads NEEDS YOU with nothing pending anywhere. For the loaded-guard half, block
 or delay `*/api/tasks` and reload — every recently-active project reads NEEDS YOU and the bar shows
 no "done" chip.
+
+---
+
+## Resolution
+
+Fixed 2026-08-17 (`0383435`). Kafi approved the colour change this file was
+blocked on, as one instruction covering every indicator in the app: *one rule
+everywhere — needs input is a pending question, a pending approval card, or
+Claude setting the state itself; error is the engine unreachable, a turn that
+finished failed, or a limit error; same rule for workspaces, sessions, every
+indicator, the sidebar project list included.*
+
+**A. Ground the child cards** — already done (`c9054a3`).
+
+**B. Derive from the shared home** — done. `useFleetNodes` reads
+`use-workspace-status` like every other surface. `resolveFleetNodeStatus` is
+gone; `resolveConversationNodeStatus` became `resolveNodeStatus` and now serves
+both levels, so the screen has ONE rename of ONE ladder.
+
+**C. Guard the unknown** — done differently, and better. The status query now
+exposes `hasAnsweredStatuses`. Note the over-claim this file described cannot
+recur anyway: the fallback is `not_running`, so an unanswered poll now
+UNDER-claims (everything quiet) instead of painting the fleet amber.
+
+**D. Name the neutral state** — resolved by dropping the question. "Active but
+nothing pending" is `idle`, worded **"idle"** in the fleet bar (was "paused").
+With `waiting` requiring a positive fact, idle is the honest resting state and
+does not need a new word.
+
+**The four-way label divergence is closed too.** `NodesGrid` said "Working now"
+or "Nothing running" and nothing else, so a failed or waiting project read
+"Nothing running" beside a red or amber dot; it now has one word per state. The
+fleet bar had no `problem` chip at all, so a failed project was counted under
+"paused"; it now has one, in the scene's own red.
+
+**Dead machinery removed:** `use-active-window`, `use-workspace-progress`,
+`task-queue-summary`. Nothing else imported them — and note that this file's
+claim that the hour-long window is "shared with the sidebar's Active/Not
+running split" was not true of the code: the sidebar splits on
+`status === 'not_running'`, never on the window.

@@ -82,14 +82,41 @@ Also: overview sorts+caps BEFORE composing facts (500 chains fetched for a 50-en
 app-wide polled read); `liveTurnStartedAtForEntry` gains the global pre-resolution window (safe —
 spawned turns always carry a sessionId); `insertApprovalRequest` → `@vynel/approvals/test-support`.
 
-**Punch-list written to `.claude/bugs/` (2026-08-17), then WORKED** — each file carries its own
-resolution; read those, they are self-contained:
+**`.claude/bugs/` IS EMPTY OF OPEN ITEMS as of 2026-08-17** (`grep -l 'Status:** open' .claude/bugs/*.md`
+returns nothing). Every file carries its own resolution; read those, they are self-contained.
+
+**Kafi's ONE-RULE decision (2026-08-17) — the standing status contract.** Every indicator in the
+app, at every level, means the same thing:
+- **needs input** = a pending `ask_user` question · a pending approval card · the assistant setting
+  `needs_input` itself. Nothing else. Never "was active recently and nothing else fits".
+- **problem** = the Claude engine unreachable · a turn that finished failed · a limit error.
+- Applies to workspaces, sessions, the node screen (both levels), the sidebar project list, the tab
+  strip, the chat header — anywhere a colour is shown.
+
+Two homes implement it and everything else renames them: `deriveSessionStatus`
+(`packages/contracts/src/chat/session-status.ts`) per conversation, and `deriveView`
+(`use-workspace-status.ts`) per room. **Do not add a third.** `resolveNodeStatus` is a pure palette
+rename of both and must stay one.
+
+A consequence worth remembering: **`isRecoverable` is deliberately NOT consulted by the status.**
+The only recoverable error the provider emits is `provider_start_timeout` — "the engine isn't
+running, check it's signed in" — which is the most actionable failure the app has. Exempting it was
+shipped (`5a7ee8b`) and reverted the same night (`0383435`). The self-clearing rule already covers
+genuinely transient failures: a successful retry becomes the latest message. Column
+`chat_messages.error_is_recoverable` was added by migration 0045 and dropped by 0046 — both are in
+the chain; do not hand-edit them out.
+
+Earlier that day, before the one-rule pass:
 `a-session-waiting-on-ask-user-reads-idle` (**FIXED** `e64e5ca`) ·
-`recoverable-turn-errors-read-as-problem` (**FIXED** `5a7ee8b`) ·
+`recoverable-turn-errors-read-as-problem` (**FIXED then REVERTED** `5a7ee8b` → `0383435` — see the
+one-rule decision above; the file records why) ·
 `spawned-session-approvals-record-null-workspace` (**FIXED** `c9054a3` — also fixed a second,
 unreported symptom: a swap wrote the segment workspace-less, so a spawned session migrated out of
-its room's list) · `nodes-screen-invents-needs-you` (conversation dots FIXED; fleet dots still
-open + now UNBLOCKED for rule 1 — the colour change needs Chad).
+its room's list) · `nodes-screen-invents-needs-you` (**FIXED** `0383435` — Kafi approved the colour
+change; fleet dots now read the shared status, the four-way label divergence is closed, and
+use-active-window / use-workspace-progress / task-queue-summary are deleted) ·
+`sessions-library-truncates-at-50` (**FIXED** `36c9aae` — infinite scroll; Kafi's pick) ·
+`rules-count-reads-every-file-body` (**FIXED** `f2b6486`).
 
 Two things worth carrying forward from the ask fix:
 - **The context has TWO session ids and they are not interchangeable.**
