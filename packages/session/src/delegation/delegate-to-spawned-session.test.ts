@@ -3,10 +3,12 @@
 // + a fake provider: the resume + attributed persistence + edge are exercised
 // without a live SDK. Mirrors the delegate-to-workspace-root test shapes.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import { listPendingApprovalsForUser } from '@vynel/approvals'
 import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/repositories'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SESSION_DELEGATED, type SessionDelegatedPayload } from '@vynel/orchestration'
@@ -182,6 +184,100 @@ describe('delegateToSpawnedSession', () => {
           targetPrimarySessionId: globalPrimary.id,
         }),
       ).rejects.toThrow(/scope 'global', not 'spawned'/)
+    })
+  })
+
+  // The mis-filing bug (2026-08-16 → fixed 2026-08-17): a workspace-grounded
+  // spawned session's approval recorded workspace_id NULL, so the parent room
+  // could never light for its own child's card and the GLOBAL scope lit
+  // instead. 65 such rows existed in the dev DB. Both groundings are pinned
+  // here — null is CORRECT for a global-grounded session, and the defect was
+  // that it was unconditional.
+  it('records a WORKSPACE-grounded session’s approval against its room, and its segment too', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Letterman',
+        kind: 'personal',
+        path: `/tmp/vynel/${randomUUID()}`,
+        isArchived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastAccessedAt: new Date(),
+      })
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-ws-spawned' }),
+        {
+          userId: user.id,
+          name: 'Research: pricing',
+          purpose: 'compare pricing pages',
+          workspacePath: workspace.path,
+          workspaceId: workspace.id,
+        },
+      )
+
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: created.sessionId,
+        resultText: 'done',
+        approvalToolName: 'Bash',
+      })
+      const run = delegateToSpawnedSession(db, provider, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: workspace.path,
+        sessionName: created.name,
+        taskText: 'compare pricing',
+        providerId: 'claude',
+      })
+      // Let the card park, then approve so the turn completes.
+      await vi.waitFor(() => {
+        expect(listPendingApprovalsForUser(db, user.id)).toHaveLength(1)
+      })
+      const [card] = listPendingApprovalsForUser(db, user.id)
+      // THE FIX: the card names the room, so the room can light for it.
+      expect(card?.workspaceId).toBe(workspace.id)
+      // …and it still names the session, which is what the per-conversation
+      // status reads (both facts, on every card).
+      expect(card?.sessionId).toBe(created.sessionId)
+
+      await provider.respondToApprovalRequest('appr-1', { kind: 'approved' })
+      await run
+
+      // The turn's own segment carries the ground too — a swap used to move a
+      // workspace-grounded session out of its room's list.
+      expect(findChatSessionById(db, created.sessionId)?.workspaceId).toBe(workspace.id)
+    })
+  })
+
+  it('a GLOBAL-grounded spawned session still records null — that half was never wrong', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const created = await spawnSession(db, user.id)
+      const provider = new FakeAiAgentProvider({
+        seededSessionId: created.sessionId,
+        resultText: 'done',
+        approvalToolName: 'Bash',
+      })
+      const run = delegateToSpawnedSession(db, provider, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: '/tmp/vynel/global-root',
+        sessionName: created.name,
+        taskText: 'compare pricing',
+        providerId: 'claude',
+      })
+      await vi.waitFor(() => {
+        expect(listPendingApprovalsForUser(db, user.id)).toHaveLength(1)
+      })
+      expect(listPendingApprovalsForUser(db, user.id)[0]?.workspaceId).toBeNull()
+
+      await provider.respondToApprovalRequest('appr-1', { kind: 'approved' })
+      await run
     })
   })
 })

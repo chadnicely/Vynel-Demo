@@ -1,6 +1,6 @@
 # A spawned session's approvals are recorded global, never against its workspace
 
-**Status:** open
+**Status:** FIXED 2026-08-17 (`delegate-to-spawned-session.ts` — see Resolution)
 **Kind:** defect
 **Area:** `packages/session` (delegation grounding) → `packages/approvals` + `packages/asks` scoping
 **Opened:** 2026-08-16 (surfaced while specifying what a workspace's "waiting" state should mean)
@@ -121,3 +121,48 @@ where ps.scope = 'spawned' and w.name is not null;"
 ```
 
 Every row comes back with a project name and a null `workspace_id`.
+
+## Resolution (2026-08-17)
+
+One line, the shape this file predicted: `workspaceId: null` → `workspaceId: primary.workspaceId`
+in the `consumeSessionEventStream` call. The spawned primary is already resolved three statements
+above (the ownership/scope/link checks), and the tick had *already* computed the same value for the
+MCP attachment (`run-delegation-claim-and-run-tick.ts` → `spawnedTargetWorkspaceId`) — only the
+persistence pipeline disagreed with it. A global-grounded primary carries null anyway, so no branch.
+
+**A second symptom the same line caused**, not noticed when this was written: `workspaceId` also
+feeds `handleSessionStarted`, so a mid-turn compaction swap wrote the fresh segment with a null
+workspace while the BIRTH segment (`recordSpawnedSessionSegment`, which reads
+`input.workspaceId`) carried the room's id. A workspace-grounded spawned session therefore
+migrated out of its room's Sessions list on its first context swap. Fixed by the same change; the
+regression test asserts the segment's ground too.
+
+**Both groundings are pinned** in `delegate-to-spawned-session.test.ts` — the workspace case
+(card names the room AND the session) and the global case (null stays null, which was never
+wrong). The workspace test fails against the old line with `expected null to be '<workspace id>'`.
+
+**No UI change was needed:** `use-workspace-status.ts` already routes a card by
+`row.workspaceId === null ? global : that workspace`, so the room lights as soon as the data is
+honest.
+
+### The asks half of this report is MOOT — checked, not fixed
+
+The original write-up said "asks need the same pass". They do not, because an ask can never be
+raised on the mis-grounded path: `buildAskFeatureDescriptor` is attached at exactly three sites
+(`streams/chat-turn.ts`, `streams/global-root-turn.ts`, `sessions/run-global-root-turn.ts`), and a
+delegated spawned-session turn composes none of them — it gets the routing/interactive + notebook
++ desktop descriptors only. Every reachable ask is already grounded correctly (a workspace chat
+passes its workspace; the two global paths pass null, which is what the brain IS).
+
+**A different asks gap does exist**, unrelated to grounding: a workspace chat turn composes its
+toolset BEFORE the turn's session id is known (that is what the `turnSession` carrier exists for),
+so it passes no `sessionId` and asks from a workspace chat record `session_id` NULL — while the
+global path passes `conversationTarget.primarySessionId` and does record one. Consequence is
+narrow: the per-session status ladder counts pending APPROVALS only, so a conversation blocked on
+`ask_user` reads idle rather than "waiting on you". Fixing it means giving the descriptor context a
+lazy session accessor instead of a static id. Filed as its own item rather than smuggled in here.
+
+### Existing rows
+
+Left as they are. The 65 historical cards stay mis-scoped; they are long resolved, and a backfill
+from `primary_sessions.workspace_id` is only worth it if the historical queue ever matters.

@@ -16,8 +16,9 @@
 //   - Resolution: `findPrimarySessionById` (owned, scope 'spawned', linked) —
 //     the session ALWAYS has a current SDK session (create links it at birth),
 //     so this only ever RESUMES. A missing/unlinked target throws → job fails.
-//   - Ground: `workspaceId` null; the cwd is the job row's stored run cwd
-//     (v1: the global root's hidden user-data dir).
+//   - Ground: the spawned primary's OWN `workspaceId` (null for a
+//     global-grounded session, its room's id for a workspace-grounded one —
+//     Slice ④b); the cwd is the job row's stored run cwd, a separate fact.
 //   - Attribution label: the SESSION'S NAME plays the "manager" role (v1 —
 //     recorded as acceptable in the module notes).
 
@@ -167,7 +168,19 @@ export async function delegateToSpawnedSession(
     sessionEventStream,
     userMessageInput: { id: randomUUID(), body: input.taskText, attachedImagesMetadata: null },
     userId: input.userId,
-    workspaceId: null,
+    // The session's OWN ground, not a blanket null (2026-08-17). Hard-coding
+    // null filed a workspace-grounded session's approvals as the brain's:
+    // the parent room could never light for its own child's card (the row
+    // didn't name it) and the GLOBAL scope lit instead, for work that isn't
+    // global. It also let a swap segment drift to workspace-less, so a
+    // context swap quietly moved the session out of its room's list. A
+    // global-grounded spawned primary carries null here anyway, so the
+    // correct global behaviour falls out of the same expression — the
+    // `delegateToAgentSession` pattern.
+    //
+    // `workspacePath` stays the job's run cwd: the directory the turn runs in
+    // and the workspace it BELONGS to are separate facts here.
+    workspaceId: primary.workspaceId,
     workspacePath: input.runCwdPath,
     providerId: input.providerId,
     isNewSession: false,

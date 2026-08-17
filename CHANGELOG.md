@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Fixed: a project never lit up when its own background session needed your
+  approval.** When Claude handed work to a session it spawned inside a
+  project, any approval that session raised was filed as belonging to nobody —
+  so the project sat looking idle while its child waited, and the approval
+  showed up under Global instead, for work that wasn't global. Approvals now
+  carry both the project and the conversation they came from, so the room
+  lights up and you can tell which conversation is asking. The same fix stops
+  a spawned session quietly leaving its project's Sessions list after a long
+  conversation.
+
 - **Fixed: Opus appeared as "Default (recommended)" under "More models", and
   picking it failed the turn.** The engine names its models with aliases and
   reports the 1M-context Opus as `claude-opus-5[1m]`. Three things went wrong
