@@ -521,8 +521,7 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
   left a stale mark → every later park mislabelled), the DM web surface honors the queued
   reason, and the mark is now PINNED as held during the swap (observed from inside the distill
   by a subclassed fake). Recorded: `session.swapping` has no abort/failure sibling — a monitor
-  can't tell "aborted" from "still swapping" (add `session.swap-aborted` when a consumer needs
-  it); the main GlobalChatView/WorkspaceView render no queued note at all (only the sidebar
+  can't tell "aborted" from "still swapping" (`session.swap-aborted` landed 2026-08-18 — see §6); the main GlobalChatView/WorkspaceView render no queued note at all (only the sidebar
   thread does) — pre-existing for "busy", inherited; the queued reason is one-shot at park
   time (a turn parked before the swap begins reads "busy" — the feed still narrates the swap).
 
@@ -626,6 +625,17 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
 
 ## 6. Forks / deferred (decide deliberately, never slip in)
 
+- **Swap-aborted signal — SHIPPED 2026-08-18 (`session.swap-aborted`):** every `session.swapping`
+  now gets its end — `session.swapped` when it lands, `session.swap-aborted` (reason
+  `no-usable-carry` | `failed` + the error message) when it does not, recorded best-effort in
+  the bridge's finally beside the register clear. A monitor can tell "aborted" from "still
+  swapping".
+- **`McpToolFn` hoisted — SHIPPED 2026-08-18:** one home in `@vynel/mcp-contract`
+  (`McpToolFn` + `McpToolContent`); the six package twins are gone.
+- **`runContinuingTurn` — SHIPPED 2026-08-18:** the interactive streams' continuation dance
+  (plain → one turn; continuing → genuine turn on the resolved head, each continuation on the
+  re-resolved head, a vanished head skipped) lives once in the session package; the workspace
+  and DM streams pass `startOneTurn` + `resolveHead`.
 - **Identity-aware exclusion — SHIPPED 2026-08-18:** `get_chat_session` / `search_chat_messages`
   lift the global-scope wall for exactly one caller — the global root itself, resolved from the
   server-stamped turn-session header (`isTurnFromGlobalRoot`, beside the header module); a

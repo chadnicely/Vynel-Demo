@@ -7,6 +7,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **A context hand-off that could not land now says so.** Alongside the
+  existing "hand-off started" and "hand-off landed" signals, Vynel records a
+  "hand-off aborted" signal (with why — no usable summary, or a failure) so
+  anything watching a conversation can tell an aborted hand-off from one still
+  running instead of waiting forever.
+
 ### Fixed
 
 - **The global assistant can now read its own earlier context after a
