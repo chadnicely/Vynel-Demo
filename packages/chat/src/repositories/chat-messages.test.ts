@@ -9,6 +9,7 @@ import { insertChatSession, type NewChatSession } from './chat-sessions.js'
 import {
   findChatMessageById,
   findPriorContextOccupancy,
+  findSessionStatusMessageFacts,
   listChatMessagesForSession,
   listRecentChatMessagesForSession,
   listChatMessagesByPartialSessionId,
@@ -268,6 +269,68 @@ describe('chatMessages repository', () => {
       appendToChatMessageThinking(db, msg.id, 'Thinking…')
       appendToChatMessageThinking(db, msg.id, ' more')
       expect(findChatMessageById(db, msg.id)?.thinkingBody).toBe('Thinking… more')
+    })
+  })
+})
+
+describe('findSessionStatusMessageFacts', () => {
+  it('an empty session reports no error and no user anchor', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      const session = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      expect(findSessionStatusMessageFacts(db, session.id)).toEqual({
+        lastAssistantError: null,
+        latestUserMessageAt: null,
+      })
+    })
+  })
+
+  it('the LATEST assistant message decides the error — a later success self-clears it', async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const workspace = makeWorkspace(user.id)
+      insertWorkspace(db, workspace)
+      const session = insertChatSession(db, makeChatSession(user.id, workspace.id))
+      const t1 = new Date('2026-08-16T12:00:00Z')
+      const t2 = new Date('2026-08-16T12:56:00Z')
+      insertChatMessage(db, makeChatMessage(session.id, { role: 'user', startedAt: t1 }))
+      insertChatMessage(
+        db,
+        makeChatMessage(session.id, {
+          role: 'assistant',
+          body: '',
+          errorCode: 'error_during_execution',
+          errorMessage: "You've hit your session limit · resets 2:20pm",
+          startedAt: t2,
+        }),
+      )
+
+      const errored = findSessionStatusMessageFacts(db, session.id)
+      expect(errored.lastAssistantError).toEqual({
+        code: 'error_during_execution',
+        message: "You've hit your session limit · resets 2:20pm",
+        at: t2,
+      })
+      expect(errored.latestUserMessageAt).toEqual(t1)
+
+      // The retry succeeds — the error is no longer "the last thing that happened".
+      const t3 = new Date('2026-08-16T14:30:00Z')
+      insertChatMessage(db, makeChatMessage(session.id, { role: 'user', startedAt: t3 }))
+      insertChatMessage(
+        db,
+        makeChatMessage(session.id, {
+          role: 'assistant',
+          body: 'Joined the call.',
+          startedAt: new Date('2026-08-16T14:31:00Z'),
+        }),
+      )
+      const recovered = findSessionStatusMessageFacts(db, session.id)
+      expect(recovered.lastAssistantError).toBeNull()
+      expect(recovered.latestUserMessageAt).toEqual(t3)
     })
   })
 })

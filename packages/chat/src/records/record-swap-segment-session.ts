@@ -96,6 +96,9 @@ export function recordSwapSegmentSession(
             selectedModel: predecessor.selectedModel,
             thinkingEffort: predecessor.thinkingEffort,
             autoBuildout: predecessor.autoBuildout,
+            status: predecessor.status,
+            statusNote: predecessor.statusNote,
+            statusSetAt: predecessor.statusSetAt,
           }
         : {}),
     })

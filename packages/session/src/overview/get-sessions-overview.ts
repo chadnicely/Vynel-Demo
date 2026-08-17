@@ -13,7 +13,13 @@ import type {
   SessionsOverviewEntry,
   SessionsOverviewSegment,
 } from '@vynel/contracts/chat/sessions-overview'
-import { listAllChatSessionsForUser, type ChatSession } from '@vynel/chat/repositories'
+import type { SessionStatusFacts } from '@vynel/contracts/chat/session-status'
+import {
+  listAllChatSessionsForUser,
+  findSessionStatusMessageFacts,
+  type ChatSession,
+} from '@vynel/chat/repositories'
+import { listPendingApprovalsForUser } from '@vynel/approvals'
 import { findWorkspaceById } from '@vynel/workspaces'
 import * as primarySessionsRepository from '../repositories/index.js'
 
@@ -65,6 +71,19 @@ export function getSessionsOverview(
       row.continuedFromSessionId === null || !rowIds.has(row.continuedFromSessionId),
   )
 
+  // Pending approvals per SDK session id — ONE user-wide query (already how
+  // the global queue reads), grouped here; an entry counts every pending card
+  // across its chain's segments. Session ids on approval rows are always
+  // correct (unlike their workspaceId — the recorded spawned-approvals gap),
+  // which is exactly why the per-session status can ship before that fix.
+  const pendingApprovalCountBySessionId = new Map<string, number>()
+  for (const approval of listPendingApprovalsForUser(db, input.userId)) {
+    pendingApprovalCountBySessionId.set(
+      approval.sessionId,
+      (pendingApprovalCountBySessionId.get(approval.sessionId) ?? 0) + 1,
+    )
+  }
+
   const workspaceNameById = new Map<string, string | null>()
   function workspaceNameFor(workspaceId: string | null): string | null {
     if (workspaceId === null) return null
@@ -106,6 +125,32 @@ export function getSessionsOverview(
     const model =
       tail.model ?? [...chain].reverse().find((segment) => segment.model !== null)?.model ?? null
 
+    // The durable status facts (Move 3): the assistant-set trio rides the tail
+    // (copy-forward keeps it there across swaps), the message facts are the
+    // tail's — "the last thing that happened" lives on the current segment —
+    // and pending approvals count across the whole chain. Derivation stays in
+    // ONE home (`deriveSessionStatus`, contracts); liveness is the activity
+    // feed's, married client-side.
+    const messageFacts = findSessionStatusMessageFacts(db, tail.id)
+    const statusFacts: SessionStatusFacts = {
+      setStatus: tail.status,
+      statusNote: tail.statusNote,
+      statusSetAt: tail.statusSetAt?.toISOString() ?? null,
+      lastError:
+        messageFacts.lastAssistantError === null
+          ? null
+          : {
+              code: messageFacts.lastAssistantError.code,
+              message: messageFacts.lastAssistantError.message,
+              at: messageFacts.lastAssistantError.at.toISOString(),
+            },
+      pendingApprovalCount: chain.reduce(
+        (count, segment) => count + (pendingApprovalCountBySessionId.get(segment.id) ?? 0),
+        0,
+      ),
+      latestUserMessageAt: messageFacts.latestUserMessageAt?.toISOString() ?? null,
+    }
+
     entries.push({
       sessionId: tail.id,
       scope: tail.scope,
@@ -116,6 +161,7 @@ export function getSessionsOverview(
       contextTokens: tail.lastContextTokens,
       contextWindow: resolveContextWindow(model),
       lastMessageAt: tail.lastMessageAt.toISOString(),
+      statusFacts,
       segments: chain.map(
         (segment): SessionsOverviewSegment => ({
           sessionId: segment.id,

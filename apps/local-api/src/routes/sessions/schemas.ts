@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
+import { SESSION_SET_STATUSES } from '@vynel/contracts/chat/session-status'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
 
 export const SessionsOverviewSegmentSchema = z.object({
@@ -17,6 +18,24 @@ export const SessionsOverviewSegmentSchema = z.object({
   isCurrent: z.boolean(),
 })
 
+// The durable status facts (Move 3) — mirrors contracts'
+// `SessionStatusFacts`; the effective status derives client-side in ONE home
+// (`deriveSessionStatus`), married with the activity feed's liveness.
+export const SessionStatusFactsSchema = z.object({
+  setStatus: z.enum(SESSION_SET_STATUSES).nullable(),
+  statusNote: z.string().nullable(),
+  statusSetAt: z.string().nullable(),
+  lastError: z
+    .object({
+      code: z.string().nullable(),
+      message: z.string(),
+      at: z.string(),
+    })
+    .nullable(),
+  pendingApprovalCount: z.number().int(),
+  latestUserMessageAt: z.string().nullable(),
+})
+
 export const SessionsOverviewEntrySchema = z.object({
   sessionId: z.string(),
   scope: z.enum(['global', 'workspace', 'agent', 'spawned']),
@@ -27,6 +46,7 @@ export const SessionsOverviewEntrySchema = z.object({
   contextTokens: z.number().int().nullable(),
   contextWindow: z.number().int(),
   lastMessageAt: z.string(),
+  statusFacts: SessionStatusFactsSchema,
   segments: z.array(SessionsOverviewSegmentSchema),
 })
 
@@ -116,4 +136,19 @@ export const UpdateChatSessionSettingsRequestSchema = z.object({
   selectedModel: ChatModelIdSchema.optional(),
   thinkingEffort: z.enum(THINKING_EFFORT_LEVELS).optional(),
   autoBuildout: z.boolean().optional(),
+})
+
+// ── Assistant-set session status (Move 3, 2026-08-17) ──────────────
+// The `set_session_status` tool's body (the SetWorkspaceStatusRequestSchema
+// sibling) + the trio it returns.
+
+export const SetSessionStatusRequestSchema = z.object({
+  status: z.enum(SESSION_SET_STATUSES),
+  note: z.string().max(500).optional(),
+})
+
+export const SessionStatusResponseSchema = z.object({
+  status: z.enum(SESSION_SET_STATUSES),
+  statusNote: z.string().nullable(),
+  statusSetAt: z.string(),
 })

@@ -8,9 +8,11 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   insertChatSession,
+  insertChatMessage,
   updateChatSession,
   type NewChatSession,
 } from '@vynel/chat/repositories'
+import { insertApprovalRequest } from '@vynel/approvals'
 import {
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
@@ -296,6 +298,128 @@ describe('getSessionsOverview', () => {
       expect(entries).toHaveLength(1)
       expect(entries[0]!.sessionId).toBe(orphan.id)
       expect(entries[0]!.segments).toHaveLength(1)
+    })
+  })
+})
+
+describe('getSessionsOverview — statusFacts (Move 3)', () => {
+  it('carries the set trio, the latest-assistant error, and the chain-wide approval count', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+
+      // A two-segment chain: the error + a pending approval live on the OLD
+      // segment, the set trio on the tail (where copy-forward keeps it).
+      const head = insertChatSession(db, makeSession(user.id, ws.id, { id: 'sdk-old' }))
+      insertChatSession(
+        db,
+        makeSession(user.id, ws.id, {
+          id: 'sdk-new',
+          continuedFromSessionId: head.id,
+          lastMessageAt: new Date('2026-07-02T00:00:00Z'),
+        }),
+      )
+      updateChatSession(db, 'sdk-new', {
+        status: 'needs_input',
+        statusNote: 'Pick a variant.',
+        statusSetAt: new Date('2026-07-02T01:00:00Z'),
+      })
+      insertChatMessage(db, {
+        id: randomUUID(),
+        sessionId: 'sdk-new',
+        role: 'user',
+        body: 'go on',
+        thinkingBody: null,
+        inputTokens: null,
+        outputTokens: null,
+        attachedImagesMetadata: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: new Date('2026-07-02T00:30:00Z'),
+        completedAt: new Date('2026-07-02T00:30:00Z'),
+        createdAt: new Date('2026-07-02T00:30:00Z'),
+      })
+      insertChatMessage(db, {
+        id: randomUUID(),
+        sessionId: 'sdk-new',
+        role: 'assistant',
+        body: '',
+        thinkingBody: null,
+        inputTokens: null,
+        outputTokens: null,
+        attachedImagesMetadata: null,
+        errorCode: 'error_during_execution',
+        errorMessage: "You've hit your session limit · resets 2:20pm",
+        startedAt: new Date('2026-07-02T00:31:00Z'),
+        completedAt: new Date('2026-07-02T00:31:00Z'),
+        createdAt: new Date('2026-07-02T00:31:00Z'),
+      })
+      // Pending approval on the OLD segment — chains count across segments.
+      insertApprovalRequest(db, {
+        id: randomUUID(),
+        providerApprovalId: randomUUID(),
+        userId: user.id,
+        workspaceId: ws.id,
+        sessionId: 'sdk-old',
+        parentMessageId: 'm-1',
+        toolUseId: 'tu-1',
+        toolName: 'Bash',
+        actionKind: 'shell-command',
+        toolInput: { command: 'rm -rf' },
+        status: 'pending',
+        timeoutMs: 60000,
+        requestedAt: new Date('2026-07-02T00:20:00Z'),
+        resolvedAt: null,
+      })
+      // A RESOLVED approval must not count.
+      insertApprovalRequest(db, {
+        id: randomUUID(),
+        providerApprovalId: randomUUID(),
+        userId: user.id,
+        workspaceId: ws.id,
+        sessionId: 'sdk-new',
+        parentMessageId: 'm-2',
+        toolUseId: 'tu-2',
+        toolName: 'Write',
+        actionKind: 'shell-command',
+        toolInput: {},
+        status: 'resolved',
+        timeoutMs: 60000,
+        requestedAt: new Date('2026-07-02T00:21:00Z'),
+        resolvedAt: new Date('2026-07-02T00:22:00Z'),
+      })
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.sessionId).toBe('sdk-new')
+      expect(entry?.statusFacts).toEqual({
+        setStatus: 'needs_input',
+        statusNote: 'Pick a variant.',
+        statusSetAt: '2026-07-02T01:00:00.000Z',
+        lastError: {
+          code: 'error_during_execution',
+          message: "You've hit your session limit · resets 2:20pm",
+          at: '2026-07-02T00:31:00.000Z',
+        },
+        pendingApprovalCount: 1,
+        latestUserMessageAt: '2026-07-02T00:30:00.000Z',
+      })
+    })
+  })
+
+  it('a quiet conversation reports empty facts', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id))
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry?.statusFacts).toEqual({
+        setStatus: null,
+        statusNote: null,
+        statusSetAt: null,
+        lastError: null,
+        pendingApprovalCount: 0,
+        latestUserMessageAt: null,
+      })
     })
   })
 })

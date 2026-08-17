@@ -17,6 +17,9 @@ export const CHAT_SESSION_CREATED = 'chat.session-created' as const
 export const CHAT_SESSION_ARCHIVED = 'chat.session-archived' as const
 export const CHAT_SESSION_SOFT_DELETED = 'chat.session-soft-deleted' as const
 export const CHAT_SESSION_HARD_DELETED = 'chat.session-hard-deleted' as const
+// The assistant set the conversation's status light (Move 3, 2026-08-17) —
+// the WORKSPACE_STATUS_SET_EVENT sibling, per session.
+export const CHAT_SESSION_STATUS_SET = 'chat.session-status-set' as const
 
 export type ChatSessionCreatedPayload = {
   userId: string
@@ -43,4 +46,13 @@ export type ChatSessionHardDeletedPayload = {
   userId: string
   workspaceId: string
   sessionId: string
+}
+
+export type ChatSessionStatusSetPayload = {
+  userId: string
+  workspaceId: string | null
+  sessionId: string
+  status: 'completed' | 'problem' | 'needs_input'
+  note: string | null
+  setAt: string
 }

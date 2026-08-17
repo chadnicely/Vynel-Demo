@@ -1401,6 +1401,9 @@ importers:
       '@vynel/agents':
         specifier: workspace:*
         version: link:../agents
+      '@vynel/approvals':
+        specifier: workspace:*
+        version: link:../approvals
       '@vynel/capabilities':
         specifier: workspace:*
         version: link:../capabilities
@@ -1447,9 +1450,6 @@ importers:
         specifier: ^9.5.0
         version: 9.14.0
     devDependencies:
-      '@vynel/approvals':
-        specifier: workspace:*
-        version: link:../approvals
       '@vynel/testing':
         specifier: workspace:*
         version: link:../testing

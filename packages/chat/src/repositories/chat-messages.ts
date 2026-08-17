@@ -51,6 +51,57 @@ export function listChatMessagesForSession(
     .all();
 }
 
+/** The session-status derivation's message-side facts (Move 3, 2026-08-17):
+ *  the latest ASSISTANT message's error columns — "the last thing that
+ *  happened errored", self-clearing when a later reply succeeds — and the
+ *  latest USER message's start (the set-status supersession anchor). Two
+ *  indexed lookups on `(session_id, started_at)`. */
+export interface SessionStatusMessageFacts {
+  lastAssistantError: {
+    code: string | null;
+    message: string;
+    at: Date;
+  } | null;
+  latestUserMessageAt: Date | null;
+}
+
+export function findSessionStatusMessageFacts(
+  db: Database,
+  sessionId: string,
+): SessionStatusMessageFacts {
+  const [latestAssistant] = db
+    .select({
+      errorCode: chatMessages.errorCode,
+      errorMessage: chatMessages.errorMessage,
+      startedAt: chatMessages.startedAt,
+    })
+    .from(chatMessages)
+    .where(
+      and(eq(chatMessages.sessionId, sessionId), eq(chatMessages.role, "assistant")),
+    )
+    .orderBy(desc(chatMessages.startedAt))
+    .limit(1)
+    .all();
+  const [latestUser] = db
+    .select({ startedAt: chatMessages.startedAt })
+    .from(chatMessages)
+    .where(and(eq(chatMessages.sessionId, sessionId), eq(chatMessages.role, "user")))
+    .orderBy(desc(chatMessages.startedAt))
+    .limit(1)
+    .all();
+  return {
+    lastAssistantError:
+      latestAssistant !== undefined && latestAssistant.errorMessage !== null
+        ? {
+            code: latestAssistant.errorCode,
+            message: latestAssistant.errorMessage,
+            at: latestAssistant.startedAt,
+          }
+        : null,
+    latestUserMessageAt: latestUser?.startedAt ?? null,
+  };
+}
+
 // Every message tagged with one delegation request's `partialSessionId` (brain-tree
 // Chapter 2) — the chain across the global + workspace transcripts, in chronological
 // order. The trace read (`resolveDelegationTrace`) builds the condensed trace from this.

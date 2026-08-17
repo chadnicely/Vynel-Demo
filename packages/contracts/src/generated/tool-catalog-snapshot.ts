@@ -5,7 +5,7 @@
 import type { ToolCatalogEntry } from '../tool-policy/catalog.js'
 
 /** Every tool the product composes, with its declared defaults — sorted by
- *  (serverName, toolName). 132 entries. */
+ *  (serverName, toolName). 133 entries. */
 export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__desktop__act_on_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__act_on_desktop","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
@@ -117,6 +117,7 @@ export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__vynel__send_message","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule","global-interactive","global-channel","delegated-global"],"cardClass":"never"},
   {"toolName":"mcp__vynel__send_to_channel","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"never"},
   {"toolName":"mcp__vynel__set_agent_enabled","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
+  {"toolName":"mcp__vynel__set_session_status","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule","global-interactive","global-channel","delegated-global"],"cardClass":"never"},
   {"toolName":"mcp__vynel__set_todos","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule","global-interactive","global-channel","delegated-global"],"cardClass":"never","capabilityId":"tasks"},
   {"toolName":"mcp__vynel__set_workspace_status","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
   {"toolName":"mcp__vynel__speak","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"never","featureKey":"voice"},

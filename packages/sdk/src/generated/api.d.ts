@@ -3607,6 +3607,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the calling session's status (completed / problem / needs_input). */
+        put: operations["putSessionsStatus"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions/{sessionId}/settings": {
         parameters: {
             query?: never;
@@ -16778,6 +16795,19 @@ export interface operations {
                         contextTokens: number | null;
                         contextWindow: number;
                         lastMessageAt: string;
+                        statusFacts: {
+                            /** @enum {string|null} */
+                            setStatus: "completed" | "problem" | "needs_input" | null;
+                            statusNote: string | null;
+                            statusSetAt: string | null;
+                            lastError: {
+                                code: string | null;
+                                message: string;
+                                at: string;
+                            } | null;
+                            pendingApprovalCount: number;
+                            latestUserMessageAt: string | null;
+                        };
                         segments: {
                             sessionId: string;
                             title: string;
@@ -16984,6 +17014,53 @@ export interface operations {
                 };
             };
             /** @description workspaceId given but the workspace is unknown or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putSessionsStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "completed" | "problem" | "needs_input";
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The stored status trio. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "completed" | "problem" | "needs_input";
+                        statusNote: string | null;
+                        statusSetAt: string;
+                    };
+                };
+            };
+            /** @description Validation error, or this turn has no watching session. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The calling session could not be resolved. */
             404: {
                 headers: {
                     [name: string]: unknown;

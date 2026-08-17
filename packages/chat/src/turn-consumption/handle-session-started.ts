@@ -138,16 +138,21 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         ...(swappedFromSessionId !== null
           ? { continuedFromSessionId: swappedFromSessionId }
           : {}),
-        // Composer settings follow the chain: a swap must not silently reset
-        // the user's chosen mode/model/effort back to "never set" — the fresh
-        // segment inherits its predecessor's settings (still overridable by
-        // the streams' write-through on the next explicit turn).
+        // Composer settings + the assistant-set status follow the chain: a
+        // swap must not silently reset the user's chosen mode/model/effort —
+        // or drop a standing "problem/needs_input" light — back to "never
+        // set"; the fresh segment inherits its predecessor's values (settings
+        // stay overridable by the streams' write-through, the status by the
+        // read-time supersession rule).
         ...(predecessor !== null
           ? {
               sessionMode: predecessor.sessionMode,
               selectedModel: predecessor.selectedModel,
               thinkingEffort: predecessor.thinkingEffort,
               autoBuildout: predecessor.autoBuildout,
+              status: predecessor.status,
+              statusNote: predecessor.statusNote,
+              statusSetAt: predecessor.statusSetAt,
             }
           : {}),
       })

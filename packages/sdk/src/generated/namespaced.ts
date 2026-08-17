@@ -1673,6 +1673,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  setStatus: async (input: NonNullable<paths["/sessions/status"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/sessions/status", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   startTurn: async (sessionId: NonNullable<paths["/sessions/{sessionId}/turn"]["post"]['parameters']>['path']["sessionId"], input: NonNullable<paths["/sessions/{sessionId}/turn"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/sessions/{sessionId}/turn", {
       params: { path: { sessionId: sessionId } },

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@vynel/agents": "workspace:*",
+    "@vynel/approvals": "workspace:*",
     "@vynel/capabilities": "workspace:*",
     "@vynel/channels": "workspace:*",
     "@vynel/chat": "workspace:*",
@@ -36,7 +37,6 @@
     "pino": "^9.5.0"
   },
   "devDependencies": {
-    "@vynel/approvals": "workspace:*",
     "@vynel/testing": "workspace:*",
     "typescript": "^5.6.0"
   }

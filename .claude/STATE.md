@@ -3,6 +3,34 @@
 **Updated 2026-08-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ✅ 2026-08-17 (later) PER-SESSION COMPOSER SETTINGS — Move 1 of a 3-move arc SHIPPED
+
+Kafi's arc: (1) mode/model/effort/auto-buildout stored PER SESSION in the DB — **SHIPPED**, two
+commits on main (`feat(chat): per-session composer settings…` + `fix(chat): voice turns never read
+or write…`). Shape: 4 nullable columns on `chat_sessions` (migration 0043; null = never set),
+settings concern in `packages/chat/src/settings/` (update op + `resolveTurnSessionSettings` +
+best-effort `persistTurnSessionSettings`), `GET/PATCH /sessions/:id/settings` (user-scoped —
+reaches global segments; `sessions.getSettings/updateSettings`), all three interactive streams
+resolve `input ?? row ?? surface default` + write-through at session resolve, swap copy-forward in
+`handle-session-started` + `recordSwapSegmentSession`, UI = `use-session-settings` composable
+(chips per-session, optimistic w/ cancelQueries+reconcile), ui-store refs demoted to NEW-CHAT
+defaults, AppComposer emits settings with each send. **Locked semantics:** VOICE turns neither read
+nor write settings (daemon pins its own model; stored 'ask' would hang card-less surfaces) —
+route-test-pinned; channel runner (`runGlobalRootTurn`) deliberately untouched (unattended bypass
+default stays). Verified: repo typecheck 106/106 · 5/5 parity · local-api+chat 848 · local-web 698
+· session 249. Full `pnpm test` NOT run (CPU rule).
+
+**Next: Move 3 (session status), then Move 2 (model discovery)** — full research + plan in this
+session's transcript. Move 3 = derived status ladder `running|needs_input|problem|completed|idle`
+(one home in contracts; feeds: activity turn, per-session pending approvals (indexed query exists),
+latest `chat_messages.errorCode`) + self-set session status via MCP (mirror `set_workspace_status`)
++ TWO feeder bug fixes: `global-root-turn.ts` `activity.end()` never passes 'failed' (workspace
+streams do — `chat-turn.ts:267→311` pattern) and `activity-store.ts` discards `turn-ended.outcome`;
+surface on `SessionsOverviewEntry` + nodes; orphan-reap → 'interrupted' not 'problem'. Move 2 =
+dedicated discovery entry point in providers (spawn query → `initializationResult().models` —
+account-entitlement list, why Opus flickers) at boot + picker refresh, floor demoted to bootstrap,
+effort chip filtered by `supportedEffortLevels`.
+
 ## ✅ 2026-08-17 SESSION-COMMS — the NOTE kind shipped + the own-child task rule
 
 **Read `.claude/docs/session-communication/` (overview → structure → followup) — updated same-day.**

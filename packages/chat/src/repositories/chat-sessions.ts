@@ -23,6 +23,7 @@ export type {
   ChatSessionVisibility,
   ChatSessionScope,
   ChatSessionSelectedMode,
+  ChatSessionSetStatus,
 } from '../schema/chat-sessions.js'
 
 /**

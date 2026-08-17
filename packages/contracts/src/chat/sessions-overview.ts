@@ -8,6 +8,8 @@
 // wire. Live "working" status is deliberately NOT here — the activity feed is
 // the one source of live truth; the UI marries the two.
 
+import type { SessionStatusFacts } from './session-status.js'
+
 export interface SessionsOverviewSegment {
   sessionId: string
   title: string
@@ -34,6 +36,9 @@ export interface SessionsOverviewEntry {
   /** `resolveContextWindow(model)` — the meter's denominator. */
   contextWindow: number
   lastMessageAt: string
+  /** The durable status facts (Move 3) — feed `deriveSessionStatus` together
+   *  with the activity feed's liveness for the conversation's status light. */
+  statusFacts: SessionStatusFacts
   /** Ordered oldest → newest; length 1 for an unswapped conversation. */
   segments: SessionsOverviewSegment[]
 }

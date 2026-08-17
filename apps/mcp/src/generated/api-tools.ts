@@ -3265,6 +3265,43 @@ export const setAgentEnabled: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const setSessionStatus: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'set_session_status',
+    "Set THIS conversation's status light — shown on its row in the user's Sessions panel and on the node screen. Set `completed` when the work you were asked for is done. Set `problem` when you are stuck and cannot proceed without help. Set `needs_input` when you reached a conclusion or decision that needs the user's attention (approvals are detected automatically — this is for conclusions). Include a short `note` saying why. The status clears itself when the user sends the next message. For the WORKSPACE-level light, use set_workspace_status instead.",
+    {
+    status: z.enum(['completed', 'problem', 'needs_input']),
+    note: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/sessions/status'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['status', 'note']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const setTodos: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'set_todos',
@@ -4019,6 +4056,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   searchMemory,
   sendMessage,
   setAgentEnabled,
+  setSessionStatus,
   setTodos,
   setWorkspaceStatus,
   startApp,
@@ -4058,6 +4096,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   searchChatMessages,
   sendMessage,
   sendToChannel,
+  setSessionStatus,
   setTodos,
   speak,
   startCall,

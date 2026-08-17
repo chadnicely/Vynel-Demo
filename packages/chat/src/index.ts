@@ -24,12 +24,14 @@ export {
   CHAT_SESSION_ARCHIVED,
   CHAT_SESSION_SOFT_DELETED,
   CHAT_SESSION_HARD_DELETED,
+  CHAT_SESSION_STATUS_SET,
 } from './chat-events.js'
 export type {
   ChatSessionCreatedPayload,
   ChatSessionArchivedPayload,
   ChatSessionSoftDeletedPayload,
   ChatSessionHardDeletedPayload,
+  ChatSessionStatusSetPayload,
 } from './chat-events.js'
 
 // Turn consumption — the persistence engine the session runners drive.
@@ -80,6 +82,10 @@ export type {
 } from './settings/resolve-turn-session-settings.js'
 export { persistTurnSessionSettings } from './settings/persist-turn-session-settings.js'
 export type { TurnSettingsWriteInput } from './settings/persist-turn-session-settings.js'
+
+// Status — the assistant-set session light (`set_session_status`).
+export { setSessionStatus } from './status/set-session-status.js'
+export type { SetSessionStatusInput } from './status/set-session-status.js'
 
 // History — session-list + detail CRUD.
 export { listChatSessionsForWorkspace } from './history/list-chat-sessions-for-workspace.js'

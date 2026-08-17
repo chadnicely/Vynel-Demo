@@ -23,6 +23,7 @@ import { table, id, text, timestamp, boolean, integer, index } from '@vynel/db/d
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
 import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
+import type { SessionSetStatus } from '@vynel/contracts/chat/session-status'
 
 // Sidebar curation (agent-base Slice 2). `'listed'` = a normal conversation
 // shown in the curated sidebar; `'hidden'` = recorded + browsable but kept out
@@ -47,6 +48,10 @@ export type ChatSessionScope = 'global' | 'workspace' | 'agent' | 'spawned'
 // (chat can't import a sibling leaf; the `ChatSessionScope` mirror precedent).
 // Drift is caught downstream where the value feeds `toPermissionMode`.
 export type ChatSessionSelectedMode = 'ask' | 'auto' | 'bypass'
+
+// The assistant-set session status — `@vynel/contracts/chat/session-status`'s
+// `SessionSetStatus`, imported type-only (contracts is shared-tier).
+export type ChatSessionSetStatus = SessionSetStatus
 
 export const chatSessions = table(
   'chat_sessions',
@@ -101,6 +106,15 @@ export const chatSessions = table(
     // consumes it yet (the build engine is pending), same standing as the
     // ui-store original.
     autoBuildout: boolean(),
+    // ── Assistant-set session status (Move 3, 2026-08-17) ───────────
+    // The workspaces status trio, per conversation: a FACT with a timestamp
+    // ("the assistant set X at T"), never cleared by a write — superseded at
+    // READ time by the user's next message (deriveSessionStatus in contracts).
+    // Written by `set_session_status` (ambient turn session, the set_todos
+    // door); copied forward onto swap segments like the composer settings.
+    status: text().$type<ChatSessionSetStatus>(),
+    statusNote: text(),
+    statusSetAt: timestamp(),
     deletedAt: timestamp(), // soft-delete (D14); null = active
     totalMessageCount: integer().notNull(),
     totalInputTokens: integer().notNull(),

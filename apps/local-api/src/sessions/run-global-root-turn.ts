@@ -149,6 +149,10 @@ class GlobalRootDrainSink implements SessionSink {
   private sessionId: string | null = null
   private resultText = ''
   private streamErrorMessage: string | null = null
+  /** The turn's durable outcome (Move 3 feeder fix) — a terminal
+   *  `session-errored` marks the envelope 'failed', the workspace streams'
+   *  rule; read by the runner's `activity.end(...)`. */
+  turnOutcome: 'ended' | 'failed' = 'ended'
 
   constructor(
     private readonly onApprovalRequested?: RunGlobalRootTurnInput['onApprovalRequested'],
@@ -187,6 +191,7 @@ class GlobalRootDrainSink implements SessionSink {
       })
     } else if (event.kind === 'session-errored') {
       this.streamErrorMessage = event.errorMessage
+      if (!event.isRecoverable) this.turnOutcome = 'failed'
     }
   }
 
@@ -393,8 +398,13 @@ export async function runGlobalRootTurn(
       },
       sink,
     )
+  } catch (err) {
+    // A thrown core run (resolve failure, drain error re-raised by
+    // requireResult) is a failed turn even without a terminal event.
+    sink.turnOutcome = 'failed'
+    throw err
   } finally {
-    activity.end()
+    activity.end(sink.turnOutcome)
     // A parked ask must not outlive its turn: cancel THIS turn's waiters and
     // expire their rows — the interactive streams' cleanup mirrored, GUARD
     // INCLUDED: a bookkeeping failure here must never replace the turn's real

@@ -34099,6 +34099,77 @@
                       "lastMessageAt": {
                         "type": "string"
                       },
+                      "statusFacts": {
+                        "type": "object",
+                        "properties": {
+                          "setStatus": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "completed",
+                              "problem",
+                              "needs_input",
+                              null
+                            ]
+                          },
+                          "statusNote": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "statusSetAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "lastError": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message",
+                              "at"
+                            ]
+                          },
+                          "pendingApprovalCount": {
+                            "type": "integer"
+                          },
+                          "latestUserMessageAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "setStatus",
+                          "statusNote",
+                          "statusSetAt",
+                          "lastError",
+                          "pendingApprovalCount",
+                          "latestUserMessageAt"
+                        ]
+                      },
                       "segments": {
                         "type": "array",
                         "items": {
@@ -34154,6 +34225,7 @@
                       "contextTokens",
                       "contextWindow",
                       "lastMessageAt",
+                      "statusFacts",
                       "segments"
                     ]
                   }
@@ -34920,6 +34992,93 @@
                 "required": [
                   "name",
                   "purpose"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/status": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The stored status trio.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input"
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "statusNote",
+                    "statusSetAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or this turn has no watching session."
+          },
+          "404": {
+            "description": "The calling session could not be resolved."
+          }
+        },
+        "operationId": "putSessionsStatus",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [],
+        "summary": "Set the calling session's status (completed / problem / needs_input).",
+        "x-sdk-name": "sessions.setStatus",
+        "x-mcp": {
+          "exposed": true,
+          "name": "set_session_status",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceSurface": true,
+          "description": "Set THIS conversation's status light — shown on its row in the user's Sessions panel and on the node screen. Set `completed` when the work you were asked for is done. Set `problem` when you are stuck and cannot proceed without help. Set `needs_input` when you reached a conclusion or decision that needs the user's attention (approvals are detected automatically — this is for conclusions). Include a short `note` saying why. The status clears itself when the user sends the next message. For the WORKSPACE-level light, use set_workspace_status instead."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "completed",
+                      "problem",
+                      "needs_input"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "status"
                 ]
               }
             }

@@ -51,6 +51,13 @@ type StartGlobalRootTurnInput = z.infer<typeof StartGlobalRootTurnRequestSchema>
  *  turn's terminal frame is `turn-stream-ended` (clean drain) or a minimal
  *  `session-errored` (thrown). */
 class GlobalRootSseSink implements SessionSink {
+  /** The turn's durable outcome (Move 3 feeder fix): a terminal
+   *  `session-errored` marks it 'failed' — the workspace streams' rule
+   *  (`chat-turn.ts`) the global path silently lacked, which is why a
+   *  limit-errored global turn recorded a clean 'ended' envelope. Read by the
+   *  caller's `activity.end(...)`. */
+  turnOutcome: 'ended' | 'failed' = 'ended'
+
   constructor(
     private readonly stream: SSEStreamingApi,
     private readonly logger: Logger,
@@ -63,6 +70,7 @@ class GlobalRootSseSink implements SessionSink {
   ) {}
 
   async onEvent(event: ChatTurnEvent): Promise<void> {
+    if (event.kind === 'session-errored' && !event.isRecoverable) this.turnOutcome = 'failed'
     // `user-message-persisted` fires on new AND resumed turns; `session-created`
     // only on a new/swapped segment — tap both so every turn resolves.
     if (event.kind === 'session-created') {
@@ -83,6 +91,7 @@ class GlobalRootSseSink implements SessionSink {
   }
 
   async onError(err: unknown): Promise<void> {
+    this.turnOutcome = 'failed'
     this.logger.error({ err }, 'global-root turn stream failed')
     await writeSseSafely(
       this.stream,
@@ -280,6 +289,22 @@ export async function streamGlobalRootTurn(
       scopeKind: 'global',
       origin: input.voice === true ? 'voice' : 'web',
     })
+    // Hoisted so the finally can end the feed with the DURABLE outcome — a
+    // terminal session-errored records 'failed' on the turn envelope (Move 3
+    // feeder fix; the workspace streams' `turnOutcome` rule).
+    const sink = new GlobalRootSseSink(stream, c.var.logger, activity, (sdkSessionId) => {
+      turnSession.resolve(sdkSessionId)
+      mentionPlan?.onSessionResolved(sdkSessionId)
+      // Settings write-through onto the resolved segment: what the composer
+      // sent becomes the row's persisted truth. Input-only — omitted fields
+      // stay "never set" — and NEVER for a voice turn: the daemon's pinned
+      // model would silently overwrite the user's chosen chip (the
+      // voice-clobber review finding). Idempotent downstream like the
+      // other two callbacks.
+      if (!isVoiceTurn) {
+        persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
+      }
+    })
     try {
       await runGlobalRootTurnCore(
         {
@@ -323,22 +348,10 @@ export async function streamGlobalRootTurn(
           // Persist the roster the engine reports — feeds the model picker.
           onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
         },
-        new GlobalRootSseSink(stream, c.var.logger, activity, (sdkSessionId) => {
-          turnSession.resolve(sdkSessionId)
-          mentionPlan?.onSessionResolved(sdkSessionId)
-          // Settings write-through onto the resolved segment: what the composer
-          // sent becomes the row's persisted truth. Input-only — omitted fields
-          // stay "never set" — and NEVER for a voice turn: the daemon's pinned
-          // model would silently overwrite the user's chosen chip (the
-          // voice-clobber review finding). Idempotent downstream like the
-          // other two callbacks.
-          if (!isVoiceTurn) {
-            persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
-          }
-        }),
+        sink,
       )
     } finally {
-      activity.end()
+      activity.end(sink.turnOutcome)
       if (agentRunId) {
         try {
           await recordAgentRunCompleted(c.var.db, {

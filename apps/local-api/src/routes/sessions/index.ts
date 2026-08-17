@@ -11,6 +11,8 @@
 //                     (sessions-surface Slice ③a; SSE, no x-mcp)
 //   GET  /:sessionId/settings   -> the per-session composer settings (no x-mcp)
 //   PATCH /:sessionId/settings  -> partial settings update (no x-mcp)
+//   PUT  /status -> set_session_status (x-mcp; ambient turn session — the
+//                   set_todos door: the session is never a parameter)
 //
 // Thin by design: parse → call the session-tier op → return. The overview op
 // returns the wire shape directly (ISO dates), so the panel and the tool read
@@ -19,12 +21,21 @@
 import { resolver, validator } from 'hono-openapi/zod'
 import { z } from 'zod'
 import { streamSSE } from 'hono/streaming'
-import { NotFoundError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import { getSessionsOverview } from '@vynel/session/overview'
 import { createSpawnedSession } from '@vynel/session/spawned'
 import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
-import { getChatSessionDetail, searchChatSessions, updateChatSessionSettings } from '@vynel/chat'
+import {
+  getChatSessionDetail,
+  searchChatSessions,
+  updateChatSessionSettings,
+  setSessionStatus,
+} from '@vynel/chat'
+import {
+  TURN_SESSION_HEADER,
+  parseTurnSessionHeader,
+} from '../../sessions/turn-session-header.js'
 import { enrichChatSessionDetail } from '../../sessions/enrich-chat-session-detail.js'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
@@ -42,6 +53,8 @@ import {
   ChatSessionDetailResponseSchema,
   ChatSessionSettingsSchema,
   UpdateChatSessionSettingsRequestSchema,
+  SetSessionStatusRequestSchema,
+  SessionStatusResponseSchema,
 } from './schemas.js'
 
 const SessionIdParamSchema = z.object({ sessionId: z.string().min(1) })
@@ -255,6 +268,73 @@ export const sessionsApp = factory
         logger: c.var.logger,
       })
       return c.json({ status: 'created' as const, sessionId: created.sessionId, name: created.name })
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // PUT /status — set_session_status: the calling session sets its OWN status
+  // light (Move 3 — the set_workspace_status sibling, per conversation). THE
+  // SESSION IS NEVER A PARAMETER (the set_todos door): identity comes from the
+  // ambient `x-vynel-turn-session` header the turn stamps server-side, so
+  // neither the session nor its scope can be model-supplied. A turn with no
+  // watching session (a schedule fire, a delegation tick) carries no header
+  // and the tool 400s honestly. Registered BEFORE the `/:sessionId/*` routes
+  // so the literal segment wins the match.
+  // ──────────────────────────────────────────────────────────────────
+  .put(
+    '/status',
+    describeRoute({
+      tags: ['sessions'],
+      summary: "Set the calling session's status (completed / problem / needs_input).",
+      'x-sdk-name': 'sessions.setStatus',
+      responses: {
+        200: {
+          description: 'The stored status trio.',
+          content: { 'application/json': { schema: resolver(SessionStatusResponseSchema) } },
+        },
+        400: { description: 'Validation error, or this turn has no watching session.' },
+        404: { description: 'The calling session could not be resolved.' },
+      },
+      // A self-tool, so no askApproval: setting the light is reporting, not an
+      // irreversible action (the set_workspace_status stance). Both surfaces —
+      // the light exists on workspace chats, the global root, and spawned
+      // sessions alike (the set_todos precedent).
+      'x-mcp': {
+        exposed: true,
+        name: 'set_session_status',
+        mutatingApproved: true,
+        rootSurface: true,
+        workspaceSurface: true,
+        description:
+          "Set THIS conversation's status light — shown on its row in the user's Sessions " +
+          'panel and on the node screen. Set `completed` when the work you were asked for is ' +
+          'done. Set `problem` when you are stuck and cannot proceed without help. Set ' +
+          "`needs_input` when you reached a conclusion or decision that needs the user's " +
+          'attention (approvals are detected automatically — this is for conclusions). ' +
+          'Include a short `note` saying why. The status clears itself when the user sends ' +
+          'the next message. For the WORKSPACE-level light, use set_workspace_status instead.',
+      },
+    }),
+    validator('json', SetSessionStatusRequestSchema),
+    ...userScoped,
+    (c) => {
+      const turnSessionId = parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER))
+      if (turnSessionId === undefined) {
+        throw new ValidationError(
+          'This turn has no session the user is watching, so there is no status light to set. ' +
+            'Carry on with the work and report the outcome in your reply.',
+        )
+      }
+      const updated = setSessionStatus(c.var.db, {
+        userId: c.var.user.id,
+        sessionId: turnSessionId,
+        status: c.req.valid('json').status,
+        note: c.req.valid('json').note ?? null,
+      })
+      return c.json({
+        status: updated.status,
+        statusNote: updated.statusNote,
+        statusSetAt: updated.statusSetAt?.toISOString() ?? null,
+      })
     },
   )
   // ──────────────────────────────────────────────────────────────────
