@@ -36,6 +36,7 @@ import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { writeSseSafely } from './write-sse-safely.js'
+import { loadEnv } from '../env.js'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
 import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
@@ -169,6 +170,7 @@ export async function streamGlobalRootTurn(
   // runner, so the carrier is filled from the stream's first frame.
   const turnSession = createTurnSessionCarrier()
   const appRequest = turnSession.wrapAppRequest(modeAwareAppRequest)
+  const pressureThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
 
   // Compose the global root's MCP attachment: the routing tools (the root is a
   // MANAGER — list + delegate + channel-send). No workspaceId — the global root
@@ -350,6 +352,8 @@ export async function streamGlobalRootTurn(
           ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
           // Persist the roster the engine reports — feeds the model picker.
           onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
+          // Dev/test swap-trigger override (the live smoke's knob); unset → 0.85.
+          ...(pressureThreshold !== undefined ? { pressureThreshold } : {}),
         },
         sink,
       )

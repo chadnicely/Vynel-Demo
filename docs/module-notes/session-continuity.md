@@ -56,6 +56,7 @@ pressure:
 | `packages/session/src/delegation/delegate-to-workspace-root.ts` | background delegated workspace runs | link only (`:230`) |
 | `packages/session/src/delegation/delegate-to-spawned-session.ts` | spawned sessions | link only (`:234`) |
 | `packages/session/src/delegation/delegate-to-agent-session.ts` (+ `run-agent-run-job.ts`) | agent colleagues | link only (`:210`) |
+| `apps/local-api/src/streams/session-turn.ts` | the user DM-ing a spawned session / colleague directly | link only (`:319`) — found by the Slice-1 reviewer |
 
 Three concrete misses on the global path (`run-global-root-turn-core.ts`):
 
@@ -250,6 +251,86 @@ The seam that makes requirement 7 work before the content exists:
 Slice order is dependency order: 1 alone cures the amnesia; 2 rides 1's widened composition;
 3 is independent (can land any time after 1 — its tagging convention feeds 2's recall story);
 4 is UI polish on 1's trigger points.
+
+## 5b. Slice 1 — SHIPPED 2026-08-17 (decisions taken while building)
+
+Wired, tested (op per-scope + 3 runners + a new global-core test + swap-segment
+scope/ground cases; 71 files / 448 targeted tests green, typecheck green on
+session/chat/local-api). Decisions that go beyond the plan text:
+
+- **Occupancy + model are read from the ROW, not re-measured per runner.** The
+  shared consumer's `handle-usage-reported` already writes the effective
+  segment's `chat_sessions.lastContextTokens` ("the LAST usage report of a turn
+  IS the current occupancy") + `model` (what actually ran) for every runner.
+  `applyPrimaryTurnContinuity` reads exactly those two — one measuring home; the
+  workspace route's in-stream accumulator was removed. A segment with no usage
+  yet (a fresh identity's first turn, a turn that failed before its first
+  assistant message) measures 0 → never bridged.
+- **The identity drives the op** — no caller-supplied ground. The op reads the
+  primary row (owner-checked): `workspaceId` = the identity's own ground (null =
+  workspace-less), scope decides the first-segment rule. A caller passing the
+  wrong ground was a real bug class (the spawned runner filed a workspace-
+  grounded session as the brain's, fixed the same day) — the op reads the truth.
+- **hide-first-segment is manager-only** (`workspace` / `global` / `voice`): their
+  first segment IS the continuing thread (created listed by the normal flow →
+  hidden so the thread shows as one entry). A colleague's or spawned session's
+  first segment is its LISTED identity row — never hidden. Pinned per scope.
+- **Swap segments inherit `scope` from the predecessor row** — one rule shared
+  with `handleSessionStarted`'s mid-turn swap branch (settings/status inherit
+  the same way since 2026-08-17). No predecessor (legacy) → the builder default.
+- **When the op runs:** after a CLEAN drain (an in-stream `session-errored` — the
+  limit-error case — is a clean drain and DOES run it), inside the runner's
+  lock, after `sink.onEnd`. NOT on a thrown core run: nothing reliable to
+  measure, and it would delay the error frames by a whole provider startup
+  timeout. The delegation runners run it before their outcome throws (an
+  interrupted/errored routed turn still gets its boundary check — the
+  interactive route's `finally` semantics).
+- **Latency trade-off (accepted):** on the rare pressured turn a channel reply
+  (Telegram) is delivered AFTER the swap (the drain sink returns after the
+  core), and an SSE stream stays open past `turn-stream-ended` while it runs.
+  Correctness first — the next turn MUST resume the fresh segment, serialized
+  under the lock. Slice 4 makes the wait visible ("Patching context…").
+- **Threshold override** (`VYNEL_CONTEXT_PRESSURE_THRESHOLD`) is forwarded on the
+  SSE global path (the smoke knob), like the workspace route; the channel runner
+  runs the production 0.85.
+- **Layer-1 parity:** `buildCompactionCapture(db, { logger })` is the ONE home for
+  the `onCompaction` hook — every runner binds it (the event's consumer is still
+  a follow-up unit).
+- **Core split** (file-size cap): the runner contract types moved to
+  `session-types.ts`; provider-message composition (catch-up + voice/channel
+  markers) extracted to `compose-global-root-provider-message.ts`; the core grew
+  a `provider?` override dep (the test seam; registry singleton by default).
+- **Test seam:** `FakeAiAgentProvider` grew `sessionIds` (per-call ids — the turn
+  then the priming session), `usage` / `usageReports` (per-call usage so the
+  consumer persists occupancy). The op's old tests took `occupancyTokens` /
+  `model` / `workspaceId` inputs that no longer exist — recast to seed the row.
+
+- **Reviewer pass (0 must-fix, 5 should-fix — all taken):** the swap's own log
+  lines now reach every path (`BridgePrimarySessionAfterTurnDeps.logger` +
+  `RunSeededSwapSessionInput.logger` widened to `StructuralLogger`, the core
+  hands its logger through) · the distill got a wall-clock deadline
+  (`DISTILL_TIMEOUT_MS` = 240s in `run-claude-distill-turn.ts` — a stalled
+  CLI can no longer wedge the per-user root lock; aborted → null → the swap
+  aborts cleanly) · the consumer resets its `sessionModel` state on a mid-turn
+  segment change (the fresh segment used to end the turn with model NULL → the
+  op measured it against the 200k floor and distilled on the CLI default) ·
+  the SIXTH link-only runner (`streams/session-turn.ts`, direct DMs into a
+  spawned session / colleague) now runs the op under its target lock ·
+  `applyPrimaryTurnContinuityBestEffort` is the one home for the best-effort
+  guard (six call sites, no copied try/catch).
+- **Recorded divergence:** the global core skips continuity on a THROWN drain —
+  including an SSE client disconnect (its sink writes raw `stream.writeSSE`) —
+  while the workspace/DM streams run it in `finally`; the row keeps its
+  occupancy either way, so the next turn measures it. Slice 4 revisits with the
+  visible swap state.
+- **Deferred-improve:** the three delegation runners were over the ~300-line cap
+  before this move (339/340/301 at HEAD) and grew ~22 lines each — split on the
+  next touch (the shared drain loop is the obvious extraction).
+
+**Follow-up recorded (not built):** a single turn that jumps from under 0.85
+straight into a limit error is not bridged by measurement (the row still says
+<0.85). Slice 2's contextBuilder adds the DB-tail carry that needs no SDK
+distill; pair it with a "limit-errored turn → force the bridge" rule then.
 
 ## 6. Forks / deferred (decide deliberately, never slip in)
 

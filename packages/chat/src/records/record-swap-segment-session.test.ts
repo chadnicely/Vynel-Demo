@@ -8,7 +8,12 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { findChatSessionById, listChatSessionsForWorkspace } from '../repositories/index.js'
+import {
+  findChatSessionById,
+  insertChatSession,
+  listChatSessionsForWorkspace,
+} from '../repositories/index.js'
+import { buildNewChatSessionRow } from '../turn-consumption/build-new-chat-session-row.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { CHAT_SESSION_CREATED, type ChatSessionCreatedPayload } from '../chat-events.js'
 import { recordSwapSegmentSession } from './record-swap-segment-session.js'
@@ -163,6 +168,69 @@ describe('recordSwapSegmentSession (core)', () => {
       expect(segment.selectedModel).toBeNull()
       expect(segment.thinkingEffort).toBeNull()
       expect(segment.autoBuildout).toBeNull()
+    })
+  })
+
+  it('a workspace-less swap segment (the global root) records null workspace + inherits scope global from its predecessor', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const predecessorId = `sdk-${randomUUID()}`
+      insertChatSession(db, {
+        ...buildNewChatSessionRow({
+          sessionId: predecessorId,
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Global brain',
+          visibility: 'hidden',
+        }),
+      })
+
+      const segment = recordSwapSegmentSession(db, {
+        sessionId: `sdk-${randomUUID()}`,
+        userId: user.id,
+        workspaceId: null,
+        providerId: 'claude',
+        continuedFromSessionId: predecessorId,
+      })
+
+      expect(segment.workspaceId).toBeNull()
+      expect(segment.scope).toBe('global')
+      expect(segment.visibility).toBe('hidden')
+      expect(segment.continuedFromSessionId).toBe(predecessorId)
+    })
+  })
+
+  it('a spawned or colleague continuation inherits its predecessor’s scope — never the builder’s workspace default', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const predecessorId = `sdk-${randomUUID()}`
+      insertChatSession(db, {
+        ...buildNewChatSessionRow({
+          sessionId: predecessorId,
+          userId: user.id,
+          workspaceId: workspace.id,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Mailing feature',
+          scope: 'spawned',
+        }),
+      })
+
+      const segment = recordSwapSegmentSession(db, {
+        sessionId: `sdk-${randomUUID()}`,
+        userId: user.id,
+        workspaceId: workspace.id,
+        providerId: 'claude',
+        continuedFromSessionId: predecessorId,
+      })
+
+      // Same scope as the chain it continues (the mid-turn swap branch's rule);
+      // the workspace-derived default would have said 'workspace'.
+      expect(segment.scope).toBe('spawned')
+      expect(segment.workspaceId).toBe(workspace.id)
     })
   })
 })

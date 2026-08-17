@@ -16,6 +16,8 @@ import type { StartChatSessionInput } from '@vynel/providers'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { createSpawnedSession } from '../spawned/index.js'
 import { getOrCreatePrimarySession } from '../continuity/index.js'
+import { findPrimarySessionById } from '../repositories/index.js'
+import { resolveSessionChainTranscript } from '../runtime/resolve-primary-transcript.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
 import { ROUTED_TASK_INSTRUCTIONS } from './routed-turn-provider-input.js'
 
@@ -278,6 +280,51 @@ describe('delegateToSpawnedSession', () => {
 
       await provider.respondToApprovalRequest('appr-1', { kind: 'approved' })
       await run
+    })
+  })
+
+  it('bridges the spawned session at the turn boundary — its OWN continuity, its chain, its listed identity untouched', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const created = await spawnSession(db, user.id)
+      // The resumed turn runs on the spawned segment; the swap's priming
+      // session is the second start. The turn's usage lands the segment at
+      // 0.95 of Haiku's window.
+      const provider = new FakeAiAgentProvider({
+        sessionIds: [created.sessionId, 'sdk-spawned-2'],
+        resultText: 'Competitor A undercuts us by 12%.',
+        usage: { inputTokens: 190_000, outputTokens: 10, model: 'claude-haiku-4-5' },
+        summary: 'GOAL: finish the routed task. DONE: the docs are summarized. NEXT: await the next task. FACTS: three docs, all current.',
+      })
+
+      const result = await delegateToSpawnedSession(db, provider, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: '/tmp/vynel/global-root',
+        sessionName: created.name,
+        taskText: 'compare pricing',
+        providerId: 'claude',
+      })
+      expect(result.reference).toBe(created.sessionId)
+
+      // The spawned primary now continues on the fresh segment, chained to
+      // its predecessor; scope + ground follow the identity (spawned, global-
+      // grounded → null workspace), hidden — the listed identity row stays.
+      expect(findPrimarySessionById(db, created.primarySessionId)?.currentSdkSessionId).toBe('sdk-spawned-2')
+      const fresh = findChatSessionById(db, 'sdk-spawned-2')
+      expect(fresh?.continuedFromSessionId).toBe(created.sessionId)
+      expect(fresh?.scope).toBe('spawned')
+      expect(fresh?.workspaceId).toBeNull()
+      expect(fresh?.visibility).toBe('hidden')
+      expect(findChatSessionById(db, created.sessionId)?.visibility).toBe('listed')
+
+      // Never lose chat: the chain opened from the new head shows the exchange.
+      const chain = resolveSessionChainTranscript(db, { userId: user.id, headSessionId: 'sdk-spawned-2' })
+      expect(chain.messages.map((m) => m.body)).toEqual([
+        'compare pricing',
+        'Competitor A undercuts us by 12%.',
+      ])
     })
   })
 })

@@ -1,0 +1,212 @@
+// Integration tests for `runGlobalRootTurnCore` — real SQLite + the fake
+// provider, no live SDK. The global brain was the one continuing identity with
+// NO boundary continuity (it rode to the SDK's ceiling and forgot everything);
+// these pin that its turns now run the same one op every identity runs:
+// measure the persisted occupancy → seed-fresh swap at pressure → the next
+// turn resumes the fresh segment → the thread still shows every pre-swap row.
+
+import { describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
+import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
+import { findChatSessionById } from '@vynel/chat/repositories'
+import type { ChatTurnEvent } from '@vynel/chat'
+import type { Database } from '@vynel/db'
+import type { StartChatSessionInput } from '@vynel/providers'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
+import { getOrCreatePrimarySession, SESSION_SWAPPED_EVENT_TYPE } from '../continuity/index.js'
+import { findPrimarySessionById } from '../repositories/index.js'
+import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
+import { runGlobalRootTurnCore } from './run-global-root-turn-core.js'
+import { resolvePrimaryTranscript } from './resolve-primary-transcript.js'
+import type { GlobalRootTarget, SessionSink } from './session-types.js'
+
+const GLOBAL_ROOT_CWD = '/tmp/vynel/global-root'
+
+// A carry that clears the swap's fidelity floor.
+const USABLE_CARRY =
+  'GOAL: keep helping across workspaces. DONE: answered the greeting. NEXT: await the next message. FACTS: the user said hi.'
+
+// 0.95 of Haiku's 200k window (over the 0.85 threshold) / 0.05 (under it).
+const PRESSURED_USAGE = { inputTokens: 190_000, outputTokens: 10, model: 'claude-haiku-4-5' }
+const RELAXED_USAGE = { inputTokens: 10_000, outputTokens: 10, model: 'claude-haiku-4-5' }
+
+function makeUser() {
+  const now = new Date()
+  return {
+    id: randomUUID(),
+    displayName: 'T',
+    emailAddress: null,
+    locale: 'en-US',
+    timezone: 'UTC',
+    hasCompletedOnboarding: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+const silentLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+}
+
+// The apps-edge resolver, minus the env-coupled cwd: get-or-create the global
+// primary and hand back what it currently points at.
+function resolveGlobalTarget(db: Database, userId: string): () => Promise<GlobalRootTarget> {
+  return async () => {
+    const primary = await getOrCreatePrimarySession(db, { userId })
+    return {
+      primarySessionId: primary.id,
+      resumeSdkSessionId: primary.currentSdkSessionId,
+      workspacePath: GLOBAL_ROOT_CWD,
+    }
+  }
+}
+
+class CollectingSink implements SessionSink {
+  readonly events: ChatTurnEvent[] = []
+  ended = false
+  errors: unknown[] = []
+  onEvent(event: ChatTurnEvent): void {
+    this.events.push(event)
+  }
+  onEnd(): void {
+    this.ended = true
+  }
+  onError(err: unknown): void {
+    this.errors.push(err)
+  }
+}
+
+function bareTurnInput(userId: string, userMessageText: string) {
+  return {
+    userId,
+    userMessageText,
+    mcpServers: {},
+    deniedMcpToolPatterns: [],
+    mutatingToolNames: [],
+    askModeApprovalToolNames: [],
+    mcpSystemPromptAppend: '',
+  }
+}
+
+describe('runGlobalRootTurnCore — boundary continuity', () => {
+  it('first turn: starts fresh, links the global primary, and stays put under the threshold', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a', 'global-b'],
+        resultText: 'Hello there.',
+        usage: RELAXED_USAGE,
+        summary: USABLE_CARRY,
+      })
+      const sink = new CollectingSink()
+
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        bareTurnInput(user.id, 'hi'),
+        sink,
+      )
+
+      expect(sink.ended).toBe(true)
+      expect(sink.errors).toEqual([])
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      expect(primary.currentSdkSessionId).toBe('global-a')
+      // Nothing swapped: no second segment, no session.swapped.
+      expect(findChatSessionById(db, 'global-b')).toBeNull()
+      expect(listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)).toHaveLength(0)
+    })
+  })
+
+  it('a turn that leaves the brain over the threshold seed-fresh swaps BEFORE the next turn — which resumes the fresh segment; the thread spans both', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      // Three SDK starts through one fake: turn 1 (segment A, pressured), the
+      // swap's priming session (segment B, no usage), then turn 2 resuming B
+      // (relaxed — a fresh segment starts low). The fake records every start's
+      // input so the test can assert what each resumed.
+      const startInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a', 'global-b', 'global-b'],
+        resultText: 'Noted.',
+        usageReports: [PRESSURED_USAGE, undefined, RELAXED_USAGE],
+        summary: USABLE_CARRY,
+        startChatSessionInputs: startInputs,
+      })
+
+      const deps = {
+        db,
+        logger: silentLogger,
+        resolveTarget: resolveGlobalTarget(db, user.id),
+        provider,
+      }
+
+      // Turn 1 — fresh root A, ends at 0.95 → the boundary swap runs inside
+      // the turn's lock and repoints the primary at the seeded segment B.
+      const sink1 = new CollectingSink()
+      await runGlobalRootTurnCore(deps, bareTurnInput(user.id, 'remember: the codename is BLUEHERON'), sink1)
+      expect(sink1.ended).toBe(true)
+
+      const primaryAfterTurn1 = await getOrCreatePrimarySession(db, { userId: user.id })
+      expect(primaryAfterTurn1.currentSdkSessionId).toBe('global-b')
+      expect(primaryAfterTurn1.supersededFromSdkSessionId).toBe('global-a')
+      const fresh = findChatSessionById(db, 'global-b')
+      expect(fresh?.continuedFromSessionId).toBe('global-a')
+      expect(fresh?.workspaceId).toBeNull()
+      expect(fresh?.scope).toBe('global')
+      expect(fresh?.visibility).toBe('hidden')
+      expect(listOutboxEventsByType(db, SESSION_SWAPPED_EVENT_TYPE)).toHaveLength(1)
+      // The distill resumed A on the turn's own model; the priming ack was the
+      // cheap model (the carry-fidelity rule).
+      expect(startInputs).toHaveLength(2)
+      expect(startInputs[0]?.resumeSessionId).toBeUndefined() // turn 1: fresh
+      expect(startInputs[1]?.resumeSessionId).toBeUndefined() // priming: fresh seeded
+
+      // Turn 2 — resolves the primary again and RESUMES the fresh segment B.
+      const sink2 = new CollectingSink()
+      await runGlobalRootTurnCore(deps, bareTurnInput(user.id, 'what was the codename?'), sink2)
+      expect(sink2.ended).toBe(true)
+      expect(startInputs).toHaveLength(3)
+      expect(startInputs[2]?.resumeSessionId).toBe('global-b')
+
+      // Never lose chat: the global thread, read from the current head, still
+      // carries turn 1's exchange from segment A ahead of turn 2's on B.
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
+      expect(transcript.session?.id).toBe('global-b')
+      expect(transcript.messages.map((m) => m.body)).toEqual([
+        'remember: the codename is BLUEHERON',
+        'Noted.',
+        'what was the codename?',
+        'Noted.',
+      ])
+    })
+  })
+
+  it('a swap that cannot produce a usable carry leaves the brain on its segment (aborted, not broken)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a', 'global-b'],
+        resultText: 'ok',
+        usage: PRESSURED_USAGE,
+        summary: null, // the distill degenerated — no carry
+      })
+      const sink = new CollectingSink()
+
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        bareTurnInput(user.id, 'hi'),
+        sink,
+      )
+
+      expect(sink.ended).toBe(true)
+      expect(sink.errors).toEqual([])
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      expect(primary.currentSdkSessionId).toBe('global-a')
+      expect(findChatSessionById(db, 'global-b')).toBeNull()
+      expect(findPrimarySessionById(db, primary.id)?.supersededFromSdkSessionId).toBeNull()
+    })
+  })
+})

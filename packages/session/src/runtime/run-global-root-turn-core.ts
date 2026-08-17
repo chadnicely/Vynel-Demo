@@ -15,122 +15,28 @@
 //   caller (locked `api-side-turn-execution-with-mcp`); `wrapAppRequestWithOrigin`
 //   + the origin header likewise stay at the edge — the core is origin-agnostic.
 //
+// The runner contract types (`GlobalRootTarget`, the deps + input) live in
+// `session-types.ts` — the runtime's type surface (file-size cap split).
+//
 // SERIALIZED PER USER (brain-tree Ch4): the WHOLE turn runs under
 // `runUnderRootTurnLock`. There is ONE root SDK session per user; a web turn racing
 // a channel turn would clobber the session-swap write. The lock lives HERE and is
 // the SOLE acquirer — the callers must NOT re-wrap it (it is a non-reentrant
 // promise-chain serializer, so a nested same-user acquire would deadlock).
 
-import type { Database } from '@vynel/db'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
-import type { DiscoveredProviderModel } from '@vynel/providers'
-import {
-  consumeSessionEventStream,
-  attachedImagesMetadataFor,
-  type AttachedImageBytes,
-  type StructuralLogger,
-  type TurnMessageAttribution,
-} from '@vynel/chat'
-import { collectDelegationReportsForRoot, markDelegationsSurfacedToRoot } from '@vynel/orchestration'
-import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
-import type { SessionPermissionMode } from '../session-mode.js'
-import type { SessionSink } from './session-types.js'
+import { consumeSessionEventStream, attachedImagesMetadataFor } from '@vynel/chat'
+import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import { applyPrimaryTurnContinuityBestEffort } from './apply-primary-turn-continuity.js'
+import type {
+  RunGlobalRootTurnCoreDeps,
+  RunGlobalRootTurnCoreInput,
+  SessionSink,
+} from './session-types.js'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { runUnderRootTurnLock } from './root-turn-lock.js'
-import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
-
-/**
- * The resolved global-root conversation target — what `resolveTarget` returns.
- * Structurally mirrors apps/api's `GlobalRootConversationTarget` (kept structural —
- * the package must not import an apps/api type).
- */
-export interface GlobalRootTarget {
-  primarySessionId: string
-  /** The SDK session the global root currently runs on — resume this. `null` on the
-   *  first-ever turn (start fresh, then link). */
-  resumeSdkSessionId: string | null
-  /** The global root's SDK cwd — the hidden user-data dir (NOT a workspace). */
-  workspacePath: string
-}
-
-export interface RunGlobalRootTurnCoreDeps {
-  db: Database
-  logger: StructuralLogger
-  /**
-   * Resolve (get-or-create) the global root + the SDK session to resume + the SDK
-   * cwd, AND ensure the cwd exists on disk. Injected by apps/api (it owns the
-   * env-coupled user-data-dir resolution + the get-or-create). Called INSIDE the
-   * per-user lock.
-   */
-  resolveTarget: () => Promise<GlobalRootTarget>
-  /** The shared live-turn pub/sub — when present, the turn's events tee onto
-   *  its `session:<id>` channel (Watch everywhere, session-library Slice ③).
-   *  Omit → sink-only (tests). */
-  turnEvents?: TurnEventBroadcaster
-}
-
-export interface RunGlobalRootTurnCoreInput {
-  userId: string
-  userMessageText: string
-  /** Attachments for this turn — inline base64; sent to the provider + persisted
-   *  for re-display under the root's hidden user-data cwd (same D22 layout the
-   *  workspace turn uses). */
-  attachedImages?: AttachedImageBytes[]
-  model?: string
-  /** Reasoning effort for this turn (the composer's picker). Omit for the
-   *  SDK's adaptive default (background turns). */
-  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-  /** The provider permission mode for the brain's OWN tools this turn (the caller maps
-   *  the user-facing `SessionMode` via `toPermissionMode`). Omit for the pre-mode
-   *  default, `bypass-with-behavior-gate` — the brain's routing tools run silently and
-   *  only the irreversible floor + declared mutating tools card. */
-  permissionMode?: SessionPermissionMode
-  /** Pre-composed MCP servers (composed by the apps/api caller — composition stays
-   *  at the api edge per `api-side-turn-execution-with-mcp`). Opaque to the core. */
-  mcpServers: Record<string, unknown>
-  /** The composer's capability denials — forwarded to the provider's
-   *  deniedToolNames → SDK disallowedTools (removed from the agent). Was
-   *  silently dropped on this path before the tool-policy re-plumb. */
-  deniedMcpToolPatterns: string[]
-  /** Feature-declared mutating tools that card even under bypass (additive to the floor). */
-  mutatingToolNames: string[]
-  /** The destructive tier — cards ONLY when the root turn runs in ask mode. */
-  askModeApprovalToolNames: string[]
-  /** The MCP/feature system-prompt contribution; the core prepends the `global-root` instruction. */
-  mcpSystemPromptAppend: string
-  /** Enabled USER-scope agents (subagents) for this global session, composed at
-   *  the api edge (`composeSessionAgents` with a null workspaceId) — same
-   *  spawn lifecycle the workspace turn gets. Opaque here; the provider casts
-   *  at the SDK edge (the `mcpServers` precedent). */
-  agents?: Record<string, unknown>
-  /** This turn arrived by VOICE — append the directive that makes the brain reply
-   *  by CALLING the `speak` tool (the single voice) instead of writing prose. */
-  voice?: boolean
-  /** The inbound channel this turn arrived through — stamped on the persisted
-   *  user row ("via Voice" / "via Telegram"). Set by the EDGES (the SSE route
-   *  maps `voice`, the channel runner its kind); the core only passes it through. */
-  originChannel?: 'voice' | 'telegram' | 'discord' | 'zoom'
-  /** CHANNEL turn (the channel pipeline, locked 2026-07-27): the per-message
-   *  reply instruction — "reply by CALLING reply_to_channel; text is not
-   *  delivered". PROVIDER INPUT ONLY (the voice-turn-marker precedent: the
-   *  system-prompt block decays on the long root session; recency wins), the
-   *  persisted row stays the clean inbound text. Composed at the channels
-   *  edge, which knows the sender/group facts. */
-  channelReplyMarker?: string
-  /** REPORT-DELIVERY notify turn (session-comms): attribute this turn's rows —
-   *  the inbound message reads as coming FROM the reporting child
-   *  ('workspace-manager' + its label), trace-keyed. Omit → rows stay null
-   *  (every shipped turn, byte-for-byte). */
-  messageAttribution?: TurnMessageAttribution
-  /** REPORT-DELIVERY notify turn: an extra steer appended to the system prompt
-   *  (absorb the report; act if needed; never re-run the work). Omit → the
-   *  shipped prompt, byte-for-byte. */
-  steerPromptAppend?: string
-  /** Model-roster discovery (best-effort): forwarded to the provider; the
-   *  caller persists the roster the engine reports. See `StartChatTurnInput`. */
-  onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
-}
+import { composeGlobalRootProviderMessage } from './compose-global-root-provider-message.js'
 
 /**
  * Compose the turn's `systemPromptAppend`: the global-root instructions, the
@@ -166,33 +72,20 @@ export async function runGlobalRootTurnCore(
       // `currentSdkSessionId`, so a wrapper around only the loop would resume stale.
       const target = await deps.resolveTarget()
 
-      const provider = resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
+      const provider = deps.provider ?? resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
       const resumeSessionId = target.resumeSdkSessionId ?? undefined
 
-      // Root-awareness catch-up (brain-tree Ch3.5): prepend unseen terminal reports to
-      // the PROVIDER input ONLY (the persister keeps the clean original — else the block
-      // renders as if the user typed it) + mark them surfaced (exactly-once — the
-      // injected text reaches the SDK session, so marking at turn-build is correct).
-      const reports = collectDelegationReportsForRoot(deps.db, { userId: input.userId })
-      let providerUserMessageText =
-        reports.contextBlock !== null
-          ? `${reports.contextBlock}\n\n${input.userMessageText}`
-          : input.userMessageText
-      // A voice turn re-states the speak directive AT THE MESSAGE (provider input
-      // only, like the catch-up block): the system-prompt block alone decays on a
-      // long root session and the model slips back to text-only replies.
-      if (input.voice === true) {
-        providerUserMessageText = `${providerUserMessageText}\n\n${loadSessionInstruction('voice-turn-marker')}`
-      }
-      // A channel turn does the same for reply_to_channel — the marker is
-      // composed at the channels edge (it knows the sender/group facts) and
-      // never reaches the persisted row.
-      if (input.channelReplyMarker !== undefined) {
-        providerUserMessageText = `${providerUserMessageText}\n\n${input.channelReplyMarker}`
-      }
-      if (reports.jobIds.length > 0) {
-        markDelegationsSurfacedToRoot(deps.db, reports.jobIds, new Date())
-      }
+      // The PROVIDER input — the clean text plus the per-message decorations
+      // (delegation catch-up, voice/channel markers); the persister below keeps
+      // the clean original. See `composeGlobalRootProviderMessage`.
+      const providerUserMessageText = composeGlobalRootProviderMessage(deps.db, {
+        userId: input.userId,
+        userMessageText: input.userMessageText,
+        ...(input.voice === true ? { voice: true } : {}),
+        ...(input.channelReplyMarker !== undefined
+          ? { channelReplyMarker: input.channelReplyMarker }
+          : {}),
+      })
 
       const attachedImages = input.attachedImages ?? []
 
@@ -225,6 +118,9 @@ export async function runGlobalRootTurnCore(
           : {}),
         systemPromptAppend: buildSystemPromptAppend(input),
         logger: deps.logger,
+        // Layer-1 capture (session.compacted) — the same hook the workspace
+        // turn binds, so an SDK auto-compaction on the brain is recorded too.
+        onCompaction: buildCompactionCapture(deps.db, { logger: deps.logger }),
         ...(input.onModelsDiscovered !== undefined
           ? { onModelsDiscovered: input.onModelsDiscovered }
           : {}),
@@ -275,13 +171,20 @@ export async function runGlobalRootTurnCore(
         deps.turnEvents !== undefined
           ? publishTurnEventsToSessionChannel(turnStream, deps.turnEvents)
           : turnStream
+      // The segment the turn actually ran on — the resumed id, advanced by a
+      // `session-created` (fresh root or mid-turn swap). The continuity step
+      // below reads its persisted occupancy.
+      let effectiveSdkSessionId: string | null = resumeSessionId ?? null
       for await (const event of observedStream) {
         // Link the root to the SDK session whenever a NEW (or compaction-swapped)
         // segment is created — `session-created` fires only on the new-session branch,
         // exactly when the root's currentSdkSessionId must advance to the live segment.
         // A normal resumed turn keeps the existing link. Best-effort — a link failure
-        // must never break the live turn.
+        // must never break the live turn. (The post-turn step below re-links as a
+        // reconcile; this in-stream link is the durable one — it holds even if
+        // the turn dies mid-way.)
         if (event.kind === 'session-created') {
+          effectiveSdkSessionId = event.session.id
           try {
             linkPrimarySessionToSdkSession(deps.db, {
               primarySessionId: target.primarySessionId,
@@ -295,6 +198,30 @@ export async function runGlobalRootTurnCore(
         await sink.onEvent(event)
       }
       await sink.onEnd?.()
+
+      // Continuity at the turn boundary — STILL under the per-user lock, so a
+      // swap is serialized ahead of the brain's next turn (the same one op the
+      // workspace stream and the routed runners call). Reads the segment's
+      // persisted occupancy; at ≥ 0.85 it distills + seed-fresh swaps, and the
+      // next turn resumes the fresh segment invisibly. Best-effort: the turn
+      // already streamed — a failure is logged, never surfaced.
+      if (effectiveSdkSessionId !== null) {
+        await applyPrimaryTurnContinuityBestEffort(
+          deps.db,
+          {
+            primarySessionId: target.primarySessionId,
+            priorSdkSessionId: target.resumeSdkSessionId,
+            effectiveSdkSessionId,
+            userId: input.userId,
+            workspacePath: target.workspacePath,
+            providerId: DEFAULT_PROVIDER_ID,
+            ...(input.pressureThreshold !== undefined
+              ? { threshold: input.pressureThreshold }
+              : {}),
+          },
+          { provider, logger: deps.logger },
+        )
+      }
     })
   } catch (err) {
     if (sink.onError !== undefined) {

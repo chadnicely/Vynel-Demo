@@ -11,6 +11,12 @@
 //     channel over model-produced text. Reviewer catch, 2026-07-19.
 //   - `persistSession: false` — never writes a session JSONL (a resumed
 //     distill must not append to Vynel's source-of-truth transcript).
+//   - A wall-clock deadline (`DISTILL_TIMEOUT_MS`) — a distill must END. The
+//     swap-carry summary resumes a session that may sit at 85% of a 1M window,
+//     so a slow answer is legitimate; a CLI that never terminates the stream is
+//     not, and every caller runs under a lock (the global root's is per USER —
+//     a stall there wedged web, voice and Telegram alike). Past the deadline
+//     the query is aborted and the distill reports null.
 //   - Best-effort: a throw is logged and returns null; callers fall open.
 //
 // Bypass permission mode is safe HERE because no tools exist to permit; it
@@ -24,6 +30,12 @@
 import { query } from '../base/claude-agent-sdk.js'
 import type { ProviderLogger } from '../../shared/provider-logger.js'
 import { buildClaudeSdkOptions } from '../base/build-claude-sdk-options.js'
+
+// Twice the swap-priming bound (120s): the summary distill's worst legitimate
+// case is a cold (uncached) resume of a near-full 1M-window session — a
+// minute-or-two answer — and the deadline is for the runtime that never ends
+// the stream, not for a slow one.
+export const DISTILL_TIMEOUT_MS = 240_000
 
 export type ClaudeDistillTurnInput = {
   /** The complete distill instruction — the one turn's entire prompt. */
@@ -69,6 +81,12 @@ export async function runClaudeDistillTurn(
   options.persistSession = false
   const abortController = new AbortController()
   options.abortController = abortController
+  let timedOut = false
+  const deadline = setTimeout(() => {
+    timedOut = true
+    abortController.abort()
+  }, DISTILL_TIMEOUT_MS)
+  deadline.unref?.()
 
   try {
     for await (const message of query({ prompt: input.prompt, options })) {
@@ -81,11 +99,17 @@ export async function runClaudeDistillTurn(
     return null
   } catch (error) {
     input.logger?.warn(
-      { error: error instanceof Error ? error.message : String(error) },
-      input.failureLogMessage,
+      {
+        error: error instanceof Error ? error.message : String(error),
+        ...(timedOut ? { timedOutAfterMs: DISTILL_TIMEOUT_MS } : {}),
+      },
+      timedOut
+        ? `${input.failureLogMessage} — the distill did not finish within ${DISTILL_TIMEOUT_MS}ms and was aborted`
+        : input.failureLogMessage,
     )
     return null
   } finally {
+    clearTimeout(deadline)
     // Idempotent — a no-op if the query already completed.
     abortController.abort()
   }

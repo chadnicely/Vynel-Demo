@@ -221,6 +221,13 @@ export async function* consumeSessionEventStream(
             ...(newSessionOptions !== undefined ? { newSessionOptions } : {}),
             ...(messageAttribution !== undefined ? { messageAttribution } : {}),
           })
+          // A mid-turn swap lands the rest of the turn on a NEW segment whose
+          // row has no model yet — reset the "already persisted" model state so
+          // the next usage report writes it there too. Without this the fresh
+          // segment ended the turn with model NULL, and the boundary continuity
+          // step then measured it against the 200k floor (a false early swap on
+          // a 1M model) and distilled on the CLI default.
+          if (result.sessionId !== sessionId) sessionModel = null
           sessionId = result.sessionId
           userMessage = result.userMessage
           // Persist attached image bytes now that the real session id exists (a

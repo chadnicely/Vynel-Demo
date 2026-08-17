@@ -16,7 +16,7 @@ import {
   startChatTurn,
   composeSessionCapabilities,
   resolvePrimaryConversationTarget,
-  applyPrimaryTurnContinuity,
+  applyPrimaryTurnContinuityBestEffort,
   publishTurnActivityStep,
 } from '@vynel/session/runtime'
 import {
@@ -214,9 +214,9 @@ export async function streamChatTurn(
       }
     }
     // Primary-continuity bookkeeping captured from the stream: the SDK session
-    // the turn actually ran on, and its final context occupancy (input + cache).
+    // the turn actually ran on (its occupancy is read from the persisted row
+    // at the boundary — the consumer's usage handler is the one measuring home).
     let effectiveSdkSessionId: string | null = resumeSessionId ?? null
-    let occupancyTokens = 0
     // Settings write-through, once per turn at session resolve: what the
     // composer sent becomes the row's persisted truth (a fresh conversation's
     // first turn stamps the row it just created). Input-only — omitted fields
@@ -302,7 +302,7 @@ export async function streamChatTurn(
       for await (const event of turnStream) {
         if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
         // Track the session the turn ran on (a NEW session's id is only known
-        // at session-created) + the latest context occupancy (last usage wins).
+        // at session-created).
         if (event.kind === 'session-created') {
           effectiveSdkSessionId = event.session.id
           activity.sessionResolved(event.session.id)
@@ -315,9 +315,6 @@ export async function streamChatTurn(
           turnSession.resolve(event.message.sessionId)
           mentionPlan?.onSessionResolved(event.message.sessionId)
           persistSettingsOnce(event.message.sessionId)
-        } else if (event.kind === 'usage-reported') {
-          occupancyTokens =
-            event.inputTokens + event.cacheReadInputTokens + event.cacheCreationInputTokens
         }
         // Narrate tool steps + approval bells on the feed (other surfaces —
         // the desktop overlay, the activity panel — see them live).
@@ -373,34 +370,28 @@ export async function streamChatTurn(
         }
       }
 
-      // Primary-as-thread continuity at the turn boundary: link the primary to
-      // the session this turn ran on, then seed-fresh swap if it crossed the
-      // pressure threshold (so the NEXT turn runs on a fresh session). Awaited
-      // before the stream closes so a swap is serialized ahead of the next turn;
-      // on a non-pressured turn this is just a cheap link + pure pressure check,
-      // no SDK call. Best-effort — a failure must never surface to the user.
+      // Primary-as-thread continuity at the turn boundary — the ONE op every
+      // continuing identity runs (the global core + the routed runners call the
+      // same): link the primary to the session this turn ran on, then seed-fresh
+      // swap if its persisted occupancy crossed the pressure threshold (so the
+      // NEXT turn runs on a fresh session). Awaited before the stream closes so a
+      // swap is serialized ahead of the next turn; on a non-pressured turn this
+      // is just a cheap link + pure pressure check, no SDK call. Best-effort — a
+      // failure must never surface to the user.
       if (primaryTarget && effectiveSdkSessionId) {
-        try {
-          const model = findChatSessionById(c.var.db, effectiveSdkSessionId)?.model ?? null
-          await applyPrimaryTurnContinuity(
-            c.var.db,
-            {
-              primarySessionId: primaryTarget.primarySessionId,
-              priorSdkSessionId: primaryTarget.resumeSdkSessionId,
-              effectiveSdkSessionId,
-              userId: c.var.user.id,
-              workspaceId: c.var.workspace!.id,
-              workspacePath: c.var.workspace!.path,
-              providerId: DEFAULT_PROVIDER_ID,
-              occupancyTokens,
-              model,
-              ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
-            },
-            { logger: c.var.logger },
-          )
-        } catch (err) {
-          c.var.logger.warn({ err }, 'primary-as-thread continuity failed after turn')
-        }
+        await applyPrimaryTurnContinuityBestEffort(
+          c.var.db,
+          {
+            primarySessionId: primaryTarget.primarySessionId,
+            priorSdkSessionId: primaryTarget.resumeSdkSessionId,
+            effectiveSdkSessionId,
+            userId: c.var.user.id,
+            workspacePath: c.var.workspace!.path,
+            providerId: DEFAULT_PROVIDER_ID,
+            ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
+          },
+          { logger: c.var.logger },
+        )
       }
     }
   }

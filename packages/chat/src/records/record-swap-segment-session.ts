@@ -35,7 +35,10 @@ export type RecordSwapSegmentSessionInput = {
   /** The fresh SDK session id the swap minted — the recorded segment's PK. */
   sessionId: string
   userId: string
-  workspaceId: string
+  /** The continuing identity's OWN ground — null for a workspace-less primary
+   *  (the global root, a global-grounded spawned session or colleague). The
+   *  segment lists where its identity lives, not where the turn ran. */
+  workspaceId: string | null
   providerId: AiAgentProviderId
   /** The superseded session this segment continues — the continuity chain
    *  link the sessions panel renders. Omitted only by legacy callers. */
@@ -84,6 +87,12 @@ export function recordSwapSegmentSession(
         // Hidden from the curated sidebar — the continuing brain shows as one
         // entry, not a growing chain of "Continued conversation" rows (Slice 2).
         visibility: 'hidden',
+        // The scope follows the chain too (the ONE rule both swap writers share
+        // — `handleSessionStarted`'s mid-turn branch inherits it the same way):
+        // a spawned or colleague continuation must never fall back to the
+        // builder's workspaceId-derived default and surface as a phantom
+        // "global"/"workspace" entry. No predecessor row (legacy) → the default.
+        ...(predecessor !== null ? { scope: predecessor.scope } : {}),
       }),
       // The chain link stays OFF the shared builder — a normal first turn has
       // no predecessor; only a swap segment carries one.

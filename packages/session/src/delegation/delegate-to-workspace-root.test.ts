@@ -12,6 +12,7 @@ import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/rep
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SESSION_DELEGATED, type SessionDelegatedPayload } from '@vynel/orchestration'
 import { findPrimaryConversation } from '../continuity/index.js'
+import { resolvePrimaryTranscript } from '../runtime/resolve-primary-transcript.js'
 import type { AiAgentProvider, NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
 import { ROUTED_LEAF_WRITE_BLOCKED_NOTE } from '@vynel/orchestration'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
@@ -356,6 +357,83 @@ describe('delegateToWorkspaceRoot', () => {
       // and the observe stream was closed (onTurnEnded fires on a throw too).
       expect(interrupted).toEqual(['ws-root-throw'])
       expect(observedEnd).toBe(true)
+    })
+  })
+
+  it('bridges the workspace primary at the turn boundary when the routed turn left it over the pressure threshold', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      // Two SDK starts through one fake: the routed turn (segment A), then the
+      // swap's seeded priming session (segment B). The turn's usage report
+      // lands A at 0.95 of Haiku's window.
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['ws-root-a', 'ws-root-b'],
+        resultText: 'Acme has 3 docs; all current.',
+        usage: { inputTokens: 190_000, outputTokens: 10, model: 'claude-haiku-4-5' },
+        summary: 'GOAL: finish the routed task. DONE: the docs are summarized. NEXT: await the next task. FACTS: three docs, all current.',
+      })
+
+      const result = await delegateToWorkspaceRoot(db, provider, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'summarize the docs',
+        providerId: 'claude',
+      })
+
+      // The task itself ran (and is reported) on segment A.
+      expect(result.reference).toBe('ws-root-a')
+      expect(result.resultText).toBe('Acme has 3 docs; all current.')
+
+      // Boundary swap: the primary now points at the fresh seeded segment B,
+      // chained to A, filed under the workspace, hidden like every segment.
+      const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
+      expect(primary?.currentSdkSessionId).toBe('ws-root-b')
+      expect(primary?.supersededFromSdkSessionId).toBe('ws-root-a')
+      const fresh = findChatSessionById(db, 'ws-root-b')
+      expect(fresh?.continuedFromSessionId).toBe('ws-root-a')
+      expect(fresh?.workspaceId).toBe(workspace.id)
+      expect(fresh?.scope).toBe('workspace')
+      expect(fresh?.visibility).toBe('hidden')
+
+      // Never lose chat: the workspace thread, read from the new head, still
+      // shows the routed exchange that happened on A.
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id, workspaceId: workspace.id })
+      expect(transcript.session?.id).toBe('ws-root-b')
+      expect(transcript.messages.map((m) => m.body)).toEqual([
+        'summarize the docs',
+        'Acme has 3 docs; all current.',
+      ])
+    })
+  })
+
+  it('a routed turn under the threshold leaves the primary on its segment (no swap)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['ws-root-a', 'ws-root-b'],
+        resultText: 'ok',
+        usage: { inputTokens: 10_000, outputTokens: 10, model: 'claude-haiku-4-5' },
+        summary: 'GOAL: finish the routed task. DONE: the docs are summarized. NEXT: await the next task. FACTS: three docs, all current.',
+      })
+
+      await delegateToWorkspaceRoot(db, provider, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'quick one',
+        providerId: 'claude',
+      })
+
+      const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
+      expect(primary?.currentSdkSessionId).toBe('ws-root-a')
+      expect(findChatSessionById(db, 'ws-root-b')).toBeNull()
     })
   })
 })

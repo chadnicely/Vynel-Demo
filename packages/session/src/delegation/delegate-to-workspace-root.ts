@@ -30,8 +30,9 @@ import {
   composeManagerSourceLabel,
   type ChatTurnEvent,
 } from '@vynel/chat'
-import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
 import { resolvePrimaryConversationTarget } from '../runtime/index.js'
+import { applyPrimaryTurnContinuityBestEffort } from '../runtime/apply-primary-turn-continuity.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
@@ -148,6 +149,8 @@ export async function delegateToWorkspaceRoot(
     ...routedTurnMcpSessionFields(input.mcpAttachment),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+    // Layer-1 capture (session.compacted) — the same hook every runner binds.
+    onCompaction: buildCompactionCapture(db, input.logger !== undefined ? { logger: input.logger } : {}),
   })
 
   // 3. Consume through the shared pipeline — every row persists as it streams,
@@ -306,6 +309,27 @@ export async function delegateToWorkspaceRoot(
       'delegateToWorkspaceRoot: the runtime did not assign a session id for the routed turn',
     )
   }
+
+  // Continuity at the turn boundary — the ONE op every continuing identity
+  // runs (the interactive stream + the global core call the same). Under the
+  // tick's target lock, so a swap lands before the next task resumes this
+  // brain; a background-driven workspace no longer rides to the ceiling
+  // waiting for an interactive turn to measure it. Best-effort: the turn's
+  // rows are persisted — a failure is logged and the outcome below is
+  // reported as it happened.
+  await applyPrimaryTurnContinuityBestEffort(
+    db,
+    {
+      primarySessionId: target.primarySessionId,
+      priorSdkSessionId: target.resumeSdkSessionId,
+      effectiveSdkSessionId: sessionId,
+      userId: input.userId,
+      workspacePath: input.workspacePath,
+      providerId: input.providerId,
+    },
+    { provider, ...(input.logger !== undefined ? { logger: input.logger } : {}) },
+  )
+
   if (streamError !== null) {
     throw new Error(
       `delegateToWorkspaceRoot: the routed turn errored (${streamError.code}): ${streamError.message}`,

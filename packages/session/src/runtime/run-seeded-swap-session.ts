@@ -22,7 +22,7 @@
 // `.claude/docs/agent-base/root-session-architecture.md §7`.)
 
 import type { AiAgentProvider } from '@vynel/providers'
-import type { Logger } from 'pino'
+import type { StructuralLogger } from '@vynel/logger'
 
 export type RunSeededSwapSessionInput = {
   /** Workspace folder — the seeded session's cwd. */
@@ -33,7 +33,7 @@ export type RunSeededSwapSessionInput = {
   model?: string
   /** Wall-clock bound on the priming drain. Omit for the default. */
   timeoutMs?: number
-  logger?: Logger
+  logger?: StructuralLogger
 }
 
 // The priming turn is a one-word acknowledgement with no tools, so a minute is

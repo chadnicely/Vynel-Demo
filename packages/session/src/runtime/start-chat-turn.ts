@@ -34,7 +34,7 @@ import {
   type NewSessionOptions,
   type StructuralLogger,
 } from '@vynel/chat'
-import { captureCompactionSummary } from '../continuity/index.js'
+import { buildCompactionCapture } from '../continuity/index.js'
 import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 
@@ -162,13 +162,7 @@ export async function* startChatTurn(
     // outbox event. Dormant-but-correct: a no-op until a primary_session is
     // linked to this SDK session (the swap unit) AND the SDK fires
     // PostCompact. Layer 2 (the explicit swap) does NOT depend on it.
-    onCompaction: async (capture) => {
-      await captureCompactionSummary(
-        db,
-        capture,
-        deps.logger !== undefined ? { logger: deps.logger } : {},
-      )
-    },
+    onCompaction: buildCompactionCapture(db, deps.logger !== undefined ? { logger: deps.logger } : {}),
     ...(input.onModelsDiscovered !== undefined
       ? { onModelsDiscovered: input.onModelsDiscovered }
       : {}),

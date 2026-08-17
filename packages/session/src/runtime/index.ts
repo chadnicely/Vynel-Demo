@@ -5,13 +5,13 @@
 // reach the `apps/web` bundle — see
 // `./session-types.ts` for why the barrel stays web-safe.
 
-export type { SessionSink } from './session-types.js'
-export {
-  runGlobalRootTurnCore,
-  type RunGlobalRootTurnCoreDeps,
-  type RunGlobalRootTurnCoreInput,
-  type GlobalRootTarget,
-} from './run-global-root-turn-core.js'
+export type {
+  SessionSink,
+  RunGlobalRootTurnCoreDeps,
+  RunGlobalRootTurnCoreInput,
+  GlobalRootTarget,
+} from './session-types.js'
+export { runGlobalRootTurnCore } from './run-global-root-turn-core.js'
 
 // The WORKSPACE turn runner — the workspace-chat SSE path reduces to this. The
 // Slice-3 apps/api edge composes MCP + capabilities + agents, resolves the
@@ -33,6 +33,7 @@ export {
 } from './resolve-primary-conversation.js'
 export {
   applyPrimaryTurnContinuity,
+  applyPrimaryTurnContinuityBestEffort,
   type ApplyPrimaryTurnContinuityInput,
 } from './apply-primary-turn-continuity.js'
 export {

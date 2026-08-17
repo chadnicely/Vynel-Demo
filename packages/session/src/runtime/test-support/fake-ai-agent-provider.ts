@@ -18,6 +18,25 @@ import type {
 export type FakeAiAgentProviderOptions = {
   /** The session id the next seeded `startChatSession` yields. */
   seededSessionId?: string
+  /**
+   * Per-call session ids, consumed in order (each `startChatSession` shifts
+   * the next; exhausted → `seededSessionId`). A continuity test drives TWO
+   * starts through one fake — the turn, then the swap's priming session — and
+   * the real SDK mints a distinct id for each.
+   */
+  sessionIds?: string[]
+  /**
+   * When set, the stream yields a `usage-reported` for the turn's assistant
+   * message (after the text chunk) so the shared consumer persists the
+   * segment's occupancy + model — what the post-turn continuity step reads.
+   */
+  usage?: FakeUsageReport
+  /**
+   * Per-call usage reports, consumed in order (the `sessionIds` shape; an
+   * `undefined` slot = no report on that call; exhausted → `usage`). Lets a
+   * multi-turn continuity test land turn 1 under pressure and turn 2 relaxed.
+   */
+  usageReports?: Array<FakeUsageReport | undefined>
   /** The carry `summarizeSession` returns (null aborts the swap). */
   summary?: string | null
   /** Captures every `summarizeSession` input the test makes assertions on. */
@@ -54,6 +73,14 @@ export type FakeAiAgentProviderOptions = {
   summarizeReportInputs?: SummarizeReportCall[]
 }
 
+export type FakeUsageReport = {
+  inputTokens: number
+  outputTokens: number
+  cacheReadInputTokens?: number
+  cacheCreationInputTokens?: number
+  model?: string
+}
+
 /** The distill's input, derived from the abstract method so it can never
  *  drift (`SummarizeReportInput` itself is barrel-omitted, like its
  *  summarize-session sibling). */
@@ -77,8 +104,12 @@ export class FakeAiAgentProvider extends AiAgentProvider {
 
   startChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
     this.options.startChatSessionInputs?.push(input)
-    const sessionId = this.options.seededSessionId ?? 'sdk-seeded'
+    const sessionId = this.options.sessionIds?.shift() ?? this.options.seededSessionId ?? 'sdk-seeded'
     const { resultText, approvalToolName, toolCallName } = this.options
+    const usage =
+      this.options.usageReports !== undefined && this.options.usageReports.length > 0
+        ? this.options.usageReports.shift()
+        : this.options.usage
     const decisionArrived = this.approvalDecisionArrived
     // Unique per turn — the real SDK mints fresh message ids; a reused id would
     // make the shared consumer append a second turn's chunks to the first's row.
@@ -138,6 +169,9 @@ export class FakeAiAgentProvider extends AiAgentProvider {
           textDelta: resultText,
           isFinalChunk: true,
         }
+      }
+      if (usage !== undefined) {
+        yield { kind: 'usage-reported', sessionId, messageId, ...usage }
       }
       yield { kind: 'session-completed', sessionId, isNewSession: true, completedAt: new Date() }
     }

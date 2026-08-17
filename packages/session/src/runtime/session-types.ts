@@ -10,7 +10,16 @@
 // `@vynel/providers` into the web bundle. The `import type` below is erased at
 // compile time; bundle-safety comes from the import graph, not the manifest.
 
-import type { ChatTurnEvent } from '@vynel/chat'
+import type { Database } from '@vynel/db'
+import type {
+  AttachedImageBytes,
+  ChatTurnEvent,
+  StructuralLogger,
+  TurnMessageAttribution,
+} from '@vynel/chat'
+import type { AiAgentProvider, DiscoveredProviderModel } from '@vynel/providers'
+import type { SessionPermissionMode } from '../session-mode.js'
+import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 
 /**
  * The single per-path divergence axis of a session turn. The runner drives the
@@ -46,4 +55,104 @@ export interface SessionSink {
    * error frame; a drain sink omits this so the runner re-throws.
    */
   onError?(error: unknown): void | Promise<void>
+}
+
+/**
+ * The resolved global-root conversation target — what `resolveTarget` returns.
+ * Structurally mirrors apps/api's `GlobalRootConversationTarget` (kept structural —
+ * the package must not import an apps/api type).
+ */
+export interface GlobalRootTarget {
+  primarySessionId: string
+  /** The SDK session the global root currently runs on — resume this. `null` on the
+   *  first-ever turn (start fresh, then link). */
+  resumeSdkSessionId: string | null
+  /** The global root's SDK cwd — the hidden user-data dir (NOT a workspace). */
+  workspacePath: string
+}
+
+export interface RunGlobalRootTurnCoreDeps {
+  db: Database
+  logger: StructuralLogger
+  /**
+   * Resolve (get-or-create) the global root + the SDK session to resume + the SDK
+   * cwd, AND ensure the cwd exists on disk. Injected by apps/api (it owns the
+   * env-coupled user-data-dir resolution + the get-or-create). Called INSIDE the
+   * per-user lock.
+   */
+  resolveTarget: () => Promise<GlobalRootTarget>
+  /** The shared live-turn pub/sub — when present, the turn's events tee onto
+   *  its `session:<id>` channel (Watch everywhere, session-library Slice ③).
+   *  Omit → sink-only (tests). */
+  turnEvents?: TurnEventBroadcaster
+  /** Provider override — defaults to the registry singleton. Injected in tests
+   *  to drive the whole turn + its boundary continuity without a live SDK (the
+   *  `BridgePrimarySessionAfterTurnDeps.provider` precedent). */
+  provider?: AiAgentProvider
+}
+
+export interface RunGlobalRootTurnCoreInput {
+  userId: string
+  userMessageText: string
+  /** Attachments for this turn — inline base64; sent to the provider + persisted
+   *  for re-display under the root's hidden user-data cwd (same D22 layout the
+   *  workspace turn uses). */
+  attachedImages?: AttachedImageBytes[]
+  model?: string
+  /** Reasoning effort for this turn (the composer's picker). Omit for the
+   *  SDK's adaptive default (background turns). */
+  thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /** The provider permission mode for the brain's OWN tools this turn (the caller maps
+   *  the user-facing `SessionMode` via `toPermissionMode`). Omit for the pre-mode
+   *  default, `bypass-with-behavior-gate` — the brain's routing tools run silently and
+   *  only the irreversible floor + declared mutating tools card. */
+  permissionMode?: SessionPermissionMode
+  /** Pre-composed MCP servers (composed by the apps/api caller — composition stays
+   *  at the api edge per `api-side-turn-execution-with-mcp`). Opaque to the core. */
+  mcpServers: Record<string, unknown>
+  /** The composer's capability denials — forwarded to the provider's
+   *  deniedToolNames → SDK disallowedTools (removed from the agent). Was
+   *  silently dropped on this path before the tool-policy re-plumb. */
+  deniedMcpToolPatterns: string[]
+  /** Feature-declared mutating tools that card even under bypass (additive to the floor). */
+  mutatingToolNames: string[]
+  /** The destructive tier — cards ONLY when the root turn runs in ask mode. */
+  askModeApprovalToolNames: string[]
+  /** The MCP/feature system-prompt contribution; the core prepends the `global-root` instruction. */
+  mcpSystemPromptAppend: string
+  /** Enabled USER-scope agents (subagents) for this global session, composed at
+   *  the api edge (`composeSessionAgents` with a null workspaceId) — same
+   *  spawn lifecycle the workspace turn gets. Opaque here; the provider casts
+   *  at the SDK edge (the `mcpServers` precedent). */
+  agents?: Record<string, unknown>
+  /** This turn arrived by VOICE — append the directive that makes the brain reply
+   *  by CALLING the `speak` tool (the single voice) instead of writing prose. */
+  voice?: boolean
+  /** The inbound channel this turn arrived through — stamped on the persisted
+   *  user row ("via Voice" / "via Telegram"). Set by the EDGES (the SSE route
+   *  maps `voice`, the channel runner its kind); the core only passes it through. */
+  originChannel?: 'voice' | 'telegram' | 'discord' | 'zoom'
+  /** CHANNEL turn (the channel pipeline, locked 2026-07-27): the per-message
+   *  reply instruction — "reply by CALLING reply_to_channel; text is not
+   *  delivered". PROVIDER INPUT ONLY (the voice-turn-marker precedent: the
+   *  system-prompt block decays on the long root session; recency wins), the
+   *  persisted row stays the clean inbound text. Composed at the channels
+   *  edge, which knows the sender/group facts. */
+  channelReplyMarker?: string
+  /** REPORT-DELIVERY notify turn (session-comms): attribute this turn's rows —
+   *  the inbound message reads as coming FROM the reporting child
+   *  ('workspace-manager' + its label), trace-keyed. Omit → rows stay null
+   *  (every shipped turn, byte-for-byte). */
+  messageAttribution?: TurnMessageAttribution
+  /** REPORT-DELIVERY notify turn: an extra steer appended to the system prompt
+   *  (absorb the report; act if needed; never re-run the work). Omit → the
+   *  shipped prompt, byte-for-byte. */
+  steerPromptAppend?: string
+  /** Model-roster discovery (best-effort): forwarded to the provider; the
+   *  caller persists the roster the engine reports. See `StartChatTurnInput`. */
+  onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
+  /** Context-pressure threshold override for the post-turn swap (default
+   *  0.85). The apps edge forwards `VYNEL_CONTEXT_PRESSURE_THRESHOLD` (the
+   *  live-smoke knob) — the core stays env-free. */
+  pressureThreshold?: number
 }

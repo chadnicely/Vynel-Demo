@@ -24,9 +24,13 @@ import type {
 
 // Configurable per test: the fake resumes the session it was asked to resume
 // (the normal shape) unless `swapToSessionId` simulates a mid-turn compaction
-// swap by starting a DIFFERENT session id.
+// swap by starting a DIFFERENT session id. `usageTokensForTurn` makes the turn
+// report its context occupancy (on Haiku's 200k window) — what the boundary
+// continuity step measures.
 let swapToSessionId: string | null = null
+let usageTokensForTurn: number | null = null
 const startChatSessionInputs: StartChatSessionInput[] = []
+let summarizeSessionCalls = 0
 function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
   startChatSessionInputs.push(input)
   const sessionId = swapToSessionId ?? input.resumeSessionId ?? `sdk-${randomUUID()}`
@@ -37,23 +41,44 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
       resumedFromExisting: swapToSessionId === null,
       startedAt: new Date(),
     }
+    const messageId = `assistant-${randomUUID()}`
     yield {
       kind: 'text-chunk',
       sessionId,
-      messageId: `assistant-${randomUUID()}`,
+      messageId,
       textDelta: 'Reply from the session.',
       isFinalChunk: true,
+    }
+    if (usageTokensForTurn !== null) {
+      yield {
+        kind: 'usage-reported',
+        sessionId,
+        messageId,
+        model: 'claude-haiku-4-5',
+        inputTokens: usageTokensForTurn,
+        outputTokens: 5,
+      }
     }
     yield { kind: 'session-completed', sessionId, isNewSession: false, completedAt: new Date() }
   }
   return events()
 }
 
+// A carry that clears the swap's fidelity floor (the boundary continuity test).
+const USABLE_CARRY =
+  'GOAL: compare pricing pages. DONE: gathered three competitors. NEXT: write the comparison. FACTS: competitor A undercuts by 12%.'
+
 vi.mock('@vynel/providers', async () => {
   const actual = await vi.importActual<typeof import('@vynel/providers')>('@vynel/providers')
   return {
     ...actual,
-    resolveAiAgentProvider: () => ({ startChatSession: fakeStartChatSession }),
+    resolveAiAgentProvider: () => ({
+      startChatSession: fakeStartChatSession,
+      summarizeSession: async () => {
+        summarizeSessionCalls += 1
+        return USABLE_CARRY
+      },
+    }),
   }
 })
 
@@ -62,7 +87,11 @@ import {
   listChatMessagesForSession,
   insertChatSession,
 } from '@vynel/chat/repositories'
-import { createSpawnedSession, findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
+import {
+  createSpawnedSession,
+  findRoutableSessionById,
+  findSpawnedSessionBySegmentId,
+} from '@vynel/session/spawned'
 import {
   getOrCreateContinuingSession,
   getOrCreatePrimarySession,
@@ -79,6 +108,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 beforeEach(() => {
   swapToSessionId = null
+  usageTokensForTurn = null
+  summarizeSessionCalls = 0
   startChatSessionInputs.length = 0
 })
 
@@ -133,6 +164,13 @@ function makePrimingProvider(sessionId: string): AiAgentProvider {
       })()
     },
   } as unknown as AiAgentProvider
+}
+
+// The primary's CURRENT head, by primary id — what the next turn will resume.
+function readCurrentHead(db: Database, userId: string, primarySessionId: string): string {
+  const head = findRoutableSessionById(db, { userId, primarySessionId })
+  if (head === null || head.currentSdkSessionId === null) throw new Error('no head')
+  return head.currentSdkSessionId
 }
 
 async function seedSpawnedSession(
@@ -453,6 +491,40 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         const swapSegment = findChatSessionById(db, 'sdk-sp-new')
         expect(swapSegment?.visibility).toBe('hidden')
         expect(swapSegment?.title).toBe('Continued conversation')
+      })
+    })
+  })
+
+  it('boundary continuity: a direct turn that leaves the session over the threshold swaps it before its next turn', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-bridge-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-a')
+        usageTokensForTurn = 190_000 // 0.95 of Haiku's window
+        const app = createApp({ db, logger: silentLogger })
+
+        const frames = await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'keep going' })
+        ).text()
+        expect(frames).toContain('event: turn-stream-ended')
+
+        // The turn ran on the head; the swap's priming session was a second,
+        // FRESH start; the distill ran once.
+        expect(startChatSessionInputs).toHaveLength(2)
+        expect(startChatSessionInputs[0]?.resumeSessionId).toBe('sdk-sp-a')
+        expect(startChatSessionInputs[1]?.resumeSessionId).toBeUndefined()
+        expect(summarizeSessionCalls).toBe(1)
+
+        // The identity continues on the fresh segment, chained to the old head,
+        // hidden, still scope 'spawned' — the listed identity row untouched.
+        const primary = readCurrentHead(db, user.id, spawned.primarySessionId)
+        expect(primary).not.toBe('sdk-sp-a')
+        const fresh = findChatSessionById(db, primary)
+        expect(fresh?.continuedFromSessionId).toBe('sdk-sp-a')
+        expect(fresh?.visibility).toBe('hidden')
+        expect(fresh?.scope).toBe('spawned')
+        expect(findChatSessionById(db, 'sdk-sp-a')?.visibility).toBe('listed')
       })
     })
   })

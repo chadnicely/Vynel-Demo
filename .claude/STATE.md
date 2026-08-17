@@ -3,6 +3,28 @@
 **Updated 2026-08-17.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ✅ 2026-08-17 (latest) SESSION CONTINUITY EVERYWHERE — Slice 1 SHIPPED; Slices 2–4 planned
+
+Kafi's report: the GLOBAL brain hit its context limit and continued on a blank session (amnesia).
+Root cause: the seed-fresh swap fired from ONE call site (the interactive workspace route); the
+global core + the three delegation runners only linked the primary, never measured pressure.
+**Plan + advice (7 requirements incl. no-cross-context, contextBuilder, whoami, per-kind duty
+books) in `docs/module-notes/session-continuity.md`** — read §1, §4, §5, §5b before touching it.
+**Slice 1 built:** `applyPrimaryTurnContinuity` is THE scope-agnostic post-turn op (identity-
+driven ground/scope; occupancy + model read from `chat_sessions.lastContextTokens/model` — the one
+measuring home) and every runner calls it inside its lock: global core (web + channels + report
+turns + voice), workspace-root / spawned / agent-colleague delegation runners, the workspace
+stream. Swap segments widened to workspace-less + inherit the predecessor's scope.
+`buildCompactionCapture` = one home for the Layer-1 hook. Core split (types → `session-types.ts`,
+provider-message composition → `compose-global-root-provider-message.ts`, `provider?` test seam).
+Tests: op per-scope + 3 runners + new `run-global-root-turn-core.test.ts` (pressured turn → swap →
+next turn resumes fresh → transcript spans both). Targeted gate: typecheck session/chat/local-api ·
+71 files / 448 tests + 14 files / 108 route tests green. Full `pnpm test` NOT run (CPU rule).
+**⏭ NEXT:** Kafi live-smokes the global brain (lower `VYNEL_CONTEXT_PRESSURE_THRESHOLD`, one long
+turn, next turn recalls + full chain shown) → Slice 2 `buildContinuityContext` (contextBuilder:
+summary + verbatim tail + identity + refs + recovery instructions; own-chain-only) → Slice 3
+`whoami` + duty-book binding → Slice 4 visible "Patching context…".
+
 ## ✅ 2026-08-17 (later) PER-SESSION COMPOSER SETTINGS — Move 1 of a 3-move arc SHIPPED
 
 Kafi's arc: (1) mode/model/effort/auto-buildout stored PER SESSION in the DB — **SHIPPED**, two

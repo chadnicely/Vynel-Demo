@@ -36,6 +36,7 @@ export { type SessionStore, type SessionLocation, FilesystemSessionStore } from 
 
 export {
   captureCompactionSummary,
+  buildCompactionCapture,
   type CaptureCompactionSummaryInput,
 } from './capture-compaction-summary.js'
 

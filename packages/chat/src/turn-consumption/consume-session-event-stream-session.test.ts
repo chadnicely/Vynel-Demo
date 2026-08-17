@@ -467,6 +467,78 @@ describe('consumeSessionEventStream — session lifecycle', () => {
     })
   })
 
+  it('a mid-turn swap records the model + occupancy on the FRESH segment too (the boundary continuity read)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const ws = makeWorkspace(user.id)
+      insertWorkspace(db, ws)
+      insertChatSession(db, makeExistingSession(user.id, ws.id, 'seg-a'))
+      const userMessageInput = makeUserMessageInput('long turn')
+
+      await drain(
+        consumeSessionEventStream({
+          db,
+          sessionEventStream: eventsFrom([
+            {
+              kind: 'session-started',
+              sessionId: 'seg-a',
+              resumedFromExisting: true,
+              startedAt: new Date('2026-05-20T00:00:00Z'),
+            },
+            { kind: 'text-chunk', sessionId: 'seg-a', messageId: 'm-a', textDelta: 'a', isFinalChunk: true },
+            {
+              kind: 'usage-reported',
+              sessionId: 'seg-a',
+              messageId: 'm-a',
+              model: 'claude-opus-4-8',
+              inputTokens: 900_000,
+              outputTokens: 10,
+            },
+            // The SDK compacted + continued on a fresh session id mid-turn.
+            {
+              kind: 'session-started',
+              sessionId: 'seg-b',
+              resumedFromExisting: false,
+              startedAt: new Date('2026-05-20T00:01:00Z'),
+            },
+            { kind: 'text-chunk', sessionId: 'seg-b', messageId: 'm-b', textDelta: 'b', isFinalChunk: true },
+            {
+              kind: 'usage-reported',
+              sessionId: 'seg-b',
+              messageId: 'm-b',
+              model: 'claude-opus-4-8',
+              inputTokens: 120_000,
+              outputTokens: 10,
+            },
+            {
+              kind: 'session-completed',
+              sessionId: 'seg-b',
+              isNewSession: false,
+              completedAt: new Date('2026-05-20T00:02:00Z'),
+            },
+          ]),
+          userMessageInput,
+          userId: user.id,
+          workspaceId: ws.id,
+          providerId: PROVIDER_ID,
+          isNewSession: false,
+          resumeSessionId: 'seg-a',
+        }),
+      )
+
+      // Both segments carry the model that ran + their own last occupancy —
+      // the fresh one is what the post-turn continuity step measures.
+      const before = findChatSessionById(db, 'seg-a')
+      expect(before?.model).toBe('claude-opus-4-8')
+      expect(before?.lastContextTokens).toBe(900_000)
+      const after = findChatSessionById(db, 'seg-b')
+      expect(after?.continuedFromSessionId).toBe('seg-a')
+      expect(after?.model).toBe('claude-opus-4-8')
+      expect(after?.lastContextTokens).toBe(120_000)
+    })
+  })
+
   it('a PRE-session error is yielded, never swallowed (was: dropped when no session id had resolved)', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()

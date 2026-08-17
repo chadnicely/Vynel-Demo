@@ -30,7 +30,7 @@ import {
   type ContextMeasurement,
 } from '../continuity/index.js'
 import { recordSwapSegmentSession } from '@vynel/chat'
-import type { Logger } from 'pino'
+import type { StructuralLogger } from '@vynel/logger'
 import { runSeededSwapSession } from './run-seeded-swap-session.js'
 
 // The priming turn is a one-word acknowledgement over a short carry — a cheap
@@ -44,7 +44,11 @@ const SWAP_PRIMING_MODEL = 'claude-haiku-4-5'
 export type BridgePrimarySessionAfterTurnInput = {
   primarySessionId: string
   userId: string
-  workspaceId: string
+  /** The primary's OWN ground — null for a workspace-less identity (the global
+   *  root, a global-grounded spawned session or colleague). Stamped on the
+   *  recorded swap segment so it lists where the identity lives. */
+  workspaceId: string | null
+  /** The SDK cwd the turn ran in — the seeded fresh session runs there too. */
   workspacePath: string
   providerId: AiAgentProviderId
   /** The just-finished turn's context occupancy vs the model's window. */
@@ -59,7 +63,11 @@ export type BridgePrimarySessionAfterTurnInput = {
 }
 
 export type BridgePrimarySessionAfterTurnDeps = {
-  logger?: Logger
+  /** Structural (pino satisfies it) — so the global core, which only holds a
+   *  `StructuralLogger`, can hand it through and the swap's own lines
+   *  ("context pressure crossed" / "bridged" / "bridge aborted") reach the log
+   *  on every path, not just the workspace stream. */
+  logger?: StructuralLogger
   /** Provider override — defaults to the registry singleton. Injected in tests
    *  to exercise the full swap orchestration without a live SDK. */
   provider?: AiAgentProvider

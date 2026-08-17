@@ -68,3 +68,20 @@ export async function captureCompactionSummary(
   )
   return event
 }
+
+/**
+ * The per-session `onCompaction` dep every runner hands the provider — ONE
+ * home for the Layer-1 hook so the global core, the routed runners and the
+ * interactive turn all capture the same way (structural: matches
+ * `StartChatSessionInput.onCompaction` without importing the provider type).
+ * Best-effort inside: the provider's PostCompact hook already logs + never
+ * throws, and a capture failure must never touch the live turn.
+ */
+export function buildCompactionCapture(
+  db: Database,
+  deps: { logger?: StructuralLogger } = {},
+): (capture: CaptureCompactionSummaryInput) => Promise<void> {
+  return async (capture) => {
+    await captureCompactionSummary(db, capture, deps)
+  }
+}

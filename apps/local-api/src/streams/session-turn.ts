@@ -14,12 +14,16 @@
 //      (the shared `SessionTargetLocks` FIFO); a `turn-queued` SSE sentinel
 //      (the `turn-stream-ended` precedent — no ChatTurnEvent kind) tells the
 //      composer it is waiting.
+//   4. The turn ends with the ONE continuity step every continuing identity
+//      runs (`applyPrimaryTurnContinuity`, still under the target lock): a
+//      session driven only by direct messages must not ride to the ceiling
+//      while its delegated turns would have swapped it.
 
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { z } from 'zod'
 import { NotFoundError } from '@vynel/errors'
-import { startChatTurn } from '@vynel/session/runtime'
+import { startChatTurn, applyPrimaryTurnContinuityBestEffort } from '@vynel/session/runtime'
 import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
 import { linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
@@ -309,6 +313,9 @@ export async function streamSpawnedSessionTurn(
       })
       // 'failed' when the drain sees a terminal session-errored or throws.
       let turnOutcome: 'ended' | 'failed' = 'ended'
+      // The segment the turn actually ran on — the head, advanced by a
+      // mid-turn swap; the boundary continuity step reads its occupancy.
+      let effectiveSdkSessionId = resumeSessionId
       try {
         for await (const event of turnStream) {
           if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
@@ -316,6 +323,7 @@ export async function streamSpawnedSessionTurn(
             // Mid-turn compaction swap — advance the primary's link so the
             // NEXT turn resumes the new head (event-driven, the
             // delegateToSpawnedSession shape).
+            effectiveSdkSessionId = event.session.id
             linkPrimarySessionToSdkSession(db, {
               primarySessionId: spawned.id,
               userId,
@@ -353,6 +361,23 @@ export async function streamSpawnedSessionTurn(
         await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
         // Fires even on client disconnect (generator cleanup). Best-effort.
         activity.end(turnOutcome)
+        // Continuity at the turn boundary — the same one op the session's
+        // delegated turns run, still under the target lock so a swap lands
+        // before the next turn (direct or delegated) resumes this identity.
+        // After the terminal frame (the chat-turn.ts ordering): the client is
+        // released while the swap, when one is due, runs behind the lock.
+        await applyPrimaryTurnContinuityBestEffort(
+          db,
+          {
+            primarySessionId: spawned.id,
+            priorSdkSessionId: resumeSessionId,
+            effectiveSdkSessionId,
+            userId,
+            workspacePath: runCwdPath,
+            providerId: DEFAULT_PROVIDER_ID,
+          },
+          { logger },
+        )
       }
     } finally {
       // The single-writer hand-over: a queued delegated job (or user turn) on

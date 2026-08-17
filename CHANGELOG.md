@@ -9,6 +9,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Every conversation now keeps its context across the limit — the global
+  assistant included.** Vynel already knew how to hand a long conversation off
+  to a fresh one before it hit the model's ceiling (a distilled hand-off, then
+  a fresh session seeded with it — the "Continued conversation" segments), but
+  only your project chats ever ran that step. The global assistant, delegated
+  project tasks, spawned sessions and agent colleagues only ever *recorded*
+  which session they were on — none of them measured how full it was — so the
+  global assistant rode straight into the limit and woke up on a blank session
+  with the whole conversation gone. Now one shared step runs at the end of
+  every turn, for every kind of conversation: read how full the session is,
+  and at 85% hand off — before the next turn, invisibly. Each conversation
+  keeps *its own* thread of context (a spawned session working on one feature
+  carries that feature, never another session's), the fresh segment lists
+  where its owner lives (the global thread stays workspace-less; a colleague's
+  stays under its project) and inherits the thread's mode and model, and the
+  full chat still shows across every segment.
+
 - **One status rule everywhere.** A project, a conversation and the row in the
   sidebar now mean exactly the same thing by the same colour: *needs you* is a
   question waiting, an approval waiting, or Claude saying so itself — and

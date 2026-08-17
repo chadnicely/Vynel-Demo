@@ -2,12 +2,12 @@
 // pinned once here (callers' tests pin their prompts and pass-throughs). The
 // SDK `query()` is the shared fake.
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
-import { runClaudeDistillTurn } from './run-claude-distill-turn.js'
+import { runClaudeDistillTurn, DISTILL_TIMEOUT_MS } from './run-claude-distill-turn.js'
 import {
   FAKE_CLAUDE_SESSION_ID,
   createFakeClaudeQuery,
@@ -76,5 +76,42 @@ describe('runClaudeDistillTurn', () => {
     expect(result).toBeNull()
     expect(warnings).toHaveLength(1)
     expect(warnings[0]!.message).toBe('distill failed')
+  })
+
+  it('aborts a runtime that never ends the stream at the deadline and reports null (the lock-wedge guard)', async () => {
+    vi.useFakeTimers()
+    const warnings: Array<{ payload: object; message: string | undefined }> = []
+    // A query that hangs until its abort signal fires — the never-terminating
+    // CLI shape; the abort is how the deadline ends it.
+    mockQuery.mockImplementation((params) => {
+      const signal = (params.options as { abortController?: AbortController }).abortController?.signal
+      async function* hang(): AsyncGenerator<unknown, void> {
+        // Never yields a value: the promise only ever rejects (on abort).
+        yield await new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            const abortError = new Error('The session was interrupted.')
+            abortError.name = 'AbortError'
+            reject(abortError)
+          })
+        })
+      }
+      return hang() as unknown as ReturnType<typeof query>
+    })
+
+    const pending = runClaudeDistillTurn({
+      ...BASE,
+      logger: { info: () => {}, warn: (payload, message) => warnings.push({ payload, message }) },
+    })
+    await vi.advanceTimersByTimeAsync(DISTILL_TIMEOUT_MS + 1)
+
+    expect(await pending).toBeNull()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]!.message).toContain('distill failed')
+    expect(warnings[0]!.message).toContain('did not finish')
+    expect((warnings[0]!.payload as { timedOutAfterMs?: number }).timedOutAfterMs).toBe(DISTILL_TIMEOUT_MS)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 })

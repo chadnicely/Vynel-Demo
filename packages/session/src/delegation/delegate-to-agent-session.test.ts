@@ -268,4 +268,48 @@ describe('delegateToAgentSession', () => {
       ).rejects.toThrow(/not found or not owned/)
     })
   })
+
+  it('bridges the colleague at the turn boundary — a hidden agent-scoped segment chained to its identity row', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const colleague = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'agent',
+        workspaceId: workspace.id,
+        scopeRef: AGENT.agentSlug,
+      })
+      // First turn: fresh SDK session (the identity row), then the swap's
+      // priming session. The turn's usage lands it at 0.95 of Haiku's window.
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['sdk-nova-1', 'sdk-nova-2'],
+        resultText: 'Found three strong sources.',
+        usage: { inputTokens: 190_000, outputTokens: 10, model: 'claude-haiku-4-5' },
+        summary: 'GOAL: finish the routed task. DONE: the docs are summarized. NEXT: await the next task. FACTS: three docs, all current.',
+      })
+
+      const result = await delegateToAgentSession(db, provider, {
+        parentSessionId: 'global-sdk-1',
+        userId: user.id,
+        targetPrimarySessionId: colleague.id,
+        runCwdPath: workspace.path,
+        ...AGENT,
+        taskText: 'Research SQLite WAL mode.',
+        userAttribution: { userSourceKind: 'global-root' },
+        providerId: 'claude',
+      })
+      expect(result.reference).toBe('sdk-nova-1')
+
+      // The identity row is the listed first segment — untouched by the swap.
+      expect(findChatSessionById(db, 'sdk-nova-1')?.visibility).toBe('listed')
+      // The colleague continues on the fresh segment: hidden, scope 'agent',
+      // filed under its grounding workspace, chained to the identity row.
+      expect(findPrimarySessionById(db, colleague.id)?.currentSdkSessionId).toBe('sdk-nova-2')
+      const fresh = findChatSessionById(db, 'sdk-nova-2')
+      expect(fresh?.continuedFromSessionId).toBe('sdk-nova-1')
+      expect(fresh?.scope).toBe('agent')
+      expect(fresh?.workspaceId).toBe(workspace.id)
+      expect(fresh?.visibility).toBe('hidden')
+    })
+  })
 })

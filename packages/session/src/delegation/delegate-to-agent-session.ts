@@ -13,15 +13,15 @@
 //     so it survives swaps and compaction); later turns resume
 //     `currentSdkSessionId`. Both link event-driven on `session-created`.
 //   - FIRST SEGMENT: `scope 'agent'`, `visibility 'listed'`, title = the agent
-//     name — a colleague is a durable coworker in the sessions panel. Mid-turn
-//     swap segments keep the stock hidden presentation (scope 'agent' too);
-//     like spawned sessions, the chain identity stays the first listed segment
-//     (the pipeline's swap segment carries no continuedFrom link — parity,
-//     recorded in the arc notes).
+//     name — a colleague is a durable coworker in the sessions panel. Swap
+//     segments (boundary or mid-turn) keep the stock hidden presentation and
+//     chain to their predecessor; like spawned sessions, the chain identity
+//     stays the first listed segment.
 //   - GRANTS: the agent's allow/deny lists apply on EVERY turn (the leaf
 //     precedent) — merged with the MCP attachment's denies.
-//   - Boundary-pressure (0.85) swap: deferred for parity with spawned targets;
-//     mid-turn SDK compaction swaps are handled (relink).
+//   - CONTINUITY: the same one op every identity runs at the turn boundary
+//     (`applyPrimaryTurnContinuity`) — a colleague keeps ITS OWN continuity,
+//     its carry distilled from its own chain, never another session's.
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
@@ -33,7 +33,8 @@ import {
   type DelegationPermissionMode,
 } from '@vynel/orchestration'
 import { consumeSessionEventStream, type ChatTurnEvent } from '@vynel/chat'
-import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import { buildCompactionCapture, linkPrimarySessionToSdkSession } from '../continuity/index.js'
+import { applyPrimaryTurnContinuityBestEffort } from '../runtime/apply-primary-turn-continuity.js'
 import * as primarySessionsRepository from '../repositories/index.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
@@ -142,6 +143,8 @@ export async function delegateToAgentSession(
     deniedToolNames: [...(input.agentDisallowedTools ?? []), ...mcpFields.deniedToolNames],
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+    // Layer-1 capture (session.compacted) — the same hook every runner binds.
+    onCompaction: buildCompactionCapture(db, input.logger !== undefined ? { logger: input.logger } : {}),
   })
 
   // 3. Consume through the shared pipeline. The FIRST segment is the
@@ -271,6 +274,25 @@ export async function delegateToAgentSession(
       'delegateToAgentSession: the runtime did not assign a session id for the colleague turn',
     )
   }
+
+  // Continuity at the turn boundary — the ONE op every continuing identity
+  // runs. Under the tick's target lock, so a swap lands before the next
+  // mention resumes this colleague. The op knows a colleague's first segment
+  // is its listed identity row (never hidden). Best-effort — logged, and the
+  // outcome below is reported as it happened.
+  await applyPrimaryTurnContinuityBestEffort(
+    db,
+    {
+      primarySessionId: primary.id,
+      priorSdkSessionId: resumeSessionId,
+      effectiveSdkSessionId: sessionId,
+      userId: input.userId,
+      workspacePath: input.runCwdPath,
+      providerId: input.providerId,
+    },
+    { provider, ...(input.logger !== undefined ? { logger: input.logger } : {}) },
+  )
+
   if (streamError !== null) {
     throw new Error(
       `delegateToAgentSession: the colleague turn errored (${streamError.code}): ${streamError.message}`,
