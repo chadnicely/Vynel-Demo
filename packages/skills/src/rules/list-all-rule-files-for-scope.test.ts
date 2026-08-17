@@ -8,7 +8,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { withHomeDir } from '../internal/resolve-host-home-dir.js'
 import { buildRuleFileContent } from './rule-file-marker.js'
-import { listAllRuleFilesForScope } from './list-all-rule-files-for-scope.js'
+import {
+  listAllRuleFilesForScope,
+  countAllRuleFilesForScope,
+} from './list-all-rule-files-for-scope.js'
 
 async function withRulesDir<T>(
   scope: 'user' | 'workspace',
@@ -96,5 +99,34 @@ describe('listAllRuleFilesForScope', () => {
     expect(
       listAllRuleFilesForScope('workspace', join(tmpdir(), 'vynel-rules-none-does-not-exist')),
     ).toEqual([])
+  })
+})
+
+// The menu badge's read. It must agree with the list about what a rule IS —
+// that shared membership is the whole reason the count is allowed to skip
+// opening the files.
+describe('countAllRuleFilesForScope', () => {
+  it('agrees with the list, without reading a single body', async () => {
+    await withRulesDir('user', async (rulesDir) => {
+      writeFileSync(join(rulesDir, 'my-style.md'), '# My style\n', 'utf8')
+      writeFileSync(join(rulesDir, 'git-hygiene.md'), '# Git hygiene\n', 'utf8')
+      expect(countAllRuleFilesForScope('user')).toBe(listAllRuleFilesForScope('user').length)
+      expect(countAllRuleFilesForScope('user')).toBe(2)
+    })
+  })
+
+  it('applies the same .md membership filter as the list', async () => {
+    await withRulesDir('workspace', async (rulesDir, workspaceDir) => {
+      writeFileSync(join(rulesDir, 'ws-rule.md'), '# WS rule\n', 'utf8')
+      writeFileSync(join(rulesDir, 'notes.txt'), 'not a rule', 'utf8')
+      writeFileSync(join(rulesDir, 'README'), 'nor this', 'utf8')
+      expect(countAllRuleFilesForScope('workspace', workspaceDir)).toBe(1)
+    })
+  })
+
+  it('answers zero when the folder does not exist', () => {
+    expect(
+      countAllRuleFilesForScope('workspace', join(tmpdir(), 'vynel-rules-none-does-not-exist')),
+    ).toBe(0)
   })
 })

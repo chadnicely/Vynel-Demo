@@ -96,6 +96,7 @@ export {
 // included, each carrying its marketplace provenance (or null).
 export {
   listAllRuleFilesForScope,
+  countAllRuleFilesForScope,
   type RuleFileForScope,
 } from './rules/list-all-rule-files-for-scope.js'
 // The Commands view's folder read (`.claude/commands/`) — also the "/" menu's

@@ -1,20 +1,24 @@
 // The counting itself, shared by the user- and workspace-scoped twins so the
 // two can never drift.
 //
-// ONE RULE, no exceptions: every count calls the SAME core read the section's
-// own list route calls, with the same arguments, and takes its length — so
-// the number in the menu and the rows behind it come from one source and
-// cannot disagree. `sessions` originally broke that rule with a bespoke
+// ONE RULE: every count answers the SAME question the section's own list route
+// answers, over the same membership — so the number in the menu and the rows
+// behind it cannot disagree. `sessions` originally broke that with a bespoke
 // `chat_sessions` count and was the only count that drifted (it advertised
 // every scope's sessions while the Global library lists only the root's own
 // children — and entries collapse continuity chains, so no row count can
 // answer it at all). The curation now lives once, in
 // `selectSessionsForScope`.
+//
+// The rule is about the QUESTION, not the call: `rules` counts file names
+// rather than re-running the list read, because rules are files on disk and
+// the list read opens every one of them. The shared membership predicate lives
+// inside the skills module, which is what keeps the two honest.
 
 import { getSessionsOverview } from '@vynel/session/overview'
 import { selectSessionsForScope } from '@vynel/contracts/chat/sessions-overview'
 import { listAgentsForWorkspace } from '@vynel/agents'
-import { listInstalledSkillsForContext, listAllRuleFilesForScope } from '@vynel/skills'
+import { listInstalledSkillsForContext, countAllRuleFilesForScope } from '@vynel/skills'
 import { listApps } from '@vynel/apps'
 import type { Database } from '@vynel/db'
 
@@ -51,10 +55,14 @@ export async function countSections(
     workspaceId,
     ownedByWorkspaceOnly: true,
   })
+  // Rules are FILES, so the count is a directory listing — never the list
+  // read, which opens and parses every body to produce rows this path throws
+  // away. Membership is still shared inside the module, so the number and the
+  // rows cannot disagree about what counts as a rule (Kafi, 2026-08-17).
   const rules =
     workspace === null
-      ? listAllRuleFilesForScope('user')
-      : listAllRuleFilesForScope('workspace', workspace.path)
+      ? countAllRuleFilesForScope('user')
+      : countAllRuleFilesForScope('workspace', workspace.path)
 
   const sessions = selectSessionsForScope(getSessionsOverview(db, { userId }), workspaceId)
 
@@ -62,7 +70,7 @@ export async function countSections(
     sessions: sessions.length,
     agents: agents.length,
     skills: skills.length,
-    rules: rules.length,
+    rules,
     ...(workspace !== null ? { apps: listApps(db, { userId, workspaceId: workspace.id }).length } : {}),
   }
 }

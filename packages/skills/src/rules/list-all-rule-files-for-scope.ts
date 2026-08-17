@@ -25,21 +25,47 @@ export type RuleFileForScope = {
   marketplace: { ruleId: string; version: string } | null
 }
 
+/** The scope's rule FILE NAMES — the one predicate for "what is a rule here",
+ *  shared by the list and the count so the menu's number and the rows behind
+ *  it can never disagree about membership. */
+function listRuleFileNamesForScope(scope: SkillScope, workspacePath?: string): string[] {
+  const rulesRoot = resolveRulesRoot(scope, workspacePath)
+  try {
+    return readdirSync(rulesRoot)
+      .filter((fileName) => fileName.endsWith('.md'))
+      .sort()
+  } catch {
+    return []
+  }
+}
+
+/**
+ * How many rules this scope has — the menu badge's read.
+ *
+ * Names only: the count used to come from `listAllRuleFilesForScope().length`,
+ * which read every file's full body (~11 KB across five files on a dev box),
+ * parsed each for a marker and a title, and threw all of it away to return an
+ * integer — on a path the menu polls per scope and re-runs after every
+ * mutation.
+ *
+ * Membership stays shared (`listRuleFileNamesForScope`), so the count and the
+ * list agree. One deliberate hair's-breadth difference: the list SKIPS a file
+ * it cannot read, this counts it. A locked or unreadable `.md` is still a rule
+ * sitting in the folder, and refusing to open five files just to notice one is
+ * missing is the exact cost this exists to avoid.
+ */
+export function countAllRuleFilesForScope(scope: SkillScope, workspacePath?: string): number {
+  return listRuleFileNamesForScope(scope, workspacePath).length
+}
+
 export function listAllRuleFilesForScope(
   scope: SkillScope,
   workspacePath?: string,
 ): RuleFileForScope[] {
   const rulesRoot = resolveRulesRoot(scope, workspacePath)
-  let entries: string[]
-  try {
-    entries = readdirSync(rulesRoot)
-  } catch {
-    return []
-  }
 
   const rules: RuleFileForScope[] = []
-  for (const fileName of entries.sort()) {
-    if (!fileName.endsWith('.md')) continue
+  for (const fileName of listRuleFileNamesForScope(scope, workspacePath)) {
     let content: string
     try {
       content = readFileSync(path.join(rulesRoot, fileName), 'utf8')
