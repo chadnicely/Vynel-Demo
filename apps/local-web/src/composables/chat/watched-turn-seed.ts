@@ -6,6 +6,9 @@
 // DB read exist in BOTH sources; `dropOverlapPrefix` removes that doubled seam —
 // the buffered deltas are the tail of the same append-only stream the row body
 // is, so the overlap is exactly the streamed prefix already ending the body.
+// With NO buffered events at all the seed still absorbs the rows when the
+// feed's turn start is known — the "show immediately" attach (live-channel):
+// the overlay must not wait for the turn's next chunk.
 
 import type {
   ChatMessageResponse,
@@ -57,7 +60,14 @@ export function seedWatchedTurnView(input: {
   let view: ActiveTurnView = { ...createActiveTurnView(), startedAtMs };
 
   const firstEvent = bufferedEvents[0];
-  if (firstEvent === undefined || isTurnOpeningEvent(firstEvent)) {
+  // Nothing buffered and no known turn start: nothing of this turn is
+  // knowable yet — an empty streaming view. A turn-OPENING first event means
+  // the subscriber attached at turn start — nothing of this turn predates it,
+  // so there are no rows to absorb.
+  if (
+    (firstEvent === undefined && turnStartedAtMs === null) ||
+    (firstEvent !== undefined && isTurnOpeningEvent(firstEvent))
+  ) {
     for (const event of bufferedEvents) view = applyChatTurnEvent(view, event);
     return view;
   }

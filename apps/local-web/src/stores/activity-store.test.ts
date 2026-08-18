@@ -132,4 +132,36 @@ describe("activity store — server turns", () => {
     store.applyServerActivity({ kind: "turn-ended", turnId: "t5", sessionId: "sess-5", outcome: "ended" });
     expect(store.serverTurnForSession("sess-5")).toBeNull();
   });
+
+  // The continuous thread's fallback before the primary's first turn is
+  // bridged: the scope's running PRIMARY turn — never a spawned/agent one.
+  it("runningPrimarySessionIdFor resolves the scope's primary turn and skips identities with a primarySessionId", () => {
+    const store = useActivityStore();
+    expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBeNull();
+    expect(store.runningPrimarySessionIdFor({ kind: "global" })).toBeNull();
+
+    // A spawned session's turn in the workspace (stamps its identity) — not the primary.
+    store.applyServerActivity(
+      started("t-spawned", {
+        scopeKind: "workspace",
+        workspaceId: "ws-1",
+        sessionId: "spawned-1",
+        primarySessionId: "identity-1",
+      }),
+    );
+    expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBeNull();
+
+    // The workspace's own primary turn — its id is known only after session-created.
+    store.applyServerActivity(started("t-primary", { scopeKind: "workspace", workspaceId: "ws-1", sessionId: null }));
+    expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBeNull();
+    store.applyServerActivity({ kind: "turn-updated", turnId: "t-primary", sessionId: "sess-first" });
+    expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBe("sess-first");
+    expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-2" })).toBeNull();
+
+    // A global root turn answers the global scope only.
+    store.applyServerActivity(started("t-root", { sessionId: "root-1" }));
+    expect(store.runningPrimarySessionIdFor({ kind: "global" })).toBe("root-1");
+    store.applyServerActivity({ kind: "turn-ended", turnId: "t-root", sessionId: "root-1", outcome: "ended" });
+    expect(store.runningPrimarySessionIdFor({ kind: "global" })).toBeNull();
+  });
 });

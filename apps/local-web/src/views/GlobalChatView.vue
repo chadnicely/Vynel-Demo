@@ -36,7 +36,10 @@ import TasksPanel from "../components/tasks/TasksPanel.vue";
 import { useChannels } from "../composables/channels/use-channels.js";
 import { useHubFeatures } from "../composables/hub/use-hub-features.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
-import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
+import {
+  useContinuingConversation,
+  useContinuingSessionId,
+} from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
 import { resolveVisibleActiveTurn } from "../composables/chat/visible-active-turn.js";
@@ -107,11 +110,11 @@ const shell = ui.globalTab.shell;
 const { isLocked } = useHubFeatures();
 
 const continuingQuery = useContinuingConversation(() => GLOBAL_SCOPE);
+const continuingSessionId = useContinuingSessionId(() => GLOBAL_SCOPE, continuingQuery);
 
 /** The session the thread shows: continuous (default), a history pick, or none (fresh). */
 const activeSessionId = computed<string | null>(() => {
-  if (shell.target === "continuous")
-    return continuingQuery.data.value?.currentSdkSessionId ?? null;
+  if (shell.target === "continuous") return continuingSessionId.value;
   if (shell.target === "fresh") return null;
   return shell.target.sessionId;
 });

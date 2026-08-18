@@ -54,9 +54,20 @@ export function useSessionDetail(
         throw new Error("Session detail queried without a session id.");
       const s = resolvedScope.value;
       if (resolvedMode.value === "continuing") {
-        return s.kind === "global"
-          ? vynel.root.getTranscript()
-          : vynel.chat.getContinuingTranscript(s.workspaceId);
+        const transcript =
+          s.kind === "global"
+            ? await vynel.root.getTranscript()
+            : await vynel.chat.getContinuingTranscript(s.workspaceId);
+        // Before the primary's FIRST turn is bridged (the head lands at turn
+        // end) the chain transcript is empty while the running turn's own
+        // segment already holds rows — the caller resolved that segment's id
+        // from the activity feed, so read it directly for that window.
+        if (transcript.session === null) {
+          return s.kind === "global"
+            ? vynel.root.getSession(currentId)
+            : vynel.chat.getSession(s.workspaceId, currentId);
+        }
+        return transcript;
       }
       if (resolvedMode.value === "chain") {
         // Owner-gated any-session read — scope-independent by design.

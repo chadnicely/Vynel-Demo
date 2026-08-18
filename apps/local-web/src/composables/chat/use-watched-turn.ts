@@ -1,12 +1,11 @@
 // The thread's STANDING subscription to its displayed session's live channel —
-// now a THIN ADAPTER over the multiplexed live-turn registry (persona-sessions
-// B3): the registry owns the SSE + fold + seed + settle + re-attach loop (one
-// connection per session no matter how many surfaces watch); this adapter
-// keeps the caller-facing contract — the session getter, the suppression rule
-// ("one turn never renders twice", applied at RENDER time — and, since the
-// socket diet, also handed to the registry's attach gate so a suppressed-only
-// watch holds no socket), and the caller's own detail query as the
-// seed/settle snapshot provider.
+// a THIN ADAPTER over the multiplexed live-turn registry (persona-sessions
+// B3): the registry owns the channel subscription + fold + seed + settle (one
+// subscription per session on the window's one live socket, no matter how many
+// surfaces watch); this adapter keeps the caller-facing contract — the session
+// getter, the suppression rule ("one turn never renders twice", applied at
+// RENDER time), and the caller's own detail query as the seed/settle snapshot
+// provider.
 
 import { computed, onScopeDispose, shallowRef, watch } from "vue";
 import type { ActiveTurnView } from "./active-turn-view.js";
@@ -46,12 +45,7 @@ export function useWatchedTurn(options: {
           ? null
           : registry.subscribe(
               { kind: "session", id: sessionId },
-              {
-                fetchSnapshot: options.refetchDetail,
-                // The socket diet: a watch this consumer wouldn't render (its
-                // own overlay is up) must not hold a connection by itself.
-                isSuppressed: options.isSuppressed,
-              },
+              { fetchSnapshot: options.refetchDetail },
             );
     },
     { immediate: true },

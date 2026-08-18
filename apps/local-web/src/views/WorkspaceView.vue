@@ -23,7 +23,10 @@ import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { buildThreadPointers } from "../components/chat/thread-pointers.js";
 import { useOpenPointerTarget } from "../components/chat/open-pointer-target.js";
-import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
+import {
+  useContinuingConversation,
+  useContinuingSessionId,
+} from "../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
 import { resolveVisibleActiveTurn } from "../composables/chat/visible-active-turn.js";
@@ -73,10 +76,10 @@ const scope = computed<SessionScope>(() =>
 const isFilesPanelOpen = ref(false);
 
 const continuingQuery = useContinuingConversation(() => scope.value);
+const continuingSessionId = useContinuingSessionId(() => scope.value, continuingQuery);
 
 const activeSessionId = computed<string | null>(() => {
-  if (shell.target === "continuous")
-    return continuingQuery.data.value?.currentSdkSessionId ?? null;
+  if (shell.target === "continuous") return continuingSessionId.value;
   if (shell.target === "fresh") return null;
   return shell.target.sessionId;
 });

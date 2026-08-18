@@ -52,6 +52,30 @@ export const useActivityStore = defineStore("activity", () => {
     );
   }
 
+  /** The session a scope's PRIMARY turn runs on right now — the fallback for
+   *  the continuous thread before the primary's first turn is bridged (the
+   *  head is stamped at turn END, so a fresh workspace's first turn has no
+   *  `currentSdkSessionId` yet). Spawned/agent turns stamp `primarySessionId`
+   *  and are skipped: they run on their own identity, never the scope's
+   *  primary. Null when nothing primary runs in the scope. */
+  function runningPrimarySessionIdFor(
+    scope: { kind: "global" } | { kind: "workspace"; workspaceId: string },
+  ): string | null {
+    for (const turn of Object.values(serverTurns.value)) {
+      if (turn.sessionId === null) continue;
+      if ((turn.primarySessionId ?? null) !== null) continue;
+      if (scope.kind === "global" && turn.scopeKind === "global") return turn.sessionId;
+      if (
+        scope.kind === "workspace" &&
+        turn.scopeKind === "workspace" &&
+        turn.workspaceId === scope.workspaceId
+      ) {
+        return turn.sessionId;
+      }
+    }
+    return null;
+  }
+
   function turnStarted() {
     runningTurnCount.value += 1;
   }
@@ -98,6 +122,7 @@ export const useActivityStore = defineStore("activity", () => {
     globalServerTurnOrigin,
     hasServerTurnInWorkspace,
     serverTurnForSession,
+    runningPrimarySessionIdFor,
     turnStarted,
     turnEnded,
     applyServerActivity,

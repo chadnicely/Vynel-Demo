@@ -6,7 +6,10 @@ import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
 import { useOpenPointerTarget } from "../chat/open-pointer-target.js";
 import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
-import { useContinuingConversation } from "../../composables/chat/use-continuing-conversation.js";
+import {
+  useContinuingConversation,
+  useContinuingSessionId,
+} from "../../composables/chat/use-continuing-conversation.js";
 import { useChatTurn } from "../../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
@@ -52,9 +55,7 @@ const personaLabel = computed(() =>
 );
 
 const continuingQuery = useContinuingConversation(() => scope.value);
-const activeSessionId = computed(
-  () => continuingQuery.data.value?.currentSdkSessionId ?? null,
-);
+const activeSessionId = useContinuingSessionId(() => scope.value, continuingQuery);
 
 // A turn running in this workspace outside this composer (the delegated task
 // the pointer tracked, another tab's turn) — poll the thread while it runs so

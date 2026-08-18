@@ -204,7 +204,7 @@ describe("seedWatchedTurnView", () => {
     expect(view.isThinkingLive).toBe(false);
   });
 
-  it("no buffered events yields a bare view (idle attach)", () => {
+  it("no buffered events and no known turn start yields a bare view (nothing knowable yet)", () => {
     const view = seedWatchedTurnView({
       messages: [makeMessage({ id: "u-1", role: "user", body: "Hey" })],
       toolCallsByMessageId: {},
@@ -213,6 +213,43 @@ describe("seedWatchedTurnView", () => {
     });
     expect(view.segments).toEqual([]);
     expect(view.userMessage).toBeNull();
+  });
+
+  // The "show immediately" attach (live-channel): the feed says the turn is
+  // on, nothing has streamed yet — the persisted rows alone paint it.
+  it("no buffered events but a KNOWN turn start absorbs the running turn's rows", () => {
+    const view = seedWatchedTurnView({
+      messages: [
+        makeMessage({ id: "u-old", role: "user", body: "earlier", createdAt: "2026-07-31T00:00:00.000Z" }),
+        makeMessage({ id: "m-old", role: "assistant", body: "done", createdAt: "2026-07-31T00:00:01.000Z" }),
+        makeMessage({ id: "u-1", role: "user", body: "Hey", createdAt: "2026-07-31T00:01:00.500Z" }),
+        makeMessage({ id: "m-live", role: "assistant", body: "Hello wor", createdAt: "2026-07-31T00:01:01.000Z" }),
+      ],
+      toolCallsByMessageId: {},
+      bufferedEvents: [],
+      startedAtMs: 444,
+      turnStartedAtMs: Date.parse("2026-07-31T00:01:00.000Z"),
+    });
+    expect(view.status).toBe("streaming");
+    expect(view.userMessage?.id).toBe("u-1");
+    expect(view.segments.map((segment) => segment.messageId)).toEqual(["m-live"]);
+    expect(view.isThinkingLive).toBe(false);
+  });
+
+  it("a known turn start whose rows have not landed yet yields an empty streaming view", () => {
+    const view = seedWatchedTurnView({
+      messages: [
+        makeMessage({ id: "u-old", role: "user", body: "earlier", createdAt: "2026-07-31T00:00:00.000Z" }),
+        makeMessage({ id: "m-old", role: "assistant", body: "done", createdAt: "2026-07-31T00:00:01.000Z" }),
+      ],
+      toolCallsByMessageId: {},
+      bufferedEvents: [],
+      startedAtMs: 444,
+      turnStartedAtMs: Date.parse("2026-07-31T00:01:00.000Z"),
+    });
+    expect(view.status).toBe("streaming");
+    expect(view.userMessage).toBeNull();
+    expect(view.segments).toEqual([]);
   });
 });
 
