@@ -595,13 +595,14 @@ export const createPhase: McpToolFactory = (scope, app) =>
 export const createPlan: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_plan',
-    "Create a plan for a calendar day — use this when the user lays out dated intent (\"tomorrow we tackle the launch\", \"plan Friday for bookkeeping\"). `title` is the short label (≤200 chars); `detail` carries the specifics; `planDate` is the day it belongs to (YYYY-MM-DD, required). Phrase titles in plain language the user recognizes. Break the plan into tasks with create_task, passing this plan's id as `planId`, and move the plan with update_plan / complete_plan as the day's work lands. Side effect: the plan appears in the user's plan list.",
+    "Create a plan for a calendar day — use this when the user lays out dated intent (\"tomorrow we tackle the launch\", \"plan Friday for bookkeeping\"), or as the EXECUTION PLAN of a medium/large task (set `taskId` to that task — goal, parts, approach, risks in `detail`, then set_task_steps from it). `title` is the short label (≤200 chars); `detail` carries the specifics; `planDate` is the day it belongs to (YYYY-MM-DD, required). Phrase titles in plain language the user recognizes. For day plans, break the work into tasks with create_task passing this plan's id as `planId`; move the plan with update_plan / complete_plan as the work lands. Side effect: the plan appears in the user's plan list.",
     {
     workspaceId: z.string(),
     title: z.string(),
     detail: z.string().optional(),
     planDate: z.string(),
     sessionId: z.string().optional(),
+    taskId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -609,7 +610,7 @@ export const createPlan: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['title', 'detail', 'planDate', 'sessionId']) {
+        for (const k of ['title', 'detail', 'planDate', 'sessionId', 'taskId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -2388,12 +2389,13 @@ export const listMyPlans: McpToolFactory = (scope, app) =>
     {
     status: z.enum(['open', 'in-progress', 'done']).optional(),
     planDate: z.string().optional(),
+    taskId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/plans'
         const queryParams = new URLSearchParams()
-        for (const k of ['status', 'planDate']) {
+        for (const k of ['status', 'planDate', 'taskId']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
         }
@@ -2529,18 +2531,19 @@ export const listPhases: McpToolFactory = (scope, app) =>
 export const listPlans: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_plans',
-    "List the active workspace's plans (owner-scoped), newest day first. A plan is what is planned for a calendar day — title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` filters to one status; optional `planDate` narrows to one day. A plan's work items are the tasks whose `planId` points at it (list_tasks with `planId`). Check this when the user asks what is planned, or before planning new dated work. Read-only.",
+    "List the active workspace's plans (owner-scoped), newest day first. A plan is what is planned for a calendar day — title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` filters to one status; optional `planDate` narrows to one day; optional `taskId` finds the plan executing one task. A plan's work items are the tasks whose `planId` points at it (list_tasks with `planId`). Check this when the user asks what is planned, or before planning new dated work. Read-only.",
     {
     workspaceId: z.string(),
     status: z.enum(['open', 'in-progress', 'done']).optional(),
     planDate: z.string().optional(),
+    taskId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         let pathStr = '/workspaces/{workspaceId}/plans'
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryParams = new URLSearchParams()
-        for (const k of ['status', 'planDate']) {
+        for (const k of ['status', 'planDate', 'taskId']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
         }
@@ -3312,6 +3315,47 @@ export const setSessionStatus: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const setTaskSteps: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'set_task_steps',
+    "Lay out (or revise) a task's execution steps — the durable checklist the user watches on the task panel, where each row shows its steps and an n/m progress count. Send the task's COMPLETE current list every time: `steps` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in working order — the list is REPLACED wholesale, so omit a step and it disappears. Set `planId` when the steps come from a plan (create_plan first for medium/large work). Exactly one step should be \"in-progress\" at a time; update the list the moment a step starts or finishes. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Steps are NOT the chat dock (set_todos keeps that) — they are the task's plan-of-record and persist until the task is deleted. Do not narrate the bookkeeping in your reply.",
+    {
+    taskId: z.string(),
+    workspaceId: z.string(),
+    steps: z.array(z.record(z.unknown())),
+    planId: z.string().nullable().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/tasks/{taskId}/steps'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{taskId}', encodeURIComponent(String(args['taskId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['steps', 'planId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const setTodos: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'set_todos',
@@ -3906,7 +3950,7 @@ export const updatePhase: McpToolFactory = (scope, app) =>
 export const updatePlan: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_plan',
-    "Update a plan. Set status \"in-progress\" when its day's work starts, back to \"open\" if it stalls, or \"done\" when everything landed (complete_plan is the shortcut). `planDate` moves the plan to another day when the user reschedules; title/detail edits keep the wording current. Statuses: open / in-progress / done.",
+    "Update a plan. Set status \"in-progress\" when its day's work starts, back to \"open\" if it stalls, or \"done\" when everything landed (complete_plan is the shortcut). `planDate` moves the plan to another day when the user reschedules; title/detail edits keep the wording current; `taskId` attaches the plan to the task it executes (null detaches). Statuses: open / in-progress / done.",
     {
     planId: z.string(),
     workspaceId: z.string(),
@@ -3914,6 +3958,7 @@ export const updatePlan: McpToolFactory = (scope, app) =>
     detail: z.string().nullable().optional(),
     planDate: z.string().optional(),
     status: z.enum(['open', 'in-progress', 'done']).optional(),
+    taskId: z.string().nullable().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -3922,7 +3967,7 @@ export const updatePlan: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{planId}', encodeURIComponent(String(args['planId'] ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['title', 'detail', 'planDate', 'status']) {
+        for (const k of ['title', 'detail', 'planDate', 'status', 'taskId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -4067,6 +4112,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   sendMessage,
   setAgentEnabled,
   setSessionStatus,
+  setTaskSteps,
   setTodos,
   setWorkspaceStatus,
   startApp,

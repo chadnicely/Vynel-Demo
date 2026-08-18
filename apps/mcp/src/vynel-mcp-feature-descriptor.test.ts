@@ -86,10 +86,11 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__add_memory_from_file',
     ])
     // `tasks` gates all five task tools (tasks module, 2026-07-17) PLUS the
-    // working-steps writer (session-todos, 2026-08-02) — both halves of the
-    // work-tracking leaf ride one toggle. The exact list is pinned so a typo'd
-    // gate name can't silently leave a tool ungated (the composer spec-tests
-    // the mechanism with fakes only).
+    // working-steps writer (session-todos, 2026-08-02) PLUS the task-steps
+    // writer (task-execution arc, 2026-08-18) — every half of the
+    // work-tracking leaf rides one toggle. The exact list is pinned so a
+    // typo'd gate name can't silently leave a tool ungated (the composer
+    // spec-tests the mechanism with fakes only).
     expect(vynelWorkspaceDescriptor.capabilityGatedTools?.tasks).toEqual([
       'mcp__vynel__list_tasks',
       'mcp__vynel__create_task',
@@ -97,6 +98,7 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__complete_task',
       'mcp__vynel__list_my_tasks',
       'mcp__vynel__set_todos',
+      'mcp__vynel__set_task_steps',
     ])
     // `plans` and `journal` gate their whole toolsets the same way (plans +
     // journal modules, 2026-07-23). The journal agent door is append+read

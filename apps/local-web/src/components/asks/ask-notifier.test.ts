@@ -19,6 +19,7 @@ const PENDING_ASK: AskRequestResponse = {
   userId: "u1",
   workspaceId: null,
   sessionId: null,
+  taskId: null,
   questions: [
     { id: "audience", label: "Who is this note for?", type: "text" },
     {

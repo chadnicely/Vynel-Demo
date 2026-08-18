@@ -61,20 +61,22 @@ export const plansApp = factory
           "List the active workspace's plans (owner-scoped), newest day first. A plan is what is " +
           'planned for a calendar day — title, optional detail, `planDate` (YYYY-MM-DD), status ' +
           '(open / in-progress / done), and who created it. Optional `status` filters to one ' +
-          "status; optional `planDate` narrows to one day. A plan's work items are the tasks " +
-          'whose `planId` points at it (list_tasks with `planId`). Check this when the user asks ' +
-          'what is planned, or before planning new dated work. Read-only.',
+          "status; optional `planDate` narrows to one day; optional `taskId` finds the plan " +
+          "executing one task. A plan's work items are the tasks whose `planId` points at it " +
+          '(list_tasks with `planId`). Check this when the user asks what is planned, or before ' +
+          'planning new dated work. Read-only.',
       },
     }),
     validator('query', ListPlansQuerySchema),
     ...workspaceScoped,
     (c) => {
-      const { status, planDate } = c.req.valid('query')
+      const { status, planDate, taskId } = c.req.valid('query')
       const plans = listPlans(c.var.db, {
         userId: c.var.user.id,
         workspaceId: c.var.workspace!.id,
         ...(status !== undefined ? { status } : {}),
         ...(planDate !== undefined ? { planDate } : {}),
+        ...(taskId !== undefined ? { taskId } : {}),
       })
       return c.json(plans.map(serializePlanForResponse))
     },
@@ -99,12 +101,14 @@ export const plansApp = factory
         name: 'create_plan',
         description:
           'Create a plan for a calendar day — use this when the user lays out dated intent ' +
-          '("tomorrow we tackle the launch", "plan Friday for bookkeeping"). `title` is the ' +
-          'short label (≤200 chars); `detail` carries the specifics; `planDate` is the day it ' +
-          'belongs to (YYYY-MM-DD, required). Phrase titles in plain language the user ' +
-          'recognizes. Break the plan into tasks with create_task, passing this plan\'s id as ' +
-          '`planId`, and move the plan with update_plan / complete_plan as the day\'s work ' +
-          'lands. Side effect: the plan appears in the user\'s plan list.',
+          '("tomorrow we tackle the launch", "plan Friday for bookkeeping"), or as the EXECUTION ' +
+          'PLAN of a medium/large task (set `taskId` to that task — goal, parts, approach, risks ' +
+          'in `detail`, then set_task_steps from it). `title` is the short label (≤200 chars); ' +
+          '`detail` carries the specifics; `planDate` is the day it belongs to (YYYY-MM-DD, ' +
+          'required). Phrase titles in plain language the user recognizes. For day plans, break ' +
+          "the work into tasks with create_task passing this plan's id as `planId`; move the " +
+          "plan with update_plan / complete_plan as the work lands. Side effect: the plan " +
+          "appears in the user's plan list.",
         mutatingApproved: true,
       },
     }),
@@ -122,6 +126,7 @@ export const plansApp = factory
           source: 'assistant',
           ...(body.detail !== undefined ? { detail: body.detail } : {}),
           ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
+          ...(body.taskId !== undefined ? { taskId: body.taskId } : {}),
         },
         { logger: c.var.logger },
       )
@@ -150,7 +155,8 @@ export const plansApp = factory
           'Update a plan. Set status "in-progress" when its day\'s work starts, back to "open" ' +
           'if it stalls, or "done" when everything landed (complete_plan is the shortcut). ' +
           '`planDate` moves the plan to another day when the user reschedules; title/detail ' +
-          'edits keep the wording current. Statuses: open / in-progress / done.',
+          'edits keep the wording current; `taskId` attaches the plan to the task it executes ' +
+          '(null detaches). Statuses: open / in-progress / done.',
         mutatingApproved: true,
       },
     }),
@@ -168,6 +174,7 @@ export const plansApp = factory
           ...(body.detail !== undefined ? { detail: body.detail } : {}),
           ...(body.planDate !== undefined ? { planDate: body.planDate } : {}),
           ...(body.status !== undefined ? { status: body.status } : {}),
+          ...(body.taskId !== undefined ? { taskId: body.taskId } : {}),
         },
         { logger: c.var.logger },
       )

@@ -76,12 +76,14 @@ export const dashboardApp = factory
       // re-sorted by completion time so "what Claude delivered" reads
       // most-recent-first regardless of when the task was created.
       const tasks = listTasksForUser(c.var.db, { userId: c.var.user.id })
-      const openTasks = tasks.filter((t) => t.status !== 'done').map(serializeTaskForResponse)
+      const openTasks = tasks
+        .filter((t) => t.status !== 'done')
+        .map((task) => serializeTaskForResponse(task))
       const recentlyCompletedTasks = tasks
         .filter((t) => t.status === 'done' && t.completedAt !== null)
         .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())
         .slice(0, RECENTLY_COMPLETED_TASKS_LIMIT)
-        .map(serializeTaskForResponse)
+        .map((task) => serializeTaskForResponse(task))
 
       return c.json({
         workspaces,

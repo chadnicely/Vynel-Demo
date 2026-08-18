@@ -1,11 +1,36 @@
 // Functional repository for the `task_steps` table. `db` is the first
 // argument; Phase 1 SYNC returns. No raw SQL or Drizzle queries outside here.
 
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import { taskSteps, type TaskStep, type NewTaskStep } from '../schema/task-steps.js'
 
 export type { TaskStep, NewTaskStep, TaskStepStatus } from '../schema/task-steps.js'
+
+// Per-task done/total rollup — the task panel's `n/m` progress on collapsed
+// rows, in one grouped read (the countTasksByWorkspace shape).
+export type TaskStepCounts = {
+  taskId: string
+  total: number
+  done: number
+}
+
+export function countTaskStepsForTasks(
+  db: Database,
+  input: { userId: string; taskIds: readonly string[] },
+): TaskStepCounts[] {
+  if (input.taskIds.length === 0) return []
+  return db
+    .select({
+      taskId: taskSteps.taskId,
+      total: sql<number>`count(*)`,
+      done: sql<number>`sum(case when ${taskSteps.status} = 'done' then 1 else 0 end)`,
+    })
+    .from(taskSteps)
+    .where(and(eq(taskSteps.userId, input.userId), inArray(taskSteps.taskId, [...input.taskIds])))
+    .groupBy(taskSteps.taskId)
+    .all()
+}
 
 export function listTaskSteps(
   db: Database,

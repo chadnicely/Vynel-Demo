@@ -11,6 +11,7 @@
 // proceeds with judgment instead of parking a background job forever.
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
+import { z } from 'zod'
 import { AskQuestionsSchema, type AskQuestion } from '@vynel/contracts/asks/ask-questions'
 import { createAskRequest } from '../lifecycle/create-ask-request.js'
 import { expireAskRequests } from '../lifecycle/expire-ask-requests.js'
@@ -25,7 +26,9 @@ const TOOL_DESCRIPTION =
   'yourself — never for what memory, knowledge, or the conversation already answers. Bundle the ' +
   'related questions you need into ONE call (one form, not five); write labels and options in ' +
   'plain language the user recognizes, never technical jargon. Question types: text / choice / ' +
-  'multi-choice / yes-no / number; questions are required unless `required: false`. THIS TOOL ' +
+  'multi-choice / yes-no / number; questions are required unless `required: false`. When the ' +
+  'ask clears up a TASK before you work it (scope, missing decision, risk), pass that task\'s ' +
+  'id as `taskId` so the panel shows the task is waiting on the user. THIS TOOL ' +
   'WAITS for the user — the turn pauses until they answer. If the result has `answered: false` ' +
   'the user chose not to answer (or the ask was cancelled): proceed as best you can WITHOUT the ' +
   'answer and say what you assumed — do not ask again in the same turn.'
@@ -70,6 +73,7 @@ export async function runAskUserBridge(
   scope: AskUserToolScope,
   deps: AskUserToolDeps,
   questions: AskQuestion[],
+  taskId?: string,
 ): Promise<AskOutcome> {
   // Read the conversation NOW, not when the toolset was composed — see the
   // getter's note on AskUserToolScope.
@@ -80,6 +84,7 @@ export async function runAskUserBridge(
       userId: scope.userId,
       workspaceId: scope.workspaceId,
       ...(sessionId !== undefined ? { sessionId } : {}),
+      ...(taskId !== undefined ? { taskId } : {}),
       questions,
     },
     deps.logger !== undefined ? { logger: deps.logger } : {},
@@ -129,10 +134,20 @@ export function makeAskUserTool(
   return (tool as unknown as McpToolFn)(
     'ask_user',
     TOOL_DESCRIPTION,
-    { questions: AskQuestionsSchema },
+    {
+      questions: AskQuestionsSchema,
+      // The task this ask clears — the panel's "waiting on you" link.
+      taskId: z.string().min(1).optional(),
+    },
     async (args) => {
       try {
-        const outcome = await runAskUserBridge(db, scope, deps, args.questions as AskQuestion[])
+        const outcome = await runAskUserBridge(
+          db,
+          scope,
+          deps,
+          args.questions as AskQuestion[],
+          args.taskId as string | undefined,
+        )
         return { content: [{ type: 'text', text: JSON.stringify(outcome) }] }
       } catch (err) {
         return {

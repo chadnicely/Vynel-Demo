@@ -19,6 +19,7 @@ export interface CreateAskRequestInput {
   workspaceId: string | null // null = a global-root turn's ask
   questions: AskQuestion[]
   sessionId?: string
+  taskId?: string // loose ref — the task this ask clears (NO FK)
 }
 
 export function createAskRequest(
@@ -39,6 +40,7 @@ export function createAskRequest(
       userId: input.userId,
       workspaceId: input.workspaceId,
       sessionId: input.sessionId ?? null,
+      taskId: input.taskId ?? null,
       questionsJson: JSON.stringify(parsed.data),
       answersJson: null,
       status: 'pending',

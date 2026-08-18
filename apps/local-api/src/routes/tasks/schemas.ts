@@ -9,6 +9,10 @@ export const TaskParamSchema = z.object({
   taskId: z.string().min(1),
 })
 
+export const StepParamSchema = z.object({
+  stepId: z.string().min(1),
+})
+
 export const ListTasksQuerySchema = z.object({
   status: z.enum(['open', 'in-progress', 'done']).optional(),
   // Narrow to one plan's work items (loose ref — no FK).
@@ -47,6 +51,27 @@ export const UpdateTaskRequestSchema = z.object({
   planId: z.string().min(1).nullable().optional(),
 })
 
+// The agent's whole-list replace for a task's steps (`set_task_steps`). Caps
+// mirror the core op's STEP_TITLE_MAX_LENGTH / MAX_STEPS_PER_TASK; `planId`
+// declares the plan the steps derive from (the tasks leaf cannot read the
+// sibling plans leaf to derive it). The writing SESSION is never a body field
+// — it comes from the ambient turn-session header.
+export const SetTaskStepsRequestSchema = z.object({
+  steps: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(200),
+        status: z.enum(['open', 'in-progress', 'done']),
+      }),
+    )
+    .max(50),
+  planId: z.string().min(1).nullable().optional(),
+})
+
+export const UpdateStepStatusRequestSchema = z.object({
+  status: z.enum(['open', 'in-progress', 'done']),
+})
+
 // ── Response schemas ────────────────────────────────────────────────
 // Structurally mirror `TaskResponse` from `@vynel/contracts/tasks/task-http`
 // (the type `serializeTaskForResponse` is cast to). Declared here — not
@@ -69,9 +94,31 @@ export const TaskResponseSchema = z.object({
   sessionId: z.string().nullable(),
   // Loose cross-feature ref — the plan this task belongs to (no FK).
   planId: z.string().nullable(),
+  // The session WORKING the task (stamped on pickup; sessionId = creator).
+  assignedSessionId: z.string().nullable(),
+  // Step rollup — present on LIST responses only.
+  stepsTotal: z.number().optional(),
+  stepsDone: z.number().optional(),
   completedAt: z.string().nullable(), // ISO-8601 or null
   createdAt: z.string(),
   updatedAt: z.string(),
 })
 
 export const ListTasksResponseSchema = z.array(TaskResponseSchema)
+
+export const TaskStepResponseSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  workspaceId: z.string().nullable(),
+  taskId: z.string(),
+  planId: z.string().nullable(),
+  sessionId: z.string().nullable(),
+  title: z.string(),
+  status: TaskStatusResponseSchema,
+  orderIndex: z.number(),
+  completedAt: z.string().nullable(), // ISO-8601 or null
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const ListTaskStepsResponseSchema = z.array(TaskStepResponseSchema)

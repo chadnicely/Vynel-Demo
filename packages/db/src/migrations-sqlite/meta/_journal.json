@@ -337,6 +337,13 @@
       "when": 1787012252220,
       "tag": "0047_nostalgic_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1787013265365,
+      "tag": "0048_overrated_multiple_man",
+      "breakpoints": true
     }
   ]
 }

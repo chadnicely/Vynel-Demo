@@ -1824,6 +1824,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  setSteps: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}/steps"]["put"]['parameters']>['path']["workspaceId"], taskId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}/steps"]["put"]['parameters']>['path']["taskId"], input: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}/steps"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/tasks/{taskId}/steps", {
+      params: { path: { workspaceId: workspaceId, taskId: taskId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   update: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}"]["patch"]['parameters']>['path']["workspaceId"], taskId: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}"]["patch"]['parameters']>['path']["taskId"], input: NonNullable<paths["/workspaces/{workspaceId}/tasks/{taskId}"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/tasks/{taskId}", {
       params: { path: { workspaceId: workspaceId, taskId: taskId } },
@@ -1848,6 +1856,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error) throw new SdkError(response, error)
 
   },
+  deleteStep: async (stepId: NonNullable<paths["/tasks/steps/{stepId}"]["delete"]['parameters']>['path']["stepId"]) => {
+    const { error, response } = await client["DELETE"]("/tasks/steps/{stepId}", {
+      params: { path: { stepId: stepId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
   list: async (options?: NonNullable<paths["/tasks"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/tasks", {
       params: { ...(options && { query: options }) },
@@ -1855,9 +1870,24 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  listSteps: async (taskId: NonNullable<paths["/tasks/{taskId}/steps"]["get"]['parameters']>['path']["taskId"]) => {
+    const { data, error, response } = await client["GET"]("/tasks/{taskId}/steps", {
+      params: { path: { taskId: taskId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   update: async (taskId: NonNullable<paths["/tasks/{taskId}"]["patch"]['parameters']>['path']["taskId"], input: NonNullable<paths["/tasks/{taskId}"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/tasks/{taskId}", {
       params: { path: { taskId: taskId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  updateStepStatus: async (stepId: NonNullable<paths["/tasks/steps/{stepId}"]["patch"]['parameters']>['path']["stepId"], input: NonNullable<paths["/tasks/steps/{stepId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/tasks/steps/{stepId}", {
+      params: { path: { stepId: stepId } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

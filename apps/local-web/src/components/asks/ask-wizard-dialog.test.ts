@@ -11,6 +11,7 @@ const ASK: AskRequestResponse = {
   userId: "u1",
   workspaceId: null,
   sessionId: null,
+  taskId: null,
   questions: [
     {
       id: "project-name",

@@ -8,14 +8,20 @@ import type { Plan, PlanStatus } from '../repositories/index.js'
 
 export function listPlans(
   db: Database,
-  input: { userId: string; workspaceId: string; status?: PlanStatus; planDate?: string },
+  input: {
+    userId: string
+    workspaceId: string
+    status?: PlanStatus
+    planDate?: string
+    taskId?: string
+  },
 ): Plan[] {
   return plansRepository.listPlansForWorkspace(db, input)
 }
 
 export function listPlansForUser(
   db: Database,
-  input: { userId: string; status?: PlanStatus; planDate?: string },
+  input: { userId: string; status?: PlanStatus; planDate?: string; taskId?: string },
 ): Plan[] {
   return plansRepository.listPlansForUser(db, input)
 }

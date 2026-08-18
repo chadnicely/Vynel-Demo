@@ -736,6 +736,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/tasks/{taskId}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a task's execution steps (whole-list). */
+        put: operations["putWorkspacesByWorkspaceIdTasksByTaskIdSteps"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/plans": {
         parameters: {
             query?: never;
@@ -1984,6 +2001,41 @@ export interface paths {
         head?: never;
         /** Update a task the user owns (title, detail, or status). */
         patch: operations["patchTasksByTaskId"];
+        trace?: never;
+    };
+    "/tasks/{taskId}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List one task's execution steps, in order. */
+        get: operations["getTasksByTaskIdSteps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/steps/{stepId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a task step (hard delete). */
+        delete: operations["deleteTasksStepsByStepId"];
+        options?: never;
+        head?: never;
+        /** Move a task step (open / in-progress / done). */
+        patch: operations["patchTasksStepsByStepId"];
         trace?: never;
     };
     "/todos": {
@@ -6327,6 +6379,9 @@ export interface operations {
                         source: "assistant" | "user";
                         sessionId: string | null;
                         planId: string | null;
+                        assignedSessionId: string | null;
+                        stepsTotal?: number;
+                        stepsDone?: number;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -6380,6 +6435,9 @@ export interface operations {
                         source: "assistant" | "user";
                         sessionId: string | null;
                         planId: string | null;
+                        assignedSessionId: string | null;
+                        stepsTotal?: number;
+                        stepsDone?: number;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -6442,6 +6500,9 @@ export interface operations {
                         source: "assistant" | "user";
                         sessionId: string | null;
                         planId: string | null;
+                        assignedSessionId: string | null;
+                        stepsTotal?: number;
+                        stepsDone?: number;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -6494,6 +6555,9 @@ export interface operations {
                         source: "assistant" | "user";
                         sessionId: string | null;
                         planId: string | null;
+                        assignedSessionId: string | null;
+                        stepsTotal?: number;
+                        stepsDone?: number;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -6509,11 +6573,74 @@ export interface operations {
             };
         };
     };
+    putWorkspacesByWorkspaceIdTasksByTaskIdSteps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    steps: {
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                    }[];
+                    planId?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The stored list, in order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        taskId: string;
+                        planId: string | null;
+                        sessionId: string | null;
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        orderIndex: number;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getWorkspacesByWorkspaceIdPlans: {
         parameters: {
             query?: {
                 status?: "open" | "in-progress" | "done";
                 planDate?: string;
+                taskId?: string;
             };
             header?: never;
             path: {
@@ -6541,6 +6668,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        taskId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -6572,6 +6700,7 @@ export interface operations {
                     detail?: string;
                     planDate: string;
                     sessionId?: string;
+                    taskId?: string;
                 };
             };
         };
@@ -6594,6 +6723,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        taskId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -6634,6 +6764,7 @@ export interface operations {
                     planDate?: string;
                     /** @enum {string} */
                     status?: "open" | "in-progress" | "done";
+                    taskId?: string | null;
                 };
             };
         };
@@ -6656,6 +6787,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        taskId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -6708,6 +6840,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        taskId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -11224,6 +11357,9 @@ export interface operations {
                         source: "assistant" | "user";
                         sessionId: string | null;
                         planId: string | null;
+                        assignedSessionId: string | null;
+                        stepsTotal?: number;
+                        stepsDone?: number;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -11274,6 +11410,9 @@ export interface operations {
                         source: "assistant" | "user";
                         sessionId: string | null;
                         planId: string | null;
+                        assignedSessionId: string | null;
+                        stepsTotal?: number;
+                        stepsDone?: number;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -11355,6 +11494,9 @@ export interface operations {
                         source: "assistant" | "user";
                         sessionId: string | null;
                         planId: string | null;
+                        assignedSessionId: string | null;
+                        stepsTotal?: number;
+                        stepsDone?: number;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -11369,6 +11511,126 @@ export interface operations {
                 content?: never;
             };
             /** @description No such task owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getTasksByTaskIdSteps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of TaskStep. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        taskId: string;
+                        planId: string | null;
+                        sessionId: string | null;
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        orderIndex: number;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+        };
+    };
+    deleteTasksStepsByStepId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stepId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Step removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such step owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchTasksStepsByStepId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stepId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "open" | "in-progress" | "done";
+                };
+            };
+        };
+        responses: {
+            /** @description Step updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        workspaceId: string | null;
+                        taskId: string;
+                        planId: string | null;
+                        sessionId: string | null;
+                        title: string;
+                        /** @enum {string} */
+                        status: "open" | "in-progress" | "done";
+                        orderIndex: number;
+                        completedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such step owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -11561,6 +11823,7 @@ export interface operations {
             query?: {
                 status?: "open" | "in-progress" | "done";
                 planDate?: string;
+                taskId?: string;
             };
             header?: never;
             path?: never;
@@ -11586,6 +11849,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        taskId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -11638,6 +11902,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        taskId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -11697,6 +11962,7 @@ export interface operations {
                     planDate?: string;
                     /** @enum {string} */
                     status?: "open" | "in-progress" | "done";
+                    taskId?: string | null;
                 };
             };
         };
@@ -11719,6 +11985,7 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        taskId: string | null;
                         completedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
@@ -16740,6 +17007,9 @@ export interface operations {
                             source: "assistant" | "user";
                             sessionId: string | null;
                             planId: string | null;
+                            assignedSessionId: string | null;
+                            stepsTotal?: number;
+                            stepsDone?: number;
                             completedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
@@ -16756,6 +17026,9 @@ export interface operations {
                             source: "assistant" | "user";
                             sessionId: string | null;
                             planId: string | null;
+                            assignedSessionId: string | null;
+                            stepsTotal?: number;
+                            stepsDone?: number;
                             completedAt: string | null;
                             createdAt: string;
                             updatedAt: string;

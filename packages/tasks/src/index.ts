@@ -79,3 +79,5 @@ export {
 export { updateStepStatus, type UpdateStepStatusInput } from './steps/update-step-status.js'
 export { deleteStep } from './steps/delete-step.js'
 export { listStepsForTask } from './steps/list-steps-for-task.js'
+export { countStepsForTasks } from './queries/count-steps-for-tasks.js'
+export type { TaskStepCounts } from './repositories/task-steps.js'

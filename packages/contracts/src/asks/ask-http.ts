@@ -13,6 +13,8 @@ export interface AskRequestResponse {
   // Nullable to match the schema (NULL = the ask came from a global-root turn).
   workspaceId: string | null
   sessionId: string | null
+  // Loose cross-feature ref — the task this ask clears (no FK).
+  taskId: string | null
   questions: AskQuestion[]
   answers: AskAnswers | null
   status: AskRequestStatus

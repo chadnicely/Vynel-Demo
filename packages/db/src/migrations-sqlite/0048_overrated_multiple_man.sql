@@ -1,0 +1,1 @@
+ALTER TABLE `ask_requests` ADD `task_id` text;

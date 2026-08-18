@@ -22,6 +22,13 @@ export interface TaskResponse {
   sessionId: string | null
   // Loose cross-feature ref — the plan this task belongs to (no FK).
   planId: string | null
+  // Loose cross-domain ref — the session WORKING the task (stamped on pickup;
+  // `sessionId` above is the session that CREATED it).
+  assignedSessionId: string | null
+  /** Step rollup (`n/m` on the panel row) — present on LIST responses only;
+   *  single-task responses omit it and the panel's list query is the truth. */
+  stepsTotal?: number
+  stepsDone?: number
   /** ISO-8601 or null */
   completedAt: string | null
   /** ISO-8601 */

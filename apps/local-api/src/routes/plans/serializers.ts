@@ -17,6 +17,7 @@ export function serializePlanForResponse(plan: Plan): PlanResponse {
     status: plan.status,
     source: plan.source,
     sessionId: plan.sessionId,
+    taskId: plan.taskId,
     completedAt: plan.completedAt ? plan.completedAt.toISOString() : null,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),

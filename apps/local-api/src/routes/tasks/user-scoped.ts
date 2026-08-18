@@ -25,15 +25,32 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
-import { createTask, deleteTask, listTasksForUser, updateTask } from '@vynel/tasks'
-import { serializeTaskForResponse } from './serializers.js'
+import {
+  countStepsForTasks,
+  createTask,
+  deleteStep,
+  deleteTask,
+  listStepsForTask,
+  listTasksForUser,
+  updateStepStatus,
+  updateTask,
+} from '@vynel/tasks'
+import {
+  serializeTaskForResponse,
+  serializeTasksWithStepCounts,
+  serializeTaskStepForResponse,
+} from './serializers.js'
 import {
   TaskParamSchema,
+  StepParamSchema,
   ListTasksQuerySchema,
   CreateTaskForUserRequestSchema,
   UpdateTaskRequestSchema,
+  UpdateStepStatusRequestSchema,
   TaskResponseSchema,
   ListTasksResponseSchema,
+  TaskStepResponseSchema,
+  ListTaskStepsResponseSchema,
 } from './schemas.js'
 
 export const tasksUserApp = factory
@@ -70,7 +87,11 @@ export const tasksUserApp = factory
         ...(status !== undefined ? { status } : {}),
         ...(planId !== undefined ? { planId } : {}),
       })
-      return c.json(tasks.map(serializeTaskForResponse))
+      const stepCounts = countStepsForTasks(c.var.db, {
+        userId: c.var.user.id,
+        taskIds: tasks.map((task) => task.id),
+      })
+      return c.json(serializeTasksWithStepCounts(tasks, stepCounts))
     },
   )
   // POST / — the USER's create door; scope picks global (null workspace) vs a workspace.
@@ -160,6 +181,85 @@ export const tasksUserApp = factory
       deleteTask(
         c.var.db,
         { taskId: c.req.valid('param').taskId, userId: c.var.user.id },
+        { logger: c.var.logger },
+      )
+      return c.body(null, 204)
+    },
+  )
+  // GET /:taskId/steps — the panel's step expander read (owner-scoped).
+  .get(
+    '/:taskId/steps',
+    describeRoute({
+      tags: ['tasks'],
+      summary: "List one task's execution steps, in order.",
+      'x-sdk-name': 'tasksUser.listSteps',
+      responses: {
+        200: {
+          description: 'Array of TaskStep.',
+          content: { 'application/json': { schema: resolver(ListTaskStepsResponseSchema) } },
+        },
+      },
+    }),
+    validator('param', TaskParamSchema),
+    ...userScoped,
+    (c) => {
+      const steps = listStepsForTask(c.var.db, {
+        userId: c.var.user.id,
+        taskId: c.req.valid('param').taskId,
+      })
+      return c.json(steps.map(serializeTaskStepForResponse))
+    },
+  )
+  // PATCH /steps/:stepId — the user ticking a step on the panel.
+  .patch(
+    '/steps/:stepId',
+    describeRoute({
+      tags: ['tasks'],
+      summary: 'Move a task step (open / in-progress / done).',
+      'x-sdk-name': 'tasksUser.updateStepStatus',
+      responses: {
+        200: {
+          description: 'Step updated.',
+          content: { 'application/json': { schema: resolver(TaskStepResponseSchema) } },
+        },
+        400: { description: 'Validation error.' },
+        404: { description: 'No such step owned by this user.' },
+      },
+    }),
+    validator('param', StepParamSchema),
+    validator('json', UpdateStepStatusRequestSchema),
+    ...userScoped,
+    (c) => {
+      const step = updateStepStatus(
+        c.var.db,
+        {
+          stepId: c.req.valid('param').stepId,
+          userId: c.var.user.id,
+          status: c.req.valid('json').status,
+        },
+        { logger: c.var.logger },
+      )
+      return c.json(serializeTaskStepForResponse(step))
+    },
+  )
+  // DELETE /steps/:stepId — remove a step (hard delete; the user's call, never the agent's).
+  .delete(
+    '/steps/:stepId',
+    describeRoute({
+      tags: ['tasks'],
+      summary: 'Remove a task step (hard delete).',
+      'x-sdk-name': 'tasksUser.deleteStep',
+      responses: {
+        204: { description: 'Step removed.' },
+        404: { description: 'No such step owned by this user.' },
+      },
+    }),
+    validator('param', StepParamSchema),
+    ...userScoped,
+    (c) => {
+      deleteStep(
+        c.var.db,
+        { stepId: c.req.valid('param').stepId, userId: c.var.user.id },
         { logger: c.var.logger },
       )
       return c.body(null, 204)

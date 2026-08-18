@@ -27,15 +27,40 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
-import { createTask, listTasks, updateTask } from '@vynel/tasks'
-import { serializeTaskForResponse } from './serializers.js'
+import { findChatSessionById } from '@vynel/chat/repositories'
+import { countStepsForTasks, createTask, listTasks, replaceTaskSteps, updateTask } from '@vynel/tasks'
+import {
+  TURN_SESSION_HEADER,
+  parseTurnSessionHeader,
+} from '../../sessions/turn-session-header.js'
+import type { Database } from '@vynel/db'
+
+// The ambient turn-session header, OWNERSHIP-CHECKED before it becomes a
+// durable loose ref (`task_steps.sessionId`, `tasks.assignedSessionId`) — the
+// set_todos contract. Unlike set_todos these doors deliberately never 400
+// without a session (steps anchor to the TASK; background turns manage them),
+// so an invalid or foreign value is treated as ABSENT, not an error.
+function resolveOwnedTurnSessionId(
+  db: Database,
+  userId: string,
+  headerValue: string | undefined,
+): string | undefined {
+  const turnSessionId = parseTurnSessionHeader(headerValue)
+  if (turnSessionId === undefined) return undefined
+  const session = findChatSessionById(db, turnSessionId)
+  if (session === null || session.userId !== userId) return undefined
+  return session.id
+}
+import { serializeTaskForResponse, serializeTasksWithStepCounts, serializeTaskStepForResponse } from './serializers.js'
 import {
   TaskParamSchema,
   ListTasksQuerySchema,
   CreateTaskRequestSchema,
   UpdateTaskRequestSchema,
+  SetTaskStepsRequestSchema,
   TaskResponseSchema,
   ListTasksResponseSchema,
+  ListTaskStepsResponseSchema,
 } from './schemas.js'
 
 export const tasksApp = factory
@@ -75,7 +100,11 @@ export const tasksApp = factory
         ...(status !== undefined ? { status } : {}),
         ...(planId !== undefined ? { planId } : {}),
       })
-      return c.json(tasks.map(serializeTaskForResponse))
+      const stepCounts = countStepsForTasks(c.var.db, {
+        userId: c.var.user.id,
+        taskIds: tasks.map((task) => task.id),
+      })
+      return c.json(serializeTasksWithStepCounts(tasks, stepCounts))
     },
   )
   // POST / — the AGENT's create door (source is hard-coded 'assistant').
@@ -160,6 +189,15 @@ export const tasksApp = factory
     ...workspaceScoped,
     (c) => {
       const body = c.req.valid('json')
+      // PICKUP STAMP: the agent moving a task to in-progress assigns it to the
+      // session doing the work — read from the ambient turn-session header
+      // (server-stamped, never a body field), absent on turns with no watching
+      // session. Only this door stamps: the user ticking a status in the panel
+      // is not a pickup.
+      const turnSessionId =
+        body.status === 'in-progress'
+          ? resolveOwnedTurnSessionId(c.var.db, c.var.user.id, c.req.header(TURN_SESSION_HEADER))
+          : undefined
       const task = updateTask(
         c.var.db,
         {
@@ -169,6 +207,7 @@ export const tasksApp = factory
           ...(body.detail !== undefined ? { detail: body.detail } : {}),
           ...(body.status !== undefined ? { status: body.status } : {}),
           ...(body.planId !== undefined ? { planId: body.planId } : {}),
+          ...(turnSessionId !== undefined ? { assignedSessionId: turnSessionId } : {}),
         },
         { logger: c.var.logger },
       )
@@ -207,5 +246,65 @@ export const tasksApp = factory
         { logger: c.var.logger },
       )
       return c.json(serializeTaskForResponse(task))
+    },
+  )
+  // PUT /:taskId/steps — the AGENT's whole-list step replace. The writing
+  // session comes from the ambient header WHEN PRESENT (unlike set_todos this
+  // never 400s without one — steps anchor to the TASK, and background turns
+  // legitimately manage them); the task row supplies the scope.
+  .put(
+    '/:taskId/steps',
+    describeRoute({
+      tags: ['tasks'],
+      summary: "Replace a task's execution steps (whole-list).",
+      'x-sdk-name': 'tasks.setSteps',
+      responses: {
+        200: {
+          description: 'The stored list, in order.',
+          content: { 'application/json': { schema: resolver(ListTaskStepsResponseSchema) } },
+        },
+        400: { description: 'Validation error.' },
+        404: { description: 'No such task owned by this user.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'set_task_steps',
+        description:
+          "Lay out (or revise) a task's execution steps — the durable checklist the user watches " +
+          'on the task panel, where each row shows its steps and an n/m progress count. Send the ' +
+          "task's COMPLETE current list every time: `steps` is an array of objects, each " +
+          '{ "title": "<short step in plain language>", "status": "open" | "in-progress" | "done" }, ' +
+          'in working order — the list is REPLACED wholesale, so omit a step and it disappears. ' +
+          'Set `planId` when the steps come from a plan (create_plan first for medium/large work). ' +
+          'Exactly one step should be "in-progress" at a time; update the list the moment a step ' +
+          'starts or finishes. Titles are what the user reads ("Draft the newsletter"), never ' +
+          'technical mechanics. Steps are NOT the chat dock (set_todos keeps that) — they are the ' +
+          "task's plan-of-record and persist until the task is deleted. Do not narrate the " +
+          'bookkeeping in your reply.',
+        mutatingApproved: true,
+      },
+    }),
+    validator('param', TaskParamSchema),
+    validator('json', SetTaskStepsRequestSchema),
+    ...workspaceScoped,
+    (c) => {
+      const body = c.req.valid('json')
+      const turnSessionId = resolveOwnedTurnSessionId(
+        c.var.db,
+        c.var.user.id,
+        c.req.header(TURN_SESSION_HEADER),
+      )
+      const steps = replaceTaskSteps(
+        c.var.db,
+        {
+          userId: c.var.user.id,
+          taskId: c.req.valid('param').taskId,
+          steps: body.steps,
+          ...(body.planId !== undefined ? { planId: body.planId } : {}),
+          ...(turnSessionId !== undefined ? { sessionId: turnSessionId } : {}),
+        },
+        { logger: c.var.logger },
+      )
+      return c.json(steps.map(serializeTaskStepForResponse))
     },
   )

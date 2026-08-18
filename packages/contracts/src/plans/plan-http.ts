@@ -22,6 +22,8 @@ export interface PlanResponse {
   status: PlanStatus
   source: PlanSource
   sessionId: string | null
+  // Loose cross-feature ref — the task this plan executes (no FK).
+  taskId: string | null
   /** ISO-8601 or null */
   completedAt: string | null
   /** ISO-8601 */

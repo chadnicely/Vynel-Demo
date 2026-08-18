@@ -6218,6 +6218,18 @@
                           "null"
                         ]
                       },
+                      "assignedSessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "stepsTotal": {
+                        "type": "number"
+                      },
+                      "stepsDone": {
+                        "type": "number"
+                      },
                       "completedAt": {
                         "type": [
                           "string",
@@ -6241,6 +6253,7 @@
                       "source",
                       "sessionId",
                       "planId",
+                      "assignedSessionId",
                       "completedAt",
                       "createdAt",
                       "updatedAt"
@@ -6353,6 +6366,18 @@
                         "null"
                       ]
                     },
+                    "assignedSessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "stepsTotal": {
+                      "type": "number"
+                    },
+                    "stepsDone": {
+                      "type": "number"
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -6376,6 +6401,7 @@
                     "source",
                     "sessionId",
                     "planId",
+                    "assignedSessionId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -6505,6 +6531,18 @@
                         "null"
                       ]
                     },
+                    "assignedSessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "stepsTotal": {
+                      "type": "number"
+                    },
+                    "stepsDone": {
+                      "type": "number"
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -6528,6 +6566,7 @@
                     "source",
                     "sessionId",
                     "planId",
+                    "assignedSessionId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -6672,6 +6711,18 @@
                         "null"
                       ]
                     },
+                    "assignedSessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "stepsTotal": {
+                      "type": "number"
+                    },
+                    "stepsDone": {
+                      "type": "number"
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -6695,6 +6746,7 @@
                     "source",
                     "sessionId",
                     "planId",
+                    "assignedSessionId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -6737,6 +6789,178 @@
           "name": "complete_task",
           "description": "Mark a task done the moment its work is finished and verified — not before. The user sees completed tasks on their dashboard as the record of what you've delivered.",
           "mutatingApproved": true
+        }
+      }
+    },
+    "/workspaces/{workspaceId}/tasks/{taskId}/steps": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The stored list, in order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "taskId": {
+                        "type": "string"
+                      },
+                      "planId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "orderIndex": {
+                        "type": "number"
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "taskId",
+                      "planId",
+                      "sessionId",
+                      "title",
+                      "status",
+                      "orderIndex",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such task owned by this user."
+          }
+        },
+        "operationId": "putWorkspacesByWorkspaceIdTasksByTaskIdSteps",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Replace a task's execution steps (whole-list).",
+        "x-sdk-name": "tasks.setSteps",
+        "x-mcp": {
+          "exposed": true,
+          "name": "set_task_steps",
+          "description": "Lay out (or revise) a task's execution steps — the durable checklist the user watches on the task panel, where each row shows its steps and an n/m progress count. Send the task's COMPLETE current list every time: `steps` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in working order — the list is REPLACED wholesale, so omit a step and it disappears. Set `planId` when the steps come from a plan (create_plan first for medium/large work). Exactly one step should be \"in-progress\" at a time; update the list the moment a step starts or finishes. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Steps are NOT the chat dock (set_todos keeps that) — they are the task's plan-of-record and persist until the task is deleted. Do not narrate the bookkeeping in your reply.",
+          "mutatingApproved": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "steps": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "in-progress",
+                            "done"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "status"
+                      ]
+                    },
+                    "maxItems": 50
+                  },
+                  "planId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "steps"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -6797,6 +7021,12 @@
                           "null"
                         ]
                       },
+                      "taskId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "completedAt": {
                         "type": [
                           "string",
@@ -6820,6 +7050,7 @@
                       "status",
                       "source",
                       "sessionId",
+                      "taskId",
                       "completedAt",
                       "createdAt",
                       "updatedAt"
@@ -6859,6 +7090,14 @@
             }
           },
           {
+            "in": "query",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
             "schema": {
               "type": "string"
             },
@@ -6872,7 +7111,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "list_plans",
-          "description": "List the active workspace's plans (owner-scoped), newest day first. A plan is what is planned for a calendar day — title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` filters to one status; optional `planDate` narrows to one day. A plan's work items are the tasks whose `planId` points at it (list_tasks with `planId`). Check this when the user asks what is planned, or before planning new dated work. Read-only."
+          "description": "List the active workspace's plans (owner-scoped), newest day first. A plan is what is planned for a calendar day — title, optional detail, `planDate` (YYYY-MM-DD), status (open / in-progress / done), and who created it. Optional `status` filters to one status; optional `planDate` narrows to one day; optional `taskId` finds the plan executing one task. A plan's work items are the tasks whose `planId` points at it (list_tasks with `planId`). Check this when the user asks what is planned, or before planning new dated work. Read-only."
         }
       },
       "post": {
@@ -6929,6 +7168,12 @@
                         "null"
                       ]
                     },
+                    "taskId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -6952,6 +7197,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "taskId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -6986,7 +7232,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "create_plan",
-          "description": "Create a plan for a calendar day — use this when the user lays out dated intent (\"tomorrow we tackle the launch\", \"plan Friday for bookkeeping\"). `title` is the short label (≤200 chars); `detail` carries the specifics; `planDate` is the day it belongs to (YYYY-MM-DD, required). Phrase titles in plain language the user recognizes. Break the plan into tasks with create_task, passing this plan's id as `planId`, and move the plan with update_plan / complete_plan as the day's work lands. Side effect: the plan appears in the user's plan list.",
+          "description": "Create a plan for a calendar day — use this when the user lays out dated intent (\"tomorrow we tackle the launch\", \"plan Friday for bookkeeping\"), or as the EXECUTION PLAN of a medium/large task (set `taskId` to that task — goal, parts, approach, risks in `detail`, then set_task_steps from it). `title` is the short label (≤200 chars); `detail` carries the specifics; `planDate` is the day it belongs to (YYYY-MM-DD, required). Phrase titles in plain language the user recognizes. For day plans, break the work into tasks with create_task passing this plan's id as `planId`; move the plan with update_plan / complete_plan as the work lands. Side effect: the plan appears in the user's plan list.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -7010,6 +7256,10 @@
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                   },
                   "sessionId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "taskId": {
                     "type": "string",
                     "minLength": 1
                   }
@@ -7079,6 +7329,12 @@
                         "null"
                       ]
                     },
+                    "taskId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -7102,6 +7358,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "taskId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -7145,7 +7402,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "update_plan",
-          "description": "Update a plan. Set status \"in-progress\" when its day's work starts, back to \"open\" if it stalls, or \"done\" when everything landed (complete_plan is the shortcut). `planDate` moves the plan to another day when the user reschedules; title/detail edits keep the wording current. Statuses: open / in-progress / done.",
+          "description": "Update a plan. Set status \"in-progress\" when its day's work starts, back to \"open\" if it stalls, or \"done\" when everything landed (complete_plan is the shortcut). `planDate` moves the plan to another day when the user reschedules; title/detail edits keep the wording current; `taskId` attaches the plan to the task it executes (null detaches). Statuses: open / in-progress / done.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -7177,6 +7434,13 @@
                       "in-progress",
                       "done"
                     ]
+                  },
+                  "taskId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
                   }
                 }
               }
@@ -7240,6 +7504,12 @@
                         "null"
                       ]
                     },
+                    "taskId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -7263,6 +7533,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "taskId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -18724,6 +18995,18 @@
                           "null"
                         ]
                       },
+                      "assignedSessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "stepsTotal": {
+                        "type": "number"
+                      },
+                      "stepsDone": {
+                        "type": "number"
+                      },
                       "completedAt": {
                         "type": [
                           "string",
@@ -18747,6 +19030,7 @@
                       "source",
                       "sessionId",
                       "planId",
+                      "assignedSessionId",
                       "completedAt",
                       "createdAt",
                       "updatedAt"
@@ -18848,6 +19132,18 @@
                         "null"
                       ]
                     },
+                    "assignedSessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "stepsTotal": {
+                      "type": "number"
+                    },
+                    "stepsDone": {
+                      "type": "number"
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -18871,6 +19167,7 @@
                     "source",
                     "sessionId",
                     "planId",
+                    "assignedSessionId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -19011,6 +19308,18 @@
                         "null"
                       ]
                     },
+                    "assignedSessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "stepsTotal": {
+                      "type": "number"
+                    },
+                    "stepsDone": {
+                      "type": "number"
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -19034,6 +19343,7 @@
                     "source",
                     "sessionId",
                     "planId",
+                    "assignedSessionId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -19131,6 +19441,268 @@
         ],
         "summary": "Delete a task the user owns (hard delete).",
         "x-sdk-name": "tasksUser.delete"
+      }
+    },
+    "/tasks/{taskId}/steps": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of TaskStep.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "string"
+                      },
+                      "workspaceId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "taskId": {
+                        "type": "string"
+                      },
+                      "planId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "in-progress",
+                          "done"
+                        ]
+                      },
+                      "orderIndex": {
+                        "type": "number"
+                      },
+                      "completedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "userId",
+                      "workspaceId",
+                      "taskId",
+                      "planId",
+                      "sessionId",
+                      "title",
+                      "status",
+                      "orderIndex",
+                      "completedAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getTasksByTaskIdSteps",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "List one task's execution steps, in order.",
+        "x-sdk-name": "tasksUser.listSteps"
+      }
+    },
+    "/tasks/steps/{stepId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Step updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "taskId": {
+                      "type": "string"
+                    },
+                    "planId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "in-progress",
+                        "done"
+                      ]
+                    },
+                    "orderIndex": {
+                      "type": "number"
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "workspaceId",
+                    "taskId",
+                    "planId",
+                    "sessionId",
+                    "title",
+                    "status",
+                    "orderIndex",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "No such step owned by this user."
+          }
+        },
+        "operationId": "patchTasksStepsByStepId",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stepId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Move a task step (open / in-progress / done).",
+        "x-sdk-name": "tasksUser.updateStepStatus",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "in-progress",
+                      "done"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Step removed."
+          },
+          "404": {
+            "description": "No such step owned by this user."
+          }
+        },
+        "operationId": "deleteTasksStepsByStepId",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stepId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Remove a task step (hard delete).",
+        "x-sdk-name": "tasksUser.deleteStep"
       }
     },
     "/todos": {
@@ -19560,6 +20132,12 @@
                           "null"
                         ]
                       },
+                      "taskId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "completedAt": {
                         "type": [
                           "string",
@@ -19583,6 +20161,7 @@
                       "status",
                       "source",
                       "sessionId",
+                      "taskId",
                       "completedAt",
                       "createdAt",
                       "updatedAt"
@@ -19616,6 +20195,14 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "taskId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -19681,6 +20268,12 @@
                         "null"
                       ]
                     },
+                    "taskId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -19704,6 +20297,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "taskId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -19851,6 +20445,12 @@
                         "null"
                       ]
                     },
+                    "taskId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "completedAt": {
                       "type": [
                         "string",
@@ -19874,6 +20474,7 @@
                     "status",
                     "source",
                     "sessionId",
+                    "taskId",
                     "completedAt",
                     "createdAt",
                     "updatedAt"
@@ -19935,6 +20536,13 @@
                       "in-progress",
                       "done"
                     ]
+                  },
+                  "taskId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1
                   }
                 }
               }
@@ -33876,6 +34484,18 @@
                               "null"
                             ]
                           },
+                          "assignedSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "stepsTotal": {
+                            "type": "number"
+                          },
+                          "stepsDone": {
+                            "type": "number"
+                          },
                           "completedAt": {
                             "type": [
                               "string",
@@ -33899,6 +34519,7 @@
                           "source",
                           "sessionId",
                           "planId",
+                          "assignedSessionId",
                           "completedAt",
                           "createdAt",
                           "updatedAt"
@@ -33958,6 +34579,18 @@
                               "null"
                             ]
                           },
+                          "assignedSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "stepsTotal": {
+                            "type": "number"
+                          },
+                          "stepsDone": {
+                            "type": "number"
+                          },
                           "completedAt": {
                             "type": [
                               "string",
@@ -33981,6 +34614,7 @@
                           "source",
                           "sessionId",
                           "planId",
+                          "assignedSessionId",
                           "completedAt",
                           "createdAt",
                           "updatedAt"

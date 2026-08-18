@@ -25,6 +25,10 @@ export const askRequests = table(
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     sessionId: text(), // loose ref — the chat session whose turn asked
+    // Loose cross-feature ref — the task this ask CLEARS (`tasks` is a sibling
+    // leaf; NO FK). Set when the assistant asks for clearance before working a
+    // task, so the panel can show "waiting on you" against the task row.
+    taskId: text(),
     questionsJson: text().notNull(),
     answersJson: text(), // null until answered
     status: text().$type<AskRequestStatus>().notNull(),

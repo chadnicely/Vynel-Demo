@@ -13,6 +13,7 @@ export function serializeAskRequestForResponse(ask: AskRequest): AskRequestRespo
     userId: ask.userId,
     workspaceId: ask.workspaceId,
     sessionId: ask.sessionId,
+    taskId: ask.taskId,
     questions: JSON.parse(ask.questionsJson) as AskQuestion[],
     answers: ask.answersJson !== null ? (JSON.parse(ask.answersJson) as AskAnswers) : null,
     status: ask.status,

@@ -61,6 +61,7 @@ export function makeAskRequest(
     userId,
     workspaceId,
     sessionId: null,
+    taskId: null,
     questionsJson: JSON.stringify(makeQuestions()),
     answersJson: null,
     status: 'pending',

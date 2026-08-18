@@ -16,6 +16,8 @@ const PlanDateSchema = z.string().regex(PLAN_DATE_PATTERN, 'Use the YYYY-MM-DD f
 export const ListPlansQuerySchema = z.object({
   status: z.enum(['open', 'in-progress', 'done']).optional(),
   planDate: PlanDateSchema.optional(),
+  // Narrow to the plan executing one task (loose ref — no FK).
+  taskId: z.string().min(1).optional(),
 })
 
 // The workspace-scoped `POST /` body — the AGENT's create door (the route
@@ -25,6 +27,8 @@ export const CreatePlanRequestSchema = z.object({
   detail: z.string().min(1).max(4000).optional(),
   planDate: PlanDateSchema,
   sessionId: z.string().min(1).optional(),
+  // The task this plan executes (loose ref — no FK).
+  taskId: z.string().min(1).optional(),
 })
 
 // The user-scoped `POST /plans` body — the PANEL/CLI create door (the route
@@ -48,6 +52,8 @@ export const UpdatePlanRequestSchema = z.object({
   detail: z.string().max(4000).nullable().optional(),
   planDate: PlanDateSchema.optional(),
   status: z.enum(['open', 'in-progress', 'done']).optional(),
+  // Attach to the task the plan executes; null detaches.
+  taskId: z.string().min(1).nullable().optional(),
 })
 
 // ── Response schemas ────────────────────────────────────────────────
@@ -71,6 +77,8 @@ export const PlanResponseSchema = z.object({
   status: PlanStatusResponseSchema,
   source: PlanSourceResponseSchema,
   sessionId: z.string().nullable(),
+  // Loose cross-feature ref — the task this plan executes (no FK).
+  taskId: z.string().nullable(),
   completedAt: z.string().nullable(), // ISO-8601 or null
   createdAt: z.string(),
   updatedAt: z.string(),

@@ -63,6 +63,7 @@ export const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly stri
     'mcp__vynel__complete_task',
     'mcp__vynel__list_my_tasks',
     'mcp__vynel__set_todos',
+    'mcp__vynel__set_task_steps',
   ],
   plans: [
     'mcp__vynel__list_plans',

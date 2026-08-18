@@ -34,6 +34,20 @@ describe('createAskRequest', () => {
       const { userId } = seedUserWorkspace(db)
       const ask = createAskRequest(db, { userId, workspaceId: null, questions: makeQuestions() })
       expect(ask.workspaceId).toBeNull()
+      expect(ask.taskId).toBeNull()
+    })
+  })
+
+  it('records the task a clearance ask belongs to (loose ref)', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const ask = createAskRequest(db, {
+        userId,
+        workspaceId,
+        questions: makeQuestions(),
+        taskId: 'task-1',
+      })
+      expect(ask.taskId).toBe('task-1')
     })
   })
 

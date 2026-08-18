@@ -20,6 +20,7 @@ export function listPlansForWorkspace(
     workspaceId: string
     status?: PlanStatus
     planDate?: string
+    taskId?: string
     limit?: number
   },
 ): Plan[] {
@@ -27,6 +28,7 @@ export function listPlansForWorkspace(
   const filters = [eq(plans.userId, input.userId), eq(plans.workspaceId, input.workspaceId)]
   if (input.status) filters.push(eq(plans.status, input.status))
   if (input.planDate) filters.push(eq(plans.planDate, input.planDate))
+  if (input.taskId) filters.push(eq(plans.taskId, input.taskId))
   return db
     .select()
     .from(plans)
@@ -41,12 +43,13 @@ export function listPlansForWorkspace(
 // tenant boundary); workspace scope is not narrowed.
 export function listPlansForUser(
   db: Database,
-  input: { userId: string; status?: PlanStatus; planDate?: string; limit?: number },
+  input: { userId: string; status?: PlanStatus; planDate?: string; taskId?: string; limit?: number },
 ): Plan[] {
   const limit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
   const filters = [eq(plans.userId, input.userId)]
   if (input.status) filters.push(eq(plans.status, input.status))
   if (input.planDate) filters.push(eq(plans.planDate, input.planDate))
+  if (input.taskId) filters.push(eq(plans.taskId, input.taskId))
   return db
     .select()
     .from(plans)

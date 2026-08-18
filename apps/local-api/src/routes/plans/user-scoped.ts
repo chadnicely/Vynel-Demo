@@ -64,11 +64,12 @@ export const plansUserApp = factory
     validator('query', ListPlansQuerySchema),
     ...userScoped,
     (c) => {
-      const { status, planDate } = c.req.valid('query')
+      const { status, planDate, taskId } = c.req.valid('query')
       const plans = listPlansForUser(c.var.db, {
         userId: c.var.user.id,
         ...(status !== undefined ? { status } : {}),
         ...(planDate !== undefined ? { planDate } : {}),
+        ...(taskId !== undefined ? { taskId } : {}),
       })
       return c.json(plans.map(serializePlanForResponse))
     },

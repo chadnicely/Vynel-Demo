@@ -172,6 +172,10 @@ const EXPECTED_TOOL_NAMES = [
   // the plain workspace array alongside its routing membership below — one
   // name on every surface, so the toolset never flips per turn origin.
   'set_todos',
+  // Task execution steps (2026-08-18): the task panel's durable per-task
+  // checklist (whole-list replace, mutatingApproved like every task write);
+  // workspace door only — tasks live per workspace, the global root routes.
+  'set_task_steps',
   // The per-SESSION status light (Move 3, 2026-08-17) — the
   // set_workspace_status sibling on the ambient turn session (the set_todos
   // door); workspaceSurface + rootSurface so every conversation can set its
