@@ -22,7 +22,9 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   name box appears pre-filled, Enter creates it, and the new folder comes
   back already chosen. A folder that can't be opened (a locked system
   folder, a vanished USB stick) says why and steps you back instead of
-  blanking the window.
+  blanking the window. Windows' own system folders and files
+  (`$Recycle.Bin`, `System Volume Information`, `AppData`, `pagefile.sys`,
+  `desktop.ini`, …) stay hidden, the way Explorer's default view hides them.
 
 ### Changed
 
@@ -45,6 +47,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A request body that isn't valid JSON now gets a 400, not a 500.** Both
+  the engine and the hub answered malformed JSON (a Windows path pasted with
+  raw backslashes, a truncated body) with "Internal server error"; they now
+  say `validation_failed · Malformed JSON in request body` on the usual
+  error shape. Every framework-level HTTP failure (payload too large, …) is
+  mapped the same way instead of falling into the 500 bucket.
 - **Child sessions now honor the mode of the turn that tasked them.** The
   delegating turn's permission mode (Ask / Auto / Bypass) travels to the
   enqueued task through an internal header, but only the global chat's turn

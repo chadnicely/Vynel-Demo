@@ -5,6 +5,7 @@
 // their features land.)
 
 import { Hono } from 'hono'
+import { HTTPException } from 'hono/http-exception'
 import { openAPISpecs } from 'hono-openapi'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { Database } from '@vynel/db'
@@ -196,6 +197,17 @@ export interface CreateAppOptions {
   readonly serverPayloadArchive?: ServerPayloadArchive
 }
 
+// Hono's HTTPException statuses, spoken in the VynelError code vocabulary.
+const HTTP_ERROR_CODE_BY_STATUS: Record<number, string> = {
+  400: 'validation_failed',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not_found',
+  409: 'conflict',
+  413: 'payload_too_large',
+  429: 'rate_limited',
+}
+
 export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
 
@@ -305,6 +317,15 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       return c.json(
         { code: err.code, message: err.message },
         err.httpStatus as ContentfulStatusCode,
+      )
+    }
+    // Hono's own typed failures — the JSON validator's "Malformed JSON in
+    // request body" (400), bodyLimit (413), … — carry their status; answer
+    // them on the same {code, message} contract instead of a 500.
+    if (err instanceof HTTPException) {
+      return c.json(
+        { code: HTTP_ERROR_CODE_BY_STATUS[err.status] ?? 'http_error', message: err.message },
+        err.status as ContentfulStatusCode,
       )
     }
     c.var.logger.error({ err }, 'unhandled error')

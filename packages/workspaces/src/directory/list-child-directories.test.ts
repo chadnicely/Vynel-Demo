@@ -21,6 +21,21 @@ describe('listChildDirectories', () => {
     expect(listing.parent).not.toBeNull()
   })
 
+  it("hides what Explorer hides: Windows' own system folders and files, by name", async () => {
+    const base = mkdtempSync(path.join(os.tmpdir(), 'vynel-browse-'))
+    for (const name of ['$Recycle.Bin', 'System Volume Information', 'AppData', 'Recovery', 'Work']) {
+      mkdirSync(path.join(base, name))
+    }
+    for (const name of ['pagefile.sys', 'NTUSER.DAT', 'desktop.ini', 'notes.md']) {
+      writeFileSync(path.join(base, name), 'x')
+    }
+
+    const listing = await listChildDirectories(base, { includeFiles: true })
+
+    expect(listing.entries.map((entry) => entry.name)).toEqual(['Work'])
+    expect(listing.files?.map((file) => file.name)).toEqual(['notes.md'])
+  })
+
   it('defaults to the home directory when no path is given', async () => {
     const listing = await listChildDirectories()
     expect(listing.path).toBe(realpathSync(os.homedir()))

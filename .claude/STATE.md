@@ -33,11 +33,16 @@ fixture-tested (timing test dropped), realpath'd places, folder-highlight never 
 click = idempotent select (dblclick a file lands selected; empty-pane click clears), unreadable
 folder → error banner + auto step back with rails intact, listing query `retry:false`. Verified:
 10 typechecks + parity + ~110 targeted tests + live playwright (three dialogs, New-folder row) +
-live POST 201/409/400. OBSERVED (not fixed): malformed JSON bodies answer 500 (hono validator
-JSON.parse) — a gateway-wide nit. NOT built (candidates for later small steps): keyboard arrow
-navigation between tiles, a list/details view toggle, Windows known-folder redirection via the
-registry (today: home then OneDrive probe), hiding Windows hidden/system dirs (`$Recycle.Bin`), showing
-files greyed in folder mode, warming the volume-label cache at API boot.
+live POST 201/409/400. Third pass (Kafi: "fix it"): both apps' `onError` now map Hono's
+`HTTPException` (malformed JSON 400, 413, …) onto the {code,message} contract via a status→code
+table (was a 500); `explorer-hidden-names.ts` hides Windows' own system folders/files BY NAME
+(Node can't read the Hidden attribute; legacy junctions already drop as non-directories) — C:\ and
+Home now read like Explorer's default view. Kafi smoked create-workspace + New folder: works.
+DEFERRED by Kafi: multi-word @-mentions (the grammar is single-token; a workspace like "Claw
+Launcher" has no @-persona until renamed) — a later fix. NOT built (candidates for later small
+steps): keyboard arrow navigation between tiles, a list/details view toggle, Windows known-folder
+redirection via the registry (today: home then OneDrive probe), showing files greyed in folder
+mode, warming the volume-label cache at API boot.
 
 ## ✅ 2026-08-19 MODE INHERITANCE + SYNTHETIC-MODEL POISONING — both root-caused and fixed
 

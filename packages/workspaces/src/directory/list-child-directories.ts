@@ -4,7 +4,8 @@
 // the local API can, so the picker reads directories through this op. Phase 1
 // is localhost-bound single-user; Phase 2 auth gates who may browse.
 //
-// Returns directories (dot-hidden entries filtered out), each with its
+// Returns directories (dot-hidden + Windows' own system folders filtered out,
+// the way Explorer's default view hides them), each with its
 // absolute path, plus the parent for "up" navigation. Callers that pick FILES
 // too (the knowledge add-source picker) opt in via `includeFiles` — the
 // listing then also carries the folder's visible files. Every listing also
@@ -22,6 +23,7 @@ import { readdir, stat, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { ValidationError } from '@vynel/errors'
+import { isExplorerHiddenDirectory, isExplorerHiddenFile } from './explorer-hidden-names.js'
 import { listDriveRoots, type DriveRoot, type DriveRootsLogger } from './list-drive-roots.js'
 import { listKnownPlaces, type KnownPlace } from './list-known-places.js'
 
@@ -77,13 +79,13 @@ export async function listChildDirectories(
   }
 
   const entries = dirents
-    .filter((dirent) => dirent.isDirectory() && !dirent.name.startsWith('.'))
+    .filter((dirent) => dirent.isDirectory() && !isExplorerHiddenDirectory(dirent.name))
     .map((dirent) => ({ name: dirent.name, path: path.join(resolved, dirent.name) }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   const files = options.includeFiles
     ? dirents
-        .filter((dirent) => dirent.isFile() && !dirent.name.startsWith('.'))
+        .filter((dirent) => dirent.isFile() && !isExplorerHiddenFile(dirent.name))
         .map((dirent) => ({ name: dirent.name, path: path.join(resolved, dirent.name) }))
         .sort((a, b) => a.name.localeCompare(b.name))
     : undefined

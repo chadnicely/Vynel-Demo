@@ -225,6 +225,23 @@ describe('workspaces routes', () => {
       })
     })
 
+    it('answers malformed JSON with a 400 on the error contract, never a 500', async () => {
+      await withTestDatabase(async (db) => {
+        const app = createApp({ db, logger: silentLogger })
+        // A Windows path pasted raw — \U and \K aren't JSON escapes.
+        const res = await app.request('/workspaces/directories', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{"parentPath":"C:\\Users\\KLONE","name":"x"}',
+        })
+        expect(res.status).toBe(400)
+        expect(await res.json()).toEqual({
+          code: 'validation_failed',
+          message: 'Malformed JSON in request body',
+        })
+      })
+    })
+
     it('returns 400 for a bad name or a missing parent', async () => {
       await withTestDatabase(async (db) => {
         await withTmpDir(async (parentDir) => {
