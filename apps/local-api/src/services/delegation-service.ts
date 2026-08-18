@@ -47,10 +47,11 @@ import type { DelegatedTurnMcpComposer } from '../sessions/build-workspace-backg
 const DELEGATION_POLL_INTERVAL_MS = 1_000
 
 // Each run is a live Claude SDK subprocess — real memory + API streaming. The ONE home
-// for the cap: Chad's plan makes this a user-facing setting later ("how many sessions
-// Claude can run"); the settings arc swaps this constant for a stored preference
-// without touching the pool mechanics.
-const MAX_CONCURRENT_DELEGATIONS = 3
+// for the cap's DEFAULT: Chad's plan makes this a user-facing setting later ("how many
+// sessions Claude can run"); the settings arc swaps it for a stored preference without
+// touching the pool mechanics. Until then `VYNEL_MAX_CONCURRENT_DELEGATIONS` (env.ts →
+// `maxConcurrentDelegations`) overrides it for a machine that can carry more runs.
+const DEFAULT_MAX_CONCURRENT_DELEGATIONS = 3
 
 export interface DelegationServiceOptions {
   db: Database
@@ -87,6 +88,10 @@ export interface DelegationServiceOptions {
    *  continuity step (the env smoke knob) — the same value the interactive
    *  streams honor, so every runner swaps at one point. Omit = 0.85. */
   pressureThreshold?: number
+  /** How many delegated runs may live at once (child sessions, routed tasks,
+   *  agent runs — the user's own interactive turns are outside the pool).
+   *  Omit = DEFAULT_MAX_CONCURRENT_DELEGATIONS. */
+  maxConcurrentDelegations?: number
 }
 
 export function startDelegationService(options: DelegationServiceOptions): { stop: () => void } {
@@ -102,6 +107,8 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     targetLocks,
     pressureThreshold,
   } = options
+  const maxConcurrentDelegations =
+    options.maxConcurrentDelegations ?? DEFAULT_MAX_CONCURRENT_DELEGATIONS
 
   // Report deliveries orphaned mid-delivery REQUEUE instead of failing: the
   // report body is the ONLY copy of a child's result, so destroying a claimed
@@ -162,7 +169,7 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
     // SYNCHRONOUSLY inside the tick call — before its first await — so a
     // successful claim reserves its slot before the next loop iteration reads
     // the count, and an empty claim breaks without reserving anything.
-    while (activeRunCount < MAX_CONCURRENT_DELEGATIONS) {
+    while (activeRunCount < maxConcurrentDelegations) {
       let claimedTargetKey: string | null = null
       let releaseTargetLock: (() => void) | null = null
       let releaseWanted = false
@@ -221,7 +228,7 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   }, DELEGATION_POLL_INTERVAL_MS)
 
   logger.info(
-    { maxConcurrent: MAX_CONCURRENT_DELEGATIONS },
+    { maxConcurrent: maxConcurrentDelegations },
     'delegation service started (poll 1s, bounded pool)',
   )
 

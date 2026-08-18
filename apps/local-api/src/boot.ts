@@ -409,6 +409,7 @@ export async function boot(): Promise<void> {
     ...(env.VYNEL_CONTEXT_PRESSURE_THRESHOLD !== undefined
       ? { pressureThreshold: env.VYNEL_CONTEXT_PRESSURE_THRESHOLD }
       : {}),
+    maxConcurrentDelegations: env.VYNEL_MAX_CONCURRENT_DELEGATIONS,
   })
   // The stale-approval reaper (surface-up's unanswered bound) — denies the provider
   // approval so a parked turn resumes, then marks the row timed-out.

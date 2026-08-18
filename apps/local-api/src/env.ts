@@ -56,6 +56,11 @@ function buildEnvSchema(portBase: number) {
   // fire a swap in a few turns. Unset in production. Consumed by
   // `streamChatTurn` → `applyRootTurnContinuity`.
   VYNEL_CONTEXT_PRESSURE_THRESHOLD: z.coerce.number().gt(0).lte(1).optional(),
+  // How many delegated runs (child sessions, routed tasks, agent runs) may live at
+  // once — each is a Claude CLI subprocess. Default 3 (Chad, 2026-07-21); becomes a
+  // user-facing setting in the settings arc. Bounded: a runaway value would fan out
+  // that many subprocesses against the account's rate limits.
+  VYNEL_MAX_CONCURRENT_DELEGATIONS: z.coerce.number().int().min(1).max(32).default(3),
   // The hidden user-level data directory the GLOBAL root (Slice 3b) runs in as
   // its SDK cwd — like `.claude`, NOT a workspace folder. Absolute path; unset
   // defaults to `<home>/.vynel` (resolved in `sessions/global-root-workspace.ts`).

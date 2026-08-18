@@ -147,6 +147,22 @@ describe('startDelegationService', () => {
     service.stop()
   })
 
+  it('honors a maxConcurrentDelegations override (the env knob until the user setting lands)', async () => {
+    const resolvers: Array<(processed: boolean) => void> = []
+    let nextWorkspace = 0
+    tickMock.mockImplementation((_db: unknown, deps: TickDeps) => {
+      deps.onRunStarted?.({ jobId: `job-${nextWorkspace}`, targetKey: `ws-${nextWorkspace}` })
+      nextWorkspace += 1
+      return new Promise<boolean>((resolve) => resolvers.push(resolve))
+    })
+    const service = startDelegationService({ ...fakeOptions(), maxConcurrentDelegations: 5 })
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(tickMock).toHaveBeenCalledTimes(5)
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(tickMock).toHaveBeenCalledTimes(5)
+    service.stop()
+  })
+
   it('passes the live target keys as the claim exclusion set (never two runs per target)', async () => {
     // First claim holds ws-A and never settles; the second call claims nothing
     // (simulating "the only pending job's workspace is busy").
