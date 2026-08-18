@@ -70,4 +70,12 @@ describe("AppTitleBar", () => {
     await wrapper.get('[aria-label="Toggle tasks"]').trigger("click");
     expect(wrapper.emitted("command")).toEqual([["toggle-tasks"]]);
   });
+
+  // The provider mark (Kafi, 2026-08-18): the Claude account popup's door,
+  // right after the Tabs|Menu segment.
+  it("the provider mark commands claude-account", async () => {
+    const wrapper = mountTitleBar();
+    await wrapper.get('[aria-label="Claude account"]').trigger("click");
+    expect(wrapper.emitted("command")).toEqual([["claude-account"]]);
+  });
 });

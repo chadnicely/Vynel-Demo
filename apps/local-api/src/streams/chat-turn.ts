@@ -42,6 +42,7 @@ import { composeSessionMcpServers } from '../sessions/compose-session-mcp-server
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
+import { buildRecordRateLimitSnapshot } from '../sessions/build-record-rate-limit-snapshot.js'
 import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import { writeSseSafely } from './write-sse-safely.js'
@@ -333,6 +334,8 @@ export async function streamChatTurn(
           ...(Object.keys(sessionAgents).length > 0 ? { agents: sessionAgents } : {}),
           // Persist the roster the engine reports — feeds the model picker.
           onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
+          // Persist the account's limit readings — feeds the popup's Limits tab.
+          onRateLimitReported: buildRecordRateLimitSnapshot(c.var.db, c.var.user.id, c.var.logger),
         },
         // turnEvents: the turn tees onto its session channel (Watch everywhere).
         { logger: c.var.logger, turnEvents: c.var.turnEvents },

@@ -16,6 +16,9 @@ const claudeStatus: AuthenticationStatus = {
   authenticatedAccountLabel: 'test@example.com',
   authenticationMethod: 'oauth',
   inactiveReason: null,
+  email: 'test@example.com',
+  organizationName: "Test's Organization",
+  subscriptionPlan: 'max',
 }
 
 const codexStatus: AuthenticationStatus = {
@@ -25,6 +28,9 @@ const codexStatus: AuthenticationStatus = {
   authenticatedAccountLabel: null,
   authenticationMethod: null,
   inactiveReason: 'Not installed',
+  email: null,
+  organizationName: null,
+  subscriptionPlan: null,
 }
 
 describe('listProvidersWithStatus', () => {

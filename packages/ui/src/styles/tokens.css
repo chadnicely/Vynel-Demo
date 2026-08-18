@@ -159,6 +159,10 @@
   --needs-input: #38b6ff;
   --needs-input-soft: color-mix(in srgb, #38b6ff 14%, transparent);
   --info: #5c9dd9;
+  /* Meter tier only — an "approaching the limit" fill (the account popup's
+     usage bars). NOT a status light: the one-status-one-colour set above
+     stays the closed vocabulary for state. */
+  --warn: #e0a43b;
 
   /* File-type colors (tree + editor chrome). Kept from the previous palette —
      the canvases don't restyle the file tree; revisit with the file surfaces. */
@@ -248,6 +252,8 @@
   --needs-input: #1583cd;
   --needs-input-soft: color-mix(in srgb, #1583cd 12%, transparent);
   --info: #3b82c4;
+  /* Meter tier only — see the dark block's note. */
+  --warn: #c9860f;
 
   --claude-mark: #bf5e3f;
   --claude-mark-soft: rgba(191, 94, 63, 0.12);

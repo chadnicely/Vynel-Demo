@@ -1,11 +1,15 @@
-// The `providers` HTTP surface — three read-only routes mounted at
-// `/providers` from `apps/local-api/src/app.ts` (source order preserved):
+// The `providers` HTTP surface — mounted at `/providers` from
+// `apps/local-api/src/app.ts` (source order preserved):
 //
 //   GET /                    -> listProvidersWithStatus            [x-mcp: list_ai_agent_providers]
 //   GET /:providerId/auth    -> getProviderAuthenticationStatus    [x-mcp: get_ai_agent_provider_auth_status]
-//   GET /:providerId/skills  -> discoverInstalledSkillsForProvider [x-mcp: discover_installed_skills_for_provider]
+//   POST /:providerId/auth/login                -> begin the LOCAL sign-in (URL out; no x-mcp)
+//   POST /:providerId/auth/login/:loginId/code  -> pasted code in, fresh status back (no x-mcp)
+//   DELETE /:providerId/auth/login/:loginId     -> cancel a pending sign-in (no x-mcp)
+//   GET /:providerId/limits  -> the account's limit windows (no x-mcp)
 //   GET /:providerId/models  -> the stored roster (or the curated floor) [x-mcp: list_available_chat_models]
 //   POST /:providerId/models/refresh -> re-ask the ENGINE for it (no x-mcp)
+//   GET /:providerId/skills  -> discoverInstalledSkillsForProvider [x-mcp: discover_installed_skills_for_provider]
 //
 // Locked Hono protocol per the knowledge/skills precedent: describeRoute
 // (from the local openapi.js wrapper — widens the type for x-mcp +
@@ -19,12 +23,14 @@
 // providerIds keep the source ValidationError → 400 semantics.
 
 import { resolver, validator } from 'hono-openapi/zod'
+import { ConflictError, ValidationError } from '@vynel/errors'
 import {
+  ClaudeLoginRelay,
   discoverInstalledSkillsForProvider,
   getProviderAuthenticationStatus,
   listProvidersWithStatus,
 } from '@vynel/providers'
-import { findDiscoveredModels } from '@vynel/provider-preferences'
+import { findDiscoveredModels, listRateLimitSnapshots } from '@vynel/provider-preferences'
 import {
   availableChatModelsFloor,
   toAvailableChatModels,
@@ -38,10 +44,30 @@ import {
   DiscoverSkillsQuerySchema,
   ProviderIdParamSchema,
   AuthenticationStatusResponseSchema,
+  BeginLoginResponseSchema,
+  CancelLoginResponseSchema,
   ListProvidersWithStatusResponseSchema,
   DiscoverInstalledSkillsResponseSchema,
   ListAvailableModelsResponseSchema,
+  ListRateLimitSnapshotsResponseSchema,
+  LoginSessionParamSchema,
+  SubmitLoginCodeRequestSchema,
 } from './schemas.js'
+
+// One relay per process — it holds the live `claude auth login` child between
+// the "show me the link" and "here is my code" round-trips (the server-install
+// route's ClaudeAuthRelay precedent).
+const claudeLoginRelay = new ClaudeLoginRelay()
+
+// How long the code round-trip waits for the CLI to write its credential and
+// exit before reporting the pending state as a conflict.
+const LOGIN_SETTLE_TIMEOUT_MS = 45_000
+
+function requireClaudeProvider(providerId: string): void {
+  if (providerId !== 'claude') {
+    throw new ValidationError(`Signing in to ${providerId} is not wired up yet — Claude is.`)
+  }
+}
 
 export const providersApp = factory
   .createApp()
@@ -105,6 +131,123 @@ export const providersApp = factory
       const { providerId } = c.req.valid('param')
       const status = await getProviderAuthenticationStatus(providerId, c.var.aiProvider)
       return c.json(status)
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // The local sign-in (top-bar account popup, 2026-08-18): three hops
+  // mirroring the server-install relay — begin (URL out), code (pasted code
+  // in, wait for the CLI's own verdict), cancel. NO x-mcp on any: signing the
+  // machine in is the USER's door, never an agent tool. The CLI writes its
+  // own credential file; no response carries a secret.
+  // ──────────────────────────────────────────────────────────────────
+  .post(
+    '/:providerId/auth/login',
+    describeRoute({
+      tags: ['providers'],
+      summary: 'Begin signing this machine in to the provider (returns the authorization URL).',
+      'x-sdk-name': 'providers.beginLogin',
+      responses: {
+        200: {
+          description: 'The sign-in is open: show the URL, then submit the pasted code.',
+          content: { 'application/json': { schema: resolver(BeginLoginResponseSchema) } },
+        },
+        400: { description: 'Unsupported providerId.' },
+        409: { description: 'The CLI offered no sign-in link (not installed, no subscription).' },
+      },
+    }),
+    validator('param', ProviderIdParamSchema),
+    ...userScoped,
+    async (c) => {
+      const { providerId } = c.req.valid('param')
+      requireClaudeProvider(providerId)
+      const state = await claudeLoginRelay.begin()
+      // begin() resolves only once the URL is present.
+      return c.json({ loginId: state.loginId, authorizationUrl: state.authorizationUrl ?? '' })
+    },
+  )
+  .post(
+    '/:providerId/auth/login/:loginId/code',
+    describeRoute({
+      tags: ['providers'],
+      summary: 'Finish the sign-in with the code the browser gave, returning the fresh status.',
+      'x-sdk-name': 'providers.submitLoginCode',
+      responses: {
+        200: {
+          description: 'Signed in — the provider status after the CLI wrote its credential.',
+          content: { 'application/json': { schema: resolver(AuthenticationStatusResponseSchema) } },
+        },
+        400: { description: 'Unsupported providerId, or an empty code.' },
+        404: { description: 'That sign-in is no longer open — begin again.' },
+        409: { description: 'The CLI rejected the code or did not finish.' },
+      },
+    }),
+    validator('param', LoginSessionParamSchema),
+    validator('json', SubmitLoginCodeRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { providerId, loginId } = c.req.valid('param')
+      requireClaudeProvider(providerId)
+      const { code } = c.req.valid('json')
+      claudeLoginRelay.submitCode(loginId, code)
+      const settled = await claudeLoginRelay.waitForOutcome(loginId, LOGIN_SETTLE_TIMEOUT_MS)
+      if (settled.phase !== 'signed-in') {
+        claudeLoginRelay.discard(loginId)
+        throw new ConflictError(settled.errorMessage ?? 'The sign-in did not finish. Try again.')
+      }
+      claudeLoginRelay.discard(loginId)
+      const status = await getProviderAuthenticationStatus(providerId, c.var.aiProvider)
+      return c.json(status)
+    },
+  )
+  .delete(
+    '/:providerId/auth/login/:loginId',
+    describeRoute({
+      tags: ['providers'],
+      summary: 'Cancel a pending sign-in (the dialog was closed).',
+      'x-sdk-name': 'providers.cancelLogin',
+      responses: {
+        200: {
+          description: 'The pending sign-in (if any) is discarded — idempotent.',
+          content: { 'application/json': { schema: resolver(CancelLoginResponseSchema) } },
+        },
+        400: { description: 'Unsupported providerId.' },
+      },
+    }),
+    validator('param', LoginSessionParamSchema),
+    ...userScoped,
+    (c) => {
+      const { providerId, loginId } = c.req.valid('param')
+      requireClaudeProvider(providerId)
+      claudeLoginRelay.discard(loginId)
+      return c.json({ ok: true as const })
+    },
+  )
+  .get(
+    '/:providerId/limits',
+    describeRoute({
+      tags: ['providers'],
+      summary: "The account's subscription-limit windows, as the engine last reported them.",
+      'x-sdk-name': 'providers.listRateLimits',
+      responses: {
+        200: {
+          description:
+            'One entry per limit window (five-hour session, seven-day, per-model). ' +
+            'Readings ride the session stream, so they refresh whenever a turn runs; ' +
+            'empty before the first turn ever reports one.',
+          content: {
+            'application/json': { schema: resolver(ListRateLimitSnapshotsResponseSchema) },
+          },
+        },
+        400: { description: 'Unsupported providerId.' },
+      },
+      // No x-mcp: the user's account affordance, mirrored by nothing a tool
+      // needs — the model hears about its limits from the engine itself.
+    }),
+    validator('param', ProviderIdParamSchema),
+    ...userScoped,
+    (c) => {
+      const { providerId } = c.req.valid('param')
+      return c.json({ limits: listRateLimitSnapshots(c.var.db, c.var.user.id, providerId) })
     },
   )
   .get(

@@ -37,6 +37,16 @@ export {
   logoutClaudeMcpServer,
   type ClaudeMcpAuthInput,
 } from './claude/installation/claude-mcp-cli.js'
+// The LOCAL Claude sign-in relay (top-bar account popup): drives
+// `claude auth login --claudeai` on this machine — URL out, pasted code in,
+// never the credential (D14). Claude-named like the plugin delegate above.
+export {
+  ClaudeLoginRelay,
+  type ClaudeLoginPhase,
+  type ClaudeLoginProcess,
+  type ClaudeLoginRelayDeps,
+  type ClaudeLoginState,
+} from './claude/installation/claude-login-relay.js'
 export {
   addClaudeMarketplace,
   removeClaudeMarketplace,

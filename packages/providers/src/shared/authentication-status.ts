@@ -16,4 +16,12 @@ export type AuthenticationStatus = {
   authenticationMethod: AuthenticationMethod | null
   /** "Not installed", "OAuth expired", etc. Null when authenticated. */
   inactiveReason: string | null
+  /** The signed-in account's email, as the CLI reports it. Null when the CLI
+   *  doesn't say (API-key auth, older CLIs, not authenticated). */
+  email: string | null
+  /** The account's organization name ("Acme's Organization"). Null when unknown. */
+  organizationName: string | null
+  /** The subscription the account rides ("max", "pro", "team") — identity
+   *  metadata only, never a credential (decisions.md D14). Null when unknown. */
+  subscriptionPlan: string | null
 }

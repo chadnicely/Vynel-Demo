@@ -231,6 +231,9 @@ async function* runOneGlobalTurn(
     ...(input.onModelsDiscovered !== undefined
       ? { onModelsDiscovered: input.onModelsDiscovered }
       : {}),
+    ...(input.onRateLimitReported !== undefined
+      ? { onRateLimitReported: input.onRateLimitReported }
+      : {}),
   })
 
   // Persist this turn's messages + translate to ChatTurnEvent through the ONE

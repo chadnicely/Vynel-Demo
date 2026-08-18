@@ -17,7 +17,11 @@ import type {
   StructuralLogger,
   TurnMessageAttribution,
 } from '@vynel/chat'
-import type { AiAgentProvider, DiscoveredProviderModel } from '@vynel/providers'
+import type {
+  AiAgentProvider,
+  DiscoveredProviderModel,
+  ProviderRateLimitReading,
+} from '@vynel/providers'
 import type { SessionPermissionMode } from '../session-mode.js'
 import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 
@@ -151,6 +155,9 @@ export interface RunGlobalRootTurnCoreInput {
   /** Model-roster discovery (best-effort): forwarded to the provider; the
    *  caller persists the roster the engine reports. See `StartChatTurnInput`. */
   onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
+  /** Subscription-limit reporting (best-effort, the same shape): forwarded to
+   *  the provider; the caller persists the reading per window. */
+  onRateLimitReported?: (reading: ProviderRateLimitReading) => void | Promise<void>
   /** Context-pressure threshold override for the post-turn swap (default
    *  0.85). The apps edge forwards `VYNEL_CONTEXT_PRESSURE_THRESHOLD` (the
    *  live-smoke knob) — the core stays env-free. */

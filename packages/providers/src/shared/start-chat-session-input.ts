@@ -168,6 +168,27 @@ export type StartChatSessionInput = {
    * contracts-free (the model/mode precedent).
    */
   onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
+
+  /**
+   * Subscription-limit reporting (best-effort bonus, the `onModelsDiscovered`
+   * shape). When provided, the provider calls this each time the runtime
+   * announces the account's rate-limit state mid-stream — the popup's Limits
+   * tab persists the latest reading per window. Identity metadata riding the
+   * stream Vynel already consumes; never a credential (D14). A failure must
+   * never affect the turn. Structural type — providers stays contracts-free.
+   */
+  onRateLimitReported?: (reading: ProviderRateLimitReading) => void | Promise<void>
+}
+
+/** One rate-limit reading the runtime reports — structurally identical to the
+ *  snapshot the caller persists (providers deliberately doesn't import it). */
+export type ProviderRateLimitReading = {
+  /** The provider's window vocabulary ('five_hour', 'seven_day', …). */
+  windowKind: string
+  status: 'allowed' | 'allowed_warning' | 'rejected'
+  /** Percent of the window used (0–100). Null when the runtime didn't say. */
+  utilization: number | null
+  resetsAt: Date | null
 }
 
 /** One model the runtime reports — structurally identical to the contracts'

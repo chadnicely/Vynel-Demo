@@ -286,6 +286,31 @@ export async function* runClaudeChatSession(
       currentAssistantMessageId =
         readAssistantMessageIdFromStreamStart(sdkMessage) ?? currentAssistantMessageId
       if (sdkMessage.type === 'result') latestResultMessage = sdkMessage
+      // Subscription-limit reporting (best-effort, the onModelsDiscovered
+      // shape): the runtime announces the account's window state mid-stream;
+      // the caller persists the reading for the popup's Limits tab. Detached
+      // on purpose — a failed persist must never stall or fail the turn.
+      if (sdkMessage.type === 'rate_limit_event' && input.onRateLimitReported !== undefined) {
+        const onRateLimitReported = input.onRateLimitReported
+        const info = sdkMessage.rate_limit_info
+        if (info.rateLimitType !== undefined) {
+          void Promise.resolve(
+            onRateLimitReported({
+              windowKind: info.rateLimitType,
+              status: info.status,
+              utilization: typeof info.utilization === 'number' ? info.utilization : null,
+              // Epoch seconds per the unified rate-limit headers — but guard
+              // for millis (an already-13-digit value must not land in 57000).
+              resetsAt:
+                typeof info.resetsAt === 'number'
+                  ? new Date(info.resetsAt > 1e12 ? info.resetsAt : info.resetsAt * 1000)
+                  : null,
+            }),
+          ).catch((error: unknown) => {
+            input.logger?.warn({ error: String(error) }, 'rate-limit reporting failed')
+          })
+        }
+      }
       for (const normalizedEvent of translateClaudeSdkEvent({
         sdkEvent: sdkMessage,
         sessionId,

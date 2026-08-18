@@ -1290,6 +1290,20 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   providers: {
+  beginLogin: async (providerId: NonNullable<paths["/providers/{providerId}/auth/login"]["post"]['parameters']>['path']["providerId"]) => {
+    const { data, error, response } = await client["POST"]("/providers/{providerId}/auth/login", {
+      params: { path: { providerId: providerId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  cancelLogin: async (providerId: NonNullable<paths["/providers/{providerId}/auth/login/{loginId}"]["delete"]['parameters']>['path']["providerId"], loginId: NonNullable<paths["/providers/{providerId}/auth/login/{loginId}"]["delete"]['parameters']>['path']["loginId"]) => {
+    const { data, error, response } = await client["DELETE"]("/providers/{providerId}/auth/login/{loginId}", {
+      params: { path: { providerId: providerId, loginId: loginId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   discoverInstalledSkills: async (providerId: NonNullable<paths["/providers/{providerId}/skills"]["get"]['parameters']>['path']["providerId"], options?: NonNullable<paths["/providers/{providerId}/skills"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/providers/{providerId}/skills", {
       params: { path: { providerId: providerId }, ...(options && { query: options }) },
@@ -1316,9 +1330,24 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  listRateLimits: async (providerId: NonNullable<paths["/providers/{providerId}/limits"]["get"]['parameters']>['path']["providerId"]) => {
+    const { data, error, response } = await client["GET"]("/providers/{providerId}/limits", {
+      params: { path: { providerId: providerId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   refreshModels: async (providerId: NonNullable<paths["/providers/{providerId}/models/refresh"]["post"]['parameters']>['path']["providerId"]) => {
     const { data, error, response } = await client["POST"]("/providers/{providerId}/models/refresh", {
       params: { path: { providerId: providerId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  submitLoginCode: async (providerId: NonNullable<paths["/providers/{providerId}/auth/login/{loginId}/code"]["post"]['parameters']>['path']["providerId"], loginId: NonNullable<paths["/providers/{providerId}/auth/login/{loginId}/code"]["post"]['parameters']>['path']["loginId"], input: NonNullable<paths["/providers/{providerId}/auth/login/{loginId}/code"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/providers/{providerId}/auth/login/{loginId}/code", {
+      params: { path: { providerId: providerId, loginId: loginId } },
+      body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data

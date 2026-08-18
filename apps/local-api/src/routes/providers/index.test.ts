@@ -30,6 +30,9 @@ const fakeStatus: AuthenticationStatus = {
   authenticatedAccountLabel: 'test@example.com',
   authenticationMethod: 'oauth',
   inactiveReason: null,
+  email: 'test@example.com',
+  organizationName: "Test's Organization",
+  subscriptionPlan: 'max',
 }
 
 const fakeSkill: InstalledSkill = {
@@ -110,6 +113,24 @@ describe('providers routes', () => {
         const app = createApp({ db, logger: silentLogger, aiProvider: makeFakeProvider() })
         const res = await app.request('/providers/not-a-provider/auth')
         expect(res.status).toBe(400)
+      })
+    })
+  })
+
+  // The sign-in HAPPY PATH is covered at the leaf, over a scripted fake child:
+  // packages/providers/src/claude/installation/claude-login-relay.test.ts (url
+  // out, code in, verdict back, refusals). A route-level version would spawn
+  // the REAL `claude auth login` on the dev machine — deliberately not
+  // shipped (the server-install route test's precedent). Only the guard that
+  // never reaches the relay is exercised here.
+  describe('POST /providers/:providerId/auth/login', () => {
+    it('returns 400 for a provider whose sign-in is not wired up (never spawns)', async () => {
+      await withTestDatabase(async (db) => {
+        const app = createApp({ db, logger: silentLogger, aiProvider: makeFakeProvider() })
+        const res = await app.request('/providers/codex/auth/login', { method: 'POST' })
+        expect(res.status).toBe(400)
+        const body = (await res.json()) as { code: string }
+        expect(body.code).toBe('validation_failed')
       })
     })
   })

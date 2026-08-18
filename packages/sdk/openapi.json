@@ -28471,6 +28471,24 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "email": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "organizationName": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "subscriptionPlan": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       }
                     },
                     "required": [
@@ -28479,7 +28497,10 @@
                       "isAuthenticated",
                       "authenticatedAccountLabel",
                       "authenticationMethod",
-                      "inactiveReason"
+                      "inactiveReason",
+                      "email",
+                      "organizationName",
+                      "subscriptionPlan"
                     ]
                   }
                 }
@@ -28548,6 +28569,24 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "organizationName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "subscriptionPlan": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -28556,7 +28595,10 @@
                     "isAuthenticated",
                     "authenticatedAccountLabel",
                     "authenticationMethod",
-                    "inactiveReason"
+                    "inactiveReason",
+                    "email",
+                    "organizationName",
+                    "subscriptionPlan"
                   ]
                 }
               }
@@ -28593,6 +28635,351 @@
           "name": "get_ai_agent_provider_auth_status",
           "description": "Get installation + authentication status for one AI agent provider by id. Returns isInstalled/isAuthenticated/inactiveReason. 400 if providerId is not a recognized provider; never 404 (status-as-data, no enumeration leak). Read-only."
         }
+      }
+    },
+    "/providers/{providerId}/auth/login": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The sign-in is open: show the URL, then submit the pasted code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "loginId": {
+                      "type": "string"
+                    },
+                    "authorizationUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "loginId",
+                    "authorizationUrl"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported providerId."
+          },
+          "409": {
+            "description": "The CLI offered no sign-in link (not installed, no subscription)."
+          }
+        },
+        "operationId": "postProvidersByProviderIdAuthLogin",
+        "tags": [
+          "providers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex",
+                "gemini",
+                "cursor"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "summary": "Begin signing this machine in to the provider (returns the authorization URL).",
+        "x-sdk-name": "providers.beginLogin"
+      }
+    },
+    "/providers/{providerId}/auth/login/{loginId}/code": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Signed in — the provider status after the CLI wrote its credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string",
+                      "enum": [
+                        "claude",
+                        "codex",
+                        "gemini",
+                        "cursor"
+                      ]
+                    },
+                    "isInstalled": {
+                      "type": "boolean"
+                    },
+                    "isAuthenticated": {
+                      "type": "boolean"
+                    },
+                    "authenticatedAccountLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "authenticationMethod": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "oauth",
+                        "api-key",
+                        null
+                      ]
+                    },
+                    "inactiveReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "organizationName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "subscriptionPlan": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "isInstalled",
+                    "isAuthenticated",
+                    "authenticatedAccountLabel",
+                    "authenticationMethod",
+                    "inactiveReason",
+                    "email",
+                    "organizationName",
+                    "subscriptionPlan"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported providerId, or an empty code."
+          },
+          "404": {
+            "description": "That sign-in is no longer open — begin again."
+          },
+          "409": {
+            "description": "The CLI rejected the code or did not finish."
+          }
+        },
+        "operationId": "postProvidersByProviderIdAuthLoginByLoginIdCode",
+        "tags": [
+          "providers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex",
+                "gemini",
+                "cursor"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "loginId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Finish the sign-in with the code the browser gave, returning the fresh status.",
+        "x-sdk-name": "providers.submitLoginCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/providers/{providerId}/auth/login/{loginId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "The pending sign-in (if any) is discarded — idempotent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported providerId."
+          }
+        },
+        "operationId": "deleteProvidersByProviderIdAuthLoginByLoginId",
+        "tags": [
+          "providers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex",
+                "gemini",
+                "cursor"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "loginId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Cancel a pending sign-in (the dialog was closed).",
+        "x-sdk-name": "providers.cancelLogin"
+      }
+    },
+    "/providers/{providerId}/limits": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "One entry per limit window (five-hour session, seven-day, per-model). Readings ride the session stream, so they refresh whenever a turn runs; empty before the first turn ever reports one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "limits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "windowKind": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "allowed",
+                              "allowed_warning",
+                              "rejected"
+                            ]
+                          },
+                          "utilization": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "resetsAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "capturedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "windowKind",
+                          "status",
+                          "utilization",
+                          "resetsAt",
+                          "capturedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "limits"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported providerId."
+          }
+        },
+        "operationId": "getProvidersByProviderIdLimits",
+        "tags": [
+          "providers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex",
+                "gemini",
+                "cursor"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "summary": "The account's subscription-limit windows, as the engine last reported them.",
+        "x-sdk-name": "providers.listRateLimits"
       }
     },
     "/providers/{providerId}/models": {

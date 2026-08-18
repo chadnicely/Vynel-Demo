@@ -27,6 +27,48 @@ export const AuthenticationStatusResponseSchema = z.object({
   authenticatedAccountLabel: z.string().nullable(),
   authenticationMethod: AuthenticationMethodSchema.nullable(),
   inactiveReason: z.string().nullable(),
+  /** Identity metadata from the CLI's own status report — display data, never
+   *  a credential (D14). Null when the CLI doesn't say. */
+  email: z.string().nullable(),
+  organizationName: z.string().nullable(),
+  subscriptionPlan: z.string().nullable(),
+})
+
+// The local sign-in flow (top-bar account popup): the relay spawns
+// `claude auth login`, hands the browser URL out, takes the pasted code back.
+export const LoginSessionParamSchema = z.object({
+  providerId: AiAgentProviderIdSchema,
+  loginId: z.string().min(1),
+})
+
+export const BeginLoginResponseSchema = z.object({
+  loginId: z.string(),
+  /** The page the user opens (in their browser) to authorize this machine. */
+  authorizationUrl: z.string(),
+})
+
+export const SubmitLoginCodeRequestSchema = z.object({
+  code: z.string().min(1, 'Paste the code from your browser first.'),
+})
+
+export const CancelLoginResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+// The account's limit windows (the popup's Limits tab) — the engine's own
+// readings, captured from the session stream per interactive turn.
+export const RateLimitSnapshotResponseSchema = z.object({
+  /** The provider's window vocabulary ('five_hour', 'seven_day', …). */
+  windowKind: z.string(),
+  status: z.enum(['allowed', 'allowed_warning', 'rejected']),
+  /** Percent of the window used (0–100); null when the engine didn't say. */
+  utilization: z.number().nullable(),
+  resetsAt: z.string().nullable(),
+  capturedAt: z.string(),
+})
+
+export const ListRateLimitSnapshotsResponseSchema = z.object({
+  limits: z.array(RateLimitSnapshotResponseSchema),
 })
 
 export const InstalledSkillResponseSchema = z.object({

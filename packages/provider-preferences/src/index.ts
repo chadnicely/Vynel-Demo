@@ -30,3 +30,7 @@ export type { SetDefaultProviderForUserInput } from './set-default-provider-for-
 // The engine-reported model roster (feeds the model picker).
 export { recordDiscoveredModels, findDiscoveredModels } from './discovered-models.js'
 export type { RecordDiscoveredModelsInput } from './discovered-models.js'
+
+// The engine-reported subscription limits (feeds the account popup's Limits tab).
+export { recordRateLimitSnapshot, listRateLimitSnapshots } from './rate-limit-snapshots.js'
+export type { RateLimitSnapshot, RecordRateLimitSnapshotInput } from './rate-limit-snapshots.js'

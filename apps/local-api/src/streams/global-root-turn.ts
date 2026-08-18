@@ -35,6 +35,7 @@ import { composeSessionMcpServers } from '../sessions/compose-session-mcp-server
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
+import { buildRecordRateLimitSnapshot } from '../sessions/build-record-rate-limit-snapshot.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import { loadEnv } from '../env.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
@@ -366,6 +367,8 @@ export async function streamGlobalRootTurn(
           ...(agentSlugs.length > 0 ? { agents: sessionAgents } : {}),
           // Persist the roster the engine reports — feeds the model picker.
           onModelsDiscovered: buildRecordDiscoveredModels(c.var.db, c.var.user.id, c.var.logger),
+          // Persist the account's limit readings — feeds the popup's Limits tab.
+          onRateLimitReported: buildRecordRateLimitSnapshot(c.var.db, c.var.user.id, c.var.logger),
           // Dev/test swap-trigger override (the live smoke's knob); unset → 0.85.
           ...(pressureThreshold !== undefined ? { pressureThreshold } : {}),
         },

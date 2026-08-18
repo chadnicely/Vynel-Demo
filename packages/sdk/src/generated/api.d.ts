@@ -2993,6 +2993,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/providers/{providerId}/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin signing this machine in to the provider (returns the authorization URL). */
+        post: operations["postProvidersByProviderIdAuthLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/{providerId}/auth/login/{loginId}/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish the sign-in with the code the browser gave, returning the fresh status. */
+        post: operations["postProvidersByProviderIdAuthLoginByLoginIdCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/{providerId}/auth/login/{loginId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel a pending sign-in (the dialog was closed). */
+        delete: operations["deleteProvidersByProviderIdAuthLoginByLoginId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/{providerId}/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The account's subscription-limit windows, as the engine last reported them. */
+        get: operations["getProvidersByProviderIdLimits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/providers/{providerId}/models": {
         parameters: {
             query?: never;
@@ -15100,6 +15168,9 @@ export interface operations {
                         /** @enum {string|null} */
                         authenticationMethod: "oauth" | "api-key" | null;
                         inactiveReason: string | null;
+                        email: string | null;
+                        organizationName: string | null;
+                        subscriptionPlan: string | null;
                     }[];
                 };
             };
@@ -15131,6 +15202,181 @@ export interface operations {
                         /** @enum {string|null} */
                         authenticationMethod: "oauth" | "api-key" | null;
                         inactiveReason: string | null;
+                        email: string | null;
+                        organizationName: string | null;
+                        subscriptionPlan: string | null;
+                    };
+                };
+            };
+            /** @description Unsupported providerId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postProvidersByProviderIdAuthLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: "claude" | "codex" | "gemini" | "cursor";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sign-in is open: show the URL, then submit the pasted code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        loginId: string;
+                        authorizationUrl: string;
+                    };
+                };
+            };
+            /** @description Unsupported providerId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The CLI offered no sign-in link (not installed, no subscription). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postProvidersByProviderIdAuthLoginByLoginIdCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: "claude" | "codex" | "gemini" | "cursor";
+                loginId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in — the provider status after the CLI wrote its credential. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        providerId: "claude" | "codex" | "gemini" | "cursor";
+                        isInstalled: boolean;
+                        isAuthenticated: boolean;
+                        authenticatedAccountLabel: string | null;
+                        /** @enum {string|null} */
+                        authenticationMethod: "oauth" | "api-key" | null;
+                        inactiveReason: string | null;
+                        email: string | null;
+                        organizationName: string | null;
+                        subscriptionPlan: string | null;
+                    };
+                };
+            };
+            /** @description Unsupported providerId, or an empty code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description That sign-in is no longer open — begin again. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The CLI rejected the code or did not finish. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteProvidersByProviderIdAuthLoginByLoginId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: "claude" | "codex" | "gemini" | "cursor";
+                loginId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending sign-in (if any) is discarded — idempotent. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        ok: true;
+                    };
+                };
+            };
+            /** @description Unsupported providerId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getProvidersByProviderIdLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: "claude" | "codex" | "gemini" | "cursor";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per limit window (five-hour session, seven-day, per-model). Readings ride the session stream, so they refresh whenever a turn runs; empty before the first turn ever reports one. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        limits: {
+                            windowKind: string;
+                            /** @enum {string} */
+                            status: "allowed" | "allowed_warning" | "rejected";
+                            utilization: number | null;
+                            resetsAt: string | null;
+                            capturedAt: string;
+                        }[];
                     };
                 };
             };

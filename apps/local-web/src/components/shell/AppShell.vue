@@ -47,6 +47,7 @@ import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
 import WorkingRail from "../rail/WorkingRail.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
+import ClaudeAccountDialog from "../providers/ClaudeAccountDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
 import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
@@ -440,6 +441,7 @@ function openAccount() {
 const isSidebarOpen = ref(true);
 const isPaletteOpen = ref(false);
 const isCreateWorkspaceOpen = ref(false);
+const isClaudeAccountOpen = ref(false);
 
 // The dialog is mounted once, here. A routed view (the Nodes screen's empty
 // state) can't reach that ref, so it rings the store's bell and we answer.
@@ -533,6 +535,9 @@ function runCommand(id: string) {
     case "new-workspace":
       isCreateWorkspaceOpen.value = true;
       break;
+    case "claude-account":
+      isClaudeAccountOpen.value = true;
+      break;
     case "start-voice":
       ui.isVoiceOverlayOpen = true;
       break;
@@ -562,6 +567,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
       ? { id: item.id, label: item.label, group: "Open", icon: item.icon }
       : { id: item.id, label: item.label, group: "Open" },
   ),
+  { id: "claude-account", label: "Claude account", group: "Open", keywords: "sign in login subscription usage" },
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
@@ -710,6 +716,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       :open="isCreateWorkspaceOpen"
       @close="isCreateWorkspaceOpen = false"
       @created="onWorkspaceCreated"
+    />
+    <ClaudeAccountDialog
+      :open="isClaudeAccountOpen"
+      @close="isClaudeAccountOpen = false"
     />
     <CommandPalette
       v-model:open="isPaletteOpen"

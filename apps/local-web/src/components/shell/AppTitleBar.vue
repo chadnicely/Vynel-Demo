@@ -17,7 +17,7 @@ import {
   PhUser as UserRound,
   PhX as X,
 } from "@phosphor-icons/vue";
-import { DropdownMenu } from "@vynel/ui";
+import { ClaudeMark, DropdownMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
@@ -204,6 +204,19 @@ function onMenuCommand(id: string) {
         {{ entry.label }}
       </button>
     </div>
+
+    <!-- The provider mark (Kafi, 2026-08-18): whose engine this machine runs
+         on — the Claude account popup's door, right after the nav segment.
+         Identity coral, never gold (presence). -->
+    <button
+      type="button"
+      aria-label="Claude account"
+      title="Claude account"
+      class="mr-2 grid size-6 shrink-0 place-items-center self-center rounded-sm text-[var(--claude-mark)] transition hover:bg-row-hover"
+      @click="emit('command', 'claude-account')"
+    >
+      <ClaudeMark :size="13" />
+    </button>
 
     <!-- The canvas's right icon row: plain glyphs at 13px on an 18px gap. The
          rail toggle only appears where the scope has no pane tools of its own

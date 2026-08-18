@@ -9,6 +9,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Agent spawns now show as pointers, like delegated tasks.** When Claude
+  spawns a subagent (research, review, exploration), the thread shows the same
+  compact pointer card a delegated task gets: what the agent is doing, its
+  name, and — on the same line — its latest tool call or message, live while
+  it runs. Clicking opens the sidebar with the agent's full nested activity;
+  a failed run wears the error treatment whole, and a run paused on an
+  approval reads "Needs input".
+- **A Claude account popup on the title bar.** The coral Claude mark (after
+  the Tabs|Menu toggle) opens one dialog with two tabs: Account — who this
+  computer builds as (email, organization, plan from the CLI's own report),
+  the last week's token usage per model, and a real sign-in flow (link out,
+  pasted code back — the CLI writes its own credential, Vynel never touches
+  it) with a switch-account door for expired auth or a second subscription;
+  Limits — the `/usage`-style windows (current session, weekly, per-model)
+  as bars with reset times, captured from the engine's own reports as turns
+  run.
+
 - **Tasks are now the workspace's work queue — file a task and Claude picks it
   up.** A task you add to the panel nudges the workspace's assistant: it takes
   tasks one at a time in order, asks you first when something is genuinely
@@ -25,6 +42,9 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **The Claude auth status now reads the CLI's own JSON report** (email,
+  organization, subscription) instead of hand-parsing the credentials file —
+  the account label was silently dead in production before this.
 - **Plans can now belong to a task.** A medium/large task gets an execution
   plan linked to it (goal, parts, approach, risks), and its steps derive from
   that plan; day-wise plans are unchanged.

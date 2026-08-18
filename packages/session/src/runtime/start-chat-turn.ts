@@ -25,6 +25,7 @@ import type {
   ChatMessageImage,
   ClaudePermissionMode,
   DiscoveredProviderModel,
+  ProviderRateLimitReading,
 } from '@vynel/providers'
 import {
   consumeSessionEventStream,
@@ -120,6 +121,12 @@ export type StartChatTurnInput = {
    */
   onModelsDiscovered?: (models: DiscoveredProviderModel[]) => void | Promise<void>
   /**
+   * Subscription-limit reporting (best-effort, the same shape): called each
+   * time the engine announces a limit window's state mid-stream; the caller
+   * persists the reading. Forwarded verbatim to the provider.
+   */
+  onRateLimitReported?: (reading: ProviderRateLimitReading) => void | Promise<void>
+  /**
    * The CONTINUING identity this turn runs as, when there is one (a workspace's
    * primary conversation, a spawned session / colleague DM'd directly). Turns
    * the boundary continuity step on: after the turn's events the stream carries
@@ -205,6 +212,9 @@ export async function* startChatTurn(
       : {}),
     ...(input.onModelsDiscovered !== undefined
       ? { onModelsDiscovered: input.onModelsDiscovered }
+      : {}),
+    ...(input.onRateLimitReported !== undefined
+      ? { onRateLimitReported: input.onRateLimitReported }
       : {}),
   })
 

@@ -15,6 +15,9 @@ const claudeStatus: AuthenticationStatus = {
   authenticatedAccountLabel: null,
   authenticationMethod: null,
   inactiveReason: 'OAuth expired',
+  email: null,
+  organizationName: null,
+  subscriptionPlan: null,
 }
 
 describe('getProviderAuthenticationStatus', () => {
