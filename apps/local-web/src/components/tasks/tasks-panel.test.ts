@@ -350,6 +350,64 @@ describe("TasksPanel (work rail)", () => {
     expect(stepTitles).toEqual(["Read the brief", "Draft the copy"]);
   });
 
+  it("the ACTIVE task breathes its current step under the row — count on the sub-line, caret alone on the row", async () => {
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [
+          makeTask({
+            status: "in-progress",
+            stepsDone: 2,
+            stepsTotal: 5,
+          }),
+        ],
+        listSteps: async () => [
+          makeStep({ status: "done" }),
+          makeStep({ id: "s2", orderIndex: 1, status: "done" }),
+          makeStep({ id: "s3", orderIndex: 2, title: "The middle of the work", status: "in-progress" }),
+          makeStep({ id: "s4", orderIndex: 3 }),
+          makeStep({ id: "s5", orderIndex: 4 }),
+        ],
+      },
+    });
+
+    const wrapper = mountPanel(client);
+    await flushPromises();
+
+    const subline = wrapper.get(".live-step-line");
+    expect(subline.text()).toContain("3. The middle of the work");
+    expect(subline.text()).toContain("2/5");
+    // The row hands its meta to the sub-line: no "now", no count — caret only.
+    expect(wrapper.find(".task-meta.is-live").exists()).toBe(false);
+    expect(wrapper.find(".step-toggle .step-count").exists()).toBe(false);
+    expect(wrapper.get(".task-row").classes()).toContain("is-live");
+
+    // Expanding swaps the sub-line for the full list (+ the icon row needs
+    // an assigned session or plan — none here, so no actions row).
+    await wrapper.get(".step-toggle").trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".live-step-line").exists()).toBe(false);
+    expect(wrapper.findAll(".step-row")).toHaveLength(5);
+  });
+
+  it("an expanded task with an assigned session shows the Plan/Session doors", async () => {
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [
+          makeTask({ planId: "p1", assignedSessionId: "s-work", stepsDone: 0, stepsTotal: 1 }),
+        ],
+        listSteps: async () => [makeStep()],
+      },
+    });
+
+    const wrapper = mountPanel(client);
+    await flushPromises();
+    await wrapper.get(".step-toggle").trigger("click");
+    await flushPromises();
+
+    const actions = wrapper.findAll(".step-action").map((node) => node.text());
+    expect(actions).toEqual(["Plan", "Session"]);
+  });
+
   it("ticking an expanded step patches it through the user step door", async () => {
     const patchCalls: unknown[] = [];
     const client = makeClient({
