@@ -24,11 +24,13 @@
 // fresh head, still under the same lock and into the same sink; the sink sees
 // `… context-patched → user-message-persisted (the continuation's row) → …`.
 //
-// SERIALIZED PER USER (brain-tree Ch4): the WHOLE turn runs under
-// `runUnderRootTurnLock`. There is ONE root SDK session per user; a web turn racing
-// a channel turn would clobber the session-swap write. The lock lives HERE and is
-// the SOLE acquirer — the callers must NOT re-wrap it (it is a non-reentrant
-// promise-chain serializer, so a nested same-user acquire would deadlock).
+// SERIALIZED PER IDENTITY (brain-tree Ch4, voice-session arc): the WHOLE turn
+// runs under `runUnderRootTurnLock` — the user id keys the GLOBAL conversation
+// (one root SDK session; a web turn racing a channel turn would clobber the
+// session-swap write), `${userId}:voice` keys the spoken twin's own
+// single-writer domain. The lock lives HERE and is the SOLE acquirer — the
+// callers must NOT re-wrap it (it is a non-reentrant promise-chain serializer,
+// so a nested same-key acquire would deadlock).
 
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import {
@@ -84,7 +86,12 @@ export async function runGlobalRootTurnCore(
   sink: SessionSink,
 ): Promise<void> {
   try {
-    await runUnderRootTurnLock(input.userId, async () => {
+    // The voice thread is its OWN single-writer domain (voice-session arc):
+    // one continuing session per identity, one lock per identity — a long
+    // global turn no longer blocks speech, and vice versa. The channel runner
+    // never sets voice, so channel/web global turns still fully serialize.
+    const turnLockKey = input.voice === true ? `${input.userId}:voice` : input.userId
+    await runUnderRootTurnLock(turnLockKey, async () => {
       // Resolve (or create) the global root + the SDK session to resume + its hidden
       // SDK cwd (and ensure the dir exists). INSIDE the lock — it reads
       // `currentSdkSessionId`, so a wrapper around only the loop would resume stale.
@@ -266,7 +273,13 @@ async function* runOneGlobalTurn(
     // Durability-first: a resumed turn's user row persists before provider
     // startup (the unbounded hang point), so a stuck start never loses it.
     ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
-    newSessionOptions: { visibility: 'hidden', title: 'Global brain', skipAutoTitle: true },
+    // The voice thread wears its own name + scope; every scope view excludes
+    // 'voice', so the spoken chain stays invisible until a Voice-chat menu
+    // ships. Swap segments inherit the scope from their predecessor.
+    newSessionOptions:
+      input.voice === true
+        ? { visibility: 'hidden', title: 'Voice conversation', skipAutoTitle: true, scope: 'voice' }
+        : { visibility: 'hidden', title: 'Global brain', skipAutoTitle: true },
     // The notify-turn attribution (session-comms) / the continuation's
     // relayed-anchor stamp — absent on every other turn, so the shipped
     // rows stay byte-for-byte.

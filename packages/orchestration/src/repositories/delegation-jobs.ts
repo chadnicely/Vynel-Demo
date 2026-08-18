@@ -172,10 +172,12 @@ export function claimNextPendingDelegationJob(
                     isNotNull(delegationJobs.workspaceId),
                     isNotNull(delegationJobs.targetPrimarySessionId),
                     isNull(delegationJobs.jobKind),
-                    // Both delivery kinds share the synthetic global key — an
-                    // update notify turn holds the root conversation exactly
-                    // like a report notify turn does (persona-sessions).
-                    notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS]),
+                    // Every kind that delivers on the GLOBAL conversation
+                    // shares the synthetic key — the delivery kinds AND the
+                    // both-null 'note' (voice-session arc). A TARGETED note
+                    // never reaches this branch: one of the isNotNull
+                    // disjuncts above passes it.
+                    notInArray(delegationJobs.jobKind, [...DELIVERY_JOB_KINDS, 'note']),
                   ),
                 ]
               : []),

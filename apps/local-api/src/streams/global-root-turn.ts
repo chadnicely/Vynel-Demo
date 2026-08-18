@@ -40,7 +40,10 @@ import { buildRecordRateLimitSnapshot } from '../sessions/build-record-rate-limi
 import { writeSseSafely } from './write-sse-safely.js'
 import { loadEnv } from '../env.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
-import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
+import {
+  resolveGlobalRootConversationTarget,
+  resolveVoiceConversationTarget,
+} from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
 import { wrapAppRequestWithMode } from '../sessions/delegation-mode-header.js'
 import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
@@ -119,16 +122,23 @@ export async function streamGlobalRootTurn(
   c: Context<AppEnv>,
   input: StartGlobalRootTurnInput,
 ): Promise<Response> {
-  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // A VOICE turn runs on the SPOKEN TWIN thread — its own continuing session
+  // (scope 'voice'), never the global conversation (voice-session arc): the
+  // two areas share ground and toolset but not a context window, so a large
+  // global brain can no longer break speech (the 2026-08-19 incident).
+  const isVoiceTurn = input.voice === true
+  const resolveConversationTarget = () =>
+    isVoiceTurn
+      ? resolveVoiceConversationTarget(c.var.db, { userId: c.var.user.id })
+      : resolveGlobalRootConversationTarget(c.var.db, { userId: c.var.user.id })
+  // The thread's STABLE identity, resolved pre-lock so the desktop action
   // record can key its rows by it (the SDK id is only assigned mid-stream).
-  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
-  // this early call cannot fight the authoritative in-lock `resolveTarget`.
+  // The get-or-create is idempotent + partial-unique race-safe, so this early
+  // call cannot fight the authoritative in-lock `resolveTarget`.
   // Also the settings row: the thread's CURRENT segment carries the user's
   // persisted composer settings (swap-stable — copied forward onto fresh
   // segments), so the pre-lock read resolves the same values as the head.
-  const conversationTarget = await resolveGlobalRootConversationTarget(c.var.db, {
-    userId: c.var.user.id,
-  })
+  const conversationTarget = await resolveConversationTarget()
   // A VOICE turn is a surface with PINNED parameters, not the user's chips:
   // the daemon always sends its own latency-tier model, renders no approval
   // cards (an inherited 'ask' would hang a hands-free interaction on a card
@@ -137,7 +147,6 @@ export async function streamGlobalRootTurn(
   // writes them (the write-through below is gated the same way) — it runs on
   // its raw input + the core's defaults, byte-for-byte the pre-settings
   // behavior.
-  const isVoiceTurn = input.voice === true
   const turnSettings = resolveTurnSessionSettings(
     input,
     !isVoiceTurn && conversationTarget.resumeSdkSessionId !== null
@@ -346,9 +355,7 @@ export async function streamGlobalRootTurn(
           // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the
           // runner calls this) — apps/local-api owns the env-coupled user-data-dir read.
           resolveTarget: async () => {
-            const target = await resolveGlobalRootConversationTarget(c.var.db, {
-              userId: c.var.user.id,
-            })
+            const target = await resolveConversationTarget()
             ensureGlobalRootWorkspaceDir()
             return target
           },

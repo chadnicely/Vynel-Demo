@@ -21,7 +21,10 @@ import {
 // calls (with the adapter's no-`speak` gist fallback as the safety net).
 
 // The small, fast model voice turns run on (the light triage tier).
-const VOICE_MODEL = "claude-haiku-4-5";
+// The voice tier (Kafi 2026-08-19): real model, LOW effort — fast speech,
+// 1M window (mirrors the daemon pin in apps/voice run-brain-turn.ts).
+const VOICE_MODEL = "claude-sonnet-5";
+const VOICE_THINKING_EFFORT = "low";
 
 const IDLE_VIEW: VoiceCommandSessionView = {
   state: "ended",
@@ -41,7 +44,8 @@ async function* runGlobalVoiceTurn(
       streamChatTurnEvents(client, {
         scope: { kind: "global" },
         userMessageText: utterance,
-        model: VOICE_MODEL, // the small, fast voice model
+        model: VOICE_MODEL, // the voice tier: sonnet at low effort
+        thinkingEffort: VOICE_THINKING_EFFORT,
         voice: true, // reply via the speak tool; text is the on-screen record
         signal,
       }),

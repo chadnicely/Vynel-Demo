@@ -16,7 +16,7 @@
 // runtime core's `GlobalRootTarget`.
 
 import type { Database } from '@vynel/db'
-import { getOrCreatePrimarySession } from '@vynel/session/continuity'
+import { getOrCreatePrimarySession, getOrCreateContinuingSession } from '@vynel/session/continuity'
 import { resolveGlobalRootWorkspacePath } from './global-root-workspace.js'
 
 export type GlobalRootConversationTarget = {
@@ -39,6 +39,26 @@ export async function resolveGlobalRootConversationTarget(
   return {
     primarySessionId: primary.id,
     resumeSdkSessionId: primary.currentSdkSessionId,
+    workspacePath: resolveGlobalRootWorkspacePath(),
+  }
+}
+
+/** The VOICE sibling (voice-session arc, 2026-08-19): the spoken twin thread —
+ *  its own continuing session above all workspaces (`scope 'voice'`, one live
+ *  per user), grounded in the SAME hidden user-data cwd as the global root so
+ *  memory/settings ground is shared while the conversation is not. Same shape
+ *  as the global resolver so `runGlobalRootTurnCore` consumes either. */
+export async function resolveVoiceConversationTarget(
+  db: Database,
+  input: { userId: string },
+): Promise<GlobalRootConversationTarget> {
+  const voiceSession = await getOrCreateContinuingSession(db, {
+    userId: input.userId,
+    scope: 'voice',
+  })
+  return {
+    primarySessionId: voiceSession.id,
+    resumeSdkSessionId: voiceSession.currentSdkSessionId,
     workspacePath: resolveGlobalRootWorkspacePath(),
   }
 }

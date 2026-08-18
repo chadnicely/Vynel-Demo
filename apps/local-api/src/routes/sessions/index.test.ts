@@ -758,3 +758,55 @@ describe('PUT /sessions/status (set_session_status)', () => {
     })
   })
 })
+
+// The VOICE thread behind the wall (voice-session arc): the spoken twin is the
+// brain's private conversation in another area — invisible to every other
+// identity, while the twin ITSELF gets the same self-read lift the global
+// root has (its duty book instructs reading its own predecessor), and each
+// area may read the other (one assistant, two threads).
+describe('the voice thread and the cross-session wall', () => {
+  it('walled from ordinary callers; lifted for a VOICE turn — which reads BOTH areas', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const ws = seedWorkspace(db, user.id, 'Walls')
+      const workspaceSession = insertChatSession(db, makeSession(user.id, ws.id))
+      const voiceThread = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'voice' }),
+      )
+      const globalThread = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'global' }),
+      )
+      insertChatMessage(db, makeMessage(voiceThread.id, 'muffin spoken aside'))
+      insertChatMessage(db, makeMessage(globalThread.id, 'muffin typed plan'))
+      const app = makeHarness(db)
+
+      // A WORKSPACE turn: neither private thread surfaces — search or detail.
+      const walled = (await (
+        await app.request('/sessions/search?query=muffin', {
+          headers: { [TURN_SESSION_HEADER]: workspaceSession.id },
+        })
+      ).json()) as Array<{ sessionId: string }>
+      expect(walled).toEqual([])
+      const walledDetail = await app.request(`/sessions/${voiceThread.id}/messages`, {
+        headers: { [TURN_SESSION_HEADER]: workspaceSession.id },
+      })
+      expect(walledDetail.status).toBe(404)
+
+      // The VOICE turn's own header: the lift covers both areas.
+      const lifted = (await (
+        await app.request('/sessions/search?query=muffin', {
+          headers: { [TURN_SESSION_HEADER]: voiceThread.id },
+        })
+      ).json()) as Array<{ sessionId: string }>
+      expect(lifted.map((hit) => hit.sessionId).sort()).toEqual(
+        [voiceThread.id, globalThread.id].sort(),
+      )
+      const liftedDetail = await app.request(`/sessions/${voiceThread.id}/messages`, {
+        headers: { [TURN_SESSION_HEADER]: voiceThread.id },
+      })
+      expect(liftedDetail.status).toBe(200)
+    })
+  })
+})

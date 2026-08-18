@@ -246,7 +246,9 @@ export const sessionsApp = factory
       )
       const detail = getChatSessionDetail(c.var.db, sessionId, {
         ownerUserId: c.var.user.id,
-        forbiddenScopes: fromGlobalRoot ? [] : ['global'],
+        // 'voice' walls with 'global' — the spoken thread is the same private
+        // conversation in another area (voice-session arc).
+        forbiddenScopes: fromGlobalRoot ? [] : ['global', 'voice'],
       })
       return c.json(enrichChatSessionDetail(c.var.db, detail))
     },

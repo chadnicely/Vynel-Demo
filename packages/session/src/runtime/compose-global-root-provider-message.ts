@@ -32,7 +32,15 @@ export function composeGlobalRootProviderMessage(
   db: Database,
   input: ComposeGlobalRootProviderMessageInput,
 ): string {
-  const reports = collectDelegationReportsForRoot(db, { userId: input.userId })
+  // The catch-up block belongs to the GLOBAL conversation: the collector is
+  // user-wide and marks reports surfaced exactly-once, so a VOICE-thread turn
+  // absorbing it would silently steal the reports from the global chat
+  // (voice-session arc — reports stay addressed to global; the voice thread
+  // fires work but never holds the ledger).
+  const reports =
+    input.voice === true
+      ? { contextBlock: null, jobIds: [] as string[] }
+      : collectDelegationReportsForRoot(db, { userId: input.userId })
   let providerUserMessageText =
     reports.contextBlock !== null
       ? `${reports.contextBlock}\n\n${input.userMessageText}`

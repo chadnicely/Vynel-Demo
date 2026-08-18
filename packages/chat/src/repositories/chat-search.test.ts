@@ -187,6 +187,25 @@ describe('searchChatMessages (FTS5 external-content)', () => {
     })
   })
 
+  it("never surfaces the VOICE thread (scope 'voice' walls with 'global' — voice-session arc)", async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const voiceThread = insertChatSession(db, {
+        ...makeChatSession(user.id, ''),
+        workspaceId: null,
+        scope: 'voice',
+      })
+      insertChatMessage(db, makeMessage(voiceThread.id, 'muffin spoken aside'))
+      expect(searchChatMessages(db, { userId: user.id, query: 'muffin' })).toEqual([])
+      // The SAME identity lift covers both areas — one assistant, two threads.
+      expect(
+        searchChatMessages(db, { userId: user.id, query: 'muffin', includeGlobalScope: true }).map(
+          (hit) => hit.sessionId,
+        ),
+      ).toEqual([voiceThread.id])
+    })
+  })
   it("excludes other users' sessions", async () => {
     await withTestDatabase((db) => {
       const user = makeUser()

@@ -29,6 +29,11 @@ import type { DelegationPermissionMode } from '../orchestration-types.js'
 export type NoteDeliveryTarget =
   | { kind: 'workspace'; workspaceId: string; workspacePath: string }
   | { kind: 'session'; targetPrimarySessionId: string; runCwdPath: string }
+  // The GLOBAL conversation (voice-session arc): BOTH target columns null —
+  // the same both-null shape a global-requester delivery row wears, so the
+  // claim gate's global-key holdback and the delivery tick's global branch
+  // pick it up; the notify runner resolves its own cwd.
+  | { kind: 'global-root' }
 
 export interface EnqueueNoteDeliveryInput {
   userId: string
@@ -68,7 +73,11 @@ export function enqueueNoteDelivery(
     parentSessionId: input.senderSessionId,
     workspaceId: input.target.kind === 'workspace' ? input.target.workspaceId : null,
     workspacePath:
-      input.target.kind === 'workspace' ? input.target.workspacePath : input.target.runCwdPath,
+      input.target.kind === 'workspace'
+        ? input.target.workspacePath
+        : input.target.kind === 'session'
+          ? input.target.runCwdPath
+          : null,
     workspaceName: input.senderLabel,
     targetPrimarySessionId:
       input.target.kind === 'session' ? input.target.targetPrimarySessionId : null,

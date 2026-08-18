@@ -85,8 +85,8 @@ export const MessageDestinationSchema = z
   .string()
   .min(1)
   .regex(
-    /^(requester|workspace:.+|session:.+)$/,
-    'to must be "requester", "workspace:<workspaceId>", or "session:<sessionId>"',
+    /^(requester|global|workspace:.+|session:.+)$/,
+    'to must be "requester", "global", "workspace:<workspaceId>", or "session:<sessionId>"',
   )
 
 export const SendMessageRequestSchema = z.object({

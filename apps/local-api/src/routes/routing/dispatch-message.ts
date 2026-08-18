@@ -296,9 +296,14 @@ export type MessageDestination =
   | { kind: 'requester' }
   | { kind: 'workspace'; workspaceId: string }
   | { kind: 'session'; sessionId: string }
+  // The GLOBAL conversation as a NOTE address (voice-session arc): plain
+  // communication only — the global assistant is nobody's child, so no task
+  // may target it.
+  | { kind: 'global' }
 
 export function parseMessageDestination(to: string): MessageDestination {
   if (to === 'requester') return { kind: 'requester' }
+  if (to === 'global') return { kind: 'global' }
   if (to.startsWith('workspace:')) {
     return { kind: 'workspace', workspaceId: to.slice('workspace:'.length) }
   }
@@ -306,6 +311,6 @@ export function parseMessageDestination(to: string): MessageDestination {
     return { kind: 'session', sessionId: to.slice('session:'.length) }
   }
   throw new ValidationError(
-    `Unrecognized destination "${to}". Use "requester", "workspace:<workspaceId>", or "session:<sessionId>".`,
+    `Unrecognized destination "${to}". Use "requester", "global", "workspace:<workspaceId>", or "session:<sessionId>".`,
   )
 }

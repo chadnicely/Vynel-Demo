@@ -16,6 +16,8 @@ import type { StartChatSessionInput } from '@vynel/providers'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import {
   getOrCreatePrimarySession,
+  getOrCreateContinuingSession,
+  findPrimaryConversation,
   markPendingCheckpoint,
   peekPendingCheckpoint,
   SESSION_SWAPPED_EVENT_TYPE,
@@ -312,6 +314,95 @@ describe('runGlobalRootTurnCore — boundary continuity', () => {
       expect(primary.currentSdkSessionId).toBe('global-a')
       expect(findChatSessionById(db, 'global-b')).toBeNull()
       expect(findPrimarySessionById(db, primary.id)?.supersededFromSdkSessionId).toBeNull()
+    })
+  })
+})
+
+describe('runGlobalRootTurnCore — the voice thread (voice-session arc)', () => {
+  // The apps-edge voice resolver, minus the env-coupled cwd: the spoken twin's
+  // own continuing identity (scope 'voice'), same ground as the global root.
+  function resolveVoiceTarget(db: Database, userId: string): () => Promise<GlobalRootTarget> {
+    return async () => {
+      const voiceSession = await getOrCreateContinuingSession(db, { userId, scope: 'voice' })
+      return {
+        primarySessionId: voiceSession.id,
+        resumeSdkSessionId: voiceSession.currentSdkSessionId,
+        workspacePath: GLOBAL_ROOT_CWD,
+      }
+    }
+  }
+
+  it("a voice turn runs on the VOICE identity: scope-'voice' hidden segment, its own link, the global primary untouched", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['voice-a', 'voice-b'],
+        resultText: 'Spoken.',
+        usage: RELAXED_USAGE,
+        summary: USABLE_CARRY,
+      })
+      const sink = new CollectingSink()
+
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveVoiceTarget(db, user.id), provider },
+        { ...bareTurnInput(user.id, 'check the weather'), voice: true },
+        sink,
+      )
+
+      expect(sink.ended).toBe(true)
+      expect(sink.errors).toEqual([])
+      // The voice identity links to the minted segment…
+      const voiceSession = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'voice',
+      })
+      expect(voiceSession.currentSdkSessionId).toBe('voice-a')
+      // …and the segment wears the voice presentation: its own scope (no
+      // scope view lists it), hidden, fixed title.
+      const segment = findChatSessionById(db, 'voice-a')
+      expect(segment?.scope).toBe('voice')
+      expect(segment?.visibility).toBe('hidden')
+      expect(segment?.title).toBe('Voice conversation')
+      // The GLOBAL conversation is a different area: never touched by speech.
+      expect(findPrimaryConversation(db, { userId: user.id, workspaceId: null })).toBeNull()
+    })
+  })
+
+  it("a second voice turn RESUMES the voice thread — one continuing chain whose segments stay scope 'voice'", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const startChatSessionInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['voice-a', 'voice-b'],
+        resultText: 'Spoken.',
+        usage: RELAXED_USAGE,
+        summary: USABLE_CARRY,
+        startChatSessionInputs,
+      })
+
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveVoiceTarget(db, user.id), provider },
+        { ...bareTurnInput(user.id, 'first utterance'), voice: true },
+        new CollectingSink(),
+      )
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveVoiceTarget(db, user.id), provider },
+        { ...bareTurnInput(user.id, 'second utterance'), voice: true },
+        new CollectingSink(),
+      )
+
+      // One continuing thread: the second turn RESUMED the first segment.
+      expect(startChatSessionInputs).toHaveLength(2)
+      expect(startChatSessionInputs[0]?.resumeSessionId).toBeUndefined()
+      expect(startChatSessionInputs[1]?.resumeSessionId).toBe('voice-a')
+      // The fake reports a FRESH id on the resumed start (the mid-turn
+      // compaction-swap shape) — the recorded successor segment chain-links
+      // and INHERITS the voice scope (the predecessor-scope rule), so the
+      // spoken chain never leaks a phantom global/workspace entry.
+      const successor = findChatSessionById(db, 'voice-b')
+      expect(successor?.continuedFromSessionId).toBe('voice-a')
+      expect(successor?.scope).toBe('voice')
+      expect(successor?.visibility).toBe('hidden')
     })
   })
 })

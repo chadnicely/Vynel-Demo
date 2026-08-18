@@ -17366,7 +17366,7 @@ export interface operations {
                     "application/json": {
                         sessionId: string;
                         /** @enum {string} */
-                        scope: "global" | "workspace" | "agent" | "spawned";
+                        scope: "global" | "workspace" | "agent" | "spawned" | "voice";
                         workspaceId: string | null;
                         workspaceName: string | null;
                         title: string;

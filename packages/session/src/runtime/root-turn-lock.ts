@@ -10,23 +10,24 @@
 // resume stale. So web-vs-channel AND channel-vs-channel overlaps for a user are strictly serial
 // (brain-tree Ch4 fully closed — the web-route lock was the last deferred piece, 2026-06-27).
 //
-// In-process (Phase 1 single process). The map holds one entry per user (replaced each turn), so it
-// is bounded by the user count — no cleanup needed in single-user Phase 1. Phase 2 (multi-pod)
-// replaces this with a Postgres advisory lock keyed by userId.
+// In-process (Phase 1 single process). The map holds one entry per LOCK KEY — the user id for the
+// global conversation, `${userId}:voice` for the spoken twin (voice-session arc: two continuing
+// sessions, two single-writer domains) — so it is bounded by users × identities. Phase 2
+// (multi-pod) replaces this with a Postgres advisory lock keyed the same way.
 
-const rootTurnTailByUserId = new Map<string, Promise<unknown>>()
+const rootTurnTailByLockKey = new Map<string, Promise<unknown>>()
 
 const swallow = (): void => {}
 
-/** Run `turn` only after the user's previous root turn has settled (success OR failure — a failed
- *  turn must never wedge the chain). Returns the turn's result. */
-export function runUnderRootTurnLock<T>(userId: string, turn: () => Promise<T>): Promise<T> {
-  const previousTail = rootTurnTailByUserId.get(userId) ?? Promise.resolve()
+/** Run `turn` only after the lock key's previous root turn has settled (success OR failure — a
+ *  failed turn must never wedge the chain). Returns the turn's result. */
+export function runUnderRootTurnLock<T>(lockKey: string, turn: () => Promise<T>): Promise<T> {
+  const previousTail = rootTurnTailByLockKey.get(lockKey) ?? Promise.resolve()
   // Chain after the previous turn regardless of its outcome (both handlers run `turn`).
   const chainedTurn = previousTail.then(turn, turn)
   // The next caller waits for THIS turn to settle; swallow the value/error in the tail so a
   // rejection here never becomes an unhandled rejection (the real value/rejection flows to the
   // caller via `chainedTurn`).
-  rootTurnTailByUserId.set(userId, chainedTurn.then(swallow, swallow))
+  rootTurnTailByLockKey.set(lockKey, chainedTurn.then(swallow, swallow))
   return chainedTurn
 }

@@ -46,9 +46,12 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   return null
 }
 
-// The small, fast model every voice turn runs on (the light triage tier) —
-// the wake line and the call loop alike.
-export const VOICE_MODEL = 'claude-haiku-4-5'
+// The voice tier (Kafi 2026-08-19): a REAL model at LOW effort — fast to first
+// token so it speaks back quickly, capable enough to route work like the
+// global brain, and a 1M window so the spoken thread can never outgrow its
+// own pin (the haiku-200k crash class). Wake line + call loop alike.
+export const VOICE_MODEL = 'claude-sonnet-5'
+export const VOICE_THINKING_EFFORT = 'low'
 
 /** POST a turn request and stream the reply as `VoiceBrainEvent`s — the ONE
  *  home for the SSE turn wire; the wake line (`/root/turn`) and the call
@@ -97,6 +100,7 @@ export function createBrainClient(
     streamTurnEvents(`${apiUrl}/root/turn`, {
       userMessageText: utterance,
       model: VOICE_MODEL,
+      thinkingEffort: VOICE_THINKING_EFFORT,
       voice: true,
     })
 }

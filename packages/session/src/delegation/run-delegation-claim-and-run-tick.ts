@@ -198,12 +198,21 @@ export async function runDelegationClaimAndRunTick(
   // stamped colleague keys on its own id. The job id is otherwise a defensive
   // fallback for a targetless TASK row (the enqueue ops preclude it).
   const claimedKind = claimed.jobKind ?? 'task'
+  // A both-null 'note' row targets the GLOBAL conversation (voice-session arc)
+  // — it rides the DELIVERY rail below and shares the global single-writer
+  // key; a targeted note keeps the task rail unchanged.
+  const isGlobalNoteDelivery =
+    claimedKind === 'note' &&
+    claimed.targetPrimarySessionId === null &&
+    claimed.workspaceId === null
   const targetKey =
     claimedKind === 'agent-run'
       ? (claimed.targetPrimarySessionId ?? claimed.id)
       : (claimed.targetPrimarySessionId ??
         claimed.workspaceId ??
-        (isDeliveryJobKind(claimed.jobKind) ? GLOBAL_ROOT_DELIVERY_TARGET_KEY : claimed.id))
+        (isDeliveryJobKind(claimed.jobKind) || isGlobalNoteDelivery
+          ? GLOBAL_ROOT_DELIVERY_TARGET_KEY
+          : claimed.id))
   deps.onRunStarted?.({ jobId: claimed.id, targetKey })
 
   // Persona-sessions: an 'agent-run' row resumes the mentioned agent's
@@ -237,8 +246,9 @@ export async function runDelegationClaimAndRunTick(
   // the NOTIFY branch — a real turn on the requester's conversation with the
   // child's message as the attributed inbound. The runner branches on the kind
   // internally (marker + steer); the exclusion key came out above for free.
-  // NULL = 'task' (every legacy row).
-  if (isDeliveryJobKind(claimed.jobKind)) {
+  // NULL = 'task' (every legacy row). A both-null note delivers on the global
+  // conversation through the same notify machinery.
+  if (isDeliveryJobKind(claimed.jobKind) || isGlobalNoteDelivery) {
     return runReportDeliveryJob(
       db,
       {

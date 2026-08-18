@@ -1,5 +1,5 @@
 import type { VoiceBrainEvent } from '../loop/voice-session-types.js'
-import { streamTurnEvents, VOICE_MODEL } from '../brain/run-brain-turn.js'
+import { streamTurnEvents, VOICE_MODEL, VOICE_THINKING_EFFORT } from '../brain/run-brain-turn.js'
 
 // The daemon's client for the per-call spawned session: create it (global-
 // grounded — the `purpose` IS the priming payload: goal, mode, disclosure) and
@@ -33,6 +33,7 @@ export function createCallSessionClient(apiUrl: string): CallSessionClient {
       return streamTurnEvents(`${apiUrl}/sessions/${sessionId}/turn`, {
         userMessageText: utterance,
         model: VOICE_MODEL,
+        thinkingEffort: VOICE_THINKING_EFFORT,
       })
     },
   }

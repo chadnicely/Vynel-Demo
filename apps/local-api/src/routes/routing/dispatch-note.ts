@@ -35,6 +35,10 @@ import {
   parseReportCallerHeader,
   REPORT_CALLER_HEADER,
 } from '../../sessions/report-caller-header.js'
+import {
+  parseTurnSessionHeader,
+  TURN_SESSION_HEADER,
+} from '../../sessions/turn-session-header.js'
 import { resolveSpawnedSessionRunCwd } from '../../sessions/spawned-session-ground.js'
 import { readAmbientContext, type MessageDispatchResult } from './dispatch-message.js'
 
@@ -45,7 +49,7 @@ type RoutingContext = Context<AppEnv>
  *  screen's "from" end), and the address a reply travels back to. `senderKind`
  *  exists for exactly one judgment — the self-note guards. */
 type ResolvedNoteSender = {
-  senderKind: 'global' | 'workspace-primary' | 'session'
+  senderKind: 'global' | 'voice' | 'workspace-primary' | 'session'
   senderSessionId: string
   senderLabel: string
   senderWorkspaceId?: string
@@ -88,6 +92,21 @@ async function resolveNoteSender(
     // An interactive turn / schedule fire: the ambient scope IS the sender.
     if (callingWorkspaceId !== undefined) {
       return resolveWorkspacePrimarySender(c, callingWorkspaceId)
+    }
+    // The VOICE thread (voice-session arc): a workspace-less interactive turn
+    // whose running segment is scope 'voice' speaks as the spoken thread —
+    // resolved from the ambient turn-session header, never model input. No
+    // reply address: the voice thread is not a routable note target (yet).
+    const turnSegmentId = parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER))
+    if (turnSegmentId !== undefined) {
+      const turnSegment = findChatSessionById(c.var.db, turnSegmentId)
+      if (turnSegment?.scope === 'voice' && turnSegment.userId === c.var.user.id) {
+        return {
+          senderKind: 'voice',
+          senderSessionId: turnSegmentId,
+          senderLabel: 'Voice',
+        }
+      }
     }
     const root = findPrimaryConversation(c.var.db, { userId: c.var.user.id, workspaceId: null })
     if (!root?.currentSdkSessionId) {
@@ -163,6 +182,7 @@ export async function dispatchNote(
     destination:
       | { kind: 'workspace'; workspaceId: string }
       | { kind: 'session'; sessionId: string }
+      | { kind: 'global' }
     body: string
     /** The CALLING workspace (ambiently stamped by the workspace surface). */
     workspaceId?: string
@@ -172,7 +192,15 @@ export async function dispatchNote(
 
   let target: NoteDeliveryTarget
   let deliveredTo: string
-  if (input.destination.kind === 'workspace') {
+  if (input.destination.kind === 'global') {
+    // The GLOBAL conversation as receiver (voice-session arc). Self-guard
+    // mirrors the others: the global root noting itself is meaningless.
+    if (sender.senderKind === 'global') {
+      throw new ValidationError('The global conversation cannot send a note to itself.')
+    }
+    target = { kind: 'global-root' }
+    deliveredTo = 'Global'
+  } else if (input.destination.kind === 'workspace') {
     // Ownership-checked (NotFoundError when unknown or not owned).
     const workspace = await getWorkspaceById(
       c.var.db,

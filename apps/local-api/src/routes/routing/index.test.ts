@@ -2114,3 +2114,81 @@ describe('POST /routing/message → kind "note" (the lateral kind)', () => {
     })
   })
 })
+
+// The GLOBAL note address (voice-session arc): `to:"global"` is the ONE way a
+// session speaks INTO the global conversation uninvited — notes only, because
+// the global assistant is nobody's child and takes no tasks. The voice thread
+// is the address's first citizen: its sends attribute as "Voice" via the
+// ambient turn-session header, never model input.
+describe('POST /routing/message → to:"global" (the global note address)', () => {
+  it('a task cannot address "global" — actionable 400, notes only', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const res = await postJson(app, '/routing/message', {
+        to: 'global',
+        body: 'do something',
+        kind: 'task',
+      })
+      expect(res.status).toBe(400)
+      expect(await res.text()).toContain('note')
+    })
+  })
+
+  it('the global conversation cannot note itself (self-guard)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      await seedLinkedGlobalRoot(db, user.id)
+      const app = makeHarness(db)
+      const res = await postJson(app, '/routing/message', {
+        to: 'global',
+        body: 'hello me',
+        kind: 'note',
+      })
+      expect(res.status).toBe(400)
+      expect(await res.text()).toContain('itself')
+    })
+  })
+
+  it('a VOICE turn notes global: both-null note row, signed "Voice" off the ambient turn-session header', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      await seedLinkedGlobalRoot(db, user.id)
+      // The spoken thread's running segment — what the turn-session header names.
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'voice-seg-1',
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Voice conversation',
+          visibility: 'hidden',
+          scope: 'voice',
+        }),
+      )
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/message',
+        { to: 'global', body: 'The user asked me to flag the deploy window.', kind: 'note' },
+        { 'x-vynel-turn-session': 'voice-seg-1' },
+      )
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string; kind: string }
+      expect(out.kind).toBe('note')
+      expect(out.deliveredTo).toBe('Global')
+
+      const job = findDelegationJobById(db, out.jobId)
+      expect(job?.jobKind).toBe('note')
+      expect(job?.workspaceId).toBeNull()
+      expect(job?.targetPrimarySessionId).toBeNull()
+      expect(job?.workspaceName).toBe('Voice')
+      expect(job?.parentSessionId).toBe('voice-seg-1')
+      expect(job?.taskText.startsWith('[Note from Voice')).toBe(true)
+      expect(job?.taskText).toContain('deploy window')
+    })
+  })
+})

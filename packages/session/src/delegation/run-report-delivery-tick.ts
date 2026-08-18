@@ -56,6 +56,7 @@ import {
   REPORT_DELIVERY_INSTRUCTIONS,
   SYSTEM_DELIVERY_INSTRUCTIONS,
   UPDATE_DELIVERY_INSTRUCTIONS,
+  NOTE_DELIVERY_INSTRUCTIONS,
 } from './routed-turn-provider-input.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
 import {
@@ -127,6 +128,10 @@ export async function runReportDeliveryJob(
   // fallback path only.
   const isUpdate = claimed.jobKind === 'update-delivery'
   const isDirect = claimed.jobKind === 'direct-delivery'
+  // A 'note' row reaches this runner ONLY in the both-null GLOBAL shape
+  // (voice-session arc — the claim tick keeps targeted notes on the task
+  // rail): plain communication the global conversation absorbs, never work.
+  const isNote = claimed.jobKind === 'note'
   // A mention chain's reply is direct-natured whatever kind it spoke (the
   // floor) — computed up here so the notify FALLBACK also runs under the
   // direct steer, never narrating a reply the user was addressed with.
@@ -144,8 +149,10 @@ export async function runReportDeliveryJob(
   // sourceKind so the UI renders a quiet system notice instead of a
   // participant message (Kafi's 2026-08-18 smoke).
   const isSystemNotification =
-    !isUpdate && !isDirect && isSystemReporterSessionId(claimed.parentSessionId ?? '')
-  const steerInstructions = isUpdate
+    !isUpdate && !isDirect && !isNote && isSystemReporterSessionId(claimed.parentSessionId ?? '')
+  const steerInstructions = isNote
+    ? NOTE_DELIVERY_INSTRUCTIONS
+    : isUpdate
     ? UPDATE_DELIVERY_INSTRUCTIONS
     : isDirect || isMentionChainReply
       ? DIRECT_DELIVERY_INSTRUCTIONS
@@ -160,7 +167,9 @@ export async function runReportDeliveryJob(
   // user is reporting back…" and answered the user instead of relaying up).
   // The marker rides ON the message so the model always sees who sent it; the
   // report card strips it for display (and reads its badge off it).
-  const reportBody = `${
+  const reportBody = isNote
+    ? claimed.taskText
+    : `${
     isUpdate
       ? composeUpdateMessageMarker(sourceLabel)
       : isDirect
@@ -185,7 +194,7 @@ export async function runReportDeliveryJob(
   // do not restate"). The momentary feed announce below carries no narration —
   // it exists so every open window's turn-ended invalidation lands the new
   // row live.
-  if (isGlobalRequester && (isDirect || isMentionChainReply)) {
+  if (isGlobalRequester && !isNote && (isDirect || isMentionChainReply)) {
     const root = findPrimaryConversation(db, { userId: claimed.userId })
     let persisted = false
     if (root?.currentSdkSessionId != null) {

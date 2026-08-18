@@ -7,7 +7,26 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **Voice now has its own conversation.** Speaking to Vynel no longer runs on the
+  global chat thread: voice turns live on their own continuing spoken thread —
+  same brain, same tools, separate context — so a very full global conversation
+  can never break voice again, and a long global turn no longer blocks speech
+  (or vice versa). The spoken thread is invisible in the app for now; a "Voice
+  chat" view under Global can surface it later. It is walled like the global
+  conversation: no other session can search or read it.
+- **Sessions can hand the global assistant a note.** `send_message` accepts
+  `to: "global"` with kind "note" — plain communication delivered into the
+  global conversation (tasks cannot target it). The voice thread signs its
+  notes "Voice".
+
 ### Changed
+
+- **Voice answers on a stronger, still-fast model.** Voice turns moved from the
+  small 200k-window model to Claude Sonnet 5 at low thinking effort — quick to
+  speak, capable enough to route real work, and with a context window that can
+  hold a long spoken thread.
 
 - **The default chat model advanced to Claude Opus 5.** A fresh install (or a
   cleared composer preference) used to start on Opus 4.8; it now starts on

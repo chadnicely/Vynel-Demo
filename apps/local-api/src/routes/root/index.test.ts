@@ -603,12 +603,18 @@ describe('POST /root/turn (SSE)', () => {
     })
   })
 
-  it("stamps 'voice' as the user row's originChannel on a voice turn (plain turns stay null)", async () => {
+  // test: corrected expectation for the voice-session arc (2026-08-19) — a
+  // voice turn and a keyboard turn used to share the ONE global conversation;
+  // now voice runs on its own spoken thread (scope 'voice') and the global
+  // conversation never sees it.
+  it("a VOICE turn runs on the SPOKEN thread (scope 'voice', originChannel 'voice'); a keyboard turn stays on the global conversation", async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
       const app = makeHarness(db)
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
 
+      const voiceSdkSessionId = nextSdkSessionId
+      let typedSdkSessionId = ''
       await withVynelUserDataDir(dataDir, async () => {
         const spoken = await app.request('/root/turn', {
           method: 'POST',
@@ -618,6 +624,10 @@ describe('POST /root/turn (SSE)', () => {
         expect(spoken.status).toBe(200)
         await spoken.text() // drain the SSE body so the turn completes
 
+        // The keyboard turn starts the GLOBAL conversation — a different
+        // thread, so the fake mints it a different SDK session.
+        nextSdkSessionId = `sdk-${randomUUID()}`
+        typedSdkSessionId = nextSdkSessionId
         const typed = await app.request('/root/turn', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -627,13 +637,24 @@ describe('POST /root/turn (SSE)', () => {
         await typed.text()
       })
 
-      const rows = listChatMessagesForSession(db, nextSdkSessionId).filter(
+      // The spoken thread: its own scope-'voice' segment, origin stamped.
+      const voiceRows = listChatMessagesForSession(db, voiceSdkSessionId).filter(
         (message) => message.role === 'user',
       )
-      expect(rows.map((message) => [message.body, message.originChannel])).toEqual([
+      expect(voiceRows.map((message) => [message.body, message.originChannel])).toEqual([
         ['traffic in dhaka?', 'voice'],
+      ])
+      expect(findChatSessionById(db, voiceSdkSessionId)?.scope).toBe('voice')
+      expect(findChatSessionById(db, voiceSdkSessionId)?.title).toBe('Voice conversation')
+
+      // The global conversation: only the keyboard row, plain origin.
+      const typedRows = listChatMessagesForSession(db, typedSdkSessionId).filter(
+        (message) => message.role === 'user',
+      )
+      expect(typedRows.map((message) => [message.body, message.originChannel])).toEqual([
         ['and by keyboard', null],
       ])
+      expect(findChatSessionById(db, typedSdkSessionId)?.scope).toBe('global')
     })
   })
 

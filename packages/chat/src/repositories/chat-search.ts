@@ -70,7 +70,10 @@ function searchChatMessagesSqlite(
   const workspaceFilter =
     input.workspaceId !== undefined ? sql`AND s.workspace_id = ${input.workspaceId}` : sql``
   // The scope wall (file header) — lifted only for the brain reading itself.
-  const scopeFilter = input.includeGlobalScope === true ? sql`` : sql`AND s.scope != 'global'`
+  // 'voice' walls with 'global' (voice-session arc): the spoken thread is the
+  // brain's private conversation in another area, not searchable content.
+  const scopeFilter =
+    input.includeGlobalScope === true ? sql`` : sql`AND s.scope NOT IN ('global', 'voice')`
   try {
     return runSqliteSearch(db, input, sql`${scopeFilter} ${workspaceFilter}`, limit)
   } catch (error) {

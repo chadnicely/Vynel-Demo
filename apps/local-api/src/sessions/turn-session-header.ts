@@ -48,7 +48,16 @@ export function isTurnFromGlobalRoot(
 ): boolean {
   if (turnSessionId === undefined) return false
   const session = findChatSessionById(db, turnSessionId)
-  return session !== null && session.userId === userId && session.scope === 'global'
+  // The VOICE thread is the global root's spoken twin (voice-session arc) —
+  // one assistant, two areas: both get the self-read lift (a fresh voice swap
+  // segment must read its own predecessor per its duty book), and each may
+  // read the other (Kafi's model — voice communicates with global as one
+  // feature). Every other identity stays behind the wall.
+  return (
+    session !== null &&
+    session.userId === userId &&
+    (session.scope === 'global' || session.scope === 'voice')
+  )
 }
 export interface TurnSessionCarrier {
   /** Wrap the in-process dispatcher so every request this turn's MCP tools make

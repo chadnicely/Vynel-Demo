@@ -26,7 +26,7 @@ export interface SessionsOverviewSegment {
 export interface SessionsOverviewEntry {
   /** The entry's open target — its newest segment's id. */
   sessionId: string
-  scope: 'global' | 'workspace' | 'agent' | 'spawned'
+  scope: 'global' | 'workspace' | 'agent' | 'spawned' | 'voice'
   workspaceId: string | null
   workspaceName: string | null
   title: string

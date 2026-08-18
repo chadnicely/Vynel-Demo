@@ -383,6 +383,9 @@ export const routingApp = factory
           'colleagues (ids from list_sessions). A task only reaches sessions you created: for ' +
           "another workspace's session, send the task to that workspace instead and let its " +
           'manager route it.\n' +
+          '- `"global"` — a NOTE to the global assistant conversation (kind "note" only — ' +
+          'the global assistant takes no tasks): hand it a thought, a heads-up, or ' +
+          'something the user said elsewhere.\n' +
           '- `"requester"` — speak back up to whoever asked you for this work. You never name ' +
           'them: who asked is resolved from the turn itself, so it cannot be mis-addressed.\n\n' +
           'For a workspace/session target, `kind` "note" sends plain COMMUNICATION instead of ' +
@@ -492,6 +495,13 @@ export const routingApp = factory
           ...(workspaceId !== undefined ? { workspaceId } : {}),
         })
         return c.json({ status: 'enqueued' as const, jobId, deliveredTo, kind: 'note' as const })
+      }
+      // The GLOBAL conversation accepts NOTES only (voice-session arc): the
+      // global assistant is nobody's child — a task cannot target it.
+      if (destination.kind === 'global') {
+        throw new ValidationError(
+          'kind "task" cannot address "global" — the global assistant takes no tasks; send a note instead.',
+        )
       }
       // The CALLING workspace (Slice ④b, ambient-stamped by the workspace
       // surface) — the creator the job parents on AND the requester its target

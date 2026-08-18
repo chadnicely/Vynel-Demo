@@ -160,6 +160,23 @@ describe('getChatSessionDetail (core)', () => {
     })
   })
 
+  it("walls the VOICE thread exactly like the global one (voice-session arc)", async () => {
+    await withTestDatabase((db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const voiceThread = insertChatSession(db, {
+        ...makeChatSession(user.id, ''),
+        workspaceId: null,
+        scope: 'voice',
+      })
+      expect(() =>
+        getChatSessionDetail(db, voiceThread.id, {
+          ownerUserId: user.id,
+          forbiddenScopes: ['global', 'voice'],
+        }),
+      ).toThrow(NotFoundError)
+    })
+  })
   it('returns empty toolCallsByMessageId for messages without tool calls', async () => {
     await withTestDatabase((db) => {
       const user = makeUser()

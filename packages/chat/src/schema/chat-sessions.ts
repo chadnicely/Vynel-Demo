@@ -42,7 +42,10 @@ export type ChatSessionVisibility = 'listed' | 'hidden'
 // `'workspace'`). `'spawned'` (session-library Slice ④) = a session the root
 // created as a tool — global-grounded (`workspaceId` null) but LISTED under its
 // own name, unlike the hidden global-brain segments.
-export type ChatSessionScope = 'global' | 'workspace' | 'agent' | 'spawned'
+// 'voice' (voice-session arc, 2026-08-19) = the spoken twin thread's segments —
+// global-grounded and hidden like the brain's, but its own chain, so no scope
+// view lists it until a Voice-chat menu ships a filter.
+export type ChatSessionScope = 'global' | 'workspace' | 'agent' | 'spawned' | 'voice'
 
 // The user's chosen session mode — mirrors `@vynel/session`'s `SessionMode`
 // (chat can't import a sibling leaf; the `ChatSessionScope` mirror precedent).

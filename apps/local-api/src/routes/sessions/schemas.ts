@@ -39,7 +39,7 @@ export const SessionStatusFactsSchema = z.object({
 
 export const SessionsOverviewEntrySchema = z.object({
   sessionId: z.string(),
-  scope: z.enum(['global', 'workspace', 'agent', 'spawned']),
+  scope: z.enum(['global', 'workspace', 'agent', 'spawned', 'voice']),
   workspaceId: z.string().nullable(),
   workspaceName: z.string().nullable(),
   title: z.string(),
