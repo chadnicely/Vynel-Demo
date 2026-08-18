@@ -120,7 +120,7 @@ agents" is N×M subscriptions on one socket. B stays the fallback if the dep bum
 - Nothing else in the UI changes: `applyChatTurnEvent`, the seed, the overlays, the pointer rail
   all read the same events.
 
-## 5. Slices (each: tests + green + reviewer, then the next) — status 2026-08-19: 1–3 SHIPPED (`9093297`, `8fb2545`), 6 free with them; 4–5 open
+## 5. Slices (each: tests + green + reviewer, then the next) — status 2026-08-19: ALL SHIPPED (1–3 `9093297` `8fb2545` `16a5797`; 4 `1ac30e6` as the client-side detach — the send holds its stream only until the watch has the turn, no route change; 5 `8b09804`; 6 free with them). Per window at idle: 0 HTTP-pool connections; while sending: 1 for ~the first frames.
 
 1. **Server hub + WS route** — bump `@hono/node-server` → 2.x, add `ws` to `apps/local-api`,
    `LiveChannelHub` with vitest coverage (real `ws` client against a bound port: hello, subscribe

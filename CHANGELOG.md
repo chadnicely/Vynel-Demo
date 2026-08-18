@@ -21,6 +21,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   is now visible from every window while it runs, not only the one that
   sent it. A dropped socket reconnects with backoff and re-subscribes on its
   own.
+- **Sending a message no longer holds a connection for the whole reply.** The
+  send hands the turn to the same live view as soon as the engine has taken
+  it; the reply streams over the shared socket. Stop, queued messages and
+  failure notes work exactly as before.
+- **Voice rides the same socket.** The engine keeps one link per surface to
+  the voice daemon and relays wake, speaking state and delegated speech to
+  the windows; speak stays instant, and Jarvis + the main window no longer
+  spend connections on it. `VYNEL_MAX_CONCURRENT_DELEGATIONS` (default 3)
+  can raise the delegated-run pool until the user-facing setting lands.
 
 ### Fixed
 

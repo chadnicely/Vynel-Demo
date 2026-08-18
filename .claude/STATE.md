@@ -3,7 +3,26 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) LIVE CHANNEL — one WebSocket per window (slices 1-3 SHIPPED `9093297` + `8fb2545` + review pass `16a5797`)
+## ✅ 2026-08-19 (latest) LIVE CHANNEL — ALL SLICES SHIPPED (1-3 `9093297` `8fb2545` `16a5797` · 4 `1ac30e6` · 5 `8b09804`; delegation env knob `2bf7b3a`)
+
+Slice 4 = the CLIENT-side detach (no route change): `use-chat-turn`/`use-session-turn` take
+`detachWhen` — after the server's FIRST frame (never before, or the abort cancels the send) and
+once the host's standing watch has the shared fold (`useWatchedTurn().hasSharedFold`), the origin
+POST stream aborts (server turn runs on, the tab-switch precedent), the local overlay clears and
+the watch renders the rest; hosts read the COMBINED turn (own ?? watched) for Stop / the send queue
+(drains on the watched settle) / the failure note (registry `lastTurnErrorText`). Live: the POST
+completes in ~2 s of a 90 s turn; a queued follow-up drained exactly once. Slice 5 = the voice
+relay: `apps/local-api/src/live/voice-daemon-relay.ts` holds ONE daemon SSE link per surface
+(first subscriber opens, last closes, backoff reconnect) and fans `voice:<surface>` over the live
+socket (state → all, wake/speak → newest, replay last state + `daemon-link` light to a late
+window); hub `voice` source; contracts `voice/daemon-events.ts`; `use-voice-daemon-link` on
+the store; SSE parser moved to `@vynel/sdk` (voice brain client + relay). Per window at idle:
+ZERO HTTP-pool connections; a send holds one for its first frames only. Kafi's env knob
+`VYNEL_MAX_CONCURRENT_DELEGATIONS` (default 3) for the delegated-run pool until the setting arc.
+Remaining ideas (not planned): Jarvis on-demand connect (now free anyway), `system/api_retry`
+"retrying…" state, macOS WKWebView check, remote-engine bearer on the upgrade.
+
+## (superseded) 2026-08-19 LIVE CHANNEL slices 1-3
 
 Kafi's call after the research (`docs/module-notes/live-channel.md`): WS, "a solution for the
 future — 10 workspaces with child sessions working at once, one window + one sidebar visible, a
