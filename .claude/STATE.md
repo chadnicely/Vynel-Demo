@@ -3,7 +3,21 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ▶ 2026-08-18 TASK-EXECUTION ARC — Slice 1 SHIPPED `d9abed3`; next: Slice 2 (routes + MCP tools)
+## ✅ 2026-08-18 TASK-EXECUTION ARC — ALL FIVE SLICES SHIPPED (`d9abed3` → `2e2e6d3`); live smokes remain
+
+Code-complete same day: 2 routes/MCP `f5fbdd6` (set_task_steps + ambient-header ownership-checked
+stamp + steps rollup + ask.taskId + plans.taskId tools; migration 0048) → 3 pickup nudge `91ed6ec`
+(task.created consumer → report-delivery to the workspace primary; user-sourced only, title rides
+the payload) → 4 TasksPanel rework `2db7a46` (activity header + sessions box + step expanders +
+DEFAULT-OPEN rail; TaskViewDialog task-steps-first + plan/connected-session chips) → 5 notebook
+rewrite `2e2e6d3` (task-planner.md on the /architect spine + TASKS_PROMPT_INSTRUCTIONS pointer).
+⚠ OPEN FORK for Kafi (end of task-execution.md): ask_user is absent on the delivery turn that
+receives the nudge — extending it holds the target's delivery queue while parked, needs his call
+(notebook teaches the reply-based fallback meanwhile). Deferred: task attachments, workspace→
+session feeding, channels digest. Live smokes not yet run (file a task → nudge → clearance →
+steps on panel).
+
+## (superseded) 2026-08-18 task-execution Slice 1 `d9abed3`
 
 Kafi's new capability: tasks become the workspace's WORK QUEUE — the user (or a chat ask) files a
 task, Claude gets nudged, drains one at a time, clears ambiguity via `ask_user`, sizes the work

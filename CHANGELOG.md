@@ -7,7 +7,30 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Tasks are now the workspace's work queue — file a task and Claude picks it
+  up.** A task you add to the panel nudges the workspace's assistant: it takes
+  tasks one at a time in order, asks you first when something is genuinely
+  ambiguous (a short form attached to the task, with concrete options), sizes
+  the work (small work goes straight to a checklist; bigger work gets a plan
+  first), and works through visible steps.
+- **Every task shows its steps on the task panel.** Rows carry an n/m progress
+  count and unfold into the task's checklist; you can tick or reopen steps
+  yourself. The task view also links the plan behind the task and the session
+  working it.
+- **The task panel opens by default** and starts with a workspace activity
+  header: how many tasks are done of the total, and how many sessions are
+  working — expandable into the list of working sessions for that workspace.
+
+### Changed
+
+- **Plans can now belong to a task.** A medium/large task gets an execution
+  plan linked to it (goal, parts, approach, risks), and its steps derive from
+  that plan; day-wise plans are unchanged.
+- **The task-planner notebook was rewritten** around the new flow — pickup,
+  clearance, sizing, execution — so the assistant works panel tasks and chat
+  requests through one identical, visible discipline.
 
 ## [0.3.0] — 2026-08-18
 
