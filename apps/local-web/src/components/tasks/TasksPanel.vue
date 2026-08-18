@@ -1095,14 +1095,37 @@ function completedAtLabel(task: TaskResponse): string {
 }
 
 /* ── The ACTIVE task — the chat live card's treatment at row scale: a gold
-   spine on the row, and the current step breathing underneath. ── */
+   spine on the row, the dashed status glyph SPINNING as the working signal,
+   the title in the working ink, and the current step breathing underneath.
+   (Kafi's 2026-08-18 pass: the sub-line breathed while the row read idle —
+   the row itself must say "working".) ── */
 .task-row.is-live {
   background: color-mix(in srgb, var(--gold) 7%, transparent);
   box-shadow: inset 2px 0 0 var(--gold);
 }
 
 .task-row.is-live .task-title {
-  color: var(--ink-1);
+  color: var(--gold-bright);
+}
+
+.task-row.is-live :deep(.status-control) {
+  color: var(--gold-bright);
+}
+
+.task-row.is-live :deep(.status-control svg) {
+  animation: rail-glyph-spin 1.6s linear infinite;
+}
+
+@keyframes rail-glyph-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-row.is-live :deep(.status-control svg) {
+    animation: none;
+  }
 }
 
 .live-step-line {
