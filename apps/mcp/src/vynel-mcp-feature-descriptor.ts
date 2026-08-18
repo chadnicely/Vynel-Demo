@@ -34,18 +34,22 @@ import {
 } from './vynel-tool-gates.js'
 
 // The standing per-capability disciplines for a workspace turn. Each section
-// is self-contained (the tools it names are this descriptor's own) and
-// dropped when its capability is off — the capability-aware contributePrompt
-// below reads the same enabled-set the composer gates the tools with, so the
-// prompt and the tools can never disagree.
+// is dropped when its capability is off — the capability-aware
+// contributePrompt below reads the same enabled-set the composer gates the
+// tools with, so the prompt and its OWN tools can never disagree. The tasks
+// section deliberately crosses descriptors (ask_user, the task-planner
+// notebook — the task-execution flow spans them); both carry graceful outs in
+// their own guidance when absent on a surface.
 const TASKS_PROMPT_INSTRUCTIONS = [
   '## Task list',
-  'The user sees a task list you maintain (create_task / update_task / complete_task / ' +
-    'list_tasks). When work has more than one step — or the user asks for something you will do ' +
-    'later — track it: check list_tasks first, create one task per distinct piece of work in ' +
-    'plain language the user recognizes, set it in-progress when you start, and complete it the ' +
-    'moment it is finished and verified. Keep the list current as you go; never narrate the ' +
-    'bookkeeping.',
+  'The task list is the workspace\'s WORK QUEUE, and you drain it (create_task / update_task / ' +
+    'complete_task / list_tasks / set_task_steps). Tasks arrive from the user\'s panel (you get ' +
+    'a nudge) or from chat — a substantial chat ask becomes a task YOU create before working it. ' +
+    'One task in-progress at a time, oldest first; set it in-progress when you start, lay out ' +
+    'its steps with set_task_steps (the checklist the user watches on the panel), and complete ' +
+    'it the moment it is finished and verified. Before working any task, read the ' +
+    '"task-planner" notebook — it carries the full discipline (pickup, clearance via ask_user, ' +
+    'sizing, plan-then-steps). Never narrate the bookkeeping.',
 ].join('\n')
 
 // The working-steps dock (session-todos): the step-level twin of the task

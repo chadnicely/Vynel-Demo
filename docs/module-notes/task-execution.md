@@ -154,3 +154,13 @@ full loop:
    standing line points at the notebook for the full discipline).
 6. **Deferred within the arc:** task attachments (fork ③), workspace→session task feeding
    (column is data-ready), channels digest.
+
+## Open fork for Kafi (surfaced by the slice-5 review, 2026-08-18)
+
+**`ask_user` on the nudge's own turn.** The pickup nudge runs as a report-delivery turn on the
+workspace primary, and that turn kind composes NO ask descriptor — so clearance cannot use the
+wizard there. The notebook covers it gracefully (questions go in the reply, task stays open,
+pickup on answer), but the richer option is extending ask to workspace-primary delivery turns.
+That is NOT a slip-in: a parked wizard on a delivery turn HOLDS the target's whole delivery
+queue (claim excludes busy targets), so it needs the unattended-surface bounded-timeout
+treatment (the channels precedent) and Kafi's call.
