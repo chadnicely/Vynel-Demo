@@ -30,6 +30,7 @@ export function createAudioShell(
     devices.input,
     () => cpal.getDefaultInputDevice(),
     (deviceId) => cpal.getDefaultInputConfig(deviceId),
+    () => cpal.getDevices(),
   )
   const output = selectDeviceConfig(
     logger,

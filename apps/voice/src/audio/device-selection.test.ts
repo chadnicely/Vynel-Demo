@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import pino from 'pino'
 import type { CpalEnumeratedDevice, CpalStreamConfig } from './cpal.js'
-import { findDeviceByName, resolveAudioDevices, selectDeviceConfig } from './device-selection.js'
+import {
+  findDeviceByName,
+  isVynelVirtualDevice,
+  resolveAudioDevices,
+  selectDeviceConfig,
+} from './device-selection.js'
 
 // Shapes mirror the live 2026-08-11 probe of node-cpal v0.1.1 on WASAPI
 // (deviceId === name there; kept distinct here to prove we return the id field).
@@ -130,6 +135,74 @@ describe('selectDeviceConfig', () => {
 
     expect(selected.device).toBe(microphone)
     expect(error).not.toHaveBeenCalled()
+  })
+
+  // Windows made the call driver's capture endpoint the default recording device
+  // (2026-08-19: the daemon booted deaf on "Vynel Call 1 Microphone (Vynel Audio)").
+  it("never listens to Vynel's own virtual call microphone by default — takes the first real input, loudly", () => {
+    const { logger } = fakeLogger()
+    const warn = vi.spyOn(logger, 'warn')
+    const virtualMic = enumeratedDevice({
+      name: 'Vynel Call 1 Microphone (Vynel Audio)',
+      deviceId: 'id:vynel-call-1-mic',
+      isDefaultInput: true,
+    })
+    const virtualSpeaker = enumeratedDevice({
+      name: 'Vynel Call 1 Speaker (Vynel Audio)',
+      deviceId: 'id:vynel-call-1-spk',
+    })
+    const getConfig = vi.fn((deviceId: string) => {
+      if (deviceId === 'id:speakers') throw new Error('not an input')
+      return workingConfig
+    })
+    const selected = selectDeviceConfig(
+      logger,
+      'input',
+      undefined,
+      () => virtualMic,
+      getConfig,
+      () => [virtualMic, virtualSpeaker, speakers, microphone],
+    )
+    expect(selected.device).toBe(microphone)
+    expect(warn).toHaveBeenCalledWith(
+      { defaultDevice: virtualMic.name, chosenDevice: microphone.name },
+      expect.stringContaining('virtual call microphone'),
+    )
+  })
+
+  it('stays on the virtual default (said loudly) when no other device can record', () => {
+    const { logger, error } = fakeLogger()
+    const virtualMic = enumeratedDevice({ name: 'Vynel Call 2 Microphone (Vynel Audio)', deviceId: 'id:v2' })
+    const selected = selectDeviceConfig(
+      logger,
+      'input',
+      undefined,
+      () => virtualMic,
+      (deviceId) => {
+        if (deviceId === 'id:v2') return workingConfig
+        throw new Error('not an input')
+      },
+      () => [virtualMic, speakers],
+    )
+    expect(selected.device).toBe(virtualMic)
+    expect(error).toHaveBeenCalledWith(
+      { defaultDevice: virtualMic.name },
+      expect.stringContaining('wake word will not be heard'),
+    )
+  })
+
+  it('an explicitly configured Vynel virtual input is honored (the guard is default-only)', () => {
+    const { logger } = fakeLogger()
+    const virtualMic = enumeratedDevice({ name: 'Vynel Call 1 Microphone (Vynel Audio)', deviceId: 'id:v1' })
+    const selected = selectDeviceConfig(logger, 'input', virtualMic, () => microphone, () => workingConfig, () => allDevices)
+    expect(selected.device).toBe(virtualMic)
+  })
+
+  it("recognizes the call driver's endpoints and nothing else", () => {
+    expect(isVynelVirtualDevice('Vynel Call 1 Microphone (Vynel Audio)')).toBe(true)
+    expect(isVynelVirtualDevice('vynel call 12 speaker (vynel audio)')).toBe(true)
+    expect(isVynelVirtualDevice('Microphone (USBFC1 WENC)')).toBe(false)
+    expect(isVynelVirtualDevice('CABLE Output (VB-Audio Virtual Cable)')).toBe(false)
   })
 
   it('falls back to the default, loudly, when the selected device rejects the direction', () => {

@@ -65,6 +65,7 @@ export function selectDeviceConfig(
   selected: CpalDevice | undefined,
   getDefaultDevice: () => CpalDevice,
   getConfig: (deviceId: string) => CpalStreamConfig,
+  listDevices?: () => readonly CpalEnumeratedDevice[],
 ): SelectedDeviceConfig {
   if (selected !== undefined) {
     try {
@@ -82,7 +83,40 @@ export function selectDeviceConfig(
     }
   }
   const device = getDefaultDevice()
+  if (direction === 'input' && isVynelVirtualDevice(device.name ?? '') && listDevices !== undefined) {
+    // Windows makes a freshly installed capture endpoint the default recording
+    // device — and Vynel's own call driver ("Vynel Call <n> Microphone (Vynel
+    // Audio)") is exactly that. Listening to it for the wake word means
+    // hearing nothing from the room, silently. Take the first REAL device that
+    // can record instead; only stay on the virtual mic when nothing else can.
+    for (const candidate of listDevices()) {
+      if (candidate.deviceId === device.deviceId || isVynelVirtualDevice(candidate.name)) continue
+      try {
+        const config = getConfig(candidate.deviceId)
+        logger.warn(
+          { defaultDevice: device.name ?? device.deviceId, chosenDevice: candidate.name },
+          "the default recording device is Vynel's own virtual call microphone — using the first " +
+            'real microphone instead; set VYNEL_VOICE_INPUT_DEVICE to pick one explicitly',
+        )
+        return { device: candidate, config }
+      } catch {
+        // not an input (or broken) — try the next
+      }
+    }
+    logger.error(
+      { defaultDevice: device.name ?? device.deviceId },
+      "the default recording device is Vynel's own virtual call microphone and no other input " +
+        'could be opened — the wake word will not be heard; set VYNEL_VOICE_INPUT_DEVICE',
+    )
+  }
   return { device, config: getConfig(device.deviceId) }
+}
+
+/** One of the call driver's own endpoints ("Vynel Call 1 Microphone (Vynel
+ *  Audio)", "Vynel Call 1 Speaker (Vynel Audio)") — never a room microphone. */
+export function isVynelVirtualDevice(name: string): boolean {
+  const normalized = normalizeDeviceName(name)
+  return normalized.includes('(vynel audio)') || /^vynel call \d+ /.test(normalized)
 }
 
 export function normalizeDeviceName(name: string): string {
