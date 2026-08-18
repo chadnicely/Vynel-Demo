@@ -3923,10 +3923,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List subdirectories of a local path — backs the workspace folder picker. */
+        /** List a local folder (subfolders, drives, known places) — backs the filesystem browser. */
         get: operations["getWorkspacesDirectories"];
         put?: never;
-        post?: never;
+        /** Create one new folder inside an existing local folder — the filesystem browser's "New folder". */
+        post: operations["postWorkspacesDirectories"];
         delete?: never;
         options?: never;
         head?: never;
@@ -18137,7 +18138,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A directory listing (path, parent, child directories). */
+            /** @description A directory listing (path, parent, child directories, drives, known places). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18154,12 +18155,69 @@ export interface operations {
                             name: string;
                             path: string;
                         }[];
-                        drives: string[];
+                        drives: {
+                            path: string;
+                            label: string | null;
+                            /** @enum {string} */
+                            kind: "fixed" | "removable" | "network" | "optical" | "unknown";
+                            freeBytes: number | null;
+                            totalBytes: number | null;
+                        }[];
+                        places: {
+                            /** @enum {string} */
+                            kind: "home" | "desktop" | "documents" | "downloads" | "pictures" | "music" | "videos";
+                            name: string;
+                            path: string;
+                        }[];
                     };
                 };
             };
             /** @description Path not found, not a directory, or not readable. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesDirectories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    parentPath: string;
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new folder (name + absolute path). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        name: string;
+                        path: string;
+                    };
+                };
+            };
+            /** @description Parent not found / not a directory, or the name is not a valid folder name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A folder with that name already exists there. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

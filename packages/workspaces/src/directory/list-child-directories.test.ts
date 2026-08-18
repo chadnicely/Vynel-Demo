@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import os from 'node:os'
@@ -29,8 +29,19 @@ describe('listChildDirectories', () => {
 
   it('includes drive/volume roots for switching volumes', async () => {
     const listing = await listChildDirectories()
-    expect(Array.isArray(listing.drives)).toBe(true)
     expect(listing.drives.length).toBeGreaterThan(0)
+    for (const drive of listing.drives) {
+      expect(path.isAbsolute(drive.path)).toBe(true)
+      expect(['fixed', 'removable', 'network', 'optical', 'unknown']).toContain(drive.kind)
+    }
+  })
+
+  it('includes the known places, home first, every one an existing directory', async () => {
+    const listing = await listChildDirectories()
+    expect(listing.places[0]).toMatchObject({ kind: 'home', path: realpathSync(os.homedir()) })
+    for (const place of listing.places) {
+      expect(statSync(place.path).isDirectory()).toBe(true)
+    }
   })
 
   it('throws ValidationError for a missing path', async () => {

@@ -18,7 +18,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, mkdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pino from 'pino'
@@ -198,6 +198,47 @@ describe('workspaces routes', () => {
         const missing = join(tmpdir(), `vynel-missing-dir-${randomUUID()}`)
         const res = await app.request(`/workspaces/directories?path=${encodeURIComponent(missing)}`)
         expect(res.status).toBe(400)
+      })
+    })
+  })
+
+  describe('POST /workspaces/directories', () => {
+    it('creates the folder and returns its entry (201); a repeat is a 409', async () => {
+      await withTestDatabase(async (db) => {
+        await withTmpDir(async (parentDir) => {
+          const app = createApp({ db, logger: silentLogger })
+          const request = () =>
+            app.request('/workspaces/directories', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ parentPath: parentDir, name: 'Taxes 2026' }),
+            })
+
+          const created = await request()
+          expect(created.status).toBe(201)
+          const body = (await created.json()) as { name: string; path: string }
+          expect(body.name).toBe('Taxes 2026')
+          expect(existsSync(body.path)).toBe(true)
+
+          expect((await request()).status).toBe(409)
+        })
+      })
+    })
+
+    it('returns 400 for a bad name or a missing parent', async () => {
+      await withTestDatabase(async (db) => {
+        await withTmpDir(async (parentDir) => {
+          const app = createApp({ db, logger: silentLogger })
+          const post = (payload: object) =>
+            app.request('/workspaces/directories', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(payload),
+            })
+          expect((await post({ parentPath: parentDir, name: 'what?' })).status).toBe(400)
+          const missing = join(tmpdir(), `vynel-missing-dir-${randomUUID()}`)
+          expect((await post({ parentPath: missing, name: 'x' })).status).toBe(400)
+        })
       })
     })
   })

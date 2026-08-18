@@ -37429,7 +37429,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "A directory listing (path, parent, child directories).",
+            "description": "A directory listing (path, parent, child directories, drives, known places).",
             "content": {
               "application/json": {
                 "schema": {
@@ -37483,7 +37483,78 @@
                     "drives": {
                       "type": "array",
                       "items": {
-                        "type": "string"
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "fixed",
+                              "removable",
+                              "network",
+                              "optical",
+                              "unknown"
+                            ]
+                          },
+                          "freeBytes": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "totalBytes": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label",
+                          "kind",
+                          "freeBytes",
+                          "totalBytes"
+                        ]
+                      }
+                    },
+                    "places": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "home",
+                              "desktop",
+                              "documents",
+                              "downloads",
+                              "pictures",
+                              "music",
+                              "videos"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name",
+                          "path"
+                        ]
                       }
                     }
                   },
@@ -37491,7 +37562,8 @@
                     "path",
                     "parent",
                     "entries",
-                    "drives"
+                    "drives",
+                    "places"
                   ]
                 }
               }
@@ -37521,8 +37593,71 @@
             }
           }
         ],
-        "summary": "List subdirectories of a local path — backs the workspace folder picker.",
+        "summary": "List a local folder (subfolders, drives, known places) — backs the filesystem browser.",
         "x-sdk-name": "workspaces.listDirectories"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The new folder (name + absolute path).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "path"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parent not found / not a directory, or the name is not a valid folder name."
+          },
+          "409": {
+            "description": "A folder with that name already exists there."
+          }
+        },
+        "operationId": "postWorkspacesDirectories",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Create one new folder inside an existing local folder — the filesystem browser's \"New folder\".",
+        "x-sdk-name": "workspaces.createDirectory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "parentPath",
+                  "name"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/workspaces/groups": {

@@ -7,8 +7,37 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **One Explorer-style file browser behind every folder or file pick.** Creating
+  a workspace, adding a knowledge folder or file, and importing a memory file
+  now open the same browser laid out like Windows Explorer: pinned places
+  (Home, Desktop, Documents, Downloads, Pictures, Music, Videos) and "This
+  PC" with every drive down the left; Back, Up and clickable address crumbs
+  (**This PC › WORKSPACE (E:) › KLONE**) on top; large folder tiles in the pane;
+  drive cards with a capacity bar and "51.2 GB free of 399 GB" under This
+  PC. Click highlights, double-click opens. Drives read their real volume
+  labels ("KAFI (D:)", "Local Disk (C:)") and free space. A **New folder**
+  button on the browser's top bar makes a folder right where you are — the
+  name box appears pre-filled, Enter creates it, and the new folder comes
+  back already chosen. A folder that can't be opened (a locked system
+  folder, a vanished USB stick) says why and steps you back instead of
+  blanking the window.
+
 ### Changed
 
+- **New workspace picks its own name.** Choose the folder first; the name
+  fills in from it (edit it if you like) and **Continue** creates the room.
+  A whole drive or your home folder can't be a workspace — the dialog says
+  so and waits for a folder inside.
+- **A workspace's manager is named after the workspace by default.** A new
+  room's persona used to get a random first name ("Sarah is handling
+  Bookkeeping"); it's now the room's own name ("Bookkeeping is handling it")
+  until you rename the persona in Customize. Labels that read "persona ·
+  workspace" collapse to the workspace alone when the two match, and the
+  @-mention roster only offers a persona whose name can be typed as one
+  token — a multi-word workspace name is left out until its persona is
+  renamed.
 - **The default chat model advanced to Claude Opus 5.** A fresh install (or a
   cleared composer preference) used to start on Opus 4.8; it now starts on
   `claude-opus-5`. Sessions where a model was already chosen are untouched, and

@@ -31,8 +31,8 @@ export const workspaces = table(
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
     name: text().notNull(),
     // The workspace manager's persona name (brain-tree Ch5) — "Mark is handling vynel".
-    // Nullable: a default is auto-assigned on create; pre-existing rows resolve a default
-    // at read time (`deriveDefaultManagerName`). Renameable by the user. Additive.
+    // Nullable: create stores the workspace name as the default; a null row resolves to
+    // the workspace name at read time (`resolveManagerName`). Renameable by the user. Additive.
     managerName: text(),
     kind: text().$type<WorkspaceKind>().notNull(),
     path: text().notNull(),

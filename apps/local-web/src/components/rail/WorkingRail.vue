@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import {
+  formatManagerLabel,
+  resolveManagerName,
+} from "@vynel/contracts/workspaces/manager-name";
 import { useWorkingRail, type RailEntity } from "../../composables/activity/use-working-rail.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
@@ -23,9 +27,7 @@ function labelOf(entity: RailEntity): string {
       (row) => row.id === entity.workspaceId,
     );
     if (workspace !== undefined) {
-      return workspace.managerName
-        ? `${workspace.managerName} · ${workspace.name}`
-        : workspace.name;
+      return formatManagerLabel(resolveManagerName(workspace), workspace.name);
     }
   }
   return entity.label === "" ? "Working…" : entity.label;

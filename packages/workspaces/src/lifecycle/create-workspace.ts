@@ -18,7 +18,6 @@ import { ConflictError, ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import type { Workspace, WorkspaceKind } from '@vynel/db/repositories/workspaces'
 import { WORKSPACE_CREATED_EVENT } from '../workspaces-events.js'
-import { deriveDefaultManagerName } from '../manager-name.js'
 
 export type CreateWorkspaceInput = {
   userId: string
@@ -76,9 +75,9 @@ export async function createWorkspace(
       id: workspaceId,
       userId: input.userId,
       name: input.name,
-      // Auto-assign a default persona name on create (brain-tree Ch5) — deterministic by
-      // id; renameable later. Pre-existing rows (null) resolve a default at read time.
-      managerName: deriveDefaultManagerName(workspaceId),
+      // The manager persona defaults to the workspace's own name (Kafi,
+      // 2026-08-19) — renameable later; a null row resolves the same way at read time.
+      managerName: input.name,
       kind: input.kind ?? 'personal',
       path: workspacePath,
       isArchived: false,

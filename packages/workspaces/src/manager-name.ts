@@ -5,6 +5,7 @@
 // public surface (and every existing server import) is unchanged.
 
 export {
-  deriveDefaultManagerName,
+  formatManagerLabel,
+  hasDistinctManagerName,
   resolveManagerName,
 } from '@vynel/contracts/workspaces/manager-name'

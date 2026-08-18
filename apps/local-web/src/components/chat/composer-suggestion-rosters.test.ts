@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { deriveDefaultManagerName } from "@vynel/contracts/workspaces/manager-name";
 import { parseComposerTokens } from "@vynel/contracts/chat/composer-tokens";
 import {
   buildMentionSuggestions,
@@ -22,7 +21,7 @@ describe("selectOtherWorkspaces", () => {
 });
 
 describe("buildMentionSuggestions", () => {
-  it("lists agents then personas, deriving default manager names", () => {
+  it("lists agents then personas; a default persona IS the workspace name, offered only when it @-parses", () => {
     const items = buildMentionSuggestions(
       [{ id: "a1", slug: "code-reviewer", name: "Code Reviewer" }],
       selectOtherWorkspaces(workspaces, null),
@@ -33,8 +32,9 @@ describe("buildMentionSuggestions", () => {
       insert: "@code-reviewer",
     });
     expect(items[1]).toMatchObject({ group: "People", insert: "@Sarah" });
-    // Null managerName derives the same default the server resolves.
-    expect(items[2]?.insert).toBe(`@${deriveDefaultManagerName("w2")}`);
+    // w2's default persona is "Q3 plans" — a name with a space can't be an
+    // @-token, so the roster honestly leaves it out rather than offer a dud.
+    expect(items).toHaveLength(2);
   });
 
   it("every offered insert parses back to the EXACT stored name (the server's match)", () => {
@@ -42,8 +42,8 @@ describe("buildMentionSuggestions", () => {
       [{ id: "a1", slug: "helper", name: "Helper" }],
       selectOtherWorkspaces(workspaces, null),
     );
-    const storedNames = ["helper", "Sarah", deriveDefaultManagerName("w2")];
-    expect(items).toHaveLength(3);
+    const storedNames = ["helper", "Sarah"];
+    expect(items).toHaveLength(2);
     items.forEach((item, index) => {
       const parsed = parseComposerTokens(item.insert).mentions;
       expect(parsed).toHaveLength(1);

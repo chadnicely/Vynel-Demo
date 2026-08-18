@@ -5,6 +5,10 @@ import type { ChannelResponse } from "@vynel/contracts/channels/channel-http";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import { WORKSPACE_KIND_BUNDLES } from "@vynel/contracts/workspaces/workspace-kind-bundles";
 import { ClaudeMark, workspaceAccentVar } from "@vynel/ui";
+import {
+  hasDistinctManagerName,
+  resolveManagerName,
+} from "@vynel/contracts/workspaces/manager-name";
 import { greetingForHour } from "../../utils/greeting.js";
 import ChannelBrandIcon from "../channels/ChannelBrandIcon.vue";
 import {
@@ -40,9 +44,11 @@ const reachable = computed(() =>
   props.channels.filter((channel) => channel.isEnabled),
 );
 
+// "With Mark" only when the persona has a name of its own — "With vynel"
+// under the vynel card would just repeat the title.
 function workspaceNote(workspace: WorkspaceResponse): string {
-  return workspace.managerName
-    ? `With ${workspace.managerName}`
+  return hasDistinctManagerName(workspace)
+    ? `With ${resolveManagerName(workspace)}`
     : WORKSPACE_KIND_BUNDLES[workspace.kind].displayName;
 }
 </script>

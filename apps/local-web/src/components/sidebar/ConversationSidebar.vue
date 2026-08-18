@@ -2,6 +2,10 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { usePanelResize } from "@vynel/ui";
+import {
+  formatManagerLabel,
+  resolveManagerName,
+} from "@vynel/contracts/workspaces/manager-name";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import AgentRunPane from "../activity/AgentRunPane.vue";
@@ -47,7 +51,7 @@ const headerTitle = computed(() => {
   );
   return workspace === undefined
     ? "Workspace"
-    : `${workspace.managerName ?? "Assistant"} · ${workspace.name}`;
+    : formatManagerLabel(resolveManagerName(workspace), workspace.name);
 });
 </script>
 

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { PresenceDot, ThreadSkeleton } from "@vynel/ui";
+import {
+  formatManagerLabel,
+  resolveManagerName,
+} from "@vynel/contracts/workspaces/manager-name";
 import ThreadStream from "../chat/ThreadStream.vue";
 import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
@@ -47,11 +51,13 @@ const workspace = computed(
       (row) => row.id === props.workspaceId,
     ) ?? null,
 );
-const managerName = computed(() => workspace.value?.managerName ?? "Assistant");
+const managerName = computed(() =>
+  workspace.value === null ? "Assistant" : resolveManagerName(workspace.value),
+);
 const personaLabel = computed(() =>
   workspace.value === null
     ? "Workspace"
-    : `${managerName.value} · ${workspace.value.name}`,
+    : formatManagerLabel(managerName.value, workspace.value.name),
 );
 
 const continuingQuery = useContinuingConversation(() => scope.value);

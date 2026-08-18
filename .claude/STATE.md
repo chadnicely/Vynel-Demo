@@ -3,7 +3,43 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) MODE INHERITANCE + SYNTHETIC-MODEL POISONING — both root-caused and fixed
+## ✅ 2026-08-19 (latest) EXPLORER-STYLE FILE BROWSER — one picker behind workspace / knowledge / memory
+
+Kafi's session theme: small changes one by one, first up the folder/file picker. Shipped ONE shared
+`FileSystemBrowser` (`apps/local-web/src/components/filesystem/`: browser + rail + toolbar + tile +
+drive tile + pure `file-system-path.ts` helpers) laid out like Windows Explorer — pinned places +
+"This PC" drives on the left, Back/Up/address crumbs on top, large-icon tiles, drive cards with
+capacity bars. Click highlights, double-click/Enter opens; `mode: folder | file | any`; the open
+folder is the implicit pick in folder-capable modes. Replaced the three hand-rolled pickers
+(CreateWorkspaceDialog, AddKnowledgeDialog, FilePickerField→deleted; AddMemoryDialog now embeds the
+browser in file mode). Backend: `GET /workspaces/directories` drives became
+`{path,label,kind,freeBytes,totalBytes}` (NEW `list-drive-roots.ts`: statfs + ONE cached
+stale-while-revalidate PowerShell Win32_LogicalDisk read for labels/kinds, 5-min TTL, degrades to bare
+letters + logger.warn) and every listing carries `places` (NEW `list-known-places.ts`: home +
+Desktop/Documents/Downloads/Pictures/Music/Videos that exist, OneDrive fallback). Contract + zod +
+regenerated SDK (parity green). Modal gained `size="xl"` (max-w-3xl). `file-colors.ts` moved to
+`utils/` (third consumer). Create-workspace: browser first, name auto-picked from the chosen folder
+(a typed name sticks; clearing it re-follows), drive roots + the home folder are refused as too broad,
+button reads **Continue**. Second pass (same day, Kafi): **New folder** button on the toolbar
+(NEW `POST /workspaces/directories` → `create-child-directory.ts`: one segment, Windows-forbidden
+chars/trailing dot-space/reserved names refused, 409 on exists; `use-new-folder-draft.ts` composable,
+inline name row, created folder comes back highlighted) + **manager name defaults to the workspace
+name** (contracts `manager-name.ts`: `resolveManagerName` falls back to `name`, curated first-name
+list DELETED; `formatManagerLabel` collapses "x · x"; `hasDistinctManagerName` for the heroes; create
+stores `managerName = input.name`; the @-roster drops multi-word personas because the mention grammar
+is single-token — Kafi to decide whether the grammar should learn multi-word names). code-reviewer
+punch-list all applied: pino-shape logger, UTF-8 volume labels, `parseWindowsVolumes` extracted +
+fixture-tested (timing test dropped), realpath'd places, folder-highlight never counts in file mode,
+click = idempotent select (dblclick a file lands selected; empty-pane click clears), unreadable
+folder → error banner + auto step back with rails intact, listing query `retry:false`. Verified:
+10 typechecks + parity + ~110 targeted tests + live playwright (three dialogs, New-folder row) +
+live POST 201/409/400. OBSERVED (not fixed): malformed JSON bodies answer 500 (hono validator
+JSON.parse) — a gateway-wide nit. NOT built (candidates for later small steps): keyboard arrow
+navigation between tiles, a list/details view toggle, Windows known-folder redirection via the
+registry (today: home then OneDrive probe), hiding Windows hidden/system dirs (`$Recycle.Bin`), showing
+files greyed in folder mode, warming the volume-label cache at API boot.
+
+## ✅ 2026-08-19 MODE INHERITANCE + SYNTHETIC-MODEL POISONING — both root-caused and fixed
 
 Kafi's two reports, both DB-verified in `.data/vynel.dev.db`. (1) **Auto root, children still
 carding:** the delegating turn's mode rides `x-vynel-delegation-mode`, stamped ONLY by the

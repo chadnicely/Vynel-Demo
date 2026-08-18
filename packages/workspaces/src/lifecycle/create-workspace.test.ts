@@ -45,8 +45,8 @@ describe('createWorkspace (existing-directory model)', () => {
 
       expect(workspace.userId).toBe(user.id)
       expect(workspace.kind).toBe('small-business')
-      // brain-tree Ch5 — a default persona name is auto-assigned on create.
-      expect(workspace.managerName).toBeTruthy()
+      // brain-tree Ch5 — the default persona name IS the workspace name (Kafi, 2026-08-19).
+      expect(workspace.managerName).toBe('Acme Inc.')
 
       // Vynel's metadata dir exists (identity files are retired — A2)...
       expect(existsSync(path.join(workspace.path, '.vynel'))).toBe(true)
