@@ -11146,6 +11146,7 @@
                               "global-root",
                               "workspace-manager",
                               "agent",
+                              "system",
                               null
                             ]
                           },
@@ -11842,6 +11843,7 @@
                               "global-root",
                               "workspace-manager",
                               "agent",
+                              "system",
                               null
                             ]
                           },
@@ -30846,6 +30848,7 @@
                               "global-root",
                               "workspace-manager",
                               "agent",
+                              "system",
                               null
                             ]
                           },
@@ -31307,6 +31310,7 @@
                               "global-root",
                               "workspace-manager",
                               "agent",
+                              "system",
                               null
                             ]
                           },
@@ -31769,6 +31773,7 @@
                               "global-root",
                               "workspace-manager",
                               "agent",
+                              "system",
                               null
                             ]
                           },
@@ -32347,6 +32352,7 @@
                               "global-root",
                               "workspace-manager",
                               "agent",
+                              "system",
                               null
                             ]
                           },
@@ -35280,6 +35286,7 @@
                               "global-root",
                               "workspace-manager",
                               "agent",
+                              "system",
                               null
                             ]
                           },

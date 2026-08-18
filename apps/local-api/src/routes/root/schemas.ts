@@ -71,7 +71,15 @@ export const RootSessionParamSchema = z.object({
 // ── Response schemas ────────────────────────────────────────────────
 
 const TranscriptMessageRoleSchema = z.enum(['user', 'assistant', 'system'])
-const TranscriptSourceKindSchema = z.enum(['user', 'global-root', 'workspace-manager', 'agent'])
+// Mirrors ChatMessageSourceKind — 'system' joined with the task-execution
+// arc's notification deliveries (2026-08-18).
+const TranscriptSourceKindSchema = z.enum([
+  'user',
+  'global-root',
+  'workspace-manager',
+  'agent',
+  'system',
+])
 
 const DelegationJobStatusSchema = z.enum(['pending', 'claimed', 'completed', 'failed'])
 const TraceEntryScopeSchema = z.enum(['global', 'workspace'])

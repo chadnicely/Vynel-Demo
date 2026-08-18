@@ -130,6 +130,15 @@ const isInboundReport = computed(() => {
   );
 });
 
+// A SYSTEM NOTIFICATION (task-execution arc) — a machine-produced notice (a
+// task the user filed, a failed schedule, a monitor wake) delivered through
+// the notify engine. It is nobody speaking: it renders as a quiet notice
+// card, never as a participant message.
+const isSystemNotice = computed(() => {
+  const { role, sourceKind, sourceLabel } = props.message;
+  return role === "user" && sourceKind === "system" && !!sourceLabel;
+});
+
 // The author line comes from sourceKind (who WROTE this); sourceLabel alone
 // may just name a delegation target for the chip below — never the author.
 // Authors speak in first person: the global brain IS Claude (the product
@@ -155,6 +164,9 @@ const roleLabel = computed(() => {
         ? splitSourceLabel(props.message.sourceLabel!).persona
         : props.message.sourceLabel!;
     }
+    // A system notification speaks as its PRODUCER ("Tasks"), never as the
+    // user — the notice card beneath carries the content.
+    if (isSystemNotice.value) return props.message.sourceLabel!;
     // A mention lands as the USER speaking directly into this conversation,
     // labeled with where it came from (redesign Case 3).
     if (props.message.sourceKind === "user" && props.message.sourceLabel)
@@ -206,6 +218,9 @@ type AuthorGlyph =
   | null;
 
 const authorGlyph = computed<AuthorGlyph>(() => {
+  // A system notification is nobody — the notice card's own icon carries the
+  // identity; no avatar in the author line.
+  if (isSystemNotice.value) return null;
   if (props.message.role === "user" && !isInboundReport.value)
     return { kind: "user" };
   if (isPersonaAuthor.value && props.authorPersona) {
@@ -243,7 +258,7 @@ const timeLabel = computed(() =>
 // reference (the person already saw what they marked). Left in, the reference
 // became the folded card's preview and ate the question itself.
 const displayBody = computed(() =>
-  isInboundReport.value
+  isInboundReport.value || isSystemNotice.value
     ? stripReportMessageMarker(props.message.body)
     : stripTurnReferenceLine(props.message.body),
 );
@@ -309,7 +324,7 @@ const isInboundNote = computed(
 // (no pointless chevron on a two-line update).
 const FOLD_REMAINDER_MIN = 120;
 const inboundCardParts = computed(() => {
-  if (!isInboundReport.value) return null;
+  if (!isInboundReport.value && !isSystemNotice.value) return null;
   const body = displayBody.value;
   const splitAt = body.indexOf("\n\n");
   if (splitAt === -1) return { title: body, remainder: null };
@@ -328,13 +343,15 @@ const inboundCardTitle = computed(() =>
 );
 
 const inboundKindWord = computed(() =>
-  isInboundUpdate.value
-    ? "update"
-    : isInboundDirect.value
-      ? "message"
-      : isInboundNote.value
-        ? "note"
-        : "report",
+  isSystemNotice.value
+    ? "notification"
+    : isInboundUpdate.value
+      ? "update"
+      : isInboundDirect.value
+        ? "message"
+        : isInboundNote.value
+          ? "note"
+          : "report",
 );
 
 const isExpanded = ref(false);
@@ -371,7 +388,8 @@ function onLeadClick(event: MouseEvent) {
 // The ask wears its time INLINE beside the name (the canvas's card header);
 // every other row keeps it on the right, where the reply's caret joins it.
 const showsInlineTime = computed(
-  () => props.message.role === "user" && !isInboundReport.value,
+  () =>
+    props.message.role === "user" && !isInboundReport.value && !isSystemNotice.value,
 );
 
 // The canvas reaches its chat icon from both ends of a card — the header's
@@ -398,7 +416,10 @@ const collapsedPreview = computed(() => {
 <template>
   <div
     class="message-row"
-    :class="[`role-${props.message.role}`, { 'is-report': isInboundReport }]"
+    :class="[
+      `role-${props.message.role}`,
+      { 'is-report': isInboundReport, 'is-system': isSystemNotice },
+    ]"
   >
     <div
       v-if="props.showHeader"
@@ -751,7 +772,9 @@ const collapsedPreview = computed(() => {
       </template>
       <!-- The delivered-message card (all kinds): kind icon + title line,
          chevron at the line's end, body expands in place. -->
-      <template v-else-if="isInboundReport && inboundCardParts !== null">
+      <template
+        v-else-if="(isInboundReport || isSystemNotice) && inboundCardParts !== null"
+      >
         <button
           type="button"
           class="inbound-card"
@@ -761,9 +784,33 @@ const collapsedPreview = computed(() => {
           :disabled="inboundCardParts.remainder === null"
           @click="isExpanded = !isExpanded"
         >
+          <!-- SYSTEM NOTIFICATION: a small bell — Vynel telling the room
+               something; nobody speaking. -->
+          <svg
+            v-if="isSystemNotice"
+            class="inbound-card-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M3.5 11.5V7a4.5 4.5 0 0 1 9 0v4.5l1 1.5H2.5l1-1.5Z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M6.5 14a1.5 1.5 0 0 0 3 0"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+            />
+          </svg>
           <!-- UPDATE: a small clock — interim, still running. -->
           <svg
-            v-if="isInboundUpdate"
+            v-else-if="isInboundUpdate"
             class="inbound-card-icon"
             width="13"
             height="13"
@@ -921,8 +968,9 @@ const collapsedPreview = computed(() => {
 
 /* The ASK's author (the canvas's card header): plain 12px semibold — the
    human's name is a name, not a label. Delivered reports keep the label
-   treatment (they speak as a persona). */
-.role-user:not(.is-report) .role-label {
+   treatment (they speak as a persona), and so do system notices (nobody is
+   speaking). */
+.role-user:not(.is-report):not(.is-system) .role-label {
   color: var(--ink-2);
   /* Line-height 1, the canvas's: the name and the time beside it are set on
      the same tight box so they read as one line, not two stacked ones. */
@@ -1277,6 +1325,18 @@ const collapsedPreview = computed(() => {
 
 .role-user.is-report .role-label {
   color: var(--ink-3);
+}
+
+/* A SYSTEM NOTIFICATION reads as ambient chrome, not a participant: the
+   producer label stays the quiet small-caps treatment and the card's text
+   drops to the meta voice — present, scannable, never the headline. */
+.role-user.is-system .role-label {
+  color: var(--ink-3);
+}
+
+.role-user.is-system .inbound-card {
+  color: var(--ink-3);
+  font: 400 12px/1.6 var(--font-ui);
 }
 
 /* The delivered-message card — the tool-card treatment: kind icon + the lead

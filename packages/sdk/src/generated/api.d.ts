@@ -8317,7 +8317,7 @@ export interface operations {
                             role: "user" | "assistant" | "system";
                             body: string;
                             /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
@@ -8496,7 +8496,7 @@ export interface operations {
                             role: "user" | "assistant" | "system";
                             body: string;
                             /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
@@ -15869,7 +15869,7 @@ export interface operations {
                             role: "user" | "assistant" | "system";
                             body: string;
                             /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
@@ -15972,7 +15972,7 @@ export interface operations {
                             /** @enum {string} */
                             role: "user" | "assistant" | "system";
                             /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
                             sourceLabel: string | null;
                             body: string;
                             sessionId: string;
@@ -16100,7 +16100,7 @@ export interface operations {
                             role: "user" | "assistant" | "system";
                             body: string;
                             /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
@@ -16231,7 +16231,7 @@ export interface operations {
                             role: "user" | "assistant" | "system";
                             body: string;
                             /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
@@ -17236,7 +17236,7 @@ export interface operations {
                             role: "user" | "assistant" | "system";
                             body: string;
                             /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | null;
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
                             sourceLabel: string | null;
                             /** @enum {string|null} */
                             originChannel: "voice" | "telegram" | "discord" | "zoom" | null;

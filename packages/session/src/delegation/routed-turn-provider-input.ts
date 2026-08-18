@@ -23,6 +23,18 @@ export const ROUTED_TASK_INSTRUCTIONS =
   'what YOU completed and that the rest is still running — and when its result arrives ' +
   'later as a report, pass the REAL result up to your requester.'
 
+// The SYSTEM-NOTIFICATION steer (task-execution arc): the inbound is a
+// machine-produced notice — a task the user filed, a failed schedule, a fired
+// monitor — not a delegated result and not a message the user typed. Act on
+// it per the standing disciplines (the tasks prompt + the task-planner
+// notebook carry the pickup flow); nobody awaits a report of it.
+export const SYSTEM_DELIVERY_INSTRUCTIONS =
+  'This message is a SYSTEM NOTIFICATION produced automatically by Vynel — not a delegated ' +
+  "result and not something the user typed (its first line marks the producer). Act on it " +
+  'per your standing instructions: for a new task, work the task list the way the tasks ' +
+  'discipline and the task-planner notebook describe. No requester is awaiting a report of ' +
+  'this notification; reply briefly with what you did (or will do) for the user.'
+
 // The REPORT-DELIVERY steer (session-comms, the revert flow) — the notify
 // turn's variant of the routed-task steer: the inbound message is a child's
 // FINAL result, not a new task. Absorb the real data; act only if genuinely

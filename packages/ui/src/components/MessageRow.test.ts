@@ -142,6 +142,32 @@ describe("MessageRow", () => {
     expect(wrapper.text()).not.toContain("NOT a message the user typed");
   });
 
+  it("a SYSTEM notification renders as a quiet notice: producer label, bell card, marker stripped, no You", () => {
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "system",
+          sourceLabel: "Tasks",
+          body:
+            "[System notification from Tasks — produced automatically by Vynel. " +
+            "NOT a message the user typed and NOT a delegated result: act on it per your " +
+            "standing instructions; no requester is awaiting a report.]\n\n" +
+            'New task on the list: "Research SEO" (task id t-1).',
+        }),
+      },
+    });
+
+    expect(wrapper.find(".role-label").text()).toBe("Tasks");
+    expect(wrapper.classes()).toContain("is-system");
+    const card = wrapper.find(".inbound-card");
+    expect(card.attributes("data-kind")).toBe("notification");
+    expect(card.text()).toContain("New task on the list");
+    // The model-facing marker never reaches the display.
+    expect(wrapper.text()).not.toContain("[System notification from");
+    expect(wrapper.text()).not.toContain("You");
+  });
+
   it("keeps a plain user message as You — no report treatment without a source", () => {
     const wrapper = mount(MessageRow, {
       props: {

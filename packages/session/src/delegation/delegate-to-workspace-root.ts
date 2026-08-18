@@ -85,7 +85,7 @@ export type DelegateToWorkspaceRootInput = {
   /** REPORT-DELIVERY variant (session-comms): attribute the INBOUND row as
    *  coming from the reporting CHILD instead of the default 'global-root' task
    *  shape. Omit → the shipped task attribution, byte-for-byte. */
-  inboundAttribution?: { sourceKind: 'workspace-manager'; sourceLabel: string }
+  inboundAttribution?: { sourceKind: 'workspace-manager' | 'system'; sourceLabel: string }
   /** The origin scope's display name for the TASK shape's anchor row
    *  ("Claude · from <label>" — redesign Phase-2b); ignored when
    *  `inboundAttribution` overrides (a notify turn speaks as its child). */

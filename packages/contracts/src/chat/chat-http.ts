@@ -109,7 +109,7 @@ export interface ChatMessageResponse {
    *  delegated IN from the global brain is `role:'user'` + `sourceKind:'global-root'`;
    *  a bubbled-up report is `role:'assistant'` + `sourceKind:'workspace-manager'|'agent'`
    *  with `sourceLabel` = the workspace/agent name. */
-  sourceKind?: "user" | "global-root" | "workspace-manager" | "agent" | null;
+  sourceKind?: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
   sourceLabel?: string | null;
   /** The inbound channel a USER row arrived through ('voice'/'telegram'/'discord');
    *  null/absent = the app composer (no badge). Distinct from sourceKind: origin is

@@ -44,13 +44,14 @@ export function consumeTaskCreatedEvent(
     // panel-created task.
     reporterSessionId: `task:${payload.taskId}`,
     reporterLabel: 'Tasks',
+    // ONE short human-readable line: the row renders on the user's transcript
+    // as a quiet system notice, so no tool mechanics here — the standing tasks
+    // prompt + the task-planner notebook already carry the full discipline
+    // (and the delivered-card title strips markdown control chars, so an
+    // underscored tool name would render mangled — the 2026-08-18 smoke).
     reportBody:
-      `The user put a new task on the list: "${payload.title}" (id ${payload.taskId}). ` +
-      'If you are not already working a task, pick this one up now: read the task-planner ' +
-      'notebook for the discipline, clear up anything ambiguous with the user first ' +
-      '(ask_user with this taskId), size the work, then set it in-progress and lay out its ' +
-      'steps with set_task_steps. If you are mid-task, finish that first — the list drains ' +
-      'one task at a time, in order (list_tasks shows the queue).',
+      `New task on the list: "${payload.title}" (task id ${payload.taskId}). ` +
+      'Pick it up when free — the task-planner notebook has the discipline.',
     requester:
       workspace !== null
         ? {

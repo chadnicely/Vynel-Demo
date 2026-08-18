@@ -40,7 +40,10 @@ export interface EnqueueReportDeliveryInput {
   threadId?: string
   userId: string
   /** The REPORTER's (child's) current sdk session id — provenance, stored in
-   *  `parentSessionId` (a LOOSE text ref, never a FK). */
+   *  `parentSessionId` (a LOOSE text ref, never a FK). SYSTEM producers pass
+   *  a synthetic `<producer>:<id>` (`task:`/`schedule:`/`monitor:`) — that
+   *  prefix is LOAD-BEARING: `isSystemReporterSessionId` keys the delivery's
+   *  system marker/steer and its quiet UI rendering off it. */
   reporterSessionId: string
   /** The child's composed display label ("Mark · Acme" / the session name) —
    *  the notify turn's inbound `sourceLabel`. */

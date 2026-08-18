@@ -133,11 +133,14 @@ const ChatSessionVisibilitySchema = z.enum(["listed", "hidden"]);
 // (drift caught 2026-08-10 when the cross-session detail read landed).
 const ChatSessionScopeSchema = z.enum(["global", "workspace", "agent", "spawned"]);
 const ChatMessageRoleSchema = z.enum(["user", "assistant", "system"]);
+// Mirrors ChatMessageSourceKind in @vynel/chat's schema — 'system' joined
+// with the task-execution arc's notification deliveries (2026-08-18).
 const ChatMessageSourceKindSchema = z.enum([
   "user",
   "global-root",
   "workspace-manager",
   "agent",
+  "system",
 ]);
 const ToolCallStatusSchema = z.enum([
   "started",

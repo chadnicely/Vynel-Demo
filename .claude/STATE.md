@@ -14,8 +14,16 @@ rewrite `2e2e6d3` (task-planner.md on the /architect spine + TASKS_PROMPT_INSTRU
 ⚠ OPEN FORK for Kafi (end of task-execution.md): ask_user is absent on the delivery turn that
 receives the nudge — extending it holds the target's delivery queue while parked, needs his call
 (notebook teaches the reply-based fallback meanwhile). Deferred: task attachments, workspace→
-session feeding, channels digest. Live smokes not yet run (file a task → nudge → clearance →
-steps on panel).
+session feeding, channels digest.
+LIVE-SMOKE FIX (Kafi's first smoke, same day): the nudge rendered as a full participant blob
+with mangled tool names (the delivered-card TITLE strips markdown control chars — underscores
+gone). Fix: `sourceKind 'system'` end-to-end — synthetic reporters (task:/schedule:/monitor:,
+the LOAD-BEARING prefix, `isSystemReporterSessionId`) get the SYSTEM marker + steer + a quiet
+bell notice card in MessageRow (data-kind notification, producer label, never "You"); nudge
+body shortened to one human line; wire enums widened in BOTH zod homes (chat + root schemas —
+reviewer caught the drift class) + SDK regenerated. Schedule failures + monitor wakes now
+system-styled too (deliberate uniformity). His remaining smoke note: set_todos still 400s red
+on delivery turns (documented wart, session-todos.md).
 
 ## (superseded) 2026-08-18 task-execution Slice 1 `d9abed3`
 

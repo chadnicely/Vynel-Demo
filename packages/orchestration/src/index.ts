@@ -92,6 +92,7 @@ export {
   consumeTaskCreatedEvent,
   type TaskCreatedPayload,
 } from './routing/consume-task-created-event.js'
+export { isSystemReporterSessionId } from './routing/system-reporter.js'
 
 // The global-root catch-up (Ch3.5 root-awareness fix): the terminal delegations the root
 // hasn't been told about, as a context block to prepend to its next turn.

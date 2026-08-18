@@ -3,6 +3,7 @@ import {
   composeDirectMessageMarker,
   composeNoteMessageMarker,
   composeReportMessageMarker,
+  composeSystemMessageMarker,
   composeUpdateMessageMarker,
   isDirectMessageBody,
   isNoteMessageBody,
@@ -46,6 +47,15 @@ describe('report message marker', () => {
     expect(isUpdateMessageBody(`${composeUpdateMessageMarker('Nova')}\n\nReceived.`)).toBe(true)
     expect(isUpdateMessageBody(`${composeReportMessageMarker('Nova')}\n\nDone.`)).toBe(false)
     expect(isUpdateMessageBody('A plain message.')).toBe(false)
+  })
+
+  it('the SYSTEM marker (task-execution arc) round-trips and says nobody awaits a report', () => {
+    const body = 'New task on the list: "Research SEO" (task id t-1).'
+    const marked = `${composeSystemMessageMarker('Tasks')}\n\n${body}`
+    expect(marked.startsWith('[System notification from Tasks')).toBe(true)
+    expect(stripReportMessageMarker(marked)).toBe(body)
+    expect(composeSystemMessageMarker('Tasks')).toContain('no requester is awaiting a report')
+    expect(isUpdateMessageBody(marked)).toBe(false)
   })
 
   it('the NOTE marker (the lateral kind) round-trips, carries the reply address, and discriminates', () => {

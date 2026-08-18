@@ -13,6 +13,7 @@ const MARKER_PREFIX = '[Report from '
 const UPDATE_MARKER_PREFIX = '[Update from '
 const DIRECT_MARKER_PREFIX = '[Message from '
 const NOTE_MARKER_PREFIX = '[Note from '
+const SYSTEM_MARKER_PREFIX = '[System notification from '
 
 export function composeReportMessageMarker(sourceLabel: string): string {
   return (
@@ -62,6 +63,19 @@ export function composeNoteMessageMarker(sourceLabel: string, replyAddress?: str
   )
 }
 
+/** The SYSTEM variant (task-execution arc): a machine-produced notification —
+ *  the pickup nudge, a schedule failure, a monitor wake — delivered through
+ *  the same notify engine but authored by VYNEL, not by any session. The
+ *  receiver acts on it per its standing instructions; nobody awaits a report
+ *  of it. */
+export function composeSystemMessageMarker(sourceLabel: string): string {
+  return (
+    `${SYSTEM_MARKER_PREFIX}${sourceLabel} — produced automatically by Vynel. ` +
+    'NOT a message the user typed and NOT a delegated result: act on it per your ' +
+    'standing instructions; no requester is awaiting a report.]'
+  )
+}
+
 /** True when the body carries the INTERIM-update marker (vs the final report) —
  *  the UI's one reading for the Report/Update badge split. */
 export function isUpdateMessageBody(body: string): boolean {
@@ -91,7 +105,8 @@ export function stripReportMessageMarker(body: string): string {
     !body.startsWith(MARKER_PREFIX) &&
     !body.startsWith(UPDATE_MARKER_PREFIX) &&
     !body.startsWith(DIRECT_MARKER_PREFIX) &&
-    !body.startsWith(NOTE_MARKER_PREFIX)
+    !body.startsWith(NOTE_MARKER_PREFIX) &&
+    !body.startsWith(SYSTEM_MARKER_PREFIX)
   ) {
     return body
   }

@@ -26,8 +26,16 @@ export type ChatMessageRole = 'user' | 'assistant' | 'system'
 // origin rather than flattened to 'assistant'. Null on workspace-chat rows
 // (read `role` there — unchanged). P0.1 populates 'user' + 'global-root'; the
 // brain-tree phases populate 'workspace-manager' + 'agent' (with `sourceLabel`
-// = the workspace / agent name).
-export type ChatMessageSourceKind = 'user' | 'global-root' | 'workspace-manager' | 'agent'
+// = the workspace / agent name). 'system' (task-execution arc, 2026-08-18) is
+// a MACHINE notification — a synthetic reporter (task:/schedule:/monitor:)
+// delivered through the notify engine; the UI renders it as a quiet system
+// notice, never as a participant speaking.
+export type ChatMessageSourceKind =
+  | 'user'
+  | 'global-root'
+  | 'workspace-manager'
+  | 'agent'
+  | 'system'
 
 // The CHANNEL a user message arrived through — voice daemon, Telegram, Discord.
 // Null = the app's own composer (web is the default surface, so it wears no

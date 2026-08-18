@@ -33,6 +33,7 @@ import {
   ApprovalWaitGate,
   completeDelegationJob,
   failDelegationJob,
+  isSystemReporterSessionId,
   listDelegationJobsByThread,
   resolveThreadIdOf,
   routeRequest,
@@ -45,6 +46,7 @@ import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import {
   composeDirectMessageMarker,
   composeReportMessageMarker,
+  composeSystemMessageMarker,
   composeUpdateMessageMarker,
 } from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
@@ -52,6 +54,7 @@ import { requeueIfRecoverable } from './classify-turn-failure.js'
 import {
   DIRECT_DELIVERY_INSTRUCTIONS,
   REPORT_DELIVERY_INSTRUCTIONS,
+  SYSTEM_DELIVERY_INSTRUCTIONS,
   UPDATE_DELIVERY_INSTRUCTIONS,
 } from './routed-turn-provider-input.js'
 import type { RoutedTurnMcpAttachment } from './routed-turn-provider-input.js'
@@ -72,6 +75,10 @@ export type RunGlobalRootReportTurn = (input: {
   reportBody: string
   /** The child's composed display label — the inbound row's sourceLabel. */
   sourceLabel: string
+  /** The inbound row's attribution kind — 'system' for a machine notification
+   *  (a synthetic task:/schedule:/monitor: reporter); omitted = the shipped
+   *  'workspace-manager' delivered-report shape. */
+  sourceKind?: 'workspace-manager' | 'system'
   /** The delivery job's own trace key — stamped on the notify turn's rows. */
   partialSessionId?: string
   /** The delegation CHAIN key — stamped beside the trace key (persona-sessions). */
@@ -131,11 +138,20 @@ export async function runReportDeliveryJob(
       unbounded: true,
     }).some((job) => job.jobKind === 'agent-run')
   const queueLabel = claimed.jobKind ?? 'report-delivery'
+  // A SYSTEM producer (the synthetic task:/schedule:/monitor: reporter — the
+  // load-bearing prefix convention): its delivery is a machine notification,
+  // not a delegated result — it swaps the marker, the steer, AND the row's
+  // sourceKind so the UI renders a quiet system notice instead of a
+  // participant message (Kafi's 2026-08-18 smoke).
+  const isSystemNotification =
+    !isUpdate && !isDirect && isSystemReporterSessionId(claimed.parentSessionId ?? '')
   const steerInstructions = isUpdate
     ? UPDATE_DELIVERY_INSTRUCTIONS
     : isDirect || isMentionChainReply
       ? DIRECT_DELIVERY_INSTRUCTIONS
-      : REPORT_DELIVERY_INSTRUCTIONS
+      : isSystemNotification
+        ? SYSTEM_DELIVERY_INSTRUCTIONS
+        : REPORT_DELIVERY_INSTRUCTIONS
   // The CHILD's label, resolved at enqueue by the same one-home helpers the
   // push used ('Session' only on a corrupt row — the enqueue op always writes it).
   const sourceLabel = claimed.workspaceName ?? 'Session'
@@ -149,8 +165,11 @@ export async function runReportDeliveryJob(
       ? composeUpdateMessageMarker(sourceLabel)
       : isDirect
         ? composeDirectMessageMarker(sourceLabel)
-        : composeReportMessageMarker(sourceLabel)
+        : isSystemNotification
+          ? composeSystemMessageMarker(sourceLabel)
+          : composeReportMessageMarker(sourceLabel)
   }\n\n${claimed.taskText}`
+  const inboundSourceKind = isSystemNotification ? ('system' as const) : ('workspace-manager' as const)
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
   const isGlobalRequester = requesterWorkspaceId === null
@@ -270,6 +289,7 @@ export async function runReportDeliveryJob(
               userId: claimed.userId,
               reportBody,
               sourceLabel,
+              sourceKind: inboundSourceKind,
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
               ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               steerInstructions,
@@ -340,8 +360,9 @@ export async function runReportDeliveryJob(
               approvalHandler: handler,
               // The notify variant: inbound row attributed FROM the child +
               // the kind's steer (report absorbs a RESULT; update absorbs
-              // interim status without treating the task as done).
-              inboundAttribution: { sourceKind: 'workspace-manager', sourceLabel },
+              // interim status without treating the task as done; a system
+              // notification wears 'system' — the quiet UI row).
+              inboundAttribution: { sourceKind: inboundSourceKind, sourceLabel },
               steerInstructions,
               // A delivery is never work: no context nudge (nothing continues it).
               armContextNudge: false,

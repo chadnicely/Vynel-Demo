@@ -97,7 +97,7 @@ export interface RunGlobalRootTurnInput {
    *  child's report — attribute its row as coming FROM that child. Omit → the
    *  shipped channel-turn rows, byte-for-byte. */
   inboundAttribution?: {
-    sourceKind: 'workspace-manager'
+    sourceKind: 'workspace-manager' | 'system'
     sourceLabel: string
     partialSessionId?: string
     /** The delegation CHAIN key (persona-sessions) — stamped beside the trace key. */
@@ -478,7 +478,7 @@ export function buildGlobalRootReportTurnRunner(
       userId: input.userId,
       userMessageText: input.reportBody,
       inboundAttribution: {
-        sourceKind: 'workspace-manager',
+        sourceKind: input.sourceKind ?? 'workspace-manager',
         sourceLabel: input.sourceLabel,
         ...(input.partialSessionId !== undefined
           ? { partialSessionId: input.partialSessionId }
