@@ -1020,3 +1020,67 @@ describe('POST /root/turn/interrupt', () => {
     })
   })
 })
+
+// The VOICE UI doors (voice-session arc): the Voice chat menu reads the
+// spoken thread through these — the cross-session TOOL wall stays up, so the
+// UI needs its own owner-scoped doors, shaped exactly like /continuing +
+// /transcript.
+describe('GET /root/voice-chat/* (the spoken thread UI doors)', () => {
+  it('nulls/empty before anything was ever spoken; resolves the thread after a voice turn', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
+
+      // Before: both doors answer the empty shapes, never 404.
+      const before = (await (await app.request('/root/voice-chat/continuing')).json()) as {
+        rootSessionId: string | null
+        currentSdkSessionId: string | null
+      }
+      expect(before.rootSessionId).toBeNull()
+      expect(before.currentSdkSessionId).toBeNull()
+      const emptyTranscript = (await (
+        await app.request('/root/voice-chat/transcript')
+      ).json()) as { session: unknown; messages: unknown[] }
+      expect(emptyTranscript.session).toBeNull()
+      expect(emptyTranscript.messages).toEqual([])
+
+      // One spoken turn creates the thread…
+      const voiceSdkSessionId = nextSdkSessionId
+      await withVynelUserDataDir(dataDir, async () => {
+        const spoken = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'traffic in dhaka?', voice: true }),
+        })
+        expect(spoken.status).toBe(200)
+        await spoken.text()
+      })
+
+      // …and both doors resolve it: the continuing identity and the
+      // chain-spanning transcript with the spoken rows.
+      const after = (await (await app.request('/root/voice-chat/continuing')).json()) as {
+        rootSessionId: string | null
+        currentSdkSessionId: string | null
+      }
+      expect(after.rootSessionId).not.toBeNull()
+      expect(after.currentSdkSessionId).toBe(voiceSdkSessionId)
+
+      const transcript = (await (
+        await app.request('/root/voice-chat/transcript')
+      ).json()) as {
+        session: { id: string; scope: string } | null
+        messages: { body: string }[]
+      }
+      expect(transcript.session?.id).toBe(voiceSdkSessionId)
+      expect(transcript.session?.scope).toBe('voice')
+      expect(transcript.messages.map((m) => m.body)).toContain('traffic in dhaka?')
+
+      // The GLOBAL transcript never sees the spoken rows — different area.
+      const globalTranscript = (await (
+        await app.request('/root/transcript')
+      ).json()) as { messages: { body: string }[] }
+      expect(globalTranscript.messages.map((m) => m.body)).not.toContain('traffic in dhaka?')
+    })
+  })
+})

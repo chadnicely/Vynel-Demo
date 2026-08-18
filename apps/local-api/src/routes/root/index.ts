@@ -18,7 +18,10 @@
 
 import { resolver, validator } from 'hono-openapi/zod'
 import { streamSSE } from 'hono/streaming'
-import { findPrimaryConversation } from '@vynel/session/continuity'
+import {
+  findPrimaryConversation,
+  findVoicePrimarySessionForUser,
+} from '@vynel/session/continuity'
 import {
   listInFlightDelegations,
   findDelegationJobByPartialSessionId,
@@ -125,6 +128,77 @@ export const rootApp = factory
           resolvePrimaryTranscript(c.var.db, { userId: c.var.user.id }),
         ),
       ),
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // The VOICE thread's UI doors (voice-session arc) — the spoken twin of the
+  // two routes above. UI-only (no x-mcp): the tool surface stays behind the
+  // cross-session wall; these are how the Voice chat menu reads its own area.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/voice-chat/continuing',
+    describeRoute({
+      tags: ['root'],
+      summary:
+        'Resolve the voice conversation (read-only; nulls until the first voice turn creates it).',
+      'x-sdk-name': 'root.getVoiceContinuing',
+      responses: {
+        200: {
+          description:
+            '{ rootSessionId, currentSdkSessionId, lastMessageAt } — the voice thread identity; nulls when nothing was ever spoken.',
+          content: {
+            'application/json': { schema: resolver(ContinuingConversationResponseSchema) },
+          },
+        },
+      },
+    }),
+    ...userScoped,
+    (c) => {
+      const voiceSession = findVoicePrimarySessionForUser(c.var.db, c.var.user.id)
+      const currentSessionId = voiceSession?.currentSdkSessionId ?? null
+      const current =
+        currentSessionId === null ? null : findChatSessionById(c.var.db, currentSessionId)
+      return c.json({
+        rootSessionId: voiceSession?.id ?? null,
+        currentSdkSessionId: currentSessionId,
+        lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
+      })
+    },
+  )
+  .get(
+    '/voice-chat/transcript',
+    describeRoute({
+      tags: ['root'],
+      summary: 'Get the voice conversation history (messages across swap segments).',
+      'x-sdk-name': 'root.getVoiceTranscript',
+      responses: {
+        200: {
+          description:
+            '{ session, messages, toolCallsByMessageId } — the spoken thread, chain-spanning like /transcript.',
+          content: {
+            'application/json': { schema: resolver(ContinuingTranscriptResponseSchema) },
+          },
+        },
+      },
+    }),
+    ...userScoped,
+    (c) => {
+      const voiceSession = findVoicePrimarySessionForUser(c.var.db, c.var.user.id)
+      const headSessionId = voiceSession?.currentSdkSessionId ?? null
+      if (headSessionId === null) {
+        return c.json({ session: null, messages: [], toolCallsByMessageId: {} })
+      }
+      // The same chain walk the continuing threads use, started from the voice
+      // head — the wall stays down only for this owner-scoped UI door.
+      return c.json(
+        enrichPrimaryTranscript(
+          c.var.db,
+          resolveSessionChainTranscript(c.var.db, {
+            userId: c.var.user.id,
+            headSessionId,
+          }),
+        ),
+      )
+    },
   )
   // ──────────────────────────────────────────────────────────────────
   // GET /trace/:partialSessionId — TIER 1: the condensed delegation trace

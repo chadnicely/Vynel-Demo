@@ -79,5 +79,21 @@ round: root-turn-lock renamed to lockKey vocabulary (two single-writer domains).
    run-report-delivery-tick.note.test.ts + the routing describe (task→400, self-note→400, voice
    sender end-to-end).
 
+## Voice chat menu — SHIPPED 2026-08-19 (same worktree)
+
+Kafi: "Add Voice Chat menu after the chat menu." Built as: sidebar row 'Voice chat'
+(PhMicrophone) between Chat and Sessions, GLOBAL scope only (AppShell surfaceItems);
+mainView 'voice-chat' renders VoiceChatPanel on the Global canvas (GlobalChatView branch).
+The panel reads through two NEW owner-scoped UI DOORS — GET /root/voice-chat/continuing +
+/root/voice-chat/transcript (root.getVoiceContinuing/getVoiceTranscript; NO x-mcp — the tool
+wall stays up; transcript = resolveSessionChainTranscript from the voice head) — watches the
+head segment live (useWatchedTurn; polls while a voice-origin global turn runs), and its
+composer sends REAL voice turns (useChatTurn gained 'voice: true' — typed messages run on
+the spoken twin under the speak steering; replies speak aloud when the daemon is up). The
+composer chips read/patch the voice row's settings and sends carry them (the server honors
+raw input for voice; never persisted by the turn — the no-write rule stands).
+
 Live smokes remaining (Kafi): wake → speak on the NEW thread (fresh, fast); global chat unaffected
-mid-speech; a voice 'tell global…' send landing in the global chat as a [Note from Voice] card.
+mid-speech; a voice 'tell global…' send landing in the global chat as a [Note from Voice] card;
+the Voice chat menu: transcript renders, a wake-word turn streams in live, a typed message
+answers (and speaks when the daemon runs).

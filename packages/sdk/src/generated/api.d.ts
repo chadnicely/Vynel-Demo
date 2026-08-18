@@ -3267,6 +3267,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/root/voice-chat/continuing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve the voice conversation (read-only; nulls until the first voice turn creates it). */
+        get: operations["getRootVoice-chatContinuing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/root/voice-chat/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the voice conversation history (messages across swap segments). */
+        get: operations["getRootVoice-chatTranscript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/root/trace/{partialSessionId}": {
         parameters: {
             query?: never;
@@ -16076,6 +16110,152 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description { session, messages, toolCallsByMessageId } — the current segment (null until the first turn) + the chain-spanning message history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        session: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            providerId: string;
+                            model: string | null;
+                            title: string;
+                            /** @enum {string} */
+                            visibility: "listed" | "hidden";
+                            /** @enum {string} */
+                            scope: "global" | "workspace" | "agent" | "spawned";
+                            isArchived: boolean;
+                            deletedAt: string | null;
+                            totalMessageCount: number;
+                            totalInputTokens: number;
+                            totalOutputTokens: number;
+                            startedAt: string;
+                            lastMessageAt: string;
+                            updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
+                        } | null;
+                        messages: {
+                            id: string;
+                            sessionId: string;
+                            /** @enum {string} */
+                            role: "user" | "assistant" | "system";
+                            body: string;
+                            /** @enum {string|null} */
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
+                            sourceLabel: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
+                            partialSessionId: string | null;
+                            threadId: string | null;
+                            delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                contextTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
+                            thinkingBody: string | null;
+                            inputTokens: number | null;
+                            outputTokens: number | null;
+                            attachedImagesMetadata: {
+                                filename: string;
+                                mimeType: string;
+                                sizeBytes: number;
+                            }[] | null;
+                            errorCode: string | null;
+                            errorMessage: string | null;
+                            startedAt: string;
+                            completedAt: string | null;
+                            createdAt: string;
+                        }[];
+                        toolCallsByMessageId: {
+                            [key: string]: {
+                                id: string;
+                                parentMessageId: string;
+                                toolUseId: string;
+                                toolName: string;
+                                toolInput?: unknown;
+                                toolOutput?: unknown;
+                                /** @enum {string} */
+                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                /** @enum {string|null} */
+                                approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
+                                isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
+                                } | null;
+                                startedAt: string;
+                                completedAt: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "getRootVoice-chatContinuing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { rootSessionId, currentSdkSessionId, lastMessageAt } — the voice thread identity; nulls when nothing was ever spoken. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rootSessionId: string | null;
+                        currentSdkSessionId: string | null;
+                        lastMessageAt: string | null;
+                    };
+                };
+            };
+        };
+    };
+    "getRootVoice-chatTranscript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { session, messages, toolCallsByMessageId } — the spoken thread, chain-spanning like /transcript. */
             200: {
                 headers: {
                     [name: string]: unknown;

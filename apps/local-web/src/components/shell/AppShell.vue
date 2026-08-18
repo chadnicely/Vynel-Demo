@@ -14,6 +14,7 @@ import {
   PhHouse as House,
   PhListChecks as ListChecks,
   PhChatCircle as MessageCircle,
+  PhMicrophone as Microphone,
   PhNotePencil as NotebookPen,
   PhBroadcast as Radio,
   PhScroll as ScrollText,
@@ -154,6 +155,9 @@ const SURFACE_ITEMS: SidebarItem[] = [
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "sessions", label: "Sessions", icon: History },
 ];
+// The spoken thread's window (voice-session arc) — GLOBAL only (a workspace
+// has no voice area), rendered right under Chat.
+const VOICE_CHAT_ITEM: SidebarItem = { id: "voice-chat", label: "Voice chat", icon: Microphone };
 const SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
   agents: Bot,
   skills: Wrench,
@@ -263,8 +267,12 @@ const { countBySectionId } = useSectionCounts(
 const sectionItems = computed<SidebarItem[]>(() => {
   const workspaceId = ui.activeTab.workspaceId;
   const counts = countBySectionId.value;
+  const surfaceItems =
+    workspaceId === null
+      ? [SURFACE_ITEMS[0]!, SURFACE_ITEMS[1]!, VOICE_CHAT_ITEM, SURFACE_ITEMS[2]!]
+      : SURFACE_ITEMS;
   return [
-    ...SURFACE_ITEMS,
+    ...surfaceItems,
     ...customizedMenuItems(workspaceId ?? GLOBAL_SCOPE_KEY),
   ].map((item) => {
     const count = counts[item.id];

@@ -90,3 +90,8 @@ export {
   markPrimarySwapping,
   clearPrimarySwapping,
 } from './swapping-primaries.js'
+
+// The VOICE thread's read-side finder (voice-session arc) — re-exported here
+// beside `findPrimaryConversation` so the api's UI doors resolve the spoken
+// conversation without a repositories subpath.
+export { findVoicePrimarySessionForUser } from '../repositories/primary-sessions.js'

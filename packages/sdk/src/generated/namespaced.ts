@@ -1385,6 +1385,16 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getVoiceContinuing: async () => {
+    const { data, error, response } = await client["GET"]("/root/voice-chat/continuing")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getVoiceTranscript: async () => {
+    const { data, error, response } = await client["GET"]("/root/voice-chat/transcript")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   interruptTurn: async () => {
     const { data, error, response } = await client["POST"]("/root/turn/interrupt")
     if (error || data === undefined) throw new SdkError(response, error ?? data)

@@ -31,6 +31,9 @@ export type ChatTarget = "continuous" | "fresh" | { sessionId: string };
  *  session library is a ROUTED surface (`/sessions`), not a canvas view. */
 export type ChatMainView =
   | "chat"
+  // The spoken thread's window (voice-session arc) — global-only, sits right
+  // under Chat in the menu.
+  | "voice-chat"
   | "application"
   | "account"
   // Machine-level, global-only (like account/application): WHERE the engine

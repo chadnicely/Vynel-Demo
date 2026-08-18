@@ -13,9 +13,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   global chat thread: voice turns live on their own continuing spoken thread —
   same brain, same tools, separate context — so a very full global conversation
   can never break voice again, and a long global turn no longer blocks speech
-  (or vice versa). The spoken thread is invisible in the app for now; a "Voice
-  chat" view under Global can surface it later. It is walled like the global
+  (or vice versa). It is walled like the global
   conversation: no other session can search or read it.
+- **A "Voice chat" menu under Global.** The spoken thread now has its own
+  window, right under Chat in the Global menu: read what was said, watch a
+  spoken turn stream in live, and type into the voice conversation — typed
+  replies are spoken aloud while the voice daemon is running, and always land
+  in the thread as text.
 - **Sessions can hand the global assistant a note.** `send_message` accepts
   `to: "global"` with kind "note" — plain communication delivered into the
   global conversation (tasks cannot target it). The voice thread signs its

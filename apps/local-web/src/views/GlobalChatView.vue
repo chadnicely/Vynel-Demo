@@ -7,6 +7,7 @@ import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import TodoDock from "../components/chat/TodoDock.vue";
+import VoiceChatPanel from "../components/chat/VoiceChatPanel.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import GlobalCustomizeSection from "../components/customize/GlobalCustomizeSection.vue";
 import {
@@ -335,6 +336,12 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
       </EmptyState>
     </div>
 
+    <!-- The spoken thread's window (voice-session arc) — its own canvas,
+         right under Chat in the menu. -->
+    <div v-else-if="shell.mainView === 'voice-chat'" class="canvas voice-chat-view">
+      <VoiceChatPanel />
+    </div>
+
     <div v-else-if="shell.mainView === 'customize'" class="canvas section-view">
       <div class="section-column">
         <GlobalCustomizeSection />
@@ -505,6 +512,13 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
 .canvas {
   flex: 1;
   min-width: 0;
+}
+
+/* The spoken thread's canvas is a full-height column like the chat itself. */
+.voice-chat-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* The thread owns the canvas — no chrome above it (Chad's call: the hero

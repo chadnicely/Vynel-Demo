@@ -50,6 +50,11 @@ type ChatTurnStreamEvent =
 // no watch keeps the origin-stream contract unchanged).
 export function useChatTurn(options: {
   scope: () => SessionScope;
+  /** This surface speaks INTO the voice thread (the Voice chat panel): every
+   *  send carries `voice: true`, so the server runs it on the spoken twin
+   *  conversation with the speak steering — typed messages behave like
+   *  spoken ones (the reply speaks aloud when the daemon is up). */
+  voice?: boolean;
   onSessionCreated?: (session: ChatSessionResponse) => void;
   /** True once the shared live fold renders this turn (use-watched-turn's
    *  `hasSharedFold`) — the origin stream may detach. Read reactively. */
@@ -166,6 +171,7 @@ export function useChatTurn(options: {
     try {
       const stream = streamChatTurnEvents(vynel, {
         scope,
+        ...(options.voice === true ? { voice: true } : {}),
         userMessageText: input.userText,
         ...(input.attachments?.length ? { attachments: input.attachments } : {}),
         model: input.settings.modelId,
