@@ -3,6 +3,21 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ✅ 2026-08-18 AGENT-SPAWN POINTERS + CLAUDE ACCOUNT POPUP (`5becd1c` + `56fb2c6`); one human smoke remains
+
+Kafi's two features + his patch round, reviewer-clean (one must-fix race closed): (1) Agent/Task
+spawns wear the SAME PointerRow a delegation does — toolUseId-anchored, agent name chip + last
+tool-call/message on the chip row (live via `agentActivity`, settled via the persisted subagent
+fields), failed = full danger tone, unresolved approval = needs_input; click opens the sidebar's new
+`agent-run` node (AgentRunPane → AgentActivityPane, registry-watched live). (2) Title-bar Claude
+mark (after Tabs|Menu) → ONE dialog, two tabs: Account (CLI-JSON status — email/org/plan; the dead
+`.credentials.json` label parse is gone — 7-day usage, sign-in + switch-account via the LOCAL
+`ClaudeLoginRelay` driving `claude auth login --claudeai` over pipes) and Limits (the /usage windows
+— SDK `rate_limit_event` → `onRateLimitReported` seam → per-window blob in provider-preferences →
+`GET /providers/:id/limits`; refreshes per turn, D14-clean, `--warn` meter token added).
+⚠ REMAINING HUMAN SMOKE: the paste-code→signed-in leg of the login (the CLI may refuse piped stdin
+at the code prompt — the URL leg is proven; claude-mcp-cli's TTY warning says test it for real).
+
 ## ✅ 2026-08-18 TASK-EXECUTION ARC — ALL FIVE SLICES SHIPPED (`d9abed3` → `2e2e6d3`); live smokes remain
 
 Code-complete same day: 2 routes/MCP `f5fbdd6` (set_task_steps + ambient-header ownership-checked
