@@ -23,8 +23,17 @@ Review pass `3b97ed2`: the send queue gates on the RAW own view (a hidden own tu
 must still — the combined-view gate silently dropped a send); poll gates read `hasSharedFold`
 (never the suppression-resolved view — TDZ at setup); Stop reaches the displayed session for a
 watched-only/detached turn; the relay forgets state on link loss + warns once per outage.
+Voice smoke 2026-08-19 (Kafi): wake → relay → overlay all fired; two DEVICE findings, not channel
+ones: the daemon booted on "Vynel Call 1 Microphone (Vynel Audio)" (Windows made the call driver's
+capture endpoint the default recording device) — guarded in `2fb18aa` (never default to a Vynel
+virtual input); the overlay's Web Speech STT ALSO records from that OS default and cannot pick a
+device — Kafi set the real mic as Windows default. FOLLOW-UPS: (a) virtual-audio-driver arc — the
+capture endpoint must not rank as the default mic (the render side already ranks below speakers;
+same trick, capture pin); (b) overlay — detect via enumerateDevices() that the default mic is a
+"(Vynel Audio)" endpoint and say so instead of "listening".
 Remaining ideas (not planned): Jarvis on-demand connect (now free anyway), `system/api_retry`
-"retrying…" state, macOS WKWebView check, remote-engine bearer on the upgrade.
+"retrying…" state, macOS WKWebView check, remote-engine bearer on the upgrade, a desktop release
+(0.3.1 predates the whole arc).
 
 ## (superseded) 2026-08-19 LIVE CHANNEL slices 1-3
 
