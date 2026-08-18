@@ -145,8 +145,9 @@ export const workspacesApp = factory
           'the display name. `directory` is an EXISTING absolute folder path on disk that becomes the ' +
           "workspace root — confirm the exact path with the user first; the call fails if the folder " +
           "doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is " +
-          'optional (personal / small-business / project / custom). Creating a workspace is a setup ' +
-          'action the user approves. Returns the created workspace.',
+          'optional (personal / small-business / project / custom); `groupId` optionally files it ' +
+          'into one of the user\'s workspace groups. Creating a workspace is a setup action the user ' +
+          'approves. Returns the created workspace.',
       },
       responses: {
         201: {
@@ -154,6 +155,7 @@ export const workspacesApp = factory
           content: { 'application/json': { schema: resolver(WorkspaceResponseSchema) } },
         },
         400: { description: 'Directory not found, not a directory, or not writable.' },
+        404: { description: 'The group to file it into does not exist.' },
         409: { description: 'This directory is already a workspace.' },
       },
     }),
@@ -163,11 +165,15 @@ export const workspacesApp = factory
       // `kind` is optional in the request (the picker was retired — "stop
       // asking"); omit it when absent so the core default ('personal') applies.
       // Passing `kind: undefined` would trip exactOptionalPropertyTypes.
-      const { kind, ...rest } = c.req.valid('json')
-      const baseInput = { ...rest, userId: c.var.user.id }
+      const { kind, groupId, ...rest } = c.req.valid('json')
       const workspace = await createWorkspace(
         c.var.db,
-        kind === undefined ? baseInput : { ...baseInput, kind },
+        {
+          ...rest,
+          userId: c.var.user.id,
+          ...(kind === undefined ? {} : { kind }),
+          ...(groupId === undefined ? {} : { groupId }),
+        },
         { logger: c.var.logger },
       )
       return c.json(serializeWorkspaceForResponse(workspace), 201)

@@ -18,6 +18,7 @@ import { ConflictError, ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import type { Workspace, WorkspaceKind } from '@vynel/db/repositories/workspaces'
 import { WORKSPACE_CREATED_EVENT } from '../workspaces-events.js'
+import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
 
 export type CreateWorkspaceInput = {
   userId: string
@@ -31,6 +32,8 @@ export type CreateWorkspaceInput = {
   kind?: WorkspaceKind
   /** An EXISTING directory on disk to register as the workspace. */
   directory: string
+  /** The menu-tree folder to be born into (owner-checked); omit for the tree root. */
+  groupId?: string
 }
 
 // Structural logger shape — avoids the @vynel/logger dep at the core layer
@@ -53,6 +56,12 @@ export async function createWorkspace(
   // with different casing / separators / trailing slash.
   const workspacePath = canonicalizePath(input.directory)
   const now = new Date()
+
+  // A foreign or missing group 404s exactly like setWorkspaceGroup — before
+  // anything is written.
+  if (input.groupId !== undefined) {
+    getWorkspaceGroupForUserOrThrow(db, input.userId, input.groupId)
+  }
 
   const createdWorkspace = withTransaction(db, (tx) => {
     // LOAD-BEARING dedup: the existing-directory model has no "folder must not
@@ -80,6 +89,7 @@ export async function createWorkspace(
       managerName: input.name,
       kind: input.kind ?? 'personal',
       path: workspacePath,
+      groupId: input.groupId ?? null,
       isArchived: false,
       createdAt: now,
       updatedAt: now,

@@ -2889,18 +2889,19 @@ export const listWorkspaces: McpToolFactory = (scope, app) =>
 export const registerWorkspace: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'register_workspace',
-    "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', 'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is the display name. `directory` is an EXISTING absolute folder path on disk that becomes the workspace root — confirm the exact path with the user first; the call fails if the folder doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is optional (personal / small-business / project / custom). Creating a workspace is a setup action the user approves. Returns the created workspace.",
+    "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', 'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is the display name. `directory` is an EXISTING absolute folder path on disk that becomes the workspace root — confirm the exact path with the user first; the call fails if the folder doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is optional (personal / small-business / project / custom); `groupId` optionally files it into one of the user's workspace groups. Creating a workspace is a setup action the user approves. Returns the created workspace.",
     {
     name: z.string(),
     kind: z.enum(['small-business', 'personal', 'project', 'custom']).optional(),
     directory: z.string(),
+    groupId: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/workspaces'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['name', 'kind', 'directory']) {
+        for (const k of ['name', 'kind', 'directory', 'groupId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)

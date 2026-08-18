@@ -28,6 +28,8 @@ export const CreateWorkspaceRequestSchema = z.object({
   kind: WorkspaceKindSchema.optional(),
   // An EXISTING directory on disk to register as the workspace (2026-06-19).
   directory: z.string().min(1),
+  // Born straight into a menu-tree folder (the tree's per-group "+").
+  groupId: z.string().min(1).optional(),
 })
 
 export const UpdateWorkspaceRequestSchema = z.object({

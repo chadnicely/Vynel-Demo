@@ -4,10 +4,9 @@ import {
   PhCaretDown as CaretDown,
   PhCaretRight as CaretRight,
   PhCircleNotch as CircleNotch,
-  PhFolders as Folders,
-  PhFolderPlus as FolderPlus,
   PhHouse as House,
   PhPlus as Plus,
+  PhSquaresFour as SquaresFour,
 } from "@phosphor-icons/vue";
 import { ContextMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
@@ -17,15 +16,24 @@ import WorkspaceTreeRow from "./WorkspaceTreeRow.vue";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
 
 // Menu mode's sidebar root — the canvas's workspace tree: the pinned Global
-// row, the user's folders and ungrouped workspaces (ALIVE rows — running, in
+// row, the user's groups and ungrouped workspaces (ALIVE rows — running, in
 // a state, or holding open tasks), then the collapsible NOT RUNNING group
-// for parked rows (quiet + nothing open). Rows drag into folders (or back to
-// the root zone); a folder's context menu renames inline or deletes (members
-// detach, never deleted — the engine enforces it). Row click switches scope
-// and stays here; the caret drills. Data-blind: rows + groups + status views
-// in, events out.
+// for parked rows (quiet + nothing open), then the "New workspace" row. Rows
+// drag into groups (or back to the root zone); a group's context menu
+// renames inline or deletes (members detach, never deleted — the engine
+// enforces it). Each group header carries its own "+", which opens the
+// create dialog pre-filed into that group; new groups are made from the
+// dialog (Kafi, 2026-08-19 — the Global row keeps only its own status).
+// Row click opens that workspace's chat; the caret drills. Data-blind: rows
+// + groups + status views in, events out.
 const props = defineProps<{
-  workspaces: { id: string; name: string; groupId: string | null }[];
+  workspaces: {
+    id: string;
+    name: string;
+    groupId: string | null;
+    imageUrl?: string | null;
+    accentVar?: string;
+  }[];
   groups: { id: string; name: string }[];
   /** The active scope: a workspace id, or null for Global. */
   activeWorkspaceId: string | null;
@@ -39,8 +47,8 @@ const emit = defineEmits<{
   select: [workspaceId: string | null];
   /** Switch AND open that scope's section menu. */
   drill: [workspaceId: string | null];
-  "create-workspace": [];
-  "create-group": [];
+  /** Open the create dialog — pre-filed into a group, or null for the root. */
+  "create-workspace": [groupId: string | null];
   "rename-group": [groupId: string, name: string];
   "delete-group": [groupId: string];
   "move-workspace": [workspaceId: string, groupId: string | null];
@@ -166,8 +174,8 @@ function commitRename() {
 }
 
 const FOLDER_MENU: MenuItemModel[] = [
-  { id: "rename", label: "Rename folder" },
-  { id: "delete", label: "Delete folder", danger: true },
+  { id: "rename", label: "Rename group" },
+  { id: "delete", label: "Delete group", danger: true },
 ];
 function onFolderMenu(group: { id: string; name: string }, itemId: string) {
   if (itemId === "rename") startRename(group);
@@ -182,9 +190,9 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
   <nav class="flex h-full flex-col bg-[var(--color-bg)] px-[8.4px] py-[16.8px] text-[12.5px]">
     <div class="min-h-0 flex-1 overflow-y-auto">
       <ul class="my-0 grid list-none gap-1 pl-0">
-        <!-- The pinned Global scope — the tree's anchor, like the strip's. It
-             also carries the new-folder / new-workspace affordances, so the
-             tree starts at a real row with no header gutter above it. -->
+        <!-- The pinned Global scope — the tree's anchor, like the strip's.
+             It carries only its own status; creating lives on the groups
+             and the "New workspace" row below. -->
         <li>
           <div
             class="group flex items-center rounded-sm pl-[10px] pr-[7px] transition"
@@ -227,35 +235,17 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
                 />
               </span>
             </button>
-            <button
-              type="button"
-              aria-label="New folder"
-              title="New folder"
-              class="ml-2 grid size-5 shrink-0 place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:text-[var(--color-accent)]"
-              @click.stop="emit('create-group')"
-            >
-              <FolderPlus :size="13" />
-            </button>
-            <button
-              type="button"
-              aria-label="New workspace"
-              title="New workspace"
-              class="grid size-5 shrink-0 place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:text-[var(--color-accent)]"
-              @click.stop="emit('create-workspace')"
-            >
-              <Plus :size="12" />
-            </button>
           </div>
         </li>
       </ul>
 
-      <!-- Folders (alive members). Dashed border only while a drag hovers —
+      <!-- Groups (alive members). Dashed border only while a drag hovers —
            the canvas's drop-target treatment. -->
-      <div class="mt-2 grid gap-2">
+      <div class="mt-1.5 grid gap-1.5">
         <div
           v-for="group in props.groups"
           :key="group.id"
-          class="rounded-sm border border-dashed p-0.5 transition"
+          class="rounded-sm border border-dashed transition"
           :class="
             dropTargetId === group.id
               ? 'border-gold bg-gold-soft'
@@ -266,11 +256,13 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
           @drop="onDrop(group.id)"
         >
           <ContextMenu :items="FOLDER_MENU" @select="(id) => onFolderMenu(group, id)">
-            <div class="flex w-full items-center rounded-sm pb-2 pl-[7px] pr-[11.2px] pt-2 text-[var(--color-neutral-300)]">
+            <div
+              class="tree-group-header mb-1 flex w-full items-center border-b border-hair-strong pl-[7px] pr-[5px] text-ink-1"
+            >
               <button
                 type="button"
                 :aria-expanded="!collapsedFolderIds.has(group.id)"
-                class="flex min-w-0 flex-1 cursor-default items-center gap-2 py-[5px] text-left text-[12px] transition hover:text-ink-1"
+                class="flex min-w-0 flex-1 cursor-default items-center gap-2 py-[5px] text-left text-[12px] font-semibold transition hover:text-ink-1"
                 @click="toggleFolder(group.id)"
               >
                 <component
@@ -278,9 +270,9 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
                   :size="10"
                   class="shrink-0 text-[var(--color-neutral-600)]"
                 />
-                <!-- A workspace GROUP, not a filesystem folder — the plural
-                     glyph keeps the two readings apart. -->
-                <Folders :size="13" class="shrink-0 text-[var(--color-neutral-500)]" />
+                <!-- A GROUP of workspaces — the collection glyph, never a
+                     folder (folders mean files everywhere else now). -->
+                <SquaresFour :size="13" weight="duotone" class="shrink-0 text-[var(--color-neutral-400)]" />
                 <input
                   v-if="editingGroupId === group.id"
                   ref="renameInput"
@@ -299,18 +291,27 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
                   @dblclick.stop="startRename(group)"
                   >{{ group.name }}</span
                 >
-                <span class="shrink-0 text-[10.5px] text-[var(--color-neutral-600)]">
+                <span class="shrink-0 text-[10.5px] font-normal text-[var(--color-neutral-600)]">
                   {{ membersByGroupId.get(group.id)?.length ?? 0 }}
                 </span>
               </button>
+              <button
+                type="button"
+                :aria-label="`New workspace in ${group.name}`"
+                :title="`New workspace in ${group.name}`"
+                class="tree-group-add ml-1 grid size-5 shrink-0 cursor-default place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-[var(--color-accent)]"
+                @click.stop="emit('create-workspace', group.id)"
+              >
+                <Plus :size="12" weight="bold" />
+              </button>
             </div>
           </ContextMenu>
-          <!-- No child inset: a folder's rows share the header's left rail,
+          <!-- No child inset: a group's rows share the header's left rail,
                the way the mission-control prototype's groups do. The header
                above already says they are nested. -->
           <ul
             v-if="!collapsedFolderIds.has(group.id)"
-            class="my-0 grid list-none gap-1 pl-0"
+            class="my-0 grid list-none gap-0.5 pl-0"
           >
             <li v-for="workspace in membersByGroupId.get(group.id) ?? []" :key="workspace.id">
               <WorkspaceTreeRow
@@ -329,7 +330,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <!-- The root zone — ungrouped alive rows; a drop here detaches. -->
       <ul
-        class="mt-1 mb-0 grid list-none gap-1 rounded-sm border border-dashed p-0.5 pl-0.5 transition"
+        class="mt-1 mb-0 grid list-none gap-0.5 rounded-sm border border-dashed p-0.5 pl-0.5 transition"
         :class="dropTargetId === 'root' ? 'border-gold bg-gold-soft' : 'border-transparent'"
         @dragover="onRootDragOver"
         @dragleave="dropTargetId = dropTargetId === 'root' ? null : dropTargetId"
@@ -365,7 +366,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
             parkedWorkspaces.length
           }}</span>
         </button>
-        <ul v-if="isParkedOpen" class="my-0 grid list-none gap-1 pl-0">
+        <ul v-if="isParkedOpen" class="my-0 grid list-none gap-0.5 pl-0">
           <li v-for="workspace in parkedWorkspaces" :key="workspace.id">
             <WorkspaceTreeRow
               :workspace="workspace"
@@ -386,6 +387,15 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
       >
         No workspaces yet — create one to get building.
       </p>
+
+      <button
+        type="button"
+        class="tree-new-workspace mt-2 flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pl-[10px] pr-[9px] text-left text-[12px] text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-ink-1"
+        @click="emit('create-workspace', null)"
+      >
+        <span class="grid w-3 shrink-0 place-items-center"><Plus :size="12" weight="bold" /></span>
+        <span class="ml-2">New workspace</span>
+      </button>
     </div>
 
     <SidebarAccountRow

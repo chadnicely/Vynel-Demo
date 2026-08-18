@@ -3,7 +3,23 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) EXPLORER-STYLE FILE BROWSER — one picker behind workspace / knowledge / memory
+## ✅ 2026-08-19 (latest) SIDEBAR TREE PASS — icons left, state right, groups compact, group-scoped create
+
+Kafi's next small change (screenshot-driven): `WorkspaceTreeRow` = caret · the workspace's OWN icon
+(customized `workspaceImage` else monogram over `--ws-N`; the option carries `imageUrl`/`accentVar`
+from AppShell so the tree stays data-blind) · name · state cluster on the RIGHT (bold spinner /
+ringed mark dot / play). `WorkspaceTree`: Global row lost its new-group/new-workspace buttons;
+groups compact + bold title + `border-b` + `PhSquaresFour` + a per-group "+" that emits
+`create-workspace(groupId)`; a "New workspace" row at the bottom; context menu says group. AppShell:
+`treeSelect(workspaceId)` = `ui.openWorkspaceTab` + route workspace (ALWAYS chat, even when active);
+`openCreateWorkspace(groupId)` feeds the dialog's `defaultGroupId`. CreateWorkspaceDialog: Group
+select (No group / groups / "＋ New group…" inline via createGroup). API: `POST /workspaces` takes
+optional `groupId` (owner-checked via getWorkspaceGroupForUserOrThrow before the insert). Verified:
+typechecks + 49 tree/dialog/shell tests + live playwright (tree, click→chat, group "+" pre-files).
+NOTE: the group-fold storage key stays `vynel.tree.collapsed-folders` (persisted state) even though
+the vocabulary is "group" now.
+
+## ✅ 2026-08-19 EXPLORER-STYLE FILE BROWSER — one picker behind workspace / knowledge / memory
 
 Kafi's session theme: small changes one by one, first up the folder/file picker. Shipped ONE shared
 `FileSystemBrowser` (`apps/local-web/src/components/filesystem/`: browser + rail + toolbar + tile +

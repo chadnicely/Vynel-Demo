@@ -71,6 +71,46 @@ describe("WorkspaceTree", () => {
     wrapper.unmount();
   });
 
+  it("creating lives on the groups and the bottom row, not the Global row", async () => {
+    const wrapper = mountTree();
+
+    // The Global row carries no create affordances any more.
+    expect(wrapper.find('[aria-label="New folder"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="New workspace"]').exists()).toBe(false);
+
+    // A group's own "+" pre-files the new workspace into it.
+    await wrapper.find('[aria-label="New workspace in Clients"]').trigger("click");
+    expect(wrapper.emitted("create-workspace")).toEqual([["grp-1"]]);
+
+    // The bottom row creates at the root.
+    await wrapper.find("button.tree-new-workspace").trigger("click");
+    expect(wrapper.emitted("create-workspace")).toEqual([["grp-1"], [null]]);
+    // No standalone new-group emit exists — groups are made from the dialog.
+    expect(wrapper.emitted("create-group")).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it("a row wears the workspace's icon on the left and its state on the right", async () => {
+    const wrapper = mountTree();
+    const acmeRow = wrapper
+      .findAll('[draggable="true"]')
+      .find((node) => node.text().includes("Acme"))!;
+    // Monogram in the icon slot (no image given) …
+    expect(acmeRow.find(".tree-icon").text()).toBe("AC");
+    // … and the running spinner in the state cluster, after the name.
+    const running = acmeRow.find('[aria-label="Working"]');
+    expect(running.exists()).toBe(true);
+    const html = acmeRow.html();
+    expect(html.indexOf("Acme")).toBeLessThan(html.indexOf('aria-label="Working"'));
+
+    // A parked room shows the play glyph, no spinner.
+    const blogRow = wrapper
+      .findAll('[draggable="true"]')
+      .find((node) => node.text().includes("Blog"))!;
+    expect(blogRow.find('[aria-label="Working"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it("dropping a dragged row on a folder emits the move; same folder is a no-op", async () => {
     const wrapper = mountTree();
 

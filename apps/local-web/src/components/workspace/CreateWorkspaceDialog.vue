@@ -7,12 +7,19 @@ import { isDriveRootPath } from "../filesystem/file-system-path.js";
 import type { FileSystemSelection } from "../filesystem/file-system-selection.js";
 import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";
 import { useRegisterWorkspace } from "../../composables/workspaces/use-register-workspace.js";
+import {
+  useWorkspaceGroupMutations,
+  useWorkspaceGroups,
+} from "../../composables/workspaces/use-workspace-groups.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
 // The "New workspace" dialog: pick the folder in the Explorer-style browser,
-// the name fills itself from that folder (edit it if you like), Continue.
+// the name fills itself from that folder (edit it if you like), file it into
+// a group (an existing one, or make a new group right here), Continue.
 const props = defineProps<{
   open: boolean;
+  /** The group a tree "+" was clicked on — the starting pick; null = root. */
+  defaultGroupId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -31,6 +38,44 @@ const isOpen = computed(() => props.open);
 // the known places, and Home is the one folder a workspace must not swallow.
 const homeListing = useDirectoryListing(ref(null), isOpen);
 const registerWorkspace = useRegisterWorkspace();
+const groupsQuery = useWorkspaceGroups();
+const groupMutations = useWorkspaceGroupMutations();
+
+// ── Group: an existing one, the root, or a new group made inline. ──
+const NEW_GROUP_OPTION = "__new__";
+const groupId = ref<string | null>(null);
+const isNamingGroup = ref(false);
+const newGroupName = ref("");
+const groups = computed(() => groupsQuery.data.value ?? []);
+
+function onGroupPicked(event: Event) {
+  const value = (event.target as HTMLSelectElement).value;
+  if (value === NEW_GROUP_OPTION) {
+    isNamingGroup.value = true;
+    newGroupName.value = "";
+    return;
+  }
+  isNamingGroup.value = false;
+  groupId.value = value === "" ? null : value;
+}
+
+function createGroup() {
+  const name = newGroupName.value.trim();
+  if (name.length === 0 || groupMutations.createGroup.isPending.value) return;
+  groupMutations.createGroup.mutate(name, {
+    onSuccess: (group) => {
+      groupId.value = group.id;
+      isNamingGroup.value = false;
+      newGroupName.value = "";
+    },
+  });
+}
+
+function cancelNewGroup() {
+  isNamingGroup.value = false;
+  newGroupName.value = "";
+  groupMutations.createGroup.reset();
+}
 
 watch(
   () => props.open,
@@ -39,6 +84,8 @@ watch(
       selection.value = null;
       name.value = "";
       nameEdited.value = false;
+      groupId.value = props.defaultGroupId ?? null;
+      cancelNewGroup();
       registerWorkspace.reset();
     }
   },
@@ -77,14 +124,19 @@ const canCreate = computed(
     !registerWorkspace.isPending.value,
 );
 
-const errorMessage = computed(() =>
-  registerWorkspace.error.value ? formatSdkError(registerWorkspace.error.value) : null,
-);
+const errorMessage = computed(() => {
+  const error = registerWorkspace.error.value ?? groupMutations.createGroup.error.value;
+  return error ? formatSdkError(error) : null;
+});
 
 function create() {
   if (!canCreate.value || selection.value === null) return;
   registerWorkspace.mutate(
-    { name: name.value.trim(), directory: selection.value.path },
+    {
+      name: name.value.trim(),
+      directory: selection.value.path,
+      ...(groupId.value !== null ? { groupId: groupId.value } : {}),
+    },
     {
       onSuccess: (workspace) => emit("created", workspace as WorkspaceResponse),
     },
@@ -132,6 +184,47 @@ function onOpenChange(open: boolean) {
           @keydown.enter.prevent="create"
         />
       </label>
+
+      <div class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Group</span>
+        <div class="flex items-center gap-2">
+          <select
+            class="group-select h-7 cursor-default rounded-sm border border-hair-strong bg-panel px-1.5 text-[12px] text-ink-1 transition focus:outline-none"
+            :value="isNamingGroup ? NEW_GROUP_OPTION : (groupId ?? '')"
+            aria-label="Group"
+            @change="onGroupPicked"
+          >
+            <option value="">No group</option>
+            <option v-for="group in groups" :key="group.id" :value="group.id">
+              {{ group.name }}
+            </option>
+            <option :value="NEW_GROUP_OPTION">＋ New group…</option>
+          </select>
+          <template v-if="isNamingGroup">
+            <input
+              v-model="newGroupName"
+              type="text"
+              maxlength="60"
+              placeholder="Group name"
+              aria-label="New group name"
+              class="new-group-name h-7 min-w-0 flex-1 rounded-sm border border-hair-strong bg-panel px-2 text-[12px] text-ink-1 placeholder:text-ink-3"
+              @keydown.enter.prevent="createGroup"
+              @keydown.esc.prevent="cancelNewGroup"
+            />
+            <button
+              type="button"
+              class="new-group-create cursor-default rounded-sm border border-hair-strong px-2.5 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1 disabled:opacity-55"
+              :disabled="newGroupName.trim().length === 0 || groupMutations.createGroup.isPending.value"
+              @click="createGroup"
+            >
+              {{ groupMutations.createGroup.isPending.value ? "Creating…" : "Create group" }}
+            </button>
+          </template>
+        </div>
+        <span class="text-[11px] text-ink-3">
+          Groups keep related workspaces together in the left menu.
+        </span>
+      </div>
 
       <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">
         {{ errorMessage }}

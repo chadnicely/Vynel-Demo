@@ -31,6 +31,7 @@ import {
   CommandPalette,
   ResizablePanel,
   useOpenModalCount,
+  workspaceColorSlot,
   workspaceMonogram,
 } from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
@@ -118,11 +119,16 @@ const activeWorkspaces = computed(() =>
   allWorkspaces.value.filter((w) => !w.isArchived),
 );
 const workspaceOptions = computed(() =>
-  activeWorkspaces.value.map((w) => ({
-    id: w.id,
-    name: w.name,
-    groupId: w.groupId ?? null,
-  })),
+  activeWorkspaces.value.map((w) => {
+    const custom = customize.customizationFor(w.id);
+    return {
+      id: w.id,
+      name: w.name,
+      groupId: w.groupId ?? null,
+      imageUrl: custom.workspaceImage,
+      accentVar: `--ws-${custom.colorSlot ?? workspaceColorSlot(w.name)}`,
+    };
+  }),
 );
 
 // Menu-tree folders (Arc 2b) — the tree renders them; the mutations answer
@@ -363,17 +369,14 @@ const { selectTab, closeTab, addTab } = useScopeTabs(
 // tab machinery the strip uses (selectTab restores the tab's place), so the
 // two modes stay one state. ──
 function treeSelect(workspaceId: string | null) {
-  // Clicking the already-active row is inert — duplicate tabs are legal, so
-  // "find first tab for this room" could otherwise hop a later duplicate's
-  // canvas over to the first one's place.
-  if (ui.activeTab.workspaceId === workspaceId) return;
   if (workspaceId === null) {
-    selectTab(GLOBAL_TAB_ID);
+    if (ui.activeTab.workspaceId !== null) selectTab(GLOBAL_TAB_ID);
     return;
   }
-  const existing = ui.tabs.find((tab) => tab.workspaceId === workspaceId);
-  if (existing !== undefined) selectTab(existing.id);
-  else addTab(workspaceId);
+  // A workspace row always opens that room's chat — even when the room is
+  // already the active tab on some other section (Kafi, 2026-08-19).
+  ui.openWorkspaceTab(workspaceId);
+  void router.push({ name: "workspace" });
 }
 
 function treeDrill(workspaceId: string | null) {
@@ -441,6 +444,12 @@ function openAccount() {
 const isSidebarOpen = ref(true);
 const isPaletteOpen = ref(false);
 const isCreateWorkspaceOpen = ref(false);
+// The group a "+" was clicked on — the dialog's starting Group; null = root.
+const createWorkspaceGroupId = ref<string | null>(null);
+function openCreateWorkspace(groupId: string | null = null) {
+  createWorkspaceGroupId.value = groupId;
+  isCreateWorkspaceOpen.value = true;
+}
 const isClaudeAccountOpen = ref(false);
 
 // The dialog is mounted once, here. A routed view (the Nodes screen's empty
@@ -448,7 +457,7 @@ const isClaudeAccountOpen = ref(false);
 watch(
   () => ui.createWorkspaceRequestCount,
   () => {
-    isCreateWorkspaceOpen.value = true;
+    openCreateWorkspace();
   },
 );
 
@@ -533,7 +542,7 @@ function runCommand(id: string) {
       void router.push({ name: "chat" });
       break;
     case "new-workspace":
-      isCreateWorkspaceOpen.value = true;
+      openCreateWorkspace();
       break;
     case "claude-account":
       isClaudeAccountOpen.value = true;
@@ -643,8 +652,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           :account-name="accountName"
           @select="treeSelect"
           @drill="treeDrill"
-          @create-workspace="isCreateWorkspaceOpen = true"
-          @create-group="groupMutations.createGroup.mutate('New folder')"
+          @create-workspace="openCreateWorkspace"
           @rename-group="(groupId, name) => groupMutations.renameGroup.mutate({ groupId, name })"
           @delete-group="(groupId) => groupMutations.deleteGroup.mutate(groupId)"
           @move-workspace="
@@ -682,7 +690,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           @select-tab="selectTab"
           @close-tab="closeTab"
           @add-tab="addTab"
-          @create-workspace="isCreateWorkspaceOpen = true"
+          @create-workspace="openCreateWorkspace()"
         />
         <main class="canvas-wrap">
           <!-- Keyed per tab: each tab is its own view instance, so a view can
@@ -714,6 +722,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
     <PlanViewDialog />
     <CreateWorkspaceDialog
       :open="isCreateWorkspaceOpen"
+      :default-group-id="createWorkspaceGroupId"
       @close="isCreateWorkspaceOpen = false"
       @created="onWorkspaceCreated"
     />

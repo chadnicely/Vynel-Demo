@@ -18079,6 +18079,7 @@ export interface operations {
                     /** @enum {string} */
                     kind?: "small-business" | "personal" | "project" | "custom";
                     directory: string;
+                    groupId?: string;
                 };
             };
         };
@@ -18112,6 +18113,13 @@ export interface operations {
             };
             /** @description Directory not found, not a directory, or not writable. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The group to file it into does not exist. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

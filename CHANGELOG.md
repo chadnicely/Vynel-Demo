@@ -28,6 +28,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **The left menu's workspace tree got a tidy-up.** Every workspace row now
+  wears its own icon (the image you set in Customize, or its monogram over
+  its colour) where a generic glyph used to sit, and its state moved to the
+  right where the eye expects it — a bolder spinner while it works, a ringed
+  status dot when it needs you / hit a problem / finished, the play mark
+  when parked. Groups are compact, titled in bold with a hairline under, and
+  wear a collection glyph instead of a folder. Each group has its own **+**
+  that opens New workspace already filed into that group; the Global row
+  carries only its own status; a **New workspace** row sits at the bottom
+  of the list; and the New workspace dialog gained a **Group** pick with an
+  inline **New group…**. Clicking a workspace row always opens that
+  workspace's chat.
 - **New workspace picks its own name.** Choose the folder first; the name
   fills in from it (edit it if you like) and **Continue** creates the room.
   A whole drive or your home folder can't be a workspace — the dialog says

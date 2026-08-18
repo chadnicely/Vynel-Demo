@@ -12,6 +12,8 @@ const GIB = 1024 ** 3;
 function makeFakeClient() {
   const registerCalls: unknown[] = [];
   const createDirectoryCalls: unknown[] = [];
+  const createGroupCalls: unknown[] = [];
+  const groups = [{ id: "grp-1", name: "Clients" }];
   const rails = {
     drives: [
       { path: "C:\\", label: null, kind: "fixed" as const, freeBytes: 51.2 * GIB, totalBytes: 399 * GIB },
@@ -69,7 +71,14 @@ function makeFakeClient() {
         listings[created.path] = { path: created.path, parent: input.parentPath, entries: [], ...rails };
         return created;
       },
-      register: async (input: { name: string; directory: string }) => {
+      listGroups: async () => structuredClone(groups),
+      createGroup: async (input: { name: string }) => {
+        createGroupCalls.push(input);
+        const group = { id: `grp-${groups.length + 1}`, name: input.name };
+        groups.push(group);
+        return group;
+      },
+      register: async (input: { name: string; directory: string; groupId?: string }) => {
         registerCalls.push(input);
         return {
           id: "ws-new",
@@ -88,7 +97,7 @@ function makeFakeClient() {
     },
   } as unknown as VynelClient;
 
-  return { client, registerCalls, createDirectoryCalls };
+  return { client, registerCalls, createDirectoryCalls, createGroupCalls };
 }
 
 // The dialog Teleports into document.body — unmount + clear between tests so
@@ -101,10 +110,10 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-async function mountDialog() {
+async function mountDialog(props: { defaultGroupId?: string | null } = {}) {
   const fake = makeFakeClient();
   const wrapper = mount(CreateWorkspaceDialog, {
-    props: { open: true },
+    props: { open: true, ...props },
     global: {
       plugins: [
         [
@@ -287,6 +296,50 @@ describe("CreateWorkspaceDialog", () => {
     expect(tile("Bookkeeping")).toBeDefined();
     expect(rail.textContent).toContain("WORKSPACE (E:)");
     expect(nameInput().value).toBe("Projects");
+  });
+
+  it("a group's + pre-files the new workspace into that group", async () => {
+    const { registerCalls } = await mountDialog({ defaultGroupId: "grp-1" });
+    const select = document.body.querySelector<HTMLSelectElement>("select.group-select")!;
+    expect(select.value).toBe("grp-1");
+
+    tile("Projects").click();
+    await flushPromises();
+    continueButton().click();
+    await flushPromises();
+
+    expect(registerCalls).toEqual([
+      { name: "Projects", directory: "C:\\Users\\chad\\Projects", groupId: "grp-1" },
+    ]);
+  });
+
+  it("New group… makes the group right there and files the workspace into it", async () => {
+    const { registerCalls, createGroupCalls } = await mountDialog();
+    const select = document.body.querySelector<HTMLSelectElement>("select.group-select")!;
+    expect(select.value).toBe("");
+
+    select.value = "__new__";
+    select.dispatchEvent(new Event("change"));
+    await flushPromises();
+    const nameField = document.body.querySelector<HTMLInputElement>("input.new-group-name")!;
+    nameField.value = "Side projects";
+    nameField.dispatchEvent(new Event("input"));
+    await flushPromises();
+    (document.body.querySelector("button.new-group-create") as HTMLButtonElement).click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(createGroupCalls).toEqual([{ name: "Side projects" }]);
+    expect(document.body.querySelector("input.new-group-name")).toBeNull();
+    expect(document.body.querySelector<HTMLSelectElement>("select.group-select")!.value).toBe("grp-2");
+
+    tile("Projects").click();
+    await flushPromises();
+    continueButton().click();
+    await flushPromises();
+    expect(registerCalls).toEqual([
+      { name: "Projects", directory: "C:\\Users\\chad\\Projects", groupId: "grp-2" },
+    ]);
   });
 
   it("the rail's places jump straight to that folder", async () => {

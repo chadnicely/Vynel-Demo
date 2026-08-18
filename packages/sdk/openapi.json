@@ -37371,6 +37371,9 @@
           "400": {
             "description": "Directory not found, not a directory, or not writable."
           },
+          "404": {
+            "description": "The group to file it into does not exist."
+          },
           "409": {
             "description": "This directory is already a workspace."
           }
@@ -37388,7 +37391,7 @@
           "mutatingApproved": true,
           "askApproval": true,
           "rootSurface": true,
-          "description": "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', 'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is the display name. `directory` is an EXISTING absolute folder path on disk that becomes the workspace root — confirm the exact path with the user first; the call fails if the folder doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is optional (personal / small-business / project / custom). Creating a workspace is a setup action the user approves. Returns the created workspace."
+          "description": "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', 'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is the display name. `directory` is an EXISTING absolute folder path on disk that becomes the workspace root — confirm the exact path with the user first; the call fails if the folder doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is optional (personal / small-business / project / custom); `groupId` optionally files it into one of the user's workspace groups. Creating a workspace is a setup action the user approves. Returns the created workspace."
         },
         "requestBody": {
           "content": {
@@ -37411,6 +37414,10 @@
                     ]
                   },
                   "directory": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "groupId": {
                     "type": "string",
                     "minLength": 1
                   }
