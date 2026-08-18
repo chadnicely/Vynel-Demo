@@ -7,6 +7,7 @@ import {
   ThinkingBlock,
   ToolCallList,
   MarkdownText,
+  deriveSettledAgentActivity,
 } from "@vynel/ui";
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
@@ -18,6 +19,9 @@ import {
   type ActiveTurnView,
 } from "../../composables/chat/active-turn-view.js";
 import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
+import PointerRow from "./PointerRow.vue";
+import { buildAgentRunPointer } from "./thread-pointers.js";
+import type { ThreadPointerModel } from "./thread-pointers.js";
 
 // The in-flight turn: everything the assistant is doing RIGHT NOW —
 // thinking, answer text typing in, tool cards appearing, approvals pausing
@@ -36,6 +40,9 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   decideApproval: [approvalRequestId: string, decision: "approved" | "denied"];
+  /** An agent-run pointer's click — same contract as ThreadStream's settled
+   *  pointers; the host routes it to the sidebar's activity pane. */
+  openPointer: [pointer: ThreadPointerModel];
 }>();
 
 // The live edge — only the LAST segment is still being written, so only it
@@ -73,6 +80,34 @@ const liveRows = computed<LiveRow[]>(() => {
   rows.push(...continuationRowsAt(props.view.segments.length));
   return rows;
 });
+// An agent spawn in the LIVE turn wears its pointer right under its card —
+// the live fold's map wins (streaming line), the call's own persisted fields
+// cover a mid-turn reload. Same card, same door as the settled thread's.
+// A parked approval pauses the WHOLE turn, so a still-running spawn reads
+// "Needs input" for those seconds — never a breathing "Working" beside an
+// approval card (the ONE status rule's vocabulary).
+const hasUnresolvedApproval = computed(() =>
+  props.view.approvals.some((approval) => !approval.isResolved),
+);
+
+function agentPointersFor(segment: ActiveTurnSegment): ThreadPointerModel[] {
+  const pointers: ThreadPointerModel[] = [];
+  for (const call of segment.toolCalls) {
+    const pointer = buildAgentRunPointer(
+      call,
+      props.view.agentActivity[call.toolUseId] ?? deriveSettledAgentActivity(call),
+      props.view.session?.id ?? null,
+    );
+    if (pointer === null) continue;
+    pointers.push(
+      pointer.status === "working" && hasUnresolvedApproval.value
+        ? { ...pointer, status: "needs_input" }
+        : pointer,
+    );
+  }
+  return pointers;
+}
+
 // What the chip says the assistant is doing — "continuing" names an
 // automatic continuation after a checkpoint (the swap landed, work goes on).
 const liveChipLabel = computed(() => {
@@ -146,6 +181,12 @@ const elapsedLabel = useTickingElapsed(
           v-if="row.segment.toolCalls.length > 0"
           :tool-calls="row.segment.toolCalls"
           :agent-activity="props.view.agentActivity"
+        />
+        <PointerRow
+          v-for="pointer in agentPointersFor(row.segment)"
+          :key="pointer.partialSessionId"
+          :pointer="pointer"
+          @open="emit('openPointer', pointer)"
         />
       </div>
     </template>

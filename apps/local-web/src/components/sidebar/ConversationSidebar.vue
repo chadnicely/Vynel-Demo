@@ -4,6 +4,7 @@ import { storeToRefs } from "pinia";
 import { usePanelResize } from "@vynel/ui";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
+import AgentRunPane from "../activity/AgentRunPane.vue";
 import LiveSessionPane from "../activity/LiveSessionPane.vue";
 import WorkspaceSidebarThread from "./WorkspaceSidebarThread.vue";
 
@@ -40,7 +41,7 @@ const workspacesQuery = useWorkspaceList();
 const headerTitle = computed(() => {
   const node = activeNode.value;
   if (node === null) return "";
-  if (node.kind === "session") return node.title;
+  if (node.kind === "session" || node.kind === "agent-run") return node.title;
   const workspace = (workspacesQuery.data.value ?? []).find(
     (row) => row.id === node.workspaceId,
   );
@@ -89,6 +90,12 @@ const headerTitle = computed(() => {
           :session-id="activeNode.sessionId"
           :title="activeNode.title"
           :anchor-trace-id="activeNode.anchorTraceId ?? undefined"
+        />
+        <AgentRunPane
+          v-else-if="activeNode.kind === 'agent-run'"
+          :key="activeNode.toolUseId"
+          :session-id="activeNode.sessionId"
+          :tool-use-id="activeNode.toolUseId"
         />
         <WorkspaceSidebarThread
           v-else

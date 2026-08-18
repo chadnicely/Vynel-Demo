@@ -14,9 +14,10 @@ import { displayToolName } from "./tool-presenters.js";
 /** "Read pricing.md" — the tool's display name plus its most telling string
  *  argument, kept to one line per call. Shared by the full pane and the
  *  in-thread live ticker. */
-export function describeAgentActivityCall(
-  call: AgentActivityToolCallLike,
-): string {
+export function describeAgentActivityCall(call: {
+  toolName: string;
+  toolInput?: unknown;
+}): string {
   const verb = displayToolName(call.toolName);
   const input = call.toolInput;
   if (typeof input === "object" && input !== null) {

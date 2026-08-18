@@ -41,4 +41,23 @@ describe("useConversationSidebarStore", () => {
     expect(sidebar.isOpen).toBe(false);
     expect(sidebar.activeNode).toBeNull();
   });
+
+  it("opens an agent-run node (the spawn pointer's landing) and replaces like any other", () => {
+    const sidebar = useConversationSidebarStore();
+
+    sidebar.openAgentRun({
+      sessionId: "s1",
+      toolUseId: "toolu_1",
+      title: "Whoami check",
+    });
+    expect(sidebar.activeNode).toEqual({
+      kind: "agent-run",
+      sessionId: "s1",
+      toolUseId: "toolu_1",
+      title: "Whoami check",
+    });
+
+    sidebar.openSession({ sessionId: "s2", title: "Child" });
+    expect(sidebar.activeNode).toMatchObject({ kind: "session", sessionId: "s2" });
+  });
 });

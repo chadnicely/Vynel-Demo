@@ -440,6 +440,61 @@ describe("ThreadStream", () => {
     };
   }
 
+  // The agent-spawn pointer (2026-08-18): an Agent/Task call in the SETTLED
+  // thread wears the same PointerRow a delegated task does — placed on the
+  // carrying row, anchored on the call's toolUseId, its door the nested
+  // activity pane. An ordinary tool call must never grow one.
+  it("places an agent-spawn pointer on the carrying row, with the last act and the pane door", async () => {
+    const agentCall: ChatToolCallResponse = {
+      ...makeToolCall("a1"),
+      id: "tc-agent",
+      toolUseId: "toolu_agent",
+      toolName: "Agent",
+      toolInput: { description: "Whoami check", subagent_type: "Explore" },
+      status: "cancelled",
+      subagentToolCalls: [
+        {
+          toolUseId: "n1",
+          toolName: "Bash",
+          toolInput: { command: "ls -la apps/" },
+          status: "started",
+          startedAt: "2026-07-05T10:00:00.000Z",
+          completedAt: null,
+        },
+      ],
+    };
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "Spawning." },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: { a1: [agentCall, makeToolCall("a1")] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    // One pointer — the Agent call's; the ordinary Read grows none.
+    const pointers = wrapper.findAll('[data-testid="thread-pointer"]');
+    expect(pointers).toHaveLength(1);
+    const pointer = pointers[0]!;
+    // A cancelled spawn settles failed, and its last act wears the line.
+    expect(pointer.attributes("data-status")).toBe("failed");
+    expect(pointer.text()).toContain("Whoami check");
+    expect(pointer.text()).toContain("Explore");
+    expect(pointer.text()).toContain("ls -la apps/");
+
+    await pointer.trigger("click");
+    const emitted = wrapper.emitted("openPointer");
+    expect(emitted).toHaveLength(1);
+    // The door: the nested pane keyed by the spawn inside its host session.
+    expect(emitted![0]![0]).toMatchObject({
+      agentRun: { hostSessionId: "s1", toolUseId: "toolu_agent" },
+    });
+  });
+
   it("a folded reply hides the tool calls AND the later rows; opening shows the turn as it ran", async () => {
     const messages: ChatMessageResponse[] = [
       { ...makeMessage(0), role: "user" },

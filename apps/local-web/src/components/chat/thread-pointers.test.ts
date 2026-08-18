@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildThreadPointers, buildToolCallPointer } from "./thread-pointers.js";
+import {
+  buildAgentRunPointer,
+  buildThreadPointers,
+  buildToolCallPointer,
+  isAgentSpawnToolCall,
+} from "./thread-pointers.js";
 
 describe("buildThreadPointers", () => {
   it("maps in-flight rows by trace key with persona-first target labels", () => {
@@ -104,6 +109,105 @@ describe("buildToolCallPointer", () => {
     ).toBeNull();
     expect(
       buildToolCallPointer({ partialSessionId: null, status: "completed", taskLabel: "t" }),
+    ).toBeNull();
+  });
+});
+
+// The AGENT-SPAWN pointer (Kafi, 2026-08-18): the system Agent/Task tool
+// wears the same pointer a delegated task does — anchored on the spawning
+// call's toolUseId, its door the nested activity pane, its activity line the
+// run's latest act.
+describe("buildAgentRunPointer", () => {
+  const spawn = {
+    toolUseId: "toolu_1",
+    toolName: "Agent",
+    toolInput: {
+      description: "Whoami check",
+      prompt: "Call the whoami tool and report.",
+      subagent_type: "Explore",
+    },
+  };
+
+  it("builds nothing for an ordinary tool call", () => {
+    expect(isAgentSpawnToolCall("Read")).toBe(false);
+    expect(
+      buildAgentRunPointer({ ...spawn, toolName: "Read", status: "started" }, null, "s1"),
+    ).toBeNull();
+  });
+
+  it("labels from the spawn input and anchors the door on the call", () => {
+    const pointer = buildAgentRunPointer({ ...spawn, status: "started" }, null, "s1");
+    expect(pointer).toMatchObject({
+      partialSessionId: "toolu_1",
+      taskLabel: "Whoami check",
+      targetLabel: "Explore",
+      status: "working",
+      targetSessionId: null,
+      workspaceId: null,
+      agentRun: { hostSessionId: "s1", toolUseId: "toolu_1" },
+    });
+    // A running spawn with no recorded activity still reads alive.
+    expect(pointer!.activityLine).toBe("Working…");
+  });
+
+  it("falls back to the prompt's lead line, then a generic label", () => {
+    const promptOnly = buildAgentRunPointer(
+      {
+        toolUseId: "toolu_2",
+        toolName: "Task",
+        toolInput: { prompt: "\nMap the pointer view.\nThen report." },
+        status: "started",
+      },
+      null,
+      null,
+    );
+    expect(promptOnly).toMatchObject({
+      taskLabel: "Map the pointer view.",
+      targetLabel: "Agent",
+      agentRun: { hostSessionId: null, toolUseId: "toolu_2" },
+    });
+    expect(
+      buildAgentRunPointer(
+        { toolUseId: "toolu_3", toolName: "Agent", toolInput: null, status: "started" },
+        null,
+        null,
+      )!.taskLabel,
+    ).toBe("Agent task");
+  });
+
+  it("maps the call's settle onto the pointer state", () => {
+    expect(buildAgentRunPointer({ ...spawn, status: "completed" }, null, "s1")!.status).toBe(
+      "completed",
+    );
+    expect(
+      buildAgentRunPointer({ ...spawn, status: "completed", isErrorResult: true }, null, "s1")!
+        .status,
+    ).toBe("failed");
+    expect(buildAgentRunPointer({ ...spawn, status: "failed" }, null, "s1")!.status).toBe("failed");
+    expect(buildAgentRunPointer({ ...spawn, status: "cancelled" }, null, "s1")!.status).toBe(
+      "failed",
+    );
+  });
+
+  it("speaks the run's latest act: last nested call first, narrative tail as fallback", () => {
+    const withCalls = buildAgentRunPointer({ ...spawn, status: "started" }, {
+      text: "Looking around.",
+      toolCalls: [
+        { toolUseId: "c1", toolName: "Read", toolInput: { file_path: "docs/plan.md" } },
+        { toolUseId: "c2", toolName: "Grep", toolInput: { pattern: "pointer" } },
+      ],
+    }, "s1");
+    expect(withCalls!.activityLine).toContain("pointer");
+
+    const narrativeOnly = buildAgentRunPointer({ ...spawn, status: "completed" }, {
+      text: "First line.\n\nThe final report line.\n",
+      toolCalls: [],
+    }, "s1");
+    expect(narrativeOnly!.activityLine).toBe("The final report line.");
+
+    // A settled run with nothing recorded shows no line at all.
+    expect(
+      buildAgentRunPointer({ ...spawn, status: "completed" }, null, "s1")!.activityLine,
     ).toBeNull();
   });
 });

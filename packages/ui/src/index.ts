@@ -29,7 +29,10 @@ export type {
   AgentActivityLike,
   AgentActivityToolCallLike,
 } from "./components/AgentActivityPane.vue";
-export { deriveSettledAgentActivity } from "./tool-cards/subagent-activity.js";
+export {
+  deriveSettledAgentActivity,
+  describeAgentActivityCall,
+} from "./tool-cards/subagent-activity.js";
 export {
   displayToolName,
   presentToolCall,

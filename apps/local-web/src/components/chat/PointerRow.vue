@@ -5,6 +5,7 @@ import {
   PhCheckCircle as CheckCircle,
   PhCircleNotch as CircleNotch,
   PhGitFork as GitFork,
+  PhHandTap as HandTap,
   PhWarningCircle as WarningCircle,
 } from "@phosphor-icons/vue";
 import type { ThreadPointerModel } from "./thread-pointers.js";
@@ -27,6 +28,7 @@ const emit = defineEmits<{ open: [] }>();
 const STATES = {
   queued: { label: "Queued", tone: "var(--ink-3)", icon: CircleNotch },
   working: { label: "Working", tone: "var(--gold)", icon: CircleNotch },
+  needs_input: { label: "Needs input", tone: "var(--needs-input)", icon: HandTap },
   completed: { label: "Done", tone: "var(--ok)", icon: CheckCircle },
   failed: { label: "Failed", tone: "var(--danger)", icon: WarningCircle },
 } as const;
@@ -59,6 +61,17 @@ const state = computed(() => STATES[props.pointer.status]);
           aria-hidden="true"
         />
         {{ props.pointer.targetLabel }}
+      </span>
+      <!-- The run's latest act (agent-run pointers), riding the agent's own
+           row: "[Explore] Bash cd …" while it works, kept in place once
+           settled — the same one-line vocabulary the in-card ticker speaks. -->
+      <span v-if="props.pointer.activityLine" class="pointer-activity">
+        <span
+          class="activity-dot"
+          :class="{ 'is-live': props.pointer.status === 'working' }"
+          aria-hidden="true"
+        />
+        <span class="activity-text">{{ props.pointer.activityLine }}</span>
       </span>
     </span>
   </button>
@@ -165,6 +178,60 @@ const state = computed(() => STATES[props.pointer.status]);
   animation: pointer-spin 1.1s linear infinite;
 }
 
+.pointer-activity {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.activity-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--ink-3);
+}
+
+.activity-dot.is-live {
+  background: var(--gold);
+  animation: pointer-dot-breathe 1.4s ease-in-out infinite;
+}
+
+.activity-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font: 500 11px/1.5 var(--font-mono);
+}
+
+/* A settled failure wears the error tone whole — a neutral last-act line
+   under a FAILED eyebrow read as "both running and error" (Kafi,
+   2026-08-18). Needs-input tints the same way: the run is paused, not
+   working. */
+.pointer-card[data-status="failed"] .activity-dot,
+.pointer-card[data-status="needs_input"] .activity-dot {
+  background: var(--tone);
+}
+
+.pointer-card[data-status="failed"] .activity-text,
+.pointer-card[data-status="needs_input"] .activity-text {
+  color: var(--tone);
+}
+
+@keyframes pointer-dot-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 @keyframes pointer-spin {
   to {
     transform: rotate(360deg);
@@ -173,6 +240,10 @@ const state = computed(() => STATES[props.pointer.status]);
 
 @media (prefers-reduced-motion: reduce) {
   .target-icon.is-spinning {
+    animation: none;
+  }
+
+  .activity-dot.is-live {
     animation: none;
   }
 }

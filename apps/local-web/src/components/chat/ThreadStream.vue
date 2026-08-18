@@ -16,6 +16,7 @@ import { stripTurnReferenceLine } from "@vynel/contracts/chat/turn-reference";
 import {
   MessageRow,
   ToolCallList,
+  deriveSettledAgentActivity,
   presentToolCall,
   splitSourceLabel,
   workspaceColorSlot,
@@ -28,7 +29,7 @@ import {
 } from "../../composables/chat/active-turn-view.js";
 import LiveTurn from "./LiveTurn.vue";
 import PointerRow from "./PointerRow.vue";
-import { buildToolCallPointer } from "./thread-pointers.js";
+import { buildAgentRunPointer, buildToolCallPointer } from "./thread-pointers.js";
 import type { ThreadPointerModel } from "./thread-pointers.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
 import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
@@ -219,7 +220,19 @@ const pointersByMessageId = computed(() => {
   for (const message of visibleMessages.value) {
     const candidates: ThreadPointerModel[] = [];
     for (const call of props.toolCallsByMessageId[message.id] ?? []) {
-      if (call.delegation == null) continue;
+      if (call.delegation == null) {
+        // An agent spawn (the system Agent/Task tool) wears the SAME pointer a
+        // delegated task does (Kafi, 2026-08-18) — anchored on the call's
+        // toolUseId, its door the nested activity pane. Persisted subagent
+        // fields make it as persistent as the delegation payload.
+        const agentPointer = buildAgentRunPointer(
+          call,
+          deriveSettledAgentActivity(call),
+          message.sessionId,
+        );
+        if (agentPointer != null) candidates.push(agentPointer);
+        continue;
+      }
       // The live poll overlays first (fresher status, persona-enriched target
       // labels); the served payload is the PERSISTENT base — a settled task
       // keeps its pointer in its terminal state (Chad, 2026-08-09, revising
@@ -1024,6 +1037,7 @@ watch(
             @decide-approval="
               (id, decision) => emit('decideApproval', id, decision)
             "
+            @open-pointer="(pointer) => emit('openPointer', pointer)"
           />
         </section>
       </div>

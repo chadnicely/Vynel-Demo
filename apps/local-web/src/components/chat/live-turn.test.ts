@@ -4,6 +4,7 @@ import LiveTurn from "./LiveTurn.vue";
 import {
   createActiveTurnView,
   type ActiveTurnApproval,
+  type ActiveTurnView,
 } from "../../composables/chat/active-turn-view.js";
 
 function makeApproval(toolName: string): ActiveTurnApproval {
@@ -161,6 +162,85 @@ describe("LiveTurn automatic continuation (checkpoint + auto-continue)", () => {
     });
     const rows = wrapper.findAll(".segment, .continuation-row");
     expect(rows.map((row) => row.classes().includes("continuation-row"))).toEqual([false, true]);
+  });
+});
+
+// The agent-spawn pointer in the LIVE turn (2026-08-18): an Agent/Task call
+// wears the same PointerRow the settled thread renders, live line included —
+// and a parked approval flips a working spawn to needs_input for those
+// seconds (the ONE status rule: never a breathing "Working" beside an
+// approval card).
+describe("LiveTurn agent-spawn pointer", () => {
+  function makeAgentSegmentView(): ActiveTurnView {
+    return {
+      ...createActiveTurnView(),
+      session: { id: "sess-1" } as never,
+      segments: [
+        {
+          messageId: "m1",
+          text: "",
+          thinking: "",
+          toolCalls: [
+            {
+              id: "tc-agent",
+              parentMessageId: "m1",
+              toolUseId: "toolu_agent",
+              toolName: "Agent",
+              toolInput: { description: "Whoami check", subagent_type: "Explore" },
+              toolOutput: null,
+              status: "started",
+              approvalStatus: null,
+              isErrorResult: false,
+              startedAt: "2026-08-18T10:00:00.000Z",
+              completedAt: null,
+            } as never,
+          ],
+        },
+      ],
+      agentActivity: {
+        toolu_agent: {
+          text: "",
+          toolCalls: [
+            {
+              toolUseId: "n1",
+              toolName: "Read",
+              toolInput: { file_path: "docs/plan.md" },
+              toolOutput: null,
+              status: "started" as const,
+              startedAt: "2026-08-18T10:00:01.000Z",
+              completedAt: null,
+            },
+          ],
+        },
+      },
+    };
+  }
+
+  it("renders the pointer under the spawning card with the live activity line", () => {
+    const wrapper = mount(LiveTurn, { props: { view: makeAgentSegmentView() } });
+    const pointer = wrapper.get('[data-testid="thread-pointer"]');
+    expect(pointer.attributes("data-status")).toBe("working");
+    expect(pointer.text()).toContain("Whoami check");
+    expect(pointer.text()).toContain("Explore");
+    expect(pointer.text()).toContain("plan.md");
+  });
+
+  it("flips a working spawn to needs_input while an approval parks the turn", () => {
+    const view = { ...makeAgentSegmentView(), approvals: [makeApproval("Bash")] };
+    const wrapper = mount(LiveTurn, { props: { view } });
+    expect(
+      wrapper.get('[data-testid="thread-pointer"]').attributes("data-status"),
+    ).toBe("needs_input");
+  });
+
+  it("emits openPointer with the agent-run door on click", async () => {
+    const wrapper = mount(LiveTurn, { props: { view: makeAgentSegmentView() } });
+    await wrapper.get('[data-testid="thread-pointer"]').trigger("click");
+    const emitted = wrapper.emitted("openPointer");
+    expect(emitted).toHaveLength(1);
+    expect(emitted![0]![0]).toMatchObject({
+      agentRun: { hostSessionId: "sess-1", toolUseId: "toolu_agent" },
+    });
   });
 });
 

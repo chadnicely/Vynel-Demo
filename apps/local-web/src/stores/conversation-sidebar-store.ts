@@ -17,7 +17,16 @@ export type SidebarNode =
        *  click will scroll to where the partial id is"). Null = open at latest. */
       anchorTraceId: string | null;
     }
-  | { kind: "workspace"; workspaceId: string; anchorTraceId: string | null };
+  | { kind: "workspace"; workspaceId: string; anchorTraceId: string | null }
+  | {
+      /** An agent spawn's nested activity (the system Agent/Task tool) — a
+       *  subagent has no session of its own; its record lives on the spawning
+       *  call inside the host session. */
+      kind: "agent-run";
+      sessionId: string;
+      toolUseId: string;
+      title: string;
+    };
 
 export const useConversationSidebarStore = defineStore(
   "conversation-sidebar",
@@ -50,10 +59,23 @@ export const useConversationSidebarStore = defineStore(
       };
     }
 
+    function openAgentRun(input: {
+      sessionId: string;
+      toolUseId: string;
+      title: string;
+    }) {
+      activeNode.value = {
+        kind: "agent-run",
+        sessionId: input.sessionId,
+        toolUseId: input.toolUseId,
+        title: input.title,
+      };
+    }
+
     function close() {
       activeNode.value = null;
     }
 
-    return { isOpen, activeNode, openSession, openWorkspace, close };
+    return { isOpen, activeNode, openSession, openWorkspace, openAgentRun, close };
   },
 );
