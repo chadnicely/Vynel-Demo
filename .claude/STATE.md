@@ -3,6 +3,23 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ▶ 2026-08-18 TASK-EXECUTION ARC — Slice 1 SHIPPED `d9abed3`; next: Slice 2 (routes + MCP tools)
+
+Kafi's new capability: tasks become the workspace's WORK QUEUE — the user (or a chat ask) files a
+task, Claude gets nudged, drains one at a time, clears ambiguity via `ask_user`, sizes the work
+(simple → steps; medium/big → plan → steps), everything hangs off the task. Design + fork answers in
+`docs/module-notes/task-execution.md`. Slice 1 (leaf): `task_steps` table with FULL linkage
+(taskId same-leaf FK · planId/sessionId loose · workspaceId copied from the task), whole-list
+replace + step ops + events mirroring session-todos; `tasks.assignedSessionId` (working session,
+stamped on pickup); `plans.taskId` (a plan executes a task — relation inverted, `tasks.planId` kept
+but no longer taught); migration 0047 additive; reviewer clean; 62 tests green. Remaining slices:
+2 routes/MCP (`set_task_steps` + steps rollup + ask.taskId, ambient-header session stamp) →
+3 pickup nudge (`task.created` → workspace primary via session-comms) → 4 TasksPanel rework
+(activity header, sessions box, step expanders, default-open) → 5 notebook rewrite
+(`packages/instructions/notebooks/task-planner.md` on the /architect spine) → 6 attachments (deferred).
+⚠ An untracked `docs/module-notes/task-execution.md` existed BEFORE this arc's doc was written and
+may have been overwritten — ask Kafi if he had notes there.
+
 ## ✅ 2026-08-18 (latest) RELEASE 0.3.0 PUBLISHED — the first installer from OUR trunk
 
 `kafijunior/vynel-releases` v0.3.0 (Latest): `Vynel_0.3.0_x64-setup.exe` + `latest.json`, built from main
