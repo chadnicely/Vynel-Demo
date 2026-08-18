@@ -3,7 +3,7 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) LIVE CHANNEL — one WebSocket per window (slices 1-3 SHIPPED `9093297` + `8fb2545`)
+## ✅ 2026-08-19 (latest) LIVE CHANNEL — one WebSocket per window (slices 1-3 SHIPPED `9093297` + `8fb2545` + review pass `16a5797`)
 
 Kafi's call after the research (`docs/module-notes/live-channel.md`): WS, "a solution for the
 future — 10 workspaces with child sessions working at once, one window + one sidebar visible, a
