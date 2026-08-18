@@ -95,15 +95,33 @@ const turn = useSessionTurn(() => activeSessionId.value, {
   detachWhen: () => watchedTurn.hasSharedFold.value,
 });
 
+// The standing subscription to this session's live channel (B6): a turn the
+// composer does not own — a delegated task, a routed message draining —
+// streams here in realtime instead of crawling on the fallback poll. The own
+// overlay always wins (render-time suppression, B3).
+const watchedTurn = useWatchedTurn({
+  sessionId: () => activeSessionId.value,
+  isSuppressed: () => turn.view.value !== null,
+  // refetch() resolves (never throws) — surface the failure so the watcher's
+  // seed retries instead of silently seeding from stale cache.
+  refetchDetail: async () => {
+    const result = await detailQuery.refetch();
+    if (result.error) throw result.error;
+    return result.data ?? undefined;
+  },
+});
+
 // A turn running in this session OUTSIDE this composer (a delegated task, a
 // queued job draining) — reported by the activity feed with the session's sdk
 // id. The registry watch below streams it live; this poll is the fallback
 // that keeps rows landing if that channel drops (rows persist per chunk
 // server-side).
-const hasBackgroundTurnHere = computed(() =>
-  Object.values(activity.serverTurns).some(
-    (serverTurn) => serverTurn.sessionId === activeSessionId.value,
-  ),
+const hasBackgroundTurnHere = computed(
+  () =>
+    !watchedTurn.hasSharedFold.value &&
+    Object.values(activity.serverTurns).some(
+      (serverTurn) => serverTurn.sessionId === activeSessionId.value,
+    ),
 );
 
 const detailQuery = useSessionDetail(
@@ -123,24 +141,11 @@ const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
 
-// The standing subscription to this session's live channel (B6): a turn the
-// composer does not own — a delegated task, a routed message draining —
-// streams here in realtime instead of crawling on the fallback poll. The own
-// overlay always wins (render-time suppression, B3).
-const watchedTurn = useWatchedTurn({
-  sessionId: () => activeSessionId.value,
-  isSuppressed: () => turn.view.value !== null,
-  // refetch() resolves (never throws) — surface the failure so the watcher's
-  // seed retries instead of silently seeding from stale cache.
-  refetchDetail: async () => {
-    const result = await detailQuery.refetch();
-    if (result.error) throw result.error;
-    return result.data ?? undefined;
-  },
-});
 const activeTurn = computed(() => turn.view.value ?? watchedTurn.view.value);
-// Own OR watched — after the detach the watch is the one that knows.
-const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
+// The Stop button follows the OWN stream only: a spawned-session turn has no
+// server interrupt (v1), so once the origin stream detached there is nothing
+// Stop could do — the composer offers Send, and a send queues behind the
+// running turn (below) instead.
 const turnErrorText = computed(
   () => turn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
 );
@@ -267,7 +272,7 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
       </p>
       <AppComposer
         :session-id="activeSessionId"
-        :streaming="isTurnStreaming"
+        :streaming="turn.isStreaming.value"
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"
         :scope="composerScope"

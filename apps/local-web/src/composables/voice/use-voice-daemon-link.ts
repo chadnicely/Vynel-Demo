@@ -59,10 +59,15 @@ export function useVoiceDaemonLink(options: {
 
   function onEvent(raw: unknown): void {
     const event = raw as VoiceRelayEvent;
-    if (event.kind === "daemon-link") isDaemonConnected.value = event.connected;
-    else if (event.kind === "wake") options.onWake(event.command ?? "");
-    else if (event.kind === "state") isDaemonSpeaking.value = event.state === "speaking";
-    else if (event.kind === "speak" && event.text) {
+    if (event.kind === "daemon-link") {
+      isDaemonConnected.value = event.connected;
+      // No link = no speaker to hear; a stale "speaking" would keep the mic gated.
+      if (!event.connected) isDaemonSpeaking.value = false;
+    } else if (event.kind === "wake") {
+      options.onWake(event.command ?? "");
+    } else if (event.kind === "state") {
+      isDaemonSpeaking.value = event.state === "speaking";
+    } else if (event.kind === "speak" && event.text) {
       speakQueue.push(event.text);
       void drainSpeakQueue();
     }
@@ -75,6 +80,7 @@ export function useVoiceDaemonLink(options: {
       // says otherwise on the re-ack.
       onDetached: () => {
         isDaemonConnected.value = false;
+        isDaemonSpeaking.value = false;
       },
     });
   });

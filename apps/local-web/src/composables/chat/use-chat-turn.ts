@@ -288,14 +288,17 @@ export function useChatTurn(options: {
     ingest({ kind: "turn-stream-ended" });
   }
 
-  function interrupt() {
+  /** Stop the running turn. `displayedSessionId` is the host's thread — the
+   *  target when this engine holds no turn of its own (a watched-only turn:
+   *  another window's, a schedule's) or has already detached. */
+  function interrupt(displayedSessionId: string | null = null) {
     abortController?.abort();
     // Actively stop the server-side turn on BOTH scopes — without the server
     // call the abort only tears down this client's stream while the turn runs
     // on detached to completion. Best-effort — a failed interrupt call is
     // safe to ignore here (the abort already settled the UI).
     const scope = options.scope();
-    const sessionId = activeSessionId.value;
+    const sessionId = activeSessionId.value ?? displayedSessionId;
     if (scope.kind === "workspace" && sessionId !== null) {
       void vynel.chat
         .interruptSession(scope.workspaceId, sessionId)

@@ -114,14 +114,33 @@ const chatTurn = useChatTurn({
   detachWhen: () => watchedTurn.hasSharedFold.value,
 });
 
+// The standing subscription to the displayed session's live channel — a turn
+// this view does NOT own (a tab switch detached the origin stream, a schedule
+// fire, a channel turn) streams here in realtime instead of crawling on the
+// history poll. The own overlay always wins; the watcher renders nothing for it (render-time suppression, B3).
+const watchedTurn = useWatchedTurn({
+  sessionId: () => activeSessionId.value,
+  isSuppressed: () => ownActiveTurn.value !== null,
+  // refetch() resolves (never throws) — surface the failure so the watcher's
+  // seed retries instead of silently seeding from stale cache.
+  refetchDetail: async () => {
+    const result = await detailQuery.refetch();
+    if (result.error) throw result.error;
+    return result.data ?? undefined;
+  },
+});
+
 // A turn running in THIS workspace outside this view's own stream — another
 // tab's turn or a schedule fire — reported by the activity feed. Poll the
 // open thread while one runs (same liveness rule as the delegation poll);
 // this view's own turn renders through its stream, so it never counts.
 const activity = useActivityStore();
+// (`hasSharedFold`, not the rendered view: it never consults the own-overlay
+// suppression, so it is safe to read at setup time.)
 const hasBackgroundTurnHere = computed(
   () =>
     !chatTurn.isStreaming.value &&
+    !watchedTurn.hasSharedFold.value &&
     tab.workspaceId !== null &&
     activity.hasServerTurnInWorkspace(tab.workspaceId),
 );
@@ -211,28 +230,17 @@ const ownActiveTurn = computed(() =>
   }),
 );
 
-// The standing subscription to the displayed session's live channel — a turn
-// this view does NOT own (a tab switch detached the origin stream, a schedule
-// fire, a channel turn) streams here in realtime instead of crawling on the
-// history poll. The own overlay always wins; the watcher renders nothing for it (render-time suppression, B3).
-const watchedTurn = useWatchedTurn({
-  sessionId: () => activeSessionId.value,
-  isSuppressed: () => ownActiveTurn.value !== null,
-  // refetch() resolves (never throws) — surface the failure so the watcher's
-  // seed retries instead of silently seeding from stale cache.
-  refetchDetail: async () => {
-    const result = await detailQuery.refetch();
-    if (result.error) throw result.error;
-    return result.data ?? undefined;
-  },
-});
 
 const activeTurn = computed(
   () => ownActiveTurn.value ?? watchedTurn.view.value,
 );
 // The composer's "a turn is running here" — own OR watched (after the detach
-// the watch is the one that knows); the Stop button and the send queue read it.
+// the watch is the one that knows); the Stop button reads it.
 const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
+// The send queue gates on the RAW own view (not the visibility-resolved one):
+// an own turn hidden behind a target switch is still running — a send must
+// queue behind it, never fall through to a start the engine refuses.
+const busyTurn = computed(() => chatTurn.view.value ?? watchedTurn.view.value);
 // A failed turn's note survives the overlay teardown on either path.
 const turnErrorText = computed(
   () => chatTurn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
@@ -316,7 +324,7 @@ function sendMessage(
 // Mid-turn sends queue and fire in order as each turn settles; the drain calls
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
-const queuedSend = useQueuedSend(activeTurn, sendMessage);
+const queuedSend = useQueuedSend(busyTurn, sendMessage);
 </script>
 
 <template>
@@ -437,7 +445,7 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
           :context-fraction="occupancy.fraction.value"
           :context-tooltip="occupancy.tooltip.value"
           @send="queuedSend.submit"
-          @interrupt="chatTurn.interrupt"
+          @interrupt="chatTurn.interrupt(activeSessionId)"
         />
       </footer>
     </section>

@@ -180,6 +180,43 @@ describe('voice daemon relay', () => {
     h.relay.dispose()
   })
 
+  it('a link loss forgets the last state — a late window must not inherit "speaking" from a dead daemon', async () => {
+    const h = makeHarness()
+    h.relay.subscribe('app', h.listen().listener)
+    await h.settle()
+    h.streams[0]!.emit({ kind: 'state', state: 'speaking' })
+    await h.settle()
+    h.streams[0]!.close()
+    await h.settle()
+    const late = h.listen()
+    h.relay.subscribe('app', late.listener)
+    expect(late.events).toEqual([{ kind: 'daemon-link', connected: false }])
+    h.relay.dispose()
+  })
+
+  it('warns once per outage, then stays quiet at debug across the retries', async () => {
+    const warn = vi.fn()
+    const debug = vi.fn()
+    const relay = createVoiceDaemonRelay({
+      voiceDaemonUrl: 'http://127.0.0.1:1',
+      logger: { warn, debug, info: vi.fn(), error: vi.fn() } as unknown as typeof silentLogger,
+      fetchDaemon: (async () => {
+        throw new Error('ECONNREFUSED')
+      }) as unknown as typeof fetch,
+      setTimer: (callback) => {
+        // Retry fast for the test — but on the timer queue, so the test's own
+        // waits still get to run (a microtask retry loop would starve them).
+        const handle = setTimeout(callback, 1)
+        return { cancel: () => clearTimeout(handle) }
+      },
+    })
+    relay.subscribe('jarvis', () => {})
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    relay.dispose()
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(debug.mock.calls.length).toBeGreaterThan(1)
+  })
+
   it('dispose aborts every upstream and inert-s later subscribes', async () => {
     const h = makeHarness()
     h.relay.subscribe('app', h.listen().listener)

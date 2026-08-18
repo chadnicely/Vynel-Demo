@@ -52,6 +52,8 @@ interface SurfaceLink {
   lastState: string | null
   reconnectAttempt: number
   reconnectTimer: { cancel: () => void } | null
+  /** One warning per outage — a missing daemon must not fill the log every retry. */
+  warnedDown: boolean
 }
 
 export interface VoiceDaemonRelay extends LiveChannelVoiceSource {
@@ -82,6 +84,7 @@ export function createVoiceDaemonRelay(options: VoiceDaemonRelayOptions): VoiceD
         lastState: null,
         reconnectAttempt: 0,
         reconnectTimer: null,
+        warnedDown: false,
       }
       links.set(surface, link)
     }
@@ -113,6 +116,10 @@ export function createVoiceDaemonRelay(options: VoiceDaemonRelayOptions): VoiceD
   function setConnected(surface: VoiceSurface, link: SurfaceLink, connected: boolean): void {
     if (link.connected === connected) return
     link.connected = connected
+    // A dead link's last state is stale — a window opening while the daemon
+    // is down must not inherit "speaking" and keep its mic gated.
+    if (!connected) link.lastState = null
+    else link.warnedDown = false
     options.logger.info({ surface, connected }, 'voice relay: daemon link changed')
     deliver(link, { kind: 'daemon-link', connected })
   }
@@ -150,10 +157,12 @@ export function createVoiceDaemonRelay(options: VoiceDaemonRelayOptions): VoiceD
     } catch (error) {
       if (link.upstream !== controller) return // superseded / stopped
       if (!isAbortError(error)) {
-        options.logger.warn(
-          { surface, error: error instanceof Error ? error.message : String(error) },
-          'voice relay: daemon link dropped',
-        )
+        const detail = { surface, error: error instanceof Error ? error.message : String(error) }
+        // Once per outage at warn (a dev box without the daemon is common);
+        // the retries stay visible at debug.
+        if (link.warnedDown) options.logger.debug(detail, 'voice relay: daemon still unreachable')
+        else options.logger.warn(detail, 'voice relay: daemon link dropped — retrying')
+        link.warnedDown = true
       }
     } finally {
       if (link.upstream === controller) {
@@ -183,6 +192,7 @@ export function createVoiceDaemonRelay(options: VoiceDaemonRelayOptions): VoiceD
     link.upstream = null
     upstream?.abort()
     link.connected = false
+    link.lastState = null
   }
 
   return {

@@ -212,7 +212,7 @@ const hasUnrenderedGlobalTurn = computed(
   () =>
     activity.hasGlobalServerTurn &&
     !chatTurn.isStreaming.value &&
-    watchedTurn.view.value === null,
+    !watchedTurn.hasSharedFold.value,
 );
 
 const detailQuery = useSessionDetail(
@@ -265,6 +265,8 @@ const activeTurn = computed(
 );
 // Own OR watched — after the detach the watch is the one that knows.
 const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
+// The send queue gates on the RAW own view: a hidden own turn still queues.
+const busyTurn = computed(() => chatTurn.view.value ?? watchedTurn.view.value);
 const turnErrorText = computed(
   () => chatTurn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
 );
@@ -314,7 +316,7 @@ function sendMessage(
 // Mid-turn sends queue and fire in order as each turn settles; the drain calls
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
-const queuedSend = useQueuedSend(activeTurn, sendMessage);
+const queuedSend = useQueuedSend(busyTurn, sendMessage);
 </script>
 
 <template>

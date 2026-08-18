@@ -57,21 +57,34 @@ const personaLabel = computed(() =>
 const continuingQuery = useContinuingConversation(() => scope.value);
 const activeSessionId = useContinuingSessionId(() => scope.value, continuingQuery);
 
-// A turn running in this workspace outside this composer (the delegated task
-// the pointer tracked, another tab's turn) — poll the thread while it runs so
-// rows land near-live; the registry watch below streams the displayed
-// session's turn in realtime.
-const activity = useActivityStore();
-const hasBackgroundTurnHere = computed(() =>
-  activity.hasServerTurnInWorkspace(props.workspaceId),
-);
-
 const chatTurn = useChatTurn({
   scope: () => scope.value,
   // The origin stream detaches once the standing watch has the turn folding
   // (live-channel slice 4) — the watch renders the rest.
   detachWhen: () => watchedTurn.hasSharedFold.value,
 });
+
+const watchedTurn = useWatchedTurn({
+  sessionId: () => activeSessionId.value,
+  isSuppressed: () => chatTurn.view.value !== null,
+  refetchDetail: async () => {
+    const result = await detailQuery.refetch();
+    if (result.error) throw result.error;
+    return result.data ?? undefined;
+  },
+});
+
+// A turn running in this workspace outside this composer (the delegated task
+// the pointer tracked, another tab's turn) — poll the thread while it runs so
+// rows land near-live; the registry watch below streams the displayed
+// session's turn in realtime.
+const activity = useActivityStore();
+const hasBackgroundTurnHere = computed(
+  () =>
+    activity.hasServerTurnInWorkspace(props.workspaceId) &&
+    !watchedTurn.hasSharedFold.value,
+);
+
 const detailQuery = useSessionDetail(
   () => scope.value,
   () => activeSessionId.value,
@@ -89,15 +102,6 @@ const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
 
-const watchedTurn = useWatchedTurn({
-  sessionId: () => activeSessionId.value,
-  isSuppressed: () => chatTurn.view.value !== null,
-  refetchDetail: async () => {
-    const result = await detailQuery.refetch();
-    if (result.error) throw result.error;
-    return result.data ?? undefined;
-  },
-});
 const activeTurn = computed(
   () => chatTurn.view.value ?? watchedTurn.view.value,
 );
@@ -199,7 +203,7 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
         :scope="scope"
         :destination-label="personaLabel"
         @send="queuedSend.submit"
-        @interrupt="chatTurn.interrupt"
+        @interrupt="chatTurn.interrupt(activeSessionId)"
       />
     </footer>
   </div>

@@ -205,7 +205,7 @@ export class LiveChannelHub {
         kind: 'error',
         channel,
         code: 'unknown_channel',
-        message: `Unknown channel "${channel}" — use activity, session:<id> or trace:<id>.`,
+        message: `Unknown channel "${channel}" — use activity, session:<id>, trace:<id> or voice:<surface>.`,
       })
       return
     }
