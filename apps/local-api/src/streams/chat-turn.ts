@@ -40,6 +40,7 @@ import { loadEnv } from '../env.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
+import { wrapAppRequestWithMode } from '../sessions/delegation-mode-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { buildRecordRateLimitSnapshot } from '../sessions/build-record-rate-limit-snapshot.js'
@@ -163,6 +164,18 @@ export async function streamChatTurn(
   // composition and resolved below/from the stream — a fresh conversation has
   // no id yet at this point.
   const turnSession = createTurnSessionCarrier()
+  // Every routing request this turn's tools make carries the turn's permission
+  // mode — the delegate route stamps it onto the enqueued job, so a child
+  // session runs under the mode the user picked here (the global-root stream's
+  // rule). This stream silently dropped it, so an AUTO workspace's delegations
+  // enqueued modeless and children ran the unattended default, carding the
+  // floor. Stamped only when a mode RESOLVED (explicit input or the session's
+  // persisted setting) — an unset session keeps the pre-mode default for its
+  // delegations, exactly like the global root.
+  const modeAwareAppRequest =
+    turnSettings.mode !== undefined
+      ? wrapAppRequestWithMode(c.var.appRequest, turnPermissionMode)
+      : c.var.appRequest
   const composedMcp = composeSessionMcpServers(
     [
       vynelWorkspaceInteractiveDescriptor,
@@ -182,7 +195,7 @@ export async function streamChatTurn(
       // The same carrier read lazily — a tool that RECORDS this conversation
       // (an ask row) needs the id a fresh chat only learns mid-stream.
       resolveChatSessionId: turnSession.current,
-      appRequest: turnSession.wrapAppRequest(c.var.appRequest),
+      appRequest: turnSession.wrapAppRequest(modeAwareAppRequest),
     },
     {
       enabledCapabilityIds,

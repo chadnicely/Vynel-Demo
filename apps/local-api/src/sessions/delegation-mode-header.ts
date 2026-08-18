@@ -11,6 +11,7 @@
 // never part of the OpenAPI contract.
 
 import type { DelegationPermissionMode } from '@vynel/orchestration'
+import type { HonoAppRequestFn } from '../factory.js'
 
 export const DELEGATION_MODE_HEADER = 'x-vynel-delegation-mode'
 
@@ -28,4 +29,23 @@ export function parseDelegationModeHeader(
 ): DelegationPermissionMode | undefined {
   if (headerValue === undefined) return undefined
   return DELEGATION_PERMISSION_MODES.find((mode) => mode === headerValue)
+}
+
+/** Wrap the dispatcher so every routing request carries the turn's permission mode —
+ *  the delegate route stamps it onto the enqueued job (surface-up step 1), the way
+ *  `wrapAppRequestWithOrigin` carries a channel origin. ONE writer for every producer:
+ *  the interactive streams (global root, workspace chat, session DM) stamp the user's
+ *  resolved mode, and the delegated-turn composer re-stamps the job's mode so a chain
+ *  (auto root → child → grandchild) inherits end-to-end. The value is written verbatim
+ *  (`string` — the composer threads the job row's text column); the route's parse
+ *  above is the validating reader. */
+export function wrapAppRequestWithMode(
+  appRequest: HonoAppRequestFn,
+  permissionMode: string,
+): HonoAppRequestFn {
+  return (input, init) => {
+    const headers = new Headers(init?.headers)
+    headers.set(DELEGATION_MODE_HEADER, permissionMode)
+    return appRequest(input, { ...init, headers })
+  }
 }

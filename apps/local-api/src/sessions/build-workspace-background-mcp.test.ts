@@ -115,6 +115,7 @@ import {
   parseReportCallerHeader,
   REPORT_CALLER_HEADER,
 } from "./report-caller-header.js";
+import { DELEGATION_MODE_HEADER } from "./delegation-mode-header.js";
 import type { HonoAppRequestFn } from "../factory.js";
 
 const target = {
@@ -220,6 +221,39 @@ describe("buildDelegatedTurnMcpComposer", () => {
       { method: "POST" },
     );
     expect(callerHeaders[0]).toBeNull();
+  });
+
+  it("re-stamps the JOB's permission mode on the routed turn's own requests — the chain inherits end-to-end (auto root → child → grandchild)", async () => {
+    const modeHeaders: Array<string | null> = [];
+    const appRequest: HonoAppRequestFn = (async (
+      _input: unknown,
+      init?: RequestInit,
+    ) => {
+      modeHeaders.push(new Headers(init?.headers).get(DELEGATION_MODE_HEADER));
+      return new Response("{}", { status: 200 });
+    }) as HonoAppRequestFn;
+    const compose = await buildDelegatedTurnMcpComposer(appRequest);
+
+    // A job stamped 'auto' at enqueue: this turn's own delegations carry it on.
+    const moded = compose({
+      ...target,
+      target: "workspace-root",
+      permissionMode: "auto",
+    });
+    await dispatcherOf(moded.mcpServers["vynel-interactive"])(
+      "/routing/message",
+      { method: "POST" },
+    );
+    expect(modeHeaders[0]).toBe("auto");
+
+    // A modeless job (channel origin / pre-mode row) stamps NOTHING — its
+    // descendants keep the conservative unattended default.
+    const modeless = compose({ ...target, target: "workspace-root" });
+    await dispatcherOf(modeless.mcpServers["vynel-interactive"])(
+      "/routing/message",
+      { method: "POST" },
+    );
+    expect(modeHeaders[1]).toBeNull();
   });
 });
 

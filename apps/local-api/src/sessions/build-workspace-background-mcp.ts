@@ -28,6 +28,7 @@ import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 import type { SessionSurfaceKind } from '@vynel/capabilities'
 import { wrapAppRequestWithDelegationThread } from './delegation-thread-header.js'
 import { wrapAppRequestWithDelegationJob } from './delegation-job-header.js'
+import { wrapAppRequestWithMode } from './delegation-mode-header.js'
 import {
   wrapAppRequestWithReportCaller,
   type ReportCaller,
@@ -230,6 +231,17 @@ export async function buildDelegatedTurnMcpComposer(
       jobId !== undefined
         ? wrapAppRequestWithDelegationJob(threadAwareAppRequest, jobId)
         : threadAwareAppRequest
+    // The job's mode re-stamps onto every routing request THIS routed turn
+    // makes, so a chain inherits end-to-end (auto root → child → grandchild).
+    // Without it the chain broke after one hop: the child's own delegations
+    // enqueued modeless and the grandchild fell back to the unattended
+    // default, carding the floor under an AUTO ancestor. A modeless job
+    // (channel origin / pre-mode row) stamps nothing — its descendants keep
+    // the conservative default, exactly like the turn itself.
+    const modeAwareAppRequest =
+      permissionMode !== undefined
+        ? wrapAppRequestWithMode(jobAwareAppRequest, permissionMode)
+        : jobAwareAppRequest
     // The desktop half. Attached for eligible targets on BOTH branches: the
     // desktop belongs to the USER'S MACHINE, not to a workspace, so a
     // workspace-grounded spawned session is no less entitled than a global one.
@@ -318,7 +330,7 @@ export async function buildDelegatedTurnMcpComposer(
     if (workspaceId === null) {
       return composeSessionMcpServers(
         [vynelRoutingDescriptor, notebookFeatureDescriptor, sessionFeatureDescriptor, ...desktopDescriptors],
-        { db, userId, appRequest: jobAwareAppRequest, ...identityContext, ...desktopContext },
+        { db, userId, appRequest: modeAwareAppRequest, ...identityContext, ...desktopContext },
         {
           enabledCapabilityIds: defaultEnabledCapabilityIds(),
           ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
@@ -334,7 +346,7 @@ export async function buildDelegatedTurnMcpComposer(
         sessionFeatureDescriptor,
         ...desktopDescriptors,
       ],
-      { db, userId, workspaceId, appRequest: jobAwareAppRequest, ...identityContext, ...desktopContext },
+      { db, userId, workspaceId, appRequest: modeAwareAppRequest, ...identityContext, ...desktopContext },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),

@@ -51,6 +51,7 @@ import {
 } from '../sessions/compose-session-mcp-servers.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
+import { wrapAppRequestWithMode } from '../sessions/delegation-mode-header.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
 import { writeSseSafely } from './write-sse-safely.js'
 import { loadEnv } from '../env.js'
@@ -96,7 +97,15 @@ export async function streamSpawnedSessionTurn(
   // after the queue wait below, and again on a mid-turn compaction swap). The
   // dock the user has open on this thread is keyed by that same segment id.
   const turnSession = createTurnSessionCarrier(sessionId)
-  const turnSessionAppRequest = turnSession.wrapAppRequest(c.var.appRequest)
+  // The turn's mode rides every routing request its tools make (the
+  // chat-turn/global-root rule) — without it this stream's delegations
+  // enqueued modeless and children ran the unattended default, carding the
+  // floor under an AUTO parent. Stamped only when a mode RESOLVED.
+  const modeAwareAppRequest =
+    turnSettings.mode !== undefined
+      ? wrapAppRequestWithMode(c.var.appRequest, turnPermissionMode)
+      : c.var.appRequest
+  const turnSessionAppRequest = turnSession.wrapAppRequest(modeAwareAppRequest)
   // The toolset per scope: a SPAWNED session keeps its standing shape (the
   // plain background set when workspace-grounded, nothing when global). An
   // agent COLLEAGUE composes the DELEGATED 'agent-session' set instead (G5's
