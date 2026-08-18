@@ -8,7 +8,7 @@ import {
 } from "./desktop-activity-fold.js";
 
 // What Claude is doing to the DESKTOP right now — fed by the same
-// /activity/stream subscription as the activity store (the feed composable
+// activity subscription (the live channel) as the activity store (the feed composable
 // applies every event to both). The desktop-control overlay window reads this;
 // the fold itself is pure (desktop-activity-fold.ts).
 export const useDesktopActivityStore = defineStore("desktop-activity", () => {

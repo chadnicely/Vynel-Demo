@@ -1,4 +1,4 @@
-import { computed, toValue } from "vue";
+import { computed, shallowRef, toValue, watch } from "vue";
 import type { ComputedRef, MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useVynel } from "../use-vynel.js";
@@ -38,9 +38,17 @@ export function useContinuingSessionId(
   continuingQuery: ReturnType<typeof useContinuingConversation>,
 ): ComputedRef<string | null> {
   const activity = useActivityStore();
-  return computed(() => {
-    const head = continuingQuery.data.value?.currentSdkSessionId ?? null;
-    if (head !== null) return head;
+  const scopeKey = computed(() => sessionScopeKey(toValue(scope)));
+  // STICKY: the feed drops the turn at turn-ended (and on a socket drop) a
+  // beat before the continuing refetch lands the bridged head — without
+  // memory the thread would flash its welcome hero and tear its watch down
+  // in that gap. The last running id stands until the head arrives; a scope
+  // change forgets it.
+  const lastRunningId = shallowRef<string | null>(null);
+  watch(scopeKey, () => {
+    lastRunningId.value = null;
+  });
+  const runningId = computed(() => {
     const s = toValue(scope);
     return activity.runningPrimarySessionIdFor(
       s.kind === "global"
@@ -48,4 +56,17 @@ export function useContinuingSessionId(
         : { kind: "workspace", workspaceId: s.workspaceId },
     );
   });
+  watch(
+    runningId,
+    (id) => {
+      if (id !== null) lastRunningId.value = id;
+    },
+    { immediate: true },
+  );
+  return computed(
+    () =>
+      continuingQuery.data.value?.currentSdkSessionId ??
+      runningId.value ??
+      lastRunningId.value,
+  );
 }

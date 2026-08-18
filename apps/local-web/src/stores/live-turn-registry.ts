@@ -159,10 +159,11 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
         snapshot = undefined;
       }
       await new Promise((resolve) => setTimeout(resolve, SEED_SETTLE_MS));
-      if (entry.disposed || generation !== entry.seedGeneration) {
-        entry.isSeeding = false;
-        return;
-      }
+      // A stale seed (turn ended / socket dropped meanwhile) owns nothing any
+      // more — the bumper already reset the flags, and a NEWER seed may be
+      // in flight under them; touching `isSeeding` here would let a third
+      // seed start and later overwrite the newer one's overlay.
+      if (entry.disposed || generation !== entry.seedGeneration) return;
       if (snapshot === undefined) {
         entry.isSeeding = false; // the next event retries the seed
         return;

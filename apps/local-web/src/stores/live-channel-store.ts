@@ -75,6 +75,13 @@ export const useLiveChannelStore = defineStore("live-channel", () => {
     socket.send(JSON.stringify(message));
   }
 
+  function orderedChannelKeys(): LiveChannelKey[] {
+    const keys = [...channels.keys()];
+    return keys.sort((left, right) =>
+      left === "activity" ? -1 : right === "activity" ? 1 : 0,
+    );
+  }
+
   function armStallTimer(): void {
     if (stallTimer !== null) clearTimeout(stallTimer);
     stallTimer = setTimeout(() => {
@@ -109,6 +116,9 @@ export const useLiveChannelStore = defineStore("live-channel", () => {
   function handleFrame(frame: LiveChannelServerFrame): void {
     switch (frame.kind) {
       case "hello":
+        // The server accepted us — only now is the backoff reset (a refusal
+        // after the upgrade closes without hello and must keep backing off).
+        reconnectAttempt = 0;
         status.value = "open";
         connectionId.value = frame.connectionId;
         return;
@@ -147,10 +157,11 @@ export const useLiveChannelStore = defineStore("live-channel", () => {
     socket = ws;
     ws.onopen = () => {
       if (socket !== ws) return;
-      reconnectAttempt = 0;
       armStallTimer();
       // Re-subscribe the whole set — a reconnect restores every consumer.
-      if (channels.size > 0) send({ op: "subscribe", channels: [...channels.keys()] });
+      // `activity` goes first: its replay tells the session watchers whether
+      // their turn is on before their own acks arrive (the seed-on-ack rule).
+      if (channels.size > 0) send({ op: "subscribe", channels: orderedChannelKeys() });
     };
     ws.onmessage = (message: MessageEvent<string>) => {
       if (socket !== ws) return;

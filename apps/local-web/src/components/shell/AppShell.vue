@@ -91,7 +91,7 @@ const windowControls = useWindowControls();
 useAppLinkRouter();
 const workspacesQuery = useWorkspaceList();
 const currentUserQuery = useCurrentUser();
-// The app's single /activity/stream subscription — server-reported turns
+// The app's single activity subscription (on the window's live socket) — server-reported turns
 // (Telegram, another tab, schedule fires) fold into the activity store so the
 // chat views go live and the presence dot lights for background work.
 useSessionActivityFeed();

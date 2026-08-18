@@ -120,7 +120,7 @@ agents" is N×M subscriptions on one socket. B stays the fallback if the dep bum
 - Nothing else in the UI changes: `applyChatTurnEvent`, the seed, the overlays, the pointer rail
   all read the same events.
 
-## 5. Slices (each: tests + green + reviewer, then the next)
+## 5. Slices (each: tests + green + reviewer, then the next) — status 2026-08-19: 1–3 SHIPPED (`9093297`, `8fb2545`), 6 free with them; 4–5 open
 
 1. **Server hub + WS route** — bump `@hono/node-server` → 2.x, add `ws` to `apps/local-api`,
    `LiveChannelHub` with vitest coverage (real `ws` client against a bound port: hello, subscribe

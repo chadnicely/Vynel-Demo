@@ -3,7 +3,37 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-18 (latest) LOST-REPLY FIX — the "idle workspace" after the socket-diet; multi-tab budget still thin
+## ✅ 2026-08-19 (latest) LIVE CHANNEL — one WebSocket per window (slices 1-3 SHIPPED `9093297` + `8fb2545`)
+
+Kafi's call after the research (`docs/module-notes/live-channel.md`): WS, "a solution for the
+future — 10 workspaces with child sessions working at once, one window + one sidebar visible, a
+newly opened workspace tab must show immediately". Shipped:
+- **Server:** `LiveChannelHub` (`packages/session/src/runtime/live-channel/`) bridges the
+  SessionActivityFeed (replay on subscribe) + TurnEventBroadcaster (session:/trace: channels,
+  STANDING across turns via channel-ended + re-attach) into per-connection frames; ownership by the
+  api from the DB; heartbeat 25 s / close after 2 missed; per-connection (512) + per-user (32)
+  limits; backpressure close at 8 MB. Door `GET /api/live` on the GATEWAY (`apps/local-api/src/live/`)
+  via `@hono/node-server` 2.x built-in WS (+ `ws`); vite proxies the upgrade. Wire vocabulary in
+  `@vynel/contracts/chat/live-channel` (same ChatTurnEvent/SessionActivityEvent, framed). SSE routes
+  stay for CLI/MCP/voice-brain.
+- **Client:** `live-channel-store` (lazy connect, refcounted channels, backoff reconnect + full
+  re-subscribe, stall 60 s, pong); the feed composable + the rewritten `live-turn-registry` ride
+  it (attach gate + per-entry fetch loop deleted). SHOW IMMEDIATELY: seed from rows at channel ack
+  when the feed says the turn is on; re-seed on re-ack after a drop. `useContinuingSessionId`:
+  the continuous thread follows the scope's running PRIMARY turn before the head is bridged +
+  `useSessionDetail` continuing mode falls back to that segment (a fresh workspace's first turn
+  was invisible elsewhere until it ended).
+- Verified live (playwright): 3 browser tabs each with a running turn — all three sends landed
+  (the case that froze before), revisits render live, a workspace opened mid-turn shows the turn
+  at once with the true elapsed clock.
+⚠ RESIDUAL pool users per window: the voice EventSource (1) + the current view's own POST turn
+stream (≤1). Single Tauri window / single tab: 2 of 6 — fine. Worst case 3 windows each running a
+turn = 6 → polls stall while turns run (seen in the synthetic 3-tab smoke). Follow-ups in the
+plan: slice 4 server-owned turns (POST → 202 + `turn:<id>` channel; touches use-chat-turn + 3
+routes) and slice 5 voice relay (`voice:<surface>` via the api; the four-party audio ownership must
+survive). Kafi's call whether/when.
+
+## ✅ 2026-08-18 LOST-REPLY FIX — the "idle workspace" after the socket-diet; multi-tab budget still thin
 
 Kafi's report ("task to A, move to B, task, move to C, task → one workspace realtime, others idle")
 after `f57cb34` (watch sockets gated on the feed). Root-caused two ways, both verified:

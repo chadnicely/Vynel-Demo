@@ -77,6 +77,8 @@ export interface LiveChannelConnection {
 
 /** Close codes the hub uses (4000–4999 = application-defined). */
 export const LIVE_CHANNEL_CLOSE_CODES = {
+  /** RFC 6455 "going away" — the server is shutting down. */
+  goingAway: 1001,
   heartbeatTimeout: 4000,
   tooManyConnections: 4001,
   sendFailed: 4002,
@@ -138,9 +140,14 @@ export class LiveChannelHub {
     return connection
   }
 
-  /** Stop the heartbeat and close every socket — process shutdown / tests. */
+  /** Stop the heartbeat and close every socket — process shutdown / tests.
+   *  Closes with 1001 (going away): the node server's close() waits for
+   *  upgraded sockets, so a window left open would otherwise hold shutdown
+   *  until its own stall timer fires; clients back off and reconnect. */
   dispose(): void {
-    for (const state of [...this.connections.values()]) this.closeConnection(state)
+    for (const state of [...this.connections.values()]) {
+      this.closeConnection(state, LIVE_CHANNEL_CLOSE_CODES.goingAway, 'server shutting down')
+    }
     this.stopHeartbeat()
   }
 
@@ -247,12 +254,17 @@ export class LiveChannelHub {
       },
       replay: () => {
         if (detached) return
-        unsubscribe = this.deps.activityFeed.subscribe(
+        // The feed replays synchronously INSIDE subscribe(): a send failure
+        // mid-replay closes the connection (detach runs before the handle is
+        // assigned) — release the handle here in that case, never leak it.
+        const handle = this.deps.activityFeed.subscribe(
           state.userId,
           (event: SessionActivityEvent) => {
             this.send(state, { kind: 'event', channel: 'activity', event })
           },
         )
+        if (detached) handle()
+        else unsubscribe = handle
       },
     }
   }

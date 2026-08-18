@@ -25,7 +25,7 @@ import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-
 // desktop step in EVERY permission mode (ask only adds the card) and stays up
 // continuously until the turn ends or IDLE_HIDE_MS passes with no desktop
 // activity. Bare routes bypass AppShell, so this view mounts its OWN
-// /activity/stream subscription (the feed folds into the desktop-activity
+// activity subscription — its own live socket (the feed folds into the desktop-activity
 // store this view reads).
 //
 // LOOKING vs CONTROLLING is the distinction the header makes: reading the

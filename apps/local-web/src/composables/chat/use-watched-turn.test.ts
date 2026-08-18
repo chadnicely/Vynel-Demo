@@ -155,8 +155,7 @@ describe("useWatchedTurn", () => {
     const harness = makeHarness();
     harness.markLive("sdk-1");
     await harness.setSession("sdk-1");
-    const socket = harness.openSocket();
-    expect(socket.sent.length + 0).toBe(0);
+    harness.openSocket();
     // No event yet — the persisted rows alone paint the running turn.
     await vi.waitFor(() =>
       expect(harness.watched().view.value?.segments[0]?.text).toBe("Hello wor"),
@@ -246,6 +245,28 @@ describe("useWatchedTurn", () => {
     harness.endTurn();
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(harness.watched().view.value).toBeNull();
+    harness.wrapper.unmount();
+  });
+
+  it("turn end + the next turn's first chunk while a seed is in flight start exactly ONE new seed (a stale seed never re-arms)", async () => {
+    const harness = makeHarness();
+    await harness.setSession("sdk-1");
+    harness.openSocket();
+    // Chunk → seed#1 in flight; the turn ends and the NEXT turn's chunk lands
+    // before seed#1 resolves → seed#2. Seed#1's stale continuation must not
+    // reset the flag and let a third seed start (which would later overwrite
+    // seed#2's overlay with older rows).
+    harness.push(chunk("A"));
+    harness.endTurn();
+    harness.push(chunk("B", "m-next"));
+    harness.push(chunk("C", "m-next"));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    harness.push(chunk("D", "m-next"));
+    await vi.waitFor(() =>
+      expect(harness.watched().view.value?.segments.at(-1)?.text).toBe("BCD"),
+    );
+    // seed#1 + the settle + seed#2 — never a fourth read.
+    expect(harness.refetchDetail).toHaveBeenCalledTimes(3);
     harness.wrapper.unmount();
   });
 

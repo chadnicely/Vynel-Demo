@@ -7,6 +7,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Changed
+
+- **All live updates now ride ONE connection per window.** The activity feed
+  and every open thread's live watch used to hold their own HTTP stream —
+  and browsers (Tauri's WebView2 included) allow only six HTTP connections
+  per host across all windows, so a few running threads froze polls and even
+  sends with no error. They now share a single WebSocket per window
+  (`/api/live`), which sits outside that limit; ten workspaces with their
+  child sessions all live at once cost nothing extra. Opening a workspace
+  whose turn is already running shows the turn immediately, seeded from
+  what has already been persisted, and a fresh workspace's very first turn
+  is now visible from every window while it runs, not only the one that
+  sent it. A dropped socket reconnects with backoff and re-subscribes on its
+  own.
+
 ### Fixed
 
 - **A reply the engine produced without streaming it no longer vanishes.**

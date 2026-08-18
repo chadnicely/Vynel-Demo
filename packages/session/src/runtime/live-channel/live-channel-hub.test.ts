@@ -24,6 +24,8 @@ interface FakeSocket {
   /** Frames since the last take. */
   take: () => LiveChannelOutboundFrame[]
   failNextSend: boolean
+  /** Throw on any frame matching this (a scripted mid-stream failure). */
+  failWhen: ((frame: LiveChannelOutboundFrame) => boolean) | null
 }
 
 function fakeSocket(): FakeSocket {
@@ -31,9 +33,10 @@ function fakeSocket(): FakeSocket {
     frames: [],
     closes: [],
     failNextSend: false,
+    failWhen: null,
     transport: {
       send: (frame) => {
-        if (socket.failNextSend) {
+        if (socket.failNextSend || socket.failWhen?.(frame) === true) {
           socket.failNextSend = false
           throw new Error('socket gone')
         }
@@ -286,6 +289,36 @@ describe('LiveChannelHub', () => {
     turnEvents.end(sessionChannelKey('s1'))
     activityFeed.begin({ userId: USER, scopeKind: 'global', origin: 'web' }).end()
     expect(socket.take()).toEqual([])
+    hub.dispose()
+  })
+
+  it('dispose closes every socket with 1001 (going away) — shutdown never waits on a window', () => {
+    const { hub } = buildHub()
+    const a = fakeSocket()
+    const b = fakeSocket()
+    hub.connect({ userId: USER, transport: a.transport })
+    hub.connect({ userId: OTHER_USER, transport: b.transport })
+    hub.dispose()
+    expect(a.closes).toEqual([{ code: 1001, reason: 'server shutting down' }])
+    expect(b.closes).toEqual([{ code: 1001, reason: 'server shutting down' }])
+    expect(hub.connectionCount()).toBe(0)
+  })
+
+  it('a send failing DURING the activity replay releases the feed listener (no leak)', () => {
+    const { hub, activityFeed } = buildHub()
+    const running = activityFeed.begin({ userId: USER, scopeKind: 'global', sessionId: 'g1', origin: 'web' })
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    // The ack goes through; the replay's first frame (the running turn) blows up.
+    socket.failWhen = (frame) => frame.kind === 'event'
+    connection.handleMessage(subscribeMessage('activity'))
+    expect(socket.closes).toEqual([{ code: LIVE_CHANNEL_CLOSE_CODES.sendFailed, reason: 'send failed' }])
+    expect(hub.connectionCount()).toBe(0)
+    // Nothing must reach the dead socket afterwards — the listener is gone.
+    running.end()
+    activityFeed.begin({ userId: USER, scopeKind: 'global', sessionId: 'g2', origin: 'web' }).end()
+    expect(socket.frames.map((frame) => frame.kind)).toEqual(['subscribed'])
     hub.dispose()
   })
 

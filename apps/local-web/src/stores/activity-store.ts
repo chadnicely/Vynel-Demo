@@ -7,7 +7,7 @@ import type {
 
 // Cross-view liveness, two sources folded together:
 //  - local turns — streams THIS tab started (use-chat-turn counts them);
-//  - server turns — everything the /activity/stream feed reports in flight:
+//  - server turns — everything the activity feed (the live channel) reports in flight:
 //    another tab's turn, a Telegram/voice turn, a schedule fire.
 // The titlebar presence dot reads the union; the chat views read the server
 // map to go live (poll their thread) while a turn they didn't start runs in

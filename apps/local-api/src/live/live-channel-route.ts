@@ -91,10 +91,11 @@ export function createLiveChannelUpgradeHandler(deps: LiveChannelRouteDeps): Mid
           connection = null
         },
         onError(event) {
-          // Node has no global ErrorEvent — read the message structurally.
-          const message = (event as { message?: unknown }).message
+          // Node has no global ErrorEvent — the adapter's polyfill carries the
+          // thrown error under `error` (its `message` is empty).
+          const cause = (event as { error?: unknown }).error
           deps.logger.warn(
-            { error: typeof message === 'string' ? message : event.type },
+            { error: cause instanceof Error ? cause.message : String(cause ?? event.type) },
             'live-channel: socket error',
           )
           connection?.close()
