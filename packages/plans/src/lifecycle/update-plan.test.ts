@@ -64,6 +64,19 @@ describe('updatePlan', () => {
     })
   })
 
+  it('attaches and detaches a task via taskId', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const plan = insertPlan(db, makePlan(userId, workspaceId))
+
+      const attached = updatePlan(db, { planId: plan.id, userId, taskId: 'task-1' })
+      expect(attached.taskId).toBe('task-1')
+
+      const detached = updatePlan(db, { planId: plan.id, userId, taskId: null })
+      expect(detached.taskId).toBeNull()
+    })
+  })
+
   it('rejects a malformed planDate patch', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedUserWorkspace(db)

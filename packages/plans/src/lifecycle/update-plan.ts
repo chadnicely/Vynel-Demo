@@ -31,6 +31,7 @@ export interface UpdatePlanInput {
   detail?: string | null
   planDate?: string
   status?: PlanStatus
+  taskId?: string | null // null detaches the plan from its task
 }
 
 export function updatePlan(
@@ -70,6 +71,7 @@ export function updatePlan(
     assertValidPlanDate(input.planDate)
     patch.planDate = input.planDate
   }
+  if (input.taskId !== undefined) patch.taskId = input.taskId
 
   const isCompleting = input.status === 'done' && plan.status !== 'done'
   if (input.status !== undefined) {

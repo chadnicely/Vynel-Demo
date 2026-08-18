@@ -74,6 +74,24 @@ describe('updateTask', () => {
     })
   })
 
+  it('assigns and releases the working session via assignedSessionId', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const task = insertTask(db, makeTask(userId, workspaceId))
+
+      const assigned = updateTask(db, {
+        taskId: task.id,
+        userId,
+        status: 'in-progress',
+        assignedSessionId: 'session-1',
+      })
+      expect(assigned.assignedSessionId).toBe('session-1')
+
+      const released = updateTask(db, { taskId: task.id, userId, assignedSessionId: null })
+      expect(released.assignedSessionId).toBeNull()
+    })
+  })
+
   it('404s identically on missing and not-owned tasks', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedUserWorkspace(db)

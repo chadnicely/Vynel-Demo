@@ -32,6 +32,7 @@ export interface CreatePlanInput {
   planDate: string // YYYY-MM-DD — the day this plan belongs to
   source: PlanSource
   sessionId?: string // the chat session whose turn created the plan
+  taskId?: string // loose ref — the task this plan executes (NO FK)
 }
 
 export function createPlan(
@@ -66,6 +67,7 @@ export function createPlan(
       status: 'open',
       source: input.source,
       sessionId: input.sessionId ?? null,
+      taskId: input.taskId ?? null,
       completedAt: null,
       createdAt: now,
       updatedAt: now,

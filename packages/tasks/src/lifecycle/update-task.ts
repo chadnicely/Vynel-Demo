@@ -27,6 +27,9 @@ export interface UpdateTaskInput {
   detail?: string | null
   status?: TaskStatus
   planId?: string | null // null detaches the task from its plan
+  // The session WORKING the task — server-stamped at the route from the
+  // turn-session header on pickup, never model-supplied; null releases it.
+  assignedSessionId?: string | null
 }
 
 export function updateTask(
@@ -64,6 +67,7 @@ export function updateTask(
   }
 
   if (input.planId !== undefined) patch.planId = input.planId
+  if (input.assignedSessionId !== undefined) patch.assignedSessionId = input.assignedSessionId
 
   const isCompleting = input.status === 'done' && task.status !== 'done'
   if (input.status !== undefined) {

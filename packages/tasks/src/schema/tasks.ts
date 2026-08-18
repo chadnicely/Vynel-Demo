@@ -41,6 +41,11 @@ export const tasks = table(
     // sibling leaf; NO FK by invariant). A deleted plan leaves a dangling id
     // here harmlessly, like sessionId.
     planId: text(),
+    // Loose cross-domain ref — the session WORKING the task (vs `sessionId`,
+    // the session that CREATED it). Server-stamped from the turn-session
+    // header on pickup, never model-supplied; data-ready for the future
+    // workspace→session task feeding (docs/module-notes/task-execution.md).
+    assignedSessionId: text(),
     completedAt: timestamp(), // stamped on → 'done'; cleared when reopened
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),

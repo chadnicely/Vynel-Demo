@@ -49,6 +49,7 @@ export default defineConfig({
     '../schedules/src/schema/schedule-runs.ts',
     '../tasks/src/schema/tasks.ts',
     '../tasks/src/schema/session-todos.ts',
+    '../tasks/src/schema/task-steps.ts',
     '../plans/src/schema/plans.ts',
     '../phases/src/schema/phases.ts',
     '../features/src/schema/features.ts',

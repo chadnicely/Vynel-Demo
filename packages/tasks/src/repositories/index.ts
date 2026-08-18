@@ -23,3 +23,14 @@ export {
   type NewSessionTodo,
   type SessionTodoStatus,
 } from './session-todos.js'
+export {
+  listTaskSteps,
+  findTaskStepById,
+  insertTaskStep,
+  updateTaskStep,
+  hardDeleteTaskStep,
+  hardDeleteTaskStepsForTask,
+  type TaskStep,
+  type NewTaskStep,
+  type TaskStepStatus,
+} from './task-steps.js'

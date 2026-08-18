@@ -55,3 +55,27 @@ export {
 export { updateTodoStatus, type UpdateTodoStatusInput } from './todos/update-todo-status.js'
 export { deleteTodo } from './todos/delete-todo.js'
 export { listTodosForSession } from './todos/list-todos-for-session.js'
+
+// The TASK-STEPS half of the leaf (`task_steps`) — a task's durable
+// plan-of-record on the task panel, carrying the full work linkage
+// (task/plan/session — docs/module-notes/task-execution.md).
+export type { TaskStep, TaskStepStatus } from './repositories/task-steps.js'
+
+export {
+  TASK_STEPS_REPLACED,
+  TASK_STEP_UPDATED,
+  TASK_STEP_DELETED,
+  type TaskStepsReplacedPayload,
+  type TaskStepUpdatedPayload,
+  type TaskStepDeletedPayload,
+} from './task-steps-events.js'
+
+export {
+  replaceTaskSteps,
+  type ReplaceTaskStepsInput,
+  STEP_TITLE_MAX_LENGTH,
+  MAX_STEPS_PER_TASK,
+} from './steps/replace-task-steps.js'
+export { updateStepStatus, type UpdateStepStatusInput } from './steps/update-step-status.js'
+export { deleteStep } from './steps/delete-step.js'
+export { listStepsForTask } from './steps/list-steps-for-task.js'

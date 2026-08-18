@@ -53,6 +53,7 @@ export function makePlan(
     status: 'open',
     source: 'assistant',
     sessionId: null,
+    taskId: null,
     completedAt: null,
     createdAt: now,
     updatedAt: now,

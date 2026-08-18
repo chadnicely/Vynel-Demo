@@ -18,6 +18,7 @@ describe('createPlan', () => {
         planDate: '2026-07-24',
         source: 'assistant',
         sessionId: 'session-1',
+        taskId: 'task-1',
       })
 
       expect(plan.title).toBe('Ship the spring campaign') // trimmed
@@ -25,6 +26,7 @@ describe('createPlan', () => {
       expect(plan.planDate).toBe('2026-07-24')
       expect(plan.completedAt).toBeNull()
       expect(plan.sessionId).toBe('session-1')
+      expect(plan.taskId).toBe('task-1')
 
       const events = listOutboxEventsByType(db, PLAN_CREATED)
       expect(events).toHaveLength(1)

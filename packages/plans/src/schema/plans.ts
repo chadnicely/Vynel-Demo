@@ -41,6 +41,11 @@ export const plans = table(
     // Loose cross-domain ref — the chat session whose turn created the plan
     // (NOT a FK).
     sessionId: text(),
+    // Loose cross-feature ref — the task this plan EXECUTES (`tasks` is a
+    // sibling leaf; NO FK). The execution-flow direction: a task's plan hangs
+    // off the task (docs/module-notes/task-execution.md); the older
+    // `tasks.planId` day-planning relation stays for the date-wise list.
+    taskId: text(),
     completedAt: timestamp(), // stamped on → 'done'; cleared when reopened
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),
