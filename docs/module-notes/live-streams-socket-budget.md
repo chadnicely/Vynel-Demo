@@ -35,7 +35,7 @@ this note is what a follow-up session can pick up.*
 - Also in that commit: `liveClockStartMs` (the patching / continuing chip counts its own phase)
   and the session thread's "Needs input" pill (`SessionThreadView` → `ThreadStream`).
 
-## Left for a follow-up (not built — pick by need)
+## Left for a follow-up — SUPERSEDED 2026-08-19 by `live-channel.md` (the researched plan: one multiplexed WebSocket per window). Kept for the record:
 
 1. **Share the activity feed across tabs** — a `SharedWorker` (WebView2 + Chromium both support
    it) owning the one `/activity/stream` and fanning frames to tabs via `BroadcastChannel`; a
