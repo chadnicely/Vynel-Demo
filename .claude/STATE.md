@@ -3,7 +3,7 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) LIVE CHANNEL — ALL SLICES SHIPPED (1-3 `9093297` `8fb2545` `16a5797` · 4 `1ac30e6` · 5 `8b09804`; delegation env knob `2bf7b3a`)
+## ✅ 2026-08-19 (latest) LIVE CHANNEL — ALL SLICES SHIPPED (1-3 `9093297` `8fb2545` `16a5797` · 4 `1ac30e6` · 5 `8b09804` · review pass `3b97ed2`; delegation env knob `2bf7b3a`)
 
 Slice 4 = the CLIENT-side detach (no route change): `use-chat-turn`/`use-session-turn` take
 `detachWhen` — after the server's FIRST frame (never before, or the abort cancels the send) and
@@ -19,6 +19,10 @@ window); hub `voice` source; contracts `voice/daemon-events.ts`; `use-voice-daem
 the store; SSE parser moved to `@vynel/sdk` (voice brain client + relay). Per window at idle:
 ZERO HTTP-pool connections; a send holds one for its first frames only. Kafi's env knob
 `VYNEL_MAX_CONCURRENT_DELEGATIONS` (default 3) for the delegated-run pool until the setting arc.
+Review pass `3b97ed2`: the send queue gates on the RAW own view (a hidden own turn queued before,
+must still — the combined-view gate silently dropped a send); poll gates read `hasSharedFold`
+(never the suppression-resolved view — TDZ at setup); Stop reaches the displayed session for a
+watched-only/detached turn; the relay forgets state on link loss + warns once per outage.
 Remaining ideas (not planned): Jarvis on-demand connect (now free anyway), `system/api_retry`
 "retrying…" state, macOS WKWebView check, remote-engine bearer on the upgrade.
 
