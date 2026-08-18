@@ -2,6 +2,11 @@
 // from this process) it hosts the whole desktop experience; in dev it is a
 // transparent superset of the bare api. Route order is the contract:
 //
+//   /api/live -> the live channel's WebSocket upgrade (one socket per window,
+//               many subscriptions — docs/module-notes/live-channel.md). Lives
+//               HERE, not in the api app: the node adapter completes the
+//               upgrade through the request's own env, which the fetch
+//               re-dispatch below cannot carry.
 //   /api/*   -> the api app, prefix stripped (the SDK client's baseUrl '/api'
 //               — identical semantics to the Vite dev proxy, which forwards
 //               /api without rewriting)
@@ -26,6 +31,7 @@
 
 import { timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
+import type { MiddlewareHandler } from 'hono'
 import type { Logger } from 'pino'
 import { resolveWebUiFilePath, respondWithWebUiFile } from './static-web-ui.js'
 
@@ -42,6 +48,9 @@ export interface CreateGatewayAppOptions {
   readonly logger: Logger
   /** Test seam for the voice-daemon proxy. */
   readonly fetchVoiceDaemon?: typeof fetch
+  /** The live channel's upgrade handler (createLiveChannelUpgradeHandler);
+   *  omitted = no live channel (route-shape tests). */
+  readonly liveChannelUpgrade?: MiddlewareHandler
 }
 
 // Hop-scoped headers the proxy must not forward: fetch computes its own
@@ -79,6 +88,10 @@ export function createGatewayApp(options: CreateGatewayAppOptions): Hono {
       }
       return next()
     })
+  }
+
+  if (options.liveChannelUpgrade !== undefined) {
+    gateway.get('/api/live', options.liveChannelUpgrade)
   }
 
   gateway.all('/api/*', (c) => {

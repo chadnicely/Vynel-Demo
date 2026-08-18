@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: env.LOCAL_API_URL,
           changeOrigin: true,
+          // The live channel (/api/live) is a WebSocket upgrade — forward it.
+          ws: true,
         },
         // The voice daemon's overlay channel (SSE wake/state events + session-end).
         "/voice": {

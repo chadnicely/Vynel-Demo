@@ -8,7 +8,8 @@
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { serve } from '@hono/node-server'
+import { serve, type WebSocketServerLike } from '@hono/node-server'
+import { WebSocketServer } from 'ws'
 import pino from 'pino'
 import {
   createDatabase,
@@ -49,6 +50,10 @@ import { loadEnv } from './env.js'
 import { createApp } from './app.js'
 import { resolveServerPayloadArchive } from './server-payload-archive.js'
 import { createGatewayApp } from './gateway.js'
+import {
+  buildLiveChannelAuthorizer,
+  createLiveChannelUpgradeHandler,
+} from './live/live-channel-route.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
 import { startSchedulesService } from './services/schedules-service.js'
@@ -69,6 +74,7 @@ import {
   SessionTargetLocks,
 } from '@vynel/session/delegation'
 import {
+  LiveChannelHub,
   SessionActivityFeed,
   buildSessionTurnRecorder,
   reapOrphanedSessionTurns,
@@ -443,8 +449,22 @@ export async function boot(): Promise<void> {
   if (env.VYNEL_AUTH_TOKEN !== undefined) {
     logger.info('api boot: bearer gate active (remote engine mode) — /health stays open')
   }
+  // ONE live-channel hub per process — every window's single WebSocket lands
+  // here and subscribes to the feed / session / trace channels it displays.
+  const liveChannelHub = new LiveChannelHub({
+    turnEvents,
+    activityFeed,
+    authorizeChannel: buildLiveChannelAuthorizer(db),
+    logger,
+  })
+  const liveChannelUpgrade = createLiveChannelUpgradeHandler({
+    hub: liveChannelHub,
+    resolveUserId: () => getOrCreateLocalUser(db, { logger }).id,
+    logger,
+  })
   const gateway = createGatewayApp({
     apiApp: app,
+    liveChannelUpgrade,
     ...(webUiDistDir !== undefined ? { webUiDistDir } : {}),
     voiceDaemonUrl: env.VYNEL_VOICE_DAEMON_URL,
     appVersion,
@@ -459,7 +479,19 @@ export async function boot(): Promise<void> {
     env.VYNEL_PORT_BASE,
     env.VYNEL_USER_DATA_DIR ?? defaultUserDataDir(),
   )
-  const server = serve({ fetch: gateway.fetch, hostname: '127.0.0.1', port: env.PORT }, (info) => {
+  const server = serve(
+    {
+      fetch: gateway.fetch,
+      hostname: '127.0.0.1',
+      port: env.PORT,
+      // The live channel's upgrade path (the adapter completes the handshake).
+      // `@types/ws` types `noServer` as optional; the adapter's structural type
+      // wants it definite — it is set right here, so the cast states a fact.
+      websocket: {
+        server: new WebSocketServer({ noServer: true }) as unknown as WebSocketServerLike,
+      },
+    },
+    (info) => {
     logger.info({ port: info.port }, 'api listening')
     // Advertise where we ACTUALLY bound — clients (cli/mcp/voice/shell)
     // resolve through this when no explicit URL is set, which is what makes
@@ -473,11 +505,13 @@ export async function boot(): Promise<void> {
         'could not write the engine port file — clients fall back to the band default port',
       )
     }
-  })
+  },
+  )
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'api shutdown initiated')
     removePortFileIfOwn(portFilePath)
+    liveChannelHub.dispose()
     server.close(() => {
       schedulesService.stop()
       knowledgeIndexingService.stop()

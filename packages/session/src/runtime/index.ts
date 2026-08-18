@@ -153,3 +153,18 @@ export {
 // The one ChatTurnEvent → feed-step mapping every producer taps through, so the
 // feed narrates identically no matter which surface drove the turn.
 export { publishTurnActivityStep, turnStepFromChatTurnEvent } from './activity-turn-steps.js'
+
+// The live channel's server half (one WebSocket per window, many
+// subscriptions): the api's upgrade route hands each socket to the hub; the
+// hub bridges the activity feed + the turn broadcaster into per-connection
+// frames. See `docs/module-notes/live-channel.md`.
+export {
+  LiveChannelHub,
+  DEFAULT_LIVE_CHANNEL_LIMITS,
+  LIVE_CHANNEL_CLOSE_CODES,
+  type LiveChannelConnection,
+  type LiveChannelHubDeps,
+  type LiveChannelLimits,
+  type LiveChannelOutboundFrame,
+  type LiveChannelTransport,
+} from './live-channel/live-channel-hub.js'

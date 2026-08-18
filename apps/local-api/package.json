@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^2.1.1",
     "@hono/zod-validator": "^0.4.3",
     "@vynel/agents": "workspace:*",
     "@vynel/approvals": "workspace:*",
@@ -60,10 +60,12 @@
     "hono": "^4.6.0",
     "hono-openapi": "^0.4.0",
     "pino": "^9.5.0",
+    "ws": "^8.21.1",
     "zod": "^3.23.0",
     "zod-openapi": "^4.0.0"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.1",
     "@vynel/testing": "workspace:*",
     "jszip": "^3.10.0",
     "tsx": "^4.19.0",

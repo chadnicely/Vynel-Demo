@@ -1,0 +1,339 @@
+import { describe, expect, it } from 'vitest'
+import type { ChatTurnEvent } from '@vynel/chat'
+import type { ParsedLiveChannelKey } from '@vynel/contracts/chat/live-channel'
+import { TurnEventBroadcaster, traceChannelKey } from '../../delegation/turn-event-broadcaster.js'
+import { SessionActivityFeed } from '../session-activity-feed.js'
+import { sessionChannelKey } from '../session-turn-channel.js'
+import {
+  LIVE_CHANNEL_CLOSE_CODES,
+  LiveChannelHub,
+  type LiveChannelOutboundFrame,
+} from './live-channel-hub.js'
+
+const USER = 'user-1'
+const OTHER_USER = 'user-2'
+
+function textChunk(messageId: string, textDelta: string): ChatTurnEvent {
+  return { kind: 'text-chunk', messageId, textDelta }
+}
+
+interface FakeSocket {
+  frames: LiveChannelOutboundFrame[]
+  closes: Array<{ code: number; reason: string }>
+  transport: { send: (frame: LiveChannelOutboundFrame) => void; close: (code: number, reason: string) => void }
+  /** Frames since the last take. */
+  take: () => LiveChannelOutboundFrame[]
+  failNextSend: boolean
+}
+
+function fakeSocket(): FakeSocket {
+  const socket: FakeSocket = {
+    frames: [],
+    closes: [],
+    failNextSend: false,
+    transport: {
+      send: (frame) => {
+        if (socket.failNextSend) {
+          socket.failNextSend = false
+          throw new Error('socket gone')
+        }
+        socket.frames.push(frame)
+      },
+      close: (code, reason) => socket.closes.push({ code, reason }),
+    },
+    take: () => socket.frames.splice(0),
+  }
+  return socket
+}
+
+function subscribeMessage(...channels: string[]): string {
+  return JSON.stringify({ op: 'subscribe', channels })
+}
+function unsubscribeMessage(...channels: string[]): string {
+  return JSON.stringify({ op: 'unsubscribe', channels })
+}
+
+function buildHub(options: {
+  authorize?: (userId: string, channel: ParsedLiveChannelKey) => boolean
+  now?: () => number
+  limits?: { maxSubscriptionsPerConnection?: number; maxConnectionsPerUser?: number; heartbeatIntervalMs?: number }
+} = {}) {
+  const turnEvents = new TurnEventBroadcaster<ChatTurnEvent>()
+  const activityFeed = new SessionActivityFeed()
+  const hub = new LiveChannelHub({
+    turnEvents,
+    activityFeed,
+    authorizeChannel: options.authorize ?? (() => true),
+    ...(options.now !== undefined ? { now: options.now } : {}),
+    ...(options.limits !== undefined ? { limits: options.limits } : {}),
+  })
+  return { hub, turnEvents, activityFeed }
+}
+
+describe('LiveChannelHub', () => {
+  it('greets with hello and answers subscribe/unsubscribe with acks', () => {
+    const { hub } = buildHub()
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    expect(socket.take()).toEqual([
+      { kind: 'hello', connectionId: connection.connectionId, protocolVersion: 1 },
+    ])
+
+    connection.handleMessage(subscribeMessage('session:s1'))
+    expect(socket.take()).toEqual([{ kind: 'subscribed', channel: 'session:s1' }])
+    expect(connection.subscribedChannels()).toEqual(['session:s1'])
+
+    // Idempotent: a second subscribe re-acks and holds ONE listener.
+    connection.handleMessage(subscribeMessage('session:s1'))
+    expect(socket.take()).toEqual([{ kind: 'subscribed', channel: 'session:s1' }])
+    expect(hub.subscriptionCount()).toBe(1)
+
+    connection.handleMessage(unsubscribeMessage('session:s1'))
+    expect(socket.take()).toEqual([{ kind: 'unsubscribed', channel: 'session:s1' }])
+    expect(connection.subscribedChannels()).toEqual([])
+    hub.dispose()
+  })
+
+  it('fans a session channel out to the subscribed sockets only, in order', () => {
+    const { hub, turnEvents } = buildHub()
+    const watcher = fakeSocket()
+    const bystander = fakeSocket()
+    const watching = hub.connect({ userId: USER, transport: watcher.transport })
+    hub.connect({ userId: USER, transport: bystander.transport })
+    watcher.take()
+    bystander.take()
+
+    watching.handleMessage(subscribeMessage('session:s1'))
+    watcher.take()
+    turnEvents.publish(sessionChannelKey('s1'), textChunk('m1', 'Hel'))
+    turnEvents.publish(sessionChannelKey('s1'), textChunk('m1', 'lo'))
+    turnEvents.publish(sessionChannelKey('s2'), textChunk('m9', 'other session'))
+
+    expect(watcher.take()).toEqual([
+      { kind: 'event', channel: 'session:s1', event: textChunk('m1', 'Hel') },
+      { kind: 'event', channel: 'session:s1', event: textChunk('m1', 'lo') },
+    ])
+    expect(bystander.take()).toEqual([])
+    hub.dispose()
+  })
+
+  it('keeps a session subscription STANDING across turns: channel-ended, then the next turn arrives', () => {
+    const { hub, turnEvents } = buildHub()
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    connection.handleMessage(subscribeMessage('session:s1'))
+    socket.take()
+
+    turnEvents.publish(sessionChannelKey('s1'), textChunk('m1', 'first turn'))
+    turnEvents.end(sessionChannelKey('s1'))
+    turnEvents.publish(sessionChannelKey('s1'), textChunk('m2', 'second turn'))
+    turnEvents.end(sessionChannelKey('s1'))
+
+    expect(socket.take()).toEqual([
+      { kind: 'event', channel: 'session:s1', event: textChunk('m1', 'first turn') },
+      { kind: 'channel-ended', channel: 'session:s1' },
+      { kind: 'event', channel: 'session:s1', event: textChunk('m2', 'second turn') },
+      { kind: 'channel-ended', channel: 'session:s1' },
+    ])
+    expect(connection.subscribedChannels()).toEqual(['session:s1'])
+
+    // Unsubscribed → the next turn is silent, and no listener lingers.
+    connection.handleMessage(unsubscribeMessage('session:s1'))
+    socket.take()
+    turnEvents.publish(sessionChannelKey('s1'), textChunk('m3', 'unheard'))
+    turnEvents.end(sessionChannelKey('s1'))
+    expect(socket.take()).toEqual([])
+    hub.dispose()
+  })
+
+  it('carries trace channels on the delegation trace key', () => {
+    const { hub, turnEvents } = buildHub()
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    connection.handleMessage(subscribeMessage('trace:p1'))
+    socket.take()
+    turnEvents.publish(traceChannelKey('p1'), textChunk('m1', 'traced'))
+    expect(socket.take()).toEqual([
+      { kind: 'event', channel: 'trace:p1', event: textChunk('m1', 'traced') },
+    ])
+    hub.dispose()
+  })
+
+  it('answers the activity subscribe with the in-flight replay, then live frames', () => {
+    const { hub, activityFeed } = buildHub()
+    const running = activityFeed.begin({
+      userId: USER,
+      scopeKind: 'workspace',
+      workspaceId: 'w1',
+      sessionId: 's1',
+      origin: 'web',
+    })
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    connection.handleMessage(subscribeMessage('activity'))
+    const frames = socket.take()
+    expect(frames[0]).toEqual({ kind: 'subscribed', channel: 'activity' })
+    expect(frames[1]).toMatchObject({
+      kind: 'event',
+      channel: 'activity',
+      event: { kind: 'turn-started', turnId: running.turnId, sessionId: 's1' },
+    })
+
+    running.end()
+    expect(socket.take()).toEqual([
+      {
+        kind: 'event',
+        channel: 'activity',
+        event: { kind: 'turn-ended', turnId: running.turnId, sessionId: 's1', outcome: 'ended' },
+      },
+    ])
+
+    // Another user's turns never reach this socket.
+    const foreign = activityFeed.begin({
+      userId: OTHER_USER,
+      scopeKind: 'global',
+      sessionId: 'g1',
+      origin: 'web',
+    })
+    expect(socket.take()).toEqual([])
+    foreign.end()
+    hub.dispose()
+  })
+
+  it('refuses a session/trace the user may not watch with the not_found shape (no listener attached)', () => {
+    const { hub, turnEvents } = buildHub({
+      authorize: (userId, channel) => channel.kind === 'session' && channel.sessionId === 'mine',
+    })
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    connection.handleMessage(subscribeMessage('session:theirs', 'trace:p1', 'session:mine'))
+    expect(socket.take()).toEqual([
+      {
+        kind: 'error',
+        channel: 'session:theirs',
+        code: 'not_found',
+        message: 'No session to watch under "session:theirs".',
+      },
+      {
+        kind: 'error',
+        channel: 'trace:p1',
+        code: 'not_found',
+        message: 'No trace to watch under "trace:p1".',
+      },
+      { kind: 'subscribed', channel: 'session:mine' },
+    ])
+    turnEvents.publish(sessionChannelKey('theirs'), textChunk('m1', 'secret'))
+    expect(socket.take()).toEqual([])
+    expect(connection.subscribedChannels()).toEqual(['session:mine'])
+    hub.dispose()
+  })
+
+  it('rejects malformed messages and unknown channels without dropping the socket', () => {
+    const { hub } = buildHub()
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    connection.handleMessage('garbage')
+    connection.handleMessage(subscribeMessage('turn:x'))
+    const frames = socket.take()
+    expect(frames.map((frame) => frame.kind)).toEqual(['error', 'error'])
+    expect(frames[0]).toMatchObject({ code: 'invalid_message', channel: null })
+    expect(frames[1]).toMatchObject({ code: 'unknown_channel', channel: 'turn:x' })
+    expect(hub.connectionCount()).toBe(1)
+    hub.dispose()
+  })
+
+  it('caps subscriptions per connection and sockets per user', () => {
+    const { hub } = buildHub({ limits: { maxSubscriptionsPerConnection: 2, maxConnectionsPerUser: 1 } })
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    connection.handleMessage(subscribeMessage('session:a', 'session:b', 'session:c'))
+    expect(socket.take().map((frame) => frame.kind)).toEqual(['subscribed', 'subscribed', 'error'])
+    expect(connection.subscribedChannels()).toEqual(['session:a', 'session:b'])
+
+    const second = fakeSocket()
+    hub.connect({ userId: USER, transport: second.transport })
+    expect(second.frames).toEqual([]) // no hello for a refused socket
+    expect(second.closes).toEqual([
+      { code: LIVE_CHANNEL_CLOSE_CODES.tooManyConnections, reason: 'too many connections' },
+    ])
+    expect(hub.connectionCount()).toBe(1)
+
+    // A different user is unaffected.
+    const other = fakeSocket()
+    hub.connect({ userId: OTHER_USER, transport: other.transport })
+    expect(other.frames.map((frame) => frame.kind)).toEqual(['hello'])
+    hub.dispose()
+  })
+
+  it('releases every subscription when the socket closes — no listener survives', () => {
+    const { hub, turnEvents, activityFeed } = buildHub()
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    connection.handleMessage(subscribeMessage('session:s1', 'trace:p1', 'activity'))
+    expect(hub.subscriptionCount()).toBe(3)
+    socket.take()
+
+    connection.close()
+    connection.close() // idempotent
+    expect(hub.connectionCount()).toBe(0)
+    expect(hub.subscriptionCount()).toBe(0)
+
+    turnEvents.publish(sessionChannelKey('s1'), textChunk('m1', 'after close'))
+    turnEvents.end(sessionChannelKey('s1'))
+    activityFeed.begin({ userId: USER, scopeKind: 'global', origin: 'web' }).end()
+    expect(socket.take()).toEqual([])
+    hub.dispose()
+  })
+
+  it('a failing send closes that connection alone', () => {
+    const { hub, turnEvents } = buildHub()
+    const flaky = fakeSocket()
+    const healthy = fakeSocket()
+    const flakyConnection = hub.connect({ userId: USER, transport: flaky.transport })
+    const healthyConnection = hub.connect({ userId: USER, transport: healthy.transport })
+    flakyConnection.handleMessage(subscribeMessage('session:s1'))
+    healthyConnection.handleMessage(subscribeMessage('session:s1'))
+    flaky.take()
+    healthy.take()
+
+    flaky.failNextSend = true
+    turnEvents.publish(sessionChannelKey('s1'), textChunk('m1', 'boom'))
+    expect(flaky.closes).toEqual([{ code: LIVE_CHANNEL_CLOSE_CODES.sendFailed, reason: 'send failed' }])
+    expect(healthy.take()).toEqual([
+      { kind: 'event', channel: 'session:s1', event: textChunk('m1', 'boom') },
+    ])
+    expect(hub.connectionCount()).toBe(1)
+    hub.dispose()
+  })
+
+  it('heartbeat: pings live sockets, closes one silent for two beats, any inbound message counts', () => {
+    let nowMs = 1_000_000
+    const { hub } = buildHub({ now: () => nowMs, limits: { heartbeatIntervalMs: 1_000 } })
+    const quiet = fakeSocket()
+    const chatty = fakeSocket()
+    hub.connect({ userId: USER, transport: quiet.transport })
+    const chattyConnection = hub.connect({ userId: USER, transport: chatty.transport })
+    quiet.take()
+    chatty.take()
+
+    nowMs += 1_500
+    hub.beat()
+    expect(quiet.take()).toEqual([{ kind: 'ping' }])
+    expect(chatty.take()).toEqual([{ kind: 'ping' }])
+    chattyConnection.handleMessage(JSON.stringify({ op: 'pong' }))
+
+    nowMs += 1_000 // quiet is now 2.5 s silent (> 2 beats); chatty answered 1 s ago
+    hub.beat()
+    expect(quiet.closes).toEqual([
+      { code: LIVE_CHANNEL_CLOSE_CODES.heartbeatTimeout, reason: 'heartbeat timeout' },
+    ])
+    expect(chatty.closes).toEqual([])
+    expect(chatty.take()).toEqual([{ kind: 'ping' }])
+    expect(hub.connectionCount()).toBe(1)
+    hub.dispose()
+  })
+})
