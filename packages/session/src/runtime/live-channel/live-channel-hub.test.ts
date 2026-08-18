@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatTurnEvent } from '@vynel/chat'
 import type { ParsedLiveChannelKey } from '@vynel/contracts/chat/live-channel'
+import type { VoiceRelayEvent } from '@vynel/contracts/voice/daemon-events'
 import { TurnEventBroadcaster, traceChannelKey } from '../../delegation/turn-event-broadcaster.js'
 import { SessionActivityFeed } from '../session-activity-feed.js'
 import { sessionChannelKey } from '../session-turn-channel.js'
@@ -8,6 +9,7 @@ import {
   LIVE_CHANNEL_CLOSE_CODES,
   LiveChannelHub,
   type LiveChannelOutboundFrame,
+  type LiveChannelVoiceSource,
 } from './live-channel-hub.js'
 
 const USER = 'user-1'
@@ -60,6 +62,7 @@ function buildHub(options: {
   authorize?: (userId: string, channel: ParsedLiveChannelKey) => boolean
   now?: () => number
   limits?: { maxSubscriptionsPerConnection?: number; maxConnectionsPerUser?: number; heartbeatIntervalMs?: number }
+  voice?: LiveChannelVoiceSource
 } = {}) {
   const turnEvents = new TurnEventBroadcaster<ChatTurnEvent>()
   const activityFeed = new SessionActivityFeed()
@@ -69,6 +72,7 @@ function buildHub(options: {
     authorizeChannel: options.authorize ?? (() => true),
     ...(options.now !== undefined ? { now: options.now } : {}),
     ...(options.limits !== undefined ? { limits: options.limits } : {}),
+    ...(options.voice !== undefined ? { voice: options.voice } : {}),
   })
   return { hub, turnEvents, activityFeed }
 }
@@ -319,6 +323,45 @@ describe('LiveChannelHub', () => {
     running.end()
     activityFeed.begin({ userId: USER, scopeKind: 'global', sessionId: 'g2', origin: 'web' }).end()
     expect(socket.frames.map((frame) => frame.kind)).toEqual(['subscribed'])
+    hub.dispose()
+  })
+
+  it('voice channels ride the relay source: ack, then the replay, then live frames; released on unsubscribe', () => {
+    const listeners = new Map<string, Set<(event: VoiceRelayEvent) => void>>()
+    const voice: LiveChannelVoiceSource = {
+      subscribe: (surface, listener) => {
+        const set = listeners.get(surface) ?? new Set()
+        set.add(listener)
+        listeners.set(surface, set)
+        listener({ kind: 'daemon-link', connected: true }) // synchronous replay
+        return () => set.delete(listener)
+      },
+    }
+    const { hub } = buildHub({ voice })
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    connection.handleMessage(subscribeMessage('voice:app'))
+    expect(socket.take()).toEqual([
+      { kind: 'subscribed', channel: 'voice:app' },
+      { kind: 'event', channel: 'voice:app', event: { kind: 'daemon-link', connected: true } },
+    ])
+    for (const listener of listeners.get('app') ?? []) listener({ kind: 'speak', text: 'hi' })
+    expect(socket.take()).toEqual([
+      { kind: 'event', channel: 'voice:app', event: { kind: 'speak', text: 'hi' } },
+    ])
+    connection.handleMessage(unsubscribeMessage('voice:app'))
+    expect(listeners.get('app')?.size).toBe(0)
+    hub.dispose()
+  })
+
+  it('without a voice source a voice subscribe answers not_found', () => {
+    const { hub } = buildHub()
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    connection.handleMessage(subscribeMessage('voice:jarvis'))
+    expect(socket.take()).toMatchObject([{ kind: 'error', code: 'not_found', channel: 'voice:jarvis' }])
     hub.dispose()
   })
 

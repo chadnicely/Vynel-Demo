@@ -278,6 +278,9 @@ importers:
       '@vynel/schedules':
         specifier: workspace:*
         version: link:../../packages/schedules
+      '@vynel/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@vynel/sealing':
         specifier: workspace:*
         version: link:../../packages/sealing
@@ -473,6 +476,9 @@ importers:
       '@vynel/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@vynel/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@vynel/voice':
         specifier: workspace:*
         version: link:../../packages/voice

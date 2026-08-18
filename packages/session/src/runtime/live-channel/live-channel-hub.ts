@@ -21,6 +21,7 @@ import {
   type ParsedLiveChannelKey,
 } from '@vynel/contracts/chat/live-channel'
 import type { SessionActivityEvent } from '@vynel/contracts/chat/session-activity'
+import type { VoiceRelayEvent, VoiceSurface } from '@vynel/contracts/voice/daemon-events'
 import type { StructuralLogger } from '@vynel/logger'
 import type { TurnEventBroadcaster } from '../../delegation/turn-event-broadcaster.js'
 import { traceChannelKey } from '../../delegation/turn-event-broadcaster.js'
@@ -33,6 +34,7 @@ import { sessionChannelKey } from '../session-turn-channel.js'
 export type LiveChannelOutboundFrame =
   | Exclude<LiveChannelServerFrame, { kind: 'event' }>
   | { kind: 'event'; channel: 'activity'; event: SessionActivityEvent }
+  | { kind: 'event'; channel: `voice:${VoiceSurface}`; event: VoiceRelayEvent }
   | { kind: 'event'; channel: LiveChannelKey; event: ChatTurnEvent }
 
 export interface LiveChannelTransport {
@@ -53,9 +55,20 @@ export const DEFAULT_LIVE_CHANNEL_LIMITS: LiveChannelLimits = {
   heartbeatIntervalMs: 25_000,
 }
 
+/** The voice daemon's events per surface — the api's relay (ONE daemon link
+ *  per surface, however many windows listen). The source owns the delivery
+ *  rules (state to every listener; wake/speak to the newest — the daemon's
+ *  single-delivery contract) and replays the current link/state to a new
+ *  listener synchronously inside subscribe(). */
+export interface LiveChannelVoiceSource {
+  subscribe: (surface: VoiceSurface, listener: (event: VoiceRelayEvent) => void) => () => void
+}
+
 export interface LiveChannelHubDeps {
   turnEvents: TurnEventBroadcaster<ChatTurnEvent>
   activityFeed: SessionActivityFeed
+  /** Omitted = voice channels answer `not_found` (no daemon relay wired). */
+  voice?: LiveChannelVoiceSource
   /** May this user watch this channel? Sync — a DB ownership read. The
    *  activity channel is always the user's own and never asked. */
   authorizeChannel: (userId: string, channel: ParsedLiveChannelKey) => boolean
@@ -205,6 +218,15 @@ export class LiveChannelHub {
       })
       return
     }
+    if (parsed.kind === 'voice' && this.deps.voice === undefined) {
+      this.send(state, {
+        kind: 'error',
+        channel,
+        code: 'not_found',
+        message: 'The voice daemon relay is not available on this engine.',
+      })
+      return
+    }
     if (parsed.kind !== 'activity' && !this.deps.authorizeChannel(state.userId, parsed)) {
       // Unknown and not-owned answer alike (no enumeration leak — the SSE routes' 404 shape).
       this.send(state, {
@@ -222,6 +244,13 @@ export class LiveChannelHub {
       state.subscriptions.set(channel, activity.detach)
       this.send(state, { kind: 'subscribed', channel })
       activity.replay()
+      return
+    }
+    if (parsed.kind === 'voice') {
+      const voice = this.attachVoice(state, channel, parsed.surface)
+      state.subscriptions.set(channel, voice.detach)
+      this.send(state, { kind: 'subscribed', channel })
+      voice.replay()
       return
     }
     state.subscriptions.set(
@@ -263,6 +292,34 @@ export class LiveChannelHub {
             this.send(state, { kind: 'event', channel: 'activity', event })
           },
         )
+        if (detached) handle()
+        else unsubscribe = handle
+      },
+    }
+  }
+
+  /** The voice relay replays link + state synchronously inside subscribe()
+   *  — the same deferred shape as the activity feed (ack first, replay after,
+   *  detach registered before either). */
+  private attachVoice(
+    state: ConnectionState,
+    channel: LiveChannelKey,
+    surface: VoiceSurface,
+  ): { detach: () => void; replay: () => void } {
+    const source = this.deps.voice
+    let unsubscribe: (() => void) | null = null
+    let detached = false
+    return {
+      detach: () => {
+        detached = true
+        unsubscribe?.()
+        unsubscribe = null
+      },
+      replay: () => {
+        if (detached || source === undefined) return
+        const handle = source.subscribe(surface, (event) => {
+          this.send(state, { kind: 'event', channel: `voice:${surface}` as const, event })
+        })
         if (detached) handle()
         else unsubscribe = handle
       },
@@ -361,6 +418,7 @@ function broadcasterKeyFor(parsed: ParsedLiveChannelKey): string {
     case 'trace':
       return traceChannelKey(parsed.partialSessionId)
     case 'activity':
-      throw new Error('the activity channel is not a broadcaster channel')
+    case 'voice':
+      throw new Error(`the ${parsed.kind} channel is not a broadcaster channel`)
   }
 }

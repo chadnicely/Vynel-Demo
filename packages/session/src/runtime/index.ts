@@ -167,4 +167,5 @@ export {
   type LiveChannelLimits,
   type LiveChannelOutboundFrame,
   type LiveChannelTransport,
+  type LiveChannelVoiceSource,
 } from './live-channel/live-channel-hub.js'

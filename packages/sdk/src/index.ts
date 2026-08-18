@@ -29,6 +29,7 @@ import { makeNamespaced } from './generated/namespaced.js'
 
 export type * from './generated/api.js'
 export { SdkError } from './errors.js'
+export { parseSseFrames, type SseFrame } from './sse-frames.js'
 
 /**
  * Options for constructing the typed Vynel API client.

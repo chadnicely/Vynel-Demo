@@ -54,6 +54,7 @@ import {
   buildLiveChannelAuthorizer,
   createLiveChannelUpgradeHandler,
 } from './live/live-channel-route.js'
+import { createVoiceDaemonRelay } from './live/voice-daemon-relay.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
 import { startSchedulesService } from './services/schedules-service.js'
@@ -450,11 +451,18 @@ export async function boot(): Promise<void> {
   if (env.VYNEL_AUTH_TOKEN !== undefined) {
     logger.info('api boot: bearer gate active (remote engine mode) — /health stays open')
   }
+  // ONE voice-daemon link per surface, fanned to the windows over their live
+  // socket (the browsers used to hold one EventSource each).
+  const voiceDaemonRelay = createVoiceDaemonRelay({
+    voiceDaemonUrl: env.VYNEL_VOICE_DAEMON_URL,
+    logger,
+  })
   // ONE live-channel hub per process — every window's single WebSocket lands
-  // here and subscribes to the feed / session / trace channels it displays.
+  // here and subscribes to the feed / session / trace / voice channels it displays.
   const liveChannelHub = new LiveChannelHub({
     turnEvents,
     activityFeed,
+    voice: voiceDaemonRelay,
     authorizeChannel: buildLiveChannelAuthorizer(db),
     logger,
   })
@@ -513,6 +521,7 @@ export async function boot(): Promise<void> {
     logger.info({ signal }, 'api shutdown initiated')
     removePortFileIfOwn(portFilePath)
     liveChannelHub.dispose()
+    voiceDaemonRelay.dispose()
     server.close(() => {
       schedulesService.stop()
       knowledgeIndexingService.stop()

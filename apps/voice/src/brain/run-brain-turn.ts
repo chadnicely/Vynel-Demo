@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream'
 import type { VoiceBrainEvent } from '../loop/voice-session-types.js'
-import { parseSseFrames, type SseFrame } from './sse-frames.js'
+import { parseSseFrames, type SseFrame } from '@vynel/sdk'
 
 // The brain client: POST an utterance to local-api's `/root/turn` and stream the
 // answer back as `VoiceBrainEvent`s (the driver's `runBrainTurn`). The SSE frames

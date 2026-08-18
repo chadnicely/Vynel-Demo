@@ -8,7 +8,9 @@
 //
 // The events themselves are the SAME vocabularies the SSE routes carry —
 // `SessionActivityEvent` on `activity`, `ChatTurnEvent` on session/trace
-// channels — wrapped in a `{ channel, event }` frame. No new event kinds.
+// channels, the voice daemon's overlay events on `voice:<surface>` (relayed by
+// the api — one daemon link per surface instead of one per window) — wrapped
+// in a `{ channel, event }` frame. No new event kinds.
 //
 // Semantics a client can rely on:
 //   - `hello` is the first frame; `connectionId` identifies the socket server-side.
@@ -23,6 +25,7 @@
 
 import type { ChatTurnEvent } from './chat-http.js'
 import type { SessionActivityEvent } from './session-activity.js'
+import { isVoiceSurface, type VoiceRelayEvent, type VoiceSurface } from '../voice/daemon-events.js'
 
 export const LIVE_CHANNEL_PROTOCOL_VERSION = 1
 
@@ -36,12 +39,14 @@ export const liveChannelKeys = {
   activity: 'activity' as const,
   session: (sessionId: string): LiveChannelKey => `session:${sessionId}`,
   trace: (partialSessionId: string): LiveChannelKey => `trace:${partialSessionId}`,
+  voice: (surface: VoiceSurface): LiveChannelKey => `voice:${surface}`,
 }
 
 export type ParsedLiveChannelKey =
   | { kind: 'activity' }
   | { kind: 'session'; sessionId: string }
   | { kind: 'trace'; partialSessionId: string }
+  | { kind: 'voice'; surface: VoiceSurface }
 
 /** Parse a channel key; null = not a channel this protocol knows. */
 export function parseLiveChannelKey(key: string): ParsedLiveChannelKey | null {
@@ -53,6 +58,10 @@ export function parseLiveChannelKey(key: string): ParsedLiveChannelKey | null {
   if (key.startsWith('trace:')) {
     const partialSessionId = key.slice('trace:'.length)
     return partialSessionId === '' ? null : { kind: 'trace', partialSessionId }
+  }
+  if (key.startsWith('voice:')) {
+    const surface = key.slice('voice:'.length)
+    return isVoiceSurface(surface) ? { kind: 'voice', surface } : null
   }
   return null
 }
@@ -75,6 +84,7 @@ export type LiveChannelServerFrame =
   | { kind: 'subscribed'; channel: LiveChannelKey }
   | { kind: 'unsubscribed'; channel: LiveChannelKey }
   | { kind: 'event'; channel: 'activity'; event: SessionActivityEvent }
+  | { kind: 'event'; channel: `voice:${VoiceSurface}`; event: VoiceRelayEvent }
   | { kind: 'event'; channel: LiveChannelKey; event: ChatTurnEvent }
   | { kind: 'channel-ended'; channel: LiveChannelKey }
   | { kind: 'error'; channel: LiveChannelKey | null; code: LiveChannelErrorCode; message: string }

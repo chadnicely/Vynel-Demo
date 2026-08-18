@@ -49,6 +49,7 @@
     "@vynel/provider-preferences": "workspace:*",
     "@vynel/providers": "workspace:*",
     "@vynel/schedules": "workspace:*",
+    "@vynel/sdk": "workspace:*",
     "@vynel/sealing": "workspace:*",
     "@vynel/server-install": "workspace:*",
     "@vynel/session": "workspace:*",

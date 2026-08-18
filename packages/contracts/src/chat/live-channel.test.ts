@@ -18,6 +18,16 @@ describe('live-channel keys', () => {
     })
   })
 
+  it('parses the two voice surfaces and nothing else under voice:', () => {
+    expect(parseLiveChannelKey(liveChannelKeys.voice('app'))).toEqual({
+      kind: 'voice',
+      surface: 'app',
+    })
+    expect(parseLiveChannelKey('voice:jarvis')).toEqual({ kind: 'voice', surface: 'jarvis' })
+    expect(parseLiveChannelKey('voice:tv')).toBeNull()
+    expect(parseLiveChannelKey('voice:')).toBeNull()
+  })
+
   it('rejects unknown and empty keys', () => {
     expect(parseLiveChannelKey('turn:x')).toBeNull()
     expect(parseLiveChannelKey('session:')).toBeNull()

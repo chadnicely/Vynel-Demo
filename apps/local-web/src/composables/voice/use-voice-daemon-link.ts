@@ -1,39 +1,43 @@
 import { onMounted, onUnmounted, ref } from "vue";
+import { liveChannelKeys } from "@vynel/contracts/chat/live-channel";
+import type {
+  VoiceRelayEvent,
+  VoiceSurface,
+} from "@vynel/contracts/voice/daemon-events";
+import { useLiveChannelStore } from "../../stores/live-channel-store.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 
 // The browser end of the daemon's overlay channel. The always-on native daemon
 // hears "Hey Vynel" locally (Moonshine — the room never leaves the machine)
-// and publishes the wake here over SSE (`/voice` is the Vite proxy to the
-// daemon's loopback port). An undelivered wake is replayed by the daemon when
-// this link (re)connects — the same-breath command survives a window launch or
-// an EventSource reconnect. When the session closes we POST /session/end so
-// the daemon takes the mic back. No daemon running is fine — EventSource
-// retries quietly and the overlay still works from its manual mic button.
+// and publishes the wake here — since the live channel, over the window's ONE
+// live socket (`voice:<surface>`): the api holds one link per surface to the
+// daemon and relays its events, so a window no longer spends an HTTP-pool
+// connection on an EventSource. The daemon's replay of an undelivered wake
+// still lands: the relay reconnects for us and the wake replays through it.
+// When the session closes we POST /session/end so the daemon takes the mic
+// back. No daemon running is fine — the relay retries quietly and the overlay
+// still works from its manual mic button.
 //
 // 'speak' events are the daemon delegating PLAYBACK: a `speak` tool call with
 // no live overlay session (typed chat, a scheduled task) is sent to exactly one
 // client — this one — which synthesizes + plays it. Queued sequentially so two
-// proactive lines never talk over each other.
-
-interface DaemonEvent {
-  readonly kind: string;
-  readonly command?: string;
-  readonly state?: string;
-  readonly text?: string;
-}
+// proactive lines never talk over each other. Single delivery survives the
+// relay: the daemon picks its newest client (the api), the api picks the
+// surface's newest window.
 
 export function useVoiceDaemonLink(options: {
   /** The daemon heard the wake phrase; `command` = same-breath text ('' if bare). */
   onWake: (command: string) => void;
   /** 'jarvis' = the floating window — the daemon prefers it for wake delivery. */
-  surface?: "app" | "jarvis";
+  surface?: VoiceSurface;
 }) {
+  const live = useLiveChannelStore();
   const isDaemonConnected = ref(false);
   // True while the daemon speaker is playing a `speak` reply — the overlay gates
   // its Web Speech mic on this so it never hears the daemon (cross-process, no
   // echo cancellation). The daemon publishes 'speaking' then 'idle' when done.
   const isDaemonSpeaking = ref(false);
-  let source: EventSource | null = null;
+  let release: (() => void) | null = null;
 
   // Daemon-delegated playback ('speak' events): one player, drained in order.
   const player = createSpokenAudioPlayer();
@@ -53,37 +57,32 @@ export function useVoiceDaemonLink(options: {
     }
   }
 
+  function onEvent(raw: unknown): void {
+    const event = raw as VoiceRelayEvent;
+    if (event.kind === "daemon-link") isDaemonConnected.value = event.connected;
+    else if (event.kind === "wake") options.onWake(event.command ?? "");
+    else if (event.kind === "state") isDaemonSpeaking.value = event.state === "speaking";
+    else if (event.kind === "speak" && event.text) {
+      speakQueue.push(event.text);
+      void drainSpeakQueue();
+    }
+  }
+
   onMounted(() => {
-    // Environments without EventSource (happy-dom in tests) simply run with
-    // no daemon link — the overlay still works from its manual mic button.
-    if (typeof EventSource === "undefined") return;
-    source = new EventSource(`/voice/events?surface=${options.surface ?? "app"}`);
-    source.onopen = () => {
-      isDaemonConnected.value = true;
-    };
-    source.onerror = () => {
-      // EventSource reconnects on its own; the flag just drives the status dot.
-      isDaemonConnected.value = false;
-    };
-    source.onmessage = (message: MessageEvent<string>) => {
-      let event: DaemonEvent;
-      try {
-        event = JSON.parse(message.data) as DaemonEvent;
-      } catch {
-        return; // not ours — ignore a malformed frame rather than crash the link
-      }
-      if (event.kind === "wake") options.onWake(event.command ?? "");
-      else if (event.kind === "state") isDaemonSpeaking.value = event.state === "speaking";
-      else if (event.kind === "speak" && event.text) {
-        speakQueue.push(event.text);
-        void drainSpeakQueue();
-      }
-    };
+    release = live.subscribe(liveChannelKeys.voice(options.surface ?? "app"), {
+      onEvent,
+      // The socket itself dropped — the daemon light is off until the relay
+      // says otherwise on the re-ack.
+      onDetached: () => {
+        isDaemonConnected.value = false;
+      },
+    });
   });
 
   onUnmounted(() => {
-    source?.close();
-    source = null;
+    release?.();
+    release = null;
+    isDaemonConnected.value = false;
     speakQueue.length = 0;
     player.cancel();
   });

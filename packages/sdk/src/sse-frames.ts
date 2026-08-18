@@ -1,7 +1,9 @@
 // A minimal Server-Sent-Events frame parser: turns a byte stream into
 // `{ event, data }` frames. Hono's `streamSSE` writes `event: <kind>\n
 // data: <json>\n\n` per frame; this splits on the blank-line separator and
-// tolerates a frame straddling chunk boundaries. Pure + unit-tested.
+// tolerates a frame straddling chunk boundaries. Pure + unit-tested. The ONE
+// home for every Node-side SSE consumer (the voice daemon's brain client, the
+// api's voice-daemon relay); the web app carries its own browser-side reader.
 
 export interface SseFrame {
   readonly event: string

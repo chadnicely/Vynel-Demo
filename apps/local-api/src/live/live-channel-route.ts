@@ -53,6 +53,10 @@ export function buildLiveChannelAuthorizer(
         const job = findDelegationJobByPartialSessionId(db, channel.partialSessionId)
         return job !== null && job.userId === userId
       }
+      case 'voice':
+        // The daemon is this machine's (Phase 1: one local user); the relay
+        // itself is the gate — no relay, no channel.
+        return true
     }
   }
 }
