@@ -5,7 +5,7 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
-## [Unreleased]
+## [0.3.2] — 2026-08-19
 
 ### Changed
 
@@ -42,6 +42,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   with no reply). The finished text and thinking now land in the transcript
   as one final chunk when nothing streamed before them; a reply that did
   stream is never doubled.
+- **Voice no longer listens on Vynel's own virtual call microphone.** Windows
+  makes a freshly installed capture endpoint the default recording device —
+  including the call driver's own "Vynel Call 1 Microphone", which hears
+  nothing from the room (the "wake doesn't work" report). When no input
+  device is configured and the default is one of the driver's endpoints,
+  voice now takes the first real microphone that can record and says so; an
+  explicitly configured device is honored as before.
 
 ## [0.3.1] — 2026-08-18
 
