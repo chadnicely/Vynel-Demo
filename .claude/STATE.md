@@ -3,6 +3,29 @@
 **Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ✅ 2026-08-18 (latest) LOST-REPLY FIX — the "idle workspace" after the socket-diet; multi-tab budget still thin
+
+Kafi's report ("task to A, move to B, task, move to C, task → one workspace realtime, others idle")
+after `f57cb34` (watch sockets gated on the feed). Root-caused two ways, both verified:
+1. **Server (his actual case, FIXED):** the letterman turn (23:14, `b1080593`) ran 100s and persisted
+   NOTHING though the CLI transcript holds a full 2.4k answer — the CLI's stream failed and it retried
+   in NON-STREAMING mode ("Error streaming, falling back to non-streaming mode"), so the SDK surfaced the
+   complete `assistant` message with no `stream_event` deltas and `translateClaudeSdkEvent` dropped its
+   text as "already streamed". Fix: the runner tracks `streamedAssistantMessageIds` (main-thread deltas
+   only); a complete message whose id never streamed replays its text/thinking blocks as final chunks
+   (block order, before tool_use/usage). Subagent messages excluded (their deltas ride the main id).
+   Tests: translator table (+3 cases), runner (+2), fake gained `fakeMessageStartStep`.
+2. **Client (latent, NOT built):** the single-Chrome-tab flow (in-app tabs A→B→C, revisit) is GREEN —
+   the registry attaches per the feed and renders live (playwright repro on scratch workspaces). But
+   every browser tab still holds TWO standing streams (activity feed + voice EventSource): 3 tabs = 6 =
+   Chrome's HTTP/1.1 per-host pool → the send POST itself queues silently (verified: the pending
+   POST landed the instant a tab closed); 2 tabs + 2 own turns = the same. Options for Kafi/Chad:
+   (a) leader-elect the standing streams across tabs (Web Locks + BroadcastChannel; ~150 lines;
+   frozen-leader heartbeat needed), (b) the real fix — ONE multiplexed connection per tab carrying
+   feed + session/trace channels, sends as fire-and-forget POSTs (an arc), (c) WebSocket transport
+   (outside the pool). Follow-up worth doing regardless: surface the SDK's `system/api_retry`
+   frames as a "retrying…" state so a 100s retry doesn't read as idle.
+
 ## ✅ 2026-08-18 AGENT-SPAWN POINTERS + CLAUDE ACCOUNT POPUP (`5becd1c` + `56fb2c6`); one human smoke remains
 
 Kafi's two features + his patch round, reviewer-clean (one must-fix race closed): (1) Agent/Task

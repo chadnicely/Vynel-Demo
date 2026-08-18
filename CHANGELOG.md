@@ -5,6 +5,20 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Fixed
+
+- **A reply the engine produced without streaming it no longer vanishes.**
+  When the Claude engine's stream fails mid-request it retries the request
+  in non-streaming mode and hands back the finished answer in one piece.
+  Vynel used to discard that piece as "already streamed" — the turn ended
+  clean, the thread showed nothing, and the answer existed only in the
+  engine's own transcript (the 2026-08-18 "idle workspace": a 100-second turn
+  with no reply). The finished text and thinking now land in the transcript
+  as one final chunk when nothing streamed before them; a reply that did
+  stream is never doubled.
+
 ## [0.3.1] — 2026-08-18
 
 ### Added

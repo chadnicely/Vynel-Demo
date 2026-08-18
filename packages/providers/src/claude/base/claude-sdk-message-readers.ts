@@ -30,6 +30,22 @@ export function readAssistantMessageIdFromStreamStart(sdkMessage: SDKMessage): s
   return null
 }
 
+// A MAIN-thread text/thinking delta — the runner records the current assistant
+// message id as "streamed" on it, so the complete message's translation knows
+// its text already arrived (and replays it only when it did not: the CLI's
+// non-streaming fallback). Subagent deltas are excluded for the same reason
+// their message_start is: they must not mark the main id.
+export function isMainThreadContentDelta(sdkMessage: SDKMessage): boolean {
+  if (sdkMessage.type !== 'stream_event') return false
+  if (typeof (sdkMessage as { parent_tool_use_id?: unknown }).parent_tool_use_id === 'string') {
+    return false
+  }
+  const rawEvent: unknown = sdkMessage.event
+  if (!isRecord(rawEvent) || rawEvent['type'] !== 'content_block_delta') return false
+  const delta = rawEvent['delta']
+  return isRecord(delta) && (delta['type'] === 'text_delta' || delta['type'] === 'thinking_delta')
+}
+
 // A `result` message with a non-`success` subtype is an early-ended session;
 // the runner — not the translator — owns turning it into `session-errored`.
 export function readResultError(

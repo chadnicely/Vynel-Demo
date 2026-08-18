@@ -14,6 +14,9 @@ const ASSISTANT_MESSAGE_ID = 'msg_current'
 type TestCase = {
   name: string
   sdkEvent: unknown
+  /** The assistant message ids that streamed deltas before this event (the
+   *  runner's tracking) — omitted = nothing streamed yet. */
+  streamedAssistantMessageIds?: string[]
   expected: NormalizedSessionEvent[]
 }
 
@@ -102,7 +105,8 @@ const testCases: TestCase[] = [
     expected: [],
   },
   {
-    name: 'assistant message with a text block + usage -> UsageReportedEvent (text streams via stream_event)',
+    name: 'assistant message with an already-STREAMED text block + usage -> UsageReportedEvent only (text came via stream_event)',
+    streamedAssistantMessageIds: ['msg_a'],
     sdkEvent: {
       type: 'assistant',
       message: {
@@ -169,7 +173,8 @@ const testCases: TestCase[] = [
     ],
   },
   {
-    name: 'assistant message mixing text + tool_use + usage -> ToolUseStartedEvent then UsageReportedEvent',
+    name: 'assistant message mixing STREAMED text + tool_use + usage -> ToolUseStartedEvent then UsageReportedEvent',
+    streamedAssistantMessageIds: ['msg_b'],
     sdkEvent: {
       type: 'assistant',
       message: {
@@ -407,15 +412,104 @@ const testCases: TestCase[] = [
       },
     ],
   },
+  // The CLI's NON-STREAMING FALLBACK ("Error streaming, falling back to
+  // non-streaming mode"): the complete assistant message arrives with no
+  // stream_event deltas before it — its text/thinking exist ONLY here. The
+  // 2026-08-18 lost reply: a 100s turn ended clean with nothing persisted.
+  {
+    name: 'assistant message whose id never streamed -> text/thinking replayed as FINAL chunks (block order), then tool_use, then usage',
+    sdkEvent: {
+      type: 'assistant',
+      message: {
+        id: 'msg_unstreamed',
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'Let me look.', signature: 'sig' },
+          { type: 'text', text: "Here's the overview." },
+          { type: 'tool_use', id: 'tu_f', name: 'Read', input: { file: 'README.md' } },
+        ],
+        model: 'claude-opus-5',
+        usage: { input_tokens: 9, output_tokens: 3 },
+      },
+      parent_tool_use_id: null,
+      uuid: 'evt-fallback',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'thinking-chunk',
+        sessionId: SESSION_ID,
+        messageId: 'msg_unstreamed',
+        textDelta: 'Let me look.',
+        isFinalChunk: true,
+      },
+      {
+        kind: 'text-chunk',
+        sessionId: SESSION_ID,
+        messageId: 'msg_unstreamed',
+        textDelta: "Here's the overview.",
+        isFinalChunk: true,
+      },
+      {
+        kind: 'tool-use-started',
+        sessionId: SESSION_ID,
+        parentMessageId: 'msg_unstreamed',
+        toolUseId: 'tu_f',
+        toolName: 'Read',
+        toolInput: { file: 'README.md' },
+        startedAt: expect.any(Date),
+      },
+      {
+        kind: 'usage-reported',
+        sessionId: SESSION_ID,
+        messageId: 'msg_unstreamed',
+        model: 'claude-opus-5',
+        inputTokens: 9,
+        outputTokens: 3,
+      },
+    ],
+  },
+  {
+    name: 'assistant message whose id never streamed but has only EMPTY text -> nothing replayed',
+    sdkEvent: {
+      type: 'assistant',
+      message: {
+        id: 'msg_empty',
+        role: 'assistant',
+        content: [{ type: 'text', text: '' }],
+      },
+      parent_tool_use_id: null,
+      uuid: 'evt-fallback-empty',
+      session_id: SESSION_ID,
+    },
+    expected: [],
+  },
+  {
+    name: 'SUBAGENT assistant text never "streamed" under its own id -> NOT replayed (its deltas ride the main id; replay would double the Agent card)',
+    sdkEvent: {
+      type: 'assistant',
+      message: {
+        id: 'msg_sub_text',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'subagent says hi' }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+      parent_tool_use_id: 'tu_agent_1',
+      uuid: 'evt-sub-text',
+      session_id: SESSION_ID,
+    },
+    expected: [],
+  },
 ]
 
 describe('translateClaudeSdkEvent', () => {
-  for (const { name, sdkEvent, expected } of testCases) {
+  for (const { name, sdkEvent, streamedAssistantMessageIds, expected } of testCases) {
     it(name, () => {
       const result = translateClaudeSdkEvent({
         sdkEvent,
         sessionId: SESSION_ID,
         currentAssistantMessageId: ASSISTANT_MESSAGE_ID,
+        streamedAssistantMessageIds: new Set(streamedAssistantMessageIds ?? []),
       })
       expect(result).toEqual(expected)
     })

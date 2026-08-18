@@ -15,6 +15,7 @@ import {
   FAKE_CLAUDE_SESSION_ID,
   createFakeClaudeQuery,
   fakeAssistantMessageStep,
+  fakeMessageStartStep,
   fakeSuccessResultStep,
   fakeSystemInitStep,
   fakeTextStreamStep,
@@ -60,6 +61,7 @@ describe('runClaudeChatSession', () => {
   it('emits session-started -> translated content -> usage -> session-completed', async () => {
     installFakeQuery([
       fakeSystemInitStep(),
+      fakeMessageStartStep(),
       fakeTextStreamStep('Hi there.'),
       fakeAssistantMessageStep({ text: 'Hi there.' }),
       fakeSuccessResultStep(),
@@ -70,6 +72,51 @@ describe('runClaudeChatSession', () => {
       'text-chunk',
       'usage-reported',
       'session-completed',
+    ])
+  })
+
+  // The CLI's non-streaming fallback ("Error streaming, falling back to
+  // non-streaming mode"): the complete assistant message arrives with NO
+  // stream_event deltas. Its text used to be dropped as "already streamed" —
+  // the turn ended clean with the whole reply lost (2026-08-18, a 100s turn
+  // whose answer sat only in the CLI transcript).
+  it('replays a complete assistant message that streamed no deltas as one final text-chunk (the non-streaming fallback)', async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      fakeAssistantMessageStep({ id: 'msg_fallback', text: "Here's the overview." }),
+      fakeSuccessResultStep(),
+    ])
+    const events = await collect(startSession())
+    expect(events.map((event) => event.kind)).toEqual([
+      'session-started',
+      'text-chunk',
+      'usage-reported',
+      'session-completed',
+    ])
+    expect(events[1]).toMatchObject({
+      kind: 'text-chunk',
+      messageId: 'msg_fallback',
+      textDelta: "Here's the overview.",
+      isFinalChunk: true,
+    })
+  })
+
+  it('does not double text that DID stream — a second message that did not still replays', async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      fakeMessageStartStep('msg_streamed'),
+      fakeTextStreamStep('streamed '),
+      fakeTextStreamStep('text'),
+      fakeAssistantMessageStep({ id: 'msg_streamed', text: 'streamed text' }),
+      fakeAssistantMessageStep({ id: 'msg_retry', text: 'retried answer' }),
+      fakeSuccessResultStep(),
+    ])
+    const events = await collect(startSession())
+    const textChunks = events.filter((event) => event.kind === 'text-chunk')
+    expect(textChunks.map((chunk) => (chunk.kind === 'text-chunk' ? chunk.textDelta : ''))).toEqual([
+      'streamed ',
+      'text',
+      'retried answer',
     ])
   })
 

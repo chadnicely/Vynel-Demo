@@ -7,7 +7,13 @@
 // events (`session-started`/`-completed`/`-interrupted`/`-errored`) are
 // synthesized by `runClaudeChatSession`, which owns the SDK-conversation
 // state. Sourcing:
-//   - text / thinking chunks  <- `stream_event` content_block_delta
+//   - text / thinking chunks  <- `stream_event` content_block_delta — OR, for
+//                                an assistant message that streamed NO deltas
+//                                (the CLI's non-streaming fallback after a
+//                                failed stream), the complete message's text /
+//                                thinking blocks replayed as one final chunk
+//                                each. Without this the whole reply was lost:
+//                                the turn ended clean with nothing persisted.
 //   - tool-use-started        <- the complete `assistant` message's
 //                                `tool_use` content blocks (full input,
 //                                no fragile `input_json_delta` reassembly)
@@ -18,7 +24,9 @@
 //                                CUMULATIVE across the turn, wrong for occupancy)
 //
 // The translator is stateless; the runner threads `currentAssistantMessageId`
-// (read off `message_start`) so chunk + tool events carry a stable message id.
+// (read off `message_start`) so chunk + tool events carry a stable message id,
+// and `streamedAssistantMessageIds` (the ids that DID stream deltas) so the
+// complete-message replay never doubles text that already streamed.
 // See `docs/blueprints/providers/blueprint.md §11.3` + `coding.md §1.2`.
 
 import type {
@@ -36,6 +44,13 @@ export type TranslateClaudeSdkEventInput = {
    * `parentMessageId` for the `user` message's tool-result events.
    */
   currentAssistantMessageId: string | null
+  /**
+   * The assistant message ids that streamed at least one text/thinking delta
+   * this turn — tracked by the runner. A complete `assistant` message whose
+   * id is NOT here replays its text/thinking blocks as final chunks (the
+   * non-streaming fallback path); one that is here has already streamed them.
+   */
+  streamedAssistantMessageIds: ReadonlySet<string>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -52,7 +67,7 @@ function readParentToolUseId(message: Record<string, unknown>): string | undefin
 export function translateClaudeSdkEvent(
   input: TranslateClaudeSdkEventInput,
 ): NormalizedSessionEvent[] {
-  const { sdkEvent, sessionId, currentAssistantMessageId } = input
+  const { sdkEvent, sessionId, currentAssistantMessageId, streamedAssistantMessageIds } = input
   if (!isRecord(sdkEvent)) {
     return []
   }
@@ -61,7 +76,7 @@ export function translateClaudeSdkEvent(
     case 'stream_event':
       return translateStreamEvent(sdkEvent, sessionId, currentAssistantMessageId)
     case 'assistant':
-      return translateAssistantMessage(sdkEvent, sessionId)
+      return translateAssistantMessage(sdkEvent, sessionId, streamedAssistantMessageIds)
     case 'user':
       return translateUserMessage(sdkEvent, sessionId, currentAssistantMessageId)
     default:
@@ -116,10 +131,12 @@ function translateStreamEvent(
 }
 
 // `SDKAssistantMessage` — the complete message. Tool-use blocks carry the full
-// deserialized `input`; text/thinking blocks are skipped (already streamed).
+// deserialized `input`; text/thinking blocks are skipped when they already
+// streamed — and replayed as final chunks when they did not (see below).
 function translateAssistantMessage(
   message: Record<string, unknown>,
   sessionId: string,
+  streamedAssistantMessageIds: ReadonlySet<string>,
 ): NormalizedSessionEvent[] {
   const apiMessage = message['message']
   if (!isRecord(apiMessage) || !Array.isArray(apiMessage['content'])) {
@@ -129,6 +146,16 @@ function translateAssistantMessage(
   const parentToolUseId = readParentToolUseId(message)
 
   const events: NormalizedSessionEvent[] = []
+  // The non-streaming fallback: the CLI retries a failed stream as a plain
+  // request, so the SDK surfaces this message with NO `stream_event` deltas
+  // before it. Its text/thinking exist only here — replay them as one final
+  // chunk each, in block order, ahead of the tool calls. MAIN THREAD ONLY: a
+  // subagent's deltas are keyed to the main message id (its message_start is
+  // deliberately not tracked), so its id is never "streamed" — replaying it
+  // would double the Agent card's narrative.
+  if (parentToolUseId === undefined && !streamedAssistantMessageIds.has(messageId)) {
+    events.push(...replayUnstreamedContentBlocks(apiMessage['content'], sessionId, messageId))
+  }
   for (const block of apiMessage['content']) {
     if (!isRecord(block) || block['type'] !== 'tool_use') {
       continue
@@ -177,6 +204,44 @@ function translateAssistantMessage(
       usageEvent.model = apiMessage['model']
     }
     events.push(usageEvent)
+  }
+  return events
+}
+
+/** Text/thinking blocks of a complete assistant message that never streamed,
+ *  as final chunks — the persisted-history replay's shape (one block, one
+ *  complete chunk). The CLI may surface one API message as several
+ *  `assistant` messages (same id, one block each); each replays only the
+ *  blocks it carries, so a split message still lands once. */
+function replayUnstreamedContentBlocks(
+  content: unknown[],
+  sessionId: string,
+  messageId: string,
+): NormalizedSessionEvent[] {
+  const events: NormalizedSessionEvent[] = []
+  for (const block of content) {
+    if (!isRecord(block)) continue
+    if (block['type'] === 'text' && typeof block['text'] === 'string' && block['text'] !== '') {
+      events.push({
+        kind: 'text-chunk',
+        sessionId,
+        messageId,
+        textDelta: block['text'],
+        isFinalChunk: true,
+      })
+    } else if (
+      block['type'] === 'thinking' &&
+      typeof block['thinking'] === 'string' &&
+      block['thinking'] !== ''
+    ) {
+      events.push({
+        kind: 'thinking-chunk',
+        sessionId,
+        messageId,
+        textDelta: block['thinking'],
+        isFinalChunk: true,
+      })
+    }
   }
   return events
 }

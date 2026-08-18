@@ -19,6 +19,7 @@ import {
 } from '../approvals/build-claude-post-tool-use-hook.js'
 import { buildClaudeSdkOptions } from '../base/build-claude-sdk-options.js'
 import {
+  isMainThreadContentDelta,
   readAssistantMessageIdFromStreamStart,
   readResultError,
 } from '../base/claude-sdk-message-readers.js'
@@ -153,6 +154,10 @@ export async function* runClaudeChatSession(
   let sessionId = ''
   let isRegistered = false
   let currentAssistantMessageId: string | null = null
+  // The ids whose text/thinking streamed as deltas — the translator replays a
+  // complete assistant message's blocks only when its id is NOT here (the
+  // CLI's non-streaming fallback surfaces the message with no deltas at all).
+  const streamedAssistantMessageIds = new Set<string>()
   let latestResultMessage: SDKMessage | null = null
   // Both pending promises persist across loop iterations — a fresh
   // `queryInstance.next()` every iteration would queue an extra request on the
@@ -260,6 +265,7 @@ export async function* runClaudeChatSession(
       sdkEvent: firstResult.value,
       sessionId,
       currentAssistantMessageId,
+      streamedAssistantMessageIds,
     })) {
       yield normalizedEvent
     }
@@ -285,6 +291,9 @@ export async function* runClaudeChatSession(
       const sdkMessage = raceWinner.sdkResult.value
       currentAssistantMessageId =
         readAssistantMessageIdFromStreamStart(sdkMessage) ?? currentAssistantMessageId
+      if (currentAssistantMessageId !== null && isMainThreadContentDelta(sdkMessage)) {
+        streamedAssistantMessageIds.add(currentAssistantMessageId)
+      }
       if (sdkMessage.type === 'result') latestResultMessage = sdkMessage
       // Subscription-limit reporting (best-effort, the onModelsDiscovered
       // shape): the runtime announces the account's window state mid-stream;
@@ -315,6 +324,7 @@ export async function* runClaudeChatSession(
         sdkEvent: sdkMessage,
         sessionId,
         currentAssistantMessageId,
+        streamedAssistantMessageIds,
       })) {
         // The same occupancy the chat consumer persists — the LAST assistant
         // request's input side — kept live for the mid-turn nudge hook.

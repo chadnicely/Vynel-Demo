@@ -14,6 +14,7 @@ import { ClaudeAiAgentProvider } from './claude-ai-agent-provider.js'
 import {
   createFakeClaudeQuery,
   fakeAssistantMessageStep,
+  fakeMessageStartStep,
   fakeSuccessResultStep,
   fakeSystemInitStep,
   fakeTextStreamStep,
@@ -41,6 +42,7 @@ describe('ClaudeAiAgentProvider (integration)', () => {
   it('startChatSession emits session-started -> text-chunk -> session-completed', async () => {
     installFakeQuery([
       fakeSystemInitStep(),
+      fakeMessageStartStep(),
       fakeTextStreamStep('Hi.'),
       fakeAssistantMessageStep({ text: 'Hi.' }),
       fakeSuccessResultStep(),

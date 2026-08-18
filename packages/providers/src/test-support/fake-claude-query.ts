@@ -66,6 +66,20 @@ export function fakeSystemInitStep(): FakeClaudeQueryStep {
   }
 }
 
+/** The `message_start` stream event that opens a streamed assistant message —
+ *  the runner reads the message id off it, so the deltas that follow (and the
+ *  complete message's "already streamed" check) key to the same id. */
+export function fakeMessageStartStep(id = 'msg_fake'): FakeClaudeQueryStep {
+  return {
+    kind: 'emit',
+    message: {
+      type: 'stream_event',
+      session_id: FAKE_CLAUDE_SESSION_ID,
+      event: { type: 'message_start', message: { id, role: 'assistant', content: [] } },
+    },
+  }
+}
+
 /** A streamed assistant text delta. */
 export function fakeTextStreamStep(text: string): FakeClaudeQueryStep {
   return {
