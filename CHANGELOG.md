@@ -34,12 +34,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   right where the eye expects it — a bolder spinner while it works, a ringed
   status dot when it needs you / hit a problem / finished, the play mark
   when parked. Groups are compact, titled in bold with a hairline under, and
-  wear a collection glyph instead of a folder. Each group has its own **+**
-  that opens New workspace already filed into that group; the Global row
-  carries only its own status; a **New workspace** row sits at the bottom
-  of the list; and the New workspace dialog gained a **Group** pick with an
+  wear a stack glyph instead of a folder, with their members set a step
+  in so an ungrouped workspace below reads as its own. Creating lives in a
+  strip **above** the Global row — **+** for a new workspace and a
+  stack-plus for a new group (which opens straight into its rename box) —
+  and each group has its own **+** that opens New workspace already filed
+  into that group; the New workspace dialog gained a **Group** pick with an
   inline **New group…**. Clicking a workspace row always opens that
   workspace's chat.
+- **Pick any accent colour.** Customize → Accent color has a custom swatch
+  beside the palette: choose any colour and the workspace's icon in the
+  left menu, its chips in chat, and its rail mark all take it.
 - **New workspace picks its own name.** Choose the folder first; the name
   fills in from it (edit it if you like) and **Continue** creates the room.
   A whole drive or your home folder can't be a workspace — the dialog says

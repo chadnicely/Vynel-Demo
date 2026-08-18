@@ -290,7 +290,7 @@ describe("MessageRow author avatar", () => {
     const monogram = mount(MessageRow, {
       props: {
         message: reportMessage,
-        authorPersona: { imageUrl: null, monogram: "N", accentVar: "--ws-1" },
+        authorPersona: { imageUrl: null, monogram: "N", accent: "var(--ws-1)" },
       },
     });
     expect(monogram.get(".monogram-text").text()).toBe("N");
@@ -302,7 +302,7 @@ describe("MessageRow author avatar", () => {
         authorPersona: {
           imageUrl: "data:image/png;base64,BBBB",
           monogram: "N",
-          accentVar: "--ws-1",
+          accent: "var(--ws-1)",
         },
       },
     });
@@ -324,7 +324,7 @@ describe("MessageRow author avatar", () => {
           sourceLabel: "Noah · vynel",
         }),
         assistantIconUrl: "data:image/png;base64,AAAA",
-        authorPersona: { imageUrl: null, monogram: "NV", accentVar: "--ws-2" },
+        authorPersona: { imageUrl: null, monogram: "NV", accent: "var(--ws-2)" },
       },
     });
     expect(wrapper.get(".monogram-text").text()).toBe("NV");
@@ -489,7 +489,7 @@ describe("MessageRow workspace chip + run stats", () => {
     name: "Claw Launcher",
     imageUrl: null,
     monogram: "CL",
-    accentVar: "--ws-2",
+    accent: "var(--ws-2)",
   };
 
   it("the chip replaces the label's workspace segment — persona name + monogram chip", () => {
@@ -542,7 +542,7 @@ describe("MessageRow workspace chip + run stats", () => {
           name: "Global",
           imageUrl: null,
           monogram: "G",
-          accentVar: "",
+          accent: "",
           isGlobal: true,
         },
       },

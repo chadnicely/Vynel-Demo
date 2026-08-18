@@ -42,12 +42,12 @@ const props = withDefaults(
     /** The PERSONA-attributed author's visual identity (persona-sessions B8):
      *  the host resolves the row's sourceLabel to an image or monogram, and a
      *  report/update/persona row wears IT instead of the blanket Claude mark.
-     *  Null keeps the pre-B8 fallbacks. `accentVar` is the custom-property
-     *  NAME (`--ws-3`) — this template wraps it in `var()` itself. */
+     *  Null keeps the pre-B8 fallbacks. `accent` is a CSS COLOUR (a palette
+     *  reference like `var(--ws-3)` or a hand-picked `#hex`), used as-is. */
     authorPersona?: {
       imageUrl: string | null;
       monogram: string;
-      accentVar: string;
+      accent: string;
     } | null;
     /** The row's SCOPE identity chip: a persona row wears its workspace, a
      *  relayed/mention row its ORIGIN scope. The host resolves the label to
@@ -59,7 +59,7 @@ const props = withDefaults(
       name: string;
       imageUrl: string | null;
       monogram: string;
-      accentVar: string;
+      accent: string;
       isGlobal?: boolean;
     } | null;
     /** The producing run's stats for the info door when the row carries none
@@ -212,7 +212,7 @@ const isPersonaAuthor = computed(
 // only when both speakers have a face).
 type AuthorGlyph =
   | { kind: "image"; imageUrl: string }
-  | { kind: "monogram"; monogram: string; accentVar: string }
+  | { kind: "monogram"; monogram: string; accent: string }
   | { kind: "claude" }
   | { kind: "user" }
   | null;
@@ -229,7 +229,7 @@ const authorGlyph = computed<AuthorGlyph>(() => {
       : {
           kind: "monogram",
           monogram: props.authorPersona.monogram,
-          accentVar: props.authorPersona.accentVar,
+          accent: props.authorPersona.accent,
         };
   }
   const speaksAsSurfaceAssistant =
@@ -434,7 +434,7 @@ const collapsedPreview = computed(() => {
           :style="
             authorGlyph.kind === 'monogram'
               ? {
-                  background: `color-mix(in srgb, var(${authorGlyph.accentVar}) 30%, transparent)`,
+                  background: `color-mix(in srgb, ${authorGlyph.accent} 30%, transparent)`,
                 }
               : undefined
           "
@@ -482,7 +482,7 @@ const collapsedPreview = computed(() => {
                   props.workspaceBadge.isGlobal
                     ? undefined
                     : {
-                        background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+                        background: `color-mix(in srgb, ${props.workspaceBadge.accent} 30%, transparent)`,
                       }
                 "
               >
@@ -523,7 +523,7 @@ const collapsedPreview = computed(() => {
               props.workspaceBadge.isGlobal
                 ? undefined
                 : {
-                    background: `color-mix(in srgb, var(${props.workspaceBadge.accentVar}) 30%, transparent)`,
+                    background: `color-mix(in srgb, ${props.workspaceBadge.accent} 30%, transparent)`,
                   }
             "
             :aria-label="

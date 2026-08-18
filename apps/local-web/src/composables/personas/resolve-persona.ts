@@ -6,20 +6,19 @@
 
 import {
   splitSourceLabel,
-  workspaceColorSlot,
   workspaceMonogram,
 } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
+import { workspaceAccentCss } from "../../utils/workspace-accent.js";
 
 export interface ResolvedPersona {
   name: string;
   /** The user's customized persona image for the workspace — null = monogram. */
   imageUrl: string | null;
   monogram: string;
-  /** The accent's custom-property NAME (e.g. `--ws-3`) — consumers
-   *  interpolate it inside `var()` themselves. Never a full `var(...)`
-   *  reference: the double wrap is invalid CSS and silently untints. */
-  accentVar: string;
+  /** A CSS colour — a palette reference (`var(--ws-3)`) or a hand-picked
+   *  hex — used as-is by every consumer. */
+  accent: string;
 }
 
 export function usePersonaResolver() {
@@ -33,7 +32,7 @@ export function usePersonaResolver() {
     workspaceId?: string | null;
   }): ResolvedPersona {
     const imageUrl =
-      input.workspaceId != null
+      typeof input.workspaceId === "string"
         ? customize.customizationFor(input.workspaceId).personaImage
         : null;
     return {
@@ -45,7 +44,10 @@ export function usePersonaResolver() {
       // normalization already resolves it to the workspace segment, so
       // every surface keeps its established tint.
       monogram: workspaceMonogram(splitSourceLabel(input.name).persona),
-      accentVar: `--ws-${workspaceColorSlot(input.name)}`,
+      accent: workspaceAccentCss(
+        typeof input.workspaceId === "string" ? customize.customizationFor(input.workspaceId) : null,
+        input.name,
+      ),
     };
   }
 

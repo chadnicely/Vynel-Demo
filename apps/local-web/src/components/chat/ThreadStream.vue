@@ -19,10 +19,10 @@ import {
   deriveSettledAgentActivity,
   presentToolCall,
   splitSourceLabel,
-  workspaceColorSlot,
   workspaceMonogram,
 } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
+import { workspaceAccentCss } from "../../utils/workspace-accent.js";
 import {
   liveClockStartMs,
   type ActiveTurnView,
@@ -123,7 +123,7 @@ function workspaceChip(name: string) {
     name,
     imageUrl: custom?.workspaceImage ?? null,
     monogram: workspaceMonogram(name),
-    accentVar: `--ws-${custom?.colorSlot ?? workspaceColorSlot(name)}`,
+    accent: workspaceAccentCss(custom, name),
   };
 }
 
@@ -153,7 +153,7 @@ function workspaceBadgeFor(message: ChatMessageResponse) {
         name: "Global",
         imageUrl: null,
         monogram: "G",
-        accentVar: "",
+        accent: "",
         isGlobal: true,
       };
     }

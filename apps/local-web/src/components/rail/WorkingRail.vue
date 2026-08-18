@@ -37,7 +37,10 @@ const rows = computed(() =>
   entities.value.map((entity) => ({
     entity,
     label: labelOf(entity),
-    persona: resolvePersona({ name: labelOf(entity), workspaceId: null }),
+    persona: resolvePersona({
+      name: labelOf(entity),
+      workspaceId: entity.kind === "workspace" ? entity.workspaceId : null,
+    }),
   })),
 );
 
@@ -78,7 +81,7 @@ function openEntity(entity: RailEntity) {
     >
       <span
         class="rail-monogram"
-        :style="{ color: `var(${row.persona.accentVar})` }"
+        :style="{ color: row.persona.accent }"
       >
         {{ row.entity.kind === "brain" ? "✦" : row.persona.monogram }}
       </span>

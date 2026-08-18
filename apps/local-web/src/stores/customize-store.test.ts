@@ -155,6 +155,32 @@ describe("customize-store", () => {
       defaultCustomization().entries,
     );
   });
+
+  it("a custom colour and a palette slot are one choice; the hex survives reload, junk does not", () => {
+    const store = useCustomizeStore();
+
+    store.setColorSlot("w1", 4);
+    store.setCustomColor("w1", "#1E90FF");
+    expect(store.customizationFor("w1")).toMatchObject({ colorSlot: null, customColor: "#1e90ff" });
+
+    store.setColorSlot("w1", 2);
+    expect(store.customizationFor("w1")).toMatchObject({ colorSlot: 2, customColor: null });
+
+    // Not a #rrggbb → ignored, nothing changes.
+    store.setCustomColor("w1", "blue");
+    expect(store.customizationFor("w1")).toMatchObject({ colorSlot: 2, customColor: null });
+
+    store.setCustomColor("w1", "#abcdef");
+    setActivePinia(createPinia());
+    expect(useCustomizeStore().customizationFor("w1").customColor).toBe("#abcdef");
+
+    // A corrupt stored hex reads as no custom colour.
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    stored.w1.customColor = "javascript:alert(1)";
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    setActivePinia(createPinia());
+    expect(useCustomizeStore().customizationFor("w1").customColor).toBeNull();
+  });
 });
 
 describe("customize-store persona image", () => {

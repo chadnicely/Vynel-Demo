@@ -24,8 +24,8 @@ const props = defineProps<{
     name: string;
     /** The customized workspace image (data URL), if one was uploaded. */
     imageUrl?: string | null;
-    /** `--ws-N` — the customized colour slot, else the name's own. */
-    accentVar?: string;
+    /** A CSS colour — the customized accent (hex or palette slot), else the name's own. */
+    accent?: string;
   };
   isActive: boolean;
   statusView: WorkspaceStatusView | null;
@@ -45,8 +45,8 @@ const MARK_LABELS = {
 } as const;
 
 const monogram = computed(() => workspaceMonogram(props.workspace.name));
-const accentVar = computed(
-  () => props.workspace.accentVar ?? `--ws-${workspaceColorSlot(props.workspace.name)}`,
+const accent = computed(
+  () => props.workspace.accent ?? `var(--ws-${workspaceColorSlot(props.workspace.name)})`,
 );
 
 function status() {
@@ -98,20 +98,25 @@ function progressLabel(): string | null {
       @click="emit('select')"
       @dblclick="emit('drill')"
     >
-      <!-- The workspace's own face — image or monogram over its accent. -->
+      <!-- The workspace's own face — an uploaded logo as-is (no tint behind
+           it), else its monogram over its accent. -->
       <span
         class="tree-icon grid size-[18px] shrink-0 place-items-center overflow-hidden rounded-[5px] text-[8px] font-bold leading-none"
-        :style="{
-          background: `color-mix(in srgb, var(${accentVar}) 30%, transparent)`,
-          color: `var(${accentVar})`,
-        }"
+        :style="
+          props.workspace.imageUrl
+            ? undefined
+            : {
+                background: `color-mix(in srgb, ${accent} 30%, transparent)`,
+                color: accent,
+              }
+        "
         aria-hidden="true"
       >
         <img
           v-if="props.workspace.imageUrl"
           :src="props.workspace.imageUrl"
           alt=""
-          class="size-full object-cover"
+          class="size-full object-contain"
         />
         <span v-else>{{ monogram }}</span>
       </span>

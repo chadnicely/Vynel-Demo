@@ -31,7 +31,10 @@ export interface WorkspaceMenuEntry {
 }
 
 export interface ScopeCustomization {
+  /** A palette slot (`--ws-N`); null = automatic (name-derived) unless a custom colour is set. */
   colorSlot: number | null;
+  /** A hand-picked `#rrggbb` accent (Kafi, 2026-08-19) — wins over the slot when set. */
+  customColor: string | null;
   /** Data-URL avatar for the persona's conversation icon; null = ClaudeMark. */
   personaImage: string | null;
   /** Data-URL icon for the WORKSPACE itself (author-line chips, hover cards);
@@ -42,12 +45,14 @@ export interface ScopeCustomization {
 }
 
 const STORAGE_KEY = "vynel.customize";
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 const SECTION_IDS = new Set<string>(WORKSPACE_SECTIONS.map((s) => s.id));
 
 export function defaultCustomization(): ScopeCustomization {
   return {
     colorSlot: null,
+    customColor: null,
     personaImage: null,
     workspaceImage: null,
     groups: Object.entries(MENU_GROUP_LABELS).map(([id, label]) => ({
@@ -84,6 +89,7 @@ function reconcile(stored: ScopeCustomization): ScopeCustomization {
   }
   return {
     colorSlot: stored.colorSlot,
+    customColor: stored.customColor,
     personaImage: stored.personaImage,
     workspaceImage: stored.workspaceImage,
     groups: stored.groups,
@@ -108,6 +114,10 @@ function readStored(): Record<string, ScopeCustomization> {
       result[workspaceId] = reconcile({
         colorSlot:
           typeof candidate.colorSlot === "number" ? candidate.colorSlot : null,
+        customColor:
+          typeof candidate.customColor === "string" && HEX_COLOR.test(candidate.customColor)
+            ? candidate.customColor
+            : null,
         personaImage:
           typeof candidate.personaImage === "string"
             ? candidate.personaImage
@@ -149,8 +159,19 @@ export const useCustomizeStore = defineStore("customize", () => {
       return byWorkspace.value[workspaceId];
     }
 
+    // Slot and custom colour are one choice: picking either clears the other.
     function setColorSlot(workspaceId: string, colorSlot: number | null) {
-      ensure(workspaceId).colorSlot = colorSlot;
+      const config = ensure(workspaceId);
+      config.colorSlot = colorSlot;
+      config.customColor = null;
+      persist();
+    }
+
+    function setCustomColor(workspaceId: string, hex: string) {
+      if (!HEX_COLOR.test(hex)) return;
+      const config = ensure(workspaceId);
+      config.customColor = hex.toLowerCase();
+      config.colorSlot = null;
       persist();
     }
 
@@ -259,6 +280,7 @@ export const useCustomizeStore = defineStore("customize", () => {
       customizationFor,
       isCustomized,
       setColorSlot,
+      setCustomColor,
       setPersonaImage,
       setWorkspaceImage,
       setHidden,

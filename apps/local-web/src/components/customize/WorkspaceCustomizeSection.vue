@@ -65,6 +65,9 @@ function save() {
   });
 }
 
+const customColor = computed(
+  () => store.customizationFor(props.workspaceId).customColor,
+);
 const colorSlot = computed(
   () => store.customizationFor(props.workspaceId).colorSlot,
 );
@@ -122,8 +125,10 @@ const cardClass = "rounded-lg border border-hair bg-panel p-3.5";
         <div class="flex items-center justify-between">
           <WorkspaceColorPicker
             :selected-slot="colorSlot"
+            :custom-color="customColor"
             label="Accent color"
             @pick="(slot) => store.setColorSlot(props.workspaceId, slot)"
+            @pick-custom="(hex) => store.setCustomColor(props.workspaceId, hex)"
           />
           <button
             type="button"

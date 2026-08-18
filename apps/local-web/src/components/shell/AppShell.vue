@@ -31,7 +31,6 @@ import {
   CommandPalette,
   ResizablePanel,
   useOpenModalCount,
-  workspaceColorSlot,
   workspaceMonogram,
 } from "@vynel/ui";
 import type { CommandItem } from "@vynel/ui";
@@ -63,6 +62,7 @@ import {
 } from "../../stores/customize-store.js";
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
+import { workspaceAccentCss } from "../../utils/workspace-accent.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -126,7 +126,7 @@ const workspaceOptions = computed(() =>
       name: w.name,
       groupId: w.groupId ?? null,
       imageUrl: custom.workspaceImage,
-      accentVar: `--ws-${custom.colorSlot ?? workspaceColorSlot(w.name)}`,
+      accent: workspaceAccentCss(custom, w.name),
     };
   }),
 );
@@ -450,6 +450,17 @@ function openCreateWorkspace(groupId: string | null = null) {
   createWorkspaceGroupId.value = groupId;
   isCreateWorkspaceOpen.value = true;
 }
+// The strip's stack-plus: one create in flight at a time (a double-click must
+// not mint two "New group" rows); the created row opens into its rename box.
+const renameGroupId = ref<string | null>(null);
+function createGroupFromTree() {
+  if (groupMutations.createGroup.isPending.value) return;
+  groupMutations.createGroup.mutate("New group", {
+    onSuccess: (group) => {
+      renameGroupId.value = group.id;
+    },
+  });
+}
 const isClaudeAccountOpen = ref(false);
 
 // The dialog is mounted once, here. A routed view (the Nodes screen's empty
@@ -650,9 +661,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           :status-by-workspace-id="statusByWorkspaceId"
           :global-status="globalStatus"
           :account-name="accountName"
+          :rename-group-id="renameGroupId"
           @select="treeSelect"
           @drill="treeDrill"
           @create-workspace="openCreateWorkspace"
+          @create-group="createGroupFromTree"
           @rename-group="(groupId, name) => groupMutations.renameGroup.mutate({ groupId, name })"
           @delete-group="(groupId) => groupMutations.deleteGroup.mutate(groupId)"
           @move-workspace="

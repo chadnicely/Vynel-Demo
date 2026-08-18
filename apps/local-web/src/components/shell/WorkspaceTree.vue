@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import {
   PhCaretDown as CaretDown,
   PhCaretRight as CaretRight,
   PhCircleNotch as CircleNotch,
   PhHouse as House,
   PhPlus as Plus,
-  PhSquaresFour as SquaresFour,
+  PhStack as Stack,
+  PhStackPlus as StackPlus,
 } from "@phosphor-icons/vue";
 import { ContextMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
@@ -18,25 +19,30 @@ import type { WorkspaceStatusView } from "../../composables/workspaces/use-works
 // Menu mode's sidebar root — the canvas's workspace tree: the pinned Global
 // row, the user's groups and ungrouped workspaces (ALIVE rows — running, in
 // a state, or holding open tasks), then the collapsible NOT RUNNING group
-// for parked rows (quiet + nothing open), then the "New workspace" row. Rows
+// for parked rows (quiet + nothing open). Rows
 // drag into groups (or back to the root zone); a group's context menu
 // renames inline or deletes (members detach, never deleted — the engine
-// enforces it). Each group header carries its own "+", which opens the
-// create dialog pre-filed into that group; new groups are made from the
-// dialog (Kafi, 2026-08-19 — the Global row keeps only its own status).
-// Row click opens that workspace's chat; the caret drills. Data-blind: rows
-// + groups + status views in, events out.
+// enforces it). Creating lives in the strip ABOVE Global — a "+" for a
+// workspace and a stack-plus for a group (a new group opens straight into
+// its rename box) — and each group header carries its own "+", which opens
+// the create dialog pre-filed into that group (Kafi, 2026-08-19; the Global
+// row keeps only its own status). Row click opens that workspace's chat; the
+// caret drills. Data-blind: rows + groups + status views in, events out.
 const props = defineProps<{
   workspaces: {
     id: string;
     name: string;
     groupId: string | null;
     imageUrl?: string | null;
-    accentVar?: string;
+    /** A CSS colour — the workspace's accent (custom hex or palette reference). */
+    accent?: string;
   }[];
   groups: { id: string; name: string }[];
   /** The active scope: a workspace id, or null for Global. */
   activeWorkspaceId: string | null;
+  /** A group the host just created for the user (from the strip's stack-plus):
+   *  the tree opens its rename box the moment the row is on screen. */
+  renameGroupId?: string | null;
   statusByWorkspaceId: Record<string, WorkspaceStatusView>;
   globalStatus: WorkspaceEffectiveStatus;
   accountName: string;
@@ -49,6 +55,8 @@ const emit = defineEmits<{
   drill: [workspaceId: string | null];
   /** Open the create dialog — pre-filed into a group, or null for the root. */
   "create-workspace": [groupId: string | null];
+  /** Make a new group (the host names it); the tree opens its rename box on arrival. */
+  "create-group": [];
   "rename-group": [groupId: string, name: string];
   "delete-group": [groupId: string];
   "move-workspace": [workspaceId: string, groupId: string | null];
@@ -166,6 +174,23 @@ function startRename(group: { id: string; name: string }) {
     input?.select();
   });
 }
+// A group the host just made for the user opens straight into its rename box
+// so it never sits under a placeholder name — once per id, whenever both the
+// id and its row are on screen (the mutation's success and the refetch land
+// in either order).
+const renamedOnArrivalId = ref<string | null>(null);
+watch(
+  [() => props.renameGroupId, () => props.groups],
+  ([groupId, groups]) => {
+    if (!groupId || renamedOnArrivalId.value === groupId) return;
+    const arrived = groups.find((group) => group.id === groupId);
+    if (arrived === undefined) return;
+    renamedOnArrivalId.value = groupId;
+    startRename(arrived);
+  },
+  { immediate: true },
+);
+
 function commitRename() {
   const groupId = editingGroupId.value;
   const name = editingName.value.trim();
@@ -189,10 +214,35 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
        child — the parked group and the account foot included — sits inset. -->
   <nav class="flex h-full flex-col bg-[var(--color-bg)] px-[8.4px] py-[16.8px] text-[12.5px]">
     <div class="min-h-0 flex-1 overflow-y-auto">
+      <!-- The create strip: workspaces + groups are made from up here, above
+           everything they'll join. -->
+      <div class="tree-create-strip mb-1.5 flex items-center pl-[10px] pr-[5px]">
+        <span class="flex-1 text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]">
+          Workspaces
+        </span>
+        <button
+          type="button"
+          aria-label="New group"
+          title="New group"
+          class="tree-new-group grid size-6 shrink-0 cursor-default place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-[var(--color-accent)]"
+          @click="emit('create-group')"
+        >
+          <StackPlus :size="14" weight="bold" />
+        </button>
+        <button
+          type="button"
+          aria-label="New workspace"
+          title="New workspace"
+          class="tree-new-workspace grid size-6 shrink-0 cursor-default place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-[var(--color-accent)]"
+          @click="emit('create-workspace', null)"
+        >
+          <Plus :size="13" weight="bold" />
+        </button>
+      </div>
       <ul class="my-0 grid list-none gap-1 pl-0">
         <!-- The pinned Global scope — the tree's anchor, like the strip's.
-             It carries only its own status; creating lives on the groups
-             and the "New workspace" row below. -->
+             It carries only its own status; creating lives in the strip
+             above and on each group. -->
         <li>
           <div
             class="group flex items-center rounded-sm pl-[10px] pr-[7px] transition"
@@ -241,11 +291,11 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <!-- Groups (alive members). Dashed border only while a drag hovers —
            the canvas's drop-target treatment. -->
-      <div class="mt-1.5 grid gap-1.5">
+      <div class="mt-1.5 grid gap-2">
         <div
           v-for="group in props.groups"
           :key="group.id"
-          class="rounded-sm border border-dashed transition"
+          class="rounded-sm border border-dashed pb-1.5 transition"
           :class="
             dropTargetId === group.id
               ? 'border-gold bg-gold-soft'
@@ -270,9 +320,9 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
                   :size="10"
                   class="shrink-0 text-[var(--color-neutral-600)]"
                 />
-                <!-- A GROUP of workspaces — the collection glyph, never a
-                     folder (folders mean files everywhere else now). -->
-                <SquaresFour :size="13" weight="duotone" class="shrink-0 text-[var(--color-neutral-400)]" />
+                <!-- A GROUP of workspaces — the stack glyph, never a folder
+                     (folders mean files everywhere else now). -->
+                <Stack :size="13" weight="duotone" class="shrink-0 text-[var(--color-neutral-400)]" />
                 <input
                   v-if="editingGroupId === group.id"
                   ref="renameInput"
@@ -306,12 +356,11 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
               </button>
             </div>
           </ContextMenu>
-          <!-- No child inset: a group's rows share the header's left rail,
-               the way the mission-control prototype's groups do. The header
-               above already says they are nested. -->
+          <!-- Members sit a step in from the header, so an ungrouped row
+               below (flush left) never reads as one of them. -->
           <ul
             v-if="!collapsedFolderIds.has(group.id)"
-            class="my-0 grid list-none gap-0.5 pl-0"
+            class="my-0 grid list-none gap-0.5 pl-3"
           >
             <li v-for="workspace in membersByGroupId.get(group.id) ?? []" :key="workspace.id">
               <WorkspaceTreeRow
@@ -330,7 +379,7 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
 
       <!-- The root zone — ungrouped alive rows; a drop here detaches. -->
       <ul
-        class="mt-1 mb-0 grid list-none gap-0.5 rounded-sm border border-dashed p-0.5 pl-0.5 transition"
+        class="mt-2 mb-0 grid list-none gap-0.5 rounded-sm border border-dashed p-0.5 pl-0.5 transition"
         :class="dropTargetId === 'root' ? 'border-gold bg-gold-soft' : 'border-transparent'"
         @dragover="onRootDragOver"
         @dragleave="dropTargetId = dropTargetId === 'root' ? null : dropTargetId"
@@ -387,15 +436,6 @@ function onFolderMenu(group: { id: string; name: string }, itemId: string) {
       >
         No workspaces yet — create one to get building.
       </p>
-
-      <button
-        type="button"
-        class="tree-new-workspace mt-2 flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pl-[10px] pr-[9px] text-left text-[12px] text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-ink-1"
-        @click="emit('create-workspace', null)"
-      >
-        <span class="grid w-3 shrink-0 place-items-center"><Plus :size="12" weight="bold" /></span>
-        <span class="ml-2">New workspace</span>
-      </button>
     </div>
 
     <SidebarAccountRow

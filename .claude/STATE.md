@@ -17,7 +17,16 @@ select (No group / groups / "＋ New group…" inline via createGroup). API: `PO
 optional `groupId` (owner-checked via getWorkspaceGroupForUserOrThrow before the insert). Verified:
 typechecks + 49 tree/dialog/shell tests + live playwright (tree, click→chat, group "+" pre-files).
 NOTE: the group-fold storage key stays `vynel.tree.collapsed-folders` (persisted state) even though
-the vocabulary is "group" now.
+the vocabulary is "group" now. Follow-up pass (same day, Kafi): create strip ABOVE Global (`+` workspace
++ `PhStackPlus` group — group FIRST, then workspace; the host creates and passes `renameGroupId` from the
+mutation's success, the tree opens that row's rename box once per id when it is on screen — no stuck flag), group glyph `PhStack`, members `pl-3` + group `pb-1.5` + root `mt-2` so an
+ungrouped row (Seo) reads as its own, bottom "New workspace" row removed. **Custom accent colour:**
+`customize-store.customColor` (#rrggbb validated on read+write; slot and custom are ONE choice — picking
+either clears the other), `WorkspaceColorPicker` custom swatch (native color input overlaid), and the
+accent contract renamed `accentVar` (a `--ws-N` NAME) → `accent` (a CSS COLOUR used as-is) through
+ThreadStream/MessageRow/resolve-persona/WorkingRail/tree, resolved in ONE home
+`apps/local-web/src/utils/workspace-accent.ts`. Tabs keep their own per-tab slot (`ui-store.setTabColor`,
+`AppTabStrip`) — a custom hex does not reach the tab strip yet (candidate small step).
 
 ## ✅ 2026-08-19 EXPLORER-STYLE FILE BROWSER — one picker behind workspace / knowledge / memory
 
