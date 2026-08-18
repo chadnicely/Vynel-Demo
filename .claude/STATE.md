@@ -1,9 +1,37 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-18.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) LIVE CHANNEL — ALL SLICES SHIPPED (1-3 `9093297` `8fb2545` `16a5797` · 4 `1ac30e6` · 5 `8b09804` · review pass `3b97ed2`; delegation env knob `2bf7b3a`)
+## ✅ 2026-08-19 (latest) MODE INHERITANCE + SYNTHETIC-MODEL POISONING — both root-caused and fixed
+
+Kafi's two reports, both DB-verified in `.data/vynel.dev.db`. (1) **Auto root, children still
+carding:** the delegating turn's mode rides `x-vynel-delegation-mode`, stamped ONLY by the
+global-root stream — `chat-turn.ts`, `session-turn.ts`, and `buildDelegatedTurnMcpComposer` never
+stamped it, so their jobs enqueued `permission_mode=NULL` → the tick ran children under
+`bypass-with-behavior-gate` → floor cards (census: 38 NULL vs 21 'auto' task jobs; the NULLs all
+parented on auto primaries). Fix: `wrapAppRequestWithMode` moved into `delegation-mode-header.ts`
+(one home, writer beside parser); all three sites stamp — the interactive streams stamp only a
+RESOLVED mode (unset session keeps the unattended default, global parity), the delegated composer
+re-stamps the job's mode so chains inherit end-to-end. (2) **"Fable selected but 200k shown" +
+"global got stucked" (voice):** three links — global sat at ~443k (legit under 1M models, below
+0.85); voice pinned `claude-haiku-4-5` (200k) → hard "Prompt is too long"; the CLI's SYNTHETIC
+error message (`model:'<synthetic>'`, zero usage) then flowed through `handleUsageReported` and
+overwrote `chat_sessions.model='<synthetic>'` + `lastContextTokens=0` → meter denominator fell to
+the 200k floor AND the pressure swap went blind. Fixes: the translator drops usage from synthetic
+messages (`translate-claude-sdk-event.ts`, error text still replays); NEW
+`runtime/fit-pinned-model-to-session.ts` — pre-turn fit check (detectContextPressure vocabulary,
+honors the env threshold) wired into `streamGlobalRootTurn` for voice turns: an unfit pin runs the
+turn on the session's own last-ran model (never persisted; the voice no-write rule stands). Both
+poisoned dev rows healed in place (global `cf4eb9a2` → fable/442846). Verified: 3 typechecks +
+80 targeted tests green (4 touched files + 3 adjacent stream suites). RESIDUAL (not built): a
+delegated task's explicit small-model pick onto a fat target primary is the same failure class
+(candidate: same fit guard in `delegate-to-*.ts`); spawned sessions are born with NULL composer
+settings, so a DM to a child of an auto parent still defaults to ask — birth-stamping the
+creator's settings is a design fork for Kafi. LATER (Kafi, locked): voice → sonnet-5 + low effort
++ full global toolset, in a worktree (memory `voice-session-sonnet-directive`).
+
+## ✅ 2026-08-19 LIVE CHANNEL — ALL SLICES SHIPPED (1-3 `9093297` `8fb2545` `16a5797` · 4 `1ac30e6` · 5 `8b09804` · review pass `3b97ed2`; delegation env knob `2bf7b3a`)
 
 Slice 4 = the CLIENT-side detach (no route change): `use-chat-turn`/`use-session-turn` take
 `detachWhen` — after the server's FIRST frame (never before, or the abort cancels the send) and

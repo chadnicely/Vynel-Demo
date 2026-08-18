@@ -5,6 +5,38 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Fixed
+
+- **Child sessions now honor the mode of the turn that tasked them.** The
+  delegating turn's permission mode (Ask / Auto / Bypass) travels to the
+  enqueued task through an internal header, but only the global chat's turn
+  runner was stamping it — a workspace chat or a session DM on **Auto**
+  enqueued modeless tasks, so children fell back to the conservative
+  background default and asked approval for Write/Bash despite the parent's
+  Auto. All three interactive turn runners now stamp the resolved mode, and
+  a delegated turn re-stamps its job's mode on its own sends, so the whole
+  chain (auto root → child → grandchild) inherits end-to-end. A session
+  whose mode was never set still keeps the conservative default for its
+  delegations.
+- **A failed turn can no longer corrupt a session's context meter.** The
+  engine reports errors like "Prompt is too long" as a synthetic message
+  carrying a fake `<synthetic>` model and zeroed usage; persisting that
+  overwrote the session's real occupancy with 0 and its model with
+  `<synthetic>`, so the meter's denominator fell to the 200k floor (while a
+  1M model was selected) and the automatic context swap went blind. The
+  translator now drops the fabricated usage — the error text still shows,
+  and the session keeps its real numbers. Existing poisoned rows in the dev
+  DB were healed in place.
+- **Voice turns no longer die on a large global conversation.** Voice pins a
+  fast small-window model; once the global brain had grown past that window
+  (legitimate under its 1M-window models), every voice turn hard-failed with
+  "Prompt is too long" — hands-free, with nobody watching the error. A
+  pre-turn fit check now sets the pin aside for that turn and runs on the
+  session's own model instead (or the engine default), without persisting
+  anything over the user's chosen settings.
+
 ## [0.3.2] — 2026-08-19
 
 ### Changed
