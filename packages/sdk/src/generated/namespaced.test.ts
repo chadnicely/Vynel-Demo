@@ -175,9 +175,18 @@ const EXPECTED_SSH_SERVERS_METHODS = ['add', 'list', 'remove', 'testConnection']
 // `tasks.*` is the AGENT's surface (create stamps source='assistant'; no
 // delete — removal is the user's call); user-scoped `tasksUser.*` is the
 // panel/dashboard/CLI surface (create stamps source='user', spans both
-// scopes, owns delete).
-const EXPECTED_TASKS_METHODS = ['complete', 'create', 'list', 'update'] as const
-const EXPECTED_TASKS_USER_METHODS = ['create', 'delete', 'list', 'update'] as const
+// scopes, owns delete). The task-execution arc (2026-08-18) added the STEP
+// surface: the agent's whole-list `setSteps`, the user's read/tick/delete.
+const EXPECTED_TASKS_METHODS = ['complete', 'create', 'list', 'setSteps', 'update'] as const
+const EXPECTED_TASKS_USER_METHODS = [
+  'create',
+  'delete',
+  'deleteStep',
+  'list',
+  'listSteps',
+  'update',
+  'updateStepStatus',
+] as const
 
 // The notebook namespace's methods, sorted — the USER-scoped `/notebook`
 // surface (deliberate spec addition, 2026-07-12): the merged playbook shelf

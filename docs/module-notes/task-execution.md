@@ -155,6 +155,14 @@ full loop:
 6. **Deferred within the arc:** task attachments (fork ③), workspace→session task feeding
    (column is data-ready), channels digest.
 
+## Ownership clearance (Kafi, 2026-08-18)
+
+**Spawned agents just complete the task; the SPAWNING session owns the bookkeeping.** When a
+session hands task work to a spawned agent, the plan and the steps stay the spawner's to
+maintain — the agent does the work and reports back; it does not touch `set_task_steps` or the
+plan. This also defuses the ask-less-delivery concern in practice: the manager session running
+the clearance/steps discipline is an interactive-capable surface.
+
 ## Open fork for Kafi (surfaced by the slice-5 review, 2026-08-18)
 
 **`ask_user` on the nudge's own turn.** The pickup nudge runs as a report-delivery turn on the
