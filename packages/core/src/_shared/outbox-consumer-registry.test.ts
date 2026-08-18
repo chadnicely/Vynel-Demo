@@ -16,12 +16,14 @@ import { OUTBOX_CONSUMERS } from './outbox-consumer-registry.js'
 
 describe('OUTBOX_CONSUMERS (real registry)', () => {
   // test: correct expectation — `schedule.run-failed` joined the registry
-  // (a failed schedule run now routes into a global-root report delivery).
-  it('registers the three live consumers', () => {
+  // (a failed schedule run now routes into a global-root report delivery),
+  // then `task.created` (the pickup nudge, task-execution arc 2026-08-18).
+  it('registers the four live consumers', () => {
     expect(Object.keys(OUTBOX_CONSUMERS).sort()).toEqual([
       'ask.created',
       'schedule.run-completed',
       'schedule.run-failed',
+      'task.created',
     ])
   })
 

@@ -30,6 +30,7 @@ describe('createTask', () => {
         taskId: task.id,
         userId,
         workspaceId,
+        title: task.title,
         source: 'assistant',
         createdAt: task.createdAt.toISOString(),
       })

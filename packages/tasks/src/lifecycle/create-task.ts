@@ -63,6 +63,7 @@ export function createTask(
       taskId: inserted.id,
       userId: inserted.userId,
       workspaceId: inserted.workspaceId,
+      title: inserted.title,
       source: inserted.source,
       createdAt: now.toISOString(),
     }

@@ -12,8 +12,8 @@
 
 import { consumeAskCreatedEvent, consumeScheduleRunCompletedEvent } from '@vynel/channels'
 import type { AskCreatedPayload, ScheduleRunCompletedPayload } from '@vynel/channels'
-import { consumeScheduleRunFailedEvent } from '@vynel/orchestration'
-import type { ScheduleRunFailedPayload } from '@vynel/orchestration'
+import { consumeScheduleRunFailedEvent, consumeTaskCreatedEvent } from '@vynel/orchestration'
+import type { ScheduleRunFailedPayload, TaskCreatedPayload } from '@vynel/orchestration'
 import type { Database } from '@vynel/db'
 import type { OutboxEventRow } from '@vynel/db/repositories/_shared'
 
@@ -36,4 +36,8 @@ export const OUTBOX_CONSUMERS: Record<string, OutboxConsumer> = {
   // reaches the user's chat instead of dying on a run row with no UI.
   'schedule.run-failed': (db, payload) =>
     consumeScheduleRunFailedEvent(db, payload as unknown as ScheduleRunFailedPayload),
+  // A USER-created task → the pickup nudge on the scope's primary
+  // conversation (assistant-created tasks return without enqueueing).
+  'task.created': (db, payload) =>
+    consumeTaskCreatedEvent(db, payload as unknown as TaskCreatedPayload),
 }

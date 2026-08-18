@@ -23,7 +23,10 @@ describe('skipStaleOutboxEvents', () => {
       seedEvent(db, 'ask.created', stale)
       seedEvent(db, 'schedule.run-completed', stale)
       seedEvent(db, 'ask.created', fresh) // the crash-window event — must survive
-      seedEvent(db, 'task.created', stale) // unregistered type — not the relay's to touch
+      // test: correct control event for unregistered-type behavior — was
+      // task.created, which the pickup-nudge consumer registered 2026-08-18;
+      // plan.created has no consumer.
+      seedEvent(db, 'plan.created', stale) // unregistered type — not the relay's to touch
 
       const result = skipStaleOutboxEvents(db, { now: () => now })
       expect(result.skippedCount).toBe(2)
@@ -34,7 +37,7 @@ describe('skipStaleOutboxEvents', () => {
       })
       expect(remainingRegistered).toHaveLength(1) // only the fresh one
       expect(
-        listUnprocessedOutboxEvents(db, { types: ['task.created'], limit: 10 }),
+        listUnprocessedOutboxEvents(db, { types: ['plan.created'], limit: 10 }),
       ).toHaveLength(1)
     })
   })

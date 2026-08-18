@@ -11,8 +11,13 @@
 // completion is the event future subscribers (activity feed, digests) care
 // about; every other patch emits `task.updated`.
 //
-// Phase 1 consumers: NONE. Publish-from-day-one anyway so future subscribers
-// need no producer-side migration. Payloads are loose-ref FACTS only.
+// Consumers: `task.created` drives the PICKUP NUDGE (task-execution arc,
+// 2026-08-18) — core's outbox registry routes it to
+// `consumeTaskCreatedEvent` (@vynel/orchestration), which re-declares the
+// payload field-for-field (the loose cross-domain contract). `title` rides
+// the payload so the nudge can name the task without a cross-leaf read (the
+// ask.created `firstQuestionLabel` precedent). Other types: consumers NONE
+// yet; publish-from-day-one anyway. Payloads are loose-ref FACTS only.
 
 import type { TaskSource, TaskStatus } from './repositories/index.js'
 
@@ -25,6 +30,7 @@ export type TaskCreatedPayload = {
   taskId: string
   userId: string
   workspaceId: string | null // null = GLOBAL scope (no workspace)
+  title: string // the nudge names the task the user just filed
   source: TaskSource
   createdAt: string
 }
