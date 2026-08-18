@@ -169,3 +169,12 @@ export {
   type LiveChannelTransport,
   type LiveChannelVoiceSource,
 } from './live-channel/live-channel-hub.js'
+
+// The pre-turn guard for pinned-model surfaces (voice): a pin whose window
+// cannot hold the resumed session's occupancy is set aside for the turn
+// instead of guaranteeing a "Prompt is too long" failure.
+export {
+  fitPinnedModelToSession,
+  type FitPinnedModelToSessionInput,
+  type FitPinnedModelToSessionResult,
+} from './fit-pinned-model-to-session.js'

@@ -57,6 +57,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+// The CLI's error surrogates ("Prompt is too long", limit refusals) arrive as
+// SYNTHETIC assistant messages stamped with this model marker and zeroed
+// usage — no API request ran. See the usage guard in
+// `translateAssistantMessage`.
+const SYNTHETIC_MODEL_ID = '<synthetic>'
+
 /** The SDK stamps subagent traffic with the spawning Agent tool call's id at
  *  the top level of the message. Non-string (absent/null) = the main thread. */
 function readParentToolUseId(message: Record<string, unknown>): string | undefined {
@@ -183,8 +189,19 @@ function translateAssistantMessage(
   // A SUBAGENT's usage is its OWN context window — reporting it here would let
   // the consumer's keep-the-last rule overwrite the main session's occupancy
   // with the subagent's, corrupting the pressure-swap signal. Skip it.
+  // A SYNTHETIC message's usage is a fabrication (zeroes, model '<synthetic>')
+  // — reporting it would overwrite the session's REAL occupancy with 0 and
+  // advance its model column to '<synthetic>', so the meter's denominator
+  // falls to the 200k floor and the pressure swap goes blind (live incident
+  // 2026-08-19, the global brain). Its text still replays above — only the
+  // usage is dropped. A real errored request (e.g. max_output_tokens) keeps
+  // a real model id and its usage still reports.
   const usage = apiMessage['usage']
-  if (isRecord(usage) && parentToolUseId === undefined) {
+  if (
+    isRecord(usage) &&
+    parentToolUseId === undefined &&
+    apiMessage['model'] !== SYNTHETIC_MODEL_ID
+  ) {
     const usageEvent: UsageReportedEvent = {
       kind: 'usage-reported',
       sessionId,

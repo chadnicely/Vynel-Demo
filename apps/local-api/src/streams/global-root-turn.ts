@@ -23,14 +23,15 @@ import {
   recordAgentRunCompleted,
 } from '@vynel/orchestration'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
-import { toPermissionMode, type SessionPermissionMode } from '@vynel/session'
+import { toPermissionMode } from '@vynel/session'
 import {
   runGlobalRootTurnCore,
   publishTurnActivityStep,
+  fitPinnedModelToSession,
   type SessionSink,
   type SessionTurnActivityHandle,
 } from '@vynel/session/runtime'
-import type { AppEnv, HonoAppRequestFn } from '../factory.js'
+import type { AppEnv } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
@@ -41,7 +42,7 @@ import { loadEnv } from '../env.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
 import { resolveGlobalRootConversationTarget } from '../sessions/resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from '../sessions/global-root-workspace.js'
-import { DELEGATION_MODE_HEADER } from '../sessions/delegation-mode-header.js'
+import { wrapAppRequestWithMode } from '../sessions/delegation-mode-header.js'
 import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import type { z } from 'zod'
@@ -114,20 +115,6 @@ class GlobalRootSseSink implements SessionSink {
   }
 }
 
-/** Wrap the dispatcher so every routing request carries the turn's permission mode —
- *  the delegate route stamps it onto the enqueued job (surface-up step 1), the way
- *  `wrapAppRequestWithOrigin` carries a channel origin. */
-function wrapAppRequestWithMode(
-  appRequest: HonoAppRequestFn,
-  permissionMode: SessionPermissionMode,
-): HonoAppRequestFn {
-  return (input, init) => {
-    const headers = new Headers(init?.headers)
-    headers.set(DELEGATION_MODE_HEADER, permissionMode)
-    return appRequest(input, { ...init, headers })
-  }
-}
-
 export async function streamGlobalRootTurn(
   c: Context<AppEnv>,
   input: StartGlobalRootTurnInput,
@@ -173,6 +160,30 @@ export async function streamGlobalRootTurn(
   const turnSession = createTurnSessionCarrier()
   const appRequest = turnSession.wrapAppRequest(modeAwareAppRequest)
   const pressureThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
+
+  // A VOICE turn's pinned latency-tier model must actually FIT the session it
+  // resumes: the global brain legitimately grows to hundreds of k tokens under
+  // 1M-window models (below the swap threshold), and resuming that history on
+  // the pin's 200k window is a guaranteed "Prompt is too long" — a hands-free
+  // surface dying with nobody watching (live incident 2026-08-19). When the
+  // pin can't hold the occupancy, this one turn runs on the session's own
+  // last-ran model instead (it provably fits), or the engine default when even
+  // that is unknown. Never persisted — the voice no-write rule stands.
+  let turnModel = turnSettings.model
+  if (isVoiceTurn && turnModel !== undefined && conversationTarget.resumeSdkSessionId !== null) {
+    const fit = fitPinnedModelToSession(c.var.db, {
+      resumeSdkSessionId: conversationTarget.resumeSdkSessionId,
+      pinnedModel: turnModel,
+      ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
+    })
+    if (fit.wasReplaced) {
+      c.var.logger.info(
+        { pinnedModel: turnModel, model: fit.model ?? null, occupancyTokens: fit.occupancyTokens },
+        'voice model pin cannot hold the session occupancy — running on the session model',
+      )
+      turnModel = fit.model
+    }
+  }
 
   // Compose the global root's MCP attachment: the routing tools (the root is a
   // MANAGER — list + delegate + channel-send). No workspaceId — the global root
@@ -348,7 +359,7 @@ export async function streamGlobalRootTurn(
           ...(input.attachedImages !== undefined && input.attachedImages.length > 0
             ? { attachedImages: input.attachedImages }
             : {}),
-          ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+          ...(turnModel !== undefined ? { model: turnModel } : {}),
           ...(turnSettings.thinkingEffort !== undefined
             ? { thinkingEffort: turnSettings.thinkingEffort }
             : {}),

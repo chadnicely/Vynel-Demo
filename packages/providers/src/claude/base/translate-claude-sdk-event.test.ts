@@ -485,6 +485,36 @@ const testCases: TestCase[] = [
     expected: [],
   },
   {
+    name: "SYNTHETIC assistant message (model '<synthetic>', the CLI's error surrogate) -> text replays, usage is DROPPED (zeroed usage would erase the session's real occupancy and poison its model column)",
+    sdkEvent: {
+      type: 'assistant',
+      message: {
+        id: 'msg_synthetic',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Prompt is too long' }],
+        model: '<synthetic>',
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      },
+      parent_tool_use_id: null,
+      uuid: 'evt-synthetic',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'text-chunk',
+        sessionId: SESSION_ID,
+        messageId: 'msg_synthetic',
+        textDelta: 'Prompt is too long',
+        isFinalChunk: true,
+      },
+    ],
+  },
+  {
     name: 'SUBAGENT assistant text never "streamed" under its own id -> NOT replayed (its deltas ride the main id; replay would double the Agent card)',
     sdkEvent: {
       type: 'assistant',
