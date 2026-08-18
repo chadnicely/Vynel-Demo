@@ -7,6 +7,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Changed
+
+- **The default chat model advanced to Claude Opus 5.** A fresh install (or a
+  cleared composer preference) used to start on Opus 4.8; it now starts on
+  `claude-opus-5`. Sessions where a model was already chosen are untouched, and
+  turns that omit a model still fall to the engine default.
+
 ### Fixed
 
 - **Child sessions now honor the mode of the turn that tasked them.** The

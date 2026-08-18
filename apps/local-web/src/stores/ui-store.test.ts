@@ -280,7 +280,9 @@ describe("ui-store composer selections", () => {
     localStorage.setItem("vynel.composer-model", "gpt-99");
     const ui = useUiStore();
     expect(ui.composerMode).toBe("ask");
-    expect(ui.composerModelId).toBe("claude-opus-4-8");
+    // test: correct expectation — the default advanced to the 5 family
+    // (DEFAULT_CHAT_MODEL, Kafi 2026-08-19); was claude-opus-4-8.
+    expect(ui.composerModelId).toBe("claude-opus-5");
   });
 
   it("keeps a claude-shaped stored model even when the static floor doesn't list it", () => {

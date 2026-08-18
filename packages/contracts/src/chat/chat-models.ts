@@ -61,8 +61,9 @@ export const ChatModelIdSchema = z
       'list_available_chat_models / GET /providers/:providerId/models returns.',
   )
 
-/** The default when the user hasn't picked one (the most capable). */
-export const DEFAULT_CHAT_MODEL = 'claude-opus-4-8'
+/** The default when the user hasn't picked one — the current Opus (Kafi
+ *  2026-08-19: the 4.8 default was stale once the 5 family shipped). */
+export const DEFAULT_CHAT_MODEL = 'claude-opus-5'
 
 /** Whether a free-form model string is one of the selectable options (type
  *  guard — narrows to `string` so callers can use it without a non-null cast). */
