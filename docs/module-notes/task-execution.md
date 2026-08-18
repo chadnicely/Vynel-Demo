@@ -163,6 +163,21 @@ maintain — the agent does the work and reports back; it does not touch `set_ta
 plan. This also defuses the ask-less-delivery concern in practice: the manager session running
 the clearance/steps discipline is an interactive-capable surface.
 
+## Adam's own smoke findings (read off the assigned session's transcript, 2026-08-18)
+
+The model working the flow reported three observations; their dispositions:
+
+1. **Takeover never re-stamped the working session** — FIXED same day: the pickup stamp only
+   fired on the in-progress *transition*, so a second session taking over an already-running
+   task left `assignedSessionId` on the first. Now `replaceTaskSteps` re-stamps in its own
+   transaction — whoever writes the steps is working the task (the steps event's `sessionId`
+   carries the fact; no separate task.updated).
+2. **Steps carry no per-step history** — BY DESIGN (whole-list replace mints new rows each
+   call, so `completedAt` is the last replace's time). Cost accepted with the TodoWrite
+   semantics; revisit only if per-step timing earns a consumer.
+3. **Plan detail goes stale as work moves** — DISCIPLINE, not schema: the notebook already
+   teaches "update the plan AND the steps"; watch whether it holds in real use.
+
 ## Open fork for Kafi (surfaced by the slice-5 review, 2026-08-18)
 
 **`ask_user` on the nudge's own turn.** The pickup nudge runs as a report-delivery turn on the

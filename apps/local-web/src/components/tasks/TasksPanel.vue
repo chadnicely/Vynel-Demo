@@ -13,7 +13,6 @@ import {
   PhPlus as Plus,
   PhStopCircle as StopCircle,
 } from "@phosphor-icons/vue";
-import { useRouter } from "vue-router";
 import { EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
 import type { TaskStepStatus } from "@vynel/contracts/tasks/task-step-http";
@@ -29,6 +28,7 @@ import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
 import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
 import { useActivityStore } from "../../stores/activity-store.js";
+import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useVynel } from "../../composables/use-vynel.js";
 import type { SectionScope } from "../sections/section-scope.js";
@@ -253,10 +253,11 @@ const liveCurrentStep = computed(() => {
 
 // The expanded task's PLAN + SESSION doors (the sketch's icon row): the plan
 // icon opens the shared review dialog on either relation (the day-plan link
-// or the execution plan whose taskId points here); the session icon jumps to
-// the scope's sessions.
+// or the execution plan whose taskId points here); the session icon opens the
+// ASSIGNED session's real conversation in the sidebar — the same door the
+// working rail's edge chips open (Kafi, 2026-08-18: never the sessions tab).
 const ui = useUiStore();
-const router = useRouter();
+const sidebar = useConversationSidebarStore();
 const expandedTask = computed(
   () => tasksInScope.value.find((row) => row.id === expandedTaskId.value) ?? null,
 );
@@ -270,12 +271,21 @@ function openExpandedPlan() {
   ui.viewingPlanId = expandedLinkedPlanId.value;
 }
 
-function openScopeSessions() {
-  void router.push(
-    scopeWorkspaceId.value === null
-      ? { path: "/sessions" }
-      : { path: "/sessions", query: { workspace: scopeWorkspaceId.value } },
+function sessionTitleFor(sessionId: string): string {
+  const entry = (sessionsOverviewQuery.data.value ?? []).find(
+    (row) =>
+      row.sessionId === sessionId ||
+      row.segments.some((segment) => segment.sessionId === sessionId),
   );
+  return entry?.title ?? "Conversation";
+}
+
+function openAssignedSession(task: TaskResponse) {
+  if (task.assignedSessionId === null) return;
+  sidebar.openSession({
+    sessionId: task.assignedSessionId,
+    title: sessionTitleFor(task.assignedSessionId),
+  });
 }
 
 function toggleExpanded(task: TaskResponse) {
@@ -379,13 +389,23 @@ function completedAtLabel(task: TaskResponse): string {
         />
       </button>
       <ul v-if="isSessionsBoxOpen" class="sessions-list">
-        <li
-          v-for="session in workingSessions"
-          :key="session.sessionId"
-          class="sessions-row"
-        >
-          <span class="sessions-dot" aria-hidden="true" />
-          <span class="sessions-title">{{ session.title }}</span>
+        <!-- Each row opens the session's REAL conversation in the sidebar —
+             the same door the working rail's edge chips open. -->
+        <li v-for="session in workingSessions" :key="session.sessionId">
+          <button
+            type="button"
+            class="sessions-row"
+            :title="session.title"
+            @click="
+              sidebar.openSession({
+                sessionId: session.sessionId,
+                title: session.title,
+              })
+            "
+          >
+            <span class="sessions-dot" aria-hidden="true" />
+            <span class="sessions-title">{{ session.title }}</span>
+          </button>
         </li>
         <li v-if="workingSessions.length === 0" class="sessions-empty">
           Nothing working right now.
@@ -577,9 +597,9 @@ function completedAtLabel(task: TaskResponse): string {
               v-if="task.assignedSessionId"
               type="button"
               class="step-action"
-              title="Open the sessions working this scope"
-              aria-label="Open the sessions working this scope"
-              @click="openScopeSessions"
+              title="Open the session working this task"
+              aria-label="Open the session working this task"
+              @click="openAssignedSession(task)"
             >
               <ChatCircle :size="12" />
               Session
@@ -756,7 +776,16 @@ function completedAtLabel(task: TaskResponse): string {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 2px 0 2px 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: var(--radius-s);
+  text-align: left;
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+.sessions-row:hover {
+  background: var(--row-hover);
 }
 
 .sessions-dot {

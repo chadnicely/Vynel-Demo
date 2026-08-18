@@ -68,6 +68,18 @@ export function replaceTaskSteps(
 
   const now = new Date()
   const rows = withTransaction(db, (tx) => {
+    // THE WORKING SESSION IS WHOEVER WRITES THE STEPS: the pickup stamp on
+    // update_task only fires on the in-progress TRANSITION, so a session
+    // taking over an already-running task never re-stamped and the panel
+    // credited the wrong session (Adam's own 2026-08-18 smoke finding). The
+    // steps write is the ground truth of "who is working this" — re-stamp
+    // in the same transaction; the steps event's sessionId carries the fact.
+    if (input.sessionId != null && task.assignedSessionId !== input.sessionId) {
+      tasksRepository.updateTask(tx, task.id, {
+        assignedSessionId: input.sessionId,
+        updatedAt: now,
+      })
+    }
     taskStepsRepository.hardDeleteTaskStepsForTask(tx, {
       userId: input.userId,
       taskId: task.id,

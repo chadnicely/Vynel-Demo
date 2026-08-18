@@ -4,6 +4,7 @@ import { withTestDatabase } from '@vynel/testing'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { NotFoundError, ValidationError } from '@vynel/errors'
 import { makeTask, seedUserWorkspace, insertTask } from '../test-support.js'
+import { findTaskById } from '../repositories/tasks.js'
 import {
   replaceTaskSteps,
   MAX_STEPS_PER_TASK,
@@ -54,6 +55,26 @@ describe('replaceTaskSteps', () => {
         sessionId: 'session-1',
         stepCount: 3,
       })
+    })
+  })
+
+  it('re-stamps the WORKING session on takeover — whoever writes the steps is working the task', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId } = seedUserWorkspace(db)
+      const task = insertTask(db, makeTask(userId, null, { assignedSessionId: 'session-first' }))
+
+      replaceTaskSteps(db, {
+        userId,
+        taskId: task.id,
+        sessionId: 'session-takeover',
+        steps: [{ title: 'Step', status: 'open' }],
+      })
+      expect(findTaskById(db, task.id)?.assignedSessionId).toBe('session-takeover')
+
+      // A session-less write (a background turn with no ambient identity)
+      // leaves the assignment untouched.
+      replaceTaskSteps(db, { userId, taskId: task.id, steps: [] })
+      expect(findTaskById(db, task.id)?.assignedSessionId).toBe('session-takeover')
     })
   })
 
