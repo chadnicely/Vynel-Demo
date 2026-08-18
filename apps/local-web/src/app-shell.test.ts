@@ -174,12 +174,14 @@ function currentMenuItems(
   );
 }
 
-/** The strip's visible tab names — the label spans, without the monograms. */
+/** The strip's visible tab names — the label spans, without the monograms.
+ *  Scoped to `.app-tab`: the work rail opens by default now (task-execution
+ *  arc) and carries its own queue/done `role="tab"` pair. */
 function stripTabNames(
   wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"],
 ) {
   return wrapper
-    .findAll('[role="tab"]')
+    .findAll('.app-tab [role="tab"]')
     .map((tab) => tab.find(".truncate").text());
 }
 
@@ -327,13 +329,13 @@ describe("app shell", () => {
     expect(router.currentRoute.value.query.workspace).toBe(DEMO_WORKSPACE.id);
 
     // …hop to the Global tab (its default place, the chat)…
-    await wrapper.findAll('[role="tab"]')[0]!.trigger("click");
+    await wrapper.findAll('.app-tab [role="tab"]')[0]!.trigger("click");
     await vi.dynamicImportSettled();
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("chat");
 
     // …and returning to the room tab restores the library, not the default.
-    await wrapper.findAll('[role="tab"]')[1]!.trigger("click");
+    await wrapper.findAll('.app-tab [role="tab"]')[1]!.trigger("click");
     await vi.dynamicImportSettled();
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("sessions");
@@ -424,7 +426,7 @@ describe("app shell", () => {
     await wrapper.find('[title="Menu navigation"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0);
+    expect(wrapper.findAll('.app-tab [role="tab"]')).toHaveLength(0);
     const treeLabels = wrapper
       .findAll("nav ul button .truncate")
       .map((node) => node.text());
@@ -484,7 +486,7 @@ describe("app shell", () => {
     // The room opened from the tree IS a strip tab — one state, two views.
     expect(stripTabNames(wrapper)).toEqual(["Global", "Marketing"]);
     expect(
-      wrapper.find('[role="tab"][aria-selected="true"] .truncate').text(),
+      wrapper.find('.app-tab [role="tab"][aria-selected="true"] .truncate').text(),
     ).toBe("Marketing");
     expect(router.currentRoute.value.name).toBe("workspace");
   });

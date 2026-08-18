@@ -5,6 +5,8 @@ export const planKeys = {
   list: () => [...planKeys.all, "list"] as const,
   listInScope: (surfaceKey: string) =>
     [...planKeys.all, "list", surfaceKey] as const,
+  // The execution plan of one task (the task dialog's chip).
+  forTask: (taskId: string) => [...planKeys.all, "for-task", taskId] as const,
 };
 
 // One surface today (the plans section on both scopes); a mutation refreshes

@@ -12,6 +12,7 @@ const WORK_MUTATING_TOOL_NAMES: ReadonlySet<string> = new Set([
   "mcp__vynel__create_task",
   "mcp__vynel__update_task",
   "mcp__vynel__complete_task",
+  "mcp__vynel__set_task_steps",
 ]);
 
 /** Did this completed tool call change the task list or the step dock? */

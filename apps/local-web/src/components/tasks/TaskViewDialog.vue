@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { RouterLink } from "vue-router";
 import {
   PhCalendarBlank as CalendarRange,
+  PhChatCircle as ChatCircle,
   PhCheckCircle as CheckCircle,
   PhCircleDashed as CircleDashed,
   PhCircleHalf as CircleHalf,
@@ -9,18 +11,22 @@ import {
 import { Modal } from "@vynel/ui";
 import type { TaskStatus } from "@vynel/contracts/tasks/task-http";
 import { useTasks } from "../../composables/tasks/use-tasks.js";
+import { useTaskSteps } from "../../composables/tasks/use-task-steps.js";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
+import { usePlanForTask } from "../../composables/plans/use-plan-for-task.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import TaskStatusControl from "./TaskStatusControl.vue";
 
-// View one task in full: title, status (live cycle), detail, provenance,
-// its REAL working steps (the session's todos — redesign Arc 5, the canvas's
-// task-detail view on our data; no session, no steps section), and — when it
-// belongs to a plan — a chip that opens the SHARED plan review dialog. Takes
-// the ID and resolves the row from the live list query — a snapshot prop
-// would freeze the status tile on its first transition (the PlanViewDialog
+// View one task in full: title, status (live cycle), detail, provenance, its
+// steps, a chip to the plan behind it, and the connected session. The steps
+// are the task's OWN durable list (task-execution arc); tasks worked before
+// that arc fall back to the creating session's dock so their history stays
+// visible. The plan chip covers both relations: the task's `planId` (the
+// day-plan link) and the execution plan whose `taskId` points here. Takes the
+// ID and resolves the row from the live list query — a snapshot prop would
+// freeze the status tile on its first transition (the PlanViewDialog
 // precedent).
 const props = defineProps<{
   open: boolean;
@@ -41,13 +47,28 @@ const task = computed(
     null,
 );
 
-// The task's working steps — fetched only while the dialog is up and the
-// task actually has a session behind it.
+// The task's own steps first; the legacy session-dock read only fires when
+// the task predates task steps (the steps query SETTLED empty — an in-flight
+// read must not trigger a wasted dock fetch) AND has a creating session.
+const taskStepsQuery = useTaskSteps(() => (props.open ? props.taskId : null));
+const taskSteps = computed(() => taskStepsQuery.data.value ?? []);
 const todosQuery = useSessionTodos(() =>
-  props.open ? (task.value?.sessionId ?? null) : null,
+  props.open && taskStepsQuery.isFetched.value && taskSteps.value.length === 0
+    ? (task.value?.sessionId ?? null)
+    : null,
 );
 const steps = computed(() =>
-  [...(todosQuery.data.value ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
+  taskSteps.value.length > 0
+    ? taskSteps.value
+    : [...(todosQuery.data.value ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
+);
+
+// The execution plan whose loose `taskId` points at this task.
+const { plan: executionPlan } = usePlanForTask(() =>
+  props.open ? props.taskId : null,
+);
+const linkedPlanId = computed(
+  () => task.value?.planId ?? executionPlan.value?.id ?? null,
 );
 const stepProgress = computed(() => {
   if (steps.value.length === 0) return null;
@@ -65,9 +86,9 @@ function changeStatus(status: TaskStatus) {
 }
 
 function openPlan() {
-  if (!task.value?.planId) return;
+  if (linkedPlanId.value === null) return;
   emit("close");
-  ui.viewingPlanId = task.value.planId;
+  ui.viewingPlanId = linkedPlanId.value;
 }
 
 function onOpenChange(open: boolean) {
@@ -94,7 +115,7 @@ function onOpenChange(open: boolean) {
           >{{ task.source === "assistant" ? "Claude" : "You" }}</span
         >
         <button
-          v-if="task.planId"
+          v-if="linkedPlanId"
           type="button"
           class="plan-chip inline-flex cursor-default items-center gap-1 rounded-full border border-hair px-2 py-0.5 text-[10.5px] font-semibold text-ink-2 transition hover:border-hair-strong hover:text-ink-1"
           aria-label="View the linked plan"
@@ -103,6 +124,20 @@ function onOpenChange(open: boolean) {
           <CalendarRange :size="11" />
           View plan
         </button>
+        <RouterLink
+          v-if="task.assignedSessionId"
+          class="inline-flex items-center gap-1 rounded-full border border-hair px-2 py-0.5 text-[10.5px] font-semibold text-ink-2 no-underline transition hover:border-hair-strong hover:text-ink-1"
+          :to="
+            task.workspaceId
+              ? { path: '/sessions', query: { workspace: task.workspaceId } }
+              : { path: '/sessions' }
+          "
+          aria-label="Open the sessions working this scope"
+          @click="emit('close')"
+        >
+          <ChatCircle :size="11" />
+          Connected session
+        </RouterLink>
       </div>
 
       <p

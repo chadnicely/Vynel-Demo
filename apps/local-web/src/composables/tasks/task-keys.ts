@@ -6,6 +6,9 @@ export const taskKeys = {
   list: () => [...taskKeys.all, "list"] as const,
   listInScope: (surfaceKey: string) =>
     [...taskKeys.all, "list", surfaceKey] as const,
+  // One task's execution steps (the panel expander + the task dialog). Under
+  // `all` so every task-view invalidation refreshes open step lists too.
+  steps: (taskId: string) => [...taskKeys.all, "steps", taskId] as const,
 };
 
 // Tasks show up on two surfaces (the tasks list + the Home overview card) —

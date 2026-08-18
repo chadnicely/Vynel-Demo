@@ -36,13 +36,32 @@ function makeTask(overrides: Record<string, unknown> = {}) {
 // quiet stubs so each test only names the piece it exercises.
 function makeClient(overrides: Record<string, unknown> = {}): VynelClient {
   return {
-    tasksUser: { list: async () => [] },
+    tasksUser: { list: async () => [], listSteps: async () => [] },
     todos: { list: async () => [] },
+    plansUser: { list: async () => [] },
     workspaceApps: { list: async () => [] },
     approvals: { listPending: async () => [] },
     asks: { listPending: async () => [] },
     ...overrides,
   } as unknown as VynelClient;
+}
+
+function makeStep(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "step-1",
+    userId: "u1",
+    workspaceId: null,
+    taskId: "t1",
+    planId: null,
+    sessionId: null,
+    title: "Read the brief",
+    status: "open",
+    orderIndex: 0,
+    completedAt: null,
+    createdAt: "2026-08-18T10:00:00.000Z",
+    updatedAt: "2026-08-18T10:00:00.000Z",
+    ...overrides,
+  };
 }
 
 function mountPanel(
@@ -286,6 +305,123 @@ describe("TasksPanel (work rail)", () => {
       { scope: "workspace", workspaceId: "w1", title: "Wire it" },
     ]);
     expect(wrapper.find(".create-input").exists()).toBe(false);
+  });
+
+  // ── The task-execution arc's additions (2026-08-18). ──
+
+  it("the activity header shows done/total, and rows with steps carry n/m + an expander", async () => {
+    const stepsCalls: string[] = [];
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [
+          makeTask({ stepsDone: 1, stepsTotal: 3 }),
+          makeTask({ id: "t2", title: "No steps yet" }),
+          makeTask({
+            id: "t3",
+            title: "Old win",
+            status: "done",
+            completedAt: "2026-08-17T10:00:00.000Z",
+          }),
+        ],
+        listSteps: async (taskId: string) => {
+          stepsCalls.push(taskId);
+          return [
+            makeStep({ status: "done", completedAt: "2026-08-18T10:05:00.000Z" }),
+            makeStep({ id: "step-2", title: "Draft the copy", orderIndex: 1 }),
+          ];
+        },
+      },
+    });
+
+    const wrapper = mountPanel(client);
+    await flushPromises();
+
+    expect(wrapper.get(".activity-line").text()).toContain("1/3");
+    // Only the task WITH steps gets the fold; its collapsed face is n/m.
+    const toggles = wrapper.findAll(".step-toggle");
+    expect(toggles).toHaveLength(1);
+    expect(toggles[0]!.get(".step-count").text()).toBe("1/3");
+
+    await toggles[0]!.trigger("click");
+    await flushPromises();
+
+    expect(stepsCalls).toEqual(["t1"]);
+    const stepTitles = wrapper.findAll(".step-title").map((node) => node.text());
+    expect(stepTitles).toEqual(["Read the brief", "Draft the copy"]);
+  });
+
+  it("ticking an expanded step patches it through the user step door", async () => {
+    const patchCalls: unknown[] = [];
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [makeTask({ stepsDone: 0, stepsTotal: 1 })],
+        listSteps: async () => [makeStep()],
+        updateStepStatus: async (stepId: string, patch: unknown) => {
+          patchCalls.push([stepId, patch]);
+          return makeStep({ status: "done" });
+        },
+      },
+    });
+
+    const wrapper = mountPanel(client);
+    await flushPromises();
+    await wrapper.get(".step-toggle").trigger("click");
+    await flushPromises();
+
+    await wrapper.get(".step-tick").trigger("click");
+    await flushPromises();
+
+    expect(patchCalls).toEqual([["step-1", { status: "done" }]]);
+  });
+
+  it("the sessions box counts this scope's working turns and lists them on expand", async () => {
+    const client = makeClient({
+      sessions: {
+        overview: async () => [
+          {
+            sessionId: "s-live",
+            scope: "workspace",
+            workspaceId: "w1",
+            workspaceName: "Bakery",
+            title: "Spring campaign",
+            model: null,
+            contextTokens: null,
+            contextWindow: 200000,
+            lastMessageAt: "2026-08-18T10:00:00.000Z",
+            statusFacts: {},
+            segments: [],
+          },
+        ],
+      },
+    });
+
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useActivityStore().applyServerActivity({
+      kind: "turn-started",
+      turnId: "turn-1",
+      scopeKind: "workspace",
+      workspaceId: "w1",
+      sessionId: "s-live",
+      origin: "web",
+      startedAt: "2026-08-18T10:00:00.000Z",
+    });
+
+    const wrapper = mountPanel(
+      client,
+      { kind: "workspace", workspaceId: "w1" },
+      pinia,
+    );
+    await flushPromises();
+
+    const box = wrapper.get(".sessions-box");
+    expect(box.text()).toContain("1");
+    expect(box.text()).toContain("session working");
+
+    await box.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get(".sessions-title").text()).toBe("Spring campaign");
   });
 
   it("reads quiet when nothing is happening — no abort, no fake progress", async () => {

@@ -344,9 +344,10 @@ export const useUiStore = defineStore("ui", () => {
     if (!activeSurvives) activeTabId.value = GLOBAL_TAB_ID;
   }
 
-  // The tasks dock is opt-in, off by default — chat stays the whole story
-  // until the user asks for the list.
-  const isTasksPanelOpen = ref(false);
+  // The task rail opens by DEFAULT (task-execution arc, Kafi 2026-08-18):
+  // tasks are the workspace's work queue now, so the plan is part of the
+  // room's face — the toggle still closes it for the session.
+  const isTasksPanelOpen = ref(true);
 
   // The plan being viewed in the SHARED PlanViewDialog (AppShell mounts it once)
   // — set from a chat `vynel://plan/<id>` link, a list row's View action, or a

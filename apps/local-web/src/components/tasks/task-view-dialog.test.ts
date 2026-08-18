@@ -1,6 +1,8 @@
-// Tests for the task view's steps section (redesign Arc 5) — the session's
-// REAL todos render sorted with honest progress; a task that never ran shows
-// no steps at all.
+// Tests for the task view's steps section — the task's OWN durable steps
+// render first (task-execution arc); the legacy session-dock read is the
+// fallback for tasks that predate task steps; a task that never ran shows no
+// steps at all. Plus the plan chip's two relations and the connected-session
+// chip.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
@@ -21,6 +23,7 @@ function makeTask(overrides: Record<string, unknown> = {}) {
     source: "assistant",
     sessionId: "s1",
     planId: null,
+    assignedSessionId: null,
     completedAt: null,
     createdAt: "2026-08-14T10:00:00.000Z",
     updatedAt: "2026-08-14T10:00:00.000Z",
@@ -44,6 +47,35 @@ function makeTodo(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeStep(overrides: Record<string, unknown> = {}) {
+  return {
+    id: crypto.randomUUID(),
+    userId: "u1",
+    workspaceId: null,
+    taskId: "t1",
+    planId: null,
+    sessionId: null,
+    title: "A task step",
+    status: "open",
+    orderIndex: 0,
+    completedAt: null,
+    createdAt: "2026-08-18T10:00:00.000Z",
+    updatedAt: "2026-08-18T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+// The dialog reads four surfaces now — quiet defaults so each test only names
+// the piece it exercises.
+function makeClient(overrides: Record<string, unknown> = {}): VynelClient {
+  return {
+    tasksUser: { list: async () => [makeTask()], listSteps: async () => [] },
+    todos: { list: async () => [] },
+    plansUser: { list: async () => [] },
+    ...overrides,
+  } as unknown as VynelClient;
+}
+
 function mountDialog(client: VynelClient, taskId = "t1") {
   return mount(TaskViewDialog, {
     props: { open: true, taskId },
@@ -60,6 +92,9 @@ function mountDialog(client: VynelClient, taskId = "t1") {
         ],
       ],
       provide: { [vynelClientKey as symbol]: client },
+      // No real router in these mounts — the chip's navigation is the
+      // router's business, not this dialog's.
+      stubs: { RouterLink: { template: "<a><slot /></a>" } },
     },
   });
 }
@@ -71,9 +106,37 @@ afterEach(() => {
 });
 
 describe("TaskViewDialog", () => {
-  it("renders the session's steps sorted, with honest progress", async () => {
-    const client = {
-      tasksUser: { list: async () => [makeTask()] },
+  it("the task's OWN steps win — the legacy dock read never fires when they exist", async () => {
+    const todosCalls: unknown[] = [];
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [makeTask()],
+        listSteps: async () => [
+          makeStep({ title: "Lay the schema", status: "done", completedAt: "2026-08-18T10:05:00.000Z" }),
+          makeStep({ title: "Wire the routes", orderIndex: 1 }),
+        ],
+      },
+      todos: {
+        list: async (input: unknown) => {
+          todosCalls.push(input);
+          return [makeTodo({ title: "Old dock step" })];
+        },
+      },
+    });
+
+    const wrapper = mountDialog(client);
+    await flushPromises();
+
+    const body = document.body.textContent ?? "";
+    expect(body).toContain("Lay the schema");
+    expect(body).toContain("1 of 2");
+    expect(body).not.toContain("Old dock step");
+    expect(todosCalls).toEqual([]);
+    wrapper.unmount();
+  });
+
+  it("falls back to the session's dock todos ONLY after the steps query settles empty", async () => {
+    const client = makeClient({
       todos: {
         list: async () => [
           makeTodo({ title: "Wire it up", orderIndex: 1 }),
@@ -85,7 +148,7 @@ describe("TaskViewDialog", () => {
           }),
         ],
       },
-    } as unknown as VynelClient;
+    });
 
     const wrapper = mountDialog(client);
     await flushPromises();
@@ -102,15 +165,18 @@ describe("TaskViewDialog", () => {
 
   it("shows no steps section for a task that never ran", async () => {
     const listCalls: unknown[] = [];
-    const client = {
-      tasksUser: { list: async () => [makeTask({ sessionId: null })] },
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [makeTask({ sessionId: null })],
+        listSteps: async () => [],
+      },
       todos: {
         list: async (input: unknown) => {
           listCalls.push(input);
           return [];
         },
       },
-    } as unknown as VynelClient;
+    });
 
     const wrapper = mountDialog(client);
     await flushPromises();
@@ -119,5 +185,44 @@ describe("TaskViewDialog", () => {
     // No session — the todos query never fires.
     expect(listCalls).toEqual([]);
     wrapper.unmount();
+  });
+
+  it("the plan chip appears for an EXECUTION plan found by taskId (no task.planId)", async () => {
+    const planCalls: unknown[] = [];
+    const client = makeClient({
+      plansUser: {
+        list: async (query: unknown) => {
+          planCalls.push(query);
+          return [{ id: "p1", taskId: "t1" }];
+        },
+      },
+    });
+
+    const wrapper = mountDialog(client);
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("View plan");
+    expect(planCalls).toEqual([{ taskId: "t1" }]);
+    wrapper.unmount();
+  });
+
+  it("the connected-session chip renders only when a session is assigned", async () => {
+    const assigned = mountDialog(
+      makeClient({
+        tasksUser: {
+          list: async () => [makeTask({ assignedSessionId: "s-work", workspaceId: "w1" })],
+          listSteps: async () => [],
+        },
+      }),
+    );
+    await flushPromises();
+    expect(document.body.textContent).toContain("Connected session");
+    assigned.unmount();
+    document.body.innerHTML = "";
+
+    const unassigned = mountDialog(makeClient());
+    await flushPromises();
+    expect(document.body.textContent).not.toContain("Connected session");
+    unassigned.unmount();
   });
 });

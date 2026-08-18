@@ -3,15 +3,23 @@ import { computed, ref } from "vue";
 import { nextTick } from "vue";
 import {
   PhArrowUpRight as ArrowUpRight,
+  PhCaretRight as CaretRight,
+  PhCheckCircle as CheckCircle,
+  PhCircleDashed as CircleDashed,
+  PhCircleHalf as CircleHalf,
   PhMonitor as Monitor,
   PhPlus as Plus,
   PhStopCircle as StopCircle,
 } from "@phosphor-icons/vue";
 import { EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
+import type { TaskStepStatus } from "@vynel/contracts/tasks/task-step-http";
 import { useCreateTask } from "../../composables/tasks/use-create-task.js";
 import { useTasksInScope } from "../../composables/tasks/use-tasks-in-scope.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
+import { useTaskSteps } from "../../composables/tasks/use-task-steps.js";
+import { useUpdateStepStatus } from "../../composables/tasks/use-update-step-status.js";
+import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
 import TaskViewDialog from "./TaskViewDialog.vue";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
@@ -26,7 +34,8 @@ import TaskStatusControl from "./TaskStatusControl.vue";
 // working steps, the queue/completed pills read the same scoped tasks query
 // as TasksSection, and OPEN IT lists the workspace's actually-running apps
 // (AppRow's plain-anchor pattern) plus the same per-scope interrupt the chat
-// surfaces use. Still the opt-in dock — the title-bar toggle is unchanged.
+// surfaces use. OPEN BY DEFAULT since the task-execution arc (2026-08-18) —
+// tasks are the scope's work queue now; the title-bar toggle still closes it.
 const props = withDefaults(
   defineProps<{
     scope: SectionScope;
@@ -76,19 +85,47 @@ const shownTasks = computed(() =>
   listTab.value === "done" ? completedTasks.value : queuedTasks.value,
 );
 
+// EVERY running turn in this scope — the activity header's "sessions working"
+// count and the sessions box's rows. The first one anchors the live card's
+// steps and the interrupt target, as before.
+const workingTurns = computed(() =>
+  Object.values(activity.serverTurns).filter((turn) =>
+    scopeWorkspaceId.value === null
+      ? turn.scopeKind === "global"
+      : turn.scopeKind === "workspace" &&
+        turn.workspaceId === scopeWorkspaceId.value,
+  ),
+);
+
 // The scope's RUNNING session — the server turn map carries sessionId per
 // scope; it anchors both the live card's steps and the interrupt target.
-const liveSessionId = computed(() => {
-  for (const turn of Object.values(activity.serverTurns)) {
-    const matchesScope =
-      scopeWorkspaceId.value === null
-        ? turn.scopeKind === "global"
-        : turn.scopeKind === "workspace" &&
-          turn.workspaceId === scopeWorkspaceId.value;
-    if (matchesScope) return turn.sessionId;
-  }
-  return null;
-});
+const liveSessionId = computed(() => workingTurns.value[0]?.sessionId ?? null);
+
+// ── The activity header: the scope's done/total rollup + who is working. ──
+const activityCounts = computed(() => ({
+  done: completedTasks.value.length,
+  total: tasksInScope.value.length,
+}));
+
+// The sessions box — collapsed it advertises the count; expanded it lists
+// this scope's working sessions by name (titles from the shared overview
+// query, fetched only while the box is open; always scope-filtered — the
+// standing rule for every session surface).
+const isSessionsBoxOpen = ref(false);
+const sessionsOverviewQuery = useSessionsOverview(isSessionsBoxOpen);
+const workingSessions = computed(() =>
+  workingTurns.value.flatMap((turn) => {
+    // A turn that hasn't resolved its session yet has no row to name.
+    if (turn.sessionId === null) return [];
+    const sessionId = turn.sessionId;
+    const entry = (sessionsOverviewQuery.data.value ?? []).find(
+      (row) =>
+        row.sessionId === sessionId ||
+        row.segments.some((segment) => segment.sessionId === sessionId),
+    );
+    return [{ sessionId, title: entry?.title ?? "A conversation" }];
+  }),
+);
 
 const liveTask = computed(
   () => queuedTasks.value.find((row) => row.status === "in-progress") ?? null,
@@ -184,6 +221,31 @@ function changeStatus(task: TaskResponse, status: TaskStatus) {
   updateTask.mutate({ taskId: task.id, status });
 }
 
+// ── The step expander — one task's durable plan-of-record, unfolded in
+// place (accordion: one open at a time keeps the fetch bounded). The
+// collapsed row already shows n/m from the list's rollup. ──
+const expandedTaskId = ref<string | null>(null);
+const expandedStepsQuery = useTaskSteps(expandedTaskId);
+const expandedSteps = computed(() => expandedStepsQuery.data.value ?? []);
+const updateStepStatus = useUpdateStepStatus();
+
+function toggleExpanded(task: TaskResponse) {
+  expandedTaskId.value = expandedTaskId.value === task.id ? null : task.id;
+}
+
+// Clicking a step's glyph ticks it done; clicking a done step reopens it.
+function tickStep(stepId: string, status: TaskStepStatus) {
+  updateStepStatus.mutate({
+    stepId,
+    status: status === "done" ? "open" : "done",
+  });
+}
+
+function stepCountLabel(task: TaskResponse): string | null {
+  if (!task.stepsTotal) return null;
+  return `${task.stepsDone ?? 0}/${task.stepsTotal}`;
+}
+
 // A row opens the full task view (status, detail, the session's real steps).
 const viewingTaskId = ref<string | null>(null);
 
@@ -233,6 +295,43 @@ function completedAtLabel(task: TaskResponse): string {
 
 <template>
   <aside class="work-rail">
+    <!-- The activity header — the scope's rollup at a glance: tasks done of
+         total, and who is working. The sessions box expands into the scope's
+         working sessions (always workspace-filtered). -->
+    <header class="rail-activity">
+      <p class="activity-line">
+        <span class="activity-count">{{ activityCounts.done }}/{{ activityCounts.total }}</span>
+        tasks done
+      </p>
+      <button
+        type="button"
+        class="sessions-box"
+        :aria-expanded="isSessionsBoxOpen"
+        @click="isSessionsBoxOpen = !isSessionsBoxOpen"
+      >
+        <span class="activity-count">{{ workingTurns.length }}</span>
+        {{ workingTurns.length === 1 ? "session" : "sessions" }} working
+        <CaretRight
+          :size="10"
+          class="sessions-caret"
+          :class="{ 'is-open': isSessionsBoxOpen }"
+        />
+      </button>
+      <ul v-if="isSessionsBoxOpen" class="sessions-list">
+        <li
+          v-for="session in workingSessions"
+          :key="session.sessionId"
+          class="sessions-row"
+        >
+          <span class="sessions-dot" aria-hidden="true" />
+          <span class="sessions-title">{{ session.title }}</span>
+        </li>
+        <li v-if="workingSessions.length === 0" class="sessions-empty">
+          Nothing working right now.
+        </li>
+      </ul>
+    </header>
+
     <!-- The live card — the scope's status, what's being worked, and the
          real numbers: session steps while running, the task rollup in the
          end states. One status, one colour. -->
@@ -324,32 +423,79 @@ function completedAtLabel(task: TaskResponse): string {
         "
       />
 
-      <div
-        v-for="(task, taskIndex) in shownTasks"
-        :key="task.id"
-        class="task-row"
-        :class="{ 'is-done': task.status === 'done' }"
-      >
-        <TaskStatusControl
-          size="compact"
-          :status="task.status"
-          @change="changeStatus(task, $event)"
-        />
-        <button
-          type="button"
-          class="task-title"
-          :title="task.title"
-          @click="viewingTaskId = task.id"
-        >
-          {{ taskIndex + 1 }}. {{ task.title }}
-        </button>
-        <span v-if="task.status === 'done'" class="task-meta">
-          {{ completedAtLabel(task) }}
-        </span>
-        <span v-else-if="task.status === 'in-progress'" class="task-meta is-live">
-          now
-        </span>
-      </div>
+      <template v-for="(task, taskIndex) in shownTasks" :key="task.id">
+        <div class="task-row" :class="{ 'is-done': task.status === 'done' }">
+          <TaskStatusControl
+            size="compact"
+            :status="task.status"
+            @change="changeStatus(task, $event)"
+          />
+          <button
+            type="button"
+            class="task-title"
+            :title="task.title"
+            @click="viewingTaskId = task.id"
+          >
+            {{ taskIndex + 1 }}. {{ task.title }}
+          </button>
+          <span v-if="task.status === 'done'" class="task-meta">
+            {{ completedAtLabel(task) }}
+          </span>
+          <span v-else-if="task.status === 'in-progress'" class="task-meta is-live">
+            now
+          </span>
+          <!-- The step expander — only tasks that HAVE steps get the fold. -->
+          <button
+            v-if="stepCountLabel(task)"
+            type="button"
+            class="step-toggle"
+            :aria-expanded="expandedTaskId === task.id"
+            :aria-label="`Show the steps of ${task.title}`"
+            @click="toggleExpanded(task)"
+          >
+            <span class="step-count">{{ stepCountLabel(task) }}</span>
+            <CaretRight
+              :size="10"
+              class="step-caret"
+              :class="{ 'is-open': expandedTaskId === task.id }"
+            />
+          </button>
+        </div>
+        <ul v-if="expandedTaskId === task.id" class="step-list">
+          <li v-for="step in expandedSteps" :key="step.id" class="step-row">
+            <button
+              type="button"
+              class="step-tick"
+              :aria-label="
+                step.status === 'done' ? 'Reopen this step' : 'Mark this step done'
+              "
+              @click="tickStep(step.id, step.status)"
+            >
+              <CheckCircle
+                v-if="step.status === 'done'"
+                :size="13"
+                class="step-icon is-done"
+              />
+              <CircleHalf
+                v-else-if="step.status === 'in-progress'"
+                :size="13"
+                class="step-icon is-live"
+              />
+              <CircleDashed v-else :size="13" class="step-icon" />
+            </button>
+            <span
+              class="step-title"
+              :class="{ 'is-done': step.status === 'done' }"
+              :title="step.title"
+            >
+              {{ step.title }}
+            </span>
+          </li>
+          <li v-if="expandedSteps.length === 0" class="step-empty">
+            No steps laid out yet.
+          </li>
+        </ul>
+      </template>
     </div>
 
     <!-- OPEN IT — real running apps + the real interrupt. Workspace rooms
@@ -420,7 +566,7 @@ function completedAtLabel(task: TaskResponse): string {
    was running 600/500 and near-white throughout. */
 .work-rail {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr auto;
   gap: var(--space-6);
   min-height: 0;
   width: 272px;
@@ -430,6 +576,86 @@ function completedAtLabel(task: TaskResponse): string {
      the one lit thing in the column. --bg-panel put it only 6% off the card. */
   background: var(--color-bg);
   border-left: 1px solid var(--hair);
+}
+
+/* ── The activity header — the same quiet micro-label voice as the rest of
+   the rail; the counts alone carry ink. ── */
+.rail-activity {
+  display: grid;
+  gap: 4px;
+}
+
+.activity-line {
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 10.5px/1.5 var(--font-ui);
+}
+
+.activity-count {
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.sessions-box {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 0;
+  color: var(--ink-3);
+  font: 400 10.5px/1.5 var(--font-ui);
+  transition: color var(--t-fast) var(--ease-out);
+}
+
+.sessions-box:hover {
+  color: var(--ink-1);
+}
+
+.sessions-caret {
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.sessions-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.sessions-list {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 3px;
+}
+
+.sessions-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0 2px 4px;
+}
+
+.sessions-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 60%, transparent);
+}
+
+.sessions-title {
+  min-width: 0;
+  color: var(--ink-2);
+  font: 400 11px/1.5 var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessions-empty {
+  padding-left: 4px;
+  color: var(--ink-3);
+  font: 400 10.5px/1.5 var(--font-ui);
 }
 
 /* ── The live card. The status carries the tint — one status, one colour:
@@ -741,6 +967,100 @@ function completedAtLabel(task: TaskResponse): string {
 
 .task-meta.is-live {
   color: var(--gold-bright);
+}
+
+/* ── The step expander — the count is the affordance; the caret confirms. ── */
+.step-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 1px 4px;
+  border-radius: 999px;
+  color: var(--ink-3);
+  transition:
+    background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.step-toggle:hover {
+  background: var(--row-hover);
+  color: var(--ink-1);
+}
+
+.step-count {
+  font: 400 10px/1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.step-caret {
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.step-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.step-list {
+  margin: 0 0 2px;
+  padding: 2px 0 4px 26px;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  border-left: 1px solid var(--hair);
+  margin-left: 13px;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.step-tick {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 1px;
+  border-radius: 50%;
+}
+
+.step-icon {
+  color: var(--ink-3);
+}
+
+.step-icon.is-done {
+  color: var(--gold);
+}
+
+.step-icon.is-live {
+  color: var(--gold-bright);
+}
+
+.step-tick:hover .step-icon {
+  color: var(--ink-1);
+}
+
+.step-title {
+  min-width: 0;
+  flex: 1;
+  color: var(--color-neutral-400);
+  font: 400 11px/1.55 var(--font-ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-title.is-done {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ink-3) 55%, transparent);
+}
+
+.step-empty {
+  color: var(--ink-3);
+  font: 400 10.5px/1.5 var(--font-ui);
 }
 
 /* ── OPEN IT. ── */
