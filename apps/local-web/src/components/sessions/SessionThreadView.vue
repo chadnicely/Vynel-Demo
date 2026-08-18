@@ -89,7 +89,11 @@ const threadStatus = computed(() => {
   return status === "idle" ? null : status;
 });
 
-const turn = useSessionTurn(() => activeSessionId.value);
+const turn = useSessionTurn(() => activeSessionId.value, {
+  // The origin stream detaches once the standing watch has the turn folding
+  // (live-channel slice 4) — the watch renders the rest.
+  detachWhen: () => watchedTurn.hasSharedFold.value,
+});
 
 // A turn running in this session OUTSIDE this composer (a delegated task, a
 // queued job draining) — reported by the activity feed with the session's sdk
@@ -135,6 +139,11 @@ const watchedTurn = useWatchedTurn({
   },
 });
 const activeTurn = computed(() => turn.view.value ?? watchedTurn.view.value);
+// Own OR watched — after the detach the watch is the one that knows.
+const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
+const turnErrorText = computed(
+  () => turn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
+);
 
 // A watched turn's settle must land its rows HERE too: the registry's settle
 // snapshot only warms the subscription that owns the provider slot (the
@@ -190,7 +199,7 @@ function sendMessage(
 // Mid-turn sends QUEUE and fire in order as each turn settles (the chat views'
 // contract — ChatComposer clears the draft on emit, so the host must never
 // drop a send). Text-only surface: the attachments half rides along empty.
-const queuedSend = useQueuedSend(turn.view, sendMessage);
+const queuedSend = useQueuedSend(activeTurn, sendMessage);
 </script>
 
 <template>
@@ -253,12 +262,12 @@ const queuedSend = useQueuedSend(turn.view, sendMessage);
             : "Working on a task — your message is queued."
         }}
       </p>
-      <p v-if="turn.errorText.value" class="turn-error-note">
-        {{ turn.errorText.value }}
+      <p v-if="turnErrorText" class="turn-error-note">
+        {{ turnErrorText }}
       </p>
       <AppComposer
         :session-id="activeSessionId"
-        :streaming="turn.isStreaming.value"
+        :streaming="isTurnStreaming"
         :placeholder="`Message ${props.title}…`"
         :allow-attachments="false"
         :scope="composerScope"

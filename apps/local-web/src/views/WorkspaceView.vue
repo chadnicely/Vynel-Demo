@@ -108,6 +108,10 @@ const chatTurn = useChatTurn({
   onSessionCreated: (session) => {
     shell.target = { sessionId: session.id };
   },
+  // The origin stream detaches once the thread's standing watch (the window's
+  // one live socket) has the turn folding — the send holds a pool connection
+  // only for its first frames; the watch renders the rest.
+  detachWhen: () => watchedTurn.hasSharedFold.value,
 });
 
 // A turn running in THIS workspace outside this view's own stream — another
@@ -226,6 +230,13 @@ const watchedTurn = useWatchedTurn({
 const activeTurn = computed(
   () => ownActiveTurn.value ?? watchedTurn.view.value,
 );
+// The composer's "a turn is running here" — own OR watched (after the detach
+// the watch is the one that knows); the Stop button and the send queue read it.
+const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
+// A failed turn's note survives the overlay teardown on either path.
+const turnErrorText = computed(
+  () => chatTurn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
+);
 
 // A cold-cache open used to flash the welcome hero over a real conversation
 // while the history fetch was in flight — gate the hero behind the fetch.
@@ -305,7 +316,7 @@ function sendMessage(
 // Mid-turn sends queue and fire in order as each turn settles; the drain calls
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
-const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
+const queuedSend = useQueuedSend(activeTurn, sendMessage);
 </script>
 
 <template>
@@ -411,12 +422,12 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           :queued="queuedSend.queued.value"
           @remove="queuedSend.removeQueued"
         />
-        <p v-if="chatTurn.errorText.value" class="turn-error-note">
-          {{ chatTurn.errorText.value }}
+        <p v-if="turnErrorText" class="turn-error-note">
+          {{ turnErrorText }}
         </p>
         <AppComposer
           :session-id="activeSessionId"
-          :streaming="chatTurn.isStreaming.value"
+          :streaming="isTurnStreaming"
           :placeholder="
             activeWorkspace?.managerName
               ? `Ask ${activeWorkspace.managerName} for anything…`

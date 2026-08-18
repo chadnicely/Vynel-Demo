@@ -66,5 +66,17 @@ export function useWatchedTurn(options: {
   const errorText = computed(
     () => subscription.value?.errorText.value ?? null,
   );
-  return { view, errorText };
+  // The last watched turn's failure, kept after its overlay cleared — the
+  // origin-stream detach hands the turn's END to the watch too, so its error
+  // note must survive the settle the way the own engine's does.
+  const lastTurnErrorText = computed(
+    () => subscription.value?.lastTurnErrorText.value ?? null,
+  );
+  // The shared fold HAS this session's running turn — suppression aside. The
+  // origin stream reads this to know it may detach (the socket-diet handoff):
+  // from here on the watch renders the rest of the turn.
+  const hasSharedFold = computed(
+    () => (subscription.value?.view.value ?? null) !== null,
+  );
+  return { view, errorText, lastTurnErrorText, hasSharedFold };
 }

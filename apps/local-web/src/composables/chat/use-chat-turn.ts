@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, shallowRef } from "vue";
+import { computed, onScopeDispose, shallowRef, watch } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import type {
   ChatSessionResponse,
@@ -38,9 +38,22 @@ type ChatTurnStreamEvent =
 // invalidation (letterman rule). Approvals are decided out-of-band through the
 // approvals API and the stream reflects the resolution, so this engine only
 // streams and interrupts.
+//
+// THE DETACH (live-channel slice 4): the origin stream is an HTTP connection
+// held for the turn's whole life — the last per-window user of the browser's
+// six-connection pool. Once the thread's standing watch (the window's one live
+// socket) has the same turn folding, this engine DETACHES: it aborts its
+// stream (client abort only — the server keeps running the turn, exactly as a
+// tab switch has always done), clears its overlay, and the watch renders the
+// rest — the send becomes a request. `detachWhen` is the host's word that the
+// shared fold has the turn; omitted = hold the stream to the end (a host with
+// no watch keeps the origin-stream contract unchanged).
 export function useChatTurn(options: {
   scope: () => SessionScope;
   onSessionCreated?: (session: ChatSessionResponse) => void;
+  /** True once the shared live fold renders this turn (use-watched-turn's
+   *  `hasSharedFold`) — the origin stream may detach. Read reactively. */
+  detachWhen?: () => boolean;
 }) {
   const vynel = useVynel();
   const queryClient = useQueryClient();
@@ -79,6 +92,9 @@ export function useChatTurn(options: {
   const isStreaming = computed(
     () => view.value !== null && view.value.status === "streaming",
   );
+  /** The origin stream handed this turn to the shared watch (see the header)
+   *  — set for the rest of that turn; the next send clears it. */
+  const isDetached = shallowRef(false);
 
   function ingest(event: ChatTurnEvent) {
     if (!view.value) return;
@@ -124,8 +140,28 @@ export function useChatTurn(options: {
     errorText.value = null;
     isQueuedBehindTask.value = false;
     queuedReason.value = null;
+    isDetached.value = false;
     activity.turnStarted();
-    abortController = new AbortController();
+    const controller = new AbortController();
+    abortController = controller;
+
+    // The handoff watcher: once the SERVER has taken the turn (its first frame
+    // arrived — never before, or the abort would cancel the send itself) AND
+    // the host says the shared fold has it, abort the origin stream. Created
+    // per turn and stopped in the finally — never left behind.
+    let detachedForWatch = false;
+    const serverHasTurn = shallowRef(false);
+    const stopDetachWatch =
+      options.detachWhen === undefined
+        ? () => {}
+        : watch(
+            () => serverHasTurn.value && options.detachWhen?.() === true,
+            (ready) => {
+              if (!ready || detachedForWatch) return;
+              detachedForWatch = true;
+              controller.abort();
+            },
+          );
 
     try {
       const stream = streamChatTurnEvents(vynel, {
@@ -161,12 +197,16 @@ export function useChatTurn(options: {
         isQueuedBehindTask.value = false;
         queuedReason.value = null;
         ingest(event);
+        // Any real frame means the server owns the turn now (its user row is
+        // persisted; a fresh session has its id) — the handoff may happen.
+        if (activeSessionId.value !== null) serverHasTurn.value = true;
       }
       // The stream closed with NO terminal frame at all — a server crash
       // mid-turn used to end here looking exactly like success, pinning
       // "working" forever. A stream the server ENDED deliberately
       // (`turn-stream-ended`, hasEnded) is not a drop.
       if (
+        !detachedForWatch &&
         view.value !== null &&
         view.value.status === "streaming" &&
         !view.value.hasEnded
@@ -178,8 +218,11 @@ export function useChatTurn(options: {
         );
       }
     } catch (error) {
-      settleFailedTurn(error);
+      // The detach's own abort is not a failure — the shared fold owns the
+      // turn from here (nothing to settle locally).
+      if (!detachedForWatch) settleFailedTurn(error);
     } finally {
+      stopDetachWatch();
       activity.turnEnded();
       abortController = null;
     }
@@ -188,6 +231,15 @@ export function useChatTurn(options: {
     // invalidation storm from a dead view — the activity feed settles history
     // when the server turn ends.
     if (isDisposed) return;
+
+    // Detached: the watch renders the rest of the turn and the feed's
+    // turn-ended settles history; this engine only clears its overlay. The
+    // session id stays for Stop (the server interrupt needs it).
+    if (detachedForWatch) {
+      isDetached.value = true;
+      view.value = null;
+      return;
+    }
 
     // Keep the failure visible past the overlay teardown below.
     if (view.value?.status === "errored" && view.value.error !== null) {
@@ -258,6 +310,7 @@ export function useChatTurn(options: {
     activeSessionId,
     startedContinuous,
     isStreaming,
+    isDetached,
     isQueuedBehindTask,
     queuedReason,
     errorText,

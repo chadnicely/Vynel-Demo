@@ -4,6 +4,7 @@ import {
   ref,
   shallowRef,
   toValue,
+  watch,
   type MaybeRefOrGetter,
 } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -32,6 +33,12 @@ import type { ActiveTurnView } from "../chat/active-turn-view.js";
 //
 // The sentinel is not a ChatTurnEvent kind — widen the decoded stream at the
 // transport boundary, exactly like the server's `turn-stream-ended` precedent.
+//
+// THE DETACH (live-channel slice 4, the use-chat-turn shape): once the thread's
+// standing watch has this turn folding, the origin stream aborts (client abort
+// only — the server turn runs on) and the watch renders the rest, so the send
+// holds a pool connection only for its first frames. `detachWhen` is the
+// host's word; omitted = hold the stream to the end.
 type SessionTurnStreamEvent =
   | ChatTurnEvent
   | { kind: "turn-queued"; reason?: "busy" | "context-patching" };
@@ -40,7 +47,10 @@ function isAbortError(candidate: unknown): boolean {
   return candidate instanceof Error && candidate.name === "AbortError";
 }
 
-export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
+export function useSessionTurn(
+  sessionId: MaybeRefOrGetter<string>,
+  options: { detachWhen?: () => boolean } = {},
+) {
   const vynel = useVynel();
   const queryClient = useQueryClient();
   const activity = useActivityStore();
@@ -68,6 +78,8 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
   const isStreaming = computed(
     () => view.value !== null && view.value.status === "streaming",
   );
+  /** The origin stream handed this turn to the shared watch. */
+  const isDetached = shallowRef(false);
 
   async function startTurn(
     userMessageText: string,
@@ -78,8 +90,26 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
     view.value = createActiveTurnView();
     isQueued.value = false;
     errorText.value = null;
+    isDetached.value = false;
     activity.turnStarted();
-    abortController = new AbortController();
+    const controller = new AbortController();
+    abortController = controller;
+
+    // Handoff watcher — only after the server's first frame (an abort before
+    // that would cancel the send itself); stopped in the finally.
+    let detachedForWatch = false;
+    const serverHasTurn = shallowRef(false);
+    const stopDetachWatch =
+      options.detachWhen === undefined
+        ? () => {}
+        : watch(
+            () => serverHasTurn.value && options.detachWhen?.() === true,
+            (ready) => {
+              if (!ready || detachedForWatch) return;
+              detachedForWatch = true;
+              controller.abort();
+            },
+          );
 
     try {
       const { data, response } = await vynel.POST("/sessions/{sessionId}/turn", {
@@ -121,6 +151,7 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
         if (view.value !== null) {
           view.value = applyChatTurnEvent(view.value, event);
         }
+        serverHasTurn.value = true;
         // The session just wrote its task list or step dock — refresh both
         // while the turn runs (the use-chat-turn rule; this thread has a dock
         // of its own).
@@ -137,6 +168,7 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
       // server ENDED deliberately (`turn-stream-ended`, hasEnded) is not a
       // drop, even when no completion event preceded it.
       if (
+        !detachedForWatch &&
         view.value !== null &&
         view.value.status === "streaming" &&
         !view.value.hasEnded
@@ -145,8 +177,9 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
           "The connection to the assistant dropped mid-turn — anything already produced is in the transcript.";
       }
     } catch (turnError) {
-      // An abort is the user's own stop; a real drop must be SAID. Either way
-      // the turn may finish server-side — the settle refetch below reconciles.
+      // An abort is the user's own stop (or the detach); a real drop must be
+      // SAID. Either way the turn may finish server-side — the settle refetch
+      // below reconciles.
       if (!isAbortError(turnError)) {
         errorText.value =
           turnError instanceof Error
@@ -154,6 +187,7 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
             : "The turn stream dropped — the reply lands in the transcript.";
       }
     } finally {
+      stopDetachWatch();
       isQueued.value = false;
       activity.turnEnded();
       abortController = null;
@@ -162,6 +196,13 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
     // A disposed instance (view re-key mid-turn) stops here — no invalidation
     // from a dead view; the activity feed settles history at turn end.
     if (isDisposed) return;
+    // Detached: the watch renders the rest and the feed's turn-ended settles
+    // history; only the local overlay clears.
+    if (detachedForWatch) {
+      isDetached.value = true;
+      view.value = null;
+      return;
+    }
 
     // Settle (the chat-turn order): the persisted rows land first, then the
     // overlay clears — nothing reflows to empty in between. `sessionKeys.all`
@@ -184,5 +225,5 @@ export function useSessionTurn(sessionId: MaybeRefOrGetter<string>) {
     abortController?.abort();
   }
 
-  return { view, isStreaming, isQueued, queuedReason, errorText, startTurn, interrupt };
+  return { view, isStreaming, isDetached, isQueued, queuedReason, errorText, startTurn, interrupt };
 }

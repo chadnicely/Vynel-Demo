@@ -64,6 +64,10 @@ export interface LiveTurnSubscription {
   hasEnded: ShallowRef<boolean>;
   /** The channel was refused or dropped mid-turn, said. */
   errorText: ShallowRef<string | null>;
+  /** The LAST turn on this source ended in an error — kept after the overlay
+   *  clears (the own-turn engine's silent-vanish rule) until the next turn
+   *  starts. Null after a clean or interrupted end. */
+  lastTurnErrorText: ShallowRef<string | null>;
   release: () => void;
 }
 
@@ -80,6 +84,7 @@ interface RegistryEntry {
   isAttached: ShallowRef<boolean>;
   hasEnded: ShallowRef<boolean>;
   errorText: ShallowRef<string | null>;
+  lastTurnErrorText: ShallowRef<string | null>;
   /** The settled-rows provider (the FIRST subscriber offering one wins — the
    *  thread's own query stays the single fetcher); null = the registry's
    *  direct owner-gated read. Cleared when the PROVIDING subscription
@@ -150,6 +155,8 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
   function beginSeed(entry: RegistryEntry): void {
     if (entry.isSeeding || entry.isSeeded) return;
     entry.isSeeding = true;
+    // A new turn is starting — the previous turn's failure note has served.
+    entry.lastTurnErrorText.value = null;
     const generation = entry.seedGeneration;
     void (async () => {
       let snapshot: WatchedTurnSnapshot | undefined;
@@ -216,6 +223,9 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
   function onEnded(entry: RegistryEntry): void {
     if (entry.disposed) return;
     entry.hasEnded.value = true;
+    const ended = entry.view.value;
+    entry.lastTurnErrorText.value =
+      ended?.status === "errored" ? (ended.error?.message ?? "The turn failed.") : null;
     entry.seedGeneration += 1;
     entry.isSeeding = false;
     entry.isSeeded = false;
@@ -296,6 +306,7 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
         isAttached: shallowRef(false),
         hasEnded: shallowRef(false),
         errorText: shallowRef(null),
+        lastTurnErrorText: shallowRef(null),
         fetchSnapshot: null,
         fetchSnapshotOwner: null,
         releaseChannel: null,
@@ -343,6 +354,7 @@ export const useLiveTurnRegistry = defineStore("live-turn-registry", () => {
       isAttached: entry.isAttached,
       hasEnded: entry.hasEnded,
       errorText: entry.errorText,
+      lastTurnErrorText: entry.lastTurnErrorText,
       release,
     };
   }

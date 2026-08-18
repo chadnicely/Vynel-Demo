@@ -177,6 +177,9 @@ const chatTurn = useChatTurn({
   onSessionCreated: (session) => {
     shell.target = { sessionId: session.id };
   },
+  // The origin stream detaches once the standing watch has the turn folding
+  // (live-channel slice 4) — the watch renders the rest.
+  detachWhen: () => watchedTurn.hasSharedFold.value,
 });
 
 // A global turn running OUTSIDE this view's own stream — a Telegram/voice
@@ -260,6 +263,11 @@ const ownActiveTurn = computed(() =>
 const activeTurn = computed(
   () => ownActiveTurn.value ?? watchedTurn.view.value,
 );
+// Own OR watched — after the detach the watch is the one that knows.
+const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
+const turnErrorText = computed(
+  () => chatTurn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
+);
 
 // A cold-cache open used to flash the welcome hero over a real conversation
 // while the history fetch was in flight — gate the hero behind the fetch.
@@ -306,7 +314,7 @@ function sendMessage(
 // Mid-turn sends queue and fire in order as each turn settles; the drain calls
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
-const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
+const queuedSend = useQueuedSend(activeTurn, sendMessage);
 </script>
 
 <template>
@@ -458,12 +466,12 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
           :queued="queuedSend.queued.value"
           @remove="queuedSend.removeQueued"
         />
-        <p v-if="chatTurn.errorText.value" class="turn-error-note">
-          {{ chatTurn.errorText.value }}
+        <p v-if="turnErrorText" class="turn-error-note">
+          {{ turnErrorText }}
         </p>
         <AppComposer
           :session-id="activeSessionId"
-          :streaming="chatTurn.isStreaming.value"
+          :streaming="isTurnStreaming"
           :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"
           :context-fraction="occupancy.fraction.value"
           :context-tooltip="occupancy.tooltip.value"

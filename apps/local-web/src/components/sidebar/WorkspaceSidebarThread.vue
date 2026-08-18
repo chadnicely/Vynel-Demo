@@ -66,7 +66,12 @@ const hasBackgroundTurnHere = computed(() =>
   activity.hasServerTurnInWorkspace(props.workspaceId),
 );
 
-const chatTurn = useChatTurn({ scope: () => scope.value });
+const chatTurn = useChatTurn({
+  scope: () => scope.value,
+  // The origin stream detaches once the standing watch has the turn folding
+  // (live-channel slice 4) — the watch renders the rest.
+  detachWhen: () => watchedTurn.hasSharedFold.value,
+});
 const detailQuery = useSessionDetail(
   () => scope.value,
   () => activeSessionId.value,
@@ -95,6 +100,11 @@ const watchedTurn = useWatchedTurn({
 });
 const activeTurn = computed(
   () => chatTurn.view.value ?? watchedTurn.view.value,
+);
+// Own OR watched — after the detach the watch is the one that knows.
+const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
+const turnErrorText = computed(
+  () => chatTurn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
 );
 
 // The watched settle lands its rows here too (the SessionThreadView rule).
@@ -138,7 +148,7 @@ function sendMessage(
     settings,
   });
 }
-const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
+const queuedSend = useQueuedSend(activeTurn, sendMessage);
 </script>
 
 <template>
@@ -178,12 +188,12 @@ const queuedSend = useQueuedSend(chatTurn.view, sendMessage);
             : "Working on a task — your message is queued."
         }}
       </p>
-      <p v-if="chatTurn.errorText.value" class="turn-error-note">
-        {{ chatTurn.errorText.value }}
+      <p v-if="turnErrorText" class="turn-error-note">
+        {{ turnErrorText }}
       </p>
       <AppComposer
         :session-id="activeSessionId"
-        :streaming="chatTurn.isStreaming.value"
+        :streaming="isTurnStreaming"
         :placeholder="`Message ${managerName}…`"
         :allow-attachments="false"
         :scope="scope"
