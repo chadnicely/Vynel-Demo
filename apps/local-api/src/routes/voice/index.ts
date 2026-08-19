@@ -38,6 +38,7 @@ import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { loadEnv } from '../../env.js'
 import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspace.js'
+import { TURN_SESSION_HEADER, parseTurnSessionHeader } from '../../sessions/turn-session-header.js'
 import { speakThroughDaemon } from './speak-through-daemon.js'
 import {
   endCallThroughDaemon,
@@ -100,7 +101,10 @@ export const voiceApp = factory
         const spoken = await speakIntoCallThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL, callId, text)
         return c.json(spoken.ok ? { spoken: true } : { spoken: false, reason: spoken.reason })
       }
-      return c.json(await speakThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL, text))
+      // The producing session rides the ambient turn-session header (server-
+      // stamped, never model input) — the daemon routes the line by it.
+      const sessionId = parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)) ?? null
+      return c.json(await speakThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL, text, sessionId))
     },
   )
   .post(

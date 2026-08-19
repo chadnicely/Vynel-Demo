@@ -138,33 +138,30 @@ async function main(): Promise<void> {
       // The `speak` MCP tool — any session's voice output. Route it to whoever
       // can actually play it:
       //   - while an overlay owns the command session (handed-off) it is
-      //     PUBLISHED to that overlay: the daemon cannot tell producers apart
-      //     (`/speak` carries only `{ text, callId? }` and all three voice
-      //     legs are `voice`-scope global turns), so the overlay's link
-      //     (`use-voice-daemon-link`) skips relayed speak while its own turn is
-      //     live and plays it otherwise — a schedule's or the Voice-chat panel's
-      //     line reaches the speaker instead of being dropped (the coupled E3
-      //     fix, session-hardening arc). Speaking natively here would put the
-      //     browser speaker and the daemon speaker on one machine;
+      //     PUBLISHED to that owner — speaking natively would put the browser
+      //     speaker and the daemon speaker on one machine. The event carries
+      //     the PRODUCING session id, so the client plays a schedule's or the
+      //     Voice-chat panel's line and drops only its own turn's (which it
+      //     already voices off its own stream);
       //   - otherwise a connected-but-idle client is ASKED to play it (typed
       //     chat, scheduled tasks — the browser owns reliable playback while
       //     an overlay window holds the audio device);
       //   - no client at all → the daemon's native speaker queue.
       // Accept + hand off → resolves immediately.
-      onSpeak: (text) => {
+      onSpeak: (text, sessionId) => {
         const preview = text.slice(0, 80)
         if (driver.isHandedOff) {
-          if (overlay.publishSpeak(text)) {
-            logger.info({ text: preview }, 'speak — handed to the overlay that owns the session')
+          if (overlay.publishSpeak(text, sessionId)) {
+            logger.info({ text: preview, sessionId }, 'speak — handed to the overlay that owns the session')
           } else {
             logger.info({ text: preview }, 'speak — overlay client gone mid-handoff, speaking natively')
             driver.speak(text)
           }
-        } else if (!driver.isAwake && overlay.publishSpeak(text)) {
+        } else if (!driver.isAwake && overlay.publishSpeak(text, sessionId)) {
           // Delegate only while the native loop is IDLE: a client playing audio
           // mid native conversation would be heard by the open daemon mic (the
           // echo defense only guards the daemon's own speaker path).
-          logger.info({ text: preview }, 'speak — delivered to a connected overlay client')
+          logger.info({ text: preview, sessionId }, 'speak — delivered to a connected overlay client')
         } else {
           logger.info({ text: preview }, 'speak requested (native)')
           driver.speak(text)
@@ -175,8 +172,11 @@ async function main(): Promise<void> {
     logger,
     // With the floating window on, ONLY it runs wake sessions — app tabs keep
     // their state events + manual mic sessions but never race it for a wake.
+    // The watchdog rides every wake so the browser leg is bounded by the same
+    // knob as the native leg (one home: env).
     {
       wakeSurface: jarvisEnabled ? 'jarvis' : 'any',
+      turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
       routes: [{ path: '/calls', app: createCallEndpoints(callRegistry, callConversations, logger) }],
     },
   )
@@ -231,9 +231,12 @@ async function main(): Promise<void> {
       // The browser owns the command session (Web Speech STT + spoken reply
       // run there). Jarvis mode: every wake hands off — the floating window is
       // opened/focused, and the held wake replays once it connects. Otherwise:
-      // hand off only to an already-connected tab, else answer natively.
+      // hand off only to a connected client that declared it can RUN a
+      // session — the desktop main window is connected for state events + the
+      // mic button but has no Web Speech, and must not swallow the wake; with
+      // no capable client the native leg answers.
       wakeHandoff: {
-        shouldHandOff: () => jarvisEnabled || overlay.hasClient,
+        shouldHandOff: () => jarvisEnabled || overlay.hasWakeTarget,
         publishWake: (command) => {
           overlay.publishWake(command)
           if (!jarvisEnabled) return
