@@ -121,6 +121,13 @@ export interface RunGlobalRootTurnInput {
     toolName: string
     toolInput: unknown
   }) => void
+  /** Surface-up's other edge: a card this turn raised was decided (approved,
+   *  denied, or reaped). The report-delivery runner pairs it with the one
+   *  above to suspend/resume the delivery's cap clock. */
+  onApprovalResolved?: (approval: { approvalRequestId: string }) => void
+  /** The RUNNING SDK session id, as the stream reveals it (and again on a
+   *  mid-turn swap) — the delegation tick's cancel bridge + hard-cap lever. */
+  onSessionResolved?: (sdkSessionId: string) => void
 }
 
 export interface RunGlobalRootTurnResult {
@@ -157,7 +164,10 @@ class GlobalRootDrainSink implements SessionSink {
   turnOutcome: 'ended' | 'failed' = 'ended'
 
   constructor(
-    private readonly onApprovalRequested?: RunGlobalRootTurnInput['onApprovalRequested'],
+    private readonly hooks: Pick<
+      RunGlobalRootTurnInput,
+      'onApprovalRequested' | 'onApprovalResolved' | 'onSessionResolved'
+    >,
     /** The turn's activity-feed handle — session identity + tool-step narration. */
     private readonly activity?: SessionTurnActivityHandle,
     /** The turn's session carrier — composed BEFORE this sink exists, so the
@@ -179,6 +189,7 @@ class GlobalRootDrainSink implements SessionSink {
       this.sessionId = event.message.sessionId
       this.activity?.sessionResolved(event.message.sessionId)
       this.turnSession?.resolve(event.message.sessionId)
+      this.hooks.onSessionResolved?.(event.message.sessionId)
     } else if (event.kind === 'session-created') {
       // A fresh root or a mid-turn swap — follow it so the result reports the
       // segment the reply actually landed on (user-message-persisted now
@@ -186,17 +197,20 @@ class GlobalRootDrainSink implements SessionSink {
       this.sessionId = event.session.id
       this.activity?.sessionResolved(event.session.id)
       this.turnSession?.resolve(event.session.id)
+      this.hooks.onSessionResolved?.(event.session.id)
     } else if (event.kind === 'text-chunk') {
       this.resultText += event.textDelta
     } else if (event.kind === 'approval-requested') {
       // Surface-up: the core already recorded the card (web notifier); this hands it
       // to the channel path so the sender is asked too. Auto-approved cards arrive as
       // `approval-auto-resolved` and are deliberately not pushed.
-      this.onApprovalRequested?.({
+      this.hooks.onApprovalRequested?.({
         approvalRequestId: event.approvalRequestId,
         toolName: event.toolName,
         toolInput: event.toolInput,
       })
+    } else if (event.kind === 'approval-resolved') {
+      this.hooks.onApprovalResolved?.({ approvalRequestId: event.approvalRequestId })
     } else if (event.kind === 'session-errored') {
       this.streamErrorMessage = event.errorMessage
       if (!event.isRecoverable) this.turnOutcome = 'failed'
@@ -370,7 +384,7 @@ export async function runGlobalRootTurn(
       ? { personaName: input.inboundAttribution.sourceLabel }
       : {}),
   })
-  const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity, turnSession)
+  const sink = new GlobalRootDrainSink(input, activity, turnSession)
   try {
     await runGlobalRootTurnCore(
       {
@@ -474,9 +488,28 @@ export function buildGlobalRootReportTurnRunner(
   deps: RunGlobalRootTurnDeps,
 ): RunGlobalRootReportTurn {
   return async (input) => {
+    // The delivery's cap clock: only cards THIS turn raised move the gate (a
+    // decision arriving for a card it never parked must not release someone
+    // else's suspension — the routed handler's rule).
+    const parkedApprovalIds = new Set<string>()
+    const waitGate = input.waitGate
     const turn = await runGlobalRootTurn(deps, {
       userId: input.userId,
       userMessageText: input.reportBody,
+      ...(waitGate !== undefined
+        ? {
+            onApprovalRequested: ({ approvalRequestId }) => {
+              parkedApprovalIds.add(approvalRequestId)
+              waitGate.markParked()
+            },
+            onApprovalResolved: ({ approvalRequestId }) => {
+              if (parkedApprovalIds.delete(approvalRequestId)) waitGate.markResolved()
+            },
+          }
+        : {}),
+      ...(input.onSessionResolved !== undefined
+        ? { onSessionResolved: input.onSessionResolved }
+        : {}),
       inboundAttribution: {
         sourceKind: input.sourceKind ?? 'workspace-manager',
         sourceLabel: input.sourceLabel,

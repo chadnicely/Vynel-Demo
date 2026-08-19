@@ -19,8 +19,16 @@
 //     toolset, delegation catch-up, feed announce all included). At most ONE
 //     global notify turn runs at a time: the pool key is the SHARED
 //     `GLOBAL_ROOT_DELIVERY_TARGET_KEY`, so the rest wait as PENDING instead
-//     of burning their budget queued on the root-turn lock (a timed-out
-//     delivery would lose its report).
+//     of burning their cap queued on the root-turn lock.
+//
+// BOUNDS (session-hardening A1/A3): the notify turn runs under the same hard
+// cap every delegated turn gets — suspended while one of ITS approvals is
+// parked (both branches mark the wait gate now: the workspace branch through
+// the routed handler, the global branch through the injected runner's
+// approval events). A CAPPED delivery is RECOVERABLE — it requeues with
+// backoff while attempts remain, then fails: the message body is the only
+// copy, so a run that could not finish in time goes round again instead of
+// dropping out of every recovery net.
 //
 // ANTI-CASCADE INVARIANT: a completed report-delivery job NEVER enqueues a
 // further delivery — the parent's own "report up" happens via the
@@ -50,7 +58,8 @@ import {
   composeUpdateMessageMarker,
 } from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
-import { requeueIfRecoverable } from './classify-turn-failure.js'
+import { requeueForAnotherAttempt, requeueIfRecoverable } from './classify-turn-failure.js'
+import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
 import {
   DIRECT_DELIVERY_INSTRUCTIONS,
   REPORT_DELIVERY_INSTRUCTIONS,
@@ -89,6 +98,13 @@ export type RunGlobalRootReportTurn = (input: {
   steerInstructions?: string
   /** The delivery queue row — the notify turn's liveness enrichment. */
   jobId?: string
+  /** The delivery's cap clock (A3): the runner marks it parked/resolved from
+   *  the turn's own approval events, so a card the human takes 12 minutes to
+   *  answer never counts against the cap — the workspace branch's parity. */
+  waitGate?: Pick<ApprovalWaitGate, 'markParked' | 'markResolved'>
+  /** The RUNNING SDK session id, as the turn learns it (and re-learns it on a
+   *  mid-turn swap) — the hard cap's interrupt lever + the Stop bridge read it. */
+  onSessionResolved?: (sdkSessionId: string) => void
 }) => Promise<{ sessionId: string; resultText: string }>
 
 export interface RunReportDeliveryDeps {
@@ -97,8 +113,9 @@ export interface RunReportDeliveryDeps {
   activityFeed: SessionActivityFeed
   turnEvents?: TurnEventBroadcaster
   cancelRegistry?: DelegationCancelRegistry
-  /** Resolved by the caller (the tick owns the default). */
-  budgetMs: number
+  /** The hard cap on the notify turn (ms) — resolved by the caller (the tick
+   *  owns the default). */
+  hardCapMs: number
   composeWorkspaceMcpServers?: (input: {
     db: Database
     userId: string
@@ -239,6 +256,12 @@ export async function runReportDeliveryJob(
     deps.cancelRegistry !== undefined && partialSessionId !== undefined
       ? deps.cancelRegistry.begin(partialSessionId)
       : null
+  // The hard cap's lever (session-hardening A1) — the tick's shape.
+  const cancelLever = createDelegatedTurnCancelLever({
+    provider: deps.provider,
+    logger: deps.logger,
+    jobId: claimed.id,
+  })
 
   deps.logger.info(
     {
@@ -279,10 +302,11 @@ export async function runReportDeliveryJob(
           'report-delivery: no global notify runner wired (runGlobalRootReportTurn) — the api edge must inject it',
         )
       }
-      // The routeRequest race gives the same never-reject + budget semantics
-      // task jobs get; the delegate closure ignores the threaded target fields
-      // (the session-target precedent). Approvals inside the global turn park
-      // on the core's own canUseTool path (web notifier), not this waitGate.
+      // routeRequest gives the same never-reject + hard-cap semantics task jobs
+      // get; the delegate closure ignores the threaded target fields (the
+      // session-target precedent). Approvals inside the global turn park on
+      // the core's own canUseTool path (web notifier) — the runner reports
+      // their park/resolve edges onto this waitGate so the cap suspends.
       outcome = await routeRequest(
         {
           userId: claimed.userId,
@@ -290,7 +314,7 @@ export async function runReportDeliveryJob(
           targetWorkspaceId: claimed.id,
           targetWorkspacePath: claimed.workspacePath ?? '',
           taskText: reportBody,
-          timeoutMs: deps.budgetMs,
+          hardCapMs: deps.hardCapMs,
         },
         {
           delegate: async () => {
@@ -303,11 +327,17 @@ export async function runReportDeliveryJob(
               ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               steerInstructions,
               jobId: claimed.id,
+              waitGate,
+              onSessionResolved: (sdkSessionId) => {
+                cancelHandle?.sessionResolved(sdkSessionId)
+                cancelLever.sessionResolved(sdkSessionId)
+              },
             })
             return { reference: turn.sessionId, resultText: turn.resultText }
           },
           logger: deps.logger,
           waitGate,
+          onHardCap: cancelLever.interrupt,
         },
       )
     } else {
@@ -354,7 +384,7 @@ export async function runReportDeliveryJob(
           targetWorkspaceId: requesterWorkspaceId,
           targetWorkspacePath: runCwdPath,
           taskText: reportBody,
-          timeoutMs: deps.budgetMs,
+          hardCapMs: deps.hardCapMs,
         },
         {
           delegate: (delegationInput) =>
@@ -387,12 +417,14 @@ export async function runReportDeliveryJob(
                 : {}),
               onSessionResolved: (sdkSessionId: string) => {
                 cancelHandle?.sessionResolved(sdkSessionId)
+                cancelLever.sessionResolved(sdkSessionId)
                 activityHandle?.sessionResolved(sdkSessionId)
               },
               logger: deps.logger,
             }),
           logger: deps.logger,
           waitGate,
+          onHardCap: cancelLever.interrupt,
         },
       )
       // A checkpoint the model still left on a notify turn is dropped: a
@@ -426,15 +458,26 @@ export async function runReportDeliveryJob(
         { jobId: claimed.id, replyPreview: outcome.result.slice(0, 120) },
         `${queueLabel}: completed — the requester absorbed it in its own turn`,
       )
-    } else if (outcome.status === 'timed-out') {
-      // The workspace status vocabulary's problem signal — first call wins,
-      // the finally's clean end() no-ops after this.
-      activityHandle?.end('failed')
-      failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
-      deps.logger.warn(
-        { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-        `${queueLabel} job timed out (the notify turn keeps running in its own session)`,
-      )
+    } else if (outcome.status === 'capped') {
+      // The notify turn ran past the hard cap, was interrupted, and has
+      // SETTLED. Stop wins; otherwise the delivery is RECOVERABLE (see the
+      // header): another attempt while attempts remain, terminal failed at
+      // the ceiling — never a first-strike terminal that drops the only copy
+      // of the message out of every recovery net.
+      await approvalHandler?.abandonParked()
+      if (cancelHandle?.isCancelRequested()) {
+        failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
+        deps.logger.info({ jobId: claimed.id }, `${queueLabel}: stopped by the user (past its cap)`)
+      } else {
+        activityHandle?.end('failed')
+        if (!requeueForAnotherAttempt(db, claimed, outcome.message, deps.logger, queueLabel)) {
+          failDelegationJob(db, claimed.id, outcome.message, new Date())
+          deps.logger.warn(
+            { jobId: claimed.id, message: outcome.message },
+            `${queueLabel} job failed — capped on its last attempt`,
+          )
+        }
+      }
     } else {
       await approvalHandler?.abandonParked()
       const reason = cancelHandle?.isCancelRequested() ? 'stopped by the user' : outcome.message

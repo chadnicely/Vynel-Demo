@@ -403,6 +403,56 @@ describe("runGlobalRootTurn", () => {
     });
   });
 
+  it("buildGlobalRootReportTurnRunner marks the delivery's wait gate parked/resolved from the turn's OWN approval events and reports the session id (session-hardening A3a)", async () => {
+    coreMock.mockImplementation(
+      async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+        await sink.onEvent({
+          kind: "user-message-persisted",
+          message: { sessionId: "root-sess-10" },
+        } as SinkEvent);
+        await sink.onEvent({
+          kind: "approval-requested",
+          approvalRequestId: "appr-1",
+          toolName: "Write",
+          toolInput: {},
+        } as SinkEvent);
+        // A decision for a card THIS turn never parked must not move the gate.
+        await sink.onEvent({
+          kind: "approval-resolved",
+          approvalRequestId: "someone-elses",
+          decision: { kind: "approved" },
+        } as SinkEvent);
+        await sink.onEvent({
+          kind: "approval-resolved",
+          approvalRequestId: "appr-1",
+          decision: { kind: "approved" },
+        } as SinkEvent);
+        await sink.onEvent({
+          kind: "session-created",
+          session: { id: "root-sess-11" },
+        } as SinkEvent);
+        await sink.onEnd?.();
+      },
+    );
+    const gateEdges: string[] = [];
+    const waitGate = {
+      markParked: () => gateEdges.push("parked"),
+      markResolved: () => gateEdges.push("resolved"),
+    };
+    const resolvedSessionIds: string[] = [];
+    const runReportTurn = buildGlobalRootReportTurnRunner(fakeDeps());
+    await runReportTurn({
+      userId: "u1",
+      reportBody: "All docs current.",
+      sourceLabel: "Mark · Acme",
+      waitGate,
+      onSessionResolved: (id) => resolvedSessionIds.push(id),
+    });
+    expect(gateEdges).toEqual(["parked", "resolved"]);
+    // Both the early resumed id and the swapped segment reach the lever.
+    expect(resolvedSessionIds).toEqual(["root-sess-10", "root-sess-11"]);
+  });
+
   it("wrapAppRequestWithOrigin stamps the serialized origin header on every dispatch", async () => {
     const seen: (RequestInit | undefined)[] = [];
     const appRequest = vi.fn(

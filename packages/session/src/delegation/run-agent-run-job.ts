@@ -36,10 +36,8 @@ import { type ChatTurnEvent } from '@vynel/chat'
 import { getOrCreateContinuingSession } from '../continuity/index.js'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToAgentSession } from './delegate-to-agent-session.js'
-import {
-  hasDeliveredFinalReport,
-  settleFailedDelegationAttempt,
-} from './settle-failed-delegation-attempt.js'
+import { settleFailedDelegationAttempt } from './settle-failed-delegation-attempt.js'
+import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
 import {
   buildRoutedApprovalHandler,
   type RoutedApprovalHandler,
@@ -64,8 +62,10 @@ export interface RunAgentRunJobDeps {
    *  trace channels (Watch everywhere). Omit → no observers. */
   turnEvents?: TurnEventBroadcaster
   cancelRegistry?: DelegationCancelRegistry
-  /** Resolved by the caller (the tick owns the default). */
-  budgetMs: number
+  /** The hard cap on the colleague turn (ms) — resolved by the caller (the
+   *  tick owns the default); past it the turn is interrupted and the run
+   *  settles capped. */
+  hardCapMs: number
   /** The delegated-turn MCP composition (the api edge binds it) — target
    *  'agent-session' composes the colleague's toolset + caller identity.
    *  Optional only for MCP-less test harnesses (the tick's contract). */
@@ -94,6 +94,12 @@ export async function runAgentRunJob(
     deps.cancelRegistry !== undefined && partialSessionId !== undefined
       ? deps.cancelRegistry.begin(partialSessionId)
       : null
+  // The hard cap's lever (session-hardening A1) — the tick's shape.
+  const cancelLever = createDelegatedTurnCancelLever({
+    provider: deps.provider,
+    logger: deps.logger,
+    jobId: claimed.id,
+  })
 
   deps.logger.info(
     { jobId: claimed.id, agentSlug: claimed.agentSlug, workspaceId: claimed.workspaceId },
@@ -235,7 +241,7 @@ export async function runAgentRunJob(
         targetWorkspaceId: colleague.id,
         targetWorkspacePath: runCwdPath,
         taskText: claimed.taskText,
-        timeoutMs: deps.budgetMs,
+        hardCapMs: deps.hardCapMs,
       },
       {
         delegate: (delegationInput) =>
@@ -291,12 +297,14 @@ export async function runAgentRunJob(
               : {}),
             onSessionResolved: (sdkSessionId: string) => {
               cancelHandle?.sessionResolved(sdkSessionId)
+              cancelLever.sessionResolved(sdkSessionId)
               activityHandle.sessionResolved(sdkSessionId)
             },
             logger: deps.logger,
           }),
         logger: deps.logger,
         waitGate,
+        onHardCap: cancelLever.interrupt,
       },
     )
 
@@ -336,26 +344,25 @@ export async function runAgentRunJob(
           'failed to enqueue the checkpoint continuation (the run is still completed)',
         )
       }
-    } else if (outcome.status === 'timed-out') {
-      activityHandle.end('failed')
+    } else if (outcome.status === 'capped') {
+      // The colleague turn ran past the hard cap, was interrupted, and has
+      // SETTLED (the tick's shape): Stop still wins; otherwise settle records
+      // the honest terminal failure + the give-up push, never a requeue. A
+      // colleague that already SPOKE settles quietly and stays UNSURFACED
+      // there — its reply always delivered DIRECTLY, and the net's reported
+      // branch is how the root absorbs it.
       await approvalHandler.abandonParked()
-      failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
-      // A colleague that already SPOKE must not resurface as a failure through
-      // the pull net (B2's timeout half); not routed through settle — a requeue
-      // would re-run a turn that is still running. Unlike the task tick, the
-      // row stays UNSURFACED: a mention reply always delivers DIRECTLY, and the
-      // net's reported branch is how the root absorbs it — marking it here
-      // would hide a displayed reply.
-      if (hasDeliveredFinalReport(db, claimed)) {
-        deps.logger.warn(
-          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-          'agent-run job timed out AFTER its reply was sent — the user already has it',
-        )
+      if (cancelHandle?.isCancelRequested()) {
+        failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
+        deps.logger.warn({ jobId: claimed.id }, 'agent-run job stopped by the user (past its cap)')
       } else {
-        deps.logger.warn(
-          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-          'agent-run job timed out (the colleague turn keeps running in its own session)',
-        )
+        activityHandle.end('failed')
+        settleFailedDelegationAttempt(db, claimed, outcome.message, {
+          logger: deps.logger,
+          queueLabel: 'agent-run',
+          retryHint: `mention the agent again (@${agentSlug}) to retry it.`,
+          neverRequeue: true,
+        })
       }
     } else if (cancelHandle?.isCancelRequested()) {
       // The interrupted turn throws by design — the user's action, not a failure.

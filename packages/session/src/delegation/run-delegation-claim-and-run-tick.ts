@@ -9,11 +9,19 @@
 // the core precedent `runScheduleClaimAndFireTick`; the apps/local-api
 // `delegation-service` poll loop is its only production caller.
 //
-// REUSES, UNCHANGED, the synchronous delegation path — `routeRequest` (the timeout-raced
-// coordinator) + `delegateToWorkspaceRoot` (run + workspace-side persist). The sync drain
-// was only a problem because the ROUTE awaited it (blocking the user's turn); a background
-// runner awaiting it is exactly right. The bound is on WAITING, not the turn: on timeout
-// the workspace turn keeps running in its own SDK session — we just stop waiting on it.
+// REUSES the synchronous delegation path — `routeRequest` (the coordinator) +
+// `delegateToWorkspaceRoot` (run + workspace-side persist). The sync drain was only a
+// problem because the ROUTE awaited it (blocking the user's turn); a background runner
+// awaiting it is exactly right. THE TICK SETTLES ONLY WHEN THE TURN SETTLES
+// (session-hardening A1): the pool releases the target's single-writer key on the
+// tick's settlement, so the bound is a HARD CAP on the turn itself — past
+// `hardCapMs` the cap interrupts the SDK session (the Stop path's lever), the
+// coordinator awaits the turn's end, and the job settles `failed: exceeded the
+// N-minute cap` with the honest failure delivery. Nothing ever runs unlocked.
+//
+// LEASE (A2): the claim stamps `leaseExpiresAt`; this tick heartbeats it forward
+// every `heartbeatMs` for the run's life, so the service's sweeper can tell a
+// crashed/wedged claim (lease expired) from a long live one.
 //
 // Swap-safe delivery: the creator conversation may compaction-swap between enqueue and
 // completion, so the report-delivery job targets the creator by IDENTITY (workspace id /
@@ -31,8 +39,6 @@ import {
   failDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   isDeliveryJobKind,
-  isWorkJobKind,
-  listDelegationJobsByThread,
   markDelegationsSurfacedToRoot,
   resolveThreadIdOf,
   routeRequest,
@@ -40,7 +46,7 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import {
-  hasDeliveredFinalReport,
+  finalReportWentDirect,
   settleFailedDelegationAttempt,
 } from './settle-failed-delegation-attempt.js'
 import { type ChatTurnEvent } from '@vynel/chat'
@@ -74,11 +80,17 @@ import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadca
 import { publishTurnActivityStep } from '../runtime/activity-turn-steps.js'
 import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
+import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
+import { startDelegationLeaseHeartbeat } from './delegation-lease-heartbeat.js'
 
-// Generous — the bound is on WAITING, not the turn (which keeps running in its own SDK
-// session). 120s was sized for an HTTP request waiting on a result; a background job
-// nobody waits on gets a longer leash, so a timeout means genuinely-stuck work.
-const DELEGATION_RUN_BUDGET_MS = 600_000
+// The bounds' package-side defaults — the SAME values `apps/local-api/src/env.ts`
+// defaults its knobs to (D5): the api edge forwards the env-resolved values, a
+// test harness or another caller gets identical behaviour without them.
+/** A delegated turn's hard cap on WORKING time (suspended while parked). */
+export const DEFAULT_DELEGATED_TURN_HARD_CAP_MS = 60 * 60 * 1000
+/** The claim lease + the heartbeat that extends it. */
+export const DEFAULT_DELEGATION_LEASE_MS = 3 * 60 * 1000
+export const DEFAULT_DELEGATION_HEARTBEAT_MS = 30 * 1000
 
 // A report at or under this length is already user-sized — deliver it as-is and skip
 // the distill call (no wasted tokens on "Done, the file is fixed."-class reports).
@@ -98,8 +110,14 @@ export interface RunDelegationTickDeps {
   /** The user-stop bridge: each claimed run registers here so the stop route
    *  can flag it cancelled + interrupt its session. Omit → no stop reach. */
   cancelRegistry?: DelegationCancelRegistry
-  /** Wait budget for one job's turn (ms). Defaults to DELEGATION_RUN_BUDGET_MS. */
-  budgetMs?: number
+  /** The hard cap on one job's turn (ms; suspended while its approvals are
+   *  parked) — past it the turn is interrupted and the job fails honestly.
+   *  Defaults to DEFAULT_DELEGATED_TURN_HARD_CAP_MS. */
+  hardCapMs?: number
+  /** The claim lease + its heartbeat cadence (ms). Defaults to the package
+   *  constants above; the api edge forwards the env knobs. */
+  leaseMs?: number
+  heartbeatMs?: number
   /** Context-pressure threshold override for the runners' boundary continuity
    *  step (the env smoke knob) — forwarded so delegated turns swap at the same
    *  point the interactive streams do. Omit for the production default. */
@@ -174,13 +192,14 @@ function resolveDeliverableOrigin(db: Database, claimed: DelegationJob): RoutedA
 }
 
 /** Claim the next pending delegation job and run it to a terminal state. Returns true if
- *  a job was processed, false if the queue was empty. A failed / timed-out / throwing job
+ *  a job was processed, false if the queue was empty. A failed / capped / throwing job
  *  is recorded as `failed` on the row, not propagated (the service's tick also guards). */
 export async function runDelegationClaimAndRunTick(
   db: Database,
   deps: RunDelegationTickDeps,
 ): Promise<boolean> {
   const claimed = claimNextPendingDelegationJob(db, new Date(), {
+    leaseMs: deps.leaseMs ?? DEFAULT_DELEGATION_LEASE_MS,
     ...(deps.excludeTargetKeys !== undefined && deps.excludeTargetKeys.size > 0
       ? { excludeTargetKeys: [...deps.excludeTargetKeys] }
       : {}),
@@ -214,7 +233,38 @@ export async function runDelegationClaimAndRunTick(
           ? GLOBAL_ROOT_DELIVERY_TARGET_KEY
           : claimed.id))
   deps.onRunStarted?.({ jobId: claimed.id, targetKey })
+  const heartbeat = startDelegationLeaseHeartbeat(db, {
+    jobId: claimed.id,
+    leaseMs: deps.leaseMs ?? DEFAULT_DELEGATION_LEASE_MS,
+    heartbeatMs: deps.heartbeatMs ?? DEFAULT_DELEGATION_HEARTBEAT_MS,
+    logger: deps.logger,
+  })
+  try {
+    return await runClaimedJob(db, deps, claimed, {
+      claimedKind,
+      isGlobalNoteDelivery,
+      targetKey,
+    })
+  } finally {
+    heartbeat.stop()
+  }
+}
 
+/** Run ONE claimed job to a terminal state under the pool slot + lease the
+ *  caller holds. Branches on the KIND: agent-run / delivery / task-or-note. */
+async function runClaimedJob(
+  db: Database,
+  deps: RunDelegationTickDeps,
+  claimed: DelegationJob,
+  run: {
+    claimedKind: NonNullable<DelegationJob['jobKind']>
+    /** A both-null 'note' row — delivers on the GLOBAL conversation. */
+    isGlobalNoteDelivery: boolean
+    /** The pool's exclusion key for this run. */
+    targetKey: string
+  },
+): Promise<boolean> {
+  const { claimedKind, isGlobalNoteDelivery, targetKey } = run
   // Persona-sessions: an 'agent-run' row resumes the mentioned agent's
   // COLLEAGUE session; its spoken send_message is the only report path.
   if (claimedKind === 'agent-run') {
@@ -226,7 +276,7 @@ export async function runDelegationClaimAndRunTick(
         activityFeed: deps.activityFeed,
         ...(deps.turnEvents !== undefined ? { turnEvents: deps.turnEvents } : {}),
         ...(deps.cancelRegistry !== undefined ? { cancelRegistry: deps.cancelRegistry } : {}),
-        budgetMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
+        hardCapMs: deps.hardCapMs ?? DEFAULT_DELEGATED_TURN_HARD_CAP_MS,
         ...(deps.composeWorkspaceMcpServers !== undefined
           ? { composeWorkspaceMcpServers: deps.composeWorkspaceMcpServers }
           : {}),
@@ -257,7 +307,7 @@ export async function runDelegationClaimAndRunTick(
         activityFeed: deps.activityFeed,
         ...(deps.turnEvents !== undefined ? { turnEvents: deps.turnEvents } : {}),
         ...(deps.cancelRegistry !== undefined ? { cancelRegistry: deps.cancelRegistry } : {}),
-        budgetMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
+        hardCapMs: deps.hardCapMs ?? DEFAULT_DELEGATED_TURN_HARD_CAP_MS,
         ...(deps.composeWorkspaceMcpServers !== undefined
           ? { composeWorkspaceMcpServers: deps.composeWorkspaceMcpServers }
           : {}),
@@ -283,6 +333,14 @@ export async function runDelegationClaimAndRunTick(
     deps.cancelRegistry !== undefined && partialSessionId !== undefined
       ? deps.cancelRegistry.begin(partialSessionId)
       : null
+  // The hard cap's lever (A1): interrupts the SDK session this run learns —
+  // the same provider interrupt the Stop route uses, minus the "stopped by
+  // the user" flag, so the terminal branch can tell a cap from a Stop.
+  const cancelLever = createDelegatedTurnCancelLever({
+    provider: deps.provider,
+    logger: deps.logger,
+    jobId: claimed.id,
+  })
 
   // Lifecycle visibility (Ch3.5 diagnostics): a delegation runs a full provider turn that
   // can take a while — and may PARK on a human approval (surface-up); log the claim + the
@@ -537,6 +595,7 @@ export async function runDelegationClaimAndRunTick(
       // turn-updated frame (the UI keys its thread poll on the session).
       onSessionResolved: (sdkSessionId: string) => {
         cancelHandle?.sessionResolved(sdkSessionId)
+        cancelLever.sessionResolved(sdkSessionId)
         activityHandle.sessionResolved(sdkSessionId)
       },
       logger: deps.logger,
@@ -659,9 +718,9 @@ export async function runDelegationClaimAndRunTick(
         targetWorkspaceId: targetKey,
         targetWorkspacePath: runCwdPath,
         taskText: claimed.taskText,
-        timeoutMs: deps.budgetMs ?? DELEGATION_RUN_BUDGET_MS,
+        hardCapMs: deps.hardCapMs ?? DEFAULT_DELEGATED_TURN_HARD_CAP_MS,
       },
-      { delegate, logger: deps.logger, waitGate },
+      { delegate, logger: deps.logger, waitGate, onHardCap: cancelLever.interrupt },
     )
 
     if (outcome.status === 'completed' && cancelHandle?.isCancelRequested()) {
@@ -814,32 +873,26 @@ export async function runDelegationClaimAndRunTick(
           ? 'note: delivered — the target absorbed it in its own turn'
           : 'delegation: completed — report delivery enqueued for the creator conversation',
       )
-    } else if (outcome.status === 'timed-out') {
-      // The workspace status vocabulary's problem signal — first call wins,
-      // the finally's clean end() no-ops after this.
-      activityHandle.end('failed')
-      failDelegationJob(db, claimed.id, `timed-out after ${outcome.timeoutMs}ms`, new Date())
-      // A turn that already SPOKE its report must not resurface as "couldn't
-      // complete" through the pull net (B2's timeout half) — the requester has
-      // the result; the timeout is bookkeeping. Deliberately NOT routed through
-      // settle: 'timed-out' matches the recoverable patterns, and a requeue
-      // would re-run a turn that is still running. Direct-kind exception: a
-      // `direct_to_user` answer's absorb happens THROUGH the net (the reported
-      // branch of the collector) — marking it surfaced would hide a displayed
-      // reply from the root.
-      if (hasDeliveredFinalReport(db, claimed)) {
-        if (!finalReportWentDirect(db, claimed)) {
-          markDelegationsSurfacedToRoot(db, [claimed.id], new Date())
-        }
-        deps.logger.warn(
-          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-          'delegation job timed out AFTER its report was sent — the requester already has the result',
-        )
+    } else if (outcome.status === 'capped') {
+      // The turn ran past the hard cap, was interrupted, and has SETTLED — the
+      // run is over (the lock is only released when this returns). Stop still
+      // wins if the user pressed it meanwhile; otherwise the cap is an honest
+      // terminal failure: settle records it, pushes the failure delivery for a
+      // WORK row (or nothing for a note), and never requeues — a second hour
+      // on the same lock is not a retry anyone asked for. A turn that already
+      // spoke its report settles quietly there too.
+      await approvalHandler.abandonParked()
+      if (cancelHandle?.isCancelRequested()) {
+        failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
+        deps.logger.warn({ jobId: claimed.id }, 'delegation job stopped by the user (past its cap)')
       } else {
-        deps.logger.warn(
-          { jobId: claimed.id, timeoutMs: outcome.timeoutMs },
-          'delegation job timed out (the workspace turn keeps running in its own session)',
-        )
+        activityHandle.end('failed')
+        settleFailedDelegationAttempt(db, claimed, outcome.message, {
+          logger: deps.logger,
+          queueLabel: 'delegation',
+          retryHint: 're-send the task with send_message if it should be retried.',
+          neverRequeue: true,
+        })
       }
     } else {
       // The turn threw mid-run — deny anything still parked so the SDK agent isn't
@@ -876,36 +929,3 @@ export async function runDelegationClaimAndRunTick(
     activityHandle.end()
   }
 }
-
-/** True when THIS work row's final report was sent kind `direct_to_user`: the
- *  row is reported AND a 'direct-delivery' hop exists in ITS OWN delivery
- *  window — after this hop, before the chain's NEXT work hop. A continued
- *  chain holds one work hop per task (the run-stats pairing rule), so a
- *  chain-wide scan would falsely absorb a LATER normally-narrated report just
- *  because an earlier task on the thread went direct (the Gate-3 catch). Such
- *  a row stays UNSURFACED at terminal time — the catch-up net is how the root
- *  learns of a reply that ran no notify turn (presented absorb-silently). */
-function finalReportWentDirect(db: Database, claimed: DelegationJob): boolean {
-  if (!hasDeliveredFinalReport(db, claimed)) return false
-  const threadId = resolveThreadIdOf(claimed)
-  if (threadId === null) return false
-  const chain = listDelegationJobsByThread(db, {
-    userId: claimed.userId,
-    threadId,
-    unbounded: true,
-  })
-  const startsAt = claimed.createdAt.getTime()
-  const nextWorkAt = chain.find(
-    (job) =>
-      job.id !== claimed.id &&
-      isWorkJobKind(job.jobKind) &&
-      job.createdAt.getTime() > startsAt,
-  )?.createdAt
-  return chain.some(
-    (job) =>
-      job.jobKind === 'direct-delivery' &&
-      job.createdAt.getTime() >= startsAt &&
-      (nextWorkAt === undefined || job.createdAt.getTime() < nextWorkAt.getTime()),
-  )
-}
-

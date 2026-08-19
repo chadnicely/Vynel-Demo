@@ -14,12 +14,14 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
 import {
   claimNextPendingDelegationJob,
+  enqueueAgentRun,
   enqueueReportDelivery,
   enqueueWorkspaceDelegation,
   findDelegationJobById,
   markDelegationJobReported,
 } from '@vynel/orchestration'
 import {
+  finalReportWentDirect,
   hasDeliveredFinalReport,
   settleFailedDelegationAttempt,
 } from './settle-failed-delegation-attempt.js'
@@ -147,7 +149,80 @@ describe('settleFailedDelegationAttempt', () => {
   })
 })
 
-describe('hasDeliveredFinalReport (the shared gate the timed-out branches also use)', () => {
+describe('settleFailedDelegationAttempt — the hard cap + the already-shown reply', () => {
+  it('neverRequeue keeps a recoverable-looking message terminal: fail + the give-up push, no requeue', async () => {
+    await withTestDatabase(async (db) => {
+      const { claimed } = seedClaimedJob(db)
+
+      settleFailedDelegationAttempt(db, claimed, RECOVERABLE_ERROR, {
+        ...settleDeps,
+        neverRequeue: true,
+      })
+
+      const row = findDelegationJobById(db, claimed.id)!
+      expect(row.status).toBe('failed')
+      expect(row.surfacedToRootAt).not.toBeNull()
+      const push = claimAnythingDue(db)
+      expect(push?.jobKind).toBe('report-delivery')
+      // The requeue path was never taken — the same job is not claimable.
+      expect(claimAnythingDue(db)).toBeNull()
+    })
+  })
+
+  it('a REPORTED task whose answer went direct_to_user fails but stays UNSURFACED — the net is how the root learns it was shown', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, claimed } = seedClaimedJob(db)
+      markDelegationJobReported(db, claimed.id, new Date())
+      // The turn's final answer: a direct-delivery hop on the same thread.
+      enqueueReportDelivery(db, {
+        userId: user.id,
+        threadId: claimed.partialSessionId!,
+        reporterSessionId: 'ws-sdk-1',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'Here is your answer.',
+        requester: { kind: 'global-root' },
+        deliverDirectly: true,
+      })
+      expect(finalReportWentDirect(db, claimed)).toBe(true)
+
+      settleFailedDelegationAttempt(db, claimed, TERMINAL_ERROR, settleDeps)
+
+      const row = findDelegationJobById(db, claimed.id)!
+      expect(row.status).toBe('failed')
+      expect(row.surfacedToRootAt).toBeNull()
+    })
+  })
+
+  it('a REPORTED colleague run (mention chains always deliver direct) fails but stays UNSURFACED too', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedClaimedJob(db)
+      enqueueAgentRun(db, {
+        userId: user.id,
+        parentSessionId: 'ws-primary-sdk',
+        agentSlug: 'code-reviewer',
+        agentName: 'Code Reviewer',
+        taskText: '@code-reviewer look at the diff',
+        workspaceId: workspace.id,
+        runCwdPath: workspace.path,
+      })
+      const agentRun = claimAnythingDue(db)!
+      expect(agentRun.jobKind).toBe('agent-run')
+      markDelegationJobReported(db, agentRun.id, new Date())
+
+      settleFailedDelegationAttempt(db, agentRun, TERMINAL_ERROR, {
+        ...settleDeps,
+        queueLabel: 'agent-run',
+      })
+
+      const row = findDelegationJobById(db, agentRun.id)!
+      expect(row.status).toBe('failed')
+      expect(row.surfacedToRootAt).toBeNull()
+      expect(claimAnythingDue(db)).toBeNull()
+    })
+  })
+})
+
+describe('hasDeliveredFinalReport (the shared gate the completion branch also uses)', () => {
   it('answers from the FRESH read, not the claim-time snapshot', async () => {
     await withTestDatabase(async (db) => {
       const { claimed } = seedClaimedJob(db)
