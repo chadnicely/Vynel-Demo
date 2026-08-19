@@ -4,6 +4,16 @@
 // the session, commands are transcribed HERE with interim results + Google's
 // own endpointing (a non-continuous recognition finalizes on a natural pause).
 //
+// ECHO, WHO COVERS WHAT (voice-realtime VR2 — the mic stays open while the
+// browser plays the reply): the recognizer owns its own microphone capture and
+// exposes NO audio constraints — there is no getUserMedia of ours to set
+// `echoCancellation: true` on — so acoustic echo cancellation against the
+// browser's own playback is the browser's capture pipeline's to apply (the
+// belt). What that lets through — a speaker near the mic, a leaky AEC — is
+// caught by the shared spoken-echo filter in voice-command-session.ts (the
+// braces): a transcript that sits inside the reply being played is our own
+// voice, never the user.
+//
 // lib.dom ships no SpeechRecognition types, so the minimal surface we use is
 // declared locally — no runtime dependency, no @types package.
 

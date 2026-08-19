@@ -4,6 +4,7 @@ import {
   buildNoteFlushMessage,
   decideCallUtterance,
   isNotedSentinel,
+  SpokenEchoFilter,
   stripSpokenMarkup,
   type CallMode,
   type LineSpeaker,
@@ -25,8 +26,8 @@ import { armTurnWatchdog } from '../loop/turn-watchdog.js'
 //     cancels + responds; everything else batches into note flushes the session
 //     answers with the 'noted' sentinel unless it judges it should speak up.
 // Both modes drop transcripts that are echoes of recently spoken lines (the
-// far-end speaker→mic loop returns them as "user" speech — policy home:
-// isEchoOfSpokenLine).
+// far-end speaker→mic loop returns them as "user" speech — the shared
+// SpokenEchoFilter, one home with the wake line).
 
 const NOTE_BATCH_SIZE = 8
 const NOTE_BATCH_MS = 60_000
@@ -35,12 +36,6 @@ const CALL_TURN_FAILED_LINE = 'Sorry — I hit a problem with that.'
 // its reply is still spoken when it lands (the call leg reads its answer off
 // the stream — abandoning the read would lose it, so it is never abandoned).
 const CALL_TURN_STILL_WORKING_LINE = "Still working on that — I'll say so as soon as it's done."
-// How long past the end of playback a line's echo can still arrive: the call
-// round-trip + the far end's speaker→mic pickup + VAD closing the segment.
-const ECHO_RETURN_WINDOW_MS = 4_000
-// Echoes only ever mirror the freshest lines — a short memory keeps the
-// swallow-a-genuine-parrot cost bounded.
-const ECHO_MEMORY_LINES = 4
 
 export interface CallConversationDeps {
   readonly logger: Logger
@@ -68,7 +63,7 @@ export class CallConversation {
   #pendingDirectLines: string[] = []
   #notes: string[] = []
   #noteFlushTimer: ReturnType<typeof setTimeout> | null = null
-  #recentSpokenLines: { line: string; hearableUntil: number }[] = []
+  readonly #echoFilter = new SpokenEchoFilter()
   #stopped = false
 
   constructor(deps: CallConversationDeps) {
@@ -95,6 +90,11 @@ export class CallConversation {
   speakDirect(text: string): void {
     const line = text.trim()
     if (line === '' || this.#stopped) return
+    this.#queueLine(line)
+  }
+
+  // FIFO behind whatever holds the single-flight (a turn, an earlier line).
+  #queueLine(line: string): void {
     this.#pendingDirectLines.push(line)
     if (!this.#turnInFlight) void this.#runDirectSpeech()
   }
@@ -135,15 +135,11 @@ export class CallConversation {
     // must not run a turn into the dead call's session (it would leak into
     // the end-of-call report).
     if (this.#stopped) return
-    const now = performance.now()
-    const recentLines = this.#recentSpokenLines
-      .filter((spoken) => spoken.hearableUntil > now)
-      .map((spoken) => spoken.line)
     const decision = decideCallUtterance(
       this.#deps.mode,
       transcript,
       this.#deps.assistantName,
-      recentLines,
+      this.#echoFilter.hearableLines(),
     )
     if (decision.kind === 'ignore') return
     if (decision.kind === 'note') {
@@ -211,7 +207,9 @@ export class CallConversation {
       this.#runPendingWork()
     }
     const watchdog = armTurnWatchdog(this.#deps.turnWatchdogMs)
-    void watchdog.whenExpired.then(async () => {
+    // The room is only back once the notice has been SPOKEN, so the finally
+    // waits for it (`watchdog.expired` says whether it will settle at all).
+    const noticeSpoken = watchdog.whenExpired.then(async () => {
       if (handedBack || this.#stopped) return
       this.#deps.logger.warn(
         { callId: this.#deps.callId, watchdogMs: this.#deps.turnWatchdogMs },
@@ -220,9 +218,18 @@ export class CallConversation {
       if (speakPolicy === 'always') await this.#speak(CALL_TURN_STILL_WORKING_LINE)
       handBack()
     })
+    // Say the turn's last word — or QUEUE it once the watchdog owns the speaker.
+    // `handedBack` only flips when the notice FINISHED playing, so a reply that
+    // lands while it is still synthesizing would be spoken on top of it and
+    // thrown away as "already speaking": the expiry is the honest test.
+    const sayLast = async (line: string): Promise<void> => {
+      if (handedBack || watchdog.expired) this.#queueLine(line)
+      else await this.#speak(line)
+    }
     try {
       let reply = ''
       let failed = false
+      let interrupted = false
       for await (const event of this.#deps.sessionClient.runCallTurn(this.#deps.sessionId, message)) {
         if (event.kind === 'text') reply += event.delta
         else if (event.kind === 'failed') {
@@ -232,21 +239,33 @@ export class CallConversation {
             'call turn failed',
           )
           break
+        } else if (event.kind === 'interrupted') {
+          // Someone stopped the session server-side (the library's Stop) —
+          // not a failure, and a half-reply is worse than silence in a call.
+          interrupted = true
+          this.#deps.logger.info({ callId: this.#deps.callId }, 'call turn interrupted — nothing spoken')
+          break
         }
       }
-      if (this.#stopped) return
+      // The wait is over — a watchdog that has not fired yet must never speak
+      // its notice on top of the answer that just arrived.
+      watchdog.disarm()
+      if (this.#stopped || interrupted) return
       if (failed) {
         // A silent failure mid-conversation reads as being ignored — but a
         // failed note flush must not interrupt the call to announce itself.
-        if (speakPolicy === 'always') await this.#speak(CALL_TURN_FAILED_LINE)
+        if (speakPolicy === 'always') await sayLast(CALL_TURN_FAILED_LINE)
         return
       }
       const spoken = stripSpokenMarkup(reply).trim()
       if (spoken === '') return
       if (speakPolicy === 'unless-noted' && isNotedSentinel(spoken)) return
-      await this.#speak(spoken)
+      await sayLast(spoken)
     } finally {
       watchdog.disarm()
+      // Never hand back UNDER the notice: the queued reply would start on top
+      // of the line still in flight and be rejected as "already speaking".
+      if (watchdog.expired) await noticeSpoken
       handBack()
     }
   }
@@ -288,9 +307,7 @@ export class CallConversation {
     // Hearable from the first sample until the window past the END of playback
     // (an echo of the line's start can return while its tail still plays) —
     // the open bound closes when speakLine resolves, drained or cancelled.
-    const spoken = { line: text, hearableUntil: Number.POSITIVE_INFINITY }
-    this.#recentSpokenLines.push(spoken)
-    if (this.#recentSpokenLines.length > ECHO_MEMORY_LINES) this.#recentSpokenLines.shift()
+    const spoken = this.#echoFilter.remember(text)
     try {
       await this.#deps.lineSpeaker.speakLine(text)
     } catch (error) {
@@ -299,7 +316,7 @@ export class CallConversation {
         'call speech failed — the line was not heard',
       )
     } finally {
-      spoken.hearableUntil = performance.now() + ECHO_RETURN_WINDOW_MS
+      spoken.end()
     }
   }
 

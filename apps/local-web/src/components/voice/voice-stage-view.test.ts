@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { voiceStageCaption, voiceStageOrbState } from "./voice-stage-view.js";
+import {
+  voiceStageCaption,
+  voiceStageIsListening,
+  voiceStageOrbState,
+} from "./voice-stage-view.js";
 import type { VoiceCommandSessionView } from "../../composables/voice/voice-command-session.js";
 
 function view(partial: Partial<VoiceCommandSessionView>): VoiceCommandSessionView {
@@ -20,10 +24,10 @@ describe("voiceStageCaption", () => {
     ).toBe("Thinking…");
   });
 
-  it("shows the spoken words while speaking", () => {
+  it("shows the spoken reply so far while speaking", () => {
     expect(
-      voiceStageCaption(view({ state: "speaking", spokenText: "It is two." }), false, null),
-    ).toBe("It is two.");
+      voiceStageCaption(view({ state: "speaking", spokenText: "It is two. Go to bed." }), false, null),
+    ).toBe("It is two. Go to bed.");
   });
 
   it("failure and mute outrank session state", () => {
@@ -37,5 +41,15 @@ describe("voiceStageOrbState", () => {
     expect(voiceStageOrbState(view({ state: "ended" }), false)).toBe("idle");
     expect(voiceStageOrbState(view({ state: "thinking" }), false)).toBe("thinking");
     expect(voiceStageOrbState(view({ state: "thinking" }), true)).toBe("muted");
+  });
+});
+
+describe("voiceStageIsListening", () => {
+  it("is on through the whole live session — speaking and thinking included — and off when muted or ended", () => {
+    expect(voiceStageIsListening(view({ state: "listening" }), false)).toBe(true);
+    expect(voiceStageIsListening(view({ state: "thinking" }), false)).toBe(true);
+    expect(voiceStageIsListening(view({ state: "speaking", spokenText: "Hi." }), false)).toBe(true);
+    expect(voiceStageIsListening(view({ state: "speaking", spokenText: "Hi." }), true)).toBe(false);
+    expect(voiceStageIsListening(view({ state: "ended" }), false)).toBe(false);
   });
 });

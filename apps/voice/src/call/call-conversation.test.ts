@@ -161,6 +161,91 @@ describe('CallConversation — participant mode', () => {
     expect(harness.spokenSentences).toContain('Here is the late answer.')
   })
 
+  it('a late reply landing while another line is speaking is QUEUED behind it, never thrown away (R2-F)', async () => {
+    const heldTurn = { release: () => {} }
+    const harness = conversationHarness({
+      mode: 'participant',
+      transcripts: { 1: 'first question', 2: 'second question' },
+      turnWatchdogMs: 20,
+      heldTurn,
+      turnReplies: [replyOf('Second answer.')],
+      manualSynth: true,
+    })
+
+    harness.hear(1)
+    await settle()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    await settle() // the watchdog fired — its notice is mid-synthesis
+    harness.releaseSynth() // the notice finishes; the room is handed back
+    await settle()
+
+    harness.hear(2)
+    await settle() // turn 2 replied; its line is mid-synthesis — the speaker is held
+    expect(harness.spokenSentences).toEqual([
+      "Still working on that — I'll say so as soon as it's done.",
+      'Second answer.',
+    ])
+
+    heldTurn.release() // the slow turn's reply lands NOW, over a line in flight
+    await settle()
+    harness.releaseSynth() // 'Second answer.' finishes…
+    await settle()
+    harness.releaseSynth() // …and the late reply plays right after it
+    await settle()
+    expect(harness.spokenSentences).toEqual([
+      "Still working on that — I'll say so as soon as it's done.",
+      'Second answer.',
+      'Here is the late answer.',
+    ])
+  })
+
+  it('a late reply landing WHILE the watchdog notice is still synthesizing is queued, not lost', async () => {
+    // The room is not handed back until the notice has actually been spoken —
+    // a reply that lands inside that synth window used to be spoken on top of
+    // it, rejected as "already speaking", and only logged. The caller heard
+    // "still working" and then nothing, forever.
+    const heldTurn = { release: () => {} }
+    const harness = conversationHarness({
+      mode: 'participant',
+      transcripts: { 1: 'what is the deploy status?' },
+      turnWatchdogMs: 20,
+      heldTurn,
+      manualSynth: true,
+    })
+
+    harness.hear(1)
+    await settle()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    await settle() // the watchdog fired — its notice is mid-synthesis, unreleased
+    expect(harness.spokenSentences).toEqual([
+      "Still working on that — I'll say so as soon as it's done.",
+    ])
+
+    heldTurn.release() // the answer arrives INSIDE the notice's synth window
+    await settle()
+    harness.releaseSynth() // the notice finishes and hands the room back…
+    await settle()
+    harness.releaseSynth() // …and the queued answer plays right after it
+    await settle()
+    expect(harness.spokenSentences).toEqual([
+      "Still working on that — I'll say so as soon as it's done.",
+      'Here is the late answer.',
+    ])
+  })
+
+  it('a turn someone stopped server-side speaks nothing — no half-reply, no apology', async () => {
+    const harness = conversationHarness({
+      mode: 'participant',
+      transcripts: { 1: 'what happened?' },
+      turnReplies: [[{ kind: 'text', delta: 'Well, the' }, { kind: 'interrupted' }]],
+    })
+
+    harness.hear(1)
+    await settle()
+
+    expect(harness.spokenSentences).toEqual([])
+  })
+
   it('runs a turn on every real utterance and speaks the stripped reply', async () => {
     const harness = conversationHarness({
       mode: 'participant',

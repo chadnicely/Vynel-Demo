@@ -1,11 +1,12 @@
 import { Readable } from 'node:stream'
-import type { VoiceBrainEvent } from '../loop/voice-session-types.js'
+import type { VoiceBrainClient, VoiceBrainEvent } from '../loop/voice-session-types.js'
 import { parseSseFrames, type SseFrame } from '@vynel/sdk'
 
 // The brain client: POST an utterance to local-api's `/root/turn` and stream the
-// answer back as `VoiceBrainEvent`s (the driver's `runBrainTurn`). The SSE frames
-// carry the full `ChatTurnEvent` union; voice only needs the text, the two
-// in-flight notices it speaks about, and the terminal.
+// answer back as `VoiceBrainEvent`s (the driver's `brain.runTurn`), and stop a
+// running turn through `POST /root/turn/interrupt` (the barge-in). The SSE
+// frames carry the full `ChatTurnEvent` union; voice only needs the session
+// id, the text, the queued notice, and the terminal.
 
 /** Map one SSE frame to a `VoiceBrainEvent`, or null for frames voice ignores
  *  (thinking, tool calls, approvals, usage, the context-swap frames). Pure —
@@ -34,6 +35,20 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   if (event.kind === 'text-chunk' && typeof event.textDelta === 'string') {
     return { kind: 'text', delta: event.textDelta }
   }
+  // The session id, from the two frames that name it earliest: a new/swapped
+  // segment and the persisted user message (fires on new AND resumed turns).
+  if (event.kind === 'session-created') {
+    const session = event.session as Record<string, unknown> | undefined
+    if (typeof session?.id === 'string') return { kind: 'session', sessionId: session.id }
+    return null
+  }
+  if (event.kind === 'user-message-persisted') {
+    const message = event.message as Record<string, unknown> | undefined
+    if (typeof message?.sessionId === 'string') {
+      return { kind: 'session', sessionId: message.sessionId }
+    }
+    return null
+  }
   if (event.kind === 'session-completed') return { kind: 'completed' }
   if (event.kind === 'session-errored') {
     const message = typeof event.errorMessage === 'string' ? event.errorMessage : 'the turn failed'
@@ -45,9 +60,9 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
     // transient: a missing flag stays a failure.
     return event.isRecoverable === true ? { kind: 'retrying', message } : { kind: 'failed', message }
   }
-  if (event.kind === 'session-interrupted') {
-    return { kind: 'failed', message: 'the turn was interrupted' }
-  }
+  // A stop is not a failure — the Voice chat panel's Stop, or a barge-in
+  // from another voice surface, ended the turn on purpose.
+  if (event.kind === 'session-interrupted') return { kind: 'interrupted' }
   return null
 }
 
@@ -68,9 +83,8 @@ export { VOICE_MODE, VOICE_MODEL, VOICE_THINKING_EFFORT }
 const CONNECT_TIMEOUT_MS = 10_000
 
 export interface StreamTurnOptions {
-  /** Stop READING this turn (the daemon's per-turn watchdog). The server turn
-   *  keeps running — aborting only frees this socket; its answer still arrives
-   *  through the `speak` door. */
+  /** Stop READING this turn (a barge-in). Aborting only frees this socket —
+   *  the server turn is stopped separately, through the interrupt door. */
   readonly signal?: AbortSignal
   readonly connectTimeoutMs?: number
 }
@@ -145,12 +159,12 @@ export async function* streamTurnEvents(
         // Done at the session's own end: the answer is fully spoken by then and
         // the rest of the stream (a boundary context swap, which can take tens
         // of seconds) is the server's business. Voice turns run
-        // `autoContinue: false`, so nothing else speaks after this.
-        if (brainEvent.kind === 'completed') return
+        // `autoContinue: false`, so nothing else speaks after this. A stop is
+        // an end too.
+        if (brainEvent.kind === 'completed' || brainEvent.kind === 'interrupted') return
       }
     } catch (error) {
-      // The watchdog stopped this read — the SERVER turn is still running and
-      // has already been announced to the room. Not a failure to speak.
+      // A barge-in stopped this read — the user moved on. Not a failure to speak.
       if (controller.signal.aborted) return
       yield {
         kind: 'failed',
@@ -168,23 +182,36 @@ export async function* streamTurnEvents(
   }
 }
 
-/** Build the driver's `runBrainTurn` bound to a local-api base URL. Voice turns
- *  run the VOICE TIER on every leg (`voice: true` makes the server enforce it
- *  anyway — sending it keeps the daemon honest about what it asked for) and the
- *  brain replies by calling the `speak` tool, not with prose. */
-export function createBrainClient(
-  apiUrl: string,
-): (utterance: string, signal?: AbortSignal) => AsyncIterable<VoiceBrainEvent> {
-  return (utterance: string, signal?: AbortSignal) =>
-    streamTurnEvents(
-      `${apiUrl}/root/turn`,
-      {
-        userMessageText: utterance,
-        model: VOICE_MODEL,
-        thinkingEffort: VOICE_THINKING_EFFORT,
-        mode: VOICE_MODE,
-        voice: true,
-      },
-      signal !== undefined ? { signal } : {},
-    )
+/** The driver's brain client bound to a local-api base URL. Voice turns run
+ *  the VOICE TIER on every leg (`voice: true` makes the server enforce it
+ *  anyway — sending it keeps the daemon honest about what it asked for); the
+ *  thread's streamed TEXT is its voice (voice-realtime VR1). */
+export function createBrainClient(apiUrl: string): VoiceBrainClient {
+  return {
+    runTurn: (utterance, signal) =>
+      streamTurnEvents(
+        `${apiUrl}/root/turn`,
+        {
+          userMessageText: utterance,
+          model: VOICE_MODEL,
+          thinkingEffort: VOICE_THINKING_EFFORT,
+          mode: VOICE_MODE,
+          voice: true,
+        },
+        signal !== undefined ? { signal } : {},
+      ),
+    // Identity-shaped (session-hardening D3): the daemon names the session its
+    // barge-in belongs to, so a stop on the spoken thread can never kill work
+    // on the global one.
+    async interruptTurn(sessionId) {
+      const response = await fetch(`${apiUrl}/root/turn/interrupt`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+      if (!response.ok) throw new Error(`interrupt request failed (${response.status})`)
+      const outcome = (await response.json()) as { interrupted?: unknown }
+      return outcome.interrupted === true
+    },
+  }
 }

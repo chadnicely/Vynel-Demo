@@ -11,9 +11,9 @@
 //     `startChatSession`, lost every failure notice and `direct_to_user`
 //     answer to a startup failure — the collector is the ONLY channel by which
 //     the root learns those, and `surfacedToRootAt` is a one-way latch.
-//   - The voice-turn marker: re-states the speak directive AT THE MESSAGE — the
-//     system-prompt block alone decays on a long root session and the model
-//     slips back to text-only replies.
+//   - The voice-turn marker: re-states the spoken directive AT THE MESSAGE (heard
+//     as you write — short spoken sentences) — the system-prompt block alone decays
+//     on a long root session and the model slips back to prose-shaped replies.
 //   - The autopilot marker (D8): the same per-message discipline for a
 //     conversation whose `autoBuildout` setting is on.
 //   - The channel reply marker: the same for `reply_to_channel`, composed at the

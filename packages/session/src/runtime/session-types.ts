@@ -136,8 +136,9 @@ export interface RunGlobalRootTurnCoreInput {
    *  spawn lifecycle the workspace turn gets. Opaque here; the provider casts
    *  at the SDK edge (the `mcpServers` precedent). */
   agents?: Record<string, unknown>
-  /** This turn arrived by VOICE — append the directive that makes the brain reply
-   *  by CALLING the `speak` tool (the single voice) instead of writing prose. */
+  /** This turn arrived by VOICE — append the spoken directive: the thread is HEARD
+   *  as it writes (short spoken sentences, streamed clause by clause by the voice
+   *  clients); the `speak` tool is denied on voice turns (voice-realtime VR1). */
   voice?: boolean
   /** The inbound channel this turn arrived through — stamped on the persisted
    *  user row ("via Voice" / "via Telegram"). Set by the EDGES (the SSE route

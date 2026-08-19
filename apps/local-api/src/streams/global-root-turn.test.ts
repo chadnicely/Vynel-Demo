@@ -238,6 +238,64 @@ describe('streamGlobalRootTurn — the voice leg (D1/D2)', () => {
   })
 })
 
+describe('streamGlobalRootTurn — the spoken thread speaks its own text (VR1)', () => {
+  it('a VOICE turn carries the speak DENY; a keyboard turn keeps the tool', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      await withDataDir(async () => {
+        await (await postTurn(app, { userMessageText: 'spoken', voice: true })).text()
+        nextSdkSessionId = `sdk-${randomUUID()}`
+        await (await postTurn(app, { userMessageText: 'typed' })).text()
+      })
+      // The thread's streamed text IS its voice — a `speak` call would say the
+      // answer a second time, a tool round-trip late.
+      expect(startChatSessionInputs[0]!.deniedToolNames).toContain('mcp__vynel__speak')
+      // Every other surface still speaks through the daemon relay.
+      expect(startChatSessionInputs[1]!.deniedToolNames).not.toContain('mcp__vynel__speak')
+    })
+  })
+
+  it('yields the session id BEFORE the first text chunk on both shapes (the barge-in contract, A3)', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      await withDataDir(async () => {
+        // First-ever voice turn: the fresh segment arrives as `session-created`.
+        const opened = await (
+          await postTurn(app, { userMessageText: 'first spoken', voice: true })
+        ).text()
+        // The toContain guards are load-bearing on both shapes — a MISSING
+        // frame indexes to -1 and would satisfy the ordering check alone.
+        expect(opened).toContain('event: session-created')
+        expect(opened).toContain('event: text-chunk')
+        expect(opened.indexOf('event: session-created')).toBeLessThan(
+          opened.indexOf('event: text-chunk'),
+        )
+        // Resumed voice turn: the user row persists before the provider starts,
+        // so `user-message-persisted` leads — this is the frame a client must
+        // read its `sessionId` from for `POST /root/turn/interrupt`.
+        const resumed = await (
+          await postTurn(app, { userMessageText: 'second spoken', voice: true })
+        ).text()
+        expect(resumed).toContain('event: user-message-persisted')
+        expect(resumed).toContain('event: text-chunk')
+        expect(resumed.indexOf('event: user-message-persisted')).toBeLessThan(
+          resumed.indexOf('event: text-chunk'),
+        )
+        // The id on the wire is the CHAT session id the interrupt door takes.
+        const persisted = JSON.parse(
+          resumed
+            .split('\n')
+            .find((line) => line.startsWith('data: {"kind":"user-message-persisted"'))!
+            .slice('data: '.length),
+        ) as { message: { sessionId: string } }
+        expect(findChatSessionById(db, persisted.message.sessionId)?.scope).toBe('voice')
+      })
+    })
+  })
+})
+
 describe('streamGlobalRootTurn — the identity-shaped feed (V2)', () => {
   it("announces a voice turn as scopeKind 'voice' and a keyboard turn as 'global', each with ITS primary id", async () => {
     await withTestDatabase(async (db) => {

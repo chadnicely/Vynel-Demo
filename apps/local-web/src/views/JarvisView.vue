@@ -5,6 +5,7 @@ import { useVoiceDaemonLink } from "../composables/voice/use-voice-daemon-link.j
 import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-window.js";
 import {
   voiceStageCaption,
+  voiceStageIsListening,
   voiceStageOrbState,
 } from "../components/voice/voice-stage-view.js";
 import VoiceStage from "../components/voice/VoiceStage.vue";
@@ -14,7 +15,9 @@ import VoiceStage from "../components/voice/VoiceStage.vue";
 // Chrome app-window the daemon launches (`chrome --app=/jarvis`). Same
 // composables as the in-app overlay; the whole window is the stage. It
 // identifies itself as the 'jarvis' surface so the daemon prefers it for wake
-// delivery over any regular app tabs.
+// delivery over any regular app tabs. Closing it mid-reply ends the session,
+// which stops the running turn by its own session id (round-2 R2-E) — never
+// the global head.
 
 // The daemon focuses the Chrome variant by title (AppActivate) — keep in sync
 // with apps/voice `jarvis-window.ts`.
@@ -68,6 +71,9 @@ onMounted(() => {
 const orbState = computed(() =>
   voiceStageOrbState(voice.view.value, isMuted.value),
 );
+const isListening = computed(() =>
+  voiceStageIsListening(voice.view.value, isMuted.value),
+);
 const caption = computed(() =>
   voiceStageCaption(voice.view.value, isMuted.value, voice.failure.value),
 );
@@ -86,6 +92,7 @@ const statusLine = computed(() =>
         :caption="caption"
         :status-line="statusLine"
         :is-muted="isMuted"
+        :is-listening="isListening"
         @toggle-mute="toggleMute"
         @close="close"
       />

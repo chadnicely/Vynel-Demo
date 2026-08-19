@@ -17,6 +17,29 @@
 // and announces itself as `scopeKind: 'voice'` with its own primary id (the
 // identity-shaped feed); the resolved mode is stamped on every routing request
 // unconditionally; the turn is bounded by the interactive wall clock (D5).
+//
+// Voice-realtime (2026-08-19, VR1): a voice turn also loses the `speak` tool —
+// its streamed TEXT is what the user hears, so the tool would say the answer a
+// second time a round-trip late. The rule and its WHY live in
+// `sessions/voice-thread-tools.ts`; this file only declares that the turn is
+// spoken.
+//
+// The VOICE CLIENT CONTRACT (barge-in), stated here because three clients
+// depend on it. A voice client SPEAKS this stream's `text-chunk` deltas as they
+// arrive, so it needs the turn's session id BEFORE the first chunk in order to
+// cut a running turn off when the user talks over it. Guaranteed frame order:
+//   - resumed turn (the normal shape) — `user-message-persisted` is written
+//     first, before the provider is even started; take `message.sessionId`.
+//   - first-ever turn / a fresh segment after a swap — `session-created`
+//     carries `session.id`.
+//   - a mid-turn compaction swap re-issues both on the new segment; always
+//     keep the LATEST id seen, never the first.
+// Barge-in = `POST /root/turn/interrupt { sessionId }` with that id — the CHAT
+// session id (the segment), NOT the primary — then run the new utterance as a
+// new turn. NEVER send the id-less form of that route from a voice client: it
+// falls back to the GLOBAL primary's head and would stop the wrong thread. The
+// `turn-queued` sentinel below is emitted BEFORE the lock is taken and carries
+// no id — a barge-in in that window aborts the local stream only.
 
 import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
@@ -45,6 +68,7 @@ import {
 import type { McpFeatureDescriptor } from '@vynel/mcp-contract'
 import type { AppEnv } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
+import { withVoiceThreadToolDenials } from '../sessions/voice-thread-tools.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
@@ -267,7 +291,7 @@ export async function streamGlobalRootTurn(
     userId: c.var.user.id,
     desktopToolNames: desktopFeatureDescriptor.toolNames ?? [],
   })
-  const composedMcp = composeSessionMcpServers(
+  const composedRoutingMcp = composeSessionMcpServers(
     [
       vynelRoutingDescriptor,
       notebookFeatureDescriptor,
@@ -301,6 +325,12 @@ export async function streamGlobalRootTurn(
       surfaceKind: 'global-interactive',
     },
   )
+  // The spoken thread's own rule, on top of the composed gates (VR1): this
+  // turn's text IS its voice, so `speak` is denied for it and left untouched
+  // for every keyboard/channel/schedule turn.
+  const composedMcp = isVoiceTurn
+    ? withVoiceThreadToolDenials(composedRoutingMcp)
+    : composedRoutingMcp
 
   return streamSSE(c, async (stream) => {
     // USER-scope agents ride the global chat too — the same spawn lifecycle

@@ -2,37 +2,77 @@
 // the dropped spec's gotcha #4). The relay receives the brain's answer as a
 // stream of text deltas. If it waited for the whole reply before speaking,
 // the user would hear a long silence then everything at once. Instead it feeds
-// each delta here; the buffer emits COMPLETE sentences as their boundary
-// arrives, so the shell can synthesize the next sentence while the current one
-// plays (always in order, never overlapping).
+// each delta here; the buffer emits COMPLETE chunks as their boundary arrives,
+// so the shell can synthesize the next chunk while the current one plays
+// (always in order, never overlapping). The ONE chunker for the daemon's wake
+// line, the call leg and the browser players (voice-realtime VR4).
 //
-// Pure + stateful (it accumulates across deltas). A sentence boundary is a
-// run of .!? followed by whitespace, or a newline — so a decimal like "3.14"
-// (period followed by a digit) is never split.
+// Pure + stateful (it accumulates across deltas). A chunk closes at a SENTENCE
+// boundary — a run of .!? (plus any closing quote/bracket/emphasis marker)
+// followed by whitespace, or a newline — so a decimal like "3.14" (period
+// followed by a digit) is never split. A long sentence does not hold the voice
+// hostage: once ~CLAUSE_CUT_CHARS of it are pending it is cut at a CLAUSE break
+// (comma, semicolon, colon, a spaced dash) instead — never mid-word, and the
+// same chunks whether the text arrives token by token or in one push.
+
+/** Pending text this long is cut at a clause break rather than waiting for
+ *  the sentence to end — the first sound waits for a clause, not a paragraph. */
+export const CLAUSE_CUT_CHARS = 120
+
+const SENTENCE_END = /^[\s\S]*?(?:[.!?]+["'”’)\]*_]*(?=\s)|\n)/
+const CLAUSE_BREAK = /(?:[,;:]["'”’)\]*_]*|\s[-–—]|[–—])(?=\s)/g
 
 export class SpokenSentenceBuffer {
   #buffer = ''
 
-  // Append a delta; return any complete sentences now ready to speak, in order.
-  // The trailing partial sentence stays buffered until its boundary arrives.
+  // Append a delta; return any complete chunks now ready to speak, in order.
+  // The trailing partial stays buffered until its boundary arrives.
   push(textDelta: string): string[] {
     this.#buffer += textDelta
-    const sentences: string[] = []
-    for (;;) {
-      const match = this.#buffer.match(/^[\s\S]*?(?:[.!?]+(?=\s)|\n)/)
-      if (!match) break
-      const sentence = match[0].trim()
-      if (sentence) sentences.push(sentence)
-      this.#buffer = this.#buffer.slice(match[0].length)
-    }
-    return sentences
+    return this.#cutReadyChunks()
   }
 
   // Emit whatever remains — call at turn end so a final sentence that never got
   // a trailing space/newline (the spec's empty/short-result edge) is still spoken.
   flush(): string[] {
+    const chunks = this.#cutReadyChunks()
     const remainder = this.#buffer.trim()
     this.#buffer = ''
-    return remainder ? [remainder] : []
+    if (remainder) chunks.push(remainder)
+    return chunks
+  }
+
+  #cutReadyChunks(): string[] {
+    const chunks: string[] = []
+    for (;;) {
+      const cutAt = this.#nextCut()
+      if (cutAt === null) break
+      const chunk = this.#buffer.slice(0, cutAt).trim()
+      if (chunk) chunks.push(chunk)
+      this.#buffer = this.#buffer.slice(cutAt)
+    }
+    return chunks
+  }
+
+  // The sentence end wins unless the sentence is already long; then the clause
+  // break closest to the cut length wins (the last one within it, else the
+  // first one after it), and a long sentence with no break at all waits for
+  // its end like before.
+  #nextCut(): number | null {
+    const sentenceEnd = this.#buffer.match(SENTENCE_END)?.[0].length ?? null
+    if (sentenceEnd !== null && sentenceEnd <= CLAUSE_CUT_CHARS) return sentenceEnd
+    const pendingLength = sentenceEnd ?? this.#buffer.length
+    if (pendingLength < CLAUSE_CUT_CHARS) return null
+    return this.#clauseCut(pendingLength) ?? sentenceEnd
+  }
+
+  #clauseCut(before: number): number | null {
+    let lastWithin: number | null = null
+    for (const match of this.#buffer.slice(0, before).matchAll(CLAUSE_BREAK)) {
+      const end = match.index + match[0].length
+      if (end <= CLAUSE_CUT_CHARS) lastWithin = end
+      else return lastWithin ?? end
+    }
+    return lastWithin
   }
 }

@@ -9,6 +9,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Voice talks as it thinks.** Vynel now speaks the first sentence of its answer
+  the moment it is written — while it is still working out the rest — instead of
+  waiting to call a speaking tool after its work, and it never opens with a stock
+  "let me check" or "one moment": what you hear first is its real first sentence
+  about your request.
+- **Talk over it.** While Vynel is speaking you can just start talking: it stops
+  mid-sentence, listens, and answers the new thing — on the floating Jarvis
+  overlay and on the native voice daemon (which now filters out the echo of its
+  own voice instead of closing the mic). Closing or muting the overlay stops the
+  answer for good.
+- **Typed Voice chat is spoken per sentence** in the window, with a Stop button
+  for a running spoken turn.
 - **Autopilot.** The composer's Auto-buildout toggle now means something: when it
   is on, the assistant is told the user is probably away and keeps working on
   its own — making best-fit calls, researching with spawned agents when a
@@ -78,6 +90,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Saying "stop" while Vynel reads a long answer now stops it** — a one- or two-word
+  interruption is no longer mistaken for an echo of its own speech. On a call, a reply
+  that arrives while Vynel is saying it needs more time is spoken right after that
+  line instead of being lost; a broken spoken turn shows its reason on the overlay.
 - **A long delegated task could get a second writer.** After ten minutes the
   queue released a workspace's lock while the task was still writing, so the
   next task (or your own message) resumed the same session beside it. The lock
