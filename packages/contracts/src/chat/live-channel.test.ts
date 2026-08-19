@@ -18,13 +18,23 @@ describe('live-channel keys', () => {
     })
   })
 
-  it('parses the two voice surfaces and nothing else under voice:', () => {
-    expect(parseLiveChannelKey(liveChannelKeys.voice('app'))).toEqual({
+  it('parses the two voice surfaces, with or without the wake capability, and nothing else under voice:', () => {
+    expect(parseLiveChannelKey(liveChannelKeys.voice({ surface: 'app', wake: false }))).toEqual({
       kind: 'voice',
       surface: 'app',
+      wake: false,
     })
-    expect(parseLiveChannelKey('voice:jarvis')).toEqual({ kind: 'voice', surface: 'jarvis' })
+    expect(liveChannelKeys.voice({ surface: 'jarvis', wake: true })).toBe('voice:jarvis:wake')
+    expect(parseLiveChannelKey('voice:jarvis:wake')).toEqual({
+      kind: 'voice',
+      surface: 'jarvis',
+      wake: true,
+    })
+    expect(parseLiveChannelKey('voice:jarvis')).toEqual({ kind: 'voice', surface: 'jarvis', wake: false })
     expect(parseLiveChannelKey('voice:tv')).toBeNull()
+    expect(parseLiveChannelKey('voice:tv:wake')).toBeNull()
+    expect(parseLiveChannelKey('voice:app:mic')).toBeNull()
+    expect(parseLiveChannelKey('voice:app:wake:more')).toBeNull()
     expect(parseLiveChannelKey('voice:')).toBeNull()
   })
 

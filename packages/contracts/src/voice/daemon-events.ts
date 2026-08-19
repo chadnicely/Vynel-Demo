@@ -14,11 +14,25 @@ export function isVoiceSurface(value: unknown): value is VoiceSurface {
   return value === 'app' || value === 'jarvis'
 }
 
+/** What a voice subscriber declares when it joins: which window it is, and
+ *  whether it can RUN a wake session. The daemon hands a wake only to a
+ *  capable client — a window without Web Speech (the Tauri main window) that
+ *  took one would swallow it silently. */
+export interface VoiceSubscriber {
+  readonly surface: VoiceSurface
+  readonly wake: boolean
+}
+
 export type VoiceDaemonEvent =
   | { kind: 'state'; state: string }
-  | { kind: 'wake'; command: string }
-  /** The daemon asks ONE client to play a spoken line (single delivery). */
-  | { kind: 'speak'; text: string }
+  /** `turnWatchdogMs` is the daemon's silence bound, carried so the browser leg
+   *  arms the same watchdog per turn (one knob); absent from an older daemon. */
+  | { kind: 'wake'; command: string; turnWatchdogMs?: number }
+  /** The daemon asks ONE client to play a spoken line (single delivery).
+   *  `sessionId` names the chat session that PRODUCED the line (null when the
+   *  daemon doesn't know) so a window can tell its own turn's voice from
+   *  another producer's. */
+  | { kind: 'speak'; text: string; sessionId: string | null }
 
 export type VoiceRelayEvent = VoiceDaemonEvent | { kind: 'daemon-link'; connected: boolean }
 
@@ -31,14 +45,20 @@ export function parseVoiceDaemonEvent(raw: unknown): VoiceDaemonEvent | null {
       return typeof candidate['state'] === 'string'
         ? { kind: 'state', state: candidate['state'] }
         : null
-    case 'wake':
-      return {
-        kind: 'wake',
-        command: typeof candidate['command'] === 'string' ? candidate['command'] : '',
-      }
+    case 'wake': {
+      const command = typeof candidate['command'] === 'string' ? candidate['command'] : ''
+      const turnWatchdogMs = candidate['turnWatchdogMs']
+      return typeof turnWatchdogMs === 'number' && Number.isFinite(turnWatchdogMs)
+        ? { kind: 'wake', command, turnWatchdogMs }
+        : { kind: 'wake', command }
+    }
     case 'speak':
       return typeof candidate['text'] === 'string' && candidate['text'] !== ''
-        ? { kind: 'speak', text: candidate['text'] }
+        ? {
+            kind: 'speak',
+            text: candidate['text'],
+            sessionId: typeof candidate['sessionId'] === 'string' ? candidate['sessionId'] : null,
+          }
         : null
     default:
       return null

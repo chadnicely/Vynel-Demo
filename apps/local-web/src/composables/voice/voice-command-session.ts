@@ -78,11 +78,18 @@ export interface VoiceCommandSessionOptions {
   readonly initialCommand?: string;
   /** Silence (ms) between turns before the session ends. */
   readonly idleTimeoutMs?: number;
+  /** How long a turn may stay silent before the honesty line is spoken — the
+   *  daemon's knob, carried on the wake event (one home); a manual session has
+   *  no wake and takes the default. `<= 0` disables it. */
+  readonly turnWatchdogMs?: number;
 }
 
 export interface VoiceCommandSession {
   /** Resolves once the session ended (idle silence, `end()`, or a mic failure). */
   readonly done: Promise<void>;
+  /** The chat session the turn in flight runs on (null between turns, or before
+   *  the stream names it) — a relayed `speak` from THIS id is our own voice. */
+  readonly currentSessionId: string | null;
   end(): void;
 }
 
@@ -95,12 +102,21 @@ interface RunningTurn {
   echoLine: SpokenLine | null;
   /** A barge-in (or end) landed — drop whatever it still produces. */
   isCut: boolean;
+  /** Pending until the turn speaks, is cut, or ends — then it can't fire. */
+  watchdog: ReturnType<typeof setTimeout> | null;
   readonly abort: AbortController;
   settled: Promise<void>;
 }
 
 const DEFAULT_IDLE_TIMEOUT_MS = 15_000;
+// Mirrors the daemon's VYNEL_VOICE_TURN_WATCHDOG_MS default (apps/voice env):
+// a wake carries the daemon's live value; only a mic-button session uses this.
+export const DEFAULT_TURN_WATCHDOG_MS = 5 * 60_000;
 const FAILED_TURN_LINE = "Sorry, I ran into a problem with that.";
+// Spoken once when a turn has produced nothing for the whole watchdog window
+// (round-2 R2-G): a person at a microphone needs to hear the turn is alive.
+// The turn keeps streaming and its answer is spoken when it lands.
+const STILL_WORKING_LINE = "Still working on it — I'll say the answer when it lands.";
 // A silent capture normally burns a few seconds before the recognizer gives
 // up — but a fast-failing one (offline Chrome errors instantly) would spin
 // new recognitions back-to-back for the whole idle window without this floor.
@@ -120,6 +136,7 @@ export function startVoiceCommandSession(
   options: VoiceCommandSessionOptions = {},
 ): VoiceCommandSession {
   const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const turnWatchdogMs = options.turnWatchdogMs ?? DEFAULT_TURN_WATCHDOG_MS;
   const echoFilter = new SpokenEchoFilter();
   let ended = false;
   let turn: RunningTurn | null = null;
@@ -150,9 +167,29 @@ export function startVoiceCommandSession(
   function cutTurn(run: RunningTurn): void {
     if (run.isCut) return;
     run.isCut = true;
+    disarmWatchdog(run);
     deps.cancelSpoken();
     run.abort.abort();
     if (run.sessionId !== null) void deps.interruptTurn(run.sessionId).catch(() => undefined);
+  }
+
+  function disarmWatchdog(run: RunningTurn): void {
+    if (run.watchdog === null) return;
+    clearTimeout(run.watchdog);
+    run.watchdog = null;
+  }
+
+  /** Bound the silent wait (round-2 R2-G): a turn that has said nothing for the
+   *  whole window gets ONE honesty line — spoken like a reply sentence so the
+   *  echo filter owns it too — and keeps streaming; its answer is still spoken
+   *  when it lands. Anything spoken first disarms it (`speakSentence`), as does
+   *  a barge-in or the turn's end. */
+  function armWatchdog(run: RunningTurn, playbacks: Promise<void>[]): void {
+    if (turnWatchdogMs <= 0) return;
+    run.watchdog = setTimeout(() => {
+      run.watchdog = null;
+      playbacks.push(speakSentence(run, STILL_WORKING_LINE));
+    }, turnWatchdogMs);
   }
 
   function onInterim(transcript: string): void {
@@ -171,6 +208,7 @@ export function startVoiceCommandSession(
   }
 
   function speakSentence(run: RunningTurn, sentence: string): Promise<void> {
+    disarmWatchdog(run);
     // Remembered from the first sample, as one growing line per reply.
     if (run.echoLine === null) run.echoLine = echoFilter.remember(sentence);
     else run.echoLine.append(sentence);
@@ -186,6 +224,7 @@ export function startVoiceCommandSession(
   async function driveTurn(run: RunningTurn): Promise<void> {
     const playbacks: Promise<void>[] = [];
     publish();
+    armWatchdog(run, playbacks);
     try {
       for await (const event of deps.runBrainTurn(run.command, run.abort.signal)) {
         if (ended || run.isCut) break;
@@ -212,6 +251,7 @@ export function startVoiceCommandSession(
         playbacks.push(sayFailure(run));
       }
     } finally {
+      disarmWatchdog(run);
       // The turn settles once its last sentence played (or was cut) — the idle
       // window counts from the end of speech, not the end of the stream, and
       // the reply stays an echo candidate for the return window past it.
@@ -230,6 +270,7 @@ export function startVoiceCommandSession(
       spokenText: "",
       echoLine: null,
       isCut: false,
+      watchdog: null,
       abort: new AbortController(),
       settled: Promise.resolve(),
     };
@@ -282,6 +323,9 @@ export function startVoiceCommandSession(
 
   return {
     done,
+    get currentSessionId() {
+      return turn?.sessionId ?? null;
+    },
     end(): void {
       if (ended) return;
       ended = true;

@@ -78,7 +78,9 @@ export function useVoiceSession(options: {
 
   let session: VoiceCommandSession | null = null;
 
-  function start(initialCommand?: string): void {
+  /** `turnWatchdogMs` is the daemon's silence bound carried on a wake; a
+   *  manual (mic-button) start has none and the session uses its default. */
+  function start(initialCommand?: string, turnWatchdogMs?: number): void {
     if (session !== null) return;
     failure.value = null;
     if (!canListen) {
@@ -114,7 +116,10 @@ export function useVoiceSession(options: {
           failure.value = `The voice turn broke: ${error instanceof Error ? error.message : String(error)}`;
         },
       },
-      initialCommand ? { initialCommand } : {},
+      {
+        ...(initialCommand ? { initialCommand } : {}),
+        ...(turnWatchdogMs !== undefined ? { turnWatchdogMs } : {}),
+      },
     );
     session = started;
     started.done
@@ -133,9 +138,16 @@ export function useVoiceSession(options: {
     session?.end();
   }
 
+  /** The chat session our turn in flight runs on — null between turns and
+   *  when no session is live. The daemon link uses it to tell a relayed copy
+   *  of OUR OWN voice from another producer's line. */
+  function currentSessionId(): string | null {
+    return session?.currentSessionId ?? null;
+  }
+
   onUnmounted(() => {
     session?.end();
   });
 
-  return { view, failure, isActive, canListen, start, end };
+  return { view, failure, isActive, canListen, start, end, currentSessionId };
 }

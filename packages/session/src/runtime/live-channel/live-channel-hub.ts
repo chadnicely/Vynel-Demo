@@ -14,14 +14,16 @@
 import type { ChatTurnEvent } from '@vynel/chat'
 import {
   LIVE_CHANNEL_PROTOCOL_VERSION,
+  liveChannelKeys,
   parseLiveChannelClientMessage,
   parseLiveChannelKey,
   type LiveChannelKey,
   type LiveChannelServerFrame,
   type ParsedLiveChannelKey,
+  type VoiceChannelKey,
 } from '@vynel/contracts/chat/live-channel'
 import type { SessionActivityEvent } from '@vynel/contracts/chat/session-activity'
-import type { VoiceRelayEvent, VoiceSurface } from '@vynel/contracts/voice/daemon-events'
+import type { VoiceRelayEvent, VoiceSubscriber } from '@vynel/contracts/voice/daemon-events'
 import type { StructuralLogger } from '@vynel/logger'
 import type { TurnEventBroadcaster } from '../../delegation/turn-event-broadcaster.js'
 import { traceChannelKey } from '../../delegation/turn-event-broadcaster.js'
@@ -34,7 +36,7 @@ import { sessionChannelKey } from '../session-turn-channel.js'
 export type LiveChannelOutboundFrame =
   | Exclude<LiveChannelServerFrame, { kind: 'event' }>
   | { kind: 'event'; channel: 'activity'; event: SessionActivityEvent }
-  | { kind: 'event'; channel: `voice:${VoiceSurface}`; event: VoiceRelayEvent }
+  | { kind: 'event'; channel: VoiceChannelKey; event: VoiceRelayEvent }
   | { kind: 'event'; channel: LiveChannelKey; event: ChatTurnEvent }
 
 export interface LiveChannelTransport {
@@ -55,13 +57,13 @@ export const DEFAULT_LIVE_CHANNEL_LIMITS: LiveChannelLimits = {
   heartbeatIntervalMs: 25_000,
 }
 
-/** The voice daemon's events per surface — the api's relay (ONE daemon link
- *  per surface, however many windows listen). The source owns the delivery
- *  rules (state to every listener; wake/speak to the newest — the daemon's
- *  single-delivery contract) and replays the current link/state to a new
- *  listener synchronously inside subscribe(). */
+/** The voice daemon's events per subscriber kind — the api's relay (ONE
+ *  daemon link per (surface, wake-capable), however many windows listen). The
+ *  source owns the delivery rules (state to every listener; wake/speak to ONE
+ *  window — the daemon's single-delivery contract) and replays the current
+ *  link/state to a new listener synchronously inside subscribe(). */
 export interface LiveChannelVoiceSource {
-  subscribe: (surface: VoiceSurface, listener: (event: VoiceRelayEvent) => void) => () => void
+  subscribe: (subscriber: VoiceSubscriber, listener: (event: VoiceRelayEvent) => void) => () => void
 }
 
 export interface LiveChannelHubDeps {
@@ -205,7 +207,7 @@ export class LiveChannelHub {
         kind: 'error',
         channel,
         code: 'unknown_channel',
-        message: `Unknown channel "${channel}" — use activity, session:<id>, trace:<id> or voice:<surface>.`,
+        message: `Unknown channel "${channel}" — use activity, session:<id>, trace:<id>, voice:<surface> or voice:<surface>:wake.`,
       })
       return
     }
@@ -247,7 +249,7 @@ export class LiveChannelHub {
       return
     }
     if (parsed.kind === 'voice') {
-      const voice = this.attachVoice(state, channel, parsed.surface)
+      const voice = this.attachVoice(state, { surface: parsed.surface, wake: parsed.wake })
       state.subscriptions.set(channel, voice.detach)
       this.send(state, { kind: 'subscribed', channel })
       voice.replay()
@@ -303,10 +305,12 @@ export class LiveChannelHub {
    *  detach registered before either). */
   private attachVoice(
     state: ConnectionState,
-    channel: LiveChannelKey,
-    surface: VoiceSurface,
+    subscriber: VoiceSubscriber,
   ): { detach: () => void; replay: () => void } {
     const source = this.deps.voice
+    // Frames go back on the key the window subscribed with — the builder and
+    // the parser are one grammar, so this IS that key.
+    const channel = liveChannelKeys.voice(subscriber)
     let unsubscribe: (() => void) | null = null
     let detached = false
     return {
@@ -317,8 +321,8 @@ export class LiveChannelHub {
       },
       replay: () => {
         if (detached || source === undefined) return
-        const handle = source.subscribe(surface, (event) => {
-          this.send(state, { kind: 'event', channel: `voice:${surface}` as const, event })
+        const handle = source.subscribe(subscriber, (event) => {
+          this.send(state, { kind: 'event', channel, event })
         })
         if (detached) handle()
         else unsubscribe = handle

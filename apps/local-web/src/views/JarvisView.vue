@@ -30,7 +30,7 @@ const voice = useVoiceSession({ onEnded: handleSessionEnded });
 const daemon = useVoiceDaemonLink({
   surface: "jarvis",
   onWake: handleWake,
-  isPlayingOwnTurn: () => voice.isActive.value,
+  ownLiveSessionId: voice.currentSessionId,
 });
 
 function handleSessionEnded(): void {
@@ -40,10 +40,10 @@ function handleSessionEnded(): void {
   if (!isMuted.value && !voice.failure.value) overlayWindow.dismiss();
 }
 
-function handleWake(command: string): void {
+function handleWake(command: string, turnWatchdogMs?: number): void {
   isMuted.value = false;
   overlayWindow.reveal();
-  if (!voice.isActive.value) voice.start(command || undefined);
+  if (!voice.isActive.value) voice.start(command || undefined, turnWatchdogMs);
 }
 
 function toggleMute(): void {

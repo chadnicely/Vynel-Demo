@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_TURN_WATCHDOG_MS,
   startVoiceCommandSession,
   type VoiceCommandSessionDeps,
   type VoiceCommandSessionView,
@@ -485,5 +486,252 @@ describe("startVoiceCommandSession", () => {
     session.end();
     await session.done;
     expect(views.at(-1)?.state).toBe("ended");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The overlay-leg turn watchdog (round-2 R2-G): a turn that has produced
+// NOTHING for the whole window says one honesty line and keeps streaming;
+// anything spoken, a barge-in, an interrupt or the turn's end disarms it.
+// Driven on fake timers; the window is the wake's `turnWatchdogMs`.
+
+const STILL_WORKING = "Still working on it — I'll say the answer when it lands.";
+
+/** A brain that names its session and then stays SILENT until released (a
+ *  long tool call), then speaks its answer; aborting it ends it quietly. */
+function brainSilentUntilReleased(answer = "Here is the late answer.") {
+  let release: () => void = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  async function* brain(_utterance: string, signal: AbortSignal): AsyncIterable<VoiceTurnEvent> {
+    yield { kind: "session", sessionId: "voice-seg-1" };
+    await Promise.race([
+      released,
+      new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve())),
+    ]);
+    if (signal.aborted) return;
+    yield { kind: "spoke", text: answer };
+    yield { kind: "completed" };
+  }
+  return { brain, release };
+}
+
+describe("startVoiceCommandSession — the turn watchdog", () => {
+  it("says the honesty line ONCE when a turn stays silent past the window, then still speaks the late answer", async () => {
+    vi.useFakeTimers();
+    try {
+      const silent = brainSilentUntilReleased();
+      const { deps, played, views } = buildDeps(["do a long thing"], silent.brain);
+      const session = startVoiceCommandSession(deps, {
+        idleTimeoutMs: 600_000,
+        turnWatchdogMs: 1_000,
+      });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(played).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(played).toEqual([STILL_WORKING]);
+      // Once. The orb stays "thinking" — the line is a status, not the reply.
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(played).toEqual([STILL_WORKING]);
+      expect(views.at(-1)?.state).toBe("thinking");
+      expect(captions(views)).toEqual([]);
+
+      silent.release();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(played).toEqual([STILL_WORKING, "Here is the late answer."]);
+      expect(captions(views)).toEqual(["Here is the late answer."]);
+      session.end();
+      await vi.runOnlyPendingTimersAsync();
+      await session.done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never fires once the turn has spoken — the first sentence is the acknowledgment", async () => {
+    vi.useFakeTimers();
+    try {
+      const hanging = brainHanging("On it.");
+      const { deps, played } = buildDeps(["weather"], hanging.brain);
+      const session = startVoiceCommandSession(deps, {
+        idleTimeoutMs: 600_000,
+        turnWatchdogMs: 1_000,
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(played).toEqual(["On it."]);
+      session.end();
+      await vi.runOnlyPendingTimersAsync();
+      await session.done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is cleared when the turn ends — a silent turn that completes, or is interrupted, says nothing later", async () => {
+    vi.useFakeTimers();
+    try {
+      async function* silentThenDone(): AsyncIterable<VoiceTurnEvent> {
+        yield { kind: "completed" };
+      }
+      async function* silentThenInterrupted(): AsyncIterable<VoiceTurnEvent> {
+        yield { kind: "session", sessionId: "voice-seg-1" };
+        yield { kind: "interrupted" };
+      }
+      const { deps, played } = buildDeps(
+        ["first", "second"],
+        (utterance) => (utterance === "first" ? silentThenDone() : silentThenInterrupted()),
+      );
+      const session = startVoiceCommandSession(deps, {
+        idleTimeoutMs: 600_000,
+        turnWatchdogMs: 1_000,
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(played).toEqual([]);
+      session.end();
+      await vi.runOnlyPendingTimersAsync();
+      await session.done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is cleared by end() and by a barge-in — the cut turn never speaks the line", async () => {
+    vi.useFakeTimers();
+    try {
+      // end() mid-wait.
+      const first = brainSilentUntilReleased();
+      const ended = buildDeps(["slow one"], first.brain);
+      const endedSession = startVoiceCommandSession(ended.deps, {
+        idleTimeoutMs: 600_000,
+        turnWatchdogMs: 1_000,
+      });
+      await vi.advanceTimersByTimeAsync(500);
+      endedSession.end();
+      await vi.advanceTimersByTimeAsync(5_000);
+      await endedSession.done;
+      expect(ended.played).toEqual([]);
+
+      // A barge-in mid-wait: the cut turn's watchdog dies with it; the new turn
+      // speaks at once, so its own watchdog never fires either.
+      const second = brainSilentUntilReleased();
+      const barged = buildDeps(
+        [
+          "slow one",
+          async (onInterim) => {
+            await settle();
+            onInterim("never mind that");
+            await settle();
+            return "never mind that";
+          },
+        ],
+        (utterance, signal) =>
+          utterance === "slow one" ? second.brain(utterance, signal) : brainSpeaking("Okay."),
+      );
+      const bargedSession = startVoiceCommandSession(barged.deps, {
+        idleTimeoutMs: 600_000,
+        turnWatchdogMs: 1_000,
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(barged.interrupted).toEqual(["voice-seg-1"]);
+      expect(barged.played).toEqual(["Okay."]);
+      bargedSession.end();
+      await vi.runOnlyPendingTimersAsync();
+      await bargedSession.done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a barge-in during the honesty line still cuts it and interrupts the turn by id", async () => {
+    vi.useFakeTimers();
+    try {
+      const silent = brainSilentUntilReleased();
+      let interimAt: (() => void) | null = null;
+      const harness = buildDeps(
+        [
+          "slow one",
+          async (onInterim) => {
+            await new Promise<void>((resolve) => {
+              interimAt = resolve;
+            });
+            onInterim("actually stop");
+            await settle();
+            return "actually stop";
+          },
+        ],
+        (utterance, signal) =>
+          utterance === "slow one" ? silent.brain(utterance, signal) : brainSpeaking("Stopped."),
+        { holdPlayback: true },
+      );
+      const session = startVoiceCommandSession(harness.deps, {
+        idleTimeoutMs: 600_000,
+        turnWatchdogMs: 1_000,
+      });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(harness.played).toEqual([STILL_WORKING]); // playing, held
+      interimAt!();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(harness.cancelCount()).toBeGreaterThanOrEqual(1);
+      expect(harness.interrupted).toEqual(["voice-seg-1"]);
+      expect(harness.played).toEqual([STILL_WORKING, "Stopped."]);
+      session.end();
+      await vi.runOnlyPendingTimersAsync();
+      await session.done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a session without a wake uses the daemon's default window; 0 disables it", async () => {
+    vi.useFakeTimers();
+    try {
+      const silent = brainSilentUntilReleased();
+      const { deps, played } = buildDeps(["slow one"], silent.brain);
+      const session = startVoiceCommandSession(deps, { idleTimeoutMs: 600_000 });
+      await vi.advanceTimersByTimeAsync(DEFAULT_TURN_WATCHDOG_MS - 1);
+      expect(played).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(played).toEqual([STILL_WORKING]);
+      session.end();
+      await vi.runOnlyPendingTimersAsync();
+      await session.done;
+
+      const disabled = brainSilentUntilReleased();
+      const off = buildDeps(["slow one"], disabled.brain);
+      const offSession = startVoiceCommandSession(off.deps, {
+        idleTimeoutMs: 600_000,
+        turnWatchdogMs: 0,
+      });
+      await vi.advanceTimersByTimeAsync(DEFAULT_TURN_WATCHDOG_MS * 2);
+      expect(off.played).toEqual([]);
+      offSession.end();
+      await vi.runOnlyPendingTimersAsync();
+      await offSession.done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("startVoiceCommandSession — currentSessionId", () => {
+  it("names the turn in flight's chat session while it runs (through playback) and null around it", async () => {
+    const hanging = brainHanging("First.");
+    const harness = buildDeps(["go ahead"], hanging.brain, { holdPlayback: true });
+    const session = startVoiceCommandSession(harness.deps, { idleTimeoutMs: 60_000 });
+    expect(session.currentSessionId).toBeNull();
+    await settle();
+    expect(session.currentSessionId).toBe("voice-seg-1");
+    hanging.release();
+    await settle();
+    // The stream is done but the sentences are still playing — still our turn.
+    expect(session.currentSessionId).toBe("voice-seg-1");
+    harness.releasePlayback();
+    harness.releasePlayback();
+    await settle();
+    expect(session.currentSessionId).toBeNull();
+    session.end();
+    await session.done;
+    expect(session.currentSessionId).toBeNull();
   });
 });
