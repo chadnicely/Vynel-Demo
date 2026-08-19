@@ -95,6 +95,9 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A workspace schedule now runs in the workspace's own conversation** — you watch it
+  work in the thread like any other turn, instead of it running invisibly in the
+  background.
 - **A fired schedule no longer looks like you typing.** The prompt arrives as a quiet
   "Schedule · <name>" notice and Claude carries it out on the spot — a reminder is
   said to you right then, instead of Claude setting itself a timer or asking what you

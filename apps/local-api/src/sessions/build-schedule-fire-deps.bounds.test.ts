@@ -93,7 +93,10 @@ describe('buildScheduleFireDeps — the workspace target lock (BT3)', () => {
         targetLocks,
       })
 
-      // Someone else holds the workspace (a delegated run, a user turn) …
+      // Someone else holds the workspace key — the SAME key the chat stream's
+      // continue-mode turn acquires (`streams/chat-turn.ts` locks.acquire(workspaceId))
+      // and a delegated workspace run holds — so since schedule-on-primary a
+      // fire can never interleave with a user turn on the same conversation …
       const releaseHolder = await targetLocks.acquire(workspaceId)
       const firing = fireSchedule(
         db,

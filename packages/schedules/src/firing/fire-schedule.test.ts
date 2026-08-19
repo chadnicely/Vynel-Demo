@@ -67,7 +67,11 @@ describe('fireSchedule', () => {
       // was: the hard-coded 'bypass-with-behavior-gate'.
       expect(callInput.permissionMode).toBe('auto')
       expect(callInput.scheduleRunId).toBe(run.id) // the binder's cap-lever + log key
-      expect(callInput.resumeSessionId).toBeUndefined() // always a fresh session (D3)
+      // test: correct expectation's WHY — the LEAF names no resume target: the
+      // api binder resolves the workspace's continuing conversation UNDER the
+      // workspace lock and resumes its head (schedule-on-primary, Kafi
+      // 2026-08-20, reversing D3); was: "always a fresh session (D3)".
+      expect(callInput.resumeSessionId).toBeUndefined()
       // The composed prompt (capabilities stub) + the disabled-capability tool
       // gate (MCP composer stub) both reached the turn — schedules turns are gated too.
       // test: correct expectation — the fired turn now ALSO joins the MCP
@@ -345,6 +349,67 @@ describe('fireSchedule — a GLOBAL custom schedule runs a GLOBAL-ROOT turn (bac
       expect((failedEvents[0]!.payload as { errorMessage: string }).errorMessage).toBe(
         'exceeded the 60-minute cap',
       )
+    })
+  })
+
+  it('a RESUMED continuing conversation binds the run row via user-message-persisted (no session-created on a resumed head)', async () => {
+    // Schedule-on-primary: the binder resumes the workspace primary's head, so
+    // the stream announces the segment only through `user-message-persisted` —
+    // a leaf listening for `session-created` alone would leave the run row's
+    // chatSessionId NULL and the "open the conversation" link dead.
+    await withTestDatabase(async (db) => {
+      const schedule = seedChatOnlySchedule(db)
+      let runRowWhileRunning: string | null | undefined
+      startChatTurn.mockImplementation(async function* (): AsyncIterable<ChatTurnEvent> {
+        yield {
+          kind: 'user-message-persisted',
+          message: { sessionId: 'sess-resumed-head' },
+        } as unknown as ChatTurnEvent
+        // The run row binds WHILE the turn still runs (the live "open it" link).
+        runRowWhileRunning = listScheduleRunsForSchedule(db, schedule.id)[0]?.chatSessionId
+        yield { kind: 'text-chunk', messageId: 'msg-1', textDelta: 'resumed answer' }
+      })
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      const run = await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        deps,
+      )
+
+      expect(run.status).toBe('completed')
+      expect(run.chatSessionId).toBe('sess-resumed-head')
+      expect(runRowWhileRunning).toBe('sess-resumed-head')
+    })
+  })
+
+  it('a mid-turn swap rebinds the run row to the segment the turn ended on', async () => {
+    // Resumed head, then a compaction swap mints a fresh segment mid-turn —
+    // the run row follows (`session-created` after `user-message-persisted`),
+    // and the duplicate-id guard keeps the first bind from re-writing.
+    startChatTurn.mockImplementation(async function* (): AsyncIterable<ChatTurnEvent> {
+      yield {
+        kind: 'user-message-persisted',
+        message: { sessionId: 'sess-head-1' },
+      } as unknown as ChatTurnEvent
+      yield {
+        kind: 'session-created',
+        session: { id: 'sess-swapped-2' } as unknown as ChatSessionResponse,
+      }
+      yield { kind: 'text-chunk', messageId: 'msg-1', textDelta: 'post-swap answer' }
+    })
+    await withTestDatabase(async (db) => {
+      const schedule = seedChatOnlySchedule(db)
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      const run = await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        deps,
+      )
+
+      expect(run.status).toBe('completed')
+      expect(run.chatSessionId).toBe('sess-swapped-2')
     })
   })
 

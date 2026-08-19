@@ -13,8 +13,22 @@
 // the KERNEL workspaces repo. The turn's settings are `target row ?? DEFAULT`
 // (BT2, session-hardening D5/D8): the workspace primary's mode / model /
 // effort / autopilot, fit-clamped by the injected resolver — no hard-coded
-// unattended mode any more. Schedules always start a FRESH session
-// (resumeSessionId omitted — blueprint D3).
+// unattended mode any more.
+//
+// Schedule-on-primary (Kafi, 2026-08-20 — deliberately reversing blueprint
+// D3's fresh-session rule): a fire is a VISIBLE turn on the workspace's
+// continuing conversation, exactly like a delegated workspace turn and the
+// user's own chat turn — the fresh-session rule ran fires in a background
+// session the thread never showed. The injected `deps.startChatTurn` resolves
+// the workspace primary + its head UNDER the workspace lock (the api binder,
+// `build-schedule-fire-deps.ts` — a pre-lock read could resume a stale head
+// after the holder's pressure swap) and resumes it; this leaf stays
+// resume-agnostic (it cannot import @vynel/session — invariant #2). No
+// conversation yet → the turn starts fresh and BECOMES the conversation, the
+// way a first chat turn does. The run row binds whichever segment the turn
+// actually runs on — a resumed head announces via `user-message-persisted`
+// (no `session-created` on a resumed segment), a fresh or mid-turn-swapped
+// segment via `session-created`.
 
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { findWorkspaceById } from '@vynel/db/repositories/workspaces'
@@ -113,16 +127,28 @@ export async function runFiredWorkspaceTurn(
   )
 
   // Consume the real ChatTurnEvent union. Accumulate assistant text; capture
-  // the SDK-assigned session id; detect a provider error. Approvals during a
+  // the session the turn runs on; detect a provider error. Approvals during a
   // scheduled turn are handled in-process by the approvals registry;
   // schedules adds no bespoke approval handling.
   const assistantTextChunks: string[] = []
   let chatSessionId: string | null = null
   let turnErrorMessage: string | null = null
+  // A RESUMED head (the continuing conversation) announces only via
+  // `user-message-persisted`; `session-created` covers the fresh first fire
+  // and a mid-turn swap. Either way the run row binds the segment the turn
+  // actually runs on — since schedule-on-primary that id is a segment of the
+  // primary chain, so the run's "open the conversation" link lands in the
+  // visible thread.
+  const bindSession = (sessionId: string): void => {
+    if (chatSessionId === sessionId) return
+    chatSessionId = sessionId
+    input.onSessionResolved(sessionId)
+  }
   for await (const event of turnStream) {
     if (event.kind === 'session-created') {
-      chatSessionId = event.session.id
-      input.onSessionResolved(chatSessionId)
+      bindSession(event.session.id)
+    } else if (event.kind === 'user-message-persisted') {
+      bindSession(event.message.sessionId)
     } else if (event.kind === 'text-chunk') {
       assistantTextChunks.push(event.textDelta)
     } else if (event.kind === 'session-errored') {

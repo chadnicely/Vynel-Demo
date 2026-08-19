@@ -127,8 +127,9 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
 
 // Background-turns BT2: the bound settings resolver reads the workspace
 // PRIMARY's head row through the delegated paths' one rule (`target row ??
-// DEFAULT`) — real rows, no stubs. No fit clamp: a fire starts a FRESH
-// session (D3), so the head's occupancy is not its concern.
+// DEFAULT`) — real rows, no stubs. Since schedule-on-primary (Kafi
+// 2026-08-20) the fire RESUMES that head, so its occupancy rides the turn and
+// the model pick is fit-clamped like every other resumed background pick.
 function seedWorkspacePrimaryHead(
   db: Database,
   userId: string,
@@ -149,7 +150,7 @@ function seedWorkspacePrimaryHead(
   })
 }
 
-describe('buildScheduleFireDeps — resolveWorkspaceTurnSettings (target row ?? DEFAULT, unclamped)', () => {
+describe('buildScheduleFireDeps — resolveWorkspaceTurnSettings (target row ?? DEFAULT, fit-clamped)', () => {
   it('answers the one default when the workspace has no primary conversation yet', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedWorkspace(db)
@@ -182,15 +183,33 @@ describe('buildScheduleFireDeps — resolveWorkspaceTurnSettings (target row ?? 
     })
   })
 
-  it('runs the row model UNCLAMPED — a fire starts a fresh session, the head’s occupancy never rides it', async () => {
+  // test: correct expectation — schedule-on-primary reversed D3: the fire
+  // RESUMES the primary head, so occupancy carries and the delegated fit
+  // clamp applies again; was: unclamped (the fresh-session rule made the
+  // head's occupancy irrelevant).
+  it('CLAMPS a model pick the head’s occupancy cannot fit — the fire resumes the head, so the clamp is live again', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedWorkspace(db)
-      // 400k tokens grown under a 1M-window model: a RESUMED delegated pick
-      // would be clamped to the chain's opus; the fire's fresh session carries
-      // none of that, so the user's haiku pick for the workspace stands.
+      // 400k tokens grown under a 1M-window model: the user's haiku pick
+      // (200k window) cannot hold what the resumed head already carries — the
+      // turn runs on the model that grew the chain instead of dying with
+      // "Prompt is too long" on a surface with nobody watching.
       await seedWorkspacePrimaryHead(db, userId, workspaceId, {
         selectedModel: 'claude-haiku-4-5',
         lastContextTokens: 400_000,
+        model: 'claude-opus-4-6',
+      })
+      const deps = await buildScheduleFireDeps(realOptions())
+      expect(deps.resolveWorkspaceTurnSettings(db, { userId, workspaceId }).model).toBe('claude-opus-4-6')
+    })
+  })
+
+  it('a pick the head’s occupancy fits runs unreplaced', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedWorkspace(db)
+      await seedWorkspacePrimaryHead(db, userId, workspaceId, {
+        selectedModel: 'claude-haiku-4-5',
+        lastContextTokens: 40_000,
         model: 'claude-opus-4-6',
       })
       const deps = await buildScheduleFireDeps(realOptions())
