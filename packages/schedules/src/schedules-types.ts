@@ -126,8 +126,4 @@ export interface FireScheduleDeps {
   ) => {
     systemPromptAppend: string
   }
-  // How many due schedules one poll tick fires at once (BT3) — the api-side
-  // binder passes the delegation pool's knob (`VYNEL_MAX_CONCURRENT_DELEGATIONS`)
-  // so one parked card never blocks the batch. Omit = the leaf default.
-  maxConcurrentFires?: number
 }

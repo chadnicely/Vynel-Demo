@@ -74,11 +74,6 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
       expect(typeof deps.composeSessionCapabilities).toBe('function')
       expect(typeof deps.startGlobalRootTurn).toBe('function')
       expect(typeof deps.resolveWorkspaceTurnSettings).toBe('function')
-      // The tick's bound is the delegation pool's env knob unless overridden.
-      expect(deps.maxConcurrentFires).toBeGreaterThanOrEqual(1)
-      expect(
-        (await buildScheduleFireDeps({ ...realOptions(), maxConcurrentFires: 2 })).maxConcurrentFires,
-      ).toBe(2)
     })
   })
 
@@ -115,7 +110,8 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
 
 // Background-turns BT2: the bound settings resolver reads the workspace
 // PRIMARY's head row through the delegated paths' one rule (`target row ??
-// DEFAULT`, fit-clamped) — real rows, no stubs.
+// DEFAULT`) — real rows, no stubs. No fit clamp: a fire starts a FRESH
+// session (D3), so the head's occupancy is not its concern.
 function seedWorkspacePrimaryHead(
   db: Database,
   userId: string,
@@ -136,7 +132,7 @@ function seedWorkspacePrimaryHead(
   })
 }
 
-describe('buildScheduleFireDeps — resolveWorkspaceTurnSettings (target row ?? DEFAULT, fit-clamped)', () => {
+describe('buildScheduleFireDeps — resolveWorkspaceTurnSettings (target row ?? DEFAULT, unclamped)', () => {
   it('answers the one default when the workspace has no primary conversation yet', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedWorkspace(db)
@@ -169,18 +165,19 @@ describe('buildScheduleFireDeps — resolveWorkspaceTurnSettings (target row ?? 
     })
   })
 
-  it('fit-clamps the row model against the primary head like every delegated pick', async () => {
+  it('runs the row model UNCLAMPED — a fire starts a fresh session, the head’s occupancy never rides it', async () => {
     await withTestDatabase(async (db) => {
       const { userId, workspaceId } = seedWorkspace(db)
-      // 400k tokens grown under a 1M-window model; the row's haiku pick cannot
-      // hold it — the resolver runs the model that grew the chain instead.
+      // 400k tokens grown under a 1M-window model: a RESUMED delegated pick
+      // would be clamped to the chain's opus; the fire's fresh session carries
+      // none of that, so the user's haiku pick for the workspace stands.
       await seedWorkspacePrimaryHead(db, userId, workspaceId, {
         selectedModel: 'claude-haiku-4-5',
         lastContextTokens: 400_000,
         model: 'claude-opus-4-6',
       })
       const deps = await buildScheduleFireDeps(realOptions())
-      expect(deps.resolveWorkspaceTurnSettings(db, { userId, workspaceId }).model).toBe('claude-opus-4-6')
+      expect(deps.resolveWorkspaceTurnSettings(db, { userId, workspaceId }).model).toBe('claude-haiku-4-5')
     })
   })
 })

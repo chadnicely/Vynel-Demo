@@ -7,15 +7,32 @@ import {
 } from '../repositories/index.js'
 import { seedDueSchedule, stubFireDeps } from '../test-support.js'
 import { runScheduleClaimAndFireTick } from './run-schedule-claim-and-fire-tick.js'
+import { ScheduleFirePool } from './schedule-fire-pool.js'
 import type { FireScheduleDeps } from '../schedules-types.js'
+import type { Database } from '@vynel/db'
+import type { Schedule } from '../repositories/index.js'
 import type { ChatSessionResponse } from '@vynel/contracts/chat/chat-http'
 
 // The chat turn is INJECTED via `stubFireDeps` (no module mock — the leaf never
 // imports the chat leaf). The stub's `startChatTurn` is a no-op generator and
 // its `composeWorkspaceMcpServers` counts builds (`state.buildCount`), which
-// stands in for the fire count of the turn-driving branch.
+// stands in for the fire count of the turn-driving branch. Each test owns its
+// pool — the poll service's one-per-process instance — and the shared-pool
+// tests below pass the SAME pool to overlapping ticks.
 
 const TWO_DAYS_AGO = new Date(Date.now() - 2 * 24 * 60 * 60_000)
+const CLEAN = { firedCount: 0, missedCount: 0, failedCount: 0, skippedCount: 0 }
+
+const tick = (db: Database, deps: FireScheduleDeps, pool = new ScheduleFirePool()) =>
+  runScheduleClaimAndFireTick(db, deps, pool)
+
+const isClaimed = (db: Database, schedule: Schedule): boolean => {
+  const after = findScheduleById(db, schedule.id)!
+  return (
+    after.nextScheduledFireAt === null ||
+    after.nextScheduledFireAt.getTime() !== schedule.nextScheduledFireAt!.getTime()
+  )
+}
 
 describe('runScheduleClaimAndFireTick', () => {
   it('fires an on-time due slot exactly once (triggerKind poll)', async () => {
@@ -23,9 +40,9 @@ describe('runScheduleClaimAndFireTick', () => {
       const schedule = seedDueSchedule(db) // 30s ago → due, not overdue
       const deps = stubFireDeps()
 
-      const summary = await runScheduleClaimAndFireTick(db, deps)
+      const summary = await tick(db, deps)
 
-      expect(summary).toEqual({ firedCount: 1, missedCount: 0 })
+      expect(summary).toEqual({ ...CLEAN, firedCount: 1 })
       const runs = listScheduleRunsForSchedule(db, schedule.id)
       expect(runs).toHaveLength(1)
       expect(runs[0]!.status).toBe('completed')
@@ -38,10 +55,9 @@ describe('runScheduleClaimAndFireTick', () => {
       const schedule = seedDueSchedule(db)
       const deps = stubFireDeps()
 
-      await Promise.all([
-        runScheduleClaimAndFireTick(db, deps),
-        runScheduleClaimAndFireTick(db, deps),
-      ])
+      // Two pools = two processes racing the same row: the worker's claim is
+      // the arbiter, so exactly one fires and the other loses the claim.
+      await Promise.all([tick(db, deps), tick(db, deps)])
 
       expect(deps.state.buildCount).toBe(1) // claim-before-fire → exactly one fire
       expect(listScheduleRunsForSchedule(db, schedule.id)).toHaveLength(1)
@@ -56,9 +72,9 @@ describe('runScheduleClaimAndFireTick', () => {
       })
       const deps = stubFireDeps()
 
-      const summary = await runScheduleClaimAndFireTick(db, deps)
+      const summary = await tick(db, deps)
 
-      expect(summary).toEqual({ firedCount: 0, missedCount: 1 })
+      expect(summary).toEqual({ ...CLEAN, missedCount: 1 })
       expect(deps.state.buildCount).toBe(0) // no turn ran
       const runs = listScheduleRunsForSchedule(db, schedule.id)
       expect(runs).toHaveLength(1)
@@ -77,9 +93,9 @@ describe('runScheduleClaimAndFireTick', () => {
       })
       const deps = stubFireDeps()
 
-      const summary = await runScheduleClaimAndFireTick(db, deps)
+      const summary = await tick(db, deps)
 
-      expect(summary).toEqual({ firedCount: 1, missedCount: 0 })
+      expect(summary).toEqual({ ...CLEAN, firedCount: 1 })
       const runs = listScheduleRunsForSchedule(db, schedule.id)
       expect(runs).toHaveLength(1)
       expect(runs[0]!.status).toBe('completed')
@@ -97,16 +113,17 @@ describe('runScheduleClaimAndFireTick', () => {
         destinationKind: 'chat-only',
       })
       const deps = stubFireDeps()
+      const pool = new ScheduleFirePool()
 
-      const first = await runScheduleClaimAndFireTick(db, deps)
-      expect(first).toEqual({ firedCount: 1, missedCount: 0 })
+      const first = await tick(db, deps, pool)
+      expect(first).toEqual({ ...CLEAN, firedCount: 1 })
       // Disarmed: the claim set nextScheduledFireAt to null (computeNextFireAt
       // returns null for a one-time), so it can never be re-listed.
       expect(findScheduleById(db, schedule.id)!.nextScheduledFireAt).toBeNull()
 
       // A second tick must NOT re-fire it.
-      const second = await runScheduleClaimAndFireTick(db, deps)
-      expect(second).toEqual({ firedCount: 0, missedCount: 0 })
+      const second = await tick(db, deps, pool)
+      expect(second).toEqual(CLEAN)
       expect(deps.state.buildCount).toBe(1) // exactly one fire across both ticks
     })
   })
@@ -121,17 +138,18 @@ describe('runScheduleClaimAndFireTick', () => {
         catchUpOnMiss: true,
       })
       const deps = stubFireDeps()
+      const pool = new ScheduleFirePool()
 
-      const first = await runScheduleClaimAndFireTick(db, deps)
-      expect(first).toEqual({ firedCount: 1, missedCount: 0 })
+      const first = await tick(db, deps, pool)
+      expect(first).toEqual({ ...CLEAN, firedCount: 1 })
       const runs = listScheduleRunsForSchedule(db, schedule.id)
       expect(runs).toHaveLength(1)
       expect(runs[0]!.triggerKind).toBe('catchup')
       // Disarmed even on the catch-up path.
       expect(findScheduleById(db, schedule.id)!.nextScheduledFireAt).toBeNull()
 
-      const second = await runScheduleClaimAndFireTick(db, deps)
-      expect(second).toEqual({ firedCount: 0, missedCount: 0 })
+      const second = await tick(db, deps, pool)
+      expect(second).toEqual(CLEAN)
     })
   })
 
@@ -139,14 +157,14 @@ describe('runScheduleClaimAndFireTick', () => {
     await withTestDatabase(async (db) => {
       const schedule = seedDueSchedule(db, { isEnabled: false })
       const deps = stubFireDeps()
-      const summary = await runScheduleClaimAndFireTick(db, deps)
-      expect(summary).toEqual({ firedCount: 0, missedCount: 0 })
+      const summary = await tick(db, deps)
+      expect(summary).toEqual(CLEAN)
       expect(listScheduleRunsForSchedule(db, schedule.id)).toHaveLength(0)
     })
   })
 })
 
-// ── Background-turns BT3: the claimed batch fires CONCURRENTLY, bounded ──────
+// ── Background-turns BT3: the due set fires CONCURRENTLY through ONE pool ────
 //
 // The fires are driven by a controllable `startChatTurn` stub: each fired
 // turn announces that it started, then parks until the test releases it (or
@@ -194,79 +212,122 @@ function controllableTurns() {
   return { startChatTurn, started, waitForStarted, release, releaseAll: () => [...releases.keys()].forEach(release) }
 }
 
+const flushMacrotask = () => new Promise((resolve) => setImmediate(resolve))
+
 describe('runScheduleClaimAndFireTick — concurrent, bounded fires (background-turns BT3)', () => {
-  it('fires two due schedules concurrently — both claimed before either completes', async () => {
+  it('fires two due schedules concurrently — each claimed by the worker that fires it', async () => {
     await withTestDatabase(async (db) => {
       const first = seedDueSchedule(db)
       const second = seedDueSchedule(db)
       const turns = controllableTurns()
-      const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn, maxConcurrentFires: 3 }
+      const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn }
 
-      const tick = runScheduleClaimAndFireTick(db, deps)
+      const ticking = tick(db, deps, new ScheduleFirePool(3))
       // Both turns are live at once while NEITHER has completed …
       await turns.waitForStarted(2)
       expect(turns.started.sort()).toEqual([first.workspaceId, second.workspaceId].sort())
       expect(listScheduleRunsForSchedule(db, first.id)[0]!.status).toBe('running')
       expect(listScheduleRunsForSchedule(db, second.id)[0]!.status).toBe('running')
-      // … and both slots were already claimed (advanced past the due value).
-      expect(findScheduleById(db, first.id)!.nextScheduledFireAt!.getTime()).toBeGreaterThan(
-        first.nextScheduledFireAt!.getTime(),
-      )
-      expect(findScheduleById(db, second.id)!.nextScheduledFireAt!.getTime()).toBeGreaterThan(
-        second.nextScheduledFireAt!.getTime(),
-      )
+      // … and both slots are claimed (advanced past the due value) — by the
+      // workers running them.
+      expect(isClaimed(db, first)).toBe(true)
+      expect(isClaimed(db, second)).toBe(true)
 
       turns.releaseAll()
-      expect(await tick).toEqual({ firedCount: 2, missedCount: 0 })
+      expect(await ticking).toEqual({ ...CLEAN, firedCount: 2 })
       expect(listScheduleRunsForSchedule(db, first.id)[0]!.status).toBe('completed')
       expect(listScheduleRunsForSchedule(db, second.id)[0]!.status).toBe('completed')
     })
   })
 
-  it('holds the bound: with maxConcurrentFires 2 the third fire waits for a freed slot', async () => {
+  it('holds the bound: with a pool of 2 the third fire waits for a freed slot — still UNCLAIMED while it waits', async () => {
     await withTestDatabase(async (db) => {
       const schedules = [seedDueSchedule(db), seedDueSchedule(db), seedDueSchedule(db)]
       const turns = controllableTurns()
-      const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn, maxConcurrentFires: 2 }
+      const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn }
 
-      const tick = runScheduleClaimAndFireTick(db, deps)
+      const ticking = tick(db, deps, new ScheduleFirePool(2))
       await turns.waitForStarted(2)
-      // The third is claimed (its run row exists, pending/running is the
-      // executor's business) but has NOT started its turn — the slot is taken.
-      await new Promise((resolve) => setImmediate(resolve))
+      await flushMacrotask()
       expect(turns.started).toHaveLength(2)
+      // The waiting third is not claimed and has no run row — a kill here
+      // would lose nothing (it is still due for the next tick).
+      const waiting = schedules.find((schedule) => !turns.started.includes(schedule.workspaceId!))!
+      expect(isClaimed(db, waiting)).toBe(false)
+      expect(listScheduleRunsForSchedule(db, waiting.id)).toHaveLength(0)
 
       turns.release(turns.started[0]!)
       await turns.waitForStarted(3)
       expect(turns.started).toHaveLength(3)
+      expect(isClaimed(db, waiting)).toBe(true) // claimed by the worker that now fires it
 
       turns.releaseAll()
-      expect(await tick).toEqual({ firedCount: 3, missedCount: 0 })
+      expect(await ticking).toEqual({ ...CLEAN, firedCount: 3 })
       for (const schedule of schedules) {
         expect(listScheduleRunsForSchedule(db, schedule.id)[0]!.status).toBe('completed')
       }
     })
   })
 
-  it('defaults to a bound of 3 when the binder names none', async () => {
+  it('the pool defaults to a bound of 3 when the owner names none', async () => {
     await withTestDatabase(async (db) => {
       for (let i = 0; i < 4; i += 1) seedDueSchedule(db)
       const turns = controllableTurns()
       const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn }
 
-      const tick = runScheduleClaimAndFireTick(db, deps)
+      const ticking = tick(db, deps, new ScheduleFirePool())
       await turns.waitForStarted(3)
-      await new Promise((resolve) => setImmediate(resolve))
+      await flushMacrotask()
       expect(turns.started).toHaveLength(3)
 
       turns.releaseAll()
       await turns.waitForStarted(4)
       turns.releaseAll()
-      expect(await tick).toEqual({ firedCount: 4, missedCount: 0 })
+      expect(await ticking).toEqual({ ...CLEAN, firedCount: 4 })
     })
   })
 
-  it('an unexpected throw in one fire never abandons the batch — the rest run, then the tick rethrows once', async () => {
+  it('a kill mid-batch loses no slot: what was still waiting is unclaimed, so the next tick (a fresh process) fires it', async () => {
+    await withTestDatabase(async (db) => {
+      const schedules = [seedDueSchedule(db), seedDueSchedule(db)]
+      const turns = controllableTurns()
+      const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn }
+
+      // Bound 1: one fire runs, the other waits for the slot — then the
+      // process "dies" (this tick is abandoned mid-flight).
+      const abandonedTick = tick(db, deps, new ScheduleFirePool(1))
+      await turns.waitForStarted(1)
+      const running = schedules.find((schedule) => schedule.workspaceId === turns.started[0])!
+      const waiting = schedules.find((schedule) => schedule !== running)!
+      expect(isClaimed(db, running)).toBe(true)
+      expect(isClaimed(db, waiting)).toBe(false)
+      expect(listScheduleRunsForSchedule(db, waiting.id)).toHaveLength(0)
+
+      // The restart: a new pool, the same DB. The waiting slot is still due
+      // and fires; the running one is claimed (its row is the evidence) and
+      // is not fired twice.
+      const restartedTurns = controllableTurns()
+      const restarted = tick(
+        db,
+        { ...deps, startChatTurn: restartedTurns.startChatTurn },
+        new ScheduleFirePool(1),
+      )
+      await restartedTurns.waitForStarted(1)
+      expect(restartedTurns.started).toEqual([waiting.workspaceId])
+      restartedTurns.releaseAll()
+      expect(await restarted).toEqual({ ...CLEAN, firedCount: 1 })
+      expect(listScheduleRunsForSchedule(db, waiting.id)[0]!.status).toBe('completed')
+
+      // Had the dead process lived on, its worker would reach the waiting
+      // slot, lose the claim to the restart, and fire nothing more.
+      turns.releaseAll()
+      expect(await abandonedTick).toEqual({ ...CLEAN, firedCount: 1 })
+      expect(listScheduleRunsForSchedule(db, waiting.id)).toHaveLength(1)
+      expect(listScheduleRunsForSchedule(db, running.id)).toHaveLength(1)
+    })
+  })
+
+  it('an unexpected throw in one fire never abandons the batch — logged once, counted, the tick resolves', async () => {
     await withTestDatabase(async (db) => {
       const first = seedDueSchedule(db)
       const second = seedDueSchedule(db)
@@ -283,16 +344,86 @@ describe('runScheduleClaimAndFireTick — concurrent, bounded fires (background-
           session: { id: `sess-${input.workspaceId}` } as unknown as ChatSessionResponse,
         }
       }
-      const deps = { ...stubFireDeps(), startChatTurn, logger, maxConcurrentFires: 1 }
+      const deps = { ...stubFireDeps(), startChatTurn, logger }
 
-      await expect(runScheduleClaimAndFireTick(db, deps)).rejects.toThrow(/1 fire\(s\) threw/)
+      const summary = await tick(db, deps, new ScheduleFirePool(1))
 
+      expect(summary).toEqual({ ...CLEAN, firedCount: 1, failedCount: 1 })
       expect(listScheduleRunsForSchedule(db, first.id)[0]!.status).toBe('completed')
       expect(listScheduleRunsForSchedule(db, second.id)).toHaveLength(0)
+      expect(logger.error).toHaveBeenCalledTimes(1)
       expect(logger.error).toHaveBeenCalledWith(
         expect.objectContaining({ scheduleId: second.id }),
         'schedule fire threw unexpectedly',
       )
+    })
+  })
+})
+
+// ── The bound is per PROCESS: one pool shared by every tick ──────────────────
+
+describe('runScheduleClaimAndFireTick — one pool across ticks', () => {
+  it('two overlapping ticks never exceed the bound; the second queues nothing for a schedule already in the pool', async () => {
+    await withTestDatabase(async (db) => {
+      const schedules = [seedDueSchedule(db), seedDueSchedule(db), seedDueSchedule(db)]
+      const turns = controllableTurns()
+      const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn }
+      const pool = new ScheduleFirePool(1)
+
+      const firstTick = tick(db, deps, pool)
+      await turns.waitForStarted(1)
+      // The next minute's tick arrives while the first still holds the pool:
+      // it re-lists the two waiting (unclaimed) schedules, finds them already
+      // queued, and queues nothing — no second pool, no stacking.
+      const secondTick = await tick(db, deps, pool)
+      expect(secondTick).toEqual({ ...CLEAN, skippedCount: 2 })
+      expect(pool.activeFireCount).toBe(1)
+      expect(turns.started).toHaveLength(1)
+
+      // Everything still fires exactly once, one at a time, through the first tick.
+      for (let fired = 1; fired <= 3; fired += 1) {
+        await turns.waitForStarted(fired)
+        expect(pool.activeFireCount).toBe(1)
+        turns.release(turns.started[fired - 1]!)
+      }
+      expect(await firstTick).toEqual({ ...CLEAN, firedCount: 3 })
+      for (const schedule of schedules) {
+        expect(listScheduleRunsForSchedule(db, schedule.id)).toHaveLength(1)
+      }
+      expect(pool.activeFireCount).toBe(0)
+    })
+  })
+
+  it('a schedule due again while its previous fire still runs waits for it (one fire per schedule at a time)', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedDueSchedule(db, { cronExpression: '* * * * *' })
+      const turns = controllableTurns()
+      const deps = { ...stubFireDeps(), startChatTurn: turns.startChatTurn }
+      const pool = new ScheduleFirePool(3)
+
+      const firstTick = tick(db, deps, pool)
+      await turns.waitForStarted(1)
+      expect(pool.holds(schedule.id)).toBe(true)
+
+      // The next slot comes due while the fire still runs (an every-minute
+      // schedule with a slow turn) — its fire is still in the pool, so this
+      // tick leaves it for later instead of queuing a second fire of the same
+      // schedule to park behind the first.
+      updateSchedule(db, schedule.id, { nextScheduledFireAt: new Date(Date.now() - 1_000) })
+      expect(await tick(db, deps, pool)).toEqual({ ...CLEAN, skippedCount: 1 })
+      expect(turns.started).toHaveLength(1)
+
+      turns.releaseAll()
+      expect(await firstTick).toEqual({ ...CLEAN, firedCount: 1 })
+      expect(pool.holds(schedule.id)).toBe(false)
+      expect(listScheduleRunsForSchedule(db, schedule.id)).toHaveLength(1)
+
+      // Once the fire is done, the still-due slot fires on the next tick.
+      const nextTick = tick(db, deps, pool)
+      await turns.waitForStarted(2)
+      turns.releaseAll()
+      expect(await nextTick).toEqual({ ...CLEAN, firedCount: 1 })
+      expect(listScheduleRunsForSchedule(db, schedule.id)).toHaveLength(2)
     })
   })
 })

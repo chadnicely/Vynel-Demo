@@ -67,10 +67,6 @@ export interface BuildScheduleFireDepsOptions {
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
   /** The cap on one fired turn's WORKING time (ms). Omit = `VYNEL_DELEGATED_TURN_MAX_MS`. */
   hardCapMs?: number
-  /** How many due schedules one poll tick fires at once. Omit = `VYNEL_MAX_CONCURRENT_DELEGATIONS`. */
-  maxConcurrentFires?: number
-  /** The fit guard's pressure threshold. Omit = `VYNEL_CONTEXT_PRESSURE_THRESHOLD`. */
-  pressureThreshold?: number
 }
 
 // The leaf's structural turn input, widened onto the runtime's: the leaf
@@ -81,10 +77,7 @@ export async function buildScheduleFireDeps(
   options: BuildScheduleFireDepsOptions,
 ): Promise<FireScheduleDeps> {
   const { appRequest, logger, activityFeed, targetLocks, turnEvents, readEnabledFeatureKeys } = options
-  const env = loadEnv()
-  const hardCapMs = options.hardCapMs ?? env.VYNEL_DELEGATED_TURN_MAX_MS
-  const maxConcurrentFires = options.maxConcurrentFires ?? env.VYNEL_MAX_CONCURRENT_DELEGATIONS
-  const pressureThreshold = options.pressureThreshold ?? env.VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  const hardCapMs = options.hardCapMs ?? loadEnv().VYNEL_DELEGATED_TURN_MAX_MS
 
   // The shared background composer closes over the in-process `appRequest`
   // dispatcher so each fired turn re-enters the api (dynamic MCP import inside).
@@ -99,8 +92,11 @@ export async function buildScheduleFireDeps(
 
   // BT2 — the settings a fired workspace turn runs under: what the user chose
   // for that workspace's continuing conversation (its primary's head row),
-  // else the one default; the model fit-clamped against that head like every
-  // other delegated pick. No tool arg on a schedule, so `job` is empty.
+  // else the one default. The head is read for the ROW only: a schedule fire
+  // starts a FRESH session (blueprint D3), so none of the head's occupancy
+  // rides it and the row's model pick needs no fit clamp — clamping would
+  // swap the user's small-model pick for the chain's big one over context the
+  // new session does not carry. No tool arg on a schedule, so `job` is empty.
   const resolveWorkspaceTurnSettings: FireScheduleDeps['resolveWorkspaceTurnSettings'] = (
     turnDb,
     input,
@@ -109,8 +105,8 @@ export async function buildScheduleFireDeps(
       headSdkSessionId:
         findPrimaryConversation(turnDb, { userId: input.userId, workspaceId: input.workspaceId })
           ?.currentSdkSessionId ?? null,
+      startsFreshSession: true,
       job: { permissionMode: null, model: null, thinkingEffort: null },
-      ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
       logger,
     })
 
@@ -192,7 +188,10 @@ export async function buildScheduleFireDeps(
       if (cap.failure !== null) throw new TurnWallClockExceededError(await cap.failure)
     } catch (err) {
       turnOutcome = 'failed'
-      // The interrupt usually ends the stream with a throw — still the cap.
+      // The interrupt ends the stream CLEANLY (`session-interrupted`, no
+      // throw) — the post-stream check above is the cap's normal exit. A throw
+      // that lands while the cap is firing is something else racing it (a
+      // provider error, a drain failure); the cap stays the honest outcome.
       if (cap.failure !== null && !(err instanceof TurnWallClockExceededError)) {
         throw new TurnWallClockExceededError(await cap.failure)
       }
@@ -236,7 +235,6 @@ export async function buildScheduleFireDeps(
     composeSessionCapabilities,
     resolveWorkspaceTurnSettings,
     startGlobalRootTurn,
-    maxConcurrentFires,
     // The session runtime's `startChatTurn` yields the RUNTIME `ChatTurnEvent`
     // (Date timestamps, `ChatSession` rows) and takes the narrower provider
     // mode / provider id types; `FireScheduleDeps['startChatTurn']` is typed

@@ -10,8 +10,10 @@
 //
 // The MODEL is fit-checked against the target segment before it runs
 // (`fitPinnedModelToSession` — the voice incident's guard, now on every
-// background pick): a small model resumed onto a fat history dies with
-// "Prompt is too long" on a surface with nobody watching. Never persisted.
+// background pick that RESUMES the head): a small model resumed onto a fat
+// history dies with "Prompt is too long" on a surface with nobody watching.
+// A turn that starts a fresh session on the target (a schedule fire) reads
+// the row's picks and skips the fit (`startsFreshSession`). Never persisted.
 //
 // AUTOPILOT (D8): the target row's `autoBuildout` says whether the per-message
 // marker rides the provider input — the runner appends it, the caller reads it
@@ -30,6 +32,11 @@ export type BackgroundTurnSettingsInput = {
   /** The target conversation's HEAD segment (the SDK session the turn will
    *  resume) — null on a first-ever turn (nothing chosen yet, nothing to fit). */
   headSdkSessionId: string | null
+  /** Set when the turn starts a FRESH session on the target instead of
+   *  resuming the head (a schedule fire — blueprint D3): the head is read for
+   *  the user's picks only, and the model is not fit-checked against an
+   *  occupancy the new session will not carry. */
+  startsFreshSession?: boolean
   /** The stamped picks of whoever asked — the job row's columns. */
   job: {
     permissionMode: DelegationPermissionMode | null
@@ -73,7 +80,7 @@ export function resolveBackgroundTurnSettings(
       : toPermissionMode(DEFAULT_SESSION_MODE))
 
   let model = fromRow.model
-  if (model !== undefined && input.headSdkSessionId !== null) {
+  if (model !== undefined && input.headSdkSessionId !== null && !input.startsFreshSession) {
     const fit = fitPinnedModelToSession(db, {
       resumeSdkSessionId: input.headSdkSessionId,
       pinnedModel: model,

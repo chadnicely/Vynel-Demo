@@ -11,19 +11,27 @@
 // a worker cron; the MCP-intrinsic turn is what pins it here.)
 //
 // The fire deps (the turns + the settings/MCP/capability composition, closing
-// over appRequest; the shared target locks; the delegated cap and the
-// concurrency knob from env) are built once via the shared
-// `buildScheduleFireDeps` helper so the poll service and the `fire-now` routes
-// drive the SAME turn machinery (background-turns BT1–BT3).
+// over appRequest; the shared target locks; the delegated cap from env) are
+// built once via the shared `buildScheduleFireDeps` helper so the poll service
+// and the `fire-now` routes drive the SAME turn machinery (background-turns
+// BT1–BT3). The fire POOL is this service's own: ONE per process, shared by
+// every tick, so at most `maxConcurrentFires` fires run at once however the
+// ticks overlap (a wedged batch and the next minute's due set never stack past
+// the knob — the delegation service's process-wide run count, same idea).
 //
 // Spec: `docs/blueprints/schedules/blueprint.md §5.6` + coding.md §1.1.
 
-import { runScheduleClaimAndFireTick } from '@vynel/schedules'
+import {
+  runScheduleClaimAndFireTick,
+  ScheduleFirePool,
+  type ScheduleTickSummary,
+} from '@vynel/schedules'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { SessionTargetLocks, TurnEventBroadcaster } from '@vynel/session/delegation'
 import type { HonoAppRequestFn } from '../factory.js'
+import { loadEnv } from '../env.js'
 import { buildScheduleFireDeps } from '../sessions/build-schedule-fire-deps.js'
 import type { ReadEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 
@@ -42,6 +50,10 @@ export interface SchedulesServiceOptions {
   turnEvents?: TurnEventBroadcaster // shared live-turn pub/sub (Watch everywhere, Slice ③)
   /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
+  /** How many schedule fires may run at once, process-wide (BT3). Omit =
+   *  `VYNEL_MAX_CONCURRENT_DELEGATIONS` — the delegation pool's knob, so one
+   *  parked card never blocks the batch. */
+  maxConcurrentFires?: number
 }
 
 export async function startSchedulesService(
@@ -49,6 +61,7 @@ export async function startSchedulesService(
 ): Promise<{ stop: () => void }> {
   const { db, logger, appRequest, activityFeed, targetLocks, turnEvents, readEnabledFeatureKeys } =
     options
+  const maxConcurrentFires = options.maxConcurrentFires ?? loadEnv().VYNEL_MAX_CONCURRENT_DELEGATIONS
 
   const fireDeps = await buildScheduleFireDeps({
     appRequest,
@@ -58,17 +71,27 @@ export async function startSchedulesService(
     ...(turnEvents !== undefined ? { turnEvents } : {}),
     ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
   })
+  const firePool = new ScheduleFirePool(maxConcurrentFires)
 
   const pollTimer = setInterval(() => {
-    runScheduleClaimAndFireTick(db, fireDeps).catch((err) =>
-      logger.error({ err }, 'schedule poll tick failed'),
+    runScheduleClaimAndFireTick(db, fireDeps, firePool).then(
+      (summary) => logTickSummary(logger, summary),
+      (err: unknown) => logger.error({ err }, 'schedule poll tick failed'),
     )
   }, SCHEDULE_POLL_INTERVAL_MS)
 
   logger.info(
-    { maxConcurrentFires: fireDeps.maxConcurrentFires ?? null },
-    'schedules service started (poll 60s, bounded concurrent fires)',
+    { maxConcurrentFires },
+    'schedules service started (poll 60s, one bounded fire pool per process)',
   )
 
   return { stop: () => clearInterval(pollTimer) }
+}
+
+// A fire that threw out of the executor has no run row to tell its story — the
+// worker logged it once with the schedule id; the tick summary is the only
+// other place it shows. A clean tick logs nothing (the per-fire lines suffice).
+function logTickSummary(logger: Logger, summary: ScheduleTickSummary): void {
+  if (summary.failedCount === 0) return
+  logger.warn(summary, 'schedule poll tick: fire(s) threw before a run row could record them')
 }
