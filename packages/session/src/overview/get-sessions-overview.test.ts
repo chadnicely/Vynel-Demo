@@ -841,7 +841,12 @@ describe('the voice thread', () => {
     })
   })
 
-  it('folds its whole chain, hidden swap segments included', async () => {
+  // Both swap writers carry `scope` forward from the predecessor
+  // (`record-swap-segment-session.ts:95`, `handle-session-started.ts:133`), and
+  // BOTH the fold's voice branch and the list's voice wall key on the TAIL's
+  // scope — so a writer that ever stopped carrying it would surface the spoken
+  // conversation in `list_sessions` as an "Assistant" entry. Pinned here.
+  it('folds its whole chain, hidden swap segments included, and the tail stays voice-scoped', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())
       const head = insertVoiceSegment(db, user.id)
@@ -858,6 +863,8 @@ describe('the voice thread', () => {
 
       const entry = getVoiceChatOverviewEntry(db, { userId: user.id })
       expect(entry?.segments).toHaveLength(2)
+      expect(entry?.scope).toBe('voice')
+      expect(getSessionsOverview(db, { userId: user.id })).toHaveLength(0)
     })
   })
 

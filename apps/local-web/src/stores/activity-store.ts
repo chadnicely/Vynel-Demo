@@ -47,6 +47,10 @@ export const useActivityStore = defineStore("activity", () => {
     return live[0]?.origin ?? null;
   });
 
+  /** Anything alive in a ROOM — its own thread and every session spawned in
+   *  it. Deliberately NOT `matchTurnToIdentity({ kind: 'workspace' })`, which
+   *  answers the narrower "the room's OWN thread": this is the area question,
+   *  the workspace sibling of `hasGlobalServerTurn`. */
   function hasServerTurnInWorkspace(workspaceId: string): boolean {
     return Object.values(serverTurns.value).some(
       (turn) =>

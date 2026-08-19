@@ -36,6 +36,12 @@ export function useVoiceChatStatus(): {
     queryFn: async () =>
       ((await vynel.root.getVoiceStatus()).entry ??
         null) as SessionsOverviewEntry | null,
+    // The turn-boundary invalidation is not enough on its own: a turn that
+    // PARKS on a card or an `ask_user` form emits no boundary, so the row
+    // would read "working" for the whole wait — the very failure this read
+    // exists to end. Polled while anything runs, idle otherwise (the
+    // SessionThreadView cadence).
+    refetchInterval: () => (activity.isTurnRunning ? 5000 : false),
   });
 
   const entry = computed<SessionsOverviewEntry | null>(

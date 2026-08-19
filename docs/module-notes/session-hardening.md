@@ -111,6 +111,34 @@ there); comments explain WHY; files ≤ ~300 lines (split when a change would cr
 
 ### From D (monitoring identity, voice status, interrupt, root routes)
 
+**Deviation from §3 D2 — read this first.** The plan said "the fold admits voice; the three
+UNSCOPED-overview consumers filter it out". That leaks: `GET /sessions/overview` unscoped **is**
+`list_sessions`' answer (root + workspace-interactive surfaces), so an admitted voice entry would
+hand every workspace manager the spoken thread's row — its title, its `statusNote`/`lastError` text
+and its segment ids — and the route cannot tell a UI call from a tool call (a query flag would just
+become a tool argument). So: the fold admits voice, and `getSessionsOverview` /
+`countSessionsOverview` drop it unconditionally; `isSessionInScope` says the exclusion out loud;
+the Voice chat surface reads `GET /root/voice-chat/status` → `getVoiceChatOverviewEntry`.
+Consequence: **`LiveSessionPane.vue` and `SessionThreadView.vue` need no filter** — they resolve an
+entry by session id out of a list a voice entry can no longer reach, so a filter there would be
+unreachable code. `TasksPanel` did change, but at the TURN level (it counts running turns, not
+entries) — voice is excluded there because the box names its rows from that same list.
+
+**Wire assumptions D's readers make** (check against C at merge):
+
+- Voice turns announce `scopeKind: 'voice'`; global turns announce
+  `primarySessionId = <the global primary's id>` — the same value `GET /root/continuing` returns as
+  `rootSessionId`. No continuing-payload field was added; `rootSessionId` already carried it.
+- **Workspace turns stamp NO `primarySessionId`** (`chat-turn.ts:379`, and the workspace-root branch
+  of `run-delegation-claim-and-run-tick.ts:322`). `matchTurnToIdentity({ kind: 'workspace' })` uses
+  that absence to exclude sessions spawned in the room. See the ask to C below.
+- Both swap writers carry `scope` forward (`record-swap-segment-session.ts:95`,
+  `handle-session-started.ts:133`), so a voice chain's TAIL stays voice-scoped across a compaction
+  swap — the fold branch, the list's voice wall and D3's interrupt gate all key on it. Pinned by a
+  test.
+- `getVoiceChatOverviewEntry` takes the newest voice chain (the fold sorts `lastMessageAt` desc).
+  Correct while the partial-unique index keeps one live voice primary per user.
+
 **Edits D made outside its ownership** (all forced by a contract change; each is one
 mechanical line, declared so the lead can check them at merge):
 
