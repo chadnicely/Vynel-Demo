@@ -10,9 +10,10 @@
 //
 //   GET    /                    -> listSchedulesForUser   [x-mcp: list_my_schedules]
 //   POST   /                    -> createSchedule (scope: global|workspace; cron OR one-time fireAt)
-//   PATCH  /:scheduleId         -> updateSchedule
-//   POST   /:scheduleId/enable  -> setScheduleEnabled(true)
-//   POST   /:scheduleId/disable -> setScheduleEnabled(false)
+//                                                         [x-mcp: create_my_schedule]
+//   PATCH  /:scheduleId         -> updateSchedule         [x-mcp: update_my_schedule]
+//   POST   /:scheduleId/enable  -> setScheduleEnabled(true)   [x-mcp: enable_my_schedule]
+//   POST   /:scheduleId/disable -> setScheduleEnabled(false)  [x-mcp: disable_my_schedule]
 //   POST   /:scheduleId/fire-now -> manualFireSchedule (drives a headless turn)
 //   DELETE /:scheduleId         -> deleteSchedule (hard-delete, cascades)
 //   GET    /:scheduleId/runs    -> listScheduleRuns
@@ -22,12 +23,16 @@
 //
 // Locked Hono protocol: describeRoute -> validator -> `...userScoped` -> handler
 // on `factory.createApp()`; handlers THROW typed VynelError subclasses (the
-// app.ts onError maps them). Only the safe-read `GET /` is x-mcp exposed
-// (list_my_schedules) — no mutating route is exposed (fire-now DRIVES a turn, so
-// it is never an agent tool). `fire-now` authorizes by userId (the tenant
-// boundary) via `manualFireSchedule` — a global (null-workspace) schedule is
-// authorized the same way. Serializers + the param/update/runs schemas are
-// REUSED from the workspace-scoped surface.
+// app.ts onError maps them). MCP exposure (Kafi 2026-08-20, revising D14):
+// `list_my_schedules` PLUS the create/update/enable/disable mutations — all
+// rootSurface (the GLOBAL surfaces' schedule door; the list additionally keeps
+// its workspace membership via workspaceSurface). The mutations ride the
+// ask-approval tier (card in ask mode, run in auto). Still NEVER exposed:
+// fire-now (it DRIVES a turn, never an agent tool) and DELETE (destruction
+// stays the user's). `fire-now` authorizes by userId (the tenant boundary) via
+// `manualFireSchedule` — a global (null-workspace) schedule is authorized the
+// same way. Serializers + the param/update/runs schemas are REUSED from the
+// workspace-scoped surface.
 
 import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
@@ -74,6 +79,10 @@ export const schedulesUserApp = factory
       'x-mcp': {
         exposed: true,
         name: 'list_my_schedules',
+        // rootSurface: the GLOBAL surfaces list schedules through this door;
+        // workspaceSurface keeps its existing workspace-family membership.
+        rootSurface: true,
+        workspaceSurface: true,
         description:
           'List every scheduled routine the user owns — both global (no workspace) and ' +
           'workspace-scoped. Each has its cron expression (or one-time fire time), destination, ' +
@@ -99,6 +108,28 @@ export const schedulesUserApp = factory
           content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
         },
         400: { description: 'Invalid cron, missing channel, past fireAt, or workspaceId missing for a workspace scope.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'create_my_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        rootSurface: true,
+        // Omitting workspaceId here means scope 'global', never "my workspace"
+        // — the ambient stamp would silently rescope the create.
+        ambientWorkspace: false,
+        description:
+          "Create a scheduled routine for the user — scope 'global' creates a global schedule " +
+          "(no workspace), scope 'workspace' plus that workspace's workspaceId creates one for " +
+          'a named workspace. Use this whenever the user asks to be reminded, or wants ' +
+          "something done on a schedule ('remind me…', 'every morning…', 'in 20 minutes…'). " +
+          'Creates a real schedule that fires even after restarts. NEVER simulate a reminder ' +
+          "with sleep/timers/background processes. templateKind 'reminder' delivers " +
+          "promptTemplate VERBATIM at fire time (put the user's exact reminder text in it — no " +
+          "AI turn); use 'custom' with a promptTemplate when the fire should DO work (an AI " +
+          'turn runs it). Recurring: set cronExpression (5-field cron, evaluated in `timezone` ' +
+          "— defaults to the user's profile timezone). One-time ('at 5pm', 'in 20 minutes'): " +
+          'set fireAt instead (ISO-8601 with offset, must be in the future; it wins over cron).',
       },
     }),
     validator('json', CreateScheduleForUserRequestSchema),
@@ -144,6 +175,18 @@ export const schedulesUserApp = factory
         400: { description: 'Invalid cron or missing channel.' },
         404: { description: 'No such schedule owned by this user.' },
       },
+      'x-mcp': {
+        exposed: true,
+        name: 'update_my_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        rootSurface: true,
+        description:
+          'Update any schedule the user owns (global or workspace; find ids via ' +
+          'list_my_schedules) — its displayName, promptTemplate (the reminder text or work ' +
+          'prompt), cronExpression/timezone (the next fire recomputes), destination, or ' +
+          'isEnabled. Only the fields you pass change.',
+      },
     }),
     validator('param', ScheduleParamSchema),
     validator('json', UpdateScheduleRequestSchema),
@@ -183,6 +226,16 @@ export const schedulesUserApp = factory
         },
         404: { description: 'No such schedule owned by this user.' },
       },
+      'x-mcp': {
+        exposed: true,
+        name: 'enable_my_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        rootSurface: true,
+        description:
+          'Turn any schedule the user owns (global or workspace) back on so it fires again at ' +
+          'its next scheduled time.',
+      },
     }),
     validator('param', ScheduleParamSchema),
     ...userScoped,
@@ -208,6 +261,16 @@ export const schedulesUserApp = factory
           content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
         },
         404: { description: 'No such schedule owned by this user.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'disable_my_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        rootSurface: true,
+        description:
+          'Turn any schedule the user owns (global or workspace) off — it stays listed but ' +
+          'stops firing until re-enabled. Use this to pause a routine, never to delete it.',
       },
     }),
     validator('param', ScheduleParamSchema),

@@ -36,6 +36,8 @@ type OpenApiSchema = {
   type?: string | string[]
   // A nullable zod enum reaches the spec as an enum WITH a null member.
   enum?: readonly (string | number | boolean | null)[]
+  // A zod literal (e.g. a discriminated union's discriminator) emits `const`.
+  const?: string | number | boolean | null
   items?: OpenApiSchema
 }
 
@@ -107,6 +109,12 @@ type OpenApiObjectSchema = {
   type?: 'object'
   properties?: Record<string, OpenApiSchema>
   required?: string[]
+  // A zod (discriminated) union body reaches the spec as oneOf/anyOf object
+  // branches with NO top-level properties — flattened for the tool schema by
+  // `flattenUnionBodySchema` (the route's validator still enforces the real
+  // branch rules at the boundary).
+  oneOf?: OpenApiObjectSchema[]
+  anyOf?: OpenApiObjectSchema[]
 }
 
 type OpenApiRequestBody = {
@@ -193,7 +201,9 @@ for (const [pathKey, methods] of Object.entries(paths)) {
     }
 
     const allParams = operation.parameters ?? []
-    const bodySchema = operation.requestBody?.content?.['application/json']?.schema
+    const bodySchema = flattenUnionBodySchema(
+      operation.requestBody?.content?.['application/json']?.schema,
+    )
     const excludedBodyFields = new Set(mcp.excludedBodyFields ?? [])
     const bodyFields: BodyField[] = []
     if (bodySchema?.properties) {
@@ -254,8 +264,63 @@ function snakeToCamel(snake: string): string {
   return snake.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
 }
 
+// A union body (zod discriminatedUnion → oneOf, plain union → anyOf) carries
+// no top-level properties, which would silently emit a body-less mutating tool
+// (create_my_schedule was the first). Flatten for the TOOL SCHEMA only: union
+// of the branch properties; a field is required only when EVERY branch
+// requires it (the discriminator stays required, a branch-specific field like
+// `workspaceId` turns optional) — the route's validator still enforces the
+// real branch rules with an actionable 400. Same-named fields whose branch
+// values are literals (`const`) merge into one enum so the model sees every
+// legal discriminator value.
+function flattenUnionBodySchema(
+  schema: OpenApiObjectSchema | undefined,
+): OpenApiObjectSchema | undefined {
+  if (schema === undefined || schema.properties !== undefined) return schema
+  const branches = schema.oneOf ?? schema.anyOf
+  if (branches === undefined || branches.length === 0) return schema
+  const properties: Record<string, OpenApiSchema> = {}
+  for (const branch of branches) {
+    for (const [name, propertySchema] of Object.entries(branch.properties ?? {})) {
+      const existing = properties[name]
+      properties[name] =
+        existing === undefined ? propertySchema : mergeEnumMembers(existing, propertySchema)
+    }
+  }
+  const required = (branches[0]?.required ?? []).filter((name) =>
+    branches.every((branch) => branch.required?.includes(name) === true),
+  )
+  return { type: 'object', properties, required }
+}
+
+function mergeEnumMembers(a: OpenApiSchema, b: OpenApiSchema): OpenApiSchema {
+  const aMembers = enumMembersOf(a)
+  const bMembers = enumMembersOf(b)
+  if (aMembers === undefined || bMembers === undefined) return a
+  const merged = [...aMembers]
+  for (const member of bMembers) if (!merged.includes(member)) merged.push(member)
+  const { const: _literal, ...rest } = a
+  return { ...rest, enum: merged }
+}
+
+function enumMembersOf(
+  schema: OpenApiSchema,
+): readonly (string | number | boolean | null)[] | undefined {
+  if (schema.enum !== undefined && schema.enum.length > 0) return schema.enum
+  // Only STRING literals lift into an enum — z.enum accepts nothing else; a
+  // non-string literal keeps its branch's primitive shape.
+  if (typeof schema.const === 'string') return [schema.const]
+  return undefined
+}
+
 function openApiToZodSource(schema: OpenApiSchema | undefined): string {
   if (!schema) return 'z.any()'
+  // A zod STRING literal emits `const` — a one-member enum for tool purposes.
+  // Non-string literals (z.literal(true)) keep the primitive path: z.enum
+  // only accepts strings.
+  if (typeof schema.const === 'string' && (!schema.enum || schema.enum.length === 0)) {
+    schema = { ...schema, enum: [schema.const] }
+  }
   if (schema.enum && schema.enum.length > 0) {
     // `z.enum([...]).nullable()` reaches the spec as an enum WITH a null
     // member — emitting that null into `z.enum` is invalid source. Strip it

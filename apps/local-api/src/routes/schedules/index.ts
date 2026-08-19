@@ -3,10 +3,10 @@
 //
 //   GET    /                       -> listSchedules            [x-mcp]
 //   GET    /templates              -> listScheduleTemplates    [x-mcp]
-//   POST   /                       -> createSchedule (cron OR one-time fireAt)
-//   PATCH  /:scheduleId            -> updateSchedule
-//   POST   /:scheduleId/enable     -> setScheduleEnabled(true)
-//   POST   /:scheduleId/disable    -> setScheduleEnabled(false)
+//   POST   /                       -> createSchedule (cron OR one-time fireAt) [x-mcp]
+//   PATCH  /:scheduleId            -> updateSchedule           [x-mcp]
+//   POST   /:scheduleId/enable     -> setScheduleEnabled(true)  [x-mcp]
+//   POST   /:scheduleId/disable    -> setScheduleEnabled(false) [x-mcp]
 //   POST   /:scheduleId/fire-now   -> manualFireSchedule (drives a headless turn)
 //   DELETE /:scheduleId            -> deleteSchedule (hard-delete, cascades)
 //   GET    /:scheduleId/runs       -> listScheduleRuns         [x-mcp]
@@ -17,10 +17,13 @@
 // Handlers THROW typed VynelError subclasses; the app.ts onError middleware
 // maps them (no inline `c.json({code}, 4xx)`).
 //
-// MCP exposure (D14): the three safe-read GETs carry x-mcp pre-annotations
-// (list_schedules / list_schedule_templates / list_schedule_runs). No mutating
-// route is exposed — ESPECIALLY not fire-now (it DRIVES a turn, never an agent
-// tool).
+// MCP exposure (D14, revised by Kafi 2026-08-20): the three safe-read GETs
+// (list_schedules / list_schedule_templates / list_schedule_runs) PLUS the
+// create/update/enable/disable mutations — "remind me for tea at 5" typed in
+// chat must create a real schedule row, not an improvised `sleep` timer. All
+// four mutations ride the ask-approval tier (card in ask mode, run in auto).
+// Still NEVER exposed: fire-now (it DRIVES a turn, never an agent tool) and
+// DELETE (destruction stays the user's).
 //
 // `fire-now` builds the fire path's `FireScheduleDeps` from `c.var.appRequest`
 // via `buildScheduleFireDeps` (the ③ agent-turn MCP binding) and calls
@@ -131,6 +134,23 @@ export const schedulesApp = factory
         },
         400: { description: 'Invalid cron or missing channel.' },
       },
+      'x-mcp': {
+        exposed: true,
+        name: 'create_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        description:
+          'Create a scheduled routine in the active workspace. Use this whenever the user asks ' +
+          "to be reminded, or wants something done on a schedule ('remind me…', 'every " +
+          "morning…', 'in 20 minutes…'). Creates a real schedule that fires even after " +
+          'restarts. NEVER simulate a reminder with sleep/timers/background processes. ' +
+          "templateKind 'reminder' delivers promptTemplate VERBATIM at fire time (put the " +
+          "user's exact reminder text in it — no AI turn); use 'custom' with a promptTemplate " +
+          'when the fire should DO work (an AI turn runs it). Recurring: set cronExpression ' +
+          "(5-field cron, evaluated in `timezone` — defaults to the user's profile timezone). " +
+          "One-time ('at 5pm', 'in 20 minutes'): set fireAt instead (ISO-8601 with offset, " +
+          'must be in the future; it wins over cron).',
+      },
     }),
     validator('json', CreateScheduleRequestSchema),
     ...workspaceScoped,
@@ -177,6 +197,16 @@ export const schedulesApp = factory
         400: { description: 'Invalid cron or missing channel.' },
         404: { description: 'No such schedule in this workspace.' },
       },
+      'x-mcp': {
+        exposed: true,
+        name: 'update_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        description:
+          "Update a schedule in the active workspace — its displayName, promptTemplate (the " +
+          'reminder text or work prompt), cronExpression/timezone (the next fire recomputes), ' +
+          'destination, or isEnabled. Only the fields you pass change.',
+      },
     }),
     validator('param', ScheduleParamSchema),
     validator('json', UpdateScheduleRequestSchema),
@@ -216,6 +246,15 @@ export const schedulesApp = factory
         },
         404: { description: 'No such schedule in this workspace.' },
       },
+      'x-mcp': {
+        exposed: true,
+        name: 'enable_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        description:
+          'Turn a schedule in the active workspace back on so it fires again at its next ' +
+          'scheduled time.',
+      },
     }),
     validator('param', ScheduleParamSchema),
     ...workspaceScoped,
@@ -241,6 +280,15 @@ export const schedulesApp = factory
           content: { 'application/json': { schema: resolver(ScheduleResponseSchema) } },
         },
         404: { description: 'No such schedule in this workspace.' },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'disable_schedule',
+        mutatingApproved: true,
+        askApproval: true,
+        description:
+          'Turn a schedule in the active workspace off — it stays listed but stops firing ' +
+          'until re-enabled. Use this to pause a routine, never to delete it.',
       },
     }),
     validator('param', ScheduleParamSchema),

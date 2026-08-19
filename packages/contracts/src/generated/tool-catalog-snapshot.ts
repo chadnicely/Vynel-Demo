@@ -5,7 +5,7 @@
 import type { ToolCatalogEntry } from '../tool-policy/catalog.js'
 
 /** Every tool the product composes, with its declared defaults — sorted by
- *  (serverName, toolName). 136 entries. */
+ *  (serverName, toolName). 144 entries. */
 export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__desktop__act_on_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__act_on_desktop","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
@@ -42,14 +42,20 @@ export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__vynel__create_global_monitor","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"never"},
   {"toolName":"mcp__vynel__create_memory_entry","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","featureKey":"memory","capabilityId":"memory"},
   {"toolName":"mcp__vynel__create_monitor","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
+  {"toolName":"mcp__vynel__create_my_schedule","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__create_phase","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"phases"},
   {"toolName":"mcp__vynel__create_plan","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"plans"},
+  {"toolName":"mcp__vynel__create_schedule","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__create_session","serverName":"vynel","surfaces":["workspace-interactive","delegated-workspace","spawned","agent","global-interactive","global-channel","delegated-global"],"cardClass":"never"},
   {"toolName":"mcp__vynel__create_task","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"tasks"},
   {"toolName":"mcp__vynel__delete_agent","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask"},
   {"toolName":"mcp__vynel__delete_feature","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","capabilityId":"features"},
   {"toolName":"mcp__vynel__delete_phase","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","capabilityId":"phases"},
+  {"toolName":"mcp__vynel__disable_my_schedule","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"schedules"},
+  {"toolName":"mcp__vynel__disable_schedule","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__discover_installed_skills_for_provider","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
+  {"toolName":"mcp__vynel__enable_my_schedule","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"schedules"},
+  {"toolName":"mcp__vynel__enable_schedule","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__end_call","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"voice"},
   {"toolName":"mcp__vynel__get_agent","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
   {"toolName":"mcp__vynel__get_ai_agent_provider_auth_status","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
@@ -94,7 +100,7 @@ export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__vynel__list_my_channels","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
   {"toolName":"mcp__vynel__list_my_journal_entries","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"journal"},
   {"toolName":"mcp__vynel__list_my_plans","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"plans"},
-  {"toolName":"mcp__vynel__list_my_schedules","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","featureKey":"schedules"},
+  {"toolName":"mcp__vynel__list_my_schedules","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule","global-interactive","global-channel","delegated-global"],"cardClass":"never","featureKey":"schedules"},
   {"toolName":"mcp__vynel__list_my_tasks","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"tasks"},
   {"toolName":"mcp__vynel__list_phases","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"phases"},
   {"toolName":"mcp__vynel__list_plans","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"plans"},
@@ -133,8 +139,10 @@ export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__vynel__update_feature","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"features"},
   {"toolName":"mcp__vynel__update_marketplace_item","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","featureKey":"marketplace"},
   {"toolName":"mcp__vynel__update_memory_entry","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","featureKey":"memory","capabilityId":"memory"},
+  {"toolName":"mcp__vynel__update_my_schedule","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__update_phase","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"phases"},
   {"toolName":"mcp__vynel__update_plan","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"plans"},
+  {"toolName":"mcp__vynel__update_schedule","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__update_task","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","capabilityId":"tasks"},
   {"toolName":"mcp__vynel-ask__ask_user","serverName":"vynel-ask","surfaces":["global-interactive","workspace-interactive","global-channel"],"cardClass":"never"},
   {"toolName":"mcp__vynel-notebook__list_playbooks","serverName":"vynel-notebook","surfaces":["global-interactive","global-channel","workspace-interactive","workspace-background","delegated-workspace","delegated-global","spawned","agent","schedule"],"cardClass":"never","capabilityId":"notebook"},

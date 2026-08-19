@@ -111,11 +111,18 @@ export const VYNEL_FEATURE_GATED_TOOLS: Readonly<Record<string, readonly string[
     'mcp__vynel__stop_app',
     'mcp__vynel__get_app_logs',
   ],
+  // The workspace mutations joined 2026-08-20 (Kafi, revising D14): chat
+  // creates real schedule rows instead of improvising sleep timers. The
+  // *_my_* mutations are ROUTING tools — gated in ROUTING_FEATURE_GATED_TOOLS.
   schedules: [
     'mcp__vynel__list_schedules',
     'mcp__vynel__list_my_schedules',
     'mcp__vynel__list_schedule_runs',
     'mcp__vynel__list_schedule_templates',
+    'mcp__vynel__create_schedule',
+    'mcp__vynel__update_schedule',
+    'mcp__vynel__enable_schedule',
+    'mcp__vynel__disable_schedule',
   ],
   marketplace: [
     'mcp__vynel__list_marketplace_items',
@@ -129,12 +136,20 @@ export const VYNEL_FEATURE_GATED_TOOLS: Readonly<Record<string, readonly string[
 }
 
 // The routing surface's tier map: the call/voice lifecycle tools dispatch
-// through the `/voice/*` featureGate mount.
+// through the `/voice/*` featureGate mount; the user-scoped schedule tools
+// (rootSurface, 2026-08-20) re-enter through the `/schedules/*` mount.
 export const ROUTING_FEATURE_GATED_TOOLS: Readonly<Record<string, readonly string[]>> = {
   voice: [
     'mcp__vynel__speak',
     'mcp__vynel__start_call',
     'mcp__vynel__end_call',
     'mcp__vynel__list_calls',
+  ],
+  schedules: [
+    'mcp__vynel__list_my_schedules',
+    'mcp__vynel__create_my_schedule',
+    'mcp__vynel__update_my_schedule',
+    'mcp__vynel__enable_my_schedule',
+    'mcp__vynel__disable_my_schedule',
   ],
 }

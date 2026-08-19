@@ -87,6 +87,46 @@ describe('buildSessionToolCatalog', () => {
     )
   })
 
+  it('the schedule mutations split by scope: workspace tools stay workspace-family, *_my_* tools ride the global surfaces, the list bridges both (Kafi 2026-08-20)', () => {
+    const createSchedule = catalog.find((entry) => entry.toolName === 'mcp__vynel__create_schedule')!
+    expect([...createSchedule.surfaces].sort()).toEqual(
+      ['workspace-interactive', 'workspace-background', 'delegated-workspace', 'spawned', 'agent', 'schedule'].sort(),
+    )
+    expect(createSchedule.cardClass).toBe('ask')
+    expect(createSchedule.featureKey).toBe('schedules')
+
+    const createMySchedule = catalog.find(
+      (entry) => entry.toolName === 'mcp__vynel__create_my_schedule',
+    )!
+    expect([...createMySchedule.surfaces].sort()).toEqual(
+      ['delegated-global', 'global-channel', 'global-interactive'].sort(),
+    )
+    expect(createMySchedule.cardClass).toBe('ask')
+    expect(createMySchedule.featureKey).toBe('schedules')
+
+    // enable/disable are mutations too — they change what fires; all eight card.
+    for (const name of [
+      'mcp__vynel__update_schedule',
+      'mcp__vynel__enable_schedule',
+      'mcp__vynel__disable_schedule',
+      'mcp__vynel__update_my_schedule',
+      'mcp__vynel__enable_my_schedule',
+      'mcp__vynel__disable_my_schedule',
+    ]) {
+      expect(catalog.find((entry) => entry.toolName === name)!.cardClass, name).toBe('ask')
+    }
+
+    // The list rides BOTH worlds (rootSurface + workspaceSurface — the
+    // send_message shape): a global chat must be able to see what it manages.
+    const listMySchedules = catalog.find(
+      (entry) => entry.toolName === 'mcp__vynel__list_my_schedules',
+    )!
+    expect(listMySchedules.surfaces).toEqual(
+      expect.arrayContaining(['workspace-interactive', 'schedule', 'global-interactive', 'global-channel']),
+    )
+    expect(listMySchedules.cardClass).toBe('never')
+  })
+
   it('routing-only tools attach to no workspace surface; workspace-only to no global one', () => {
     const registerWorkspace = catalog.find(
       (entry) => entry.toolName === 'mcp__vynel__register_workspace',
