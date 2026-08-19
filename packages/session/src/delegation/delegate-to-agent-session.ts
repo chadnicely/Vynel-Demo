@@ -58,6 +58,9 @@ export type DelegateToAgentSessionInput = {
   /** The delegating (parent) session — provenance for the monitor edge. */
   parentSessionId: string
   userId: string
+  /** A STABLE id for this turn's inbound task row (the job id) — a requeued
+   *  task re-uses the row it already landed (session-hardening A3c). */
+  inboundMessageId?: string
   /** The colleague primary (scope 'agent') whose conversation runs the task. */
   targetPrimarySessionId: string
   /** The run cwd — the grounding workspace's folder, else the global root's
@@ -182,7 +185,11 @@ export async function delegateToAgentSession(
   const turnStream = consumeSessionEventStream({
     db,
     sessionEventStream,
-    userMessageInput: { id: randomUUID(), body: input.taskText, attachedImagesMetadata: null },
+    userMessageInput: {
+      id: input.inboundMessageId ?? randomUUID(),
+      body: input.taskText,
+      attachedImagesMetadata: null,
+    },
     userId: input.userId,
     workspaceId: primary.workspaceId,
     workspacePath: input.runCwdPath,

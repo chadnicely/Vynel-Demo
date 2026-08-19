@@ -119,6 +119,7 @@ async function main(): Promise<void> {
     // rename arc will thread a configurable name through here later.
     assistantName: 'Vynel',
     sessionClient: createCallSessionClient(env.VYNEL_API_URL),
+    turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
     createVad: () => new SherpaVoiceActivityDetector({ vad: vadConfig }),
     transcribe: sharedTranscribe,
     synthesize: (sentence) => sharedSynthesize(sentence, { voiceId: env.VYNEL_VOICE_ID }),

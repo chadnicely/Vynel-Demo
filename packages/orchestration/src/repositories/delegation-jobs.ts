@@ -301,15 +301,19 @@ export function completeDelegationJob(
   id: string,
   resultText: string,
   completedAt: Date,
-): DelegationJob {
+): DelegationJob | null {
+  // CAS on the claim (session-hardening review): with a runtime lease sweeper a
+  // run whose heartbeats starved may already have been settled — its terminal
+  // write must not overwrite that (a false "failed" notice followed by the row
+  // flipping back to completed). Null = the claim is no longer this run's; the
+  // caller logs and stands down.
   const [updated] = db
     .update(delegationJobs)
     .set({ status: 'completed', resultText, completedAt })
-    .where(eq(delegationJobs.id, id))
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'claimed')))
     .returning()
     .all()
-  if (!updated) throw new Error(`completeDelegationJob: no row for ${id}`)
-  return updated
+  return updated ?? null
 }
 
 export function failDelegationJob(
@@ -318,7 +322,8 @@ export function failDelegationJob(
   errorMessage: string,
   completedAt: Date,
   options: { errorCode?: string } = {},
-): DelegationJob {
+): DelegationJob | null {
+  // CAS on the claim — see completeDelegationJob. Null = settled elsewhere.
   const [updated] = db
     .update(delegationJobs)
     .set({
@@ -327,18 +332,20 @@ export function failDelegationJob(
       completedAt,
       ...(options.errorCode !== undefined ? { errorCode: options.errorCode } : {}),
     })
-    .where(eq(delegationJobs.id, id))
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'claimed')))
     .returning()
     .all()
-  if (!updated) throw new Error(`failDelegationJob: no row for ${id}`)
-  return updated
+  return updated ?? null
 }
 
-/** Requeue a claimed job for another attempt (recoverable failure — rate limit,
+/** Requeue a job for another attempt (recoverable failure — rate limit,
  *  network, provider start timeout): back to `pending` with the attempt counter
  *  bumped and a backoff deadline the claim gates on. The channels outbound
- *  retry shape, applied to delegation. The tick owns the row (claimed), so this
- *  is a plain update, not a CAS. */
+ *  retry shape, applied to delegation. Guarded on `claimed` OR `pending` (a
+ *  row the lease sweeper already handed back is pending; re-stamping its
+ *  deadline is harmless) — never a terminal row: with a runtime sweeper the
+ *  tick no longer owns the row unconditionally. Null = the row was terminal
+ *  already; the caller stands down. */
 export function requeueDelegationJob(
   db: Database,
   id: string,
@@ -348,7 +355,7 @@ export function requeueDelegationJob(
     attemptCount: number
     nextAttemptAt: Date
   },
-): DelegationJob {
+): DelegationJob | null {
   const [updated] = db
     .update(delegationJobs)
     .set({
@@ -361,11 +368,10 @@ export function requeueDelegationJob(
       attemptCount: input.attemptCount,
       nextAttemptAt: input.nextAttemptAt,
     })
-    .where(eq(delegationJobs.id, id))
+    .where(and(eq(delegationJobs.id, id), inArray(delegationJobs.status, ['claimed', 'pending'])))
     .returning()
     .all()
-  if (!updated) throw new Error(`requeueDelegationJob: no row for ${id}`)
-  return updated
+  return updated ?? null
 }
 
 /** Fail a job ONLY while it is still `pending` — the user-stop path's CAS.

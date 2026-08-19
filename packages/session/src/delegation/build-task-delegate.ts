@@ -117,6 +117,8 @@ export function buildTaskDelegate(
       delegateToAgentSession(db, provider, {
         parentSessionId: delegationInput.parentSessionId,
         userId: delegationInput.userId,
+        // The job id is the inbound row's id — a requeue re-uses it (A3c).
+        inboundMessageId: claimed.id,
         targetPrimarySessionId: spawnedTargetId,
         runCwdPath,
         ...pressure,
@@ -143,6 +145,7 @@ export function buildTaskDelegate(
       delegateToSpawnedSession(db, provider, {
         parentSessionId: delegationInput.parentSessionId,
         userId: delegationInput.userId,
+        inboundMessageId: claimed.id,
         targetPrimarySessionId: spawnedTargetId,
         runCwdPath,
         ...pressure,
@@ -165,6 +168,7 @@ export function buildTaskDelegate(
   return (delegationInput) =>
     delegateToWorkspaceRoot(db, provider, {
       ...delegationInput,
+      inboundMessageId: claimed.id,
       workspaceName: target.targetName,
       ...pressure,
       ...(target.managerName !== undefined ? { managerName: target.managerName } : {}),

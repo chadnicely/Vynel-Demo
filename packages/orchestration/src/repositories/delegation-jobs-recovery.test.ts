@@ -12,7 +12,6 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
 import {
   claimNextPendingDelegationJob,
-  completeDelegationJob,
   findDelegationJobById,
   insertDelegationJob,
   type DelegationJobKind,
@@ -100,8 +99,11 @@ describe('the orphaned-claim policy (boot pass + lease sweeper)', () => {
         db,
         jobRow(user.id, workspace.id, { jobKind: 'report-delivery' }),
       )
-      const completed = insertDelegationJob(db, jobRow(user.id, workspace.id))
-      completeDelegationJob(db, completed.id, 'ok', new Date())
+      // Inserted terminal: the completion writer is a CAS on a claim.
+      const completed = insertDelegationJob(
+        db,
+        jobRow(user.id, workspace.id, { status: 'completed', resultText: 'ok', completedAt: new Date() }),
+      )
 
       const requeued = requeueOrphanedClaimedDeliveries(db, new Date())
       expect(requeued.map((job) => job.id).sort()).toEqual([report.id, direct.id, note.id].sort())

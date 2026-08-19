@@ -101,16 +101,26 @@ export async function settleCompletedTask(
   // back as if it were a result.
   const wentDirect = input.isNote ? false : finalReportWentDirect(db, claimed)
   try {
-    withTransaction(db, (tx) => {
-      completeDelegationJob(tx, claimed.id, input.result, new Date())
-      if (!wentDirect) markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
+    const completed = withTransaction(db, (tx) => {
+      const row = completeDelegationJob(tx, claimed.id, input.result, new Date())
+      if (row !== null && !wentDirect) markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
+      return row
     })
+    if (completed === null) {
+      // The lease sweeper (or a stop) settled this row while the run was still
+      // going — its verdict stands; this run's completion is a late echo.
+      deps.logger.warn(
+        { jobId: claimed.id },
+        'delegation completed after its claim was settled elsewhere — standing down',
+      )
+      return
+    }
   } catch (completionErr) {
     deps.logger.warn(
       { err: completionErr, jobId: claimed.id },
       'delegation completion co-commit failed — completing alone',
     )
-    completeDelegationJob(db, claimed.id, input.result, new Date())
+    if (completeDelegationJob(db, claimed.id, input.result, new Date()) === null) return
     // Retry the mark ALONE: an unsurfaced completed row would let the
     // root's catch-up inject resultText — the capture leaking back. If
     // the mark itself is what keeps throwing, that one terminal window

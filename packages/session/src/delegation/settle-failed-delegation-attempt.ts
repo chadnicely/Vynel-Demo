@@ -109,8 +109,10 @@ export function settleFailedDelegationAttempt(
     const replyAlreadyShownToUser =
       claimed.jobKind === 'agent-run' || finalReportWentDirect(db, claimed)
     withTransaction(db, (tx) => {
-      failDelegationJob(tx, claimed.id, errorMessage, new Date(), errorCodeOption)
-      if (!replyAlreadyShownToUser) markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
+      const row = failDelegationJob(tx, claimed.id, errorMessage, new Date(), errorCodeOption)
+      if (row !== null && !replyAlreadyShownToUser) {
+        markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
+      }
     })
     deps.logger.warn(
       { jobId: claimed.id, message: errorMessage },
@@ -127,7 +129,15 @@ export function settleFailedDelegationAttempt(
   }
 
   const attemptCount = (claimed.attemptCount ?? 0) + 1
-  failDelegationJob(db, claimed.id, errorMessage, new Date(), errorCodeOption)
+  if (failDelegationJob(db, claimed.id, errorMessage, new Date(), errorCodeOption) === null) {
+    // Settled elsewhere (the lease sweeper already failed + pushed for it, or a
+    // stop) — a second give-up push would contradict or duplicate that story.
+    deps.logger.warn(
+      { jobId: claimed.id, message: errorMessage },
+      `${deps.queueLabel} turn failed after its claim was settled elsewhere — standing down`,
+    )
+    return
+  }
   deps.logger.warn(
     { jobId: claimed.id, attemptCount, message: errorMessage },
     `${deps.queueLabel} job failed terminally`,

@@ -59,6 +59,10 @@ export type DelegateToSpawnedSessionInput = {
   /** The delegating (parent) session — the global root's current SDK session id. */
   parentSessionId: string
   userId: string
+  /** A STABLE id for this turn's inbound task row (the job id) — a requeued
+   *  task re-uses the row it already landed instead of writing it twice
+   *  (session-hardening A3c). Omit for a fresh random id. */
+  inboundMessageId?: string
   /** The spawned primary session whose conversation handles the task. */
   targetPrimarySessionId: string
   /** The run cwd (the job row's stored path) — the spawned session's SDK cwd. */
@@ -197,7 +201,11 @@ export async function delegateToSpawnedSession(
   const turnStream = consumeSessionEventStream({
     db,
     sessionEventStream,
-    userMessageInput: { id: randomUUID(), body: input.taskText, attachedImagesMetadata: null },
+    userMessageInput: {
+      id: input.inboundMessageId ?? randomUUID(),
+      body: input.taskText,
+      attachedImagesMetadata: null,
+    },
     userId: input.userId,
     // The session's OWN ground, not a blanket null (2026-08-17). Hard-coding
     // null filed a workspace-grounded session's approvals as the brain's:

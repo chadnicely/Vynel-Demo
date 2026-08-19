@@ -16,6 +16,8 @@ export interface CallConversationHostDeps {
   readonly logger: Logger
   readonly assistantName: string
   readonly sessionClient: CallSessionClient
+  /** Per-turn watchdog for every call conversation (`VYNEL_VOICE_TURN_WATCHDOG_MS`). */
+  readonly turnWatchdogMs: number
   readonly createVad: () => VoiceActivityDetector
   readonly transcribe: (audio: PcmAudio) => Promise<string>
   readonly synthesize: (sentence: string) => Promise<SpokenAudio>
@@ -64,6 +66,7 @@ export function createCallConversationHost(deps: CallConversationHostDeps): Call
           transcribe: deps.transcribe,
           lineSpeaker,
           sessionClient: deps.sessionClient,
+          turnWatchdogMs: deps.turnWatchdogMs,
         }),
       )
     },

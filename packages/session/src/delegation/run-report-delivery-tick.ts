@@ -283,7 +283,7 @@ export async function runReportDeliveryJob(
       attemptCount: claimed.attemptCount ?? 0,
       nextAttemptAt: new Date(Date.now() + GLOBAL_ROOT_BUSY_YIELD_MS),
     })
-    deps.logger.info(
+    deps.logger.debug(
       { jobId: claimed.id, kind: queueLabel },
       `${queueLabel}: the global root is mid-turn — yielded the pool slot, due again shortly`,
     )

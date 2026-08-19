@@ -82,6 +82,9 @@ function buildEnvSchema(portBase: number) {
   // lease`, the running tick heartbeats every `heartbeat`; the sweeper settles
   // an expired lease by kind (report/note/direct requeue, task/agent-run fail).
   VYNEL_DELEGATION_LEASE_MS: z.coerce.number().int().positive().default(180_000),
+  // Must fit at least twice inside the lease (checked below): a heartbeat that
+  // cannot renew before the lease expires would let the sweeper reap every
+  // live run on its first pass.
   VYNEL_DELEGATION_HEARTBEAT_MS: z.coerce.number().int().positive().default(30_000),
   // The hidden user-level data directory the GLOBAL root (Slice 3b) runs in as
   // its SDK cwd — like `.claude`, NOT a workspace folder. Absolute path; unset
@@ -181,6 +184,14 @@ function buildEnvSchema(portBase: number) {
     .transform((raw) => Buffer.from(raw, 'base64').toString('utf8'))
     .optional(),
   }).superRefine((env, ctx) => {
+    if (env.VYNEL_DELEGATION_HEARTBEAT_MS * 2 > env.VYNEL_DELEGATION_LEASE_MS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VYNEL_DELEGATION_HEARTBEAT_MS'],
+        message:
+          'VYNEL_DELEGATION_HEARTBEAT_MS must be at most half of VYNEL_DELEGATION_LEASE_MS — a heartbeat that cannot renew before the lease expires would let the sweeper reap every live delegated run.',
+      })
+    }
     if (env.VYNEL_HUB_URL !== undefined && env.VYNEL_HUB_PUBLIC_KEY === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

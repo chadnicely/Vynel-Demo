@@ -55,7 +55,7 @@ import type {
   SessionSink,
 } from './session-types.js'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
-import { runUnderRootTurnLock } from './root-turn-lock.js'
+import { rootTurnLockKey, runUnderRootTurnLock } from './root-turn-lock.js'
 import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 import { composeGlobalRootProviderMessage } from './compose-global-root-provider-message.js'
@@ -92,7 +92,7 @@ export async function runGlobalRootTurnCore(
     // one continuing session per identity, one lock per identity — a long
     // global turn no longer blocks speech, and vice versa. The channel runner
     // never sets voice, so channel/web global turns still fully serialize.
-    const turnLockKey = input.voice === true ? `${input.userId}:voice` : input.userId
+    const turnLockKey = rootTurnLockKey(input.userId, input.voice === true)
     await runUnderRootTurnLock(turnLockKey, async () => {
       // Resolve (or create) the global root + the SDK session to resume + its hidden
       // SDK cwd (and ensure the dir exists). INSIDE the lock — it reads
@@ -103,7 +103,7 @@ export async function runGlobalRootTurnCore(
       // The genuine turn on the resolved head; each automatic continuation
       // re-resolves the head — the checkpoint's boundary swap moved it.
       const turnStream = runTurnWithContinuations({
-    db: deps.db,
+        db: deps.db,
         primarySessionId: target.primarySessionId,
         runTurn: (continuation) =>
           continuation === null
