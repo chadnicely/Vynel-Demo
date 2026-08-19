@@ -1,50 +1,21 @@
 // The tree's remembered ORDER — where the user dragged each group and each
 // workspace (Kafi, 2026-08-19: rows keep their place no matter running or
-// not). Membership (which group a workspace is in) lives on the server;
-// position is a navigation preference and lives locally beside the fold
-// state, the same call Chad made for menu layout and colours. Pure
-// functions over one persisted shape: the tree reads it, sorts the server's
-// lists by it, and writes it back on every drop. Ids the store never met
-// (a new workspace, another window's group) simply follow in the server's
-// order; ids that vanished are ignored.
+// not). Membership (which group a workspace is in) lives on the workspace
+// row; position is its own record — one JSON layout per user in the DB,
+// held by the customize store and handed to the tree as a prop. Pure
+// functions over that one shape: the tree sorts the server's lists by it and
+// reports the new sequence on every drop. Ids the layout never met (a new
+// workspace, another window's group) simply follow in the server's order;
+// ids that vanished are ignored.
+
+import type { TreeLayoutResponse } from "@vynel/contracts/customization/customization-http";
 
 export const ROOT_LIST_KEY = "root";
 
-export type TreeOrder = {
-  /** Group ids, top to bottom. */
-  groups: string[];
-  /** Workspace ids per list — a group id, or ROOT_LIST_KEY for ungrouped. */
-  workspaces: Record<string, string[]>;
-};
-
-const STORAGE_KEY = "vynel.tree.order";
+export type TreeOrder = TreeLayoutResponse;
 
 export function emptyTreeOrder(): TreeOrder {
   return { groups: [], workspaces: {} };
-}
-
-// A corrupt stored value falls back to the server's order — losing a drag
-// preference is the harmless failure, so no error surfaces.
-export function readTreeOrder(): TreeOrder {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
-    if (parsed === null || typeof parsed !== "object") return emptyTreeOrder();
-    const candidate = parsed as Partial<TreeOrder>;
-    const groups = Array.isArray(candidate.groups) ? candidate.groups.filter(isString) : [];
-    const workspaces: Record<string, string[]> = {};
-    if (candidate.workspaces && typeof candidate.workspaces === "object") {
-      for (const [key, ids] of Object.entries(candidate.workspaces)) {
-        if (Array.isArray(ids)) workspaces[key] = ids.filter(isString);
-      }
-    }
-    return { groups, workspaces };
-  } catch {
-    return emptyTreeOrder();
-  }
-}
-
-export function writeTreeOrder(order: TreeOrder): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
 }
 
 /** Stored order first (only ids still present), then newcomers in the order given. */
@@ -101,6 +72,3 @@ function placeInto(displayedIds: string[], movedId: string, position: number): s
   return [...rest.slice(0, at), movedId, ...rest.slice(at)];
 }
 
-function isString(value: unknown): value is string {
-  return typeof value === "string";
-}

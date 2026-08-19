@@ -1,19 +1,16 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   ROOT_LIST_KEY,
   emptyTreeOrder,
-  readTreeOrder,
   sortByStoredOrder,
   withGroupPlaced,
   withWorkspacePlaced,
-  writeTreeOrder,
 } from "./tree-order.js";
 
 const items = (...ids: string[]) => ids.map((id) => ({ id }));
 const idsOf = (rows: { id: string }[]) => rows.map((row) => row.id);
 
 describe("tree-order", () => {
-  beforeEach(() => localStorage.clear());
 
   it("sorts by the stored order, newcomers follow in server order, vanished ids are ignored", () => {
     expect(idsOf(sortByStoredOrder(items("a", "b", "c", "d"), ["c", "gone", "a"]))).toEqual([
@@ -52,14 +49,4 @@ describe("tree-order", () => {
     expect(withGroupPlaced(order, "g3", ["g3", "g1", "g2"], 1).groups).toEqual(["g1", "g3", "g2"]);
   });
 
-  it("round-trips through localStorage and shrugs off junk", () => {
-    const order = { groups: ["g2", "g1"], workspaces: { g1: ["w1"], root: ["w9"] } };
-    writeTreeOrder(order);
-    expect(readTreeOrder()).toEqual(order);
-
-    localStorage.setItem("vynel.tree.order", "{not json");
-    expect(readTreeOrder()).toEqual(emptyTreeOrder());
-    localStorage.setItem("vynel.tree.order", JSON.stringify({ groups: [1, "g1"], workspaces: { g1: "x" } }));
-    expect(readTreeOrder()).toEqual({ groups: ["g1"], workspaces: {} });
-  });
 });

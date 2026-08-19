@@ -15,7 +15,12 @@ import type { WorkspaceEffectiveStatus } from "@vynel/contracts/workspaces/works
 import SidebarAccountRow from "./SidebarAccountRow.vue";
 import WorkspaceTreeRow from "./WorkspaceTreeRow.vue";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
-import { ROOT_LIST_KEY, readTreeOrder, sortByStoredOrder } from "./tree-order.js";
+import {
+  ROOT_LIST_KEY,
+  emptyTreeOrder,
+  sortByStoredOrder,
+  type TreeOrder,
+} from "./tree-order.js";
 import { useTreeDragDrop } from "./use-tree-drag-drop.js";
 
 // Menu mode's sidebar root — the workspace tree: the create strip, the pinned
@@ -24,9 +29,9 @@ import { useTreeDragDrop } from "./use-tree-drag-drop.js";
 // dims where it sits, never relocates (Kafi, 2026-08-19: the NOT RUNNING
 // pseudo-group is gone). Groups and workspaces drag: between rows to reorder,
 // onto a group header to join it, onto the root zone to leave it; a group
-// drags above/below another group. Position is remembered locally
-// (tree-order.ts); membership goes to the host and re-renders from the
-// server's answer. A group's context menu renames inline or deletes (members
+// drags above/below another group. Position comes in as `treeOrder` and
+// goes out as `order-change` (the host stores it); membership goes to the
+// host and re-renders from the server's answer. A group's context menu renames inline or deletes (members
 // detach, never deleted — the engine enforces it). Row click opens that
 // workspace's chat; the caret drills. Data-blind: rows + groups + status
 // views in, events out.
@@ -45,6 +50,8 @@ const props = defineProps<{
   /** A group the host just created for the user (from the strip's stack-plus):
    *  the tree opens its rename box the moment the row is on screen. */
   renameGroupId?: string | null;
+  /** Where the user dragged things — the host's stored layout (null until the first drop). */
+  treeOrder?: TreeOrder | null;
   statusByWorkspaceId: Record<string, WorkspaceStatusView>;
   globalStatus: WorkspaceEffectiveStatus;
   accountName: string;
@@ -62,6 +69,8 @@ const emit = defineEmits<{
   "rename-group": [groupId: string, name: string];
   "delete-group": [groupId: string];
   "move-workspace": [workspaceId: string, groupId: string | null];
+  /** A drop produced a new arrangement — the host stores it. */
+  "order-change": [order: TreeOrder];
   "open-account": [];
 }>();
 
@@ -70,7 +79,7 @@ function statusViewOf(workspaceId: string): WorkspaceStatusView | null {
 }
 
 // ── Order: the server's lists, sorted by where the user dragged things. ──
-const order = ref(readTreeOrder());
+const order = computed(() => props.treeOrder ?? emptyTreeOrder());
 const orderedGroups = computed(() => sortByStoredOrder(props.groups, order.value.groups));
 
 // A groupId whose group is gone (stale cache mid-refetch) renders at the
@@ -110,6 +119,7 @@ const dnd = useTreeDragDrop({
     return workspace === undefined ? ROOT_LIST_KEY : listKeyOfWorkspace(workspace);
   },
   onMoveWorkspace: (workspaceId, groupId) => emit("move-workspace", workspaceId, groupId),
+  onOrderChange: (next) => emit("order-change", next),
 });
 
 // ── Group fold state — persisted like the sidebar's group folds. ──

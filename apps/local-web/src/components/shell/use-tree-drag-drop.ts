@@ -1,19 +1,14 @@
 import { ref, type Ref } from "vue";
-import {
-  ROOT_LIST_KEY,
-  withGroupPlaced,
-  withWorkspacePlaced,
-  writeTreeOrder,
-  type TreeOrder,
-} from "./tree-order.js";
+import { ROOT_LIST_KEY, withGroupPlaced, withWorkspacePlaced, type TreeOrder } from "./tree-order.js";
 
 // The tree's drag-and-drop, native HTML5 (the canvas's own pattern), for
 // BOTH kinds of row: a workspace drags between rows (reorder), onto a group
 // header (join it, last), or onto the root zone (leave it, last); a group
-// drags above/below another group. Position lands in the local order (see
-// tree-order.ts); membership changes go to the host through `onMoveWorkspace`
-// and re-render from the server's answer. The composable owns the state and
-// the drop math; the template only reports events and paints the indicators.
+// drags above/below another group. A drop reports the new order through
+// `onOrderChange` (the host stores it) and a membership change through
+// `onMoveWorkspace` (the host moves it; the tree re-renders from the server's
+// answer). The composable owns the state and the drop math; the template only
+// reports events and paints the indicators.
 
 export type TreeDragSource = { kind: "workspace"; id: string } | { kind: "group"; id: string };
 
@@ -34,6 +29,7 @@ export function useTreeDragDrop(input: {
   /** The list a workspace currently sits in (server membership). */
   listKeyOfWorkspace: (workspaceId: string) => string;
   onMoveWorkspace: (workspaceId: string, groupId: string | null) => void;
+  onOrderChange: (order: TreeOrder) => void;
 }) {
   const dragging = ref<TreeDragSource | null>(null);
   const target = ref<TreeDropTarget | null>(null);
@@ -113,14 +109,15 @@ export function useTreeDragDrop(input: {
     if (input.listKeyOfWorkspace(workspaceId) !== listKey) {
       input.onMoveWorkspace(workspaceId, listKey === ROOT_LIST_KEY ? null : listKey);
     }
-    input.order.value = withWorkspacePlaced(
-      input.order.value,
-      workspaceId,
-      listKey,
-      input.displayedListIds(listKey),
-      position,
+    input.onOrderChange(
+      withWorkspacePlaced(
+        input.order.value,
+        workspaceId,
+        listKey,
+        input.displayedListIds(listKey),
+        position,
+      ),
     );
-    writeTreeOrder(input.order.value);
   }
 
   function dropGroup(groupId: string, landing: TreeDropTarget) {
@@ -128,13 +125,9 @@ export function useTreeDragDrop(input: {
     const others = input.displayedGroupIds().filter((id) => id !== groupId);
     const index = others.indexOf(landing.groupId);
     const position = landing.edge === "before" ? index : index + 1;
-    input.order.value = withGroupPlaced(
-      input.order.value,
-      groupId,
-      input.displayedGroupIds(),
-      position,
+    input.onOrderChange(
+      withGroupPlaced(input.order.value, groupId, input.displayedGroupIds(), position),
     );
-    writeTreeOrder(input.order.value);
   }
 
   // ── Indicator reads for the template. ──

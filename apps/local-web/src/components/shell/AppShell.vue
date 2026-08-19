@@ -63,6 +63,7 @@ import {
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 import { workspaceAccentCss } from "../../utils/workspace-accent.js";
+import { useVynel } from "../../composables/use-vynel.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -220,6 +221,7 @@ function catalogItems(scope: "global" | "workspace"): SidebarItem[] {
 // The Customize row itself rides pinned at the end, outside the catalog;
 // the Global menu keeps its system rows just before it.
 const customize = useCustomizeStore();
+const vynel = useVynel();
 const CUSTOMIZE_ITEM: SidebarItem = {
   id: "customize",
   label: "Customize",
@@ -627,6 +629,18 @@ function onGlobalKeydown(event: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
+
+// Customization lives in the DB: pull it once at boot (the server's rows win;
+// anything only this browser knew is pushed up), and push what's still
+// unsaved when the window goes.
+onMounted(() => {
+  void customize.hydrate(vynel);
+});
+function flushCustomizeOnHide() {
+  if (document.visibilityState === "hidden") void customize.flush();
+}
+onMounted(() => document.addEventListener("visibilitychange", flushCustomizeOnHide));
+onBeforeUnmount(() => document.removeEventListener("visibilitychange", flushCustomizeOnHide));
 </script>
 
 <template>
@@ -662,10 +676,12 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           :global-status="globalStatus"
           :account-name="accountName"
           :rename-group-id="renameGroupId"
+          :tree-order="customize.treeLayout"
           @select="treeSelect"
           @drill="treeDrill"
           @create-workspace="openCreateWorkspace"
           @create-group="createGroupFromTree"
+          @order-change="customize.setTreeLayout"
           @rename-group="(groupId, name) => groupMutations.renameGroup.mutate({ groupId, name })"
           @delete-group="(groupId) => groupMutations.deleteGroup.mutate(groupId)"
           @move-workspace="

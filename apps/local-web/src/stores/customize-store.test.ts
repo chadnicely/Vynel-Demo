@@ -228,3 +228,102 @@ describe("customize-store persona image", () => {
     expect(reloaded.customizationFor("w1").workspaceImage).toBeNull();
   });
 });
+
+describe("customize-store server sync", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  type Saved = { scopeKey: string; body: unknown };
+  function makeClient(remote: { scopes: unknown[]; treeLayout: unknown }) {
+    const saved: Saved[] = [];
+    const layouts: unknown[] = [];
+    const client = {
+      customizations: {
+        list: async () => remote,
+        saveScope: async (scopeKey: string, body: unknown) => {
+          saved.push({ scopeKey, body });
+          return { scopeKey, ...(body as object) };
+        },
+        saveTreeLayout: async (layout: unknown) => {
+          layouts.push(layout);
+          return layout;
+        },
+      },
+    };
+    return { client: client as never, saved, layouts };
+  }
+
+  const remoteScope = {
+    ...defaultCustomization(),
+    scopeKey: "w1",
+    colorSlot: 5,
+  };
+
+  it("hydrate: the server's row wins over the local cache; a local-only scope is pushed up", async () => {
+    const local = useCustomizeStore();
+    local.setColorSlot("w1", 2); // stale local cache for w1
+    local.setColorSlot("w2", 3); // only this browser knows w2
+    // Simulate a fresh boot: dirty flags cleared as if last session synced.
+    localStorage.setItem("vynel.customize.dirty", "[]");
+    setActivePinia(createPinia());
+    const store = useCustomizeStore();
+    const { client, saved } = makeClient({ scopes: [remoteScope], treeLayout: null });
+
+    await store.hydrate(client);
+
+    expect(store.customizationFor("w1").colorSlot).toBe(5);
+    expect(saved.map((s) => s.scopeKey)).toEqual(["w2"]);
+    expect((saved[0]!.body as { colorSlot: number }).colorSlot).toBe(3);
+    expect(store.saveState).toBe("saved");
+  });
+
+  it("hydrate: a scope still dirty from a closed window beats the server's older row", async () => {
+    const local = useCustomizeStore();
+    local.setColorSlot("w1", 2); // dirty, never pushed (no client)
+    setActivePinia(createPinia());
+    const store = useCustomizeStore();
+    const { client, saved } = makeClient({ scopes: [remoteScope], treeLayout: null });
+
+    await store.hydrate(client);
+
+    expect(store.customizationFor("w1").colorSlot).toBe(2);
+    expect(saved.map((s) => s.scopeKey)).toEqual(["w1"]);
+  });
+
+  it("hydrate: the tree layout comes from the server, else the local one is carried up", async () => {
+    localStorage.setItem("vynel.tree.order", JSON.stringify({ groups: ["g1"], workspaces: {} }));
+    const store = useCustomizeStore();
+    const remoteLayout = { groups: ["g2", "g1"], workspaces: { root: ["w1"] } };
+    const { client, layouts } = makeClient({ scopes: [], treeLayout: remoteLayout });
+    await store.hydrate(client);
+    expect(store.treeLayout).toEqual(remoteLayout);
+    expect(layouts).toEqual([]);
+
+    setActivePinia(createPinia());
+    localStorage.clear();
+    localStorage.setItem("vynel.tree.order", JSON.stringify({ groups: ["g1"], workspaces: {} }));
+    const fresh = useCustomizeStore();
+    const carried = makeClient({ scopes: [], treeLayout: null });
+    await fresh.hydrate(carried.client);
+    expect(carried.layouts).toEqual([{ groups: ["g1"], workspaces: {} }]);
+  });
+
+  it("autosave: a change after hydrate pushes the whole scope; a drop pushes the layout", async () => {
+    const store = useCustomizeStore();
+    const { client, saved, layouts } = makeClient({ scopes: [], treeLayout: null });
+    await store.hydrate(client);
+
+    store.setPersonaCustomColor("w1", "#ABCDEF");
+    store.setTreeLayout({ groups: [], workspaces: { root: ["w1"] } });
+    await store.flush();
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0]!.body).toMatchObject({ personaCustomColor: "#abcdef", personaColorSlot: null });
+    expect(layouts).toEqual([{ groups: [], workspaces: { root: ["w1"] } }]);
+    expect(store.isCustomized("w1")).toBe(true);
+    store.reset("w1");
+    expect(store.isCustomized("w1")).toBe(false);
+  });
+});

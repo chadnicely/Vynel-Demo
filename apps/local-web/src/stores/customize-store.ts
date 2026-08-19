@@ -1,5 +1,10 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
+import type { VynelClient } from "@vynel/sdk";
+import type {
+  ScopeCustomizationResponse,
+  TreeLayoutResponse,
+} from "@vynel/contracts/customization/customization-http";
 import {
   MENU_GROUP_LABELS,
   WORKSPACE_SECTIONS,
@@ -35,6 +40,9 @@ export interface ScopeCustomization {
   colorSlot: number | null;
   /** A hand-picked `#rrggbb` accent (Kafi, 2026-08-19) — wins over the slot when set. */
   customColor: string | null;
+  /** The conversation (persona) icon's own colour — slot or hex, one choice (Kafi's two-colour model). */
+  personaColorSlot: number | null;
+  personaCustomColor: string | null;
   /** Data-URL avatar for the persona's conversation icon; null = ClaudeMark. */
   personaImage: string | null;
   /** Data-URL icon for the WORKSPACE itself (author-line chips, hover cards);
@@ -53,6 +61,8 @@ export function defaultCustomization(): ScopeCustomization {
   return {
     colorSlot: null,
     customColor: null,
+    personaColorSlot: null,
+    personaCustomColor: null,
     personaImage: null,
     workspaceImage: null,
     groups: Object.entries(MENU_GROUP_LABELS).map(([id, label]) => ({
@@ -90,6 +100,8 @@ function reconcile(stored: ScopeCustomization): ScopeCustomization {
   return {
     colorSlot: stored.colorSlot,
     customColor: stored.customColor,
+    personaColorSlot: stored.personaColorSlot,
+    personaCustomColor: stored.personaCustomColor,
     personaImage: stored.personaImage,
     workspaceImage: stored.workspaceImage,
     groups: stored.groups,
@@ -118,6 +130,12 @@ function readStored(): Record<string, ScopeCustomization> {
           typeof candidate.customColor === "string" && HEX_COLOR.test(candidate.customColor)
             ? candidate.customColor
             : null,
+        personaColorSlot:
+          typeof candidate.personaColorSlot === "number" ? candidate.personaColorSlot : null,
+        personaCustomColor:
+          typeof candidate.personaCustomColor === "string" && HEX_COLOR.test(candidate.personaCustomColor)
+            ? candidate.personaCustomColor
+            : null,
         personaImage:
           typeof candidate.personaImage === "string"
             ? candidate.personaImage
@@ -136,11 +154,147 @@ function readStored(): Record<string, ScopeCustomization> {
   }
 }
 
+// Scopes changed but not yet confirmed by the server survive a closed window
+// here, so the next boot pushes them instead of letting the server's older
+// row win.
+const DIRTY_KEY = "vynel.customize.dirty";
+const TREE_LAYOUT_KEY = "vynel.tree.order";
+const PUSH_DEBOUNCE_MS = 400;
+
+function readDirtyScopes(): Set<string> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(DIRTY_KEY) ?? "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function readLocalTreeLayout(): TreeLayoutResponse | null {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(TREE_LAYOUT_KEY) ?? "null");
+    if (parsed === null || typeof parsed !== "object") return null;
+    const candidate = parsed as Partial<TreeLayoutResponse>;
+    if (!Array.isArray(candidate.groups) || typeof candidate.workspaces !== "object" || candidate.workspaces === null) return null;
+    return { groups: candidate.groups, workspaces: candidate.workspaces };
+  } catch {
+    return null;
+  }
+}
+
+function fromWire(scope: ScopeCustomizationResponse): ScopeCustomization {
+  return reconcile({
+    colorSlot: scope.colorSlot,
+    customColor: scope.customColor,
+    personaColorSlot: scope.personaColorSlot,
+    personaCustomColor: scope.personaCustomColor,
+    personaImage: scope.personaImage,
+    workspaceImage: scope.workspaceImage,
+    groups: scope.groups,
+    entries: scope.entries as WorkspaceMenuEntry[],
+  });
+}
+
+export type CustomizeSaveState = "idle" | "saving" | "saved" | "error";
+
+// The DB is the home (Kafi, 2026-08-19); localStorage is a boot cache and the
+// one-time carry-over source for what was arranged before the DB existed.
 export const useCustomizeStore = defineStore("customize", () => {
     const byWorkspace = ref<Record<string, ScopeCustomization>>(readStored());
+    const treeLayout = ref<TreeLayoutResponse | null>(readLocalTreeLayout());
+    const saveState = ref<CustomizeSaveState>("idle");
+    const lastSaveError = ref<string | null>(null);
 
-    function persist() {
+    // ── Server sync ──
+    let client: VynelClient | null = null;
+    const dirtyScopes = readDirtyScopes();
+    let treeLayoutDirty = localStorage.getItem(`${DIRTY_KEY}.tree`) === "true";
+    let pushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function rememberDirty() {
+      localStorage.setItem(DIRTY_KEY, JSON.stringify([...dirtyScopes]));
+      localStorage.setItem(`${DIRTY_KEY}.tree`, String(treeLayoutDirty));
+    }
+
+    function schedulePush() {
+      if (client === null) return;
+      if (pushTimer !== null) clearTimeout(pushTimer);
+      pushTimer = setTimeout(() => {
+        pushTimer = null;
+        void flush();
+      }, PUSH_DEBOUNCE_MS);
+    }
+
+    /** Push every dirty scope + the tree layout now (autosave's debounce end,
+     *  or an explicit flush). Failures keep the scope dirty for the next try. */
+    async function flush(): Promise<void> {
+      if (client === null) return;
+      const scopes = [...dirtyScopes];
+      const pushTree = treeLayoutDirty;
+      if (scopes.length === 0 && !pushTree) return;
+      saveState.value = "saving";
+      try {
+        for (const scopeKey of scopes) {
+          const config = byWorkspace.value[scopeKey] ?? defaultCustomization();
+          await client.customizations.saveScope(scopeKey, config);
+          dirtyScopes.delete(scopeKey);
+          rememberDirty();
+        }
+        if (pushTree && treeLayout.value !== null) {
+          await client.customizations.saveTreeLayout(treeLayout.value);
+          treeLayoutDirty = false;
+          rememberDirty();
+        }
+        saveState.value = "saved";
+        lastSaveError.value = null;
+      } catch (error) {
+        saveState.value = "error";
+        lastSaveError.value = error instanceof Error ? error.message : "Couldn't save your changes.";
+      }
+    }
+
+    /** Boot: the server's rows win; a scope only this browser knows (or one
+     *  still dirty from a closed window) is pushed up. Idempotent. */
+    async function hydrate(vynel: VynelClient): Promise<void> {
+      client = vynel;
+      const remote = await vynel.customizations.list();
+      const remoteKeys = new Set<string>();
+      for (const scope of remote.scopes) {
+        remoteKeys.add(scope.scopeKey);
+        if (!dirtyScopes.has(scope.scopeKey)) byWorkspace.value[scope.scopeKey] = fromWire(scope);
+      }
+      for (const scopeKey of Object.keys(byWorkspace.value)) {
+        if (!remoteKeys.has(scopeKey)) dirtyScopes.add(scopeKey);
+      }
+      if (remote.treeLayout !== null && !treeLayoutDirty) {
+        treeLayout.value = remote.treeLayout;
+      } else if (treeLayout.value !== null) {
+        treeLayoutDirty = true;
+      }
+      persistLocal();
+      rememberDirty();
+      await flush();
+    }
+
+    function persistLocal() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(byWorkspace.value));
+      if (treeLayout.value !== null) localStorage.setItem(TREE_LAYOUT_KEY, JSON.stringify(treeLayout.value));
+    }
+
+    /** Every mutation lands here: cache locally, mark the scope, autosave. */
+    function persist(scopeKey: string) {
+      dirtyScopes.add(scopeKey);
+      rememberDirty();
+      persistLocal();
+      schedulePush();
+    }
+
+    function setTreeLayout(layout: TreeLayoutResponse) {
+      treeLayout.value = layout;
+      treeLayoutDirty = true;
+      rememberDirty();
+      persistLocal();
+      schedulePush();
     }
 
     /** The customization in force — stored, or the catalog default. */
@@ -148,8 +302,11 @@ export const useCustomizeStore = defineStore("customize", () => {
       return byWorkspace.value[workspaceId] ?? defaultCustomization();
     }
 
+    /** True when the scope differs from the catalog default (a server row
+     *  equal to the default is not a customization). */
     function isCustomized(workspaceId: string): boolean {
-      return workspaceId in byWorkspace.value;
+      const stored = byWorkspace.value[workspaceId];
+      return stored !== undefined && JSON.stringify(stored) !== JSON.stringify(defaultCustomization());
     }
 
     /** Mutations copy-on-write the default so an untouched workspace never
@@ -164,7 +321,7 @@ export const useCustomizeStore = defineStore("customize", () => {
       const config = ensure(workspaceId);
       config.colorSlot = colorSlot;
       config.customColor = null;
-      persist();
+      persist(workspaceId);
     }
 
     function setCustomColor(workspaceId: string, hex: string) {
@@ -172,17 +329,32 @@ export const useCustomizeStore = defineStore("customize", () => {
       const config = ensure(workspaceId);
       config.customColor = hex.toLowerCase();
       config.colorSlot = null;
-      persist();
+      persist(workspaceId);
+    }
+
+    function setPersonaColorSlot(workspaceId: string, colorSlot: number | null) {
+      const config = ensure(workspaceId);
+      config.personaColorSlot = colorSlot;
+      config.personaCustomColor = null;
+      persist(workspaceId);
+    }
+
+    function setPersonaCustomColor(workspaceId: string, hex: string) {
+      if (!HEX_COLOR.test(hex)) return;
+      const config = ensure(workspaceId);
+      config.personaCustomColor = hex.toLowerCase();
+      config.personaColorSlot = null;
+      persist(workspaceId);
     }
 
     function setPersonaImage(workspaceId: string, dataUrl: string | null) {
       ensure(workspaceId).personaImage = dataUrl;
-      persist();
+      persist(workspaceId);
     }
 
     function setWorkspaceImage(workspaceId: string, dataUrl: string | null) {
       ensure(workspaceId).workspaceImage = dataUrl;
-      persist();
+      persist(workspaceId);
     }
 
     function setHidden(
@@ -195,7 +367,7 @@ export const useCustomizeStore = defineStore("customize", () => {
       );
       if (entry === undefined) return;
       entry.isHidden = isHidden;
-      persist();
+      persist(workspaceId);
     }
 
     function setGroup(
@@ -211,7 +383,7 @@ export const useCustomizeStore = defineStore("customize", () => {
       if (groupId !== null && !config.groups.some((g) => g.id === groupId))
         return;
       entry.groupId = groupId;
-      persist();
+      persist(workspaceId);
     }
 
     /** `skipSectionIds`: entries the caller's surface doesn't render (the
@@ -240,14 +412,14 @@ export const useCustomizeStore = defineStore("customize", () => {
       if (target < 0 || target >= entries.length) return;
       const [entry] = entries.splice(index, 1);
       entries.splice(target, 0, entry!);
-      persist();
+      persist(workspaceId);
     }
 
     function addGroup(workspaceId: string, label: string): string {
       const config = ensure(workspaceId);
       const id = `custom-${crypto.randomUUID()}`;
       config.groups.push({ id, label });
-      persist();
+      persist(workspaceId);
       return id;
     }
 
@@ -257,7 +429,7 @@ export const useCustomizeStore = defineStore("customize", () => {
       );
       if (group === undefined) return;
       group.label = label;
-      persist();
+      persist(workspaceId);
     }
 
     /** Removing a group strands nobody — its sections become standalone rows. */
@@ -267,20 +439,30 @@ export const useCustomizeStore = defineStore("customize", () => {
       for (const entry of config.entries) {
         if (entry.groupId === groupId) entry.groupId = null;
       }
-      persist();
+      persist(workspaceId);
     }
 
+    // Reset writes the default back as the scope's row — the server keeps a
+    // row per scope it has ever seen; "default" is a value, not an absence.
     function reset(workspaceId: string) {
-      delete byWorkspace.value[workspaceId];
-      persist();
+      byWorkspace.value[workspaceId] = defaultCustomization();
+      persist(workspaceId);
     }
 
     return {
       byWorkspace,
+      treeLayout,
+      saveState,
+      lastSaveError,
+      hydrate,
+      flush,
+      setTreeLayout,
       customizationFor,
       isCustomized,
       setColorSlot,
       setCustomColor,
+      setPersonaColorSlot,
+      setPersonaCustomColor,
       setPersonaImage,
       setWorkspaceImage,
       setHidden,

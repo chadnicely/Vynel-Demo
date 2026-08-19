@@ -183,8 +183,17 @@ describe("WorkspaceTree", () => {
   function headerOf(wrapper: ReturnType<typeof mountTree>, name: string) {
     return wrapper.findAll(".tree-group-header").find((node) => node.text().includes(name))!;
   }
-  function storedOrder() {
-    return JSON.parse(localStorage.getItem("vynel.tree.order") ?? "{}");
+  // The tree is controlled: a drop EMITS the new order and the host hands it
+  // back as `treeOrder`. These read the last emitted order and, where the
+  // test checks the DOM, feed it back the way AppShell does.
+  function emittedOrder(wrapper: ReturnType<typeof mountTree>) {
+    const events = wrapper.emitted("order-change") ?? [];
+    return events[events.length - 1]?.[0] as
+      | { groups: string[]; workspaces: Record<string, string[]> }
+      | undefined;
+  }
+  async function feedBackOrder(wrapper: ReturnType<typeof mountTree>) {
+    await wrapper.setProps({ treeOrder: emittedOrder(wrapper) ?? null });
   }
 
   it("parked rows stay exactly where they are — no NOT RUNNING group", () => {
@@ -205,7 +214,7 @@ describe("WorkspaceTree", () => {
     await headerOf(wrapper, "Clients").trigger("dragover");
     await wrapper.find(".tree-group").trigger("drop");
     expect(wrapper.emitted("move-workspace")).toEqual([["ws-b", "grp-1"]]);
-    expect(storedOrder().workspaces["grp-1"]).toEqual(["ws-a", "ws-c", "ws-b"]);
+    expect(emittedOrder(wrapper)?.workspaces["grp-1"]).toEqual(["ws-a", "ws-c", "ws-b"]);
 
     // Dragging a member (Acme) onto its own group's header must not emit.
     await rowOf(wrapper, "Acme").trigger("dragstart");
@@ -226,7 +235,8 @@ describe("WorkspaceTree", () => {
     await slotOf(wrapper, "Blog").trigger("drop");
 
     expect(wrapper.emitted("move-workspace")).toBeUndefined();
-    expect(storedOrder().workspaces.root).toEqual(["ws-d", "ws-b"]);
+    expect(emittedOrder(wrapper)?.workspaces.root).toEqual(["ws-d", "ws-b"]);
+    await feedBackOrder(wrapper);
     const rootNames = wrapper
       .findAll("ul.tree-root li.tree-slot")
       .map((node) => node.find(".truncate").text());
@@ -245,8 +255,8 @@ describe("WorkspaceTree", () => {
     await slotOf(wrapper, "Acme").trigger("drop");
 
     expect(wrapper.emitted("move-workspace")).toEqual([["ws-b", "grp-1"]]);
-    expect(storedOrder().workspaces["grp-1"]).toEqual(["ws-a", "ws-b", "ws-c"]);
-    expect(storedOrder().workspaces.root ?? []).toEqual([]);
+    expect(emittedOrder(wrapper)?.workspaces["grp-1"]).toEqual(["ws-a", "ws-b", "ws-c"]);
+    expect(emittedOrder(wrapper)?.workspaces.root ?? []).toEqual([]);
     wrapper.unmount();
   });
 
@@ -259,18 +269,18 @@ describe("WorkspaceTree", () => {
     expect(wrapper.find(".tree-group").classes()).toContain("tree-drop-before");
     await wrapper.find(".tree-group").trigger("drop");
 
-    expect(storedOrder().groups).toEqual(["grp-2", "grp-1"]);
+    expect(emittedOrder(wrapper)?.groups).toEqual(["grp-2", "grp-1"]);
+    await feedBackOrder(wrapper);
     const headerNames = wrapper.findAll(".tree-group-header").map((node) => node.find(".truncate").text());
     expect(headerNames).toEqual(["Side", "Clients"]);
     wrapper.unmount();
   });
 
-  it("the stored order survives a remount and ignores ids that are gone", async () => {
-    localStorage.setItem(
-      "vynel.tree.order",
-      JSON.stringify({ groups: ["grp-2", "gone", "grp-1"], workspaces: { root: ["ws-d", "ws-b"] } }),
-    );
+  it("a stored order from the host sorts the lists and ignores ids that are gone", async () => {
     const wrapper = mountTree();
+    await wrapper.setProps({
+      treeOrder: { groups: ["grp-2", "gone", "grp-1"], workspaces: { root: ["ws-d", "ws-b"] } },
+    });
     const headerNames = wrapper.findAll(".tree-group-header").map((node) => node.find(".truncate").text());
     expect(headerNames).toEqual(["Side", "Clients"]);
     const rootNames = wrapper
