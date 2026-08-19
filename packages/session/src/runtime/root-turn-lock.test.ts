@@ -2,7 +2,7 @@
 // turns for one user never overlap; a failure doesn't wedge the chain; different users run free.
 
 import { describe, expect, it } from 'vitest'
-import { runUnderRootTurnLock } from './root-turn-lock.js'
+import { isRootTurnLockBusy, rootTurnLockKey, runUnderRootTurnLock } from './root-turn-lock.js'
 
 describe('runUnderRootTurnLock', () => {
   it('serializes turns for the same user — the second never starts until the first ends', async () => {
@@ -49,5 +49,44 @@ describe('runUnderRootTurnLock', () => {
     releaseFirst()
     await blocked
     expect(events).toEqual(['a:start', 'b', 'a:end'])
+  })
+
+  it('isRootTurnLockBusy: true while a turn holds OR queues on the key, false once every turn settled', async () => {
+    let releaseFirst: () => void = () => {}
+    const blocker = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    expect(isRootTurnLockBusy('user-busy')).toBe(false)
+    const first = runUnderRootTurnLock('user-busy', () => blocker)
+    expect(isRootTurnLockBusy('user-busy')).toBe(true)
+    // A second arrival QUEUES — the key stays busy for it too (the sentinel's
+    // whole point: the composer learns it is waiting, not frozen).
+    const second = runUnderRootTurnLock('user-busy', async () => {})
+    releaseFirst()
+    await first
+    // Only the queued turn remains → still busy…
+    expect(isRootTurnLockBusy('user-busy')).toBe(true)
+    await second
+    // …and the count reaches zero when the tail settles (a microtask after the
+    // caller's promise resolves).
+    await Promise.resolve()
+    expect(isRootTurnLockBusy('user-busy')).toBe(false)
+    // Another user's key was never busy.
+    expect(isRootTurnLockBusy('user-elsewhere')).toBe(false)
+  })
+
+  it('isRootTurnLockBusy clears after a FAILED turn too — a failure never leaves the key reading busy', async () => {
+    await expect(
+      runUnderRootTurnLock('user-fails', async () => {
+        throw new Error('boom')
+      }),
+    ).rejects.toThrow('boom')
+    await Promise.resolve()
+    expect(isRootTurnLockBusy('user-fails')).toBe(false)
+  })
+
+  it('rootTurnLockKey: the user id for the global conversation, the :voice suffix for the spoken twin', () => {
+    expect(rootTurnLockKey('u1', false)).toBe('u1')
+    expect(rootTurnLockKey('u1', true)).toBe('u1:voice')
   })
 })
