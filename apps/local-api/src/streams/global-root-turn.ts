@@ -10,27 +10,39 @@
 // `session-errored` EVENT (which flows through `onEvent` unchanged) — the two
 // error channels must stay distinct or the wire bytes drift (the additive
 // invariant; see `@vynel/session/runtime`'s `SessionSink`).
+//
+// Session-hardening (2026-08-19): a VOICE turn (`input.voice`) runs the voice
+// tier forced over the body (D2), attaches no ask_user (the model asks in
+// speech), never auto-continues (the daemon leaves at the first completion),
+// and announces itself as `scopeKind: 'voice'` with its own primary id (the
+// identity-shaped feed); the resolved mode is stamped on every routing request
+// unconditionally; the turn is bounded by the interactive wall clock (D5).
 
 import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
 import type { ChatTurnEvent } from '@vynel/chat'
-import { resolveTurnSessionSettings, persistTurnSessionSettings } from '@vynel/chat'
-import { findChatSessionById } from '@vynel/chat/repositories'
+import { persistTurnSessionSettings } from '@vynel/chat'
 import {
+  ApprovalWaitGate,
   composeSessionAgents,
   recordAgentRunStarted,
   recordAgentRunCompleted,
 } from '@vynel/orchestration'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
-import { toPermissionMode } from '@vynel/session'
 import {
   runGlobalRootTurnCore,
   publishTurnActivityStep,
-  fitPinnedModelToSession,
+  isRootTurnLockBusy,
+  rootTurnLockKey,
+  startTurnWallClock,
+  trackApprovalParks,
+  failTurnOnWallClock,
   type SessionSink,
   type SessionTurnActivityHandle,
+  type TurnWallClock,
 } from '@vynel/session/runtime'
+import type { McpFeatureDescriptor } from '@vynel/mcp-contract'
 import type { AppEnv } from '../factory.js'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
@@ -38,6 +50,7 @@ import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { buildRecordRateLimitSnapshot } from '../sessions/build-record-rate-limit-snapshot.js'
 import { writeSseSafely } from './write-sse-safely.js'
+import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
 import { loadEnv } from '../env.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
 import {
@@ -74,10 +87,14 @@ class GlobalRootSseSink implements SessionSink {
      *  mention dispatches enqueue with their provenance edge, and the ambient
      *  session header starts stamping (both idempotent downstream). */
     private readonly onSessionResolved?: (sdkSessionId: string) => void,
+    /** Sees every event before it is written — the wall clock's approval
+     *  park tracker rides here (a parked card suspends the clock). */
+    private readonly onTurnEvent?: (event: ChatTurnEvent) => void,
   ) {}
 
   async onEvent(event: ChatTurnEvent): Promise<void> {
     if (event.kind === 'session-errored' && !event.isRecoverable) this.turnOutcome = 'failed'
+    this.onTurnEvent?.(event)
     // `user-message-persisted` fires on new AND resumed turns; `session-created`
     // only on a new/swapped segment — tap both so every turn resolves.
     if (event.kind === 'session-created') {
@@ -139,60 +156,36 @@ export async function streamGlobalRootTurn(
   // persisted composer settings (swap-stable — copied forward onto fresh
   // segments), so the pre-lock read resolves the same values as the head.
   const conversationTarget = await resolveConversationTarget()
-  // A VOICE turn is a surface with PINNED parameters, not the user's chips:
-  // the daemon always sends its own latency-tier model, renders no approval
-  // cards (an inherited 'ask' would hang a hands-free interaction on a card
-  // nobody can see), and must never stamp its pins over the user's chosen
-  // settings. So voice neither reads the thread's persisted settings nor
-  // writes them (the write-through below is gated the same way) — it runs on
-  // its raw input + the core's defaults, byte-for-byte the pre-settings
-  // behavior.
-  const turnSettings = resolveTurnSessionSettings(
+  const env = loadEnv()
+  const pressureThreshold = env.VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  // Settings (one home: `resolveInteractiveTurnSettings`). A KEYBOARD turn:
+  // input ?? the thread's persisted row ?? the default. A VOICE turn is a
+  // surface with PINNED parameters, not the user's chips (D2): the voice tier
+  // — sonnet-5 / low / auto — forced over whatever the body carries, the row
+  // neither read nor written (the write-through below is gated the same way),
+  // and the pin fit-clamped against the head it resumes so a large brain can
+  // never break speech (the 2026-08-19 incident).
+  const turnSettings = resolveInteractiveTurnSettings(
+    c.var.db,
     input,
-    !isVoiceTurn && conversationTarget.resumeSdkSessionId !== null
-      ? findChatSessionById(c.var.db, conversationTarget.resumeSdkSessionId)
-      : null,
+    {
+      sessionId: conversationTarget.resumeSdkSessionId,
+      ...(pressureThreshold !== undefined ? { pressureThreshold } : {}),
+    },
+    { logger: c.var.logger },
   )
-  // The turn's permission mode (surface-up step 1): governs the brain's own tools AND
-  // rides the mode header so a delegation this turn enqueues inherits it. Resolved
-  // input ?? the thread's persisted setting; nothing resolved → undefined → the
-  // core's bypass default + no header (pre-settings behavior).
-  const permissionMode =
-    turnSettings.mode !== undefined ? toPermissionMode(turnSettings.mode) : undefined
-  const modeAwareAppRequest =
-    permissionMode !== undefined
-      ? wrapAppRequestWithMode(c.var.appRequest, permissionMode)
-      : c.var.appRequest
+  // The turn's RESOLVED permission mode (surface-up step 1): governs the brain's
+  // own tools AND rides the mode header on every routing request — stamped
+  // unconditionally, the default included, so a delegation this turn enqueues
+  // runs the mode its parent ran (parent == child, audit A6). Voice: the tier's
+  // `auto` — no Vynel card of any kind on a hands-free surface (D1).
+  const permissionMode = turnSettings.permissionMode
+  const modeAwareAppRequest = wrapAppRequestWithMode(c.var.appRequest, permissionMode)
   // The turn's own session identity (`set_todos` writes the dock of exactly
   // this session). The global root resolves its conversation INSIDE the core
   // runner, so the carrier is filled from the stream's first frame.
   const turnSession = createTurnSessionCarrier()
   const appRequest = turnSession.wrapAppRequest(modeAwareAppRequest)
-  const pressureThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
-
-  // A VOICE turn's pinned latency-tier model must actually FIT the session it
-  // resumes: the global brain legitimately grows to hundreds of k tokens under
-  // 1M-window models (below the swap threshold), and resuming that history on
-  // the pin's 200k window is a guaranteed "Prompt is too long" — a hands-free
-  // surface dying with nobody watching (live incident 2026-08-19). When the
-  // pin can't hold the occupancy, this one turn runs on the session's own
-  // last-ran model instead (it provably fits), or the engine default when even
-  // that is unknown. Never persisted — the voice no-write rule stands.
-  let turnModel = turnSettings.model
-  if (isVoiceTurn && turnModel !== undefined && conversationTarget.resumeSdkSessionId !== null) {
-    const fit = fitPinnedModelToSession(c.var.db, {
-      resumeSdkSessionId: conversationTarget.resumeSdkSessionId,
-      pinnedModel: turnModel,
-      ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
-    })
-    if (fit.wasReplaced) {
-      c.var.logger.info(
-        { pinnedModel: turnModel, model: fit.model ?? null, occupancyTokens: fit.occupancyTokens },
-        'voice model pin cannot hold the session occupancy — running on the session model',
-      )
-      turnModel = fit.model
-    }
-  }
 
   // Compose the global root's MCP attachment: the routing tools (the root is a
   // MANAGER — list + delegate + channel-send). No workspaceId — the global root
@@ -206,17 +199,32 @@ export async function streamGlobalRootTurn(
   const sessionFeatureDescriptor = buildSessionFeatureDescriptor(
     pressureThreshold !== undefined ? { swapThreshold: pressureThreshold } : {},
   )
-  // ask_user here waits UNBOUNDED — this stream is the app's global chat, the
-  // user is present. The background channel runner (`runGlobalRootTurn`)
-  // attaches it too, with a bounded timeout.
+  // ONE gate per turn: parked cards (the sink) and parked asks (the bridge)
+  // both mark it; the wall clock measures only what is left.
+  const waitGate = new ApprovalWaitGate()
+  // ask_user rides KEYBOARD turns only, with the generous interactive bound
+  // (D5: `VYNEL_INTERACTIVE_ASK_MAX_MS`, 2 h — the user is present, so a
+  // decision Claude chose to ask for is never fabricated quickly, but a form
+  // the user walked away from must not wedge the `${userId}` root lock — and
+  // with it channels + deliveries — for the process lifetime; audit G1). The
+  // background channel runner (`runGlobalRootTurn`) attaches it with its short
+  // bound. NEVER on a VOICE turn: a form nobody can see on a hands-free
+  // surface parked the spoken thread until restart — the model asks in speech
+  // and the next utterance is the answer.
   const { buildAskFeatureDescriptor } = await import('@vynel/asks/mcp')
   // This turn's key — turn-end cleanup cancels exactly the asks THIS turn parked.
   const askTurnKey = crypto.randomUUID()
-  const askFeatureDescriptor = buildAskFeatureDescriptor({
-    waiters: c.var.askWaiters,
-    turnKey: askTurnKey,
-    logger: c.var.logger,
-  })
+  const askFeatureDescriptors: McpFeatureDescriptor[] = isVoiceTurn
+    ? []
+    : [
+        buildAskFeatureDescriptor({
+          waiters: c.var.askWaiters,
+          turnKey: askTurnKey,
+          timeoutMs: env.VYNEL_INTERACTIVE_ASK_MAX_MS,
+          waitGate,
+          logger: c.var.logger,
+        }),
+      ]
   // The ssh tools ride interactive streams only (module notes) and need the
   // sealing master key — no key resolved at boot means the sealed credentials
   // are unopenable, so the tools would only error: attach nothing instead.
@@ -244,7 +252,9 @@ export async function streamGlobalRootTurn(
       userMessageText: input.userMessageText,
       originWorkspaceId: null,
       originWorkspacePath: ensureGlobalRootWorkspaceDir(),
-      ...(permissionMode !== undefined ? { permissionMode } : {}),
+      permissionMode,
+      // The RESOLVED model — a voice turn's fitted tier, never an unfitted pin
+      // (the turn and its dispatches run the same model).
       ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
       ...(turnSettings.thinkingEffort !== undefined
         ? { thinkingEffort: turnSettings.thinkingEffort }
@@ -262,7 +272,7 @@ export async function streamGlobalRootTurn(
       vynelRoutingDescriptor,
       notebookFeatureDescriptor,
       sessionFeatureDescriptor,
-      askFeatureDescriptor,
+      ...askFeatureDescriptors,
       desktopFeatureDescriptor,
       ...sshFeatureDescriptors,
       ...(mentionPlan?.studyDescriptor ? [mentionPlan.studyDescriptor] : []),
@@ -278,8 +288,7 @@ export async function streamGlobalRootTurn(
       desktopReader: c.var.desktopNotifications,
       enableDesktopActions: c.var.desktopActionsEnabled,
       // Plan-level approval: the turn's mode decides what an approved desktop
-      // plan may authorize (ask = the card; auto/bypass = standing consent;
-      // absent = display-only).
+      // plan may authorize (ask = the card; auto/bypass = standing consent).
       desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),
     },
     // The global root has no workspace, so no capability override rows can
@@ -318,32 +327,82 @@ export async function streamGlobalRootTurn(
     }
     // Announce on the session-activity feed so other surfaces go live while
     // this turn runs (begun inside the SSE callback — the finally ends it).
+    // IDENTITY-shaped: the spoken thread is its OWN scope kind and every turn
+    // carries its primary id, so no reader infers who is running from an
+    // absence (a voice turn announcing as `global` with no primary let the
+    // Global chat bind to the spoken segment — audit V2).
     const activity = c.var.activityFeed.begin({
       userId: c.var.user.id,
-      scopeKind: 'global',
-      origin: input.voice === true ? 'voice' : 'web',
+      scopeKind: isVoiceTurn ? 'voice' : 'global',
+      primarySessionId: conversationTarget.primarySessionId,
+      origin: isVoiceTurn ? 'voice' : 'web',
     })
+    // Parked cards suspend the wall clock; the sink feeds the tracker every event.
+    const approvalParks = trackApprovalParks(waitGate)
     // Hoisted so the finally can end the feed with the DURABLE outcome — a
     // terminal session-errored records 'failed' on the turn envelope (Move 3
     // feeder fix; the workspace streams' `turnOutcome` rule).
-    const sink = new GlobalRootSseSink(stream, c.var.logger, activity, (sdkSessionId) => {
-      turnSession.resolve(sdkSessionId)
-      mentionPlan?.onSessionResolved(sdkSessionId)
-      // Settings write-through onto the resolved segment: what the composer
-      // sent becomes the row's persisted truth. Input-only — omitted fields
-      // stay "never set" — and NEVER for a voice turn: the daemon's pinned
-      // model would silently overwrite the user's chosen chip (the
-      // voice-clobber review finding). Idempotent downstream like the
-      // other two callbacks.
-      if (!isVoiceTurn) {
-        persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
-      }
-    })
-    // A turn arriving while the brain is mid context-swap parks on the
-    // per-user root lock inside the core — tell the composer WHY before it
-    // waits (the workspace/DM streams' queued sentinel, one reason).
-    if (isPrimarySwapping(conversationTarget.primarySessionId)) {
-      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason: 'context-patching' }) })
+    const sink = new GlobalRootSseSink(
+      stream,
+      c.var.logger,
+      activity,
+      (sdkSessionId) => {
+        turnSession.resolve(sdkSessionId)
+        mentionPlan?.onSessionResolved(sdkSessionId)
+        // Settings write-through onto the resolved segment: what the composer
+        // sent becomes the row's persisted truth. Input-only — omitted fields
+        // stay "never set" — and NEVER for a voice turn: the tier's pins are
+        // the surface's, not the user's chips (the voice-clobber review
+        // finding). Idempotent downstream like the other two callbacks.
+        if (!isVoiceTurn) {
+          persistTurnSessionSettings(c.var.db, sdkSessionId, input, { logger: c.var.logger })
+        }
+      },
+      approvalParks.onTurnEvent,
+    )
+    // The interactive wall clock (D5) — armed by `resolveTarget` below, the
+    // core's FIRST in-lock call, so it measures the time this turn HOLDS its
+    // root lock (a turn queued behind another spends the holder's budget, not
+    // its own); suspended while a card or an ask is parked (the shared gate);
+    // cleared in the finally. Expiry: the honest failure row + an interrupt of
+    // the head the turn is on, so the provider ends the stream and the lock
+    // releases through the core's chain. A ref, not a `let`: the arm happens
+    // inside the core's callback and the finally must still see it.
+    const wallClock: { current: TurnWallClock | null } = { current: null }
+    const armWallClock = (): void => {
+      wallClock.current ??= startTurnWallClock({
+        maxMs: env.VYNEL_INTERACTIVE_TURN_MAX_MS,
+        waitGate,
+        logger: c.var.logger,
+        onExpire: async () => {
+          sink.turnOutcome = 'failed'
+          const failure = await failTurnOnWallClock(
+            { db: c.var.db, logger: c.var.logger },
+            { sessionId: turnSession.current(), maxMs: env.VYNEL_INTERACTIVE_TURN_MAX_MS },
+          )
+          await writeSseSafely(
+            stream,
+            'session-errored',
+            JSON.stringify({
+              kind: 'session-errored',
+              sessionId: turnSession.current() ?? '',
+              ...failure,
+              isRecoverable: false,
+            }),
+            c.var.logger,
+          )
+        },
+      })
+    }
+    // A turn arriving while another turn holds this identity's root lock (a
+    // second window, a channel turn, the thread's own context swap) parks
+    // inside the core — tell the composer WHY before it waits (the
+    // workspace/DM streams' queued sentinel, both reasons; audit S2).
+    if (isRootTurnLockBusy(rootTurnLockKey(c.var.user.id, isVoiceTurn))) {
+      const reason = isPrimarySwapping(conversationTarget.primarySessionId)
+        ? 'context-patching'
+        : 'busy'
+      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason }) })
     }
     try {
       await runGlobalRootTurnCore(
@@ -354,7 +413,9 @@ export async function streamGlobalRootTurn(
           turnEvents: c.var.turnEvents,
           // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the
           // runner calls this) — apps/local-api owns the env-coupled user-data-dir read.
+          // Called again per automatic continuation; the clock arms once.
           resolveTarget: async () => {
+            armWallClock()
             const target = await resolveConversationTarget()
             ensureGlobalRootWorkspaceDir()
             return target
@@ -366,13 +427,23 @@ export async function streamGlobalRootTurn(
           ...(input.attachedImages !== undefined && input.attachedImages.length > 0
             ? { attachedImages: input.attachedImages }
             : {}),
-          ...(turnModel !== undefined ? { model: turnModel } : {}),
+          ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
           ...(turnSettings.thinkingEffort !== undefined
             ? { thinkingEffort: turnSettings.thinkingEffort }
             : {}),
-          ...(permissionMode !== undefined ? { permissionMode } : {}),
-          // A voice turn also RECORDS its origin — the transcript shows "via Voice".
-          ...(input.voice === true ? { voice: true, originChannel: 'voice' as const } : {}),
+          permissionMode,
+          // Autopilot (D8) — the resolved Auto-buildout rides the turn; the
+          // core appends the marker when true (never on voice — no chips).
+          ...(turnSettings.autoBuildout !== undefined
+            ? { autoBuildout: turnSettings.autoBuildout }
+            : {}),
+          // A voice turn also RECORDS its origin — the transcript shows "via
+          // Voice" — and never auto-continues: the daemon returns at the first
+          // completion, so continuations would run unheard holding the voice
+          // lock while the daemon says "listening" (audit V5).
+          ...(isVoiceTurn
+            ? { voice: true, originChannel: 'voice' as const, autoContinue: false }
+            : {}),
           mcpServers: composedMcp.mcpServers,
           deniedMcpToolPatterns: composedMcp.deniedMcpToolPatterns,
           mutatingToolNames: composedMcp.mutatingToolNames,
@@ -393,6 +464,7 @@ export async function streamGlobalRootTurn(
         sink,
       )
     } finally {
+      wallClock.current?.clear()
       activity.end(sink.turnOutcome)
       if (agentRunId) {
         try {

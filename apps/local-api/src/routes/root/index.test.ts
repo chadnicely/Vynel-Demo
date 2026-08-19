@@ -740,9 +740,10 @@ describe('POST /root/turn (SSE)', () => {
         await typed.text() // drain the SSE body so the turn completes
         expect(findChatSessionById(db, nextSdkSessionId)?.selectedModel).toBe('claude-opus-4-8')
 
-        // The voice daemon always pins its own latency-tier model — that pin
-        // governs THIS turn but must never touch the user's chips, and the
-        // stored 'ask' must not reach a surface that renders no cards.
+        // The server FORCES the voice tier over whatever the body carries
+        // (session-hardening D2 — a stale daemon pin or a typed Voice-chat
+        // pick cannot ride) and never touches the user's chips; the stored
+        // 'ask' must not reach a surface that renders no cards.
         const spoken = await app.request('/root/turn', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -755,9 +756,11 @@ describe('POST /root/turn (SSE)', () => {
         expect(spoken.status).toBe(200)
         await spoken.text()
 
-        // The voice turn ran on its own pin + the unattended default…
-        expect(startChatSessionInputs[1]!.model).toBe('claude-haiku-4-5')
-        expect(startChatSessionInputs[1]!.permissionMode).toBe('bypass-with-behavior-gate')
+        // test: correct expectation — the voice turn ran on the TIER (was: the
+        // body's pin + the core's bypass default), 2026-08-19 session-hardening.
+        expect(startChatSessionInputs[1]!.model).toBe('claude-sonnet-5')
+        expect(startChatSessionInputs[1]!.thinkingEffort).toBe('low')
+        expect(startChatSessionInputs[1]!.permissionMode).toBe('auto')
         // …and the thread's persisted settings are untouched.
         const row = findChatSessionById(db, nextSdkSessionId)
         expect(row?.selectedModel).toBe('claude-opus-4-8')
@@ -781,17 +784,19 @@ describe('POST /root/turn (SSE)', () => {
   })
 
   // test: correct expectation for the absent-mode turn — was "always the bypass
-  // default", now per-session settings resolve first (2026-08-17): a thread that
-  // never chose a mode still defaults to bypass; once a turn carries one, the
-  // thread REMEMBERS it and a later absent-mode turn runs under the stored mode.
-  it('runs the brain turn under the requested mode; absent → the stored setting, else the bypass default', async () => {
+  // default", then per-session settings resolve first (2026-08-17), and since
+  // the session-hardening arc (2026-08-19) the stream resolves
+  // DEFAULT_SESSION_MODE (`auto`) itself and stamps it — no path reaches the
+  // core's bypass default; once a turn carries a mode, the thread REMEMBERS it
+  // and a later absent-mode turn runs under the stored mode.
+  it('runs the brain turn under the requested mode; absent → the stored setting, else the auto default', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
       const app = makeHarness(db)
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
 
       await withVynelUserDataDir(dataDir, async () => {
-        // Fresh thread, no mode anywhere → the core's bypass default.
+        // Fresh thread, no mode anywhere → DEFAULT_SESSION_MODE, resolved here.
         const fresh = await app.request('/root/turn', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -799,7 +804,7 @@ describe('POST /root/turn (SSE)', () => {
         })
         expect(fresh.status).toBe(200)
         await fresh.text() // drain the SSE body so the turn completes
-        expect(startChatSessionInputs[0]!.permissionMode).toBe('bypass-with-behavior-gate')
+        expect(startChatSessionInputs[0]!.permissionMode).toBe('auto')
 
         // An explicit mode governs the turn AND persists onto the thread.
         const asked = await app.request('/root/turn', {

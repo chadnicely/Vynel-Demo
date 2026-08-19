@@ -167,4 +167,9 @@ export interface RunGlobalRootTurnCoreInput {
    *  leaves is dropped instead of continued (session-continuity §4.6). Omit
    *  (true) for every genuine turn — the user's, a channel's. */
   autoContinue?: boolean
+  /** Autopilot (session-hardening D8): the resolved Auto-buildout setting —
+   *  when true the core appends the per-message autopilot marker so the model
+   *  knows the user is probably away and continues by its own best-fit calls.
+   *  Resolved `input ?? row` at the edge like the other settings. */
+  autoBuildout?: boolean
 }
