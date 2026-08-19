@@ -8425,6 +8425,7 @@ export interface operations {
                         rootSessionId: string | null;
                         currentSdkSessionId: string | null;
                         lastMessageAt: string | null;
+                        segmentSessionIds: string[];
                     };
                 };
             };
@@ -16309,6 +16310,7 @@ export interface operations {
                         rootSessionId: string | null;
                         currentSdkSessionId: string | null;
                         lastMessageAt: string | null;
+                        segmentSessionIds: string[];
                     };
                 };
             };
@@ -16720,6 +16722,7 @@ export interface operations {
                         rootSessionId: string | null;
                         currentSdkSessionId: string | null;
                         lastMessageAt: string | null;
+                        segmentSessionIds: string[];
                     };
                 };
             };

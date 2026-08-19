@@ -227,6 +227,7 @@ describe('GET /root/continuing', () => {
         rootSessionId: null,
         currentSdkSessionId: null,
         lastMessageAt: null,
+        segmentSessionIds: [],
       })
 
       const primary = await getOrCreatePrimarySession(db, { userId: user.id })
@@ -242,6 +243,7 @@ describe('GET /root/continuing', () => {
         rootSessionId: primary.id,
         currentSdkSessionId: 'g-1',
         lastMessageAt: session.lastMessageAt.toISOString(),
+        segmentSessionIds: [session.id],
       })
     })
   })

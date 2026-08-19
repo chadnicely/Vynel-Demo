@@ -47,6 +47,7 @@ import {
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { resolvePrimaryTranscript } from '@vynel/session/runtime'
+import { listSessionChainSegmentIds } from '@vynel/session/overview'
 import {
   enrichChatSessionDetail,
   enrichPrimaryTranscript,
@@ -181,6 +182,8 @@ export const chatApp = factory
         rootSessionId: primary?.id ?? null,
         currentSdkSessionId: currentSessionId,
         lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
+        segmentSessionIds:
+          current === null ? [] : listSessionChainSegmentIds(c.var.db, c.var.user.id, current),
       })
     },
   )

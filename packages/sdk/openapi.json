@@ -10936,12 +10936,19 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "segmentSessionIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [
                     "rootSessionId",
                     "currentSdkSessionId",
-                    "lastMessageAt"
+                    "lastMessageAt",
+                    "segmentSessionIds"
                   ]
                 }
               }
@@ -31587,12 +31594,19 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "segmentSessionIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [
                     "rootSessionId",
                     "currentSdkSessionId",
-                    "lastMessageAt"
+                    "lastMessageAt",
+                    "segmentSessionIds"
                   ]
                 }
               }
@@ -32979,12 +32993,19 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "segmentSessionIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [
                     "rootSessionId",
                     "currentSdkSessionId",
-                    "lastMessageAt"
+                    "lastMessageAt",
+                    "segmentSessionIds"
                   ]
                 }
               }

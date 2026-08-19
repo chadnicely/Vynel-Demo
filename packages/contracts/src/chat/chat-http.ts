@@ -238,6 +238,10 @@ export interface ChatContextReportResponse {
 export interface ContinuingConversationResponse {
   rootSessionId: string | null;
   currentSdkSessionId: string | null;
+  /** Every segment of the continuing chain, oldest first (empty until the
+   *  thread has a head) — a message on a PRE-SWAP segment still belongs to this
+   *  conversation (the node screen's arcs; session-hardening F). */
+  segmentSessionIds: string[];
   /** When the conversation last spoke — null until it has. Talking counts as
    *  working: a room that chatted without ever planning steps still has to read
    *  as running, and the step dock alone would call it idle. */

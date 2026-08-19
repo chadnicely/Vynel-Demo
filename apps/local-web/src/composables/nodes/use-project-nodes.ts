@@ -139,18 +139,18 @@ export function useProjectNodes(input: {
   );
 
   /** Every segment of every drawn conversation, pointing at the dot that
-   *  draws it — how an arc finds its endpoint across a context swap.
-   *
-   *  The build contributes only the segment it is CURRENTLY on: its chain is
-   *  hidden from the overview (`fold-session-chains.ts`) and `chat.getContinuing`
-   *  answers with the head alone, so its pre-swap segments are unreachable
-   *  from here. Recorded as a §6 ask on the continuing payload. */
+   *  draws it — how an arc finds its endpoint across a context swap. The
+   *  build's chain is hidden from the overview, so its segments come from the
+   *  continuing payload (`segmentSessionIds`, oldest first, head included). */
   const nodeIdBySegmentId = computed(() => {
     const byId = new Map<string, string>();
     const workspaceId = id.value;
-    const head = continuingQuery.data.value?.currentSdkSessionId ?? null;
-    if (workspaceId !== null && head !== null) {
-      byId.set(head, sceneNodeId({ kind: "workspace", id: workspaceId }));
+    const continuing = continuingQuery.data.value;
+    if (workspaceId !== null && continuing !== undefined) {
+      const buildNodeId = sceneNodeId({ kind: "workspace", id: workspaceId });
+      const head = continuing.currentSdkSessionId;
+      if (head !== null) byId.set(head, buildNodeId);
+      for (const segmentId of continuing.segmentSessionIds ?? []) byId.set(segmentId, buildNodeId);
     }
     for (const entry of entries.value) {
       const nodeId = sceneNodeId({ kind: "session", id: entry.sessionId });

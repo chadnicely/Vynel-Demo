@@ -183,6 +183,7 @@ describe('GET /chat/continuing', () => {
         rootSessionId: null,
         currentSdkSessionId: null,
         lastMessageAt: null,
+        segmentSessionIds: [],
       })
     })
   })
@@ -203,6 +204,7 @@ describe('GET /chat/continuing', () => {
         currentSdkSessionId: null,
         // A primary with no segment linked yet has never spoken.
         lastMessageAt: null,
+        segmentSessionIds: [],
       })
     })
   })
@@ -232,6 +234,8 @@ describe('GET /chat/continuing', () => {
         rootSessionId: primary.id,
         currentSdkSessionId: segment.id,
         lastMessageAt: spokeAt.toISOString(),
+        // The chain the arcs map by — a single-segment chain is its own head.
+        segmentSessionIds: [segment.id],
       })
     })
   })

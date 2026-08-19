@@ -68,7 +68,7 @@ export function listSessionChildren(
 
   const jobs = listDelegationJobsForParentSessions(db, {
     userId: input.userId,
-    parentSessionIds: chainSegmentIdsOf(db, input.userId, session),
+    parentSessionIds: listSessionChainSegmentIds(db, input.userId, session),
   })
 
   const children: SessionChild[] = []
@@ -158,7 +158,11 @@ function spawnedChildOf(
  * workspace's continuing build is — the conversation most likely to be asked
  * about here.
  */
-function chainSegmentIdsOf(db: Database, userId: string, session: ChatSession): string[] {
+/** Every segment id of the chain `session` belongs to, OLDEST first (the
+ *  fold's newest-claimant rule for a crashed double swap). Exported for the
+ *  continuing routes so a UI can map any pre-swap segment back to its
+ *  conversation (the node screen's arcs; session-hardening F). */
+export function listSessionChainSegmentIds(db: Database, userId: string, session: ChatSession): string[] {
   const rows = listAllChatSessionsForUser(db, { userId })
   const byId = new Map(rows.map((row) => [row.id, row]))
   if (!byId.has(session.id)) return [session.id]

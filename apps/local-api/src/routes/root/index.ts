@@ -21,6 +21,7 @@
 
 import { resolver, validator } from 'hono-openapi/zod'
 import { findPrimaryConversation } from '@vynel/session/continuity'
+import { listSessionChainSegmentIds } from '@vynel/session/overview'
 import { getChatSessionDetail } from '@vynel/chat'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { factory } from '../../factory.js'
@@ -86,6 +87,8 @@ export const rootApp = factory
         rootSessionId: root?.id ?? null,
         currentSdkSessionId: currentSessionId,
         lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
+        segmentSessionIds:
+          current === null ? [] : listSessionChainSegmentIds(c.var.db, c.var.user.id, current),
       })
     },
   )
