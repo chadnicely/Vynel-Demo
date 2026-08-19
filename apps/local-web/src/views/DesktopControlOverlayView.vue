@@ -133,7 +133,9 @@ async function stopTurn() {
     if (turn.origin === "delegation" && turn.partialSessionId !== null) {
       await vynel.root.stopDelegation(turn.partialSessionId);
     } else {
-      await vynel.root.interruptTurn();
+      // No session id on the overlay's tracked turn — the empty body keeps
+      // the pre-D3 behaviour (the global root's head).
+      await vynel.root.interruptTurn({});
     }
   } catch {
     // Best-effort: the turn may have just ended; the feed's turn-ended hides us.
