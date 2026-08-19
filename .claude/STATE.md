@@ -3,7 +3,32 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) SESSION HARDENING ARC — INTEGRATED on `feature/session-audit` (audit 7/10 → the 9+ arc), FULL GATE GREEN
+## ✅ 2026-08-19 (latest) VOICE REALTIME ARC — `feature/voice-realtime` (heard as it writes · barge-in · no canned acks), FULL GATE GREEN
+
+Kafi's brief after round-2 of the audit (`docs/audits/session-2026-08-19-r2/`, 8/10): *"user speaks →
+it stops speaking → listens → responds → speaks as fast as possible; it always says 'let me check' /
+'one moment' — the model's own first response should be the ack, not a static line; use realtime
+chunking."* Plan approved as written (VR1–VR4, `docs/module-notes/voice-realtime.md`). Three slices in ONE
+worktree, reviewer pass folded (`9c2bc801`): **VR-A server** — `voice-thread-tools.ts` denies `speak` on
+every voice-thread turn (one home; every other surface keeps it), `voice-turn.md` + marker = "you are heard
+as you write — short spoken sentences, lead with the answer, no stock filler"; **VR-B daemon + @vynel/voice**
+— `SpokenSentenceBuffer` clause cut (~120 chars at , ; : / dash, never mid-word) + `LineSpeaker.speakStreamed`
+(first sentence plays while the model generates; N+1 synthesizes during N), shared `SpokenEchoFilter` (from
+the call leg; 1–2-word transcripts match only a line's tail so "stop" beats a long reply), driver ASLEEP →
+ACTIVE → IN-TURN (mic OPEN while speaking; echo ignored; a real utterance cuts + `interruptTurn({sessionId})`
++ new turn; silence-based watchdog; late answer spoken) → RELAYING → HANDED-OFF, `SpeechLane` serializes all
+daemon speech, `SpokenBrainTurn.run()` total, "One moment." + the ack library deleted, call leg clause-cut +
+late-reply queueing behind the watchdog notice (R2-F); **VR-C web** — overlay speaks per sentence, no ack,
+recognizer on while speaking (WebView2 AEC + filter), cuts on the first real interim, interrupts by id, close
+/ mute interrupt by id, Voice chat panel speaks typed replies per sentence + Stop (R2-E), player drains
+total, a broken turn lands on the overlay failure line. Gate: 108/108 typecheck · 5/5 parity · vitest green.
+**Owed by Kafi (live, after a desktop rebuild + wake-overlay rebake):** wake → first sentence mid-generation ·
+talk over it → it stops and answers · no "let me check" · native leg with the Jarvis window off (speaker near
+the mic) · typed panel speaks · a call still works · watchdog at 5 min · wake on the EXISTING voice thread
+(the resumed-turn speak relapse). **Still open from round 2 (not asked):** R2-A working rail · R2-B channel
+wall clock · R2-C schedule settings/bound · R2-D speak relay by producing session id · R2-G/H + the P2s.
+
+## ✅ 2026-08-19 SESSION HARDENING ARC — INTEGRATED on `feature/session-audit` (audit 7/10 → the 9+ arc), FULL GATE GREEN
 
 Kafi's brief: five Opus agents ran ONE eight-question audit of the session system (bugs per scope ·
 stuck points · mode/model/effort inheritance · improvements · monitoring + Nodes · continuity · score ·

@@ -90,6 +90,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Saying "stop" while Vynel reads a long answer now stops it** — a one- or two-word
+  interruption is no longer mistaken for an echo of its own speech. On a call, a reply
+  that arrives while Vynel is saying it needs more time is spoken right after that
+  line instead of being lost; a broken spoken turn shows its reason on the overlay.
 - **A long delegated task could get a second writer.** After ten minutes the
   queue released a workspace's lock while the task was still writing, so the
   next task (or your own message) resumed the same session beside it. The lock

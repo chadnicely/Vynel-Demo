@@ -74,3 +74,10 @@ answer is spoken). Known limits: native barge-in latency = VAD min-silence (~0.5
 STT; a per-call session has no server-side interrupt (scope spawned) — barge-in cuts playback only; the overlay
 leans on WebView2/Chrome AEC for its own playback (belt) + the filter (braces); a barge-in before the first
 id-bearing frame only aborts locally.
+
+**Reviewer fold (`9c2bc801`):** call leg — a reply landing during the watchdog notice is queued behind it
+(one gate for the reply and the failure line; the notice is awaited before hand-back); echo filter — a
+1–2-word transcript matches only a spoken line's last ~120 chars (3+ words still whole-line; residual: a 3+
+word barge-in that is verbatim inside the reply is still swallowed); `SpokenBrainTurn.run()` is total (tail
+failures resolve 'failed'); the late answer reads as speaking; the overlay player drains total; the voice
+turn error lands on the overlay failure line (the web app has no logger seam; no console sink).
