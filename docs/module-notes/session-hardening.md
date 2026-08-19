@@ -299,6 +299,39 @@ dropped (today ALL are).
 and `StartChatTurnRequestSchema` already accept `mode`, so C's `input.voice` gate simply overrides it
 — the daemon sends it as belt-and-braces, not as the enforcement.
 
+- **A → lead / chat (unowned `packages/chat/src/turn-consumption/consume-session-event-stream.ts`) — A3(c)
+  notify-retry idempotency needs ONE consumer seam.** The duplicate-inbound bug is real: a resumed
+  notify turn persists its inbound row in the consumer's durability-first early write (BEFORE the
+  provider starts, `consume-session-event-stream.ts` ~L147-171, keyed by `userMessageInput.id`),
+  so a recoverable failure (`provider_start_timeout`, a 5xx) + requeue appends the report a second
+  time. The key already exists (the row carries the delivery job's `partialSessionId`); what is
+  missing is a way to REUSE it, and only the consumer inserts. Ask: make the resumed early write
+  find-or-insert by `userMessageInput.id` — `const existing = findChatMessageById(db,
+  userMessageInput.id); userMessage = existing ?? insert(...)` (yield `user-message-persisted`
+  either way; `handleSessionStarted` already receives it as `alreadyPersistedUserMessage`).
+  Then, in A's files, the delivery tick passes a STABLE inbound id per delivery job
+  (`claimed.id` → a new `inboundMessageId?` on `delegateToWorkspaceRoot` /
+  `RunGlobalRootReportTurn` / the core's `userMessageInput.id`) so a retry reuses the row. NOT
+  landed in A: without the seam a stable id makes the retry CRASH on the PK (worse than today's
+  duplicate), and a tick-side skip cannot stop the consumer's insert. No schema change is needed
+  (`partialSessionId` / `id` already key it). Test to add with it: enqueue a workspace report
+  delivery, first attempt fails recoverably after `session-started`, requeue, second attempt
+  completes → exactly ONE inbound row on the requester's transcript.
+- **A → C (`apps/local-api/src/boot.ts`, wiring lines) — optional symmetry.** `startDelegationService`
+  now reads `VYNEL_DELEGATED_TURN_MAX_MS` / `VYNEL_DELEGATION_LEASE_MS` / `VYNEL_DELEGATION_HEARTBEAT_MS`
+  itself via `loadEnv()` when the new optional `hardCapMs` / `leaseMs` / `heartbeatMs` options are
+  omitted (the `run-global-root-turn.ts` precedent), so boot.ts needs NO change; pass them explicitly
+  there only if the lead prefers every knob wired in one place like `maxConcurrentDelegations`.
+- **A → D (`apps/local-api/src/routes/root/index.test.ts`, D's file) / lead at merge — two expectations
+  pin the RETIRED core fallback.** A5 changed `run-global-root-turn-core.ts`'s
+  `permissionMode ?? 'bypass-with-behavior-gate'` to `?? toPermissionMode(DEFAULT_SESSION_MODE)` (D3, as
+  briefed), so on the integrated branch these two go red until their expectation is corrected to
+  `'auto'`: L760 ("a VOICE turn neither inherits nor overwrites…" — `startChatSessionInputs[1].permissionMode`;
+  C3 makes the voice leg an EXPLICIT `auto`, same value) and L802 ("runs the brain turn under the requested
+  mode; absent → the stored setting, else the bypass default" — `startChatSessionInputs[0].permissionMode`;
+  the test's title/comment "else the bypass default" becomes "else auto"). Every other suite in
+  `packages/orchestration`, `packages/session`, `apps/local-api` is green on A (183 files / 1264 tests).
+
 ## 7. Results
 
 _(filled at integration)_

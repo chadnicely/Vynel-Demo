@@ -40,12 +40,14 @@ import {
 } from '../continuity/index.js'
 import { withBoundaryContinuity } from '../runtime/with-boundary-continuity.js'
 import * as primarySessionsRepository from '../repositories/index.js'
+import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from '../runtime/session-turn-channel.js'
 import {
   composeAgentColleaguePrompt,
+  composeRoutedTurnProviderText,
   composeRoutedTurnSystemPrompt,
   routedTurnMcpSessionFields,
   type RoutedTurnMcpAttachment,
@@ -87,7 +89,11 @@ export type DelegateToAgentSessionInput = {
   partialSessionId?: string
   /** The delegation CHAIN key — per-task, carried across hops (persona-sessions). */
   threadId?: string
+  /** The tick resolves it (`job ?? colleague row ?? DEFAULT`, A5). Omit → `auto`. */
   permissionMode?: DelegationPermissionMode
+  /** The colleague conversation runs on AUTOPILOT (D8): the per-message marker
+   *  rides the provider input; the persisted text stays clean. */
+  autoBuildout?: boolean
   mcpAttachment?: RoutedTurnMcpAttachment
   approvalHandler?: Pick<RoutedApprovalHandler, 'onApprovalRequested' | 'onApprovalResolved'>
   observer?: {
@@ -146,9 +152,9 @@ export async function delegateToAgentSession(
   const sessionEventStream = provider.startChatSession({
     workspacePath: input.runCwdPath,
     ...(resumeSessionId !== null ? { resumeSessionId } : {}),
-    userMessageText: input.taskText,
+    userMessageText: composeRoutedTurnProviderText(input.taskText, input.autoBuildout === true),
     systemPromptAppend,
-    permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
+    permissionMode: input.permissionMode ?? toPermissionMode(DEFAULT_SESSION_MODE),
     allowedToolNames: input.agentAllowedTools ?? [],
     ...mcpFields,
     // The agent's own denies join the attachment's (the leaf precedent) — the

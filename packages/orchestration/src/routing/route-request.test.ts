@@ -1,10 +1,13 @@
 // Unit tests for `routeRequest` — the pure request-down / report-up coordinator.
 // The delegation is faked at the injection boundary (the `bridgePrimarySession`
-// test precedent); no DB, no provider.
+// test precedent); no DB, no provider. The hard-cap tests pin the
+// session-hardening invariant: the envelope NEVER settles before the delegate
+// does — a capped turn is cancelled through `onHardCap` and then AWAITED, so
+// the caller's lock outlives the turn (audit L1).
 
 import { describe, expect, it, vi } from 'vitest'
 import { ApprovalWaitGate } from './approval-wait-gate.js'
-import { routeRequest, type DelegateForRouting } from './route-request.js'
+import { describeHardCap, routeRequest, type DelegateForRouting } from './route-request.js'
 
 const baseInput = {
   userId: 'user-1',
@@ -13,6 +16,24 @@ const baseInput = {
   targetWorkspacePath: '/ws/a',
   taskText: 'Report on project A.',
 }
+
+/** A delegate that "runs" until `end()` is called — the cancel lever's target. */
+function endableDelegate(): {
+  delegate: DelegateForRouting
+  end: (outcome: 'completed' | 'interrupted') => void
+} {
+  let settle: ((outcome: 'completed' | 'interrupted') => void) | undefined
+  const delegate: DelegateForRouting = () =>
+    new Promise((resolve, reject) => {
+      settle = (outcome) =>
+        outcome === 'completed'
+          ? resolve({ reference: 'leaf-sdk-1', resultText: 'Partial.' })
+          : reject(new Error('the routed turn was interrupted'))
+    })
+  return { delegate, end: (outcome) => settle?.(outcome) }
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 describe('routeRequest', () => {
   it('delegates down and reports a completed envelope with the distilled result', async () => {
@@ -35,19 +56,75 @@ describe('routeRequest', () => {
     expect(result).toEqual({ status: 'failed', message: 'agent not found' })
   })
 
-  it('reports a timed-out envelope when the leaf outruns the wait budget', async () => {
-    // The leaf "keeps running" — its promise never resolves within the budget.
-    const delegate: DelegateForRouting = () => new Promise(() => {})
-    const result = await routeRequest({ ...baseInput, timeoutMs: 20 }, { delegate })
-    expect(result).toEqual({ status: 'timed-out', timeoutMs: 20 })
+  // ── The hard cap (session-hardening arc): cancel, then AWAIT the turn ──
+
+  it('a capped turn is cancelled through onHardCap and the envelope settles ONLY once the delegate settles', async () => {
+    const { delegate, end } = endableDelegate()
+    const onHardCap = vi.fn()
+    let settled = false
+    const routing = routeRequest({ ...baseInput, hardCapMs: 20 }, { delegate, onHardCap }).then(
+      (envelope) => {
+        settled = true
+        return envelope
+      },
+    )
+
+    // Past the cap: the lever was pulled exactly once — and the coordinator is
+    // still waiting on the turn (the old shape would have returned here).
+    await wait(60)
+    expect(onHardCap).toHaveBeenCalledOnce()
+    expect(settled).toBe(false)
+
+    end('interrupted')
+    const result = await routing
+    expect(result).toEqual({
+      status: 'capped',
+      hardCapMs: 20,
+      message: `exceeded the ${describeHardCap(20)} cap`,
+    })
   })
 
-  // ── Surface-up decision C: the wait clock suspends while an approval is parked ──
+  it('a turn that outruns its interrupt and completes after the cap still reads capped (the cap is the honest outcome)', async () => {
+    const { delegate, end } = endableDelegate()
+    const routing = routeRequest({ ...baseInput, hardCapMs: 20 }, { delegate, onHardCap: () => {} })
+    await wait(50)
+    end('completed')
+    const result = await routing
+    expect(result.status).toBe('capped')
+  })
 
-  it('suspends the wait budget while the gate is parked — a slow human decision does not time the job out', async () => {
+  it('a delegate that settles inside the cap never pulls the lever, and the cap timer dies with the run', async () => {
+    const onHardCap = vi.fn()
+    const delegate: DelegateForRouting = async () => ({ reference: 'leaf-sdk-1', resultText: 'ok' })
+    const result = await routeRequest({ ...baseInput, hardCapMs: 20 }, { delegate, onHardCap })
+    expect(result.status).toBe('completed')
+    await wait(50)
+    expect(onHardCap).not.toHaveBeenCalled()
+  })
+
+  it('a throwing onHardCap is contained — the envelope still settles capped when the turn ends', async () => {
+    const { delegate, end } = endableDelegate()
+    const routing = routeRequest(
+      { ...baseInput, hardCapMs: 20 },
+      {
+        delegate,
+        onHardCap: () => {
+          throw new Error('interrupt failed')
+        },
+      },
+    )
+    await wait(50)
+    end('interrupted')
+    expect((await routing).status).toBe('capped')
+  })
+
+  // ── Surface-up decision C: the cap clock suspends while an approval is parked ──
+
+  it('suspends the cap while the gate is parked — a slow human decision does not cap the job', async () => {
     const waitGate = new ApprovalWaitGate()
-    // Park immediately, resolve after 60ms — far past the 20ms budget. With the
-    // clock suspended while parked, the delegation still completes.
+    const onHardCap = vi.fn()
+    // Park immediately, resolve after 60ms — far past the 20ms cap. With the
+    // clock suspended while parked, the delegation still completes untouched.
     const delegate: DelegateForRouting = () =>
       new Promise((resolve) => {
         waitGate.markParked()
@@ -57,25 +134,43 @@ describe('routeRequest', () => {
         }, 60)
       })
 
-    const result = await routeRequest({ ...baseInput, timeoutMs: 20 }, { delegate, waitGate })
+    const result = await routeRequest(
+      { ...baseInput, hardCapMs: 20 },
+      { delegate, waitGate, onHardCap },
+    )
     expect(result).toEqual({
       status: 'completed',
       reference: 'leaf-sdk-2',
       result: 'Approved and done.',
     })
+    expect(onHardCap).not.toHaveBeenCalled()
   })
 
-  it('resumes the clock with the REMAINING budget after the parked approval resolves', async () => {
+  it('resumes the clock with the REMAINING budget after the parked approval resolves, then caps', async () => {
     const waitGate = new ApprovalWaitGate()
-    // Parked at once; after resolve the leaf keeps "running" forever — the clock
-    // resumes and the remaining budget expires normally.
-    const delegate: DelegateForRouting = () =>
-      new Promise(() => {
-        waitGate.markParked()
-        setTimeout(() => waitGate.markResolved(), 30)
-      })
+    const { delegate: rawDelegate, end } = endableDelegate()
+    // Parked at once; after resolve the turn keeps running — the clock resumes,
+    // the remaining budget expires, the lever ends the turn.
+    const delegate: DelegateForRouting = (input) => {
+      waitGate.markParked()
+      setTimeout(() => waitGate.markResolved(), 30)
+      return rawDelegate(input)
+    }
+    const onHardCap = vi.fn(() => end('interrupted'))
 
-    const result = await routeRequest({ ...baseInput, timeoutMs: 25 }, { delegate, waitGate })
-    expect(result).toEqual({ status: 'timed-out', timeoutMs: 25 })
+    const result = await routeRequest(
+      { ...baseInput, hardCapMs: 25 },
+      { delegate, waitGate, onHardCap },
+    )
+    expect(onHardCap).toHaveBeenCalledOnce()
+    expect(result.status).toBe('capped')
+  })
+})
+
+describe('describeHardCap', () => {
+  it('reads in minutes at or above one, raw milliseconds below', () => {
+    expect(describeHardCap(60 * 60 * 1000)).toBe('60-minute')
+    expect(describeHardCap(90_000)).toBe('2-minute')
+    expect(describeHardCap(50)).toBe('50ms')
   })
 })

@@ -1,7 +1,10 @@
 // The shared pieces of a ROUTED (background) turn's provider input — the system
-// steer + the MCP attachment both target runners (`delegateToWorkspaceRoot`,
-// `delegateToSpawnedSession`) spread into `startChatSession`. One home so the
-// two runners can never drift on how a routed turn is shaped.
+// steer, the MCP attachment, and the per-message markers the target runners
+// (`delegateToWorkspaceRoot`, `delegateToSpawnedSession`, `delegateToAgentSession`)
+// spread into `startChatSession`. One home so the runners can never drift on
+// how a routed turn is shaped.
+
+import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 
 // How a routed (background) turn should behave — appended to the SYSTEM prompt, never
 // the task text (the task persists verbatim to the transcript). ACKNOWLEDGE-FIRST
@@ -178,3 +181,12 @@ export const CONTINUATION_TASK_INSTRUCTIONS =
   'Continue from that checkpoint now — do not restart finished work, and do not treat the original ' +
   'task as new. If your context fills again, finish the slice you are on and checkpoint again.\n\n' +
   ROUTED_TASK_INSTRUCTIONS
+
+/** The PROVIDER text of a routed turn's inbound message: the task/message as
+ *  written, plus the per-message autopilot marker when the target conversation
+ *  runs on autopilot (D8 — `autoBuildout`). Provider input ONLY: the persisted
+ *  row keeps the clean text (the voice-turn-marker precedent — a system-prompt
+ *  block decays on a long session; the marker rides every message instead). */
+export function composeRoutedTurnProviderText(taskText: string, autoBuildout: boolean): string {
+  return autoBuildout ? `${taskText}\n\n${loadSessionInstruction('autopilot-marker')}` : taskText
+}

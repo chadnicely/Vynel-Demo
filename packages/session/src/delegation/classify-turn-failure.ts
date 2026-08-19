@@ -40,10 +40,23 @@ export function requeueIfRecoverable(
   logger: Logger,
   label: string,
 ): boolean {
+  if (!isRecoverableTurnFailure(errorMessage)) return false
+  return requeueForAnotherAttempt(db, job, errorMessage, logger, label)
+}
+
+/** Requeue for another attempt while attempts remain — the attempt bound
+ *  ALONE, for a failure the caller already judged worth retrying (a delivery
+ *  turn cut by the hard cap: the report body is the only copy, so it goes
+ *  round again instead of dying terminal). Returns false at the ceiling. */
+export function requeueForAnotherAttempt(
+  db: Database,
+  job: DelegationJob,
+  errorMessage: string,
+  logger: Logger,
+  label: string,
+): boolean {
   const attemptCount = (job.attemptCount ?? 0) + 1
-  if (!isRecoverableTurnFailure(errorMessage) || attemptCount >= DELEGATION_MAX_ATTEMPTS) {
-    return false
-  }
+  if (attemptCount >= DELEGATION_MAX_ATTEMPTS) return false
   const nextAttemptAt = new Date(Date.now() + nextAttemptDelayMs(attemptCount))
   requeueDelegationJob(db, job.id, {
     errorMessage,

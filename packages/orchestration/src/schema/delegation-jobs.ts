@@ -140,12 +140,14 @@ export const delegationJobs = table(
     originExternalSenderId: text(),
     originExternalChatContextId: text(),
     // The permission mode the routed turn runs under (surface-up approval, step 1) —
-    // threaded from the delegating turn's user-facing mode. Null = the pre-mode
-    // default (`bypass-with-behavior-gate`: only the irreversible floor cards).
+    // threaded from the delegating turn's user-facing mode. Null = nobody stamped
+    // one: the runner resolves the TARGET conversation's own mode, else the one
+    // default (`auto` — session-hardening A5/D3).
     permissionMode: text().$type<DelegationPermissionMode>(),
     // The delegating root's MODEL + THINKING-EFFORT picks for the routed turn —
     // threaded into the provider's startChatSession by the claim-and-run tick.
-    // Null = the provider defaults (today's behavior, byte-for-byte).
+    // Null = the target conversation's own picks, else the provider defaults
+    // (`job ?? target row ?? DEFAULT`, session-hardening A5).
     model: text(),
     thinkingEffort: text().$type<ThinkingEffortLevel>(),
     // What this row IS — see the `DelegationJobKind` union doc above. Nullable

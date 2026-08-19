@@ -18,7 +18,6 @@ import {
   isNotNull,
   isNull,
   lte,
-  ne,
   notInArray,
   or,
 } from 'drizzle-orm'
@@ -115,10 +114,18 @@ export function findLatestDelegationJobForParentSince(
 // (mirrors claimDueSchedule's `changes > 0` semantics, returning the row
 // instead of a boolean). This is the ONLY concurrency guard; no explicit
 // transaction is needed.
+//
+// LEASE (session-hardening A2): with `leaseMs` the claim also stamps
+// `leaseExpiresAt = claimedAt + leaseMs` + `heartbeatAt = claimedAt`; the
+// running tick then heartbeats the lease forward, and the sweeper reaps a
+// claim whose lease lapsed (crash, wedged process). Without it the row keeps
+// the legacy NULL lease — the boot pass's only.
 export function claimNextPendingDelegationJob(
   db: Database,
   claimedAt: Date,
   options: {
+    /** Stamp a claim lease of this many ms (see above). */
+    leaseMs?: number
     /** Targets with a LIVE run — a target key is the job's `workspaceId` OR its
      *  `targetPrimarySessionId` (Slice ④), OR the shared
      *  `GLOBAL_ROOT_DELIVERY_TARGET_KEY` for a global-requester
@@ -190,11 +197,39 @@ export function claimNextPendingDelegationJob(
   if (!candidate) return null
   const [claimed] = db
     .update(delegationJobs)
-    .set({ status: 'claimed', claimedAt })
+    .set({
+      status: 'claimed',
+      claimedAt,
+      ...(options.leaseMs !== undefined
+        ? {
+            leaseExpiresAt: new Date(claimedAt.getTime() + options.leaseMs),
+            heartbeatAt: claimedAt,
+          }
+        : {}),
+    })
     .where(and(eq(delegationJobs.id, candidate.id), eq(delegationJobs.status, 'pending')))
     .returning()
     .all()
   return claimed ?? null
+}
+
+/** Extend a RUNNING claim's lease: `heartbeatAt = at`, `leaseExpiresAt = at +
+ *  leaseMs`. Guarded on `status = 'claimed'` — a run whose row was already
+ *  settled (swept, stopped, requeued) must not resurrect a lease on it; false
+ *  tells the heartbeat its job is no longer the row's. */
+export function heartbeatDelegationJob(
+  db: Database,
+  id: string,
+  at: Date,
+  leaseMs: number,
+): boolean {
+  const updated = db
+    .update(delegationJobs)
+    .set({ heartbeatAt: at, leaseExpiresAt: new Date(at.getTime() + leaseMs) })
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'claimed')))
+    .returning()
+    .all()
+  return updated.length > 0
 }
 
 export type FindPendingUpdateDeliveryInput = {
@@ -319,6 +354,8 @@ export function requeueDelegationJob(
     .set({
       status: 'pending',
       claimedAt: null,
+      leaseExpiresAt: null,
+      heartbeatAt: null,
       errorMessage: input.errorMessage,
       errorCode: input.errorCode,
       attemptCount: input.attemptCount,
@@ -536,65 +573,6 @@ export function markDelegationsSurfacedToRoot(
     .set({ surfacedToRootAt: surfacedAt })
     .where(inArray(delegationJobs.id, jobIds))
     .run()
-}
-
-// Reclaim jobs orphaned in `claimed` by a server crash/restart mid-run — mark them FAILED
-// (NOT re-run: exactly-once is preserved; the Ch1 decision was no-RE-EXECUTE, not no-cleanup).
-// Called at service startup, where nothing is running yet, so every `claimed` row is orphaned;
-// leaving them claimed made them linger forever as "in-flight" (visible in the Ch3.5 processing
-// indicator). `surfacedToRootAt` is set so a restart doesn't spam the root with "couldn't
-// complete" — an orphan is a system artifact, not a real task outcome. Returns the FULL rows
-// (persona-sessions): with acknowledge-first, a child that said "will report when done" and
-// then silently vanished breaks the spoken contract — the startup pass pushes an honest
-// failure delivery for orphaned WORK rows (the caller filters; deliveries stay anti-cascade).
-// `report-delivery` rows are EXCLUDED — they requeue instead
-// (`requeueOrphanedClaimedReportDeliveries` below): the report body is the only
-// copy of a child's result, so an orphaned delivery is retried, never destroyed.
-export function failOrphanedClaimedDelegations(db: Database, at: Date): DelegationJob[] {
-  return db
-    .update(delegationJobs)
-    .set({
-      status: 'failed',
-      errorMessage: 'orphaned — the server restarted while this task was running',
-      completedAt: at,
-      surfacedToRootAt: at,
-    })
-    .where(
-      and(
-        eq(delegationJobs.status, 'claimed'),
-        // NULL-safe kind gate (legacy NULL jobKind = task): everything but the
-        // report deliveries, which the requeue pass below owns.
-        or(isNull(delegationJobs.jobKind), ne(delegationJobs.jobKind, 'report-delivery')),
-      ),
-    )
-    .returning()
-    .all()
-}
-
-// The report-delivery half of the boot reap: a claimed delivery orphaned by a
-// crash goes back to `pending` (claimedAt cleared, immediately due) instead of
-// dying — the report body is the ONLY copy of the child's result, and at boot
-// nothing is running, so re-delivery is safe at-least-once (a turn that died
-// AFTER persisting its inbound row re-delivers a duplicate marker message; the
-// recorded delivery-retry trade). The attempt counter is deliberately NOT
-// bumped: orphaning is the process's failure, not the delivery's, and a
-// bounded counter here would eventually destroy a report on a crash-looping
-// machine — the one outcome this function exists to prevent. `update-delivery`
-// rows stay on the terminal-drop path above (ephemeral status, never requeued).
-export function requeueOrphanedClaimedReportDeliveries(db: Database, at: Date): DelegationJob[] {
-  return db
-    .update(delegationJobs)
-    .set({
-      status: 'pending',
-      claimedAt: null,
-      errorMessage: 'requeued — the server restarted while this report was being delivered',
-      nextAttemptAt: at,
-    })
-    .where(
-      and(eq(delegationJobs.status, 'claimed'), eq(delegationJobs.jobKind, 'report-delivery')),
-    )
-    .returning()
-    .all()
 }
 
 // EVERY kind, not just work: the node screen draws a line whenever two

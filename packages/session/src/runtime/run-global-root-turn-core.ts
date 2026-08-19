@@ -38,7 +38,8 @@ import {
   attachedImagesMetadataFor,
   type ChatTurnEvent,
 } from '@vynel/chat'
-import type { AiAgentProvider } from '@vynel/providers'
+import type { AiAgentProvider, NormalizedSessionEvent } from '@vynel/providers'
+import { markDelegationsSurfacedToRoot } from '@vynel/orchestration'
 import {
   buildCompactionCapture,
   buildContextNudge,
@@ -55,6 +56,7 @@ import type {
 } from './session-types.js'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { runUnderRootTurnLock } from './root-turn-lock.js'
+import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 import { composeGlobalRootProviderMessage } from './compose-global-root-provider-message.js'
 
@@ -177,14 +179,17 @@ async function* runOneGlobalTurn(
   // The PROVIDER input — the clean text plus the per-message decorations
   // (delegation catch-up, voice/channel markers); the persister below keeps
   // the clean original. See `composeGlobalRootProviderMessage`. A continuation
-  // hands the model its fuller instruction and persists its short anchor row.
-  const providerUserMessageText = composeGlobalRootProviderMessage(deps.db, {
+  // hands the model its fuller instruction and persists its short anchor row
+  // (and never re-collects the catch-up the genuine turn already carried).
+  const { providerUserMessageText, catchUpJobIds } = composeGlobalRootProviderMessage(deps.db, {
     userId: input.userId,
     userMessageText: continuation?.providerText ?? input.userMessageText,
     ...(input.voice === true ? { voice: true } : {}),
+    ...(input.autoBuildout === true ? { autoBuildout: true } : {}),
     ...(input.channelReplyMarker !== undefined
       ? { channelReplyMarker: input.channelReplyMarker }
       : {}),
+    ...(continuation !== null ? { continuation: true } : {}),
   })
   const persistedUserMessageText = continuation?.persistedBody ?? input.userMessageText
   const messageAttribution = continuation?.attribution ?? input.messageAttribution
@@ -192,14 +197,16 @@ async function* runOneGlobalTurn(
   // Attachments ride the genuine turn only.
   const attachedImages = continuation === null ? (input.attachedImages ?? []) : []
 
-  const sessionEventStream = provider.startChatSession({
+  const providerEventStream = provider.startChatSession({
     workspacePath: target.workspacePath,
     ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
     userMessageText: providerUserMessageText,
     ...(attachedImages.length > 0 ? { attachedImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
-    permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
+    // The one default (D3): a caller that resolved nothing runs `auto` —
+    // never the provider's `bypass-with-behavior-gate` any more.
+    permissionMode: input.permissionMode ?? toPermissionMode(DEFAULT_SESSION_MODE),
     // Empty native allowlist; the MCP servers register below and their
     // calls gate through the provider's canUseTool policy map. The
     // manager has no native tools.
@@ -242,6 +249,25 @@ async function* runOneGlobalTurn(
       ? { onRateLimitReported: input.onRateLimitReported }
       : {}),
   })
+  // The catch-up reports are marked surfaced ONLY once the turn is provably
+  // underway — the provider's `session-started` (session-hardening A4): the
+  // injected block is in the SDK session from that instant, so exactly-once
+  // holds; a startup failure (engine unreachable, model rejected, prompt too
+  // long) before it leaves the reports collectable for the next turn instead
+  // of losing every failure notice and `direct_to_user` answer forever
+  // (audit G2, reproduced). Marking at compose time was that loss.
+  const sessionEventStream =
+    catchUpJobIds.length > 0
+      ? markCatchUpSurfacedOnSessionStarted(providerEventStream, () => {
+          try {
+            markDelegationsSurfacedToRoot(deps.db, catchUpJobIds, new Date())
+          } catch (err) {
+            // Best-effort: the turn already carries the block; a failed mark
+            // means the next turn re-injects it (a repeat, never a loss).
+            deps.logger.warn({ err }, 'failed to mark the catch-up reports surfaced')
+          }
+        })
+      : providerEventStream
 
   // Persist this turn's messages + translate to ChatTurnEvent through the ONE
   // shared path (the session unification). workspaceId null + scope 'global' (the
@@ -308,4 +334,21 @@ async function* runOneGlobalTurn(
     },
     { db: deps.db, logger: deps.logger, provider },
   )
+}
+
+/** Pass the provider stream through untouched, firing `onStarted` once on the
+ *  first `session-started` — the earliest moment the turn's input provably
+ *  reached the SDK session. */
+async function* markCatchUpSurfacedOnSessionStarted(
+  providerEventStream: AsyncIterable<NormalizedSessionEvent>,
+  onStarted: () => void,
+): AsyncIterable<NormalizedSessionEvent> {
+  let started = false
+  for await (const event of providerEventStream) {
+    if (!started && event.kind === 'session-started') {
+      started = true
+      onStarted()
+    }
+    yield event
+  }
 }

@@ -14,6 +14,14 @@
 // SessionTargetLocks — SHARED with the session-turn route (Slice ③a) so a user turn
 // into a spawned session and a delegated run to it can never overlap.
 //
+// BOUNDS (session-hardening arc, 2026-08-19): a claimed run holds its target key
+// for its WHOLE run — the tick settles only when the turn does — so the bound
+// is a hard cap ON the turn (`VYNEL_DELEGATED_TURN_MAX_MS`: interrupt, then
+// settle failed with an honest delivery). Every claim carries a LEASE
+// (`VYNEL_DELEGATION_LEASE_MS`) the tick heartbeats (`VYNEL_DELEGATION_HEARTBEAT_MS`);
+// the 60 s sweeper here settles lapsed leases by kind exactly like the boot pass
+// (`settleOrphanedDelegationClaims` — one policy, two readers).
+//
 // MCP: every routed turn attaches the BACKGROUND workspace set via the injected
 // `composeWorkspaceMcpServers` (built by `buildWorkspaceBackgroundMcpComposer` in
 // `server.ts` — the schedules precedent). It used to attach NOTHING, which made the
@@ -24,17 +32,7 @@
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
-import {
-  failOrphanedClaimedDelegations,
-  isWorkJobKind,
-  requeueOrphanedClaimedReportDeliveries,
-} from '@vynel/orchestration'
-import {
-  runDelegationClaimAndRunTick,
-  enqueueJobFailureDelivery,
-  previewTaskText,
-  jobRetryHint,
-} from '@vynel/session/delegation'
+import { runDelegationClaimAndRunTick } from '@vynel/session/delegation'
 import type {
   TurnEventBroadcaster,
   DelegationCancelRegistry,
@@ -43,8 +41,13 @@ import type {
 } from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { DelegatedTurnMcpComposer } from '../sessions/build-workspace-background-mcp.js'
+import { loadEnv } from '../env.js'
+import { settleOrphanedDelegationClaims } from './delegation-orphan-settlement.js'
 
 const DELEGATION_POLL_INTERVAL_MS = 1_000
+// The lease sweeper's cadence — the approvals reaper's 60 s, the app's
+// standing "how often do we look for the dead" answer.
+const LEASE_SWEEP_INTERVAL_MS = 60_000
 
 // Each run is a live Claude SDK subprocess — real memory + API streaming. The ONE home
 // for the cap's DEFAULT: Chad's plan makes this a user-facing setting later ("how many
@@ -92,6 +95,11 @@ export interface DelegationServiceOptions {
    *  agent runs — the user's own interactive turns are outside the pool).
    *  Omit = DEFAULT_MAX_CONCURRENT_DELEGATIONS. */
   maxConcurrentDelegations?: number
+  /** The bounds (D5). Omit = the env knobs (`VYNEL_DELEGATED_TURN_MAX_MS`,
+   *  `VYNEL_DELEGATION_LEASE_MS`, `VYNEL_DELEGATION_HEARTBEAT_MS`). */
+  hardCapMs?: number
+  leaseMs?: number
+  heartbeatMs?: number
 }
 
 export function startDelegationService(options: DelegationServiceOptions): { stop: () => void } {
@@ -109,53 +117,26 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   } = options
   const maxConcurrentDelegations =
     options.maxConcurrentDelegations ?? DEFAULT_MAX_CONCURRENT_DELEGATIONS
+  const env = loadEnv()
+  const hardCapMs = options.hardCapMs ?? env.VYNEL_DELEGATED_TURN_MAX_MS
+  const leaseMs = options.leaseMs ?? env.VYNEL_DELEGATION_LEASE_MS
+  const heartbeatMs = options.heartbeatMs ?? env.VYNEL_DELEGATION_HEARTBEAT_MS
 
-  // Report deliveries orphaned mid-delivery REQUEUE instead of failing: the
-  // report body is the ONLY copy of a child's result, so destroying a claimed
-  // delivery at boot silently lost it forever (session-review B1). At startup
-  // nothing is running, so re-delivery is safe at-least-once.
-  const requeuedDeliveries = requeueOrphanedClaimedReportDeliveries(db, new Date())
-  if (requeuedDeliveries.length > 0) {
-    logger.warn(
-      { requeued: requeuedDeliveries.length },
-      'delegation service: requeued orphaned "claimed" report deliveries at startup (re-delivery is at-least-once; the report is the only copy)',
-    )
-  }
-  // Reclaim the REST of the jobs orphaned in `claimed` by a prior crash/restart mid-run: mark
-  // them FAILED — NOT re-run (exactly-once preserved; the Ch1 decision was no-RE-EXECUTE, not
-  // no-cleanup). At startup nothing is running yet, so any `claimed` row is orphaned; leaving
-  // them claimed made them linger forever as "in-flight" (visible in the Ch3.5 processing
-  // indicator).
-  const reclaimed = failOrphanedClaimedDelegations(db, new Date())
-  if (reclaimed.length > 0) {
-    logger.warn(
-      { reclaimed: reclaimed.length },
-      'delegation service: reclaimed orphaned "claimed" jobs at startup (marked failed; a prior crash/restart left them mid-run)',
-    )
-  }
-  // Persona-sessions restart parity: with acknowledge-first, silent orphan
-  // death breaks the child's spoken "will report when done" — push an honest
-  // failure delivery for each orphaned WORK row (task/agent-run), POSITIVELY:
-  // delivery orphans stay silent (anti-cascade: a delivery must never spawn
-  // one) and an orphaned NOTE is communication nobody awaits — pushing "your
-  // note failed" would manufacture the tracking the kind refuses. A push
-  // failure never blocks boot.
-  for (const orphan of reclaimed) {
-    if (!isWorkJobKind(orphan.jobKind)) continue
+  // The BOOT pass: at startup nothing is running yet, so EVERY `claimed` row is
+  // an orphan of a prior crash/restart — settled by kind (message kinds requeue,
+  // work kinds fail + one honest failure delivery each). Leaving them claimed
+  // made them linger forever as "in-flight" (the Ch3.5 processing indicator).
+  settleOrphanedDelegationClaims(db, logger, {})
+  // The LEASE sweeper: the same policy for a claim whose lease lapsed at
+  // runtime — a run this process lost track of, or a crash the next boot pass
+  // has not seen yet. Live runs heartbeat their lease well inside it.
+  const sweepTimer = setInterval(() => {
     try {
-      enqueueJobFailureDelivery(
-        db,
-        orphan,
-        `The background task "${previewTaskText(orphan.taskText)}" was interrupted by a ` +
-          `restart and did not finish. Tell the user, and ${jobRetryHint(orphan)}`,
-      )
+      settleOrphanedDelegationClaims(db, logger, { onlyExpiredLeases: true })
     } catch (err) {
-      logger.error(
-        { err, jobId: orphan.id },
-        'delegation service: failed to enqueue the restart-failure delivery for an orphan',
-      )
+      logger.error({ err }, 'delegation lease sweep failed')
     }
-  }
+  }, LEASE_SWEEP_INTERVAL_MS)
 
   // The pool's run count lives here; WHICH targets are held lives in the
   // SHARED `targetLocks` (a target key is a workspace id or a spawned primary
@@ -179,6 +160,9 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
         activityFeed,
         composeWorkspaceMcpServers,
         runGlobalRootReportTurn,
+        hardCapMs,
+        leaseMs,
+        heartbeatMs,
         // Snapshot read synchronously per launch — `acquire` below registers a
         // claimed key synchronously, so the next loop iteration (and the next
         // poll) sees it excluded, exactly like the old in-closure Set.
@@ -228,9 +212,14 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   }, DELEGATION_POLL_INTERVAL_MS)
 
   logger.info(
-    { maxConcurrent: maxConcurrentDelegations },
-    'delegation service started (poll 1s, bounded pool)',
+    { maxConcurrent: maxConcurrentDelegations, hardCapMs, leaseMs, heartbeatMs },
+    'delegation service started (poll 1s, bounded pool, 60s lease sweep)',
   )
 
-  return { stop: () => clearInterval(pollTimer) }
+  return {
+    stop: () => {
+      clearInterval(pollTimer)
+      clearInterval(sweepTimer)
+    },
+  }
 }

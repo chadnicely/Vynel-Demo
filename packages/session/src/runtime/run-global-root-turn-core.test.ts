@@ -9,10 +9,16 @@ import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
+import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import type { ChatTurnEvent } from '@vynel/chat'
 import type { Database } from '@vynel/db'
-import type { StartChatSessionInput } from '@vynel/providers'
+import type { NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
+import {
+  collectDelegationReportsForRoot,
+  enqueueWorkspaceDelegation,
+  failDelegationJob,
+} from '@vynel/orchestration'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import {
   getOrCreatePrimarySession,
@@ -23,6 +29,7 @@ import {
   SESSION_SWAPPED_EVENT_TYPE,
 } from '../continuity/index.js'
 import { findPrimarySessionById } from '../repositories/index.js'
+import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
 import { runGlobalRootTurnCore } from './run-global-root-turn-core.js'
 import { resolvePrimaryTranscript } from './resolve-primary-transcript.js'
@@ -403,6 +410,163 @@ describe('runGlobalRootTurnCore — the voice thread (voice-session arc)', () =>
       expect(successor?.continuedFromSessionId).toBe('voice-a')
       expect(successor?.scope).toBe('voice')
       expect(successor?.visibility).toBe('hidden')
+    })
+  })
+})
+
+describe('runGlobalRootTurnCore — the catch-up net is consumed only once the turn is underway (A4)', () => {
+  function seedUnseenReport(db: Database, userId: string): string {
+    const now = new Date()
+    const workspace = insertWorkspace(db, {
+      id: randomUUID(),
+      userId,
+      name: 'Seo',
+      kind: 'personal' as const,
+      path: `/tmp/vynel/${randomUUID()}`,
+      isArchived: false,
+      createdAt: now,
+      updatedAt: now,
+      lastAccessedAt: now,
+    })
+    const jobId = enqueueWorkspaceDelegation(db, {
+      userId,
+      parentSessionId: 'root-sdk-1',
+      workspaceId: workspace.id,
+      workspacePath: workspace.path,
+      workspaceName: workspace.name,
+      taskText: 'audit the pages',
+    })
+    failDelegationJob(db, jobId, 'the audit crashed', now)
+    return jobId
+  }
+
+  it('a provider that throws in startChatSession leaves the reports COLLECTABLE for the next turn', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const jobId = seedUnseenReport(db, user.id)
+      class ThrowingStartProvider extends FakeAiAgentProvider {
+        override startChatSession(): never {
+          throw new Error('engine unreachable')
+        }
+      }
+      const sink = new CollectingSink()
+      await runGlobalRootTurnCore(
+        {
+          db,
+          logger: silentLogger,
+          resolveTarget: resolveGlobalTarget(db, user.id),
+          provider: new ThrowingStartProvider(),
+        },
+        bareTurnInput(user.id, 'hi'),
+        sink,
+      )
+      expect(sink.errors).toHaveLength(1)
+      // The failure notice was NOT consumed by the turn that never started.
+      expect(collectDelegationReportsForRoot(db, { userId: user.id }).jobIds).toEqual([jobId])
+    })
+  })
+
+  it('a provider that errors BEFORE session-started (a bounded startup) leaves them collectable too', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const jobId = seedUnseenReport(db, user.id)
+      class StartupTimeoutProvider extends FakeAiAgentProvider {
+        override startChatSession(): AsyncIterable<NormalizedSessionEvent> {
+          async function* events(): AsyncIterable<NormalizedSessionEvent> {
+            yield {
+              kind: 'session-errored',
+              sessionId: '',
+              errorCode: 'provider_start_timeout',
+              errorMessage: 'The Claude engine did not respond within 60s while starting the session.',
+              isRecoverable: true,
+              erroredAt: new Date(),
+            }
+          }
+          return events()
+        }
+      }
+      const sink = new CollectingSink()
+      await runGlobalRootTurnCore(
+        {
+          db,
+          logger: silentLogger,
+          resolveTarget: resolveGlobalTarget(db, user.id),
+          provider: new StartupTimeoutProvider(),
+        },
+        bareTurnInput(user.id, 'hi'),
+        sink,
+      )
+      expect(collectDelegationReportsForRoot(db, { userId: user.id }).jobIds).toEqual([jobId])
+    })
+  })
+
+  it('a turn that starts marks them surfaced exactly once — the block reached the SDK session', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      seedUnseenReport(db, user.id)
+      const startInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a'],
+        resultText: 'Noted the failed audit.',
+        usage: RELAXED_USAGE,
+        startChatSessionInputs: startInputs,
+      })
+      const sink = new CollectingSink()
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        bareTurnInput(user.id, 'anything new?'),
+        sink,
+      )
+      expect(sink.errors).toEqual([])
+      // The block rode the provider input, and the net is now empty.
+      expect(startInputs[0]?.userMessageText).toContain('the audit crashed')
+      expect(collectDelegationReportsForRoot(db, { userId: user.id }).jobIds).toEqual([])
+      // The persisted row stays the clean user text.
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
+      expect(transcript.messages[0]?.body).toBe('anything new?')
+    })
+  })
+})
+
+describe('runGlobalRootTurnCore — settings defaults (D3) + the autopilot marker (D8)', () => {
+  it('a caller that resolved no mode runs the one default (auto), never the unattended gate', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const startInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a'],
+        resultText: 'ok',
+        startChatSessionInputs: startInputs,
+      })
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        bareTurnInput(user.id, 'hi'),
+        new CollectingSink(),
+      )
+      expect(startInputs[0]?.permissionMode).toBe('auto')
+      expect(startInputs[0]?.userMessageText).toBe('hi')
+    })
+  })
+
+  it('autoBuildout appends the per-message autopilot marker to the PROVIDER input only', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const startInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a'],
+        resultText: 'ok',
+        startChatSessionInputs: startInputs,
+      })
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        { ...bareTurnInput(user.id, 'carry on'), autoBuildout: true },
+        new CollectingSink(),
+      )
+      expect(startInputs[0]?.userMessageText).toBe(
+        `carry on\n\n${loadSessionInstruction('autopilot-marker')}`,
+      )
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
+      expect(transcript.messages[0]?.body).toBe('carry on')
     })
   })
 })

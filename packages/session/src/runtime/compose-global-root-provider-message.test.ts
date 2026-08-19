@@ -2,7 +2,9 @@
 // catch-up block belongs to the GLOBAL conversation. The collector is
 // user-wide and marks reports surfaced exactly-once — if a VOICE turn absorbed
 // it, the injected block would reach the spoken thread and the global chat
-// would never see those reports.
+// would never see those reports. Also pins the A4 seam: composing NEVER marks
+// (the caller marks once the turn is underway) and a continuation never
+// re-collects.
 
 import { describe, expect, it } from 'vitest'
 import { withTestDatabase } from '@vynel/testing'
@@ -55,20 +57,38 @@ function makeUser() {
 }
 
 describe('composeGlobalRootProviderMessage — the voice-thread catch-up rule', () => {
-  it('a GLOBAL turn absorbs the unseen report and marks it surfaced', async () => {
+  it('a GLOBAL turn absorbs the unseen report and hands its job id back — the CALLER marks, never the composer', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())
       seedUnseenReport(db, user.id)
 
-      const providerText = composeGlobalRootProviderMessage(db, {
+      const message = composeGlobalRootProviderMessage(db, {
         userId: user.id,
         userMessageText: 'hello',
       })
 
-      expect(providerText).toContain('Audit done: 3 findings.')
-      // Exactly-once: a second compose finds nothing left to surface.
+      expect(message.providerUserMessageText).toContain('Audit done: 3 findings.')
+      expect(message.catchUpJobIds).toHaveLength(1)
+      // Still collectable: a compose that never reaches the SDK (a startup
+      // failure) must not have consumed the report.
       const remaining = collectDelegationReportsForRoot(db, { userId: user.id })
-      expect(remaining.jobIds).toHaveLength(0)
+      expect(remaining.jobIds).toEqual(message.catchUpJobIds)
+    })
+  })
+
+  it('a CONTINUATION turn never re-collects — the genuine turn under the same lock carried the block', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      seedUnseenReport(db, user.id)
+
+      const message = composeGlobalRootProviderMessage(db, {
+        userId: user.id,
+        userMessageText: 'continue where you left off',
+        continuation: true,
+      })
+
+      expect(message.providerUserMessageText).not.toContain('Audit done: 3 findings.')
+      expect(message.catchUpJobIds).toEqual([])
     })
   })
 
@@ -77,12 +97,14 @@ describe('composeGlobalRootProviderMessage — the voice-thread catch-up rule', 
       const user = insertUser(db, makeUser())
       seedUnseenReport(db, user.id)
 
-      const providerText = composeGlobalRootProviderMessage(db, {
-        userId: user.id,
-        userMessageText: 'check the weather',
-        voice: true,
-      })
+      const { providerUserMessageText: providerText, catchUpJobIds } =
+        composeGlobalRootProviderMessage(db, {
+          userId: user.id,
+          userMessageText: 'check the weather',
+          voice: true,
+        })
 
+      expect(catchUpJobIds).toEqual([])
       expect(providerText).not.toContain('Audit done: 3 findings.')
       // Still unseen — the next GLOBAL turn will surface it.
       const remaining = collectDelegationReportsForRoot(db, { userId: user.id })
