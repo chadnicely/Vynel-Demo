@@ -132,6 +132,15 @@ there); comments explain WHY; files ≤ ~300 lines (split when a change would cr
   itself via `loadEnv()` when the new optional `hardCapMs` / `leaseMs` / `heartbeatMs` options are
   omitted (the `run-global-root-turn.ts` precedent), so boot.ts needs NO change; pass them explicitly
   there only if the lead prefers every knob wired in one place like `maxConcurrentDelegations`.
+- **A → D (`apps/local-api/src/routes/root/index.test.ts`, D's file) / lead at merge — two expectations
+  pin the RETIRED core fallback.** A5 changed `run-global-root-turn-core.ts`'s
+  `permissionMode ?? 'bypass-with-behavior-gate'` to `?? toPermissionMode(DEFAULT_SESSION_MODE)` (D3, as
+  briefed), so on the integrated branch these two go red until their expectation is corrected to
+  `'auto'`: L760 ("a VOICE turn neither inherits nor overwrites…" — `startChatSessionInputs[1].permissionMode`;
+  C3 makes the voice leg an EXPLICIT `auto`, same value) and L802 ("runs the brain turn under the requested
+  mode; absent → the stored setting, else the bypass default" — `startChatSessionInputs[0].permissionMode`;
+  the test's title/comment "else the bypass default" becomes "else auto"). Every other suite in
+  `packages/orchestration`, `packages/session`, `apps/local-api` is green on A (183 files / 1264 tests).
 
 ## 7. Results
 
