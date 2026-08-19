@@ -21,6 +21,7 @@ vi.mock('@vynel/mcp', () => ({
 
 import { startSchedulesService } from './schedules-service.js'
 import { SessionActivityFeed } from '@vynel/session/runtime'
+import { SessionTargetLocks } from '@vynel/session/delegation'
 
 function fakeOptions() {
   return {
@@ -28,6 +29,7 @@ function fakeOptions() {
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     appRequest: vi.fn() as unknown as HonoAppRequestFn,
     activityFeed: new SessionActivityFeed(),
+    targetLocks: new SessionTargetLocks(),
   }
 }
 
@@ -50,10 +52,18 @@ describe('startSchedulesService', () => {
       composeWorkspaceMcpServers: unknown
       composeSessionCapabilities: unknown
       startChatTurn: unknown
+      startGlobalRootTurn: unknown
+      resolveWorkspaceTurnSettings: unknown
+      maxConcurrentFires: unknown
     }
     expect(typeof depsArg.composeWorkspaceMcpServers).toBe('function')
     expect(typeof depsArg.composeSessionCapabilities).toBe('function')
     expect(typeof depsArg.startChatTurn).toBe('function')
+    // Background-turns: the global runner + the settings resolver ride the same
+    // deps; the tick's concurrency bound is the delegation pool's env knob.
+    expect(typeof depsArg.startGlobalRootTurn).toBe('function')
+    expect(typeof depsArg.resolveWorkspaceTurnSettings).toBe('function')
+    expect(depsArg.maxConcurrentFires).toBeGreaterThanOrEqual(1) // VYNEL_MAX_CONCURRENT_DELEGATIONS
     service.stop()
   })
 

@@ -1,16 +1,18 @@
 // The executor — fires a schedule and co-commits the terminal writes (+ the
-// optional channel outbox event) in one sync transaction. TWO delivery paths:
-// a NORMAL schedule runs an MCP-equipped headless `startChatTurn` and drives the
-// ChatTurnEvent stream to completion; a VERBATIM template (a plain reminder)
-// skips the turn entirely and delivers the rendered prompt as-is, with no chat
-// session. async (the LLM path drives the provider stream).
+// optional channel outbox event) in one sync transaction. THREE delivery paths:
+// a VERBATIM template (a plain reminder) skips the turn entirely and delivers
+// the rendered prompt as-is, with no chat session; a WORKSPACE schedule runs an
+// MCP-equipped headless `startChatTurn` on its workspace
+// (`run-fired-workspace-turn.ts`); a GLOBAL schedule (null workspaceId) runs a
+// GLOBAL-ROOT turn on the user's global conversation (background-turns BT1 —
+// the same runner channels use, bound api-side). async (the LLM paths drive
+// the provider stream).
 //
-// Mirrors the desktop SSE route (`apps/api/src/streams/chat-turn.ts`) and
-// channels' `routeAsChatTurn`: `startChatTurn` is INJECTED via `deps` (the leaf
-// never imports the chat leaf — invariant #2); the workspace read goes through
-// the KERNEL workspaces repo; `composeWorkspaceMcpServers` +
-// `composeSessionCapabilities` are INJECTED via `deps` (keeps @vynel/mcp + the
-// apps/api composer out of the leaf — it stays unit-testable with stubs).
+// Every turn dep is INJECTED via `deps` (the leaf never imports the chat /
+// session leaves — invariant #2); the api-side binder
+// (`apps/local-api/src/sessions/build-schedule-fire-deps.ts`) wraps each turn
+// in the workspace target lock + the delegated hard cap, so a capped fire
+// lands here as a thrown cap error → run 'failed' + the run-failed event.
 //
 // Key invariants (coding.md §1.3 / §1.5):
 //  - never advances `nextScheduledFireAt` (only the poll claim does — D12);
@@ -24,11 +26,8 @@
 // Spec: `docs/blueprints/schedules/blueprint.md §5.2`.
 
 import { randomUUID } from 'node:crypto'
-import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { withTransaction } from '@vynel/db'
 import { findScheduleTemplateByKind } from '@vynel/contracts/schedules/schedule-template-catalog'
-import { findWorkspaceById } from '@vynel/db/repositories/workspaces'
-import { NotFoundError } from '@vynel/errors'
 import * as schedulesRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { renderSchedulePrompt } from '../rendering/render-schedule-prompt.js'
@@ -38,8 +37,9 @@ import {
   SCHEDULE_RUN_COMPLETED_EVENT_TYPE,
   SCHEDULE_RUN_FAILED_EVENT_TYPE,
 } from '../schedules-events.js'
+import { runFiredWorkspaceTurn, type FiredTurnOutcome } from './run-fired-workspace-turn.js'
 import type { Database } from '@vynel/db'
-import type { ScheduleRun, ScheduleRunTriggerKind } from '../repositories/index.js'
+import type { Schedule, ScheduleRun, ScheduleRunTriggerKind } from '../repositories/index.js'
 import type { FireScheduleDeps } from '../schedules-types.js'
 
 export interface FireScheduleInput {
@@ -89,98 +89,10 @@ export async function fireSchedule(
     const deliversVerbatim =
       findScheduleTemplateByKind(schedule.templateKind)?.deliversVerbatim ?? false
 
-    let chatSessionId: string | null = null
-    let producedText: string
-
-    if (deliversVerbatim) {
-      producedText = renderedPrompt
-    } else {
-      // A workspace-scoped turn requires a workspace. A GLOBAL schedule (null
-      // workspaceId) has none — its natural case is a verbatim reminder handled
-      // above; a non-verbatim global turn would need the global-root machinery
-      // this leaf does not run, so a null workspace surfaces the same clean
-      // NotFoundError as a missing one (caught → run marked 'failed').
-      // workspacePath via the KERNEL workspaces repo — the owner check that the
-      // workspaces core `getWorkspaceById` did is reproduced inline (same
-      // NotFoundError for not-found and not-owned; no enumeration leak).
-      const workspace =
-        schedule.workspaceId !== null ? findWorkspaceById(db, schedule.workspaceId) : null
-      if (!workspace || workspace.userId !== schedule.userId) {
-        throw new NotFoundError('workspace', schedule.workspaceId ?? undefined)
-      }
-
-      // Compose the workspace MCP attachment for THIS turn — the full route-derived
-      // `vynel` server + its allow pattern, via the SAME composeSessionMcpServers
-      // step the chat + global-root turns use. Injected via deps (the api-side
-      // service binds it) so the leaf never imports @vynel/mcp or the composer.
-      const composedMcp = deps.composeWorkspaceMcpServers({
-        db,
-        userId: schedule.userId,
-        workspaceId: workspace.id,
-      })
-
-      // Compose the workspace's capability PROMPT for THIS turn (Vynel rules +
-      // enabled-capability contributions like the memory snapshot). The tool-deny
-      // gate now rides on composeWorkspaceMcpServers above. Injected via deps so
-      // the leaf never imports apps/api.
-      const composed = deps.composeSessionCapabilities(db, {
-        workspaceId: workspace.id,
-      })
-
-      // Schedules always start a FRESH session (resumeSessionId omitted — D3).
-      const turnStream = deps.startChatTurn(
-        db,
-        {
-          userId: schedule.userId,
-          workspaceId: workspace.id,
-          workspacePath: workspace.path,
-          providerId: DEFAULT_PROVIDER_ID,
-          userMessageText: renderedPrompt,
-          permissionMode: 'bypass-with-behavior-gate', // D10
-          mcpServers: composedMcp.mcpServers,
-          deniedToolNames: composedMcp.deniedMcpToolPatterns,
-          // Capability prompt + the MCP composer's per-feature prompt sections
-          // (the chat-turn join; the MCP half used to be dropped here too).
-          systemPromptAppend: [composed.systemPromptAppend, composedMcp.systemPromptAppend]
-            .filter((section) => section !== '')
-            .join('\n\n'),
-          // A feature's declared mutating tools card even under bypass (additive to
-          // the static floor).
-          ...(composedMcp.mutatingToolNames.length > 0
-            ? { alwaysRequireApprovalToolNames: composedMcp.mutatingToolNames }
-            : {}),
-          // Inert under D10's hardwired bypass — forwarded so a future
-          // configurable fire mode cannot silently drop the destructive tier.
-          ...(composedMcp.askModeApprovalToolNames.length > 0
-            ? { askModeApprovalToolNames: composedMcp.askModeApprovalToolNames }
-            : {}),
-        },
-        deps.logger !== undefined ? { logger: deps.logger } : {},
-      )
-
-      // Consume the real ChatTurnEvent union. Accumulate assistant text; capture
-      // the SDK-assigned session id; detect a provider error.
-      const assistantTextChunks: string[] = []
-      let turnErrorMessage: string | null = null
-
-      for await (const event of turnStream) {
-        if (event.kind === 'session-created') {
-          chatSessionId = event.session.id
-          schedulesRepository.updateScheduleRun(db, runId, { chatSessionId })
-        } else if (event.kind === 'text-chunk') {
-          assistantTextChunks.push(event.textDelta)
-        } else if (event.kind === 'session-errored') {
-          turnErrorMessage = event.errorMessage
-        }
-        // Approvals during a scheduled turn are handled in-process by the
-        // approvals registry; schedules adds no bespoke approval handling.
-      }
-
-      if (turnErrorMessage) {
-        throw new Error(turnErrorMessage)
-      }
-      producedText = assistantTextChunks.join('')
-    }
+    const outcome: FiredTurnOutcome = deliversVerbatim
+      ? { chatSessionId: null, producedText: renderedPrompt }
+      : await runFiredTurn(db, { schedule, renderedPrompt, runId }, deps)
+    const { chatSessionId, producedText } = outcome
 
     const renderedOutput = renderScheduleChannelMessage(
       schedule,
@@ -193,11 +105,15 @@ export async function fireSchedule(
     // communication"). insertOutboxEvent is sync.
     const completedAt = new Date()
     withTransaction(db, (tx) => {
-      schedulesRepository.updateScheduleRun(tx, runId, { status: 'completed', completedAt })
+      schedulesRepository.updateScheduleRun(tx, runId, {
+        status: 'completed',
+        completedAt,
+        chatSessionId,
+      })
       schedulesRepository.updateSchedule(tx, schedule.id, { lastFiredAt: input.scheduledFireAt })
-      // chat-and-channel delivers the result to the channel. The LLM path needs a
-      // chatSessionId; the verbatim path has none (no session) but still delivers
-      // — so the gate accepts either.
+      // chat-and-channel delivers the result to the channel. The LLM paths need
+      // a chatSessionId; the verbatim path has none (no session) but still
+      // delivers — so the gate accepts either.
       if (
         schedule.destinationKind === 'chat-and-channel' &&
         schedule.channelId &&
@@ -255,4 +171,36 @@ export async function fireSchedule(
     deps.logger?.warn({ error: errorMessage, scheduleId: schedule.id, runId }, 'schedule fire failed')
     return schedulesRepository.getScheduleRunByIdOrThrow(db, runId)
   }
+}
+
+/** The LLM branch: a WORKSPACE schedule runs its workspace turn; a GLOBAL one
+ *  (null workspaceId) runs a global-root turn (BT1). Either way the run row
+ *  binds the chat session the moment the stream names it. */
+async function runFiredTurn(
+  db: Database,
+  input: { schedule: Schedule; renderedPrompt: string; runId: string },
+  deps: FireScheduleDeps,
+): Promise<FiredTurnOutcome> {
+  const { schedule, renderedPrompt, runId } = input
+  const onSessionResolved = (chatSessionId: string): void => {
+    schedulesRepository.updateScheduleRun(db, runId, { chatSessionId })
+  }
+  if (schedule.workspaceId === null) {
+    const turn = await deps.startGlobalRootTurn(db, {
+      userId: schedule.userId,
+      userMessageText: renderedPrompt,
+      onSessionResolved,
+    })
+    return { chatSessionId: turn.sessionId, producedText: turn.resultText }
+  }
+  return runFiredWorkspaceTurn(
+    db,
+    {
+      schedule: { ...schedule, workspaceId: schedule.workspaceId },
+      renderedPrompt,
+      scheduleRunId: runId,
+      onSessionResolved,
+    },
+    deps,
+  )
 }

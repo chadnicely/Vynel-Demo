@@ -98,12 +98,9 @@ export function seedReminderSchedule(db: Database): Schedule {
   )
 }
 
-// A GLOBAL verbatim reminder (null workspaceId) bound to a channel — fires
-// WITHOUT an LLM turn, so it never reaches the workspace lookup. Proves a
-// global schedule fires with no workspace.
-export function seedGlobalReminderSchedule(db: Database): Schedule {
+function seedGlobalUser(db: Database): string {
   const now = new Date()
-  const user = insertUser(db, {
+  return insertUser(db, {
     id: randomUUID(),
     displayName: 'Dana',
     emailAddress: null,
@@ -112,14 +109,39 @@ export function seedGlobalReminderSchedule(db: Database): Schedule {
     hasCompletedOnboarding: false,
     createdAt: now,
     updatedAt: now,
-  })
+  }).id
+}
+
+// A GLOBAL verbatim reminder (null workspaceId) bound to a channel — fires
+// WITHOUT an LLM turn, so it never reaches the workspace lookup. Proves a
+// global schedule fires with no workspace.
+export function seedGlobalReminderSchedule(db: Database): Schedule {
   return insertSchedule(
     db,
-    makeSchedule(user.id, null, {
+    makeSchedule(seedGlobalUser(db), null, {
       templateKind: 'reminder',
       destinationKind: 'chat-and-channel',
       channelId: 'channel-1',
       promptTemplate: 'Attend your 2pm meeting.',
+    }),
+  )
+}
+
+// A GLOBAL custom schedule (null workspaceId, NOT verbatim) — fires a
+// GLOBAL-ROOT turn through the injected runner (background-turns BT1).
+export function seedGlobalCustomSchedule(
+  db: Database,
+  overrides: Partial<NewSchedule> = {},
+): Schedule {
+  return insertSchedule(
+    db,
+    makeSchedule(seedGlobalUser(db), null, {
+      templateKind: 'custom',
+      displayName: 'Inbox sweep',
+      promptTemplate: 'Sweep my inbox, {{user.displayName}}.',
+      destinationKind: 'chat-and-channel',
+      channelId: 'channel-1',
+      ...overrides,
     }),
   )
 }
@@ -139,18 +161,25 @@ export function seedDueSchedule(db: Database, overrides: Partial<NewSchedule> = 
 }
 
 export interface StubFireDeps extends FireScheduleDeps {
-  state: { builtMcpServer: boolean; buildCount: number }
+  state: {
+    builtMcpServer: boolean
+    buildCount: number
+    /** The global-root turns the stub ran (BT1) — user + rendered prompt. */
+    globalTurns: Array<{ userId: string; userMessageText: string }>
+  }
 }
 
 // The fire-path dep stub: a composeWorkspaceMcpServers that records it was
 // called (the desktop-parity assertion) and counts builds (the poll's
-// fire-count), plus a sentinel capability composition. `startChatTurn` is a
-// no-op async generator here so the returned object satisfies the required
-// FireScheduleDeps field; fire-path tests that DRIVE the turn override it with
-// a local `vi.fn()` via `{ ...stubFireDeps(), startChatTurn }` (the verbatim +
-// guard-path tests never call it).
+// fire-count), a sentinel capability composition, a settings resolver that
+// answers the defaults (auto / engine model / adaptive effort / no autopilot),
+// and a global-root runner that records its call and answers a fixed session.
+// `startChatTurn` is a no-op async generator here so the returned object
+// satisfies the required FireScheduleDeps field; fire-path tests that DRIVE the
+// turn override it with a local `vi.fn()` via `{ ...stubFireDeps(), startChatTurn }`
+// (the verbatim + guard-path tests never call it).
 export function stubFireDeps(): StubFireDeps {
-  const state = { builtMcpServer: false, buildCount: 0 }
+  const state: StubFireDeps['state'] = { builtMcpServer: false, buildCount: 0, globalTurns: [] }
   return {
     // A no-op async generator — yields nothing (inferred AsyncGenerator<never>
     // satisfies the required AsyncIterable<ChatTurnEvent> field).
@@ -172,6 +201,17 @@ export function stubFireDeps(): StubFireDeps {
       }
     },
     composeSessionCapabilities: () => ({ systemPromptAppend: 'STUB_CAPABILITIES_APPEND' }),
+    resolveWorkspaceTurnSettings: () => ({
+      permissionMode: 'auto',
+      model: undefined,
+      thinkingEffort: undefined,
+      autoBuildout: false,
+    }),
+    startGlobalRootTurn: async (_db, input) => {
+      state.globalTurns.push({ userId: input.userId, userMessageText: input.userMessageText })
+      input.onSessionResolved?.('global-sdk-1')
+      return { sessionId: 'global-sdk-1', resultText: 'Inbox swept.' }
+    },
     state,
   }
 }

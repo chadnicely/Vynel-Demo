@@ -340,6 +340,9 @@ export async function boot(): Promise<void> {
     logger,
     appRequest,
     activityFeed,
+    // A fired workspace turn holds the workspace key in the SAME registry the
+    // delegation pool + the session-turn route hold theirs in (background-turns BT3).
+    targetLocks: sessionTargetLocks,
     turnEvents,
     readEnabledFeatureKeys,
   })

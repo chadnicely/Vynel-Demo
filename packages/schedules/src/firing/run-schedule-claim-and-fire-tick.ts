@@ -7,6 +7,14 @@
 // run; never both, never a flood. async (each fire drives the provider
 // stream).
 //
+// Two phases (background-turns BT3): every due slot is CLAIMED first, in one
+// synchronous pass — so a whole batch is reserved before any turn starts —
+// then the claimed fires run CONCURRENTLY through a bounded worker pool
+// (`deps.maxConcurrentFires`, the delegation pool's knob at the api edge), so
+// one slow or parked fire never holds the rest of the batch serially behind
+// it. Each fire is bounded and locked by the api-side binder
+// (`FireScheduleDeps`); this tick only decides how many run at once.
+//
 // `startChatTurn` + the MCP/capability composition are INJECTED via
 // `FireScheduleDeps` (the leaf never imports the chat leaf or @vynel/mcp —
 // invariant #2); the api-side schedules service binds the real ones. The
@@ -19,10 +27,15 @@ import { randomUUID } from 'node:crypto'
 import { Cron } from 'croner'
 import { isOneTimeSchedule } from '@vynel/contracts/schedules/one-time'
 import * as schedulesRepository from '../repositories/index.js'
-import { fireSchedule } from './fire-schedule.js'
+import { fireSchedule, type FireScheduleInput } from './fire-schedule.js'
 import type { Database } from '@vynel/db'
 import type { Schedule } from '../repositories/index.js'
 import type { FireScheduleDeps } from '../schedules-types.js'
+
+// The leaf's fallback when the binder names no bound — the same value the
+// delegation pool + `VYNEL_MAX_CONCURRENT_DELEGATIONS` default to (3 live
+// provider sessions, Chad 2026-07-21). Production always passes the env knob.
+const DEFAULT_MAX_CONCURRENT_FIRES = 3
 
 export async function runScheduleClaimAndFireTick(
   db: Database,
@@ -30,9 +43,10 @@ export async function runScheduleClaimAndFireTick(
 ): Promise<{ firedCount: number; missedCount: number }> {
   const now = new Date()
   const due = schedulesRepository.listDueSchedules(db, { now }) // isEnabled AND nextScheduledFireAt <= now
-  let firedCount = 0
+  const claimedFires: FireScheduleInput[] = []
   let missedCount = 0
 
+  // Phase 1 — claim every due slot synchronously (no await in this loop).
   for (const schedule of due) {
     const observed = schedule.nextScheduledFireAt
     if (!observed) continue
@@ -53,19 +67,9 @@ export async function runScheduleClaimAndFireTick(
     // always fires 'poll'; an overdue slot (Vynel was offline) either catches
     // up once ('catchup') or records one 'missed' run — never both.
     if (!isOverdue(observed, now)) {
-      await fireSchedule(
-        db,
-        { scheduleId: schedule.id, scheduledFireAt: observed, triggerKind: 'poll' },
-        deps,
-      )
-      firedCount++
+      claimedFires.push({ scheduleId: schedule.id, scheduledFireAt: observed, triggerKind: 'poll' })
     } else if (schedule.catchUpOnMiss) {
-      await fireSchedule(
-        db,
-        { scheduleId: schedule.id, scheduledFireAt: observed, triggerKind: 'catchup' },
-        deps,
-      )
-      firedCount++
+      claimedFires.push({ scheduleId: schedule.id, scheduledFireAt: observed, triggerKind: 'catchup' })
     } else {
       // Overdue slot, no catch-up — record one 'missed' run and move on.
       schedulesRepository.insertScheduleRun(db, {
@@ -83,7 +87,45 @@ export async function runScheduleClaimAndFireTick(
     }
   }
 
-  return { firedCount, missedCount }
+  // Phase 2 — fire the claimed batch, at most `maxConcurrentFires` at once.
+  await fireConcurrently(db, claimedFires, deps)
+
+  return { firedCount: claimedFires.length, missedCount }
+}
+
+/** A bounded worker pool over the claimed batch (the knowledge indexer's
+ *  shape): N workers drain one shared queue, so the batch runs N-wide and a
+ *  parked fire holds only its own worker. A fire's turn failure lands on its
+ *  run row (`fireSchedule` records it), so only an unexpected throw (a row
+ *  write failing, a schedule disabled between claim and fire) reaches here —
+ *  it must not abandon the rest of the batch, so the pool runs the queue to
+ *  the end and rethrows the collected errors once, the way the serial tick
+ *  surfaced a single one (the poll service logs it). */
+async function fireConcurrently(
+  db: Database,
+  fires: FireScheduleInput[],
+  deps: FireScheduleDeps,
+): Promise<void> {
+  const queue = [...fires]
+  const workerCount = Math.max(
+    1,
+    Math.min(deps.maxConcurrentFires ?? DEFAULT_MAX_CONCURRENT_FIRES, queue.length),
+  )
+  const unexpectedErrors: unknown[] = []
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (let fire = queue.shift(); fire !== undefined; fire = queue.shift()) {
+      try {
+        await fireSchedule(db, fire, deps)
+      } catch (err) {
+        deps.logger?.error({ err, scheduleId: fire.scheduleId }, 'schedule fire threw unexpectedly')
+        unexpectedErrors.push(err)
+      }
+    }
+  })
+  await Promise.all(workers)
+  if (unexpectedErrors.length > 0) {
+    throw new AggregateError(unexpectedErrors, `schedule tick: ${unexpectedErrors.length} fire(s) threw`)
+  }
 }
 
 function computeNextFireAt(schedule: Schedule, from: Date): Date | null {
