@@ -30,8 +30,12 @@ import { withTransaction } from '@vynel/db'
 import { findScheduleTemplateByKind } from '@vynel/contracts/schedules/schedule-template-catalog'
 import * as schedulesRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
+import { scheduleSourceLabel } from '@vynel/contracts/schedules/schedule-source-label'
 import { renderSchedulePrompt } from '../rendering/render-schedule-prompt.js'
-import { renderScheduleChannelMessage } from '../rendering/render-schedule-channel-message.js'
+import {
+  renderScheduleChannelMessage,
+  formatScheduledTime,
+} from '../rendering/render-schedule-channel-message.js'
 import { extractErrorMessage } from '../extract-error-message.js'
 import {
   SCHEDULE_RUN_COMPLETED_EVENT_TYPE,
@@ -91,7 +95,11 @@ export async function fireSchedule(
 
     const outcome: FiredTurnOutcome = deliversVerbatim
       ? { chatSessionId: null, producedText: renderedPrompt }
-      : await runFiredTurn(db, { schedule, renderedPrompt, runId }, deps)
+      : await runFiredTurn(
+          db,
+          { schedule, renderedPrompt, runId, scheduledFireAt: input.scheduledFireAt },
+          deps,
+        )
     const { chatSessionId, producedText } = outcome
 
     const renderedOutput = renderScheduleChannelMessage(
@@ -175,20 +183,31 @@ export async function fireSchedule(
 
 /** The LLM branch: a WORKSPACE schedule runs its workspace turn; a GLOBAL one
  *  (null workspaceId) runs a global-root turn (BT1). Either way the run row
- *  binds the chat session the moment the stream names it. */
+ *  binds the chat session the moment the stream names it, and the turn runs
+ *  under ONE fire frame (schedule-fire framing): the model reads the prompt as
+ *  the scheduler firing "<name>" now, the persisted row keeps the plain prompt
+ *  attributed to the schedule — never as the user typing. */
 async function runFiredTurn(
   db: Database,
-  input: { schedule: Schedule; renderedPrompt: string; runId: string },
+  input: { schedule: Schedule; renderedPrompt: string; runId: string; scheduledFireAt: Date },
   deps: FireScheduleDeps,
 ): Promise<FiredTurnOutcome> {
   const { schedule, renderedPrompt, runId } = input
   const onSessionResolved = (chatSessionId: string): void => {
     schedulesRepository.updateScheduleRun(db, runId, { chatSessionId })
   }
+  const frame = {
+    marker: deps.renderScheduleFireMarker({
+      scheduleDisplayName: schedule.displayName,
+      firedAtLocal: formatScheduledTime(input.scheduledFireAt, schedule.timezone),
+    }),
+    sourceLabel: scheduleSourceLabel(schedule.displayName),
+  }
   if (schedule.workspaceId === null) {
     const turn = await deps.startGlobalRootTurn(db, {
       userId: schedule.userId,
       userMessageText: renderedPrompt,
+      frame,
       onSessionResolved,
     })
     return { chatSessionId: turn.sessionId, producedText: turn.resultText }
@@ -198,6 +217,7 @@ async function runFiredTurn(
     {
       schedule: { ...schedule, workspaceId: schedule.workspaceId },
       renderedPrompt,
+      frame,
       scheduleRunId: runId,
       onSessionResolved,
     },

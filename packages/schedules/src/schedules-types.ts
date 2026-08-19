@@ -27,6 +27,22 @@ export interface FiredTurnSettings {
   autoBuildout: boolean
 }
 
+// The FRAME on a fired prompt (schedule-fire framing, 2026-08-20): an
+// unframed fire persisted as the user's own row and read to the model as the
+// user typing — a "Remind me for tea" schedule fired as the user ASKING for a
+// reminder (the model asked back, then set a `sleep` timer). Composed ONCE per
+// fire in `fire-schedule.ts` and applied by both LLM paths: the marker rides
+// the PROVIDER input only; the persisted row keeps the plain rendered prompt,
+// attributed to the schedule as a quiet system notice.
+export interface ScheduleFireFrame {
+  /** The model-facing marker ("this is the scheduler firing <name> now …"),
+   *  rendered by the injected `renderScheduleFireMarker`. Never persisted. */
+  marker: string
+  /** The persisted user row's source label — `scheduleSourceLabel(displayName)`
+   *  ("Schedule · Tea"), the UI's system-notice author line. */
+  sourceLabel: string
+}
+
 // Deps injected into the fire path by the api-side service. Keeps @vynel/mcp,
 // @vynel/session + apps/api OUT of packages/schedules (the leaf stays
 // unit-testable with stubs) — the workspace turn, the global-root turn, the
@@ -52,6 +68,12 @@ export interface FireScheduleDeps {
       workspacePath: string
       providerId: string
       userMessageText: string
+      /** The MODEL-facing text — the rendered prompt plus the fire marker
+       *  (schedule-fire framing). The persisted row keeps `userMessageText`. */
+      providerUserMessageText: string
+      /** The persisted user row's attribution: the schedule speaking as a
+       *  system notice, never the user. */
+      messageAttribution: { userSourceKind: 'system'; userSourceLabel: string }
       /** The run this turn belongs to — the binder's log + cap-lever key. */
       scheduleRunId: string
       permissionMode: string
@@ -80,9 +102,23 @@ export interface FireScheduleDeps {
     input: {
       userId: string
       userMessageText: string
+      /** The fire frame: the binder appends `marker` to the PROVIDER input
+       *  (the per-message marker seam) and attributes the persisted row as a
+       *  system notice under `sourceLabel` — never the user speaking. */
+      frame: ScheduleFireFrame
       onSessionResolved?: (chatSessionId: string) => void
     },
   ) => Promise<{ sessionId: string; resultText: string }>
+  // Render the model-facing fire marker from the schedule's facts. Injected
+  // (api-side: `@vynel/instructions`' `renderScheduleFireMarker`) because the
+  // instruction files live in a sibling leaf this one must not import
+  // (invariant #2); the leaf owns WHAT is framed, the binder owns the words.
+  renderScheduleFireMarker: (input: {
+    scheduleDisplayName: string
+    /** The fire time already rendered in the schedule's timezone — this
+     *  leaf's `formatScheduledTime`, the one home for schedule-time text. */
+    firedAtLocal: string
+  }) => string
   // The settings a fired WORKSPACE turn runs under — what the user chose for
   // that workspace's continuing conversation (its primary row), else the
   // defaults; the model fit-clamped like every other delegated pick (BT2).

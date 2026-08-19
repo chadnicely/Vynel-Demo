@@ -168,6 +168,29 @@ describe("MessageRow", () => {
     expect(wrapper.text()).not.toContain("You");
   });
 
+  it("a FIRED-SCHEDULE row (schedule-fire framing) renders as the schedule's quiet notice: plain prompt body, no marker to strip, never You", () => {
+    // The fire paths persist the PLAIN rendered prompt (no model-facing
+    // marker in the body) attributed system + "Schedule · <name>" — the
+    // 2026-08-20 bug was this row rendering as "You · Remind me for tea".
+    const wrapper = mount(MessageRow, {
+      props: {
+        message: makeMessage({
+          role: "user",
+          sourceKind: "system",
+          sourceLabel: "Schedule · Tea",
+          body: "Remind me for tea",
+        }),
+      },
+    });
+
+    expect(wrapper.find(".role-label").text()).toBe("Schedule · Tea");
+    expect(wrapper.classes()).toContain("is-system");
+    const card = wrapper.find(".inbound-card");
+    expect(card.attributes("data-kind")).toBe("notification");
+    expect(card.text()).toContain("Remind me for tea");
+    expect(wrapper.text()).not.toContain("You");
+  });
+
   it("keeps a plain user message as You — no report treatment without a source", () => {
     const wrapper = mount(MessageRow, {
       props: {

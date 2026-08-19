@@ -74,6 +74,23 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
       expect(typeof deps.composeSessionCapabilities).toBe('function')
       expect(typeof deps.startGlobalRootTurn).toBe('function')
       expect(typeof deps.resolveWorkspaceTurnSettings).toBe('function')
+      expect(typeof deps.renderScheduleFireMarker).toBe('function')
+    })
+  })
+
+  it('renderScheduleFireMarker renders the REAL instruction: named, timed, attributed to the scheduler', async () => {
+    await withTestDatabase(async () => {
+      const deps = await buildScheduleFireDeps(realOptions())
+
+      const marker = deps.renderScheduleFireMarker({
+        scheduleDisplayName: 'Tea',
+        firedAtLocal: 'Aug 20, 2026, 2:00 PM',
+      })
+
+      expect(marker).toContain('firing the schedule "Tea" now (Aug 20, 2026, 2:00 PM)')
+      expect(marker).toContain('NOT the user typing')
+      expect(marker).toContain('never create a timer')
+      expect(marker).not.toContain('{{')
     })
   })
 

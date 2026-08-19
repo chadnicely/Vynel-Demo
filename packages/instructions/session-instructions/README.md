@@ -13,6 +13,7 @@ edit after a **restart**.
 | `workspace-agent.md` | The assistant working inside a workspace — appended to every workspace chat turn (including resumed ones). |
 | `voice-turn.md` | A modifier appended on top of `global-root.md` for voice turns only. The spoken thread's text IS its voice (the client speaks the streamed deltas), so the `speak` tool is NOT attached on a voice turn — this file teaches the spoken style and says the tool is gone. |
 | `voice-turn-marker.md` | The one-line sibling of `voice-turn.md`, appended to a voice turn's USER MESSAGE (provider input only) — on a long root session the system-prompt block decays and the model slips back to essay-shaped replies; the per-message restatement keeps the spoken style, and the "no `speak` tool" line, in recency (the thread's own transcript is full of the model's older `speak` calls, and a resumed turn will copy them). |
+| `schedule-fire-marker.md` | The frame on a FIRED schedule prompt, appended to the provider input only (both fire paths — global root and workspace): the scheduler is speaking, not the user, and the instruction is to be carried out NOW (never a timer, never sleep, never asking back). The one templated instruction — `{{scheduleName}}` / `{{firedAtLocal}}` are filled by `renderScheduleFireMarker` (keep both placeholders when editing). |
 
 ## Rules for editing these files
 

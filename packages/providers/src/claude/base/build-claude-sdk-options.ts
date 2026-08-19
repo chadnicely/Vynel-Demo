@@ -97,6 +97,16 @@ const SDK_PERMISSION_MODE = {
   'plan-only': 'plan',
 } as const
 
+// Native SDK tools Vynel can never ANSWER, disallowed on every session. The
+// SDK's `AskUserQuestion` is answered through `canUseTool` returning
+// `updatedInput.answers` — our callback returns "allow, unchanged" (auto) or
+// cards an approval (ask), so the form always resolves EMPTY: the model asks,
+// gets nothing back, and reasons onward as if the user answered silence (the
+// 2026-08-20 "Tea" fire self-answered in 14 ms). Vynel's real question channel
+// is `mcp__vynel-ask__ask_user`; until the callback speaks the answers
+// protocol, offering the native form is offering a dead phone.
+const NATIVE_TOOLS_WITHOUT_A_VYNEL_ANSWER_CHANNEL = ['AskUserQuestion']
+
 export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Options {
   const sdkPermissionMode = SDK_PERMISSION_MODE[input.permissionMode]
 
@@ -177,9 +187,11 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
   if (input.allowedToolNames.length > 0) {
     options.allowedTools = input.allowedToolNames
   }
-  if (input.deniedToolNames.length > 0) {
-    options.disallowedTools = input.deniedToolNames
-  }
+  // Always non-empty: the caller's denials plus the unanswerable natives,
+  // deduped in case a caller already denies one of them.
+  options.disallowedTools = [
+    ...new Set([...input.deniedToolNames, ...NATIVE_TOOLS_WITHOUT_A_VYNEL_ANSWER_CHANNEL]),
+  ]
   if (input.mcpServers !== undefined) {
     options.mcpServers = input.mcpServers
   }

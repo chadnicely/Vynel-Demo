@@ -421,6 +421,41 @@ describe("runGlobalRootTurn", () => {
     expect(coreInput.autoContinue).toBe(false);
   });
 
+  it("an explicit autoContinue keeps an ATTRIBUTED turn a WORK turn (schedule-fire framing: the fire frame + system attribution must not demote the fire to a delivery turn)", async () => {
+    coreMock.mockImplementation(
+      async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+        await sink.onEvent({
+          kind: "user-message-persisted",
+          message: { sessionId: "root-sess-2" },
+        } as SinkEvent);
+        await sink.onEnd?.();
+      },
+    );
+
+    await runGlobalRootTurn(fakeDeps(), {
+      userId: "u1",
+      userMessageText: "Remind me for tea",
+      channelReplyMarker: "(the fire marker)",
+      inboundAttribution: { sourceKind: "system", sourceLabel: "Schedule · Tea" },
+      autoContinue: true,
+      activityOrigin: "schedule",
+    });
+
+    const coreInput = coreMock.mock.calls[0]?.[1] as {
+      channelReplyMarker?: string;
+      messageAttribution?: Record<string, unknown>;
+      autoContinue?: boolean;
+    };
+    expect(coreInput.channelReplyMarker).toBe("(the fire marker)");
+    expect(coreInput.messageAttribution).toEqual({
+      userSourceKind: "system",
+      userSourceLabel: "Schedule · Tea",
+    });
+    // The caller's explicit value wins over the attribution-derived false —
+    // the fired turn keeps the context nudge + automatic continuation.
+    expect(coreInput.autoContinue).toBe(true);
+  });
+
   it("a normal turn threads NEITHER notify field (the shipped core input, byte-for-byte)", async () => {
     coreMock.mockImplementation(
       async (_deps: unknown, _input: unknown, sink: SessionSink) => {

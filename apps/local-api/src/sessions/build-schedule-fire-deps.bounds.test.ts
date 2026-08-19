@@ -232,6 +232,7 @@ describe('buildScheduleFireDeps — the global-root binding (BT1)', () => {
     const turn = await deps.startGlobalRootTurn(fakeDb, {
       userId: 'u1',
       userMessageText: 'Sweep my inbox.',
+      frame: { marker: '(the fire marker)', sourceLabel: 'Schedule · Inbox sweep' },
       onSessionResolved,
     })
 
@@ -244,6 +245,12 @@ describe('buildScheduleFireDeps — the global-root binding (BT1)', () => {
       userMessageText: 'Sweep my inbox.',
       activityOrigin: 'schedule',
       wallClock: { maxMs: 45_000 },
+      // The fire frame (schedule-fire framing): the marker rides the runner's
+      // provider-input marker seam, the row is attributed to the schedule as
+      // a system notice, and the explicit autoContinue keeps it a WORK turn.
+      channelReplyMarker: '(the fire marker)',
+      inboundAttribution: { sourceKind: 'system', sourceLabel: 'Schedule · Inbox sweep' },
+      autoContinue: true,
     })
   })
 

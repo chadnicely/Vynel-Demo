@@ -164,8 +164,16 @@ export interface StubFireDeps extends FireScheduleDeps {
   state: {
     builtMcpServer: boolean
     buildCount: number
-    /** The global-root turns the stub ran (BT1) — user + rendered prompt. */
-    globalTurns: Array<{ userId: string; userMessageText: string }>
+    /** The global-root turns the stub ran (BT1) — user + rendered prompt +
+     *  the fire frame (schedule-fire framing). */
+    globalTurns: Array<{
+      userId: string
+      userMessageText: string
+      frame: { marker: string; sourceLabel: string }
+    }>
+    /** What the fire path asked the marker renderer for — the framing
+     *  assertions read the schedule name + the tz-rendered fire time here. */
+    renderedMarkers: Array<{ scheduleDisplayName: string; firedAtLocal: string }>
   }
 }
 
@@ -179,7 +187,12 @@ export interface StubFireDeps extends FireScheduleDeps {
 // turn override it with a local `vi.fn()` via `{ ...stubFireDeps(), startChatTurn }`
 // (the verbatim + guard-path tests never call it).
 export function stubFireDeps(): StubFireDeps {
-  const state: StubFireDeps['state'] = { builtMcpServer: false, buildCount: 0, globalTurns: [] }
+  const state: StubFireDeps['state'] = {
+    builtMcpServer: false,
+    buildCount: 0,
+    globalTurns: [],
+    renderedMarkers: [],
+  }
   return {
     // A no-op async generator — yields nothing (inferred AsyncGenerator<never>
     // satisfies the required AsyncIterable<ChatTurnEvent> field).
@@ -208,9 +221,21 @@ export function stubFireDeps(): StubFireDeps {
       autoBuildout: false,
     }),
     startGlobalRootTurn: async (_db, input) => {
-      state.globalTurns.push({ userId: input.userId, userMessageText: input.userMessageText })
+      state.globalTurns.push({
+        userId: input.userId,
+        userMessageText: input.userMessageText,
+        frame: input.frame,
+      })
       input.onSessionResolved?.('global-sdk-1')
       return { sessionId: 'global-sdk-1', resultText: 'Inbox swept.' }
+    },
+    // A deterministic marker (the real words live in @vynel/instructions —
+    // a sibling leaf this package's tests never load): what matters here is
+    // that the fire path renders with THIS schedule's name + tz-local time
+    // and forwards the result unchanged.
+    renderScheduleFireMarker: (input) => {
+      state.renderedMarkers.push(input)
+      return `(SCHEDULE-FIRE ${input.scheduleDisplayName} @ ${input.firedAtLocal})`
     },
     state,
   }
