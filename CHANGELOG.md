@@ -9,6 +9,28 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Autopilot.** The composer's Auto-buildout toggle now means something: when it
+  is on, the assistant is told the user is probably away and keeps working on
+  its own — making best-fit calls, researching with spawned agents when a
+  decision needs grounding, and setting the session to "needs input" only when
+  it is truly stuck. Spawned sessions inherit it.
+- **Every wait now has a bound.** A delegated task holds its session for its
+  whole run and is stopped honestly at a hard cap (60 min by default); an
+  interactive turn is interrupted with a visible failure at its own wall clock;
+  an unanswered question in chat expires after two hours; the voice daemon says
+  "still working — I'll tell you when it's done" after five minutes instead of
+  going deaf. All bounds are env-tunable and pause while you are deciding on a
+  card.
+- **Checkpoints survive a restart.** A task the assistant checkpointed before
+  the app restarted continues afterwards instead of silently stopping; when a
+  checkpoint cannot be continued (you stopped the turn, it failed, the cap hit)
+  a short note on the thread says so and how to pick it up.
+- **Voice chat shows its status.** The Voice chat menu row wears its own mark
+  (running / needs input / problem), and the global light includes the voice
+  thread.
+- **Stop reaches the right thread.** Stopping a voice turn stops the voice
+  turn, never the global conversation running beside it (the desktop overlay's
+  Stop follows the same rule).
 - **Voice now has its own conversation.** Speaking to Vynel no longer runs on the
   global chat thread: voice turns live on their own continuing spoken thread —
   same brain, same tools, separate context — so a very full global conversation
@@ -27,6 +49,24 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Auto is the default mode everywhere.** A conversation nobody configured
+  runs in Auto (Claude's own safety check still applies) — global, workspace,
+  spawned sessions, channels and background deliveries all resolve the same
+  default; sessions you explicitly set to Ask or Bypass keep it. Children of a
+  session inherit its mode, model and effort at birth; a delegated task can
+  still name its own.
+- **Voice never shows a card.** Every voice leg — the wake word, a live call,
+  the overlay, typing in Voice chat — runs the spoken tier (Sonnet 5, low
+  effort, Auto). The Voice chat composer's chips are read-only "hands-free"
+  chips and no longer write settings to the voice thread.
+- **The delegated-task budget stops waiting, not working.** The old 10-minute
+  "stop waiting" budget that let a long task keep running while its slot and
+  lock were handed to the next job is gone: a task keeps its lock until it
+  finishes or hits the cap.
+- **The Nodes screen reads exactly the same but is built to grow.** Levels are a
+  stack, node identity is typed, dots keep their place when the list reorders,
+  layouts stay on stage past a dozen nodes, and a project's dots come from a
+  scoped read (a busy account no longer loses project sessions).
 - **Typing in Voice chat defaults to the voice tier too.** The panel's
   composer now starts on the same fast spoken-tier model the wake word uses,
   instead of the chat default — one thread, one tier, however you reach it.
@@ -35,6 +75,34 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   small 200k-window model to Claude Sonnet 5 at low thinking effort — quick to
   speak, capable enough to route real work, and with a context window that can
   hold a long spoken thread.
+
+### Fixed
+
+- **A long delegated task could get a second writer.** After ten minutes the
+  queue released a workspace's lock while the task was still writing, so the
+  next task (or your own message) resumed the same session beside it. The lock
+  now lives as long as the run.
+- **A failed start could lose delegated reports for good.** The catch-up
+  reports were marked "shown" before the assistant's turn actually began; a
+  turn that died at startup lost them. They are marked only once the turn is
+  under way.
+- **A live call could stall for ten minutes on a card nobody could see.** The
+  call leg fell back to Ask; it now runs the voice tier like every other voice
+  leg.
+- **The Global chat could show the spoken thread.** A voice turn announced as a
+  global one, so a voice-first user could see their spoken conversation render
+  as the global chat. Every live turn now carries its identity and readers
+  match on it, never on an absence.
+- **A retried report delivery landed the report twice.** A transient failure
+  after the report row was written appended it again on retry; deliveries now
+  carry a stable row id and re-use it.
+- **Fleet dots painted "idle" before the status poll answered**, and a same-
+  length reorder could hand one dot's position to its neighbour.
+- **Voice speech during an overlay conversation was silently dropped** (a
+  scheduled line, a typed Voice-chat reply); it now reaches the overlay, and
+  the overlay skips only its own turn's copy.
+- **A pending question could wedge the global thread forever**; interactive
+  asks now expire, and a 60-second reaper clears the ones whose waiter died.
 
 ## [0.3.3] — 2026-08-19
 

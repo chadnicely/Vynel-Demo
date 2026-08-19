@@ -3,7 +3,58 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) VOICE SESSION — MERGED TO MAIN `939cef22` (the spoken twin thread + Voice chat menu)
+## ✅ 2026-08-19 (latest) SESSION HARDENING ARC — INTEGRATED on `feature/session-audit` (audit 7/10 → the 9+ arc), FULL GATE GREEN
+
+Kafi's brief: five Opus agents ran ONE eight-question audit of the session system (bugs per scope ·
+stuck points · mode/model/effort inheritance · improvements · monitoring + Nodes · continuity · score ·
+the new voice session) → verdict **7/10**, synthesis + raw reports in `docs/audits/session-2026-08-19/`
+(artifact: claude.ai/code/artifact/c236e81e-8443-44ea-b6a4-fb33d34ab4e9). Then "get it to 9+": Kafi
+locked EIGHT decisions (D1–D8, `docs/module-notes/session-hardening.md` §1 — **auto is THE default mode
+everywhere; voice never cards and runs sonnet-5/low/auto on every leg with read-only chips; children
+inherit the creator's settings (tool args override); the bounds set (delegated cap 60 min, interactive
+wall clock 60 min, interactive ask 2 h + 60 s reaper, daemon watchdog 5 min, lease 3 min / heartbeat
+30 s, continuation cap 3 — all env knobs, all suspended while a card is parked); migrations OK
+(0050: pending checkpoint on primary_sessions, lease on delegation_jobs, chat_sessions.lastContextWindow;
+'voice' is a first-class feed scopeKind); Nodes = bugs + enlargeable structure, NO visuals, voice a child
+of global; `autoBuildout` = AUTOPILOT**). Wave 0 (lead) + seven parallel slices in their own worktrees
+(`feature/sh-{a..g}`: A delegation engine · B settings/modes · C streams+bounds · D monitoring identity /
+voice status / interrupt / root routes · E voice daemon · F nodes · G continuity durability) merged
+A/C/B/D/E → F → G with only §6 doc conflicts; the lead folded every cross-slice ask (E3's coupled
+overlay/daemon speak fix; the desktop overlay's identity-shaped Stop; autoBuildout on B's resolver; A3c
+notify-retry idempotency — delivery inbound row = the job id, find-or-insert everywhere, negative-checked;
+`segmentSessionIds` on both continuing payloads; a global delivery yields its pool slot while the root
+lock is busy; G's db-first register at every caller, the survivor-safe stray-checkpoint drop, whoami +
+overview on the chosen-model-first denominator, the dropped-checkpoint note row moved to chat/records).
+**Shipped, in one line each:** the delegation lock lives as long as the run (hard cap via the cancel
+lever, lease + heartbeat + 60 s sweeper, note/direct-delivery requeue at boot) · catch-up reports are
+marked surfaced only once the turn is underway · every delegated/agent-run/DM model pick is fit-clamped ·
+the interactive streams stamp the RESOLVED mode always, force the voice tier for `voice: true` (the call
+leg included), attach no `ask_user` on voice, run a pausable wall clock, bound interactive asks (+ the
+asks-recovery service), emit `turn-queued busy`, and stamp `scopeKind: 'voice'` + `primarySessionId` on
+the feed · one `matchTurnToIdentity` for every reader (the Global chat can never bind to the spoken
+thread) · the voice chain has a status (`GET /root/voice-chat/status`, its menu-row mark, the global light
+aggregates global ∪ voice) but never leaves the server through the unscoped overview · the interrupt is
+identity-shaped (`sessionId`, owner-checked) · `routes/root/index.ts` split · `/activity/running`
+removed · the daemon has a watchdog, an abort, honest onSpeak routing, recoverable-vs-failed, the call
+tier · Nodes: scoped project read, `hasAnswered` at both levels, id-keyed buffers, count-aware layouts,
+typed `SceneNodeRef` + a level stack (a third level = one composable) + `GET /sessions/:id/children` ·
+durable pending checkpoints (a restart mid-checkpoint continues; drops leave a note) · `lastContextWindow`
+so a small-model visitor never rewrites a 1M chain's denominator · carry tail skips over-long lines · a
+continuity census test (5 ↔ 5). **Gate:** `pnpm test` on the integrated branch = 108/108 typecheck ·
+5/5 parity · 888 files / 5 791 tests green. Reviewer pass: two `code-reviewer` agents (server / web) —
+their must-fixes folded before merge to main (see §7 of the plan note for the record).
+**⏭ NEXT:** merge `feature/session-audit` → main (ff or --no-ff; the seven `sh-*` branches + worktrees
+can then be removed) · desktop REBUILD + the wake-overlay REBAKE before any voice smoke · Kafi's live
+smokes: voice wake / call / typed panel on the tier with no card · a > 10-min delegated task keeps its
+lock · a restart mid-checkpoint continues · the Voice chat mark + global light · Stop on both threads ·
+Telegram runs the global row's mode (auto) · autopilot: toggle Auto-buildout, walk away · the daemon
+watchdog (`VYNEL_VOICE_TURN_WATCHDOG_MS=15000`) · the delegated cap on a tiny `VYNEL_DELEGATED_TURN_MAX_MS`.
+Deferred (recorded in the plan note §7): `EnqueueAgentRunInput.origin` (no live caller), leaf sessions
+keep their by-design mode (Mode-B by-reference delegation has no live call site), a live frame for the
+dropped-checkpoint note, the `useMessageEdges` poll → live channel, `constellation-scene.ts` stays one
+file, the Nodes visual redesign (Kafi's), Phase-2 multi-process semantics of the lease/sweeper.
+
+## ✅ 2026-08-19 VOICE SESSION — MERGED TO MAIN `939cef22` (the spoken twin thread + Voice chat menu)
 
 Kafi's arc (worktree feature/voice-session, 4 commits `5f55f2e` `22983eb` `d920073` + merge):
 voice works like the global session in its OWN area. Voice turns moved OFF the global primary
