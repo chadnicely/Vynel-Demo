@@ -208,6 +208,11 @@ async function main(): Promise<void> {
           { error: error instanceof Error ? error.message : String(error), text: text.slice(0, 80) },
           'speak failed — nothing was heard for this line',
         ),
+      onTurnWatchdog: (utterance) =>
+        logger.warn(
+          { utterance: utterance.slice(0, 80), watchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS },
+          'turn watchdog fired — the room is back, the server turn is still running',
+        ),
       // The browser owns the command session (Web Speech STT + spoken reply
       // run there). Jarvis mode: every wake hands off — the floating window is
       // opened/focused, and the held wake replays once it connects. Otherwise:
@@ -233,7 +238,11 @@ async function main(): Promise<void> {
         },
       },
     },
-    { idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS, voiceId: env.VYNEL_VOICE_ID },
+    {
+      idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS,
+      turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
+      voiceId: env.VYNEL_VOICE_ID,
+    },
   )
 
   audioShell.start((audio) => {
