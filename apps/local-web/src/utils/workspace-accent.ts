@@ -11,3 +11,19 @@ export function workspaceAccentCss(
   if (customization?.customColor) return customization.customColor;
   return `var(--ws-${customization?.colorSlot ?? workspaceColorSlot(workspaceName)})`;
 }
+
+/** The conversation (persona) icon's colour: its own pick when it has one,
+ *  else it follows the workspace accent — one persona, one tint. */
+export function personaAccentCss(
+  customization: {
+    colorSlot: number | null;
+    customColor: string | null;
+    personaColorSlot: number | null;
+    personaCustomColor: string | null;
+  } | null,
+  workspaceName: string,
+): string {
+  if (customization?.personaCustomColor) return customization.personaCustomColor;
+  if (customization?.personaColorSlot) return `var(--ws-${customization.personaColorSlot})`;
+  return workspaceAccentCss(customization, workspaceName);
+}

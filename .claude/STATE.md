@@ -3,7 +3,24 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🚧 2026-08-19 IN FLIGHT — CUSTOMIZATION TO THE DB (icons · colours · menu layout · tree positions · autosave)
+## ✅ 2026-08-19 (latest) CUSTOMIZATION TO THE DB — SHIPPED (icons · colours · menu layout · tree positions · autosave)
+
+All four slices landed (see the plan block below for the shape): `@vynel/customization` leaf +
+migration 0049; `/customizations` routes + SDK; the store server-backed (boot hydrate — server wins,
+dirty-from-a-closed-window and local-only scopes push up; 400 ms debounced whole-scope PUTs;
+`visibilitychange` flush; `vynel.customize` + `vynel.tree.order` are now CACHE + carry-over only,
+`vynel.customize.dirty` remembers unsaved scopes); the tree is a controlled component (`treeOrder` in,
+`order-change` out, AppShell saves through `customize.setTreeLayout`); Customize form per Kafi's mock
+(swatch rows beside each icon; persona colour = `personaColorSlot`/`personaCustomColor` →
+`personaAccentCss` → `resolvePersona().accent` (chat author avatar + rail); Save button removed —
+names autosave on blur / 700 ms pause via PATCH workspace, a `.save-status` line says Saving…/Saved).
+Verified live: Kafi's Seo icons uploaded in his browser rendered in a fresh playwright profile straight
+from the DB; the tree layout carried up on the first hydrate. `isCustomized` = differs from default
+(a default server row is not a customization). NOT done: the tab strip still colours from its per-tab
+slot; the Global Customize section shows the persona colour swatch too (shared PersonaIconPicker) —
+fine, but Global has no workspace-accent row.
+
+## (plan) 2026-08-19 — CUSTOMIZATION TO THE DB (icons · colours · menu layout · tree positions · autosave)
 
 Kafi (locked): everything the user arranges moves to the DB — persona image, workspace image, the
 accent, a NEW separate colour for the conversation (persona) icon (A: two colours), the per-scope

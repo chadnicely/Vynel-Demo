@@ -9,7 +9,7 @@ import {
   workspaceMonogram,
 } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
-import { workspaceAccentCss } from "../../utils/workspace-accent.js";
+import { personaAccentCss } from "../../utils/workspace-accent.js";
 
 export interface ResolvedPersona {
   name: string;
@@ -44,7 +44,7 @@ export function usePersonaResolver() {
       // normalization already resolves it to the workspace segment, so
       // every surface keeps its established tint.
       monogram: workspaceMonogram(splitSourceLabel(input.name).persona),
-      accent: workspaceAccentCss(
+      accent: personaAccentCss(
         typeof input.workspaceId === "string" ? customize.customizationFor(input.workspaceId) : null,
         input.name,
       ),

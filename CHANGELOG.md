@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Everything you customize now lives in your account, and it saves itself.**
+  Persona and workspace icons, both colours, each workspace's menu layout,
+  and where you dragged things in the left menu are stored in the database —
+  open Vynel in another window or on the desktop app and it looks the same.
+  Anything you had arranged before is carried over the first time. The
+  Customize page lost its Save button: names save when you pause typing or
+  leave the field, and every icon, colour and menu change saves the moment
+  you make it (a quiet "Saved" note confirms). The Conversation icon has its
+  own colour now, beside the workspace icon's — each with the palette and a
+  custom swatch.
 - **One Explorer-style file browser behind every folder or file pick.** Creating
   a workspace, adding a knowledge folder or file, and importing a memory file
   now open the same browser laid out like Windows Explorer: pinned places

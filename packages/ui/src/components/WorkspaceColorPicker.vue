@@ -40,7 +40,7 @@ function onCustomInput(event: Event) {
 
 <template>
   <div class="flex flex-col gap-1">
-    <p class="m-0 text-xs text-ink-2">{{ props.label }}</p>
+    <p v-if="props.label" class="m-0 text-xs text-ink-2">{{ props.label }}</p>
     <div class="flex items-center gap-1.5">
       <button
         type="button"
