@@ -113,6 +113,15 @@ export const delegationJobs = table(
     partialSessionId: text(),
     status: text().$type<DelegationJobStatus>().notNull(),
     claimedAt: timestamp(),
+    // The claim LEASE (session-hardening arc, 2026-08-19): a claim sets
+    // `leaseExpiresAt = now + VYNEL_DELEGATION_LEASE_MS` and the running tick
+    // heartbeats it forward; the sweeper treats an expired lease as an
+    // orphaned claim (crash, or a run that stopped heartbeating) and settles
+    // the row by kind exactly like the boot pass. Nullable: pre-lease rows and
+    // non-claimed rows carry NULL (a NULL lease on a claimed row = legacy,
+    // handled by the boot pass only).
+    leaseExpiresAt: timestamp(),
+    heartbeatAt: timestamp(),
     completedAt: timestamp(),
     resultText: text(),
     errorMessage: text(),

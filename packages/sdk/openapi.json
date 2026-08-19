@@ -35179,7 +35179,8 @@
                             "type": "string",
                             "enum": [
                               "global",
-                              "workspace"
+                              "workspace",
+                              "voice"
                             ]
                           },
                           "workspaceId": {
@@ -37708,6 +37709,9 @@
                     ]
                   },
                   "autoBuildout": {
+                    "type": "boolean"
+                  },
+                  "voice": {
                     "type": "boolean"
                   }
                 },

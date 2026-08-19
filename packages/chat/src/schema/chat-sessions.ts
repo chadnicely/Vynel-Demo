@@ -90,6 +90,14 @@ export const chatSessions = table(
     // first usage report. Numerator of the UI context meter and the root's
     // planning number (`contextWindowForModel(model)` is the denominator).
     lastContextTokens: integer(),
+    // The context WINDOW (tokens) of the model that produced `lastContextTokens`
+    // — the denominator of the meter and of the pressure check, captured at the
+    // same write so a later turn on a different model (a delegated small-model
+    // pick, a fit-clamped voice turn) cannot silently rewrite the denominator
+    // of a chain driven on a 1M model. Null until the first usage report;
+    // readers fall back to `contextWindowForModel(model)` (session-hardening
+    // arc, 2026-08-19).
+    lastContextWindow: integer(),
     // The continuity chain link: the session id this swap segment CONTINUED
     // from, stamped by recordSwapSegmentSession at swap time. Null = chain
     // head. LOOSE ref (no FK) — segments purge independently.

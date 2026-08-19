@@ -29,8 +29,8 @@ describe('SESSION_MODES', () => {
 })
 
 describe('DEFAULT_SESSION_MODE', () => {
-  it('is one of the three user-facing modes (ask for v1)', () => {
+  it('is one of the three user-facing modes (auto since 2026-08-19; was ask for v1)', () => {
     expect(SESSION_MODES.map((entry) => entry.mode)).toContain(DEFAULT_SESSION_MODE)
-    expect(DEFAULT_SESSION_MODE).toBe('ask')
+    expect(DEFAULT_SESSION_MODE).toBe('auto')
   })
 })

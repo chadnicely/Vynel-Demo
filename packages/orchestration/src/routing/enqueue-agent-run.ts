@@ -22,6 +22,7 @@ import type { Database } from '@vynel/db'
 import { resolveThreadId } from './resolve-thread-id.js'
 import { insertDelegationJob } from '../repositories/index.js'
 import type { DelegationPermissionMode } from '../orchestration-types.js'
+import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 
 export interface EnqueueAgentRunInput {
   /** The chain this hop continues — one task and everything it caused. Omit to
@@ -53,6 +54,10 @@ export interface EnqueueAgentRunInput {
   permissionMode?: DelegationPermissionMode
   /** The originating turn's model pick. Omit = the agent's own. */
   model?: string
+  /** The originating turn's thinking-effort pick — carried like a persona
+   *  delegation carries it (session-hardening arc: an @agent run used to drop
+   *  it and always ran at the adaptive default). Omit = the provider default. */
+  thinkingEffort?: ThinkingEffortLevel
 }
 
 /** Enqueue one deterministic background agent run and return the job id. */
@@ -98,7 +103,7 @@ export function enqueueAgentRun(
     originExternalChatContextId: null,
     permissionMode: input.permissionMode ?? null,
     model: input.model ?? null,
-    thinkingEffort: null,
+    thinkingEffort: input.thinkingEffort ?? null,
     jobKind: 'agent-run',
     agentSlug: input.agentSlug,
     requesterWorkspaceId: input.requesterWorkspaceId ?? null,

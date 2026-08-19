@@ -113,10 +113,17 @@ export const StartSessionTurnRequestSchema = z.object({
   /** The user-facing session mode — `toPermissionMode` after resolving
    *  input ?? the session's persisted setting ?? `DEFAULT_SESSION_MODE`. */
   mode: z.enum(SESSION_MODE_VALUES).optional(),
-  /** The composer's Auto-buildout toggle — write-through persistence only
-   *  (nothing consumes it yet); rides the turn so a NEW conversation's first
-   *  turn stamps the row it creates. */
+  /** The composer's Auto-buildout toggle — autopilot (session-hardening arc):
+   *  resolved like the other settings; when true the turn carries the autopilot
+   *  marker; rides the turn so a NEW conversation's first turn stamps the row
+   *  it creates. */
   autoBuildout: z.boolean().optional(),
+  /** A VOICE turn into this session (the live-call leg): the server forces the
+   *  voice tier (sonnet-5 / low / auto), reads and writes no settings, and
+   *  fit-clamps the pin — exactly the global stream's voice gates
+   *  (session-hardening arc, 2026-08-19; the call leg used to fall to the
+   *  interactive default and card a live call). */
+  voice: z.boolean().optional(),
 })
 
 // ── Per-session composer settings (2026-08-17) ─────────────────────

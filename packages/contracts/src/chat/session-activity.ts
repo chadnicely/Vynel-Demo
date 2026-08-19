@@ -26,13 +26,20 @@ export type SessionTurnOrigin =
   | 'schedule'
   | 'delegation'
 
+/** The identity family a live turn belongs to. `voice` was added by the
+ *  session-hardening arc (2026-08-19): the spoken thread has its own primary
+ *  and its own lock, so it must be its own vocabulary on the wire — a voice
+ *  turn announcing as `global` made every reader infer identity from an
+ *  absence and let the Global chat bind to the spoken segment. */
+export type SessionTurnScopeKind = 'global' | 'workspace' | 'voice'
+
 /** One in-flight turn as the feed reports it. `sessionId` is null until the
  *  runtime resolves it (a fresh conversation learns its id mid-turn). The
  *  persona-sessions fields are OPTIONAL enrichment — producers stamp what they
  *  know (delegated runs carry all of them; interactive turns few or none). */
 export interface SessionTurnActivity {
   turnId: string
-  scopeKind: 'global' | 'workspace'
+  scopeKind: SessionTurnScopeKind
   workspaceId: string | null
   sessionId: string | null
   origin: SessionTurnOrigin

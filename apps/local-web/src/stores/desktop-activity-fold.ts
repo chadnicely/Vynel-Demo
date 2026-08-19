@@ -1,4 +1,7 @@
-import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activity";
+import type {
+  SessionActivityEvent,
+  SessionTurnScopeKind,
+} from "@vynel/contracts/chat/session-activity";
 import { DESKTOP_TOOL_PREFIX, parseDesktopPlanCard } from "@vynel/ui";
 
 // The pure fold behind the desktop-control overlay: activity-feed events in,
@@ -40,7 +43,7 @@ export interface ActiveDesktopPlan {
  *  frame; both stay null when the overlay attached mid-turn and never saw it. */
 export interface TrackedDesktopTurn {
   turnId: string;
-  scopeKind: "global" | "workspace";
+  scopeKind: SessionTurnScopeKind;
   /** 'delegation' = a spawned/background session is driving, NOT the root. */
   origin: string | null;
   /** The delegated turn's stop handle (`root.stopDelegation`). */

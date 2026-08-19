@@ -17360,7 +17360,7 @@ export interface operations {
                         turns: {
                             turnId: string;
                             /** @enum {string} */
-                            scopeKind: "global" | "workspace";
+                            scopeKind: "global" | "workspace" | "voice";
                             workspaceId: string | null;
                             /** @enum {string} */
                             origin: "web" | "voice" | "telegram" | "discord" | "zoom" | "schedule" | "delegation";
@@ -18155,6 +18155,7 @@ export interface operations {
                     /** @enum {string} */
                     mode?: "ask" | "auto" | "bypass";
                     autoBuildout?: boolean;
+                    voice?: boolean;
                 };
             };
         };

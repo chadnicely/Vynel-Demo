@@ -33,7 +33,7 @@
 // follow-up unit).
 
 import { sql } from 'drizzle-orm'
-import { table, id, text, timestamp, index, uniqueIndex } from '@vynel/db/dialect'
+import { table, id, text, timestamp, integer, index, uniqueIndex } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
 
@@ -78,6 +78,19 @@ export const primarySessions = table(
     // supersession chain marker for the future hard-limit bridge). Null
     // when the primary has never been swapped.
     supersededFromSdkSessionId: text(),
+
+    // The DURABLE pending checkpoint (session-hardening arc, 2026-08-19; was a
+    // process-wide Map that died with the API process — "Vynel stopped
+    // mid-task and said nothing"). Written by the `checkpoint` tool inside a
+    // turn, read + cleared by the continuation loop / the checkpoint
+    // follow-up job. All nullable: NULL = no checkpoint pending. `depth` is
+    // the consecutive-continuation counter (capped, reset by a genuine turn);
+    // `jobId` is the enqueued follow-up job whose claim counts toward the cap
+    // (a LOOSE ref into delegation_jobs — no FK across features).
+    pendingCheckpointNextStep: text(),
+    pendingCheckpointDepth: integer(),
+    pendingCheckpointAt: timestamp(),
+    pendingCheckpointJobId: text(),
 
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),

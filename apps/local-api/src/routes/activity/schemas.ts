@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 export const RunningSessionTurnSchema = z.object({
   turnId: z.string(),
-  scopeKind: z.enum(['global', 'workspace']),
+  scopeKind: z.enum(['global', 'workspace', 'voice']),
   workspaceId: z.string().nullable(),
   origin: z.enum(['web', 'voice', 'telegram', 'discord', 'zoom', 'schedule', 'delegation']),
   sessionId: z.string().nullable(),

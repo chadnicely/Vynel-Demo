@@ -185,6 +185,7 @@ export {
 // the drain option types the api-side handler builder conforms to + the steer
 // reason its fail-closed fallback denies with.
 export { ApprovalWaitGate } from './routing/approval-wait-gate.js'
+export { startPausableTimeout, type PausableTimeout } from './routing/pausable-timeout.js'
 export {
   ROUTED_LEAF_APPROVAL_DENY_REASON,
   ROUTED_LEAF_MAX_CARDED_DENIALS,

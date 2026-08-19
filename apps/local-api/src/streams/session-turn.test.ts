@@ -288,9 +288,9 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         // …and whoami's one standing prompt line is the ONLY prompt contribution.
         expect(input.systemPromptAppend).toContain('You can call whoami')
         expect(input.systemPromptAppend).not.toContain('routed from')
-        // Interactive default — the workspace chat stream's mode resolution,
-        // NOT the routed-turn bypass default.
-        expect(input.permissionMode).toBe('ask')
+        // Interactive default — the workspace chat stream's mode resolution
+        // (DEFAULT_SESSION_MODE = auto since 2026-08-19; was ask).
+        expect(input.permissionMode).toBe('auto')
 
         // The turn persisted onto the spawned session's recorded segment.
         const messages = listChatMessagesForSession(db, 'sdk-sp-global')

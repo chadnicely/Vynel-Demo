@@ -26,6 +26,7 @@
 
 import type { StructuralLogger } from '../orchestration-types.js'
 import type { ApprovalWaitGate } from './approval-wait-gate.js'
+import { startPausableTimeout } from './pausable-timeout.js'
 
 /** Conservative per-sub-session wait budget — bounds a routed leaf's turn. */
 export const DEFAULT_ROUTE_TIMEOUT_MS = 120_000
@@ -67,42 +68,6 @@ export type RouteRequestDeps = {
   waitGate?: ApprovalWaitGate
 }
 
-/** A timeout that can pause (keeping its remaining budget) and resume — the
- *  suspend-while-parked wait clock. Returns the racing promise + a cancel. */
-function startPausableTimeout(
-  timeoutMs: number,
-  waitGate: ApprovalWaitGate | undefined,
-): { promise: Promise<RouteRequestResult>; cancel: () => void } {
-  let handle: ReturnType<typeof setTimeout> | undefined
-  let remainingMs = timeoutMs
-  let armedAt: number | null = null
-  let cancelled = false
-
-  const promise = new Promise<RouteRequestResult>((resolve) => {
-    const arm = (): void => {
-      if (cancelled) return
-      armedAt = Date.now()
-      handle = setTimeout(() => resolve({ status: 'timed-out', timeoutMs }), remainingMs)
-    }
-    const disarm = (): void => {
-      if (handle !== undefined) clearTimeout(handle)
-      handle = undefined
-      if (armedAt !== null) remainingMs = Math.max(0, remainingMs - (Date.now() - armedAt))
-      armedAt = null
-    }
-    waitGate?.onParkedChange((parked) => (parked ? disarm() : arm()))
-    if (!waitGate?.isParked) arm()
-  })
-
-  return {
-    promise,
-    cancel: () => {
-      cancelled = true
-      if (handle !== undefined) clearTimeout(handle)
-    },
-  }
-}
-
 export async function routeRequest(
   input: RouteRequestInput,
   deps: RouteRequestDeps,
@@ -110,6 +75,10 @@ export async function routeRequest(
   const timeoutMs = input.timeoutMs ?? DEFAULT_ROUTE_TIMEOUT_MS
 
   const wait = startPausableTimeout(timeoutMs, deps.waitGate)
+  const timedOut: Promise<RouteRequestResult> = wait.promise.then(() => ({
+    status: 'timed-out',
+    timeoutMs,
+  }))
 
   // The delegation promise NEVER rejects — failures convert to a `failed` envelope
   // here, so a post-timeout rejection can't surface as an unhandled rejection.
@@ -135,7 +104,7 @@ export async function routeRequest(
       }),
     )
 
-  const outcome = await Promise.race([delegationPromise, wait.promise])
+  const outcome = await Promise.race([delegationPromise, timedOut])
   wait.cancel()
 
   if (outcome.status === 'timed-out') {

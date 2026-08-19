@@ -13,3 +13,11 @@ import type { ThinkingEffortLevel } from './thinking-effort.js'
 
 export const VOICE_TIER_MODEL = 'claude-sonnet-5'
 export const VOICE_TIER_THINKING_EFFORT: ThinkingEffortLevel = 'low'
+// The voice tier's PERMISSION MODE (Kafi 2026-08-19: "no card for anything
+// through voice or chat"): `auto` — no Vynel card of any kind on a hands-free
+// surface; Claude's own safety check still applies. Every voice leg (daemon
+// wake, live call, web overlay, typed Voice-chat turn) runs under it and the
+// server enforces it for `voice` turns regardless of what the caller sends.
+// A `SessionMode` literal (not the provider type) so this db-free home stays
+// importable by the daemon and the web app alike.
+export const VOICE_TIER_MODE = 'auto' as const

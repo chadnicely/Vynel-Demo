@@ -282,7 +282,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
     })
   })
 
-  it('maps the session mode to the provider permission mode (default ask when absent)', async () => {
+  it('maps the session mode to the provider permission mode (default auto when absent)', async () => {
     // Closes the workspace-route half of the mode-forwarding pin — the global
     // route has had this end-to-end assertion since surface-up step 1.
     await withTestDatabase(async (db) => {
@@ -294,7 +294,8 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       expect(startChatSessionInputs[0]!.permissionMode).toBe('bypass')
 
       await (await postTurn(app, workspace.id, { userMessageText: 'hi again' })).text()
-      expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')
+      // test: correct expectation — DEFAULT_SESSION_MODE is auto since 2026-08-19 (was ask).
+      expect(startChatSessionInputs[1]!.permissionMode).toBe('auto')
     })
   })
 

@@ -71,6 +71,12 @@ function buildEnvSchema(portBase: number) {
   VYNEL_CALL_LINUX_PAIRS: z.coerce.number().int().min(0).max(8).default(2),
   // Silence (ms) in an active conversation before falling back asleep.
   VYNEL_VOICE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // The daemon's per-turn WATCHDOG (session-hardening arc, Kafi 2026-08-19):
+  // after this long `busy` the driver speaks "still working — I'll tell you
+  // when it's done" and returns to listening while the server turn runs on
+  // (its later `speak` calls still route normally). Without it a parked or
+  // slow server turn left the daemon deaf until a restart.
+  VYNEL_VOICE_TURN_WATCHDOG_MS: z.coerce.number().int().positive().default(300_000),
   // Loopback port for the browser Jarvis-view channel (SSE wake/state events).
   VYNEL_VOICE_DAEMON_PORT: z.coerce.number().int().positive().default(ports.voiceDaemon),
   // '1' = wake opens/focuses the floating Jarvis window (chrome --app) and the

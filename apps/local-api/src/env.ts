@@ -61,6 +61,28 @@ function buildEnvSchema(portBase: number) {
   // user-facing setting in the settings arc. Bounded: a runaway value would fan out
   // that many subprocesses against the account's rate limits.
   VYNEL_MAX_CONCURRENT_DELEGATIONS: z.coerce.number().int().min(1).max(32).default(3),
+  // ── Bounds (session-hardening arc, Kafi 2026-08-19: "every wait has a bound
+  // and an owner"). All in milliseconds; each clock SUSPENDS while a turn is
+  // parked on a human decision (approval card / ask), so the bound measures
+  // working time, not deciding time.
+  // A delegated run (task / agent run / delivery) holds its target lock for its
+  // WHOLE run; past this cap the run is cancelled through the cancel registry,
+  // the job settles `failed` with an honest failure delivery. Replaces the old
+  // 600 s "stop waiting" budget that released the lock under a live turn.
+  VYNEL_DELEGATED_TURN_MAX_MS: z.coerce.number().int().positive().default(3_600_000),
+  // An interactive turn (global / workspace / spawned DM) is interrupted past
+  // this wall clock and records a failure row — the root lock and the target
+  // locks can no longer be held forever by one hung provider await.
+  VYNEL_INTERACTIVE_TURN_MAX_MS: z.coerce.number().int().positive().default(3_600_000),
+  // How long an interactive `ask_user` form may stay unanswered before it
+  // expires with a note (the 60 s asks reaper enforces it for rows whose waiter
+  // died). Channels keep their own 10 min bound; voice never attaches ask_user.
+  VYNEL_INTERACTIVE_ASK_MAX_MS: z.coerce.number().int().positive().default(7_200_000),
+  // The claim lease on a delegation job: a claim sets `leaseExpiresAt = now +
+  // lease`, the running tick heartbeats every `heartbeat`; the sweeper settles
+  // an expired lease by kind (report/note/direct requeue, task/agent-run fail).
+  VYNEL_DELEGATION_LEASE_MS: z.coerce.number().int().positive().default(180_000),
+  VYNEL_DELEGATION_HEARTBEAT_MS: z.coerce.number().int().positive().default(30_000),
   // The hidden user-level data directory the GLOBAL root (Slice 3b) runs in as
   // its SDK cwd — like `.claude`, NOT a workspace folder. Absolute path; unset
   // defaults to `<home>/.vynel` (resolved in `sessions/global-root-workspace.ts`).
