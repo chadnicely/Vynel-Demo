@@ -61,6 +61,7 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- Claude engine SDK updated to 0.3.235 (auto-mode permission classifier changes upstream).
 - **Auto is the default mode everywhere.** A conversation nobody configured
   runs in Auto (Claude's own safety check still applies) — global, workspace,
   spawned sessions, channels and background deliveries all resolve the same
