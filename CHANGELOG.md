@@ -27,6 +27,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Typing in Voice chat defaults to the voice tier too.** The panel's
+  composer now starts on the same fast spoken-tier model the wake word uses,
+  instead of the chat default — one thread, one tier, however you reach it.
+  Picking a different model in the panel still sticks.
 - **Voice answers on a stronger, still-fast model.** Voice turns moved from the
   small 200k-window model to Claude Sonnet 5 at low thinking effort — quick to
   speak, capable enough to route real work, and with a context window that can

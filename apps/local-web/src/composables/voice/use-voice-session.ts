@@ -1,5 +1,10 @@
 import { computed, onUnmounted, ref } from "vue";
 import type { VynelClient } from "@vynel/sdk";
+// The voice tier — ONE home in contracts (daemon, overlay, panel defaults).
+import {
+  VOICE_TIER_MODEL as VOICE_MODEL,
+  VOICE_TIER_THINKING_EFFORT as VOICE_THINKING_EFFORT,
+} from "@vynel/contracts/chat/voice-tier";
 import { useVynel } from "../use-vynel.js";
 import { streamChatTurnEvents } from "../chat/chat-turn-stream.js";
 import {
@@ -19,12 +24,6 @@ import {
 // Web Speech STT in, a global `/root/turn` per command on the fast voice model.
 // The browser NEVER speaks on its own — voice output follows the brain's `speak`
 // calls (with the adapter's no-`speak` gist fallback as the safety net).
-
-// The small, fast model voice turns run on (the light triage tier).
-// The voice tier (Kafi 2026-08-19): real model, LOW effort — fast speech,
-// 1M window (mirrors the daemon pin in apps/voice run-brain-turn.ts).
-const VOICE_MODEL = "claude-sonnet-5";
-const VOICE_THINKING_EFFORT = "low";
 
 const IDLE_VIEW: VoiceCommandSessionView = {
   state: "ended",

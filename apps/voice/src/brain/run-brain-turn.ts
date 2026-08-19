@@ -46,12 +46,13 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   return null
 }
 
-// The voice tier (Kafi 2026-08-19): a REAL model at LOW effort — fast to first
-// token so it speaks back quickly, capable enough to route work like the
-// global brain, and a 1M window so the spoken thread can never outgrow its
-// own pin (the haiku-200k crash class). Wake line + call loop alike.
-export const VOICE_MODEL = 'claude-sonnet-5'
-export const VOICE_THINKING_EFFORT = 'low'
+// The voice tier lives in ONE home — `@vynel/contracts` voice-tier.ts (the
+// panel's composer defaults + the overlay leg read the same constants).
+import {
+  VOICE_TIER_MODEL as VOICE_MODEL,
+  VOICE_TIER_THINKING_EFFORT as VOICE_THINKING_EFFORT,
+} from '@vynel/contracts/chat/voice-tier'
+export { VOICE_MODEL, VOICE_THINKING_EFFORT }
 
 /** POST a turn request and stream the reply as `VoiceBrainEvent`s — the ONE
  *  home for the SSE turn wire; the wake line (`/root/turn`) and the call

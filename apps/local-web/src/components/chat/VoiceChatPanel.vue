@@ -16,6 +16,10 @@ import { useActivityStore } from "../../stores/activity-store.js";
 import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
 import type { ComposerSettings } from "../../composables/chat/use-session-settings.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
+import {
+  VOICE_TIER_MODEL,
+  VOICE_TIER_THINKING_EFFORT,
+} from "@vynel/contracts/chat/voice-tier";
 
 // The Voice chat panel (voice-session arc) — the spoken thread's window,
 // rendered on the Global canvas under its own menu row. The thread is the
@@ -192,6 +196,10 @@ const isEmpty = computed(
       </p>
       <AppComposer
         :session-id="headSessionId"
+        :settings-defaults="{
+          modelId: VOICE_TIER_MODEL,
+          thinkingEffort: VOICE_TIER_THINKING_EFFORT,
+        }"
         :streaming="turn.isStreaming.value"
         placeholder="Message the voice thread…"
         destination-label="Voice"

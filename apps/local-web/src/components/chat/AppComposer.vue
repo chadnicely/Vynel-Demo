@@ -63,6 +63,12 @@ const props = withDefaults(
      *  is stored under. More than one composer is alive at a time, so without
      *  it a mark made in one thread would ride out on another's message. */
     sessionId?: string | null | undefined;
+    /** The surface's own never-set defaults (the Voice chat panel pins the
+     *  voice tier) — a persisted row value still wins, and a chip change
+     *  still persists onto the session row. */
+    settingsDefaults?:
+      | Partial<Pick<ComposerSettings, "modelId" | "thinkingEffort" | "mode">>
+      | undefined;
   }>(),
   {
     allowAttachments: true,
@@ -88,7 +94,10 @@ const ui = useUiStore();
 // persisted settings and a change PATCHes that session only; with no session
 // yet, both fall back to the ui-store's localStorage new-chat defaults. This
 // is what killed "change it in one chat, it changes everywhere".
-const settings = useSessionSettings(() => props.sessionId ?? null);
+const settings = useSessionSettings(
+  () => props.sessionId ?? null,
+  props.settingsDefaults,
+);
 
 const draft = ref("");
 const dictation = useDictation(draft);

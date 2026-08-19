@@ -52,7 +52,14 @@ function toWirePatch(patch: ComposerSettingsPatch) {
   };
 }
 
-export function useSessionSettings(sessionId: MaybeRefOrGetter<string | null>) {
+export function useSessionSettings(
+  sessionId: MaybeRefOrGetter<string | null>,
+  /** A SURFACE's own never-set defaults, sitting BETWEEN the row and the
+   *  ui-store fallbacks: the Voice chat panel defaults to the voice tier
+   *  (sonnet at low effort) instead of the chat default (Kafi 2026-08-19).
+   *  A persisted row value still wins; a chip change still persists. */
+  surfaceDefaults?: Partial<Pick<ComposerSettings, "modelId" | "thinkingEffort" | "mode">>,
+) {
   const vynel = useVynel();
   const ui = useUiStore();
   const queryClient = useQueryClient();
@@ -81,9 +88,12 @@ export function useSessionSettings(sessionId: MaybeRefOrGetter<string | null>) {
     const server =
       activeSessionId.value !== null ? query.data.value : undefined;
     return {
-      modelId: server?.selectedModel ?? ui.composerModelId,
-      mode: server?.sessionMode ?? ui.composerMode,
-      thinkingEffort: server?.thinkingEffort ?? ui.composerThinkingEffort,
+      modelId: server?.selectedModel ?? surfaceDefaults?.modelId ?? ui.composerModelId,
+      mode: server?.sessionMode ?? surfaceDefaults?.mode ?? ui.composerMode,
+      thinkingEffort:
+        server?.thinkingEffort ??
+        surfaceDefaults?.thinkingEffort ??
+        ui.composerThinkingEffort,
       autoBuildout: server?.autoBuildout ?? ui.composerAutoBuildout,
     };
   });
