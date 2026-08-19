@@ -79,6 +79,19 @@ round: root-turn-lock renamed to lockKey vocabulary (two single-writer domains).
    run-report-delivery-tick.note.test.ts + the routing describe (task→400, self-note→400, voice
    sender end-to-end).
 
+## Review round 2 (same reviewer, resumed) — GATE PASSED 2026-08-19
+
+Closures of round 1 verified; slice 3 (the global note rail) judged CLEAN (misroute matrix +
+double-deliver paths all closed and tested). ONE must-fix in the menu slice, closed: the
+VoiceChatPanel transcript query passed 'refetchInterval' as a computed — vue-query unwraps
+computed options eagerly at setup, so a mid-turn mount dereferenced 'watchedTurn' in its TDZ
+and crashed (the marquee open-panel-mid-speech path; reviewer repro). Fix = the house poller
+pattern: a plain function, invoked post-setup. Also applied: by-id menu insertion (positional
+indexing was reorder-brittle) + an exact voice-turn poll signal (find-first-global could miss a
+voice turn now that the lock split allows global+voice concurrently) + the kind-guard 400
+message names the global address. Deferred next-touch: routes/root/index.ts (503 lines) splits
+the voice doors into their own module.
+
 ## Voice chat menu — SHIPPED 2026-08-19 (same worktree)
 
 Kafi: "Add Voice Chat menu after the chat menu." Built as: sidebar row 'Voice chat'

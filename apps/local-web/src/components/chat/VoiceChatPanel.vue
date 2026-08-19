@@ -32,9 +32,13 @@ const activity = useActivityStore();
 // A voice turn announces on the feed as a GLOBAL turn with origin 'voice' —
 // that signal keeps the transcript polling while the daemon drives a turn
 // this panel does not own.
-const hasVoiceServerTurn = computed(
-  () =>
-    activity.hasGlobalServerTurn && activity.globalServerTurnOrigin === "voice",
+// An EXACT read, not find-first-global: since the lock split a global and a
+// voice turn can run concurrently, and the first global-scoped entry may be
+// the typed one — this poll signal must see the voice turn either way.
+const hasVoiceServerTurn = computed(() =>
+  Object.values(activity.serverTurns).some(
+    (serverTurn) => serverTurn.scopeKind === "global" && serverTurn.origin === "voice",
+  ),
 );
 
 const transcriptQuery = useQuery({
@@ -42,9 +46,12 @@ const transcriptQuery = useQuery({
   // same freshness contract the other threads ride).
   queryKey: [...sessionKeys.all, "voice-transcript"],
   queryFn: () => vynel.root.getVoiceTranscript(),
-  refetchInterval: computed(() =>
+  // A plain function, NEVER a computed: vue-query unwraps computed options
+  // eagerly during setup, and this getter reads `watchedTurn` — declared
+  // below — so a mid-turn mount died in its temporal dead zone (reviewer
+  // repro). query-core invokes a function option after setup.
+  refetchInterval: () =>
     hasVoiceServerTurn.value && !watchedTurn.hasSharedFold.value ? 4000 : false,
-  ),
 });
 const messages = computed(() => transcriptQuery.data.value?.messages ?? []);
 const sessionModel = computed(

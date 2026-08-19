@@ -267,9 +267,13 @@ const { countBySectionId } = useSectionCounts(
 const sectionItems = computed<SidebarItem[]>(() => {
   const workspaceId = ui.activeTab.workspaceId;
   const counts = countBySectionId.value;
+  // By id, not position — a future SURFACE_ITEMS reorder must not silently
+  // misplace or drop rows (reviewer nit).
   const surfaceItems =
     workspaceId === null
-      ? [SURFACE_ITEMS[0]!, SURFACE_ITEMS[1]!, VOICE_CHAT_ITEM, SURFACE_ITEMS[2]!]
+      ? SURFACE_ITEMS.flatMap((item) =>
+          item.id === "chat" ? [item, VOICE_CHAT_ITEM] : [item],
+        )
       : SURFACE_ITEMS;
   return [
     ...surfaceItems,

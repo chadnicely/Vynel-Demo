@@ -437,7 +437,7 @@ export const routingApp = factory
         (kind === 'report' || kind === 'update' || kind === 'direct_to_user')
       ) {
         throw new ValidationError(
-          `kind "${kind}" only addresses "requester" — a workspace/session target is a task.`,
+          `kind "${kind}" only addresses "requester" — a workspace/session target is a task, and "global" takes notes.`,
         )
       }
       // `title` is the direct message's box headline — meaningless anywhere else.
