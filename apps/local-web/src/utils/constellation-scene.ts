@@ -834,9 +834,13 @@ export function startConstellationScene(
         next.map((node) => node.id),
         slotById,
       );
-      const keptPositions = inherited.map((slot) =>
-        slot === undefined ? undefined : positions[slot],
-      );
+      // A COPY, never the same object twice: `layout` eases positions in
+      // place, so two nodes that ever claimed one id would weld themselves
+      // together and fight over one point.
+      const keptPositions = inherited.map((slot) => {
+        const position = slot === undefined ? undefined : positions[slot];
+        return position === undefined ? undefined : { x: position.x, y: position.y };
+      });
       const keptSpawnAcc = inherited.map((slot) =>
         slot === undefined ? 0 : (spawnAcc[slot] ?? 0),
       );
