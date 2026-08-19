@@ -57,6 +57,12 @@ function makeFakeVynelClient(
     // forever (no frames, no reconnect churn) so shell tests stay quiet.
     GET: () => new Promise(() => {}),
     approvals: { listPending: async () => pendingApprovals },
+    // Customization lives in the DB — the shell hydrates it at boot.
+    customizations: {
+      list: async () => ({ scopes: [], treeLayout: null }),
+      saveScope: async (scopeKey: string, body: unknown) => ({ scopeKey, ...(body as object) }),
+      saveTreeLayout: async (layout: unknown) => layout,
+    },
     // The ask notifier polls alongside approvals from the shell.
     asks: { listPending: async () => [] },
     workspaces: {
@@ -197,16 +203,18 @@ describe("app shell", () => {
   // A room is entered via the SCOPE TAB STRIP below the title bar (test:
   // correct expectation — the strip is a real tablist now; the dead assertion
   // pinned the old segmented pill's absence, which the menu items still cover).
-  it("redirects / to Home; the strip leads with Global; the menu leads with the trio", async () => {
+  it("redirects / to Home; the strip leads with Global; the menu leads with the surface rows", async () => {
     const { wrapper, router } = await mountShell();
 
     expect(router.currentRoute.value.name).toBe("home");
     expect(stripTabNames(wrapper)).toEqual(["Global"]);
+    // test: corrected expectation — the GLOBAL menu gained "Voice chat" right
+    // under Chat (voice-session arc, Kafi 2026-08-19); was the plain trio.
     expect(
       menuItems(wrapper)
-        .slice(0, 3)
+        .slice(0, 4)
         .map((button) => button.text()),
-    ).toEqual(["Home", "Chat", "Sessions"]);
+    ).toEqual(["Home", "Chat", "Voice chat", "Sessions"]);
     expect(wrapper.text()).toContain(
       "everything your assistant does shows up here",
     );

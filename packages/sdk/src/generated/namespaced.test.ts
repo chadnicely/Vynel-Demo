@@ -259,6 +259,9 @@ describe('makeNamespaced — shape', () => {
       // menus read.
       'commands',
       'commandsUser',
+      // test: correct expectation — customization moved to the DB (2026-08-19):
+      // ONE user-scoped door for every scope's look + the tree layout.
+      'customizations',
       'dashboard',
       // test: correct expectation — the usage-statistics slice (2026-07-31)
       // added `dashboardWorkspace` (GET /workspaces/:id/dashboard/usage, the

@@ -683,13 +683,14 @@ describe("ThreadStream", () => {
     expect(row.find(".monogram-text").exists()).toBe(true);
     expect(row.find(".author-avatar svg").exists()).toBe(false);
     // The resolver→row CONTRACT: the accent travels as the bare property
-    // NAME (the row wraps it in `var()` itself — a full reference here once
-    // double-wrapped into invalid CSS and silently untinted every persona
-    // chip). Asserted on the prop: happy-dom drops color-mix() style values,
-    // so the rendered attribute can't carry the check.
+    // COLOUR — a full `var(--ws-N)` reference or a hand-picked `#hex` (the
+    // row uses it as-is; the old var-NAME contract once double-wrapped into
+    // invalid CSS and silently untinted every persona chip). Asserted on the
+    // prop: happy-dom drops color-mix() style values, so the rendered
+    // attribute can't carry the check.
     expect(
       wrapper.getComponent(MessageRow).props("authorPersona"),
-    ).toMatchObject({ accentVar: expect.stringMatching(/^--ws-\d+$/) });
+    ).toMatchObject({ accent: expect.stringMatching(/^var\(--ws-\d+\)$/) });
   });
 
   // 2026-08-09 parity pass: the workspace chat renders exactly like Global —

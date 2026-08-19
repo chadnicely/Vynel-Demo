@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { ClaudeMark } from "@vynel/ui";
+import { WorkspaceColorPicker } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
 import { imageFileToAvatarDataUrl } from "../../utils/image-to-avatar.js";
 
@@ -37,6 +38,7 @@ async function onFilePicked(event: Event) {
 <template>
   <div class="persona-icon-picker flex flex-col gap-1">
     <p class="m-0 text-xs text-ink-2">Conversation icon</p>
+    <div class="flex items-center justify-between gap-3">
     <div class="flex items-center gap-2.5">
       <span
         class="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-hair bg-raised"
@@ -72,6 +74,17 @@ async function onFilePicked(event: Event) {
         aria-label="Upload persona icon"
         @change="onFilePicked"
       />
+    </div>
+    <!-- The conversation icon's own colour — the persona's tint in chat rows
+         and the rail, separate from the workspace accent. -->
+    <WorkspaceColorPicker
+      class="persona-color-picker"
+      :selected-slot="store.customizationFor(props.scopeKey).personaColorSlot"
+      :custom-color="store.customizationFor(props.scopeKey).personaCustomColor"
+      label=""
+      @pick="(slot) => store.setPersonaColorSlot(props.scopeKey, slot)"
+      @pick-custom="(hex) => store.setPersonaCustomColor(props.scopeKey, hex)"
+    />
     </div>
     <p v-if="uploadError" class="m-0 text-2xs text-danger">
       {{ uploadError }}

@@ -55,6 +55,11 @@ fn build_main_window(handle: &AppHandle) -> tauri::Result<()> {
         // on top of it doubled the window controls. Its buttons/drag-region need
         // the main-window capability (capabilities/main-window.json).
         .decorations(false)
+        // Tauri's own drag-drop handler swallows native DnD in WebView2 on
+        // Windows, which silently kills the page's HTML5 drag events (the
+        // sidebar tree's reorder/regroup). Nothing in the web app listens to
+        // Tauri's file-drop events, so the handler is pure loss here.
+        .disable_drag_drop_handler()
         .build()?;
     Ok(())
 }

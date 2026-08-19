@@ -7,7 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { deriveDefaultManagerName } from '@vynel/contracts/workspaces/manager-name'
 import { createAgent } from '@vynel/agents'
 import { resolveMentions } from './resolve-mentions.js'
 
@@ -157,14 +156,13 @@ describe('resolveMentions — personas', () => {
     })
   })
 
-  it('resolves the DERIVED default manager name for a null-managerName row', async () => {
+  it('resolves the DEFAULT manager name — the workspace name — for a null-managerName row', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
-      const workspace = insertWorkspace(db, makeWorkspace(user.id))
-      const derived = deriveDefaultManagerName(workspace.id)
+      const workspace = insertWorkspace(db, makeWorkspace(user.id, { name: 'Bookkeeping' }))
 
       const resolved = await resolveMentions(db, {
-        text: `hello @${derived}`,
+        text: 'hello @Bookkeeping',
         userId: user.id,
         workspaceId: null,
       })

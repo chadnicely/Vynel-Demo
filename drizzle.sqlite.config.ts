@@ -58,6 +58,8 @@ export default defineConfig({
     '../asks/src/schema/ask-requests.ts',
     '../apps/src/schema/workspace-apps.ts',
     '../processes/src/schema/background-processes.ts',
+    '../customization/src/schema/scope-customizations.ts',
+    '../customization/src/schema/tree-layouts.ts',
     '../ssh-servers/src/schema/ssh-servers.ts',
     '../server-install/src/schema/server-installs.ts',
     './src/schema/onboarding/onboarding-runs.ts',

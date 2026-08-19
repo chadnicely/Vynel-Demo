@@ -3,6 +3,7 @@ export const workspaceKeys = {
   lists: () => [...workspaceKeys.all, "list"] as const,
   groups: () => [...workspaceKeys.all, "groups"] as const,
   statuses: () => [...workspaceKeys.all, "statuses"] as const,
+  directoryListings: () => [...workspaceKeys.all, "directories"] as const,
   directories: (path: string | null) =>
-    [...workspaceKeys.all, "directories", path ?? "home"] as const,
+    [...workspaceKeys.directoryListings(), path ?? "home"] as const,
 };

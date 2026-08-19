@@ -14,7 +14,7 @@ import {
   useFileTree,
   type DirectoryEntry,
 } from "../../composables/files/use-file-tree.js";
-import { fileColorFamily } from "./file-colors.js";
+import { fileColorFamily } from "../../utils/file-colors.js";
 
 // Recursive tree row (self-referencing component). A directory expands lazily:
 // its children are fetched from the files API only once it's opened.

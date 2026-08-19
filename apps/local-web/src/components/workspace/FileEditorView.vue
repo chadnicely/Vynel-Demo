@@ -12,7 +12,7 @@ import { IconButton, MarkdownText, SegmentedTabs } from "@vynel/ui";
 import { useFileContent } from "../../composables/files/use-file-content.js";
 import { useSaveFile } from "../../composables/files/use-save-file.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
-import { fileColorFamily } from "./file-colors.js";
+import { fileColorFamily } from "../../utils/file-colors.js";
 import CodeEditor from "./CodeEditor.vue";
 
 // The canvas file editor, VS Code semantics: a text file opens straight into an

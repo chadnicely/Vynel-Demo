@@ -6,6 +6,8 @@ export interface RegisterWorkspaceInput {
   name: string;
   /** An EXISTING directory on disk to register as the workspace. */
   directory: string;
+  /** File it straight into a menu-tree group; omit for the root. */
+  groupId?: string;
 }
 
 export function useRegisterWorkspace() {

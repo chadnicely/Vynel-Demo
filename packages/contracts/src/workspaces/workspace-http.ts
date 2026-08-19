@@ -50,15 +50,58 @@ export interface DirectoryEntryResponse {
   path: string
 }
 
-/** Response shape of `GET /workspaces/directories` — the workspace folder picker. */
+export type DriveKind = 'fixed' | 'removable' | 'network' | 'optical' | 'unknown'
+
+/** A drive/volume root in the browser's "This PC" rail — label + capacity like Explorer shows. */
+export interface DriveRootResponse {
+  /** Absolute root path — the drive root on Windows, `/` on POSIX. */
+  path: string
+  /** The volume label, or null when the volume has none (the UI shows "Local Disk"). */
+  label: string | null
+  kind: DriveKind
+  /** Bytes available to the user, or null when the volume can't be measured. */
+  freeBytes: number | null
+  totalBytes: number | null
+}
+
+export type KnownPlaceKind =
+  | 'home'
+  | 'desktop'
+  | 'documents'
+  | 'downloads'
+  | 'pictures'
+  | 'music'
+  | 'videos'
+
+/** A pinned "quick access" place (home, Desktop, Documents, …) that exists on this machine. */
+export interface KnownPlaceResponse {
+  kind: KnownPlaceKind
+  name: string
+  /** Absolute path. */
+  path: string
+}
+
+/** Request body of `POST /workspaces/directories` — the browser's "New folder". */
+export interface CreateDirectoryRequest {
+  /** The EXISTING folder to create inside. Absolute path. */
+  parentPath: string
+  /** One path segment — no separators, none of the characters Windows forbids. */
+  name: string
+}
+
+/** Response shape of `GET /workspaces/directories` — the shared filesystem browser. */
 export interface DirectoryListingResponse {
   /** The canonical absolute path being listed. */
   path: string
   /** The parent directory for "up" navigation, or null at the filesystem root. */
   parent: string | null
   entries: DirectoryEntryResponse[]
+  /** Visible files — only when the request asked for them (`includeFiles`). */
+  files?: DirectoryEntryResponse[]
   /** Drive/volume roots the user can jump to (Windows drive letters; POSIX root). */
-  drives: string[]
+  drives: DriveRootResponse[]
+  /** The user's home + standard folders that exist. */
+  places: KnownPlaceResponse[]
 }
 
 /** A menu-tree folder (workspace redesign Arc 2b) — the serialized shape

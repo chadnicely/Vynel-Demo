@@ -4,7 +4,8 @@ import { Modal } from "@vynel/ui";
 import { useCreateMemoryEntry } from "../../composables/memory/use-create-memory-entry.js";
 import { useImportMemoryFile } from "../../composables/memory/use-import-memory-file.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
-import FilePickerField from "./FilePickerField.vue";
+import FileSystemBrowser from "../filesystem/FileSystemBrowser.vue";
+import type { FileSystemSelection } from "../filesystem/file-system-selection.js";
 import MemoryTagsField from "./MemoryTagsField.vue";
 import type { SectionScope } from "./section-scope.js";
 
@@ -28,7 +29,7 @@ const emit = defineEmits<{
 const mode = ref<"write" | "file">("write");
 const title = ref("");
 const body = ref("");
-const selectedFilePath = ref<string | null>(null);
+const selectedFile = ref<FileSystemSelection | null>(null);
 const selectedTags = ref<string[]>([]);
 
 const createEntry = useCreateMemoryEntry();
@@ -41,7 +42,7 @@ watch(
     mode.value = "write";
     title.value = "";
     body.value = "";
-    selectedFilePath.value = null;
+    selectedFile.value = null;
     selectedTags.value = [];
     createEntry.reset();
     importFile.reset();
@@ -53,7 +54,7 @@ const canSubmit = computed(() => {
   if (mode.value === "write") {
     return body.value.trim().length > 0 && !createEntry.isPending.value;
   }
-  return selectedFilePath.value !== null && !importFile.isPending.value;
+  return selectedFile.value?.kind === "file" && !importFile.isPending.value;
 });
 
 const isPending = computed(() =>
@@ -74,7 +75,7 @@ function submit() {
     importFile.mutate(
       {
         scope: props.defaultScope,
-        absolutePath: selectedFilePath.value!,
+        absolutePath: selectedFile.value!.path,
         tags: selectedTags.value,
       },
       { onSuccess: () => emit("created") },
@@ -110,7 +111,7 @@ function onOpenChange(open: boolean) {
     :open="props.open"
     title="Add a memory"
     description="Something Claude should remember — it recalls memories in every conversation where they matter."
-    size="md"
+    :size="mode === 'file' ? 'xl' : 'md'"
     @update:open="onOpenChange"
   >
     <div class="flex flex-col gap-3.5 pt-1">
@@ -176,9 +177,9 @@ function onOpenChange(open: boolean) {
 
       <div v-else class="grid gap-1.5">
         <span class="text-[11.5px] font-semibold text-ink-2">File</span>
-        <FilePickerField v-model="selectedFilePath" />
+        <FileSystemBrowser v-model="selectedFile" mode="file" :active="props.open" />
         <span class="text-[11px] text-ink-3">
-          Click a file to import it as a memory — folders just navigate.
+          Click a file to import it as a memory. Double-click a folder to open it.
         </span>
       </div>
 

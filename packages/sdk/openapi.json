@@ -21508,6 +21508,556 @@
         }
       }
     },
+    "/customizations": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "All scope customizations and the tree layout (null until first drag).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "colorSlot": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 64
+                          },
+                          "customColor": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "maxLength": 7
+                          },
+                          "personaColorSlot": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 64
+                          },
+                          "personaCustomColor": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "maxLength": 7
+                          },
+                          "personaImage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "maxLength": 614400
+                          },
+                          "workspaceImage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "maxLength": 614400
+                          },
+                          "groups": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 60
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "label"
+                              ]
+                            },
+                            "maxItems": 64
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "sectionId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "groupId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "isHidden": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "sectionId",
+                                "groupId",
+                                "isHidden"
+                              ]
+                            },
+                            "maxItems": 128
+                          },
+                          "scopeKey": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "colorSlot",
+                          "customColor",
+                          "personaColorSlot",
+                          "personaCustomColor",
+                          "personaImage",
+                          "workspaceImage",
+                          "groups",
+                          "entries",
+                          "scopeKey"
+                        ]
+                      }
+                    },
+                    "treeLayout": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "maxItems": 256
+                        },
+                        "workspaces": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "maxItems": 512
+                          }
+                        }
+                      },
+                      "required": [
+                        "groups",
+                        "workspaces"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "scopes",
+                    "treeLayout"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getCustomizations",
+        "tags": [
+          "customizations"
+        ],
+        "parameters": [],
+        "summary": "Everything the user arranged — every scope's look + the tree's positions.",
+        "x-sdk-name": "customizations.list"
+      }
+    },
+    "/customizations/scopes/{scopeKey}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The saved scope customization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "colorSlot": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 1,
+                      "maximum": 64
+                    },
+                    "customColor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 7
+                    },
+                    "personaColorSlot": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 1,
+                      "maximum": 64
+                    },
+                    "personaCustomColor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 7
+                    },
+                    "personaImage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 614400
+                    },
+                    "workspaceImage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 614400
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 60
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label"
+                        ]
+                      },
+                      "maxItems": 64
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sectionId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "groupId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "isHidden": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "sectionId",
+                          "groupId",
+                          "isHidden"
+                        ]
+                      },
+                      "maxItems": 128
+                    },
+                    "scopeKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "colorSlot",
+                    "customColor",
+                    "personaColorSlot",
+                    "personaCustomColor",
+                    "personaImage",
+                    "workspaceImage",
+                    "groups",
+                    "entries",
+                    "scopeKey"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A colour is not #rrggbb, an image is not a data:image URL, or both colour kinds were set."
+          }
+        },
+        "operationId": "putCustomizationsScopesByScopeKey",
+        "tags": [
+          "customizations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scopeKey",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "Save one scope's whole customization (autosave writes it entire).",
+        "x-sdk-name": "customizations.saveScope",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "colorSlot": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "customColor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 7
+                  },
+                  "personaColorSlot": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "personaCustomColor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 7
+                  },
+                  "personaImage": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 614400
+                  },
+                  "workspaceImage": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 614400
+                  },
+                  "groups": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "label"
+                      ]
+                    },
+                    "maxItems": 64
+                  },
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "sectionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "groupId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "isHidden": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "sectionId",
+                        "groupId",
+                        "isHidden"
+                      ]
+                    },
+                    "maxItems": 128
+                  }
+                },
+                "required": [
+                  "colorSlot",
+                  "customColor",
+                  "personaColorSlot",
+                  "personaCustomColor",
+                  "personaImage",
+                  "workspaceImage",
+                  "groups",
+                  "entries"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customizations/tree-layout": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The saved layout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "maxItems": 256
+                    },
+                    "workspaces": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "maxItems": 512
+                      }
+                    }
+                  },
+                  "required": [
+                    "groups",
+                    "workspaces"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "putCustomizationsTree-layout",
+        "tags": [
+          "customizations"
+        ],
+        "parameters": [],
+        "summary": "Save the sidebar tree's positions whole (one write per drop).",
+        "x-sdk-name": "customizations.saveTreeLayout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "groups": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 256
+                  },
+                  "workspaces": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "maxItems": 512
+                    }
+                  }
+                },
+                "required": [
+                  "groups",
+                  "workspaces"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/journal": {
       "get": {
         "responses": {
@@ -37989,6 +38539,9 @@
           "400": {
             "description": "Directory not found, not a directory, or not writable."
           },
+          "404": {
+            "description": "The group to file it into does not exist."
+          },
           "409": {
             "description": "This directory is already a workspace."
           }
@@ -38006,7 +38559,7 @@
           "mutatingApproved": true,
           "askApproval": true,
           "rootSurface": true,
-          "description": "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', 'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is the display name. `directory` is an EXISTING absolute folder path on disk that becomes the workspace root — confirm the exact path with the user first; the call fails if the folder doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is optional (personal / small-business / project / custom). Creating a workspace is a setup action the user approves. Returns the created workspace."
+          "description": "Create a new workspace for the user — a project or business area (e.g. 'Bookkeeping', 'Marketing site') the assistant works in, with its own files, chat, and tools. `name` is the display name. `directory` is an EXISTING absolute folder path on disk that becomes the workspace root — confirm the exact path with the user first; the call fails if the folder doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is optional (personal / small-business / project / custom); `groupId` optionally files it into one of the user's workspace groups. Creating a workspace is a setup action the user approves. Returns the created workspace."
         },
         "requestBody": {
           "content": {
@@ -38031,6 +38584,10 @@
                   "directory": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "groupId": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -38047,7 +38604,7 @@
       "get": {
         "responses": {
           "200": {
-            "description": "A directory listing (path, parent, child directories).",
+            "description": "A directory listing (path, parent, child directories, drives, known places).",
             "content": {
               "application/json": {
                 "schema": {
@@ -38101,7 +38658,78 @@
                     "drives": {
                       "type": "array",
                       "items": {
-                        "type": "string"
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "fixed",
+                              "removable",
+                              "network",
+                              "optical",
+                              "unknown"
+                            ]
+                          },
+                          "freeBytes": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "totalBytes": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label",
+                          "kind",
+                          "freeBytes",
+                          "totalBytes"
+                        ]
+                      }
+                    },
+                    "places": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "home",
+                              "desktop",
+                              "documents",
+                              "downloads",
+                              "pictures",
+                              "music",
+                              "videos"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name",
+                          "path"
+                        ]
                       }
                     }
                   },
@@ -38109,7 +38737,8 @@
                     "path",
                     "parent",
                     "entries",
-                    "drives"
+                    "drives",
+                    "places"
                   ]
                 }
               }
@@ -38139,8 +38768,71 @@
             }
           }
         ],
-        "summary": "List subdirectories of a local path — backs the workspace folder picker.",
+        "summary": "List a local folder (subfolders, drives, known places) — backs the filesystem browser.",
         "x-sdk-name": "workspaces.listDirectories"
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The new folder (name + absolute path).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "path"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parent not found / not a directory, or the name is not a valid folder name."
+          },
+          "409": {
+            "description": "A folder with that name already exists there."
+          }
+        },
+        "operationId": "postWorkspacesDirectories",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Create one new folder inside an existing local folder — the filesystem browser's \"New folder\".",
+        "x-sdk-name": "workspaces.createDirectory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "parentPath",
+                  "name"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/workspaces/groups": {

@@ -176,6 +176,18 @@ describe('the hub HTTP surface', () => {
         newPassword: 'short',
       })
       expect(shortPassword.status).toBe(400)
+
+      // A body that isn't JSON at all is the caller's mistake, not a crash.
+      const malformed = await app.request('/auth/sign-in', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"email": "C:\\Users\\chad"',
+      })
+      expect(malformed.status).toBe(400)
+      expect(await malformed.json()).toEqual({
+        code: 'validation_failed',
+        message: 'Malformed JSON in request body',
+      })
     })
   })
 })

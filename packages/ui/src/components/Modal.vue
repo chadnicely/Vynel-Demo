@@ -19,7 +19,7 @@ const props = withDefaults(
   defineProps<{
     title?: string;
     description?: string;
-    size?: "sm" | "md" | "lg";
+    size?: "sm" | "md" | "lg" | "xl";
     hideClose?: boolean;
   }>(),
   { size: "md", hideClose: false },
@@ -41,6 +41,7 @@ const sizeClass: Record<NonNullable<typeof props.size>, string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-3xl",
 };
 
 // Reka's focus scope moves focus to the first tabbable element on open, which

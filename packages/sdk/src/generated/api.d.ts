@@ -2197,6 +2197,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Everything the user arranged — every scope's look + the tree's positions. */
+        get: operations["getCustomizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customizations/scopes/{scopeKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save one scope's whole customization (autosave writes it entire). */
+        put: operations["putCustomizationsScopesByScopeKey"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customizations/tree-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save the sidebar tree's positions whole (one write per drop). */
+        put: operations["putCustomizationsTree-layout"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/journal": {
         parameters: {
             query?: never;
@@ -3957,10 +4008,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List subdirectories of a local path — backs the workspace folder picker. */
+        /** List a local folder (subfolders, drives, known places) — backs the filesystem browser. */
         get: operations["getWorkspacesDirectories"];
         put?: never;
-        post?: never;
+        /** Create one new folder inside an existing local folder — the filesystem browser's "New folder". */
+        post: operations["postWorkspacesDirectories"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12442,6 +12494,151 @@ export interface operations {
             };
         };
     };
+    getCustomizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All scope customizations and the tree layout (null until first drag). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        scopes: {
+                            colorSlot: number | null;
+                            customColor: string | null;
+                            personaColorSlot: number | null;
+                            personaCustomColor: string | null;
+                            personaImage: string | null;
+                            workspaceImage: string | null;
+                            groups: {
+                                id: string;
+                                label: string;
+                            }[];
+                            entries: {
+                                sectionId: string;
+                                groupId: string | null;
+                                isHidden: boolean;
+                            }[];
+                            scopeKey: string;
+                        }[];
+                        treeLayout: {
+                            groups: string[];
+                            workspaces: {
+                                [key: string]: string[];
+                            };
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    putCustomizationsScopesByScopeKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scopeKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    colorSlot: number | null;
+                    customColor: string | null;
+                    personaColorSlot: number | null;
+                    personaCustomColor: string | null;
+                    personaImage: string | null;
+                    workspaceImage: string | null;
+                    groups: {
+                        id: string;
+                        label: string;
+                    }[];
+                    entries: {
+                        sectionId: string;
+                        groupId: string | null;
+                        isHidden: boolean;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description The saved scope customization. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        colorSlot: number | null;
+                        customColor: string | null;
+                        personaColorSlot: number | null;
+                        personaCustomColor: string | null;
+                        personaImage: string | null;
+                        workspaceImage: string | null;
+                        groups: {
+                            id: string;
+                            label: string;
+                        }[];
+                        entries: {
+                            sectionId: string;
+                            groupId: string | null;
+                            isHidden: boolean;
+                        }[];
+                        scopeKey: string;
+                    };
+                };
+            };
+            /** @description A colour is not #rrggbb, an image is not a data:image URL, or both colour kinds were set. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "putCustomizationsTree-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    groups: string[];
+                    workspaces: {
+                        [key: string]: string[];
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The saved layout. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        groups: string[];
+                        workspaces: {
+                            [key: string]: string[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     getJournal: {
         parameters: {
             query?: {
@@ -18258,6 +18455,7 @@ export interface operations {
                     /** @enum {string} */
                     kind?: "small-business" | "personal" | "project" | "custom";
                     directory: string;
+                    groupId?: string;
                 };
             };
         };
@@ -18296,6 +18494,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description The group to file it into does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description This directory is already a workspace. */
             409: {
                 headers: {
@@ -18317,7 +18522,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A directory listing (path, parent, child directories). */
+            /** @description A directory listing (path, parent, child directories, drives, known places). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18334,12 +18539,69 @@ export interface operations {
                             name: string;
                             path: string;
                         }[];
-                        drives: string[];
+                        drives: {
+                            path: string;
+                            label: string | null;
+                            /** @enum {string} */
+                            kind: "fixed" | "removable" | "network" | "optical" | "unknown";
+                            freeBytes: number | null;
+                            totalBytes: number | null;
+                        }[];
+                        places: {
+                            /** @enum {string} */
+                            kind: "home" | "desktop" | "documents" | "downloads" | "pictures" | "music" | "videos";
+                            name: string;
+                            path: string;
+                        }[];
                     };
                 };
             };
             /** @description Path not found, not a directory, or not readable. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesDirectories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    parentPath: string;
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new folder (name + absolute path). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        name: string;
+                        path: string;
+                    };
+                };
+            };
+            /** @description Parent not found / not a directory, or the name is not a valid folder name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A folder with that name already exists there. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

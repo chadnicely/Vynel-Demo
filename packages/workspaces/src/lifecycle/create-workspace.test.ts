@@ -4,7 +4,7 @@ import { mkdtempSync, existsSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { withTestDatabase } from '@vynel/testing'
-import { ConflictError, ValidationError } from '@vynel/errors'
+import { ConflictError, NotFoundError, ValidationError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import * as workspacesRepository from '@vynel/db/repositories/workspaces'
 import * as outboxRepository from '@vynel/db/repositories/_shared'
@@ -45,8 +45,8 @@ describe('createWorkspace (existing-directory model)', () => {
 
       expect(workspace.userId).toBe(user.id)
       expect(workspace.kind).toBe('small-business')
-      // brain-tree Ch5 — a default persona name is auto-assigned on create.
-      expect(workspace.managerName).toBeTruthy()
+      // brain-tree Ch5 — the default persona name IS the workspace name (Kafi, 2026-08-19).
+      expect(workspace.managerName).toBe('Acme Inc.')
 
       // Vynel's metadata dir exists (identity files are retired — A2)...
       expect(existsSync(path.join(workspace.path, '.vynel'))).toBe(true)
@@ -78,6 +78,44 @@ describe('createWorkspace (existing-directory model)', () => {
       // The default flows into the outbox event payload too.
       const events = outboxRepository.listOutboxEventsByType(db, WORKSPACE_CREATED_EVENT)
       expect(events[0]!.payload).toMatchObject({ kind: 'personal' })
+    })
+  })
+
+  it('is born into the given group; a foreign group 404s before anything is written', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const stranger = makeUser()
+      insertUser(db, stranger)
+      const now = new Date()
+      const group = workspacesRepository.insertWorkspaceGroup(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Clients',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const foreignGroup = workspacesRepository.insertWorkspaceGroup(db, {
+        id: randomUUID(),
+        userId: stranger.id,
+        name: 'Theirs',
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const workspace = await createWorkspace(db, {
+        userId: user.id,
+        name: 'Acme',
+        directory: existingDir(),
+        groupId: group.id,
+      })
+      expect(workspace.groupId).toBe(group.id)
+
+      const directory = existingDir()
+      await expect(
+        createWorkspace(db, { userId: user.id, name: 'Nope', directory, groupId: foreignGroup.id }),
+      ).rejects.toThrow(NotFoundError)
+      expect(workspacesRepository.findWorkspaceByNormalizedPath(db, user.id, directory)).toBeNull()
     })
   })
 

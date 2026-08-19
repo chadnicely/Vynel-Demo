@@ -56,7 +56,7 @@ export { createWorkspace } from './lifecycle/create-workspace.js'
 export type { CreateWorkspaceInput, CreateWorkspaceDependencies } from './lifecycle/create-workspace.js'
 
 // Manager persona naming (brain-tree Ch5) — the default-name picker + the resolver.
-export { deriveDefaultManagerName, resolveManagerName } from './manager-name.js'
+export { formatManagerLabel, hasDistinctManagerName, resolveManagerName } from './manager-name.js'
 
 export { listWorkspacesForUser } from './lifecycle/list-workspaces-for-user.js'
 export type { ListWorkspacesForUserInput } from './lifecycle/list-workspaces-for-user.js'
@@ -71,7 +71,10 @@ export type { UpdateWorkspaceMetadataInput } from './lifecycle/update-workspace-
 export { makeDefaultWorkspaceParentDirectory } from './directory/make-default-workspace-parent-directory.js'
 export { sanitizeFolderName } from './directory/sanitize-folder-name.js'
 export { listChildDirectories } from './directory/list-child-directories.js'
+export { createChildDirectory } from './directory/create-child-directory.js'
 export type { DirectoryListing, DirectoryEntry } from './directory/list-child-directories.js'
+export type { DriveRoot, DriveKind } from './directory/list-drive-roots.js'
+export type { KnownPlace, KnownPlaceKind } from './directory/list-known-places.js'
 
 export { archiveWorkspace, unarchiveWorkspace } from './lifecycle/archive-workspace.js'
 

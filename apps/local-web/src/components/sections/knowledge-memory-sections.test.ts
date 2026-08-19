@@ -250,7 +250,8 @@ describe("AddMemoryDialog", () => {
           path: "C:\\Users\\KLONE",
           parent: null,
           drives: [],
-          entries: [],
+          places: [],
+          entries: [{ name: "Archive", path: "C:\\Users\\KLONE\\Archive" }],
           files: [{ name: "notes.md", path: "C:\\Users\\KLONE\\notes.md" }],
         }),
       },
@@ -419,6 +420,31 @@ describe("AddMemoryDialog", () => {
       [null, { absolutePath: "C:\\Users\\KLONE\\notes.md" }],
     ]);
     expect(wrapper.emitted("created")).toHaveLength(1);
+  });
+
+  it("a highlighted folder is never the import — only a file enables Import", async () => {
+    mountDialog(makeClient({}));
+    await flushPromises();
+    const dialog = latestDialog();
+    clickButton(dialog, "From a file");
+    await flushPromises();
+
+    const importButton = [...dialog.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Import file",
+    )!;
+    clickButton(dialog, "Archive");
+    await flushPromises();
+    expect(importButton.disabled).toBe(true);
+
+    // The habit: double-clicking the file. Two clicks must leave it selected.
+    const file = [...dialog.querySelectorAll<HTMLButtonElement>("button.fs-tile")].find(
+      (b) => b.textContent?.trim() === "notes.md",
+    )!;
+    file.click();
+    file.click();
+    file.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    await flushPromises();
+    expect(importButton.disabled).toBe(false);
   });
 
   it("imports into the open workspace when opened from a room", async () => {

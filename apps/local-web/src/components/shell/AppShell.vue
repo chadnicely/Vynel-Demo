@@ -63,6 +63,8 @@ import {
 } from "../../stores/customize-store.js";
 import { useScopeTabs } from "../../composables/shell/use-scope-tabs.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
+import { workspaceAccentCss } from "../../utils/workspace-accent.js";
+import { useVynel } from "../../composables/use-vynel.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
@@ -119,11 +121,16 @@ const activeWorkspaces = computed(() =>
   allWorkspaces.value.filter((w) => !w.isArchived),
 );
 const workspaceOptions = computed(() =>
-  activeWorkspaces.value.map((w) => ({
-    id: w.id,
-    name: w.name,
-    groupId: w.groupId ?? null,
-  })),
+  activeWorkspaces.value.map((w) => {
+    const custom = customize.customizationFor(w.id);
+    return {
+      id: w.id,
+      name: w.name,
+      groupId: w.groupId ?? null,
+      imageUrl: custom.workspaceImage,
+      accent: workspaceAccentCss(custom, w.name),
+    };
+  }),
 );
 
 // Menu-tree folders (Arc 2b) — the tree renders them; the mutations answer
@@ -218,6 +225,7 @@ function catalogItems(scope: "global" | "workspace"): SidebarItem[] {
 // The Customize row itself rides pinned at the end, outside the catalog;
 // the Global menu keeps its system rows just before it.
 const customize = useCustomizeStore();
+const vynel = useVynel();
 const CUSTOMIZE_ITEM: SidebarItem = {
   id: "customize",
   label: "Customize",
@@ -375,17 +383,14 @@ const { selectTab, closeTab, addTab } = useScopeTabs(
 // tab machinery the strip uses (selectTab restores the tab's place), so the
 // two modes stay one state. ──
 function treeSelect(workspaceId: string | null) {
-  // Clicking the already-active row is inert — duplicate tabs are legal, so
-  // "find first tab for this room" could otherwise hop a later duplicate's
-  // canvas over to the first one's place.
-  if (ui.activeTab.workspaceId === workspaceId) return;
   if (workspaceId === null) {
-    selectTab(GLOBAL_TAB_ID);
+    if (ui.activeTab.workspaceId !== null) selectTab(GLOBAL_TAB_ID);
     return;
   }
-  const existing = ui.tabs.find((tab) => tab.workspaceId === workspaceId);
-  if (existing !== undefined) selectTab(existing.id);
-  else addTab(workspaceId);
+  // A workspace row always opens that room's chat — even when the room is
+  // already the active tab on some other section (Kafi, 2026-08-19).
+  ui.openWorkspaceTab(workspaceId);
+  void router.push({ name: "workspace" });
 }
 
 function treeDrill(workspaceId: string | null) {
@@ -453,6 +458,23 @@ function openAccount() {
 const isSidebarOpen = ref(true);
 const isPaletteOpen = ref(false);
 const isCreateWorkspaceOpen = ref(false);
+// The group a "+" was clicked on — the dialog's starting Group; null = root.
+const createWorkspaceGroupId = ref<string | null>(null);
+function openCreateWorkspace(groupId: string | null = null) {
+  createWorkspaceGroupId.value = groupId;
+  isCreateWorkspaceOpen.value = true;
+}
+// The strip's stack-plus: one create in flight at a time (a double-click must
+// not mint two "New group" rows); the created row opens into its rename box.
+const renameGroupId = ref<string | null>(null);
+function createGroupFromTree() {
+  if (groupMutations.createGroup.isPending.value) return;
+  groupMutations.createGroup.mutate("New group", {
+    onSuccess: (group) => {
+      renameGroupId.value = group.id;
+    },
+  });
+}
 const isClaudeAccountOpen = ref(false);
 
 // The dialog is mounted once, here. A routed view (the Nodes screen's empty
@@ -460,7 +482,7 @@ const isClaudeAccountOpen = ref(false);
 watch(
   () => ui.createWorkspaceRequestCount,
   () => {
-    isCreateWorkspaceOpen.value = true;
+    openCreateWorkspace();
   },
 );
 
@@ -545,7 +567,7 @@ function runCommand(id: string) {
       void router.push({ name: "chat" });
       break;
     case "new-workspace":
-      isCreateWorkspaceOpen.value = true;
+      openCreateWorkspace();
       break;
     case "claude-account":
       isClaudeAccountOpen.value = true;
@@ -619,6 +641,29 @@ function onGlobalKeydown(event: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
+
+// Customization lives in the DB: pull it at boot and every time the window
+// comes back (another window may have changed it — the server's rows win over
+// anything not still unsaved here); push what's unsaved when the window goes.
+// hydrate() never rejects — a boot with the engine down keeps the cache.
+onMounted(() => {
+  void customize.hydrate(vynel);
+});
+function syncCustomizeOnVisibility() {
+  if (document.visibilityState === "hidden") void customize.flush();
+  else void customize.hydrate(vynel);
+}
+function flushCustomizeOnPageHide() {
+  void customize.flush();
+}
+onMounted(() => {
+  document.addEventListener("visibilitychange", syncCustomizeOnVisibility);
+  window.addEventListener("pagehide", flushCustomizeOnPageHide);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", syncCustomizeOnVisibility);
+  window.removeEventListener("pagehide", flushCustomizeOnPageHide);
+});
 </script>
 
 <template>
@@ -653,10 +698,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           :status-by-workspace-id="statusByWorkspaceId"
           :global-status="globalStatus"
           :account-name="accountName"
+          :rename-group-id="renameGroupId"
+          :tree-order="customize.treeLayout"
           @select="treeSelect"
           @drill="treeDrill"
-          @create-workspace="isCreateWorkspaceOpen = true"
-          @create-group="groupMutations.createGroup.mutate('New folder')"
+          @create-workspace="openCreateWorkspace"
+          @create-group="createGroupFromTree"
+          @order-change="customize.setTreeLayout"
           @rename-group="(groupId, name) => groupMutations.renameGroup.mutate({ groupId, name })"
           @delete-group="(groupId) => groupMutations.deleteGroup.mutate(groupId)"
           @move-workspace="
@@ -694,7 +742,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           @select-tab="selectTab"
           @close-tab="closeTab"
           @add-tab="addTab"
-          @create-workspace="isCreateWorkspaceOpen = true"
+          @create-workspace="openCreateWorkspace()"
         />
         <main class="canvas-wrap">
           <!-- Keyed per tab: each tab is its own view instance, so a view can
@@ -726,6 +774,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
     <PlanViewDialog />
     <CreateWorkspaceDialog
       :open="isCreateWorkspaceOpen"
+      :default-group-id="createWorkspaceGroupId"
       @close="isCreateWorkspaceOpen = false"
       @created="onWorkspaceCreated"
     />

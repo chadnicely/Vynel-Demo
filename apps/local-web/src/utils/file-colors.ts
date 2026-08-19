@@ -1,6 +1,7 @@
 // File-type presentation: which color family (tokens.css --file-*) and icon
-// shape a tree row gets. Pure lookup — shared by the tree and the editor
-// header so a file always wears the same color everywhere.
+// shape a file gets. Pure lookup — shared by the workspace file tree, the
+// editor header, and the filesystem browser so a file always wears the same
+// color everywhere.
 
 export type FileColorFamily =
   "folder" | "doc" | "data" | "image" | "code" | "plain";

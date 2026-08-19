@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import {
-  PhArrowUp as ArrowUp,
-  PhFolder as Folder,
-  PhHardDrive as HardDrive,
-} from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
+import FileSystemBrowser from "../filesystem/FileSystemBrowser.vue";
+import { isDriveRootPath } from "../filesystem/file-system-path.js";
+import type { FileSystemSelection } from "../filesystem/file-system-selection.js";
 import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";
 import { useRegisterWorkspace } from "../../composables/workspaces/use-register-workspace.js";
+import {
+  useWorkspaceGroupMutations,
+  useWorkspaceGroups,
+} from "../../composables/workspaces/use-workspace-groups.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
-// The "New workspace" dialog: name it, walk the real filesystem to an
-// existing folder (the API's directory browser), register. The CURRENT
-// listed directory is the selection — you navigate INTO the folder you want.
+// The "New workspace" dialog: pick the folder in the Explorer-style browser,
+// the name fills itself from that folder (edit it if you like), file it into
+// a group (an existing one, or make a new group right here), Continue.
 const props = defineProps<{
   open: boolean;
+  /** The group a tree "+" was clicked on — the starting pick; null = root. */
+  defaultGroupId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -23,50 +27,118 @@ const emit = defineEmits<{
   created: [workspace: WorkspaceResponse];
 }>();
 
+const selection = ref<FileSystemSelection | null>(null);
 const name = ref("");
-// null = the API's default start (the user's home directory).
-const browsePath = ref<string | null>(null);
+// Once the user types a name it stops following the folder; clearing it
+// hands control back to the folder.
+const nameEdited = ref(false);
 
 const isOpen = computed(() => props.open);
-const listingQuery = useDirectoryListing(browsePath, isOpen);
+// The same home read the browser opens with (shared query cache) — it carries
+// the known places, and Home is the one folder a workspace must not swallow.
+const homeListing = useDirectoryListing(ref(null), isOpen);
 const registerWorkspace = useRegisterWorkspace();
+const groupsQuery = useWorkspaceGroups();
+const groupMutations = useWorkspaceGroupMutations();
 
-// A fresh dialog per open — yesterday's half-typed name shouldn't linger.
-// `immediate` covers a dialog mounted already-open (the same init hole the
-// section dialogs had).
+// ── Group: an existing one, the root, or a new group made inline. ──
+const NEW_GROUP_OPTION = "__new__";
+const groupId = ref<string | null>(null);
+const isNamingGroup = ref(false);
+const newGroupName = ref("");
+const groups = computed(() => groupsQuery.data.value ?? []);
+
+function onGroupPicked(event: Event) {
+  const value = (event.target as HTMLSelectElement).value;
+  if (value === NEW_GROUP_OPTION) {
+    isNamingGroup.value = true;
+    newGroupName.value = "";
+    return;
+  }
+  isNamingGroup.value = false;
+  groupId.value = value === "" ? null : value;
+}
+
+function createGroup() {
+  const name = newGroupName.value.trim();
+  if (name.length === 0 || groupMutations.createGroup.isPending.value) return;
+  groupMutations.createGroup.mutate(name, {
+    onSuccess: (group) => {
+      groupId.value = group.id;
+      isNamingGroup.value = false;
+      newGroupName.value = "";
+    },
+  });
+}
+
+function cancelNewGroup() {
+  isNamingGroup.value = false;
+  newGroupName.value = "";
+  groupMutations.createGroup.reset();
+}
+
 watch(
   () => props.open,
   (open) => {
     if (open) {
+      selection.value = null;
       name.value = "";
-      browsePath.value = null;
+      nameEdited.value = false;
+      groupId.value = props.defaultGroupId ?? null;
+      cancelNewGroup();
       registerWorkspace.reset();
     }
   },
   { immediate: true },
 );
 
-const listing = computed(() => listingQuery.data.value);
-const selectedPath = computed(() => listing.value?.path ?? null);
+const homePath = computed(
+  () => homeListing.data.value?.places.find((place) => place.kind === "home")?.path ?? null,
+);
+// A whole drive or the home folder isn't a room — it's the whole house.
+const isTooBroad = computed(
+  () =>
+    selection.value !== null &&
+    (isDriveRootPath(selection.value.path) || selection.value.path === homePath.value),
+);
+
+// The name the folder suggests — nothing while the pick is too broad to be one.
+const suggestedName = computed(() =>
+  selection.value && !isTooBroad.value ? selection.value.name : "",
+);
+watch(suggestedName, (suggested) => {
+  if (!nameEdited.value) name.value = suggested;
+});
+
+function onNameInput(event: Event) {
+  const typed = (event.target as HTMLInputElement).value;
+  nameEdited.value = typed.trim().length > 0;
+  if (!nameEdited.value) name.value = suggestedName.value;
+}
+
 const canCreate = computed(
   () =>
+    selection.value !== null &&
+    !isTooBroad.value &&
     name.value.trim().length > 0 &&
-    selectedPath.value !== null &&
     !registerWorkspace.isPending.value,
 );
 
 const errorMessage = computed(() => {
-  const error = registerWorkspace.error.value ?? listingQuery.error.value;
+  const error = registerWorkspace.error.value ?? groupMutations.createGroup.error.value;
   return error ? formatSdkError(error) : null;
 });
 
 function create() {
-  if (!canCreate.value || selectedPath.value === null) return;
+  if (!canCreate.value || selection.value === null) return;
   registerWorkspace.mutate(
-    { name: name.value.trim(), directory: selectedPath.value },
     {
-      onSuccess: (workspace) =>
-        emit("created", workspace as WorkspaceResponse),
+      name: name.value.trim(),
+      directory: selection.value.path,
+      ...(groupId.value !== null ? { groupId: groupId.value } : {}),
+    },
+    {
+      onSuccess: (workspace) => emit("created", workspace as WorkspaceResponse),
     },
   );
 }
@@ -83,89 +155,74 @@ function onOpenChange(open: boolean) {
     :open="props.open"
     title="New workspace"
     description="A room for one area of your life or work — its own files, memory, and skills."
-    size="lg"
+    size="xl"
     @update:open="onOpenChange"
   >
     <div class="flex flex-col gap-3.5 pt-1">
+      <div class="grid gap-1.5">
+        <span class="text-[11.5px] font-semibold text-ink-2">Folder</span>
+        <FileSystemBrowser v-model="selection" mode="folder" :active="props.open" />
+        <span v-if="isTooBroad" class="text-[11px] text-needs-input">
+          That's your whole {{ selection && isDriveRootPath(selection.path) ? "drive" : "home folder" }} —
+          open it and pick the folder this workspace should live in.
+        </span>
+        <span v-else class="text-[11px] text-ink-3">
+          Click a folder to choose it, double-click to open it. The chosen folder is
+          the one Claude works in.
+        </span>
+      </div>
+
       <label class="grid gap-1.5">
         <span class="text-[11.5px] font-semibold text-ink-2">Name</span>
         <input
           v-model="name"
           type="text"
           maxlength="120"
-          placeholder="e.g. Bookkeeping"
-          autofocus
+          placeholder="Picked from the folder — change it if you like"
           class="w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
+          @input="onNameInput"
           @keydown.enter.prevent="create"
         />
       </label>
 
       <div class="grid gap-1.5">
-        <span class="text-[11.5px] font-semibold text-ink-2">Folder</span>
-        <div class="overflow-hidden rounded-md border border-hair bg-panel">
-          <div class="flex items-center gap-2 border-b border-hair px-2.5 py-[7px]">
-            <button
-              type="button"
-              class="grid h-[22px] w-6 cursor-default place-items-center rounded-sm border border-hair-strong text-ink-2 enabled:hover:bg-row-hover disabled:opacity-40"
-              :disabled="!listing?.parent"
-              title="Up one folder"
-              @click="listing?.parent && (browsePath = listing.parent)"
-            >
-              <ArrowUp :size="13" />
-            </button>
-            <span
-              class="overflow-hidden text-ellipsis whitespace-nowrap text-left font-mono text-[11.5px] font-medium text-ink-2 [direction:rtl]"
-              :title="selectedPath ?? ''"
-            >
-              {{ selectedPath ?? "Loading…" }}
-            </span>
-          </div>
-
-          <div v-if="listing?.drives?.length" class="flex gap-1 px-2.5 pt-1.5">
-            <button
-              v-for="drive in listing.drives"
-              :key="drive"
-              type="button"
-              class="inline-flex cursor-default items-center gap-1 rounded-sm border px-2 py-0.5 text-[10.5px] font-medium"
-              :class="
-                selectedPath?.startsWith(drive)
-                  ? 'border-gold text-ink-1'
-                  : 'border-hair text-ink-3 hover:bg-row-hover hover:text-ink-2'
-              "
-              @click="browsePath = drive"
-            >
-              <HardDrive :size="11" />
-              {{ drive }}
-            </button>
-          </div>
-
-          <div
-            class="grid h-[168px] content-start gap-px overflow-y-auto p-1.5 transition-opacity"
-            :class="listingQuery.isFetching.value && 'opacity-55'"
+        <span class="text-[11.5px] font-semibold text-ink-2">Group</span>
+        <div class="flex items-center gap-2">
+          <select
+            class="group-select h-7 cursor-default rounded-sm border border-hair-strong bg-panel px-1.5 text-[12px] text-ink-1 transition focus:outline-none"
+            :value="isNamingGroup ? NEW_GROUP_OPTION : (groupId ?? '')"
+            aria-label="Group"
+            @change="onGroupPicked"
           >
+            <option value="">No group</option>
+            <option v-for="group in groups" :key="group.id" :value="group.id">
+              {{ group.name }}
+            </option>
+            <option :value="NEW_GROUP_OPTION">＋ New group…</option>
+          </select>
+          <template v-if="isNamingGroup">
+            <input
+              v-model="newGroupName"
+              type="text"
+              maxlength="60"
+              placeholder="Group name"
+              aria-label="New group name"
+              class="new-group-name h-7 min-w-0 flex-1 rounded-sm border border-hair-strong bg-panel px-2 text-[12px] text-ink-1 placeholder:text-ink-3"
+              @keydown.enter.prevent="createGroup"
+              @keydown.esc.prevent="cancelNewGroup"
+            />
             <button
-              v-for="entry in listing?.entries ?? []"
-              :key="entry.path"
               type="button"
-              class="entry flex cursor-default items-center gap-2 rounded-sm px-2 py-[5px] text-left hover:bg-row-hover"
-              @click="browsePath = entry.path"
+              class="new-group-create cursor-default rounded-sm border border-hair-strong px-2.5 py-1 text-[11.5px] font-semibold text-ink-2 transition hover:bg-row-hover hover:text-ink-1 disabled:opacity-55"
+              :disabled="newGroupName.trim().length === 0 || groupMutations.createGroup.isPending.value"
+              @click="createGroup"
             >
-              <Folder :size="13" class="shrink-0 text-file-folder" />
-              <span class="overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] text-ink-1">
-                {{ entry.name }}
-              </span>
+              {{ groupMutations.createGroup.isPending.value ? "Creating…" : "Create group" }}
             </button>
-            <p
-              v-if="listing && listing.entries.length === 0"
-              class="m-2 text-[11.5px] text-ink-3"
-            >
-              No subfolders — this folder itself becomes the workspace.
-            </p>
-          </div>
+          </template>
         </div>
         <span class="text-[11px] text-ink-3">
-          The open folder is the one Claude uses. Step into the folder you
-          want, then create.
+          Groups keep related workspaces together in the left menu.
         </span>
       </div>
 
@@ -188,9 +245,7 @@ function onOpenChange(open: boolean) {
         :disabled="!canCreate"
         @click="create"
       >
-        {{
-          registerWorkspace.isPending.value ? "Creating…" : "Create workspace"
-        }}
+        {{ registerWorkspace.isPending.value ? "Creating…" : "Continue" }}
       </button>
     </template>
   </Modal>

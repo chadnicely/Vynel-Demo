@@ -3,6 +3,7 @@
 //   - GET    /workspaces                        -> listWorkspacesForUser  [x-mcp]
 //   - POST   /workspaces                        -> createWorkspace
 //   - GET    /workspaces/directories             -> listChildDirectories
+//   - POST   /workspaces/directories             -> createChildDirectory
 //   - GET    /workspaces/groups                 -> listWorkspaceGroups    [x-mcp]
 //   - POST   /workspaces/groups                 -> createWorkspaceGroup
 //   - PATCH  /workspaces/groups/:groupId        -> renameWorkspaceGroup
@@ -57,6 +58,7 @@ import {
   unarchiveWorkspace,
   hardDeleteWorkspace,
   listChildDirectories,
+  createChildDirectory,
   createWorkspaceGroup,
   listWorkspaceGroups,
   renameWorkspaceGroup,
@@ -74,6 +76,8 @@ import {
   WorkspaceResponseSchema,
   ListWorkspacesResponseSchema,
   DirectoryListingResponseSchema,
+  DirectoryEntryResponseSchema,
+  CreateDirectoryRequestSchema,
   CreateWorkspaceGroupRequestSchema,
   RenameWorkspaceGroupRequestSchema,
   SetWorkspaceGroupRequestSchema,
@@ -141,8 +145,9 @@ export const workspacesApp = factory
           'the display name. `directory` is an EXISTING absolute folder path on disk that becomes the ' +
           "workspace root — confirm the exact path with the user first; the call fails if the folder " +
           "doesn't exist, isn't a directory, isn't writable, or is already a workspace. `kind` is " +
-          'optional (personal / small-business / project / custom). Creating a workspace is a setup ' +
-          'action the user approves. Returns the created workspace.',
+          'optional (personal / small-business / project / custom); `groupId` optionally files it ' +
+          'into one of the user\'s workspace groups. Creating a workspace is a setup action the user ' +
+          'approves. Returns the created workspace.',
       },
       responses: {
         201: {
@@ -150,6 +155,7 @@ export const workspacesApp = factory
           content: { 'application/json': { schema: resolver(WorkspaceResponseSchema) } },
         },
         400: { description: 'Directory not found, not a directory, or not writable.' },
+        404: { description: 'The group to file it into does not exist.' },
         409: { description: 'This directory is already a workspace.' },
       },
     }),
@@ -159,11 +165,15 @@ export const workspacesApp = factory
       // `kind` is optional in the request (the picker was retired — "stop
       // asking"); omit it when absent so the core default ('personal') applies.
       // Passing `kind: undefined` would trip exactOptionalPropertyTypes.
-      const { kind, ...rest } = c.req.valid('json')
-      const baseInput = { ...rest, userId: c.var.user.id }
+      const { kind, groupId, ...rest } = c.req.valid('json')
       const workspace = await createWorkspace(
         c.var.db,
-        kind === undefined ? baseInput : { ...baseInput, kind },
+        {
+          ...rest,
+          userId: c.var.user.id,
+          ...(kind === undefined ? {} : { kind }),
+          ...(groupId === undefined ? {} : { groupId }),
+        },
         { logger: c.var.logger },
       )
       return c.json(serializeWorkspaceForResponse(workspace), 201)
@@ -175,11 +185,11 @@ export const workspacesApp = factory
     '/directories',
     describeRoute({
       tags: ['workspaces'],
-      summary: 'List subdirectories of a local path — backs the workspace folder picker.',
+      summary: 'List a local folder (subfolders, drives, known places) — backs the filesystem browser.',
       'x-sdk-name': 'workspaces.listDirectories',
       responses: {
         200: {
-          description: 'A directory listing (path, parent, child directories).',
+          description: 'A directory listing (path, parent, child directories, drives, known places).',
           content: { 'application/json': { schema: resolver(DirectoryListingResponseSchema) } },
         },
         400: { description: 'Path not found, not a directory, or not readable.' },
@@ -191,8 +201,36 @@ export const workspacesApp = factory
     async (c) => {
       const { path: queryPath, includeFiles } = c.req.valid('query')
       return c.json(
-        await listChildDirectories(queryPath, includeFiles === true ? { includeFiles } : {}),
+        await listChildDirectories(queryPath, {
+          ...(includeFiles === true ? { includeFiles } : {}),
+          logger: c.var.logger,
+        }),
       )
+    },
+  )
+  // The browser's "New folder" — makes ONE folder inside an existing one and
+  // returns its entry; the client re-lists and highlights it.
+  .post(
+    '/directories',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Create one new folder inside an existing local folder — the filesystem browser\'s "New folder".',
+      'x-sdk-name': 'workspaces.createDirectory',
+      responses: {
+        201: {
+          description: 'The new folder (name + absolute path).',
+          content: { 'application/json': { schema: resolver(DirectoryEntryResponseSchema) } },
+        },
+        400: { description: 'Parent not found / not a directory, or the name is not a valid folder name.' },
+        409: { description: 'A folder with that name already exists there.' },
+      },
+      // No x-mcp — local filesystem edit for the picker, not an agent tool surface.
+    }),
+    validator('json', CreateDirectoryRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { parentPath, name } = c.req.valid('json')
+      return c.json(await createChildDirectory(parentPath, name), 201)
     },
   )
   // ── Menu-tree folders (workspace redesign Arc 2b). Registered before

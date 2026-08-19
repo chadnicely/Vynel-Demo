@@ -1,21 +1,33 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import {
   PhCaretRight as CaretRight,
   PhCircleNotch as CircleNotch,
-  PhCube as Cube,
-  PhMoon as Moon,
   PhPlay as Play,
 } from "@phosphor-icons/vue";
+import { workspaceColorSlot, workspaceMonogram } from "@vynel/ui";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
 
-// One workspace row of the tree — the canvas's chrome: caret · 16px STATE
-// chip (spinner = running, cube = a state is set, moon = not running) · name
-// · `done/total` task progress · the status mark dot (one status one colour).
-// Used at the root, inside folders, and in the NOT RUNNING group, so the row
-// lives in exactly one home. Draggable: the tree owns the drag-and-drop
-// state; the row only reports its lifecycle.
+// One workspace row of the tree: caret · the workspace's OWN icon (its
+// uploaded image, else its monogram over its accent — the same face its
+// chips wear in chat) · name · the state cluster on the RIGHT: `done/total`,
+// then ONE mark, ALWAYS — spinner while working, a bold status dot when it
+// needs you / hit a problem / completed, the play glyph when parked (Kafi,
+// 2026-08-19: state moved right, icon took the left, marks bolder; every
+// row ends with its state, open tasks or not). Used at
+// the root, inside groups, and under NOT RUNNING, so the row lives in
+// exactly one home. Draggable: the tree owns the drag-and-drop state; the
+// row only reports its lifecycle. Data-blind — the icon fields ride in on
+// the workspace option; a bare {id, name} still paints a monogram.
 const props = defineProps<{
-  workspace: { id: string; name: string };
+  workspace: {
+    id: string;
+    name: string;
+    /** The customized workspace image (data URL), if one was uploaded. */
+    imageUrl?: string | null;
+    /** A CSS colour — the customized accent (hex or palette slot), else the name's own. */
+    accent?: string;
+  };
   isActive: boolean;
   statusView: WorkspaceStatusView | null;
 }>();
@@ -32,6 +44,11 @@ const MARK_LABELS = {
   problem: "hit a problem",
   completed: "is completed",
 } as const;
+
+const monogram = computed(() => workspaceMonogram(props.workspace.name));
+const accent = computed(
+  () => props.workspace.accent ?? `var(--ws-${workspaceColorSlot(props.workspace.name)})`,
+);
 
 function status() {
   return props.statusView?.status ?? "not_running";
@@ -55,11 +72,8 @@ function progressLabel(): string | null {
 </script>
 
 <template>
-  <!-- Canvas geometry: pad `6px 11.2px 6px 10px`, a 12px caret column, a 16px
-       chip, then name + the meta cluster — so the name starts 54px in from the
-       row's left edge (x=64 on the canvas's own 10px-inset root row). -->
   <div
-    class="group flex items-center rounded-sm pl-[10px] pr-[11.2px] transition"
+    class="group flex items-center rounded-sm pl-[10px] pr-[9px] transition"
     :class="[
       props.isActive
         ? 'bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
@@ -79,58 +93,68 @@ function progressLabel(): string | null {
     </button>
     <button
       type="button"
-      class="ml-2 grid min-w-0 flex-1 cursor-default grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-left text-[12.5px]"
-      :class="[
-        'min-h-8',
-        { 'opacity-50': status() === 'not_running' && !props.isActive },
-      ]"
+      class="ml-2 grid min-h-[30px] min-w-0 flex-1 cursor-default grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 py-1 text-left text-[12.5px]"
+      :class="{ 'opacity-50': status() === 'not_running' && !props.isActive }"
       :aria-current="props.isActive ? 'page' : undefined"
       @click="emit('select')"
       @dblclick="emit('drill')"
     >
-      <!-- The state chip: spinner while building, cube when a state is set,
-           moon when quiet — the canvas's vocabulary. -->
+      <!-- The workspace's own face — an uploaded logo as-is (no tint behind
+           it), else its monogram over its accent. -->
       <span
-        class="grid size-4 shrink-0 place-items-center rounded-[4px]"
-        :class="
-          status() === 'not_running'
-            ? 'bg-[var(--color-neutral-900)] text-[var(--color-neutral-600)]'
-            : 'bg-[var(--color-accent-900)] text-[var(--color-accent-200)]'
+        class="tree-icon grid size-[18px] shrink-0 place-items-center overflow-hidden rounded-[5px] text-[8px] font-bold leading-none"
+        :style="
+          props.workspace.imageUrl
+            ? undefined
+            : {
+                background: `color-mix(in srgb, ${accent} 30%, transparent)`,
+                color: accent,
+              }
         "
+        aria-hidden="true"
       >
-        <CircleNotch
-          v-if="status() === 'running'"
-          :size="10"
-          class="animate-spin"
+        <img
+          v-if="props.workspace.imageUrl"
+          :src="props.workspace.imageUrl"
+          alt=""
+          class="size-full object-contain"
         />
-        <Moon v-else-if="status() === 'not_running'" :size="10" />
-        <Cube v-else :size="10" class="text-[var(--color-neutral-500)]" />
+        <span v-else>{{ monogram }}</span>
       </span>
       <span class="min-w-0 truncate">{{ props.workspace.name }}</span>
-      <!-- The canvas's meta cluster: one `auto` column, 7px apart. -->
+      <!-- The state cluster, on the right: progress, then one mark. -->
       <span class="flex items-center gap-[7px]">
         <span
           v-if="progressLabel()"
-          class="whitespace-nowrap text-[10.5px] tabular-nums"
+          class="whitespace-nowrap text-[10.5px] font-medium tabular-nums"
           :class="
             markStatus()
-              ? 'text-[var(--color-neutral-500)]'
-              : 'text-[var(--color-neutral-600)]'
+              ? 'text-[var(--color-neutral-400)]'
+              : 'text-[var(--color-neutral-500)]'
           "
         >
           {{ progressLabel() }}
         </span>
+        <CircleNotch
+          v-if="status() === 'running'"
+          :size="14"
+          weight="bold"
+          class="tree-state-running shrink-0 animate-spin text-gold"
+          aria-label="Working"
+        />
         <span
-          v-if="markStatus()"
+          v-else-if="markStatus()"
           :aria-label="`${props.workspace.name} ${MARK_LABELS[markStatus()!]}`"
-          class="tree-mark size-2 shrink-0 rounded-full"
+          class="tree-mark size-2.5 shrink-0 rounded-full"
           :data-status="markStatus()"
         />
-        <!-- The canvas's parked-row affordance: pick it up where it left off. -->
+        <!-- Parked: the play mark — ALWAYS, open tasks or not (one rule: every
+             row ends with its state; the count sits before it). -->
         <Play
-          v-if="status() === 'not_running' && !progressLabel()"
-          :size="11"
-          class="shrink-0 text-[var(--color-neutral-600)]"
+          v-else
+          :size="12"
+          weight="fill"
+          class="tree-state-parked shrink-0 text-[var(--color-neutral-500)]"
           aria-hidden="true"
           title="Pick up where it left off"
         />
@@ -158,21 +182,26 @@ function progressLabel(): string | null {
   width: 24px;
 }
 
-/* One status, one colour — the mark dot's hue is the state's, everywhere. */
+/* One status, one colour — the mark dot's hue is the state's, everywhere.
+   A soft ring of the same hue makes it read from across the room. */
 .tree-mark {
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
   animation: tree-mark-pulse 1.4s ease-in-out infinite;
 }
 
 .tree-mark[data-status="needs_input"] {
   background: var(--needs-input);
+  color: var(--needs-input);
 }
 
 .tree-mark[data-status="problem"] {
   background: var(--danger);
+  color: var(--danger);
 }
 
 .tree-mark[data-status="completed"] {
   background: var(--ok);
+  color: var(--ok);
 }
 
 @keyframes tree-mark-pulse {
@@ -182,8 +211,8 @@ function progressLabel(): string | null {
     transform: scale(1);
   }
   50% {
-    opacity: 0.35;
-    transform: scale(0.72);
+    opacity: 0.45;
+    transform: scale(0.8);
   }
 }
 

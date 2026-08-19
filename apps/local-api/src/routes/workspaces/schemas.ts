@@ -28,6 +28,8 @@ export const CreateWorkspaceRequestSchema = z.object({
   kind: WorkspaceKindSchema.optional(),
   // An EXISTING directory on disk to register as the workspace (2026-06-19).
   directory: z.string().min(1),
+  // Born straight into a menu-tree folder (the tree's per-group "+").
+  groupId: z.string().min(1).optional(),
 })
 
 export const UpdateWorkspaceRequestSchema = z.object({
@@ -94,6 +96,13 @@ export const BrowseDirectoriesQuerySchema = z.object({
   includeFiles: z.coerce.boolean().optional(),
 })
 
+// The browser's "New folder": one segment inside an existing folder. The core
+// op validates the characters (one home); the bounds here just cap the wire.
+export const CreateDirectoryRequestSchema = z.object({
+  parentPath: z.string().min(1),
+  name: z.string().min(1).max(255),
+})
+
 export const ListWorkspacesQuerySchema = z.object({
   includeArchived: z.coerce.boolean().optional(),
   // Defensive cap per coding-standard.md "Structure / patterns" — the
@@ -134,7 +143,7 @@ export const WorkspaceGroupResponseSchema = z.object({
 
 export const ListWorkspaceGroupsResponseSchema = z.array(WorkspaceGroupResponseSchema)
 
-const DirectoryEntryResponseSchema = z.object({
+export const DirectoryEntryResponseSchema = z.object({
   name: z.string(),
   path: z.string(),
 })
@@ -147,10 +156,26 @@ export const DirectoryListingResponseSchema = z.object({
   // knowledge add-source picker selects single files, the workspace picker
   // never sees them.
   files: z.array(DirectoryEntryResponseSchema).optional(),
-  drives: z.array(z.string()),
+  drives: z.array(
+    z.object({
+      path: z.string(),
+      label: z.string().nullable(),
+      kind: z.enum(['fixed', 'removable', 'network', 'optical', 'unknown']),
+      freeBytes: z.number().nullable(),
+      totalBytes: z.number().nullable(),
+    }),
+  ),
+  places: z.array(
+    z.object({
+      kind: z.enum(['home', 'desktop', 'documents', 'downloads', 'pictures', 'music', 'videos']),
+      name: z.string(),
+      path: z.string(),
+    }),
+  ),
 })
 
 export type CreateWorkspaceRequest = z.infer<typeof CreateWorkspaceRequestSchema>
+export type CreateDirectoryRequest = z.infer<typeof CreateDirectoryRequestSchema>
 export type UpdateWorkspaceRequest = z.infer<typeof UpdateWorkspaceRequestSchema>
 export type DeleteWorkspaceRequest = z.infer<typeof DeleteWorkspaceRequestSchema>
 export type ListWorkspacesQuery = z.infer<typeof ListWorkspacesQuerySchema>

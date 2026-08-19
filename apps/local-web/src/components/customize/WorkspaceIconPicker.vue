@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { workspaceMonogram } from "@vynel/ui";
+import { WorkspaceColorPicker, workspaceMonogram } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
 import { imageFileToAvatarDataUrl } from "../../utils/image-to-avatar.js";
 
@@ -41,6 +41,7 @@ async function onFilePicked(event: Event) {
 <template>
   <div class="workspace-icon-picker flex flex-col gap-1">
     <p class="m-0 text-xs text-ink-2">Workspace icon</p>
+    <div class="flex items-center justify-between gap-3">
     <div class="flex items-center gap-2.5">
       <span
         class="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-hair bg-raised text-xs font-semibold text-ink-1"
@@ -76,6 +77,16 @@ async function onFilePicked(event: Event) {
         aria-label="Upload workspace icon"
         @change="onFilePicked"
       />
+    </div>
+    <!-- The workspace accent — its icon in the tree, its chips in chat, its rail mark. -->
+    <WorkspaceColorPicker
+      class="accent-color-picker"
+      :selected-slot="store.customizationFor(props.workspaceId).colorSlot"
+      :custom-color="store.customizationFor(props.workspaceId).customColor"
+      label=""
+      @pick="(slot) => store.setColorSlot(props.workspaceId, slot)"
+      @pick-custom="(hex) => store.setCustomColor(props.workspaceId, hex)"
+    />
     </div>
     <p v-if="uploadError" class="m-0 text-2xs text-danger">
       {{ uploadError }}

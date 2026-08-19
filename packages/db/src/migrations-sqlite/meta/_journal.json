@@ -344,6 +344,13 @@
       "when": 1787013265365,
       "tag": "0048_overrated_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1787099195973,
+      "tag": "0049_mighty_beast",
+      "breakpoints": true
     }
   ]
 }

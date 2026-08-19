@@ -64,7 +64,7 @@ describe("WorkspaceCustomizeSection", () => {
     expect(wrapper.findAll(".entry-row").length).toBe(17);
   });
 
-  it("saves persona edits through workspaces.update", async () => {
+  it("autosaves persona edits through workspaces.update on blur (no Save button)", async () => {
     const updateCalls: unknown[] = [];
     const client = {
       workspaces: {
@@ -79,12 +79,14 @@ describe("WorkspaceCustomizeSection", () => {
     const wrapper = mountSection(client);
     await flushPromises();
 
+    expect(wrapper.find(".save-button").exists()).toBe(false);
     const persona = wrapper.findAll(".customize-section input[type='text']")[1]!;
     await persona.setValue("Maya");
-    await wrapper.get(".save-button").trigger("click");
+    await persona.trigger("blur");
     await flushPromises();
 
     expect(updateCalls).toEqual([["w1", { managerName: "Maya" }]]);
+    expect(wrapper.get(".save-status").text()).toBe("Saved");
   });
 
   it("hiding a section and adding a group edit the live store", async () => {

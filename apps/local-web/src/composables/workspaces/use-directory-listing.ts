@@ -25,6 +25,9 @@ export function useDirectoryListing(
         ...(options.includeFiles ? { includeFiles: true } : {}),
       }),
     placeholderData: keepPreviousData,
+    // A folder that can't be listed (400: gone / not readable) stays that way —
+    // retrying only delays the message the browser wants to show right now.
+    retry: false,
     enabled,
   });
 }

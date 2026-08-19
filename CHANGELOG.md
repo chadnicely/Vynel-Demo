@@ -13,8 +13,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   global chat thread: voice turns live on their own continuing spoken thread —
   same brain, same tools, separate context — so a very full global conversation
   can never break voice again, and a long global turn no longer blocks speech
-  (or vice versa). It is walled like the global
-  conversation: no other session can search or read it.
+  (or vice versa). It is walled like the global conversation: no other session
+  can search or read it.
 - **A "Voice chat" menu under Global.** The spoken thread now has its own
   window, right under Chat in the Global menu: read what was said, watch a
   spoken turn stream in live, and type into the voice conversation — typed
@@ -32,6 +32,78 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   speak, capable enough to route real work, and with a context window that can
   hold a long spoken thread.
 
+## [0.3.3] — 2026-08-19
+
+### Added
+
+- **Everything you customize now lives in your account, and it saves itself.**
+  Persona and workspace icons, both colours, each workspace's menu layout,
+  and where you dragged things in the left menu are stored in the database —
+  open Vynel in another window or on the desktop app and it looks the same.
+  Anything you had arranged before is carried over the first time. The
+  Customize page lost its Save button: names save when you pause typing or
+  leave the field, and every icon, colour and menu change saves the moment
+  you make it (a quiet "Saved" note confirms). The Conversation icon has its
+  own colour now, beside the workspace icon's — each with the palette and a
+  custom swatch.
+- **One Explorer-style file browser behind every folder or file pick.** Creating
+  a workspace, adding a knowledge folder or file, and importing a memory file
+  now open the same browser laid out like Windows Explorer: pinned places
+  (Home, Desktop, Documents, Downloads, Pictures, Music, Videos) and "This
+  PC" with every drive down the left; Back, Up and clickable address crumbs
+  (**This PC › WORKSPACE (E:) › KLONE**) on top; large folder tiles in the pane;
+  drive cards with a capacity bar and "51.2 GB free of 399 GB" under This
+  PC. Click highlights, double-click opens. Drives read their real volume
+  labels ("KAFI (D:)", "Local Disk (C:)") and free space. A **New folder**
+  button on the browser's top bar makes a folder right where you are — the
+  name box appears pre-filled, Enter creates it, and the new folder comes
+  back already chosen. A folder that can't be opened (a locked system
+  folder, a vanished USB stick) says why and steps you back instead of
+  blanking the window. Windows' own system folders and files
+  (`$Recycle.Bin`, `System Volume Information`, `AppData`, `pagefile.sys`,
+  `desktop.ini`, …) stay hidden, the way Explorer's default view hides them.
+
+### Changed
+
+- **The left menu's workspace tree got a tidy-up.** Every workspace row now
+  wears its own icon (the image you set in Customize, or its monogram over
+  its colour) where a generic glyph used to sit, and its state moved to the
+  right where the eye expects it — a bolder spinner while it works, a ringed
+  status dot when it needs you / hit a problem / finished, the play mark
+  when parked. Groups are compact, titled in bold with a hairline under, and
+  wear a stack glyph instead of a folder, with their members set a step
+  in so an ungrouped workspace below reads as its own. Creating lives in a
+  strip **above** the Global row — **+** for a new workspace and a
+  stack-plus for a new group (which opens straight into its rename box) —
+  and each group has its own **+** that opens New workspace already filed
+  into that group; the New workspace dialog gained a **Group** pick with an
+  inline **New group…**. Clicking a workspace row always opens that
+  workspace's chat.
+- **The left menu keeps your order — and you set it by dragging.** The
+  NOT RUNNING group is gone: a quiet workspace dims where it sits instead of
+  jumping to the bottom. Drag a workspace above or below another to reorder
+  it, onto a group's title to move it into that group (last), or onto the
+  empty root area to take it out; drag a group's title above or below
+  another group to reorder groups. Where you put things stays put.
+- **Drag and drop now works in the desktop app.** The desktop shell's own
+  drag-drop hook was swallowing every drag on Windows; it's off, so the
+  sidebar's reorder and regroup drags behave like they do in the browser.
+  (Needs a desktop rebuild to take effect.)
+- **Pick any accent colour.** Customize → Accent color has a custom swatch
+  beside the palette: choose any colour and the workspace's icon in the
+  left menu, its chips in chat, and its rail mark all take it.
+- **New workspace picks its own name.** Choose the folder first; the name
+  fills in from it (edit it if you like) and **Continue** creates the room.
+  A whole drive or your home folder can't be a workspace — the dialog says
+  so and waits for a folder inside.
+- **A workspace's manager is named after the workspace by default.** A new
+  room's persona used to get a random first name ("Sarah is handling
+  Bookkeeping"); it's now the room's own name ("Bookkeeping is handling it")
+  until you rename the persona in Customize. Labels that read "persona ·
+  workspace" collapse to the workspace alone when the two match, and the
+  @-mention roster only offers a persona whose name can be typed as one
+  token — a multi-word workspace name is left out until its persona is
+  renamed.
 - **The default chat model advanced to Claude Opus 5.** A fresh install (or a
   cleared composer preference) used to start on Opus 4.8; it now starts on
   `claude-opus-5`. Sessions where a model was already chosen are untouched, and
@@ -39,6 +111,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A request body that isn't valid JSON now gets a 400, not a 500.** Both
+  the engine and the hub answered malformed JSON (a Windows path pasted with
+  raw backslashes, a truncated body) with "Internal server error"; they now
+  say `validation_failed · Malformed JSON in request body` on the usual
+  error shape. Every framework-level HTTP failure (payload too large, …) is
+  mapped the same way instead of falling into the 500 bucket.
 - **Child sessions now honor the mode of the turn that tasked them.** The
   delegating turn's permission mode (Ask / Auto / Bypass) travels to the
   enqueued task through an internal header, but only the global chat's turn

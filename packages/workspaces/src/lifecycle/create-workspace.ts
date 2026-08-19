@@ -18,7 +18,7 @@ import { ConflictError, ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import type { Workspace, WorkspaceKind } from '@vynel/db/repositories/workspaces'
 import { WORKSPACE_CREATED_EVENT } from '../workspaces-events.js'
-import { deriveDefaultManagerName } from '../manager-name.js'
+import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
 
 export type CreateWorkspaceInput = {
   userId: string
@@ -32,6 +32,8 @@ export type CreateWorkspaceInput = {
   kind?: WorkspaceKind
   /** An EXISTING directory on disk to register as the workspace. */
   directory: string
+  /** The menu-tree folder to be born into (owner-checked); omit for the tree root. */
+  groupId?: string
 }
 
 // Structural logger shape — avoids the @vynel/logger dep at the core layer
@@ -55,6 +57,12 @@ export async function createWorkspace(
   const workspacePath = canonicalizePath(input.directory)
   const now = new Date()
 
+  // A foreign or missing group 404s exactly like setWorkspaceGroup — before
+  // anything is written.
+  if (input.groupId !== undefined) {
+    getWorkspaceGroupForUserOrThrow(db, input.userId, input.groupId)
+  }
+
   const createdWorkspace = withTransaction(db, (tx) => {
     // LOAD-BEARING dedup: the existing-directory model has no "folder must not
     // already exist" guard, so this is the SOLE protection against adding the
@@ -76,11 +84,12 @@ export async function createWorkspace(
       id: workspaceId,
       userId: input.userId,
       name: input.name,
-      // Auto-assign a default persona name on create (brain-tree Ch5) — deterministic by
-      // id; renameable later. Pre-existing rows (null) resolve a default at read time.
-      managerName: deriveDefaultManagerName(workspaceId),
+      // The manager persona defaults to the workspace's own name (Kafi,
+      // 2026-08-19) — renameable later; a null row resolves the same way at read time.
+      managerName: input.name,
       kind: input.kind ?? 'personal',
       path: workspacePath,
+      groupId: input.groupId ?? null,
       isArchived: false,
       createdAt: now,
       updatedAt: now,

@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import {
+  hasDistinctManagerName,
+  resolveManagerName,
+} from "@vynel/contracts/workspaces/manager-name";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import { WORKSPACE_KIND_BUNDLES } from "@vynel/contracts/workspaces/workspace-kind-bundles";
 import { workspaceAccentVar, workspaceMonogram } from "@vynel/ui";
@@ -17,8 +21,8 @@ const accent = computed(() => workspaceAccentVar(props.workspace.name));
 const monogram = computed(() => workspaceMonogram(props.workspace.name));
 
 const headline = computed(() =>
-  props.workspace.managerName
-    ? `${props.workspace.managerName} is on ${props.workspace.name}.`
+  hasDistinctManagerName(props.workspace)
+    ? `${resolveManagerName(props.workspace)} is on ${props.workspace.name}.`
     : `Welcome to ${props.workspace.name}.`,
 );
 

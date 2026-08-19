@@ -13,7 +13,10 @@ import {
   formatWorkspaceRefToken,
   parseComposerTokens,
 } from "@vynel/contracts/chat/composer-tokens";
-import { resolveManagerName } from "@vynel/contracts/workspaces/manager-name";
+import {
+  formatManagerLabel,
+  resolveManagerName,
+} from "@vynel/contracts/workspaces/manager-name";
 
 // A picker must never offer a token that cannot work: `managerName` is
 // renameable to ANY 1–60-char string ("Mary Jane") and workspace names may
@@ -87,7 +90,7 @@ export function buildMentionSuggestions(
       return [
         {
           id: `persona:${workspace.id}`,
-          label: `${managerName} · ${workspace.name}`,
+          label: formatManagerLabel(managerName, workspace.name),
           hint: "workspace manager",
           group: "People",
           insert,

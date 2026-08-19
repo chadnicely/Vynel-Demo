@@ -3,7 +3,137 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) MODE INHERITANCE + SYNTHETIC-MODEL POISONING — both root-caused and fixed
+## ✅ 2026-08-19 (latest) CUSTOMIZATION TO THE DB — SHIPPED (icons · colours · menu layout · tree positions · autosave)
+
+All four slices landed (see the plan block below for the shape): `@vynel/customization` leaf +
+migration 0049; `/customizations` routes + SDK; the store server-backed (boot hydrate — server wins,
+dirty-from-a-closed-window and local-only scopes push up; 400 ms debounced whole-scope PUTs;
+`visibilitychange` flush; `vynel.customize` + `vynel.tree.order` are now CACHE + carry-over only,
+`vynel.customize.dirty` remembers unsaved scopes); the tree is a controlled component (`treeOrder` in,
+`order-change` out, AppShell saves through `customize.setTreeLayout`); Customize form per Kafi's mock
+(swatch rows beside each icon; persona colour = `personaColorSlot`/`personaCustomColor` →
+`personaAccentCss` → `resolvePersona().accent` (chat author avatar + rail); Save button removed —
+names autosave on blur / 700 ms pause via PATCH workspace, a `.save-status` line says Saving…/Saved).
+Verified live: Kafi's Seo icons uploaded in his browser rendered in a fresh playwright profile straight
+from the DB; the tree layout carried up on the first hydrate. `isCustomized` = differs from default
+(a default server row is not a customization). NOT done: the tab strip still colours from its per-tab
+slot; the Global Customize section shows the persona colour swatch too (shared PersonaIconPicker) —
+fine, but Global has no workspace-accent row. REVIEW PASS (post full gate, 3 must-fixes applied): `hydrate`
+never rejects (engine down → cache stays, saveState=error); per-scope GENERATION counters so an edit
+during an in-flight PUT is still pushed; `flush()` serialized (one in flight, run-again flag);
+per-scope try/catch — a failing scope never blocks the others; a 4xx drops the mark (no eternal
+retry) while 5xx retries; a dirty mark with no local row is dropped; menu group labels capped at 60
+(store + inputs) mirroring the API; local tree layout element-validated; re-hydrate on visibility→
+visible (two windows) + `pagehide` flush; Customize drafts reseed only while unedited and a trailing
+edit is re-saved after a SUCCESSFUL PATCH only. Store split: `customize-store-codec.ts` (shape +
+localStorage codec) / `customize-store.ts` (pinia + sync). Full gate 2026-08-19: 5538 pass, the one
+failure (SDK namespace census) fixed. Deferred: reset = default ROW (a DELETE-on-reset later);
+tab strip still slot-coloured.
+
+## (plan) 2026-08-19 — CUSTOMIZATION TO THE DB (icons · colours · menu layout · tree positions · autosave)
+
+Kafi (locked): everything the user arranges moves to the DB — persona image, workspace image, the
+accent, a NEW separate colour for the conversation (persona) icon (A: two colours), the per-scope
+menu layout, and the tree positions (B: JSON layout, one write per drop). Customize form per Kafi's
+mock: a swatch row (Auto · palette · custom) beside EACH icon; the Save button goes — names, icons,
+colours all AUTOSAVE (debounced, optimistic, quiet "Saved" tick).
+Slices (commit each): **1** `@vynel/customization` leaf — schema `scope_customizations`
+(userId+scopeKey unique; accent slot/hex, persona slot/hex, personaImage, workspaceImage, menuLayout
+JSON) + `tree_layouts` (userId unique, layout JSON) → drizzle.sqlite.config + generated migration
+(NEVER hand-written); sync repos; core ops list/save; tests. **2** contracts + routes
+(GET /customizations · PUT /customizations/scopes/:scopeKey · PUT /customizations/tree-layout; no
+x-mcp) + SDK regen + parity. **3** web: `customize-store` server-backed (hydrate at boot; localStorage
+`vynel.customize` becomes cache + ONE-TIME carry-over source: server row wins, else local is pushed
+up); debounced per-scope PUT; tree order leaves `tree-order.ts`'s localStorage → AppShell owns
+`treeLayout` (prop in, `order-change` out) saved through the store. **4** Customize form: two colour
+rows, autosave name/persona (blur / typing pause via PATCH workspace), Save removed; persona colour
+flows to `resolvePersona().accent` (chat author avatar + rail); workspace accent unchanged.
+Resume rule: read this block, check `git log` for which slices landed, continue.
+
+## ✅ 2026-08-19 (latest) TREE ORDER + DnD — NOT RUNNING gone, drag-to-order, desktop DnD unblocked
+
+Kafi: the NOT RUNNING pseudo-group "kind of miss"; rows must hold their place regardless of state,
+groups + workspaces draggable with a stored position; and DnD is dead in the desktop build. Shipped:
+`WorkspaceTree.vue` rewritten around two colocated modules — `tree-order.ts` (pure: `sortByStoredOrder`,
+`withWorkspacePlaced`, `withGroupPlaced`, localStorage `vynel.tree.order` = { groups: id[], workspaces:
+{ [groupId|"root"]: id[] } }; the DISPLAYED sequence is what gets stored; unknown ids follow in server
+order) + `use-tree-drag-drop.ts` (one state machine: workspace → between rows (edge by pointer half →
+insertion line), onto a group header (join, last), onto the root zone (leave, last); group → above/below
+another group; membership changes emit `move-workspace`, position writes locally). Position is LOCAL
+(Chad's customization precedent) — server-side sync is a candidate follow-up if multi-device matters.
+Parked rows dim in place (row's existing opacity). DESKTOP: Tauri v2's default drag-drop handler
+swallows native DnD in WebView2 → `.disable_drag_drop_handler()` on the main `WebviewWindowBuilder`
+(`apps/desktop/src-tauri/src/windows.rs`; nothing in local-web used Tauri's file-drop events;
+`cargo check` green) — needs a desktop REBUILD + Kafi's smoke. Verified: 16 tree/order tests + live
+playwright drag (root reorder persisted).
+
+## ✅ 2026-08-19 SIDEBAR TREE PASS — icons left, state right, groups compact, group-scoped create
+
+Kafi's next small change (screenshot-driven): `WorkspaceTreeRow` = caret · the workspace's OWN icon
+(customized `workspaceImage` else monogram over `--ws-N`; the option carries `imageUrl`/`accentVar`
+from AppShell so the tree stays data-blind) · name · state cluster on the RIGHT (bold spinner /
+ringed mark dot / play). `WorkspaceTree`: Global row lost its new-group/new-workspace buttons;
+groups compact + bold title + `border-b` + `PhSquaresFour` + a per-group "+" that emits
+`create-workspace(groupId)`; a "New workspace" row at the bottom; context menu says group. AppShell:
+`treeSelect(workspaceId)` = `ui.openWorkspaceTab` + route workspace (ALWAYS chat, even when active);
+`openCreateWorkspace(groupId)` feeds the dialog's `defaultGroupId`. CreateWorkspaceDialog: Group
+select (No group / groups / "＋ New group…" inline via createGroup). API: `POST /workspaces` takes
+optional `groupId` (owner-checked via getWorkspaceGroupForUserOrThrow before the insert). Verified:
+typechecks + 49 tree/dialog/shell tests + live playwright (tree, click→chat, group "+" pre-files).
+NOTE: the group-fold storage key stays `vynel.tree.collapsed-folders` (persisted state) even though
+the vocabulary is "group" now. Follow-up pass (same day, Kafi): create strip ABOVE Global (`+` workspace
++ `PhStackPlus` group — group FIRST, then workspace; the host creates and passes `renameGroupId` from the
+mutation's success, the tree opens that row's rename box once per id when it is on screen — no stuck flag), group glyph `PhStack`, members `pl-3` + group `pb-1.5` + root `mt-2` so an
+ungrouped row (Seo) reads as its own, bottom "New workspace" row removed. **Custom accent colour:**
+`customize-store.customColor` (#rrggbb validated on read+write; slot and custom are ONE choice — picking
+either clears the other), `WorkspaceColorPicker` custom swatch (native color input overlaid), and the
+accent contract renamed `accentVar` (a `--ws-N` NAME) → `accent` (a CSS COLOUR used as-is) through
+ThreadStream/MessageRow/resolve-persona/WorkingRail/tree, resolved in ONE home
+`apps/local-web/src/utils/workspace-accent.ts`. Tabs keep their own per-tab slot (`ui-store.setTabColor`,
+`AppTabStrip`) — a custom hex does not reach the tab strip yet (candidate small step).
+
+## ✅ 2026-08-19 EXPLORER-STYLE FILE BROWSER — one picker behind workspace / knowledge / memory
+
+Kafi's session theme: small changes one by one, first up the folder/file picker. Shipped ONE shared
+`FileSystemBrowser` (`apps/local-web/src/components/filesystem/`: browser + rail + toolbar + tile +
+drive tile + pure `file-system-path.ts` helpers) laid out like Windows Explorer — pinned places +
+"This PC" drives on the left, Back/Up/address crumbs on top, large-icon tiles, drive cards with
+capacity bars. Click highlights, double-click/Enter opens; `mode: folder | file | any`; the open
+folder is the implicit pick in folder-capable modes. Replaced the three hand-rolled pickers
+(CreateWorkspaceDialog, AddKnowledgeDialog, FilePickerField→deleted; AddMemoryDialog now embeds the
+browser in file mode). Backend: `GET /workspaces/directories` drives became
+`{path,label,kind,freeBytes,totalBytes}` (NEW `list-drive-roots.ts`: statfs + ONE cached
+stale-while-revalidate PowerShell Win32_LogicalDisk read for labels/kinds, 5-min TTL, degrades to bare
+letters + logger.warn) and every listing carries `places` (NEW `list-known-places.ts`: home +
+Desktop/Documents/Downloads/Pictures/Music/Videos that exist, OneDrive fallback). Contract + zod +
+regenerated SDK (parity green). Modal gained `size="xl"` (max-w-3xl). `file-colors.ts` moved to
+`utils/` (third consumer). Create-workspace: browser first, name auto-picked from the chosen folder
+(a typed name sticks; clearing it re-follows), drive roots + the home folder are refused as too broad,
+button reads **Continue**. Second pass (same day, Kafi): **New folder** button on the toolbar
+(NEW `POST /workspaces/directories` → `create-child-directory.ts`: one segment, Windows-forbidden
+chars/trailing dot-space/reserved names refused, 409 on exists; `use-new-folder-draft.ts` composable,
+inline name row, created folder comes back highlighted) + **manager name defaults to the workspace
+name** (contracts `manager-name.ts`: `resolveManagerName` falls back to `name`, curated first-name
+list DELETED; `formatManagerLabel` collapses "x · x"; `hasDistinctManagerName` for the heroes; create
+stores `managerName = input.name`; the @-roster drops multi-word personas because the mention grammar
+is single-token — Kafi to decide whether the grammar should learn multi-word names). code-reviewer
+punch-list all applied: pino-shape logger, UTF-8 volume labels, `parseWindowsVolumes` extracted +
+fixture-tested (timing test dropped), realpath'd places, folder-highlight never counts in file mode,
+click = idempotent select (dblclick a file lands selected; empty-pane click clears), unreadable
+folder → error banner + auto step back with rails intact, listing query `retry:false`. Verified:
+10 typechecks + parity + ~110 targeted tests + live playwright (three dialogs, New-folder row) +
+live POST 201/409/400. Third pass (Kafi: "fix it"): both apps' `onError` now map Hono's
+`HTTPException` (malformed JSON 400, 413, …) onto the {code,message} contract via a status→code
+table (was a 500); `explorer-hidden-names.ts` hides Windows' own system folders/files BY NAME
+(Node can't read the Hidden attribute; legacy junctions already drop as non-directories) — C:\ and
+Home now read like Explorer's default view. Kafi smoked create-workspace + New folder: works.
+DEFERRED by Kafi: multi-word @-mentions (the grammar is single-token; a workspace like "Claw
+Launcher" has no @-persona until renamed) — a later fix. NOT built (candidates for later small
+steps): keyboard arrow navigation between tiles, a list/details view toggle, Windows known-folder
+redirection via the registry (today: home then OneDrive probe), showing files greyed in folder
+mode, warming the volume-label cache at API boot.
+
+## ✅ 2026-08-19 MODE INHERITANCE + SYNTHETIC-MODEL POISONING — both root-caused and fixed
 
 Kafi's two reports, both DB-verified in `.data/vynel.dev.db`. (1) **Auto root, children still
 carding:** the delegating turn's mode rides `x-vynel-delegation-mode`, stamped ONLY by the
