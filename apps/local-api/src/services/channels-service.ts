@@ -38,6 +38,7 @@ import type { PendingAskRegistry } from '@vynel/asks'
 import type { ReadEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import { runGlobalRootTurn } from '../sessions/run-global-root-turn.js'
 import type { TurnEventBroadcaster } from '@vynel/session/delegation'
+import { loadEnv } from '../env.js'
 
 const POLLING_INTERVAL_MS = 5_000
 const DELIVERY_INTERVAL_MS = 2_000
@@ -65,6 +66,9 @@ export interface ChannelsServiceOptions {
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
   /** The shared parked-ask registry — gives channel turns ask_user (bounded). */
   askWaiters?: PendingAskRegistry
+  /** The channel turn's wall-clock budget (ms) — a test override; the default
+   *  is `VYNEL_INTERACTIVE_TURN_MAX_MS`, the streams' knob (BT4). */
+  turnMaxMs?: number
 }
 
 export function startChannelsService(options: ChannelsServiceOptions): { stop: () => void } {
@@ -79,13 +83,19 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
     readEnabledFeatureKeys,
     askWaiters,
   } = options
+  const turnMaxMs = options.turnMaxMs ?? loadEnv().VYNEL_INTERACTIVE_TURN_MAX_MS
 
   const turnDeps: ProcessInboundDeps = {
     logger,
     appRequest,
     // Ch4: a channel turn runs against the GLOBAL ROOT. `db` is per-call (the claim
     // path passes it); `logger` + `appRequest` are the service's. The runner
-    // serializes root turns per user (the firehose lock lives in the core).
+    // serializes root turns per user (the firehose lock lives in the core) and
+    // BOUNDS the turn (BT4): a channel turn holds the same `${userId}` root lock
+    // the web's global turn does, so it wears the same wall clock — a wedged
+    // Telegram turn can no longer stall web, deliveries and voice-free paths
+    // until restart (audit R2-B). Past the cap the runner throws the streams'
+    // typed failure; the consumer's apology + failed inbound row follow.
     runRootTurn: (turnDb, input) =>
       runGlobalRootTurn(
         {
@@ -99,7 +109,7 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
           ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
           ...(askWaiters !== undefined ? { askWaiters } : {}),
         },
-        input,
+        { ...input, wallClock: { maxMs: turnMaxMs } },
       ),
     // KLONE decoupled the approvals leaf: `resolveApproval` is injected here (the
     // channels leaf never imports @vynel/approvals). The channel approval-reply path

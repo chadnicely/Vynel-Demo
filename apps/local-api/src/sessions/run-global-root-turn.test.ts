@@ -4,17 +4,30 @@
 // (via `requireResult`) when the turn produced no session or captured an in-stream
 // error. `@vynel/mcp` is stubbed so the REAL composer runs with a `build → null`
 // routing descriptor — the phase-now routing-toolless global root (empty MCP set) —
-// without pulling the SDK.
+// without pulling the SDK. The wall-clock cases (BT4) run the REAL clock helpers
+// over fake timers with the chat boundary (failure row + interrupt) mocked; the
+// lock-release half lives in `run-global-root-turn.wall-clock.test.ts` against
+// the real core + a real database.
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Database } from "@vynel/db";
 import type { Logger } from "pino";
 import type { SessionActivityFeed, SessionSink } from "@vynel/session/runtime";
 
-const { coreMock, resolveTargetMock, chatSessionRowMock } = vi.hoisted(() => ({
+const {
+  coreMock,
+  resolveTargetMock,
+  chatSessionRowMock,
+  persistTurnFailureRowMock,
+  interruptChatSessionMock,
+  buildAskFeatureDescriptorMock,
+} = vi.hoisted(() => ({
   coreMock: vi.fn(),
   resolveTargetMock: vi.fn(),
   chatSessionRowMock: vi.fn(),
+  persistTurnFailureRowMock: vi.fn(),
+  interruptChatSessionMock: vi.fn(),
+  buildAskFeatureDescriptorMock: vi.fn(),
 }));
 
 vi.mock("@vynel/session/runtime", async () => {
@@ -29,8 +42,27 @@ vi.mock("@vynel/session/runtime", async () => {
     // The REAL fit guard too (pure over the mocked row read) — the D1 tests
     // assert its clamp.
     fitPinnedModelToSession: actual.fitPinnedModelToSession,
+    // The REAL wall clock (BT4) — timers + the gate are pure; its chat
+    // boundary (the failure row, the interrupt) is mocked below.
+    startTurnWallClock: actual.startTurnWallClock,
+    trackApprovalParks: actual.trackApprovalParks,
+    failTurnOnWallClock: actual.failTurnOnWallClock,
   };
 });
+// The wall clock's expiry writes through `@vynel/chat`: the failure row (a
+// real db elsewhere — these tests drive the stub `{}` one) + the provider
+// interrupt, which here RELEASES the hung core stub the way the SDK ends an
+// interrupted session.
+vi.mock("@vynel/chat", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  persistTurnFailureRow: persistTurnFailureRowMock,
+  interruptChatSession: interruptChatSessionMock,
+}));
+// The ask descriptor, recorded — the gate assertion (a parked ask suspends
+// the clock) reads what the runner handed it; a null build keeps the SDK out.
+vi.mock("@vynel/asks/mcp", () => ({
+  buildAskFeatureDescriptor: buildAskFeatureDescriptorMock,
+}));
 
 // Stub routing descriptor: `build` returns null → the real `composeSessionMcpServers`
 // yields an empty MCP set, and the heavy `@vynel/mcp` (SDK builder) never loads.
@@ -91,12 +123,15 @@ import {
   runGlobalRootTurn,
   wrapAppRequestWithOrigin,
   buildGlobalRootReportTurnRunner,
+  TurnWallClockExceededError,
 } from "./run-global-root-turn.js";
 import { REPORT_DELIVERY_INSTRUCTIONS } from "@vynel/session/delegation";
 import {
   DELEGATION_ORIGIN_HEADER,
   serializeDelegationOrigin,
 } from "./delegation-origin-header.js";
+import type { RunGlobalRootTurnCoreDeps } from "@vynel/session/runtime";
+import type { PendingAskRegistry } from "@vynel/asks";
 
 type SinkEvent = Parameters<SessionSink["onEvent"]>[0];
 
@@ -137,6 +172,15 @@ beforeEach(() => {
   });
   chatSessionRowMock.mockReset();
   chatSessionRowMock.mockReturnValue(null);
+  persistTurnFailureRowMock.mockReset();
+  interruptChatSessionMock.mockReset();
+  interruptChatSessionMock.mockResolvedValue(undefined);
+  buildAskFeatureDescriptorMock.mockReset();
+  buildAskFeatureDescriptorMock.mockReturnValue({
+    serverName: "vynel-ask",
+    build: () => null,
+    mutatingToolNames: [],
+  });
 });
 
 /** A core stub that drains one text reply on the given session id. */
@@ -587,5 +631,229 @@ describe("runGlobalRootTurn", () => {
     expect(headers.get(DELEGATION_ORIGIN_HEADER)).toBe(
       serializeDelegationOrigin(origin),
     );
+  });
+});
+
+// ── The wall clock (background-turns BT4 / audit R2-B) ──
+//
+// The REAL clock helpers run over fake timers: `startTurnWallClock` +
+// `trackApprovalParks` + `failTurnOnWallClock`, with the chat boundary mocked
+// (the failure row, and an interrupt that RELEASES the hung core stub the way
+// the SDK ends an interrupted session — cleanly, no terminal error event).
+describe("runGlobalRootTurn — the wall clock (BT4)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function deferred() {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  /** A core stub that resolves its target (the in-lock call that arms the
+   *  clock), persists the user row on `sessionId`, runs `beforeHang` (the
+   *  test's approval choreography), then HANGS until interrupted. */
+  function coreHangingUntilInterrupted(
+    sessionId: string,
+    beforeHang?: (sink: SessionSink) => Promise<void>,
+  ) {
+    const released = deferred();
+    interruptChatSessionMock.mockImplementation(
+      async (_providerId: string, interruptedSessionId: string) => {
+        if (interruptedSessionId === sessionId) released.resolve();
+      },
+    );
+    coreMock.mockImplementation(
+      async (deps: RunGlobalRootTurnCoreDeps, _input: unknown, sink: SessionSink) => {
+        await deps.resolveTarget();
+        await sink.onEvent({
+          kind: "user-message-persisted",
+          message: { sessionId },
+        } as SinkEvent);
+        await beforeHang?.(sink);
+        await released.promise;
+        await sink.onEnd?.();
+      },
+    );
+    return released;
+  }
+
+  /** Start the runner and capture its settlement without an unhandled rejection
+   *  while the fake clock is advanced. */
+  function startTurn(
+    activity: ReturnType<typeof fakeActivityFeed>,
+    input: Parameters<typeof runGlobalRootTurn>[1],
+  ) {
+    return runGlobalRootTurn(fakeDeps(activity.feed), input).then(
+      (turn) => ({ kind: "resolved" as const, turn }),
+      (error: unknown) => ({ kind: "rejected" as const, error }),
+    );
+  }
+
+  it("a bounded turn past maxMs fails the streams' way: failure row + interrupt on the turn's session, feed FAILED, the typed throw", async () => {
+    coreHangingUntilInterrupted("sess-hung");
+    const activity = fakeActivityFeed();
+    const settled = startTurn(activity, {
+      userId: "u1",
+      userMessageText: "never ends",
+      wallClock: { maxMs: 60 },
+    });
+
+    await vi.advanceTimersByTimeAsync(59);
+    expect(interruptChatSessionMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    const outcome = await settled;
+    expect(outcome.kind).toBe("rejected");
+    const error = (outcome as { error: unknown }).error;
+    expect(error).toBeInstanceOf(TurnWallClockExceededError);
+    expect((error as TurnWallClockExceededError).errorCode).toBe("turn-wall-clock-exceeded");
+    expect((error as Error).message).toBe("turn exceeded the 0.001-minute limit");
+    // The streams' persistence: the honest failure row on THE turn's session…
+    expect(persistTurnFailureRowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "sess-hung",
+        errorCode: "turn-wall-clock-exceeded",
+        errorMessage: "turn exceeded the 0.001-minute limit",
+      }),
+    );
+    // …the interrupt that ends the stream (and releases the lock through the
+    // core's chain), and the feed's durable outcome.
+    expect(interruptChatSessionMock).toHaveBeenCalledWith("claude", "sess-hung");
+    expect(activity.handle.end).toHaveBeenCalledWith("failed");
+  });
+
+  it("a parked approval suspends the clock — deciding time never counts — and the remaining budget runs on after the decision", async () => {
+    const cardRaised = deferred();
+    const decided = deferred();
+    coreHangingUntilInterrupted("sess-parked", async (sink) => {
+      await cardRaised.promise;
+      await sink.onEvent({
+        kind: "approval-requested",
+        approvalRequestId: "appr-1",
+        parentMessageId: "m1",
+        toolName: "register_workspace",
+        toolInput: {},
+      } as SinkEvent);
+      await decided.promise;
+      // A decision for a card THIS turn never parked must not release it.
+      await sink.onEvent({
+        kind: "approval-resolved",
+        approvalRequestId: "someone-elses",
+        decision: { kind: "approved" },
+      } as SinkEvent);
+      await sink.onEvent({
+        kind: "approval-resolved",
+        approvalRequestId: "appr-1",
+        decision: { kind: "approved" },
+      } as SinkEvent);
+    });
+    const activity = fakeActivityFeed();
+    const settled = startTurn(activity, {
+      userId: "u1",
+      userMessageText: "needs a card",
+      wallClock: { maxMs: 100 },
+    });
+
+    // 40 ms of working time, then the card parks the turn.
+    await vi.advanceTimersByTimeAsync(40);
+    cardRaised.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    // A human takes far longer than the whole budget to decide: no expiry.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(interruptChatSessionMock).not.toHaveBeenCalled();
+    expect(persistTurnFailureRowMock).not.toHaveBeenCalled();
+
+    // Decided: the clock resumes with its remaining 60 ms.
+    decided.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(59);
+    expect(interruptChatSessionMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    const outcome = await settled;
+    expect(outcome.kind).toBe("rejected");
+    expect((outcome as { error: unknown }).error).toBeInstanceOf(TurnWallClockExceededError);
+    expect(interruptChatSessionMock).toHaveBeenCalledWith("claude", "sess-parked");
+  });
+
+  it("a bounded turn that finishes inside the budget is untouched: no interrupt, no failure row, the drained result", async () => {
+    coreMock.mockImplementation(
+      async (deps: RunGlobalRootTurnCoreDeps, _input: unknown, sink: SessionSink) => {
+        await deps.resolveTarget();
+        await sink.onEvent({
+          kind: "user-message-persisted",
+          message: { sessionId: "sess-quick" },
+        } as SinkEvent);
+        await sink.onEvent({ kind: "text-chunk", messageId: "m1", textDelta: "done" });
+        await sink.onEnd?.();
+      },
+    );
+    const activity = fakeActivityFeed();
+    const settled = startTurn(activity, {
+      userId: "u1",
+      userMessageText: "quick",
+      wallClock: { maxMs: 60 },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const outcome = await settled;
+    expect(outcome).toEqual({
+      kind: "resolved",
+      turn: { sessionId: "sess-quick", resultText: "done" },
+    });
+    // The clock was cleared at turn end — advancing past the budget fires nothing.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(interruptChatSessionMock).not.toHaveBeenCalled();
+    expect(persistTurnFailureRowMock).not.toHaveBeenCalled();
+    expect(activity.handle.end).toHaveBeenCalledWith("ended");
+  });
+
+  it("absent `wallClock` = the shipped shape: an unbounded turn is never interrupted, however long it runs", async () => {
+    const released = coreHangingUntilInterrupted("sess-unbounded");
+    const activity = fakeActivityFeed();
+    const settled = startTurn(activity, {
+      userId: "u1",
+      userMessageText: "takes forever",
+    });
+    // Far past every knob's default (60 min): still running, nothing fired.
+    await vi.advanceTimersByTimeAsync(2 * 3_600_000);
+    expect(interruptChatSessionMock).not.toHaveBeenCalled();
+    expect(persistTurnFailureRowMock).not.toHaveBeenCalled();
+    // The turn ends on its own terms.
+    released.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    const outcome = await settled;
+    expect(outcome).toEqual({
+      kind: "resolved",
+      turn: { sessionId: "sess-unbounded", resultText: "" },
+    });
+    expect(activity.handle.end).toHaveBeenCalledWith("ended");
+  });
+
+  it("the channel ask descriptor rides the turn's wait gate (a parked ask suspends the clock) with the channel bound", async () => {
+    coreReplying("sess-1", "ok");
+    const askWaiters = {
+      cancelForTurn: vi.fn(() => []),
+    } as unknown as PendingAskRegistry;
+    await runGlobalRootTurn(
+      { ...fakeDeps(), askWaiters },
+      { userId: "u1", userMessageText: "hi", wallClock: { maxMs: 60_000 } },
+    );
+    expect(buildAskFeatureDescriptorMock).toHaveBeenCalledTimes(1);
+    const askDeps = buildAskFeatureDescriptorMock.mock.calls[0]?.[0] as {
+      waiters: unknown;
+      timeoutMs: number;
+      waitGate?: { markParked: () => void; markResolved: () => void };
+    };
+    expect(askDeps.waiters).toBe(askWaiters);
+    expect(askDeps.timeoutMs).toBe(10 * 60 * 1000);
+    expect(askDeps.waitGate).toBeDefined();
+    expect(typeof askDeps.waitGate?.markParked).toBe("function");
   });
 });

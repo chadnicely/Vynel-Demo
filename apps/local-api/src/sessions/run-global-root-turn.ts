@@ -12,6 +12,17 @@
 // (`@vynel/session/runtime`), not here — it is the sole lock acquirer (a nested
 // same-user acquire on the non-reentrant lock would deadlock).
 //
+// THE BOUND (background-turns BT4, audit R2-B): a caller that passes
+// `wallClock` gets the interactive streams' wall clock on its turn — armed
+// when the turn takes the root lock, suspended while a card or an ask is
+// parked, and on expiry the turn fails the streams' way (the honest failure
+// row, the interrupt that ends the stream and releases the lock through the
+// core's chain, the feed's `failed`) and `runGlobalRootTurn` throws the same
+// typed failure. Channels pass `VYNEL_INTERACTIVE_TURN_MAX_MS`; a schedule's
+// global fire passes the delegated cap. Without it the turn is unbounded —
+// the shipped shape, kept for the report-delivery runner, which is already
+// capped by the delivery tick's `routeRequest`.
+//
 // Composes the routing + notebook + desktop descriptors — the brain's tools
 // (delegate / channel-send / list / register-workspace) plus its desktop senses.
 // The desktop descriptor excludes itself when boot wired no reader
@@ -24,6 +35,7 @@ import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { resolveTurnSessionSettings } from '@vynel/chat'
 import {
+  ApprovalWaitGate,
   composeSessionAgents,
   recordAgentRunStarted,
   recordAgentRunCompleted,
@@ -34,9 +46,14 @@ import {
   fitPinnedModelToSession,
   runGlobalRootTurnCore,
   publishTurnActivityStep,
+  startTurnWallClock,
+  trackApprovalParks,
+  failTurnOnWallClock,
   type SessionActivityFeed,
   type SessionTurnActivityHandle,
   type SessionSink,
+  type TurnWallClock,
+  type TurnWallClockFailure,
 } from '@vynel/session/runtime'
 import {
   REPORT_DELIVERY_INSTRUCTIONS,
@@ -113,8 +130,9 @@ export interface RunGlobalRootTurnInput {
   steerPromptAppend?: string
   /** The liveness-feed origin for this turn. Omit → the channel kind, else
    *  'web' (the shipped behavior); the report-delivery runner passes
-   *  'delegation' so the feed reports what is actually running. */
-  activityOrigin?: 'delegation'
+   *  'delegation', a global schedule fire passes 'schedule' (BT1), so the
+   *  feed reports what is actually running. */
+  activityOrigin?: 'delegation' | 'schedule'
   /** The delivery queue row driving this notify turn — liveness enrichment. */
   jobId?: string
   /** A stable inbound-row id (the delivery job's) so a retried notify turn
@@ -136,6 +154,30 @@ export interface RunGlobalRootTurnInput {
   /** The RUNNING SDK session id, as the stream reveals it (and again on a
    *  mid-turn swap) — the delegation tick's cancel bridge + hard-cap lever. */
   onSessionResolved?: (sdkSessionId: string) => void
+  /** The turn's bound (BT4): the WORKING-time budget it may hold the root lock
+   *  for — the interactive streams' wall clock (`startTurnWallClock`), armed
+   *  when the lock is taken (queue time is the holder's budget), suspended
+   *  while a card or an ask is parked, cleared at turn end. Past it the turn
+   *  fails the streams' way and the runner throws `TurnWallClockExceededError`.
+   *  Channels pass `VYNEL_INTERACTIVE_TURN_MAX_MS`; a schedule's global fire
+   *  passes `VYNEL_DELEGATED_TURN_MAX_MS`. Omit → unbounded (the shipped shape). */
+  wallClock?: { maxMs: number }
+}
+
+/** The wall clock fired on a bounded turn — the streams' typed failure
+ *  (`session-errored { errorCode: 'turn-wall-clock-exceeded' }`) as the
+ *  runner's throw: same code, same message as the failure row it persisted.
+ *  Callers (the channel consumer, a schedule's run row) record the message;
+ *  `errorCode` lets them tell the cap from a provider failure without
+ *  matching text. */
+export class TurnWallClockExceededError extends Error {
+  readonly errorCode: string
+
+  constructor(failure: TurnWallClockFailure) {
+    super(failure.errorMessage)
+    this.name = 'TurnWallClockExceededError'
+    this.errorCode = failure.errorCode
+  }
 }
 
 export interface RunGlobalRootTurnResult {
@@ -166,6 +208,9 @@ class GlobalRootDrainSink implements SessionSink {
   private sessionId: string | null = null
   private resultText = ''
   private streamErrorMessage: string | null = null
+  /** Set the instant the wall clock fires (BT4) — resolves to the failure the
+   *  streams' helper built once it has landed the row + the interrupt. */
+  private wallClockFailure: Promise<TurnWallClockFailure> | null = null
   /** The turn's durable outcome (Move 3 feeder fix) — a terminal
    *  `session-errored` marks the envelope 'failed', the workspace streams'
    *  rule; read by the runner's `activity.end(...)`. */
@@ -182,9 +227,24 @@ class GlobalRootDrainSink implements SessionSink {
      *  sink hands it the id the moment the stream reveals one. Feature tools
      *  that record the conversation (asks) read it from there. */
     private readonly turnSession?: TurnSessionCarrier,
+    /** Sees every event before the drain bookkeeping — the wall clock's
+     *  approval park tracker rides here (a parked card suspends the clock),
+     *  the SSE sink's shape. */
+    private readonly onTurnEvent?: (event: SessionEvent) => void,
   ) {}
 
+  /** The wall clock fired. The outcome flips BEFORE `fail` issues the
+   *  interrupt: the provider ends an interrupted stream cleanly (no terminal
+   *  error event), so nothing downstream would otherwise call this turn
+   *  failed — and the core's return races the helper's continuation. */
+  failOnWallClock(fail: () => Promise<TurnWallClockFailure>): Promise<TurnWallClockFailure> {
+    this.turnOutcome = 'failed'
+    this.wallClockFailure = fail()
+    return this.wallClockFailure
+  }
+
   onEvent(event: SessionEvent): void {
+    this.onTurnEvent?.(event)
     // Narrate tool steps + approval bells on the feed FIRST (independent of the
     // drain bookkeeping below) — a background channel turn is otherwise
     // invisible to the desktop overlay.
@@ -225,9 +285,13 @@ class GlobalRootDrainSink implements SessionSink {
     }
   }
 
-  /** The drained result — throws (no-session-id FIRST, then errored, matching the
+  /** The drained result — throws (wall clock FIRST: it is the cause of whatever
+   *  the interrupt left behind; then no-session-id, then errored, matching the
    *  pre-collapse order) when the turn didn't produce a usable session. */
-  requireResult(): RunGlobalRootTurnResult {
+  async requireResult(): Promise<RunGlobalRootTurnResult> {
+    if (this.wallClockFailure !== null) {
+      throw new TurnWallClockExceededError(await this.wallClockFailure)
+    }
     if (this.sessionId === null) {
       throw new Error(
         'runGlobalRootTurn: the runtime did not assign a session id for the global-root turn',
@@ -293,6 +357,10 @@ export async function runGlobalRootTurn(
   // filled by the drain sink from the stream's first frame — the read half is
   // what lets an `ask_user` on a channel turn name the conversation it parked.
   const turnSession = createTurnSessionCarrier()
+  // ONE gate per turn (the streams' rule): parked cards (the sink's tracker)
+  // and parked asks (the descriptor) both mark it; the wall clock — when the
+  // caller bounds the turn — measures only what is left. Inert otherwise.
+  const waitGate = new ApprovalWaitGate()
 
   // Compose the global root's MCP attachment: the routing tools (the root is a
   // MANAGER — list + delegate + channel-send). No workspaceId — the global root
@@ -326,6 +394,7 @@ export async function runGlobalRootTurn(
             waiters: deps.askWaiters,
             turnKey: askTurnKey,
             timeoutMs: CHANNEL_ASK_TIMEOUT_MS,
+            waitGate,
             logger: deps.logger,
           }),
         ]
@@ -409,7 +478,8 @@ export async function runGlobalRootTurn(
     // overlay's Stop, the pre-resolution windows — never by an absence.
     primarySessionId: conversationTarget.primarySessionId,
     // The channels service sets originChannel; the report-delivery runner sets
-    // activityOrigin 'delegation'; 'web' is the defensive fallback.
+    // activityOrigin 'delegation', a global schedule fire 'schedule'; 'web' is
+    // the defensive fallback.
     origin: input.activityOrigin ?? input.originChannel ?? 'web',
     ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
     ...(input.inboundAttribution?.partialSessionId !== undefined
@@ -422,7 +492,34 @@ export async function runGlobalRootTurn(
       ? { personaName: input.inboundAttribution.sourceLabel }
       : {}),
   })
-  const sink = new GlobalRootDrainSink(input, activity, turnSession)
+  // Parked cards suspend the wall clock; the sink feeds the tracker every event.
+  const approvalParks = trackApprovalParks(waitGate)
+  const sink = new GlobalRootDrainSink(input, activity, turnSession, approvalParks.onTurnEvent)
+  // The bound (BT4) — the streams' wall clock, armed by `resolveTarget` below
+  // (the core's FIRST in-lock call, called again per continuation; `??=` arms
+  // once) so it measures the time this turn HOLDS the root lock; cleared in
+  // the finally. On expiry the helper lands the honest failure row and
+  // interrupts the head, so the provider ends the stream and the lock
+  // releases through the core's chain; the sink turns that into the typed
+  // throw. A ref, not a `let`: the arm happens inside the core's callback.
+  const wallClock: { current: TurnWallClock | null } = { current: null }
+  const armWallClock = (): void => {
+    const bound = input.wallClock
+    if (bound === undefined) return
+    wallClock.current ??= startTurnWallClock({
+      maxMs: bound.maxMs,
+      waitGate,
+      logger: deps.logger,
+      onExpire: async () => {
+        await sink.failOnWallClock(() =>
+          failTurnOnWallClock(
+            { db: deps.db, logger: deps.logger },
+            { sessionId: turnSession.current(), maxMs: bound.maxMs },
+          ),
+        )
+      },
+    })
+  }
   try {
     await runGlobalRootTurnCore(
       {
@@ -432,6 +529,7 @@ export async function runGlobalRootTurn(
         // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the runner
         // calls this) — apps/local-api owns the env-coupled user-data-dir read.
         resolveTarget: async () => {
+          armWallClock()
           const target = await resolveGlobalRootConversationTarget(deps.db, { userId: input.userId })
           ensureGlobalRootWorkspaceDir()
           return target
@@ -490,6 +588,7 @@ export async function runGlobalRootTurn(
     sink.turnOutcome = 'failed'
     throw err
   } finally {
+    wallClock.current?.clear()
     activity.end(sink.turnOutcome)
     // A parked ask must not outlive its turn: cancel THIS turn's waiters and
     // expire their rows — the interactive streams' cleanup mirrored, GUARD
