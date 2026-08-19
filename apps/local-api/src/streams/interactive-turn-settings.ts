@@ -71,10 +71,7 @@ export function resolveInteractiveTurnSettings(
     permissionMode: toPermissionMode(resolved.mode ?? DEFAULT_SESSION_MODE),
     model: resolved.model,
     thinkingEffort: resolved.thinkingEffort,
-    // The same `input ?? row` rule as the three above (Slice B's
-    // `resolveTurnSessionSettings` returns it once its arc lands — then this
-    // collapses to `resolved.autoBuildout`).
-    autoBuildout: input.autoBuildout ?? row?.autoBuildout ?? undefined,
+    autoBuildout: resolved.autoBuildout,
   }
 }
 

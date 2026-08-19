@@ -113,9 +113,11 @@ export const chatSessions = table(
     sessionMode: text().$type<ChatSessionSelectedMode>(),
     selectedModel: text(),
     thinkingEffort: text().$type<ThinkingEffortLevel>(),
-    // The composer's Auto-buildout toggle — persisted per session; nothing
-    // consumes it yet (the build engine is pending), same standing as the
-    // ui-store original.
+    // The composer's Auto-buildout toggle = AUTOPILOT (Kafi 2026-08-19): when
+    // true the turn carries the `autopilot-marker` instruction — the user is
+    // probably away, continue alone, set needs_input only when truly stuck.
+    // Resolved like the three above (input ?? row ?? default) and inherited by
+    // birth-stamped children.
     autoBuildout: boolean(),
     // ── Assistant-set session status (Move 3, 2026-08-17) ───────────
     // The workspaces status trio, per conversation: a FACT with a timestamp

@@ -50,8 +50,9 @@ export const StartGlobalRootTurnRequestSchema = z
     // This turn came in by VOICE — the reply is spoken aloud, so the brain answers
     // short + conversational + markdown-free (spoken-style directive appended).
     voice: z.boolean().optional(),
-    // The composer's Auto-buildout toggle — write-through persistence only
-    // (nothing consumes it yet); persisted onto the global thread's current segment.
+    // The composer's Auto-buildout toggle = autopilot (session-hardening arc):
+    // resolved like the other settings, the autopilot marker rides the turn when
+    // true; persisted onto the global thread's current segment.
     autoBuildout: z.boolean().optional(),
   })
   .refine(
