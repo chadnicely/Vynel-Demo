@@ -209,6 +209,9 @@ importers:
       '@vynel/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@vynel/customization':
+        specifier: workspace:*
+        version: link:../../packages/customization
       '@vynel/db':
         specifier: workspace:*
         version: link:../../packages/db

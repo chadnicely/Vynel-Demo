@@ -56,6 +56,7 @@ import { workspaceAppsApp } from './routes/workspace-apps/index.js'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { BackgroundProcessRunner, settleBackgroundProcess } from '@vynel/processes'
 import { processesApp } from './routes/processes/index.js'
+import { customizationsApp } from './routes/customizations/index.js'
 import { approvalsApp, approvalRulesApp } from './routes/approvals/index.js'
 import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
@@ -386,6 +387,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/plans', plansUserApp)
   app.route('/monitors', monitorsUserApp)
   app.route('/processes', processesApp)
+  app.route('/customizations', customizationsApp)
   app.route('/journal', journalUserApp)
   // `/asks` — the ask_user answering surface (always the user; the agent's
   // surface is the `vynel-ask` descriptor tool). Core plumbing, not gated.

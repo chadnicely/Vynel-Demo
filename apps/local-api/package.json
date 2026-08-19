@@ -45,6 +45,7 @@
     "@vynel/orchestration": "workspace:*",
     "@vynel/phases": "workspace:*",
     "@vynel/plans": "workspace:*",
+    "@vynel/customization": "workspace:*",
     "@vynel/processes": "workspace:*",
     "@vynel/provider-preferences": "workspace:*",
     "@vynel/providers": "workspace:*",

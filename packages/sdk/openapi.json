@@ -21508,6 +21508,541 @@
         }
       }
     },
+    "/customizations": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "All scope customizations and the tree layout (null until first drag).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "colorSlot": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 64
+                          },
+                          "customColor": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "maxLength": 7
+                          },
+                          "personaColorSlot": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 64
+                          },
+                          "personaCustomColor": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "maxLength": 7
+                          },
+                          "personaImage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "workspaceImage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "groups": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 60
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "label"
+                              ]
+                            },
+                            "maxItems": 64
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "sectionId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "groupId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "isHidden": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "sectionId",
+                                "groupId",
+                                "isHidden"
+                              ]
+                            },
+                            "maxItems": 128
+                          },
+                          "scopeKey": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "colorSlot",
+                          "customColor",
+                          "personaColorSlot",
+                          "personaCustomColor",
+                          "personaImage",
+                          "workspaceImage",
+                          "groups",
+                          "entries",
+                          "scopeKey"
+                        ]
+                      }
+                    },
+                    "treeLayout": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "maxItems": 256
+                        },
+                        "workspaces": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "maxItems": 512
+                          }
+                        }
+                      },
+                      "required": [
+                        "groups",
+                        "workspaces"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "scopes",
+                    "treeLayout"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getCustomizations",
+        "tags": [
+          "customizations"
+        ],
+        "parameters": [],
+        "summary": "Everything the user arranged — every scope's look + the tree's positions.",
+        "x-sdk-name": "customizations.list"
+      }
+    },
+    "/customizations/scopes/{scopeKey}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The saved scope customization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "colorSlot": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 1,
+                      "maximum": 64
+                    },
+                    "customColor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 7
+                    },
+                    "personaColorSlot": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 1,
+                      "maximum": 64
+                    },
+                    "personaCustomColor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 7
+                    },
+                    "personaImage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "workspaceImage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 60
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label"
+                        ]
+                      },
+                      "maxItems": 64
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sectionId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "groupId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "isHidden": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "sectionId",
+                          "groupId",
+                          "isHidden"
+                        ]
+                      },
+                      "maxItems": 128
+                    },
+                    "scopeKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "colorSlot",
+                    "customColor",
+                    "personaColorSlot",
+                    "personaCustomColor",
+                    "personaImage",
+                    "workspaceImage",
+                    "groups",
+                    "entries",
+                    "scopeKey"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A colour is not #rrggbb, an image is not a data:image URL, or both colour kinds were set."
+          }
+        },
+        "operationId": "putCustomizationsScopesByScopeKey",
+        "tags": [
+          "customizations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scopeKey",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "Save one scope's whole customization (autosave writes it entire).",
+        "x-sdk-name": "customizations.saveScope",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "colorSlot": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "customColor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 7
+                  },
+                  "personaColorSlot": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "personaCustomColor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 7
+                  },
+                  "personaImage": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "workspaceImage": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "groups": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "label"
+                      ]
+                    },
+                    "maxItems": 64
+                  },
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "sectionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "groupId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "isHidden": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "sectionId",
+                        "groupId",
+                        "isHidden"
+                      ]
+                    },
+                    "maxItems": 128
+                  }
+                },
+                "required": [
+                  "colorSlot",
+                  "customColor",
+                  "personaColorSlot",
+                  "personaCustomColor",
+                  "personaImage",
+                  "workspaceImage",
+                  "groups",
+                  "entries"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customizations/tree-layout": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The saved layout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "maxItems": 256
+                    },
+                    "workspaces": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "maxItems": 512
+                      }
+                    }
+                  },
+                  "required": [
+                    "groups",
+                    "workspaces"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "putCustomizationsTree-layout",
+        "tags": [
+          "customizations"
+        ],
+        "parameters": [],
+        "summary": "Save the sidebar tree's positions whole (one write per drop).",
+        "x-sdk-name": "customizations.saveTreeLayout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "groups": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxItems": 256
+                  },
+                  "workspaces": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "maxItems": 512
+                    }
+                  }
+                },
+                "required": [
+                  "groups",
+                  "workspaces"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/journal": {
       "get": {
         "responses": {

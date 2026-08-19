@@ -491,6 +491,28 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  customizations: {
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/customizations")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  saveScope: async (scopeKey: NonNullable<paths["/customizations/scopes/{scopeKey}"]["put"]['parameters']>['path']["scopeKey"], input: NonNullable<paths["/customizations/scopes/{scopeKey}"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/customizations/scopes/{scopeKey}", {
+      params: { path: { scopeKey: scopeKey } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  saveTreeLayout: async (input: NonNullable<paths["/customizations/tree-layout"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/customizations/tree-layout", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   dashboard: {
   getOverview: async () => {
     const { data, error, response } = await client["GET"]("/dashboard/overview")

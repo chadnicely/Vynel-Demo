@@ -2197,6 +2197,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Everything the user arranged — every scope's look + the tree's positions. */
+        get: operations["getCustomizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customizations/scopes/{scopeKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save one scope's whole customization (autosave writes it entire). */
+        put: operations["putCustomizationsScopesByScopeKey"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customizations/tree-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save the sidebar tree's positions whole (one write per drop). */
+        put: operations["putCustomizationsTree-layout"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/journal": {
         parameters: {
             query?: never;
@@ -12406,6 +12457,151 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getCustomizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All scope customizations and the tree layout (null until first drag). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        scopes: {
+                            colorSlot: number | null;
+                            customColor: string | null;
+                            personaColorSlot: number | null;
+                            personaCustomColor: string | null;
+                            personaImage: string | null;
+                            workspaceImage: string | null;
+                            groups: {
+                                id: string;
+                                label: string;
+                            }[];
+                            entries: {
+                                sectionId: string;
+                                groupId: string | null;
+                                isHidden: boolean;
+                            }[];
+                            scopeKey: string;
+                        }[];
+                        treeLayout: {
+                            groups: string[];
+                            workspaces: {
+                                [key: string]: string[];
+                            };
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    putCustomizationsScopesByScopeKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scopeKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    colorSlot: number | null;
+                    customColor: string | null;
+                    personaColorSlot: number | null;
+                    personaCustomColor: string | null;
+                    personaImage: string | null;
+                    workspaceImage: string | null;
+                    groups: {
+                        id: string;
+                        label: string;
+                    }[];
+                    entries: {
+                        sectionId: string;
+                        groupId: string | null;
+                        isHidden: boolean;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description The saved scope customization. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        colorSlot: number | null;
+                        customColor: string | null;
+                        personaColorSlot: number | null;
+                        personaCustomColor: string | null;
+                        personaImage: string | null;
+                        workspaceImage: string | null;
+                        groups: {
+                            id: string;
+                            label: string;
+                        }[];
+                        entries: {
+                            sectionId: string;
+                            groupId: string | null;
+                            isHidden: boolean;
+                        }[];
+                        scopeKey: string;
+                    };
+                };
+            };
+            /** @description A colour is not #rrggbb, an image is not a data:image URL, or both colour kinds were set. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "putCustomizationsTree-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    groups: string[];
+                    workspaces: {
+                        [key: string]: string[];
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The saved layout. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        groups: string[];
+                        workspaces: {
+                            [key: string]: string[];
+                        };
+                    };
+                };
             };
         };
     };
