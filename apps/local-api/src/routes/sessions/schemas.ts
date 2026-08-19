@@ -39,6 +39,10 @@ export const SessionStatusFactsSchema = z.object({
 
 export const SessionsOverviewEntrySchema = z.object({
   sessionId: z.string(),
+  /** The chain's continuing identity — the value the activity feed stamps as
+   *  `primarySessionId`, so a live turn matches its entry before it resolves
+   *  a session id (session-hardening D1). */
+  primarySessionId: z.string().nullable(),
   scope: z.enum(['global', 'workspace', 'agent', 'spawned', 'voice']),
   workspaceId: z.string().nullable(),
   workspaceName: z.string().nullable(),

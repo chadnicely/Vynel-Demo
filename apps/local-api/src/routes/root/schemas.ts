@@ -20,6 +20,7 @@ import {
   AttachedImageInputSchema,
   MAX_ATTACHED_IMAGES,
 } from '../chat/schemas.js'
+import { SessionsOverviewEntrySchema } from '../sessions/schemas.js'
 
 export {
   ContinuingConversationResponseSchema,
@@ -147,8 +148,22 @@ export const StopDelegationResponseSchema = z.object({
   result: z.enum(['stopped', 'stopping', 'already-finished']),
 })
 
+export const InterruptGlobalTurnRequestSchema = z.object({
+  /** WHICH thread to stop — a segment of the caller's global or voice chain.
+   *  Omitted = the global root's head (the pre-D3 behaviour), for a caller
+   *  that has not resolved a session id yet. */
+  sessionId: z.string().min(1).optional(),
+})
+
 export const InterruptGlobalTurnResponseSchema = z.object({
   // True = an interrupt was REQUESTED for the linked session (an idle session
   // makes it a provider no-op); false = no global-root session exists yet.
   interrupted: z.boolean(),
+})
+
+/** The Voice chat surface's own status read — one overview entry, or null
+ *  before the first spoken turn. The entry shape is the sessions surface's
+ *  (one home, no drift). */
+export const VoiceChatStatusResponseSchema = z.object({
+  entry: SessionsOverviewEntrySchema.nullable(),
 })

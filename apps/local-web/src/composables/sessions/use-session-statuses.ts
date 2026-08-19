@@ -6,6 +6,7 @@ import {
   type SessionStatusView,
 } from "@vynel/contracts/chat/session-status";
 import { useActivityStore } from "../../stores/activity-store.js";
+import { matchTurnToIdentity } from "../activity/match-turn-to-identity.js";
 import { useSessionsOverview } from "./use-sessions-overview.js";
 
 // THE one home for a CONVERSATION's status light (Move 3) — the per-session
@@ -22,9 +23,24 @@ import { useSessionsOverview } from "./use-sessions-overview.js";
 // invalidation refetches the overview — the durable fact IS the signal.
 
 /** The entry's in-flight turn start, or null when quiet. A turn belongs to
- *  THIS conversation when it runs on any of its chain segments; a workspace
- *  entry also owns its room's turn, whose session id resolves a frame later
- *  (the row must go live immediately — the shipped `isWorking` rule). */
+ *  THIS conversation when it runs on any of its chain segments, or when it
+ *  names the conversation's continuing identity — the PRE-RESOLUTION window,
+ *  where a turn has announced itself but not yet learned its session id. On a
+ *  cold start that gap is the whole engine spawn, long enough for a retry
+ *  after a failed turn to show red while it is in fact running (problem
+ *  outranks running in the ladder).
+ *
+ *  Identity, not absence (session-hardening D1). This used to claim ANY
+ *  global-scope turn with no session id for the Assistant row, on the
+ *  invariant that only spawned turns share that scope and those carry their
+ *  ids from the start — false since the voice arc (a spoken turn lit the
+ *  Assistant as running, hiding a standing problem) and false for delegated
+ *  runs (which announce with a primary id and no session id). Both now
+ *  resolve to their own entry, or to none.
+ *
+ *  A workspace entry also owns its ROOM's turn, whose session id resolves a
+ *  frame later (the row must go live immediately — the shipped `isWorking`
+ *  rule). */
 export function liveTurnStartedAtForEntry(
   entry: SessionsOverviewEntry,
   serverTurns: Record<string, SessionTurnActivity>,
@@ -35,24 +51,21 @@ export function liveTurnStartedAtForEntry(
     (turn) => turn.sessionId !== null && segmentIds.has(turn.sessionId),
   );
   if (onSegment !== undefined) return onSegment.startedAt;
-  if (entry.scope === "workspace" && entry.workspaceId !== null) {
-    const inRoom = turns.find(
-      (turn) =>
-        turn.scopeKind === "workspace" && turn.workspaceId === entry.workspaceId,
+
+  const primarySessionId = entry.primarySessionId;
+  if (primarySessionId !== null) {
+    const onIdentity = turns.find((turn) =>
+      matchTurnToIdentity(turn, { kind: "primary", primarySessionId }),
+    );
+    if (onIdentity !== undefined) return onIdentity.startedAt;
+  }
+
+  const workspaceId = entry.workspaceId;
+  if (entry.scope === "workspace" && workspaceId !== null) {
+    const inRoom = turns.find((turn) =>
+      matchTurnToIdentity(turn, { kind: "workspace", workspaceId }),
     );
     if (inRoom !== undefined) return inRoom.startedAt;
-  }
-  // The assistant thread's own pre-resolution window. A global turn announces
-  // itself before its session id is known, and on a COLD start that gap is the
-  // whole engine spawn — long enough for a retry after a failed turn to show
-  // red while it is in fact running (problem outranks running in the ladder).
-  // Safe to claim: every OTHER global-scope turn on the feed is a spawned
-  // session's, and those always carry their session id from the start.
-  if (entry.scope === "global") {
-    const brainTurn = turns.find(
-      (turn) => turn.scopeKind === "global" && turn.sessionId === null,
-    );
-    if (brainTurn !== undefined) return brainTurn.startedAt;
   }
   return null;
 }

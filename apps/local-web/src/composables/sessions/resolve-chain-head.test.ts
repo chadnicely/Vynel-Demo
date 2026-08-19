@@ -11,6 +11,7 @@ function makeEntry(
 ): SessionsOverviewEntry {
   return {
     sessionId: "seg-new",
+    primarySessionId: null,
     scope: "spawned",
     workspaceId: null,
     workspaceName: null,

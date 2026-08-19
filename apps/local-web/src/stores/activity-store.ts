@@ -4,6 +4,11 @@ import type {
   SessionActivityEvent,
   SessionTurnActivity,
 } from "@vynel/contracts/chat/session-activity";
+import {
+  isTurnInGlobalArea,
+  matchTurnToIdentity,
+  type TurnIdentity,
+} from "../composables/activity/match-turn-to-identity.js";
 
 // Cross-view liveness, two sources folded together:
 //  - local turns — streams THIS tab started (use-chat-turn counts them);
@@ -22,18 +27,30 @@ export const useActivityStore = defineStore("activity", () => {
       runningTurnCount.value > 0 || Object.keys(serverTurns.value).length > 0,
   );
 
+  /** Anything alive in the GLOBAL AREA — the assistant thread, the spoken
+   *  thread, and everything they spawned. The presence dot's read; voice is a
+   *  child of global here, which is what it has always shown (a voice turn
+   *  used to announce AS global). */
   const hasGlobalServerTurn = computed(() =>
-    Object.values(serverTurns.value).some((turn) => turn.scopeKind === "global"),
+    Object.values(serverTurns.value).some(isTurnInGlobalArea),
   );
 
-  /** The origin of the running global turn (indicator copy) — null when none. */
-  const globalServerTurnOrigin = computed(
-    () =>
-      Object.values(serverTurns.value).find(
-        (turn) => turn.scopeKind === "global",
-      )?.origin ?? null,
-  );
+  /** The origin of the running global-area turn (indicator copy) — null when
+   *  none. OLDEST first, so the answer is stable while a second turn starts
+   *  and ends beside it: the map can legitimately hold a global and a voice
+   *  turn at once, and first-match over an object's insertion order named
+   *  whichever arrived last. */
+  const globalServerTurnOrigin = computed(() => {
+    const live = Object.values(serverTurns.value)
+      .filter(isTurnInGlobalArea)
+      .sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
+    return live[0]?.origin ?? null;
+  });
 
+  /** Anything alive in a ROOM — its own thread and every session spawned in
+   *  it. Deliberately NOT `matchTurnToIdentity({ kind: 'workspace' })`, which
+   *  answers the narrower "the room's OWN thread": this is the area question,
+   *  the workspace sibling of `hasGlobalServerTurn`. */
   function hasServerTurnInWorkspace(workspaceId: string): boolean {
     return Object.values(serverTurns.value).some(
       (turn) =>
@@ -52,26 +69,20 @@ export const useActivityStore = defineStore("activity", () => {
     );
   }
 
-  /** The session a scope's PRIMARY turn runs on right now — the fallback for
-   *  the continuous thread before the primary's first turn is bridged (the
-   *  head is stamped at turn END, so a fresh workspace's first turn has no
-   *  `currentSdkSessionId` yet). Spawned/agent turns stamp `primarySessionId`
-   *  and are skipped: they run on their own identity, never the scope's
-   *  primary. Null when nothing primary runs in the scope. */
-  function runningPrimarySessionIdFor(
-    scope: { kind: "global" } | { kind: "workspace"; workspaceId: string },
-  ): string | null {
+  /** The session THIS identity's turn runs on right now — the fallback for a
+   *  continuous thread before its primary's first turn is bridged (the head is
+   *  stamped at turn END, so a fresh conversation's first turn has no
+   *  `currentSdkSessionId` yet). Null when nothing of that identity runs.
+   *
+   *  Pass an IDENTITY, never a family: `{ kind: 'global' }` answers "anything
+   *  in the global area", which includes the spoken thread and every spawned
+   *  run — binding a view to that is how the Global chat came to render the
+   *  voice conversation. The global thread binds through
+   *  `{ kind: 'primary' }` with the id `GET /root/continuing` hands back. */
+  function runningPrimarySessionIdFor(identity: TurnIdentity): string | null {
     for (const turn of Object.values(serverTurns.value)) {
       if (turn.sessionId === null) continue;
-      if ((turn.primarySessionId ?? null) !== null) continue;
-      if (scope.kind === "global" && turn.scopeKind === "global") return turn.sessionId;
-      if (
-        scope.kind === "workspace" &&
-        turn.scopeKind === "workspace" &&
-        turn.workspaceId === scope.workspaceId
-      ) {
-        return turn.sessionId;
-      }
+      if (matchTurnToIdentity(turn, identity)) return turn.sessionId;
     }
     return null;
   }

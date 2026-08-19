@@ -191,6 +191,64 @@ Files B touched OUTSIDE its list, all functionally (flagged for the merge): `pac
 `settingsLocked` prop — unowned by any slice), `packages/contracts/src/chat/voice-tier.ts` (B5's
 doc rule at the tier home), `packages/sdk/{openapi.json,src/generated/api.d.ts}` (regenerated).
 
+### From D (monitoring identity, voice status, interrupt, root routes)
+
+**Deviation from §3 D2 — read this first.** The plan said "the fold admits voice; the three
+UNSCOPED-overview consumers filter it out". That leaks: `GET /sessions/overview` unscoped **is**
+`list_sessions`' answer (root + workspace-interactive surfaces), so an admitted voice entry would
+hand every workspace manager the spoken thread's row — its title, its `statusNote`/`lastError` text
+and its segment ids — and the route cannot tell a UI call from a tool call (a query flag would just
+become a tool argument). So: the fold admits voice, and `getSessionsOverview` /
+`countSessionsOverview` drop it unconditionally; `isSessionInScope` says the exclusion out loud;
+the Voice chat surface reads `GET /root/voice-chat/status` → `getVoiceChatOverviewEntry`.
+Consequence: **`LiveSessionPane.vue` and `SessionThreadView.vue` need no filter** — they resolve an
+entry by session id out of a list a voice entry can no longer reach, so a filter there would be
+unreachable code. `TasksPanel` did change, but at the TURN level (it counts running turns, not
+entries) — voice is excluded there because the box names its rows from that same list.
+
+**Wire assumptions D's readers make** (check against C at merge):
+
+- Voice turns announce `scopeKind: 'voice'`; global turns announce
+  `primarySessionId = <the global primary's id>` — the same value `GET /root/continuing` returns as
+  `rootSessionId`. No continuing-payload field was added; `rootSessionId` already carried it.
+- **Workspace turns stamp NO `primarySessionId`** (`chat-turn.ts:379`, and the workspace-root branch
+  of `run-delegation-claim-and-run-tick.ts:322`). `matchTurnToIdentity({ kind: 'workspace' })` uses
+  that absence to exclude sessions spawned in the room. See the ask to C below.
+- Both swap writers carry `scope` forward (`record-swap-segment-session.ts:95`,
+  `handle-session-started.ts:133`), so a voice chain's TAIL stays voice-scoped across a compaction
+  swap — the fold branch, the list's voice wall and D3's interrupt gate all key on it. Pinned by a
+  test.
+- `getVoiceChatOverviewEntry` takes the newest voice chain (the fold sorts `lastMessageAt` desc).
+  Correct while the partial-unique index keeps one live voice primary per user.
+
+**Edits D made outside its ownership** (all forced by a contract change; each is one
+mechanical line, declared so the lead can check them at merge):
+
+1. `apps/local-api/src/routes/sessions/schemas.ts` — `SessionsOverviewEntrySchema` gains
+   `primarySessionId: z.string().nullable()`. Without it the OpenAPI/SDK entry type drifts from
+   `SessionsOverviewEntry` and the web client's assignment stops typechecking. **F rebases after D
+   here** (F appends the children route's schemas to the same file — different location).
+2. `apps/local-web/src/views/DesktopControlOverlayView.vue` — `root.interruptTurn()` →
+   `root.interruptTurn({})` (the route now takes an optional JSON body). Behaviour-identical.
+3. Entry test FIXTURES gained `primarySessionId: null`: `composables/chat/context-occupancy.test.ts`,
+   `views/sessions-view.test.ts` (both outside D's list; the other three were D's own).
+
+**Asks for other slices:**
+
+- **C (or whoever owns the overlay's Stop gate):** `DesktopControlOverlayView.vue:114-121` decides
+  `canStop` with `turn.primarySessionId === null` — "a root turn names no identity". Once C stamps
+  `primarySessionId` on GLOBAL turns that is never true, so the overlay's Stop silently disables for
+  the global root. It needs the identity comparison the rest of the app now uses (the overlay's
+  tracked-turn fold carries no `sessionId`, so it also cannot use D3's `sessionId` body yet).
+- **C:** `chat-turn.ts` still begins WITHOUT `primarySessionId`, and D's `{ kind: 'workspace' }`
+  identity depends on that absence to exclude sessions spawned in the room. If workspace turns ever
+  start stamping it, workspace binding silently stops working — change the predicate in the same move
+  (`apps/local-web/src/composables/activity/match-turn-to-identity.ts`).
+- **Unowned, low priority:** `listRunningSessionTurnsForUser`
+  (`packages/session/src/repositories/session-turns.ts`, re-exported from `runtime/index.ts`) lost its
+  only caller with `/activity/running` (D5). Its own repo tests still pass; left in place because
+  `packages/session/src/repositories` is not D's.
+
 ## 7. Results
 
 _(filled at integration)_

@@ -23,6 +23,7 @@ import { useTaskSteps } from "../../composables/tasks/use-task-steps.js";
 import { useUpdateStepStatus } from "../../composables/tasks/use-update-step-status.js";
 import { usePlanForTask } from "../../composables/plans/use-plan-for-task.js";
 import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
+import { matchTurnToIdentity } from "../../composables/activity/match-turn-to-identity.js";
 import TaskViewDialog from "./TaskViewDialog.vue";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
@@ -93,12 +94,20 @@ const shownTasks = computed(() =>
 // EVERY running turn in this scope — the activity header's "sessions working"
 // count and the sessions box's rows. The first one anchors the live card's
 // steps and the interrupt target, as before.
+//
+// The SPOKEN thread is deliberately not among them: this box names its rows
+// from the shared sessions overview, which the voice conversation never rides
+// (it belongs to the Voice chat surface alone), so a counted voice turn would
+// show up as a nameless "A conversation" and advertise a thread this panel
+// cannot open. The global identity is the AREA minus voice, by construction.
 const workingTurns = computed(() =>
   Object.values(activity.serverTurns).filter((turn) =>
-    scopeWorkspaceId.value === null
-      ? turn.scopeKind === "global"
-      : turn.scopeKind === "workspace" &&
-        turn.workspaceId === scopeWorkspaceId.value,
+    matchTurnToIdentity(
+      turn,
+      scopeWorkspaceId.value === null
+        ? { kind: "global" }
+        : { kind: "workspace", workspaceId: scopeWorkspaceId.value },
+    ),
   ),
 );
 

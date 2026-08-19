@@ -134,13 +134,12 @@ describe("activity store — server turns", () => {
   });
 
   // The continuous thread's fallback before the primary's first turn is
-  // bridged: the scope's running PRIMARY turn — never a spawned/agent one.
-  it("runningPrimarySessionIdFor resolves the scope's primary turn and skips identities with a primarySessionId", () => {
+  // bridged: the turn running on THIS identity — never a neighbour's.
+  it("runningPrimarySessionIdFor binds a room to its OWN thread, never a session spawned in it", () => {
     const store = useActivityStore();
     expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBeNull();
-    expect(store.runningPrimarySessionIdFor({ kind: "global" })).toBeNull();
 
-    // A spawned session's turn in the workspace (stamps its identity) — not the primary.
+    // A spawned session's turn in the workspace (stamps its identity) — not the room's.
     store.applyServerActivity(
       started("t-spawned", {
         scopeKind: "workspace",
@@ -151,17 +150,66 @@ describe("activity store — server turns", () => {
     );
     expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBeNull();
 
-    // The workspace's own primary turn — its id is known only after session-created.
-    store.applyServerActivity(started("t-primary", { scopeKind: "workspace", workspaceId: "ws-1", sessionId: null }));
+    // The room's own turn — its session id is known only after session-created.
+    store.applyServerActivity(
+      started("t-primary", { scopeKind: "workspace", workspaceId: "ws-1", sessionId: null }),
+    );
     expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBeNull();
     store.applyServerActivity({ kind: "turn-updated", turnId: "t-primary", sessionId: "sess-first" });
     expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-1" })).toBe("sess-first");
     expect(store.runningPrimarySessionIdFor({ kind: "workspace", workspaceId: "ws-2" })).toBeNull();
+  });
 
-    // A global root turn answers the global scope only.
-    store.applyServerActivity(started("t-root", { sessionId: "root-1" }));
-    expect(store.runningPrimarySessionIdFor({ kind: "global" })).toBe("root-1");
-    store.applyServerActivity({ kind: "turn-ended", turnId: "t-root", sessionId: "root-1", outcome: "ended" });
+  // The agent-3 / agent-5 repro, made permanent. A voice-first user has NO
+  // global head, so the Global chat fell through to this reader — which handed
+  // back the spoken segment and rendered the private thread as the assistant's.
+  it("a running VOICE turn is never the global thread", () => {
+    const store = useActivityStore();
+    store.applyServerActivity(
+      started("t-voice", {
+        scopeKind: "voice",
+        origin: "voice",
+        sessionId: "voice-segment-1",
+        primarySessionId: "voice-primary-1",
+      }),
+    );
+    expect(
+      store.runningPrimarySessionIdFor({ kind: "primary", primarySessionId: "global-primary-1" }),
+    ).toBeNull();
+    // …and the global AREA does not claim it as a thread either.
     expect(store.runningPrimarySessionIdFor({ kind: "global" })).toBeNull();
+    // The area IS alive, though: the presence dot covers speech (voice is a
+    // child of global), which is what it has always shown.
+    expect(store.hasGlobalServerTurn).toBe(true);
+    expect(store.globalServerTurnOrigin).toBe("voice");
+
+    // The global thread's own turn, matched by the id /root/continuing returns.
+    store.applyServerActivity(
+      started("t-root", { sessionId: "global-segment-1", primarySessionId: "global-primary-1" }),
+    );
+    expect(
+      store.runningPrimarySessionIdFor({ kind: "primary", primarySessionId: "global-primary-1" }),
+    ).toBe("global-segment-1");
+    // A DELEGATED run announcing in the global scope on its own identity is
+    // still not the assistant's thread.
+    expect(
+      store.runningPrimarySessionIdFor({ kind: "primary", primarySessionId: "spawned-primary-9" }),
+    ).toBeNull();
+  });
+
+  it("globalServerTurnOrigin names the OLDEST live turn in the area, not whichever arrived last", () => {
+    const store = useActivityStore();
+    store.applyServerActivity(
+      started("t-web", { sessionId: "g-1", startedAt: "2026-07-19T10:00:00.000Z" }),
+    );
+    store.applyServerActivity(
+      started("t-voice", {
+        scopeKind: "voice",
+        origin: "voice",
+        sessionId: "v-1",
+        startedAt: "2026-07-19T10:00:05.000Z",
+      }),
+    );
+    expect(store.globalServerTurnOrigin).toBe("web");
   });
 });

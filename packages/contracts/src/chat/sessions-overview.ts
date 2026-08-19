@@ -26,6 +26,12 @@ export interface SessionsOverviewSegment {
 export interface SessionsOverviewEntry {
   /** The entry's open target — its newest segment's id. */
   sessionId: string
+  /** The CONTINUING identity behind the chain (`primary_sessions.id`) — the
+   *  same value the activity feed stamps as `primarySessionId`. It is how a
+   *  live turn is matched to this entry BEFORE the turn resolves its session
+   *  id: no reader has to infer identity from a null. Null when no live
+   *  primary points at this chain's head (a superseded or orphaned chain). */
+  primarySessionId: string | null
   scope: 'global' | 'workspace' | 'agent' | 'spawned' | 'voice'
   workspaceId: string | null
   workspaceName: string | null
@@ -72,6 +78,12 @@ export function isSessionInScope(
   entry: Pick<SessionsOverviewEntry, 'scope' | 'workspaceId'>,
   workspaceId: string | null,
 ): boolean {
+  // The spoken thread belongs to ONE surface (the Voice chat area) and to no
+  // list — it was excluded by accident before (the fold dropped it, so it
+  // never reached this predicate), which is exactly why a failed voice turn
+  // lit nothing anywhere. Now the fold admits it, the exclusion has to be
+  // said out loud (session-hardening D2).
+  if (entry.scope === 'voice') return false
   return workspaceId !== null
     ? entry.workspaceId === workspaceId
     : entry.scope === 'spawned' && entry.workspaceId === null

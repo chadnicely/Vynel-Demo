@@ -3284,40 +3284,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/root/continuing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Resolve the global root conversation (read-only; nulls until the first global-root turn). */
-        get: operations["getRootContinuing"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/root/transcript": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the global root conversation history (messages across swap segments). */
-        get: operations["getRootTranscript"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/root/voice-chat/continuing": {
         parameters: {
             query?: never;
@@ -3352,6 +3318,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/root/voice-chat/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the voice conversation's sessions-overview entry (its status facts). */
+        get: operations["getRootVoice-chatStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/root/turn/interrupt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Interrupt a running turn on the caller's global or voice thread. */
+        post: operations["postRootTurnInterrupt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/root/trace/{partialSessionId}": {
         parameters: {
             query?: never;
@@ -3378,40 +3378,6 @@ export interface paths {
         };
         /** Observe a live delegation's turn — streams its ChatTurnEvents via SSE. */
         get: operations["getRootTraceByPartialSessionIdStream"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/root/sessions/{sessionId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get one owned session in full (messages + tool calls) — for the trace drill-down. */
-        get: operations["getRootSessionsBySessionId"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/root/sessions/{sessionId}/transcript": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get one owned session's chain-spanning history (messages across swap segments). */
-        get: operations["getRootSessionsBySessionIdTranscript"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3454,6 +3420,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/root/continuing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve the global root conversation (read-only; nulls until the first global-root turn). */
+        get: operations["getRootContinuing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/root/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the global root conversation history (messages across swap segments). */
+        get: operations["getRootTranscript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/root/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one owned session in full (messages + tool calls) — for the trace drill-down. */
+        get: operations["getRootSessionsBySessionId"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/root/sessions/{sessionId}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one owned session's chain-spanning history (messages across swap segments). */
+        get: operations["getRootSessionsBySessionIdTranscript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/root/turn": {
         parameters: {
             query?: never;
@@ -3465,23 +3499,6 @@ export interface paths {
         put?: never;
         /** Start a global-root turn (LLM-native routing); streams normalized session events via SSE. */
         post: operations["postRootTurn"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/root/turn/interrupt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Interrupt the global root's running turn (the workspace interrupt's sibling). */
-        post: operations["postRootTurnInterrupt"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3616,23 +3633,6 @@ export interface paths {
         };
         /** Subscribe to the session-activity feed (SSE turn liveness, snapshot + live). */
         get: operations["getActivityStream"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/activity/running": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The durable in-flight turns — the refresh/restart rebuild seed. */
-        get: operations["getActivityRunning"];
         put?: never;
         post?: never;
         delete?: never;
@@ -16273,152 +16273,6 @@ export interface operations {
             };
         };
     };
-    getRootContinuing: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description { rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no global root exists yet. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        rootSessionId: string | null;
-                        currentSdkSessionId: string | null;
-                        lastMessageAt: string | null;
-                    };
-                };
-            };
-        };
-    };
-    getRootTranscript: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description { session, messages, toolCallsByMessageId } — the current segment (null until the first turn) + the chain-spanning message history. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        session: {
-                            id: string;
-                            userId: string;
-                            workspaceId: string | null;
-                            providerId: string;
-                            model: string | null;
-                            title: string;
-                            /** @enum {string} */
-                            visibility: "listed" | "hidden";
-                            /** @enum {string} */
-                            scope: "global" | "workspace" | "agent" | "spawned";
-                            isArchived: boolean;
-                            deletedAt: string | null;
-                            totalMessageCount: number;
-                            totalInputTokens: number;
-                            totalOutputTokens: number;
-                            startedAt: string;
-                            lastMessageAt: string;
-                            updatedAt: string;
-                            /** @enum {string|null} */
-                            sessionMode: "ask" | "auto" | "bypass" | null;
-                            selectedModel: string | null;
-                            /** @enum {string|null} */
-                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
-                            autoBuildout: boolean | null;
-                        } | null;
-                        messages: {
-                            id: string;
-                            sessionId: string;
-                            /** @enum {string} */
-                            role: "user" | "assistant" | "system";
-                            body: string;
-                            /** @enum {string|null} */
-                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
-                            sourceLabel: string | null;
-                            /** @enum {string|null} */
-                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
-                            partialSessionId: string | null;
-                            threadId: string | null;
-                            delegationTaskLabel?: string | null;
-                            runStats?: {
-                                model: string | null;
-                                toolCallCount: number;
-                                inputTokens: number | null;
-                                outputTokens: number | null;
-                                contextTokens: number | null;
-                                durationMs: number | null;
-                            } | null;
-                            thinkingBody: string | null;
-                            inputTokens: number | null;
-                            outputTokens: number | null;
-                            attachedImagesMetadata: {
-                                filename: string;
-                                mimeType: string;
-                                sizeBytes: number;
-                            }[] | null;
-                            errorCode: string | null;
-                            errorMessage: string | null;
-                            startedAt: string;
-                            completedAt: string | null;
-                            createdAt: string;
-                        }[];
-                        toolCallsByMessageId: {
-                            [key: string]: {
-                                id: string;
-                                parentMessageId: string;
-                                toolUseId: string;
-                                toolName: string;
-                                toolInput?: unknown;
-                                toolOutput?: unknown;
-                                /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
-                                /** @enum {string|null} */
-                                approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
-                                isErrorResult: boolean;
-                                subagentNarrative?: string | null;
-                                subagentToolCalls?: {
-                                    toolUseId: string;
-                                    toolName: string;
-                                    toolInput?: unknown;
-                                    /** @enum {string} */
-                                    status: "started" | "completed" | "failed";
-                                    startedAt: string;
-                                    completedAt: string | null;
-                                }[] | null;
-                                delegation?: {
-                                    jobId: string;
-                                    partialSessionId: string | null;
-                                    /** @enum {string} */
-                                    status: "pending" | "claimed" | "completed" | "failed";
-                                    deliveredTo: string | null;
-                                    taskLabel: string | null;
-                                    reportedAt: string | null;
-                                    completedAt: string | null;
-                                    workspaceId: string | null;
-                                    targetSessionId: string | null;
-                                } | null;
-                                startedAt: string;
-                                completedAt: string | null;
-                            }[];
-                        };
-                    };
-                };
-            };
-        };
-    };
     "getRootVoice-chatContinuing": {
         parameters: {
             query?: never;
@@ -16565,6 +16419,98 @@ export interface operations {
             };
         };
     };
+    "getRootVoice-chatStatus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { entry } — the voice conversation as one overview entry; null until the first voice turn creates it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entry: {
+                            sessionId: string;
+                            primarySessionId: string | null;
+                            /** @enum {string} */
+                            scope: "global" | "workspace" | "agent" | "spawned" | "voice";
+                            workspaceId: string | null;
+                            workspaceName: string | null;
+                            title: string;
+                            model: string | null;
+                            contextTokens: number | null;
+                            contextWindow: number;
+                            lastMessageAt: string;
+                            statusFacts: {
+                                /** @enum {string|null} */
+                                setStatus: "completed" | "problem" | "needs_input" | null;
+                                statusNote: string | null;
+                                statusSetAt: string | null;
+                                lastError: {
+                                    code: string | null;
+                                    message: string;
+                                    at: string;
+                                } | null;
+                                pendingApprovalCount: number;
+                                pendingAskCount: number;
+                                latestUserMessageAt: string | null;
+                            };
+                            segments: {
+                                sessionId: string;
+                                title: string;
+                                startedAt: string;
+                                lastMessageAt: string;
+                                contextTokens: number | null;
+                                continuedFromSessionId: string | null;
+                                isCurrent: boolean;
+                            }[];
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    postRootTurnInterrupt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    sessionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { interrupted } — false when the named session (or the global root) has no session to interrupt. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        interrupted: boolean;
+                    };
+                };
+            };
+            /** @description The named session is unknown, not owned, or not a global/voice chain. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getRootTraceByPartialSessionId: {
         parameters: {
             query?: never;
@@ -16669,6 +16615,218 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getRootDelegations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { delegations: [{ partialSessionId, workspaceName, sessionName, taskLabel, status }] } — empty when idle. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        delegations: {
+                            partialSessionId: string | null;
+                            workspaceId: string | null;
+                            workspaceName: string;
+                            targetPrimarySessionId: string | null;
+                            sessionName: string | null;
+                            targetSessionId: string | null;
+                            taskLabel: string;
+                            /** @enum {string} */
+                            status: "pending" | "claimed";
+                            /** @enum {string} */
+                            jobKind: "task" | "agent-run";
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postRootDelegationsByPartialSessionIdStop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                partialSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { result: 'stopped' | 'stopping' | 'already-finished' } */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        result: "stopped" | "stopping" | "already-finished";
+                    };
+                };
+            };
+            /** @description Unknown delegation, or not owned. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getRootContinuing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { rootSessionId, currentSdkSessionId, lastMessageAt } — nulls when no global root exists yet. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rootSessionId: string | null;
+                        currentSdkSessionId: string | null;
+                        lastMessageAt: string | null;
+                    };
+                };
+            };
+        };
+    };
+    getRootTranscript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { session, messages, toolCallsByMessageId } — the current segment (null until the first turn) + the chain-spanning message history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        session: {
+                            id: string;
+                            userId: string;
+                            workspaceId: string | null;
+                            providerId: string;
+                            model: string | null;
+                            title: string;
+                            /** @enum {string} */
+                            visibility: "listed" | "hidden";
+                            /** @enum {string} */
+                            scope: "global" | "workspace" | "agent" | "spawned";
+                            isArchived: boolean;
+                            deletedAt: string | null;
+                            totalMessageCount: number;
+                            totalInputTokens: number;
+                            totalOutputTokens: number;
+                            startedAt: string;
+                            lastMessageAt: string;
+                            updatedAt: string;
+                            /** @enum {string|null} */
+                            sessionMode: "ask" | "auto" | "bypass" | null;
+                            selectedModel: string | null;
+                            /** @enum {string|null} */
+                            thinkingEffort: "low" | "medium" | "high" | "xhigh" | "max" | null;
+                            autoBuildout: boolean | null;
+                        } | null;
+                        messages: {
+                            id: string;
+                            sessionId: string;
+                            /** @enum {string} */
+                            role: "user" | "assistant" | "system";
+                            body: string;
+                            /** @enum {string|null} */
+                            sourceKind: "user" | "global-root" | "workspace-manager" | "agent" | "system" | null;
+                            sourceLabel: string | null;
+                            /** @enum {string|null} */
+                            originChannel: "voice" | "telegram" | "discord" | "zoom" | null;
+                            partialSessionId: string | null;
+                            threadId: string | null;
+                            delegationTaskLabel?: string | null;
+                            runStats?: {
+                                model: string | null;
+                                toolCallCount: number;
+                                inputTokens: number | null;
+                                outputTokens: number | null;
+                                contextTokens: number | null;
+                                durationMs: number | null;
+                            } | null;
+                            thinkingBody: string | null;
+                            inputTokens: number | null;
+                            outputTokens: number | null;
+                            attachedImagesMetadata: {
+                                filename: string;
+                                mimeType: string;
+                                sizeBytes: number;
+                            }[] | null;
+                            errorCode: string | null;
+                            errorMessage: string | null;
+                            startedAt: string;
+                            completedAt: string | null;
+                            createdAt: string;
+                        }[];
+                        toolCallsByMessageId: {
+                            [key: string]: {
+                                id: string;
+                                parentMessageId: string;
+                                toolUseId: string;
+                                toolName: string;
+                                toolInput?: unknown;
+                                toolOutput?: unknown;
+                                /** @enum {string} */
+                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                /** @enum {string|null} */
+                                approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
+                                isErrorResult: boolean;
+                                subagentNarrative?: string | null;
+                                subagentToolCalls?: {
+                                    toolUseId: string;
+                                    toolName: string;
+                                    toolInput?: unknown;
+                                    /** @enum {string} */
+                                    status: "started" | "completed" | "failed";
+                                    startedAt: string;
+                                    completedAt: string | null;
+                                }[] | null;
+                                delegation?: {
+                                    jobId: string;
+                                    partialSessionId: string | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "claimed" | "completed" | "failed";
+                                    deliveredTo: string | null;
+                                    taskLabel: string | null;
+                                    reportedAt: string | null;
+                                    completedAt: string | null;
+                                    workspaceId: string | null;
+                                    targetSessionId: string | null;
+                                } | null;
+                                startedAt: string;
+                                completedAt: string | null;
+                            }[];
+                        };
+                    };
+                };
             };
         };
     };
@@ -16934,72 +17092,6 @@ export interface operations {
             };
         };
     };
-    getRootDelegations: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description { delegations: [{ partialSessionId, workspaceName, sessionName, taskLabel, status }] } — empty when idle. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        delegations: {
-                            partialSessionId: string | null;
-                            workspaceId: string | null;
-                            workspaceName: string;
-                            targetPrimarySessionId: string | null;
-                            sessionName: string | null;
-                            targetSessionId: string | null;
-                            taskLabel: string;
-                            /** @enum {string} */
-                            status: "pending" | "claimed";
-                            /** @enum {string} */
-                            jobKind: "task" | "agent-run";
-                        }[];
-                    };
-                };
-            };
-        };
-    };
-    postRootDelegationsByPartialSessionIdStop: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                partialSessionId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description { result: 'stopped' | 'stopping' | 'already-finished' } */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        result: "stopped" | "stopping" | "already-finished";
-                    };
-                };
-            };
-            /** @description Unknown delegation, or not owned. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     postRootTurn: {
         parameters: {
             query?: never;
@@ -17034,28 +17126,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    postRootTurnInterrupt: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description { interrupted } — false when no global-root session exists yet. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        interrupted: boolean;
-                    };
-                };
             };
         };
     };
@@ -17338,41 +17408,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    getActivityRunning: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Every turn session_turns says is running, oldest first. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        turns: {
-                            turnId: string;
-                            /** @enum {string} */
-                            scopeKind: "global" | "workspace" | "voice";
-                            workspaceId: string | null;
-                            /** @enum {string} */
-                            origin: "web" | "voice" | "telegram" | "discord" | "zoom" | "schedule" | "delegation";
-                            sessionId: string | null;
-                            primarySessionId: string | null;
-                            jobId: string | null;
-                            threadId: string | null;
-                            partialSessionId: string | null;
-                            startedAt: string;
-                        }[];
-                    };
-                };
             };
         };
     };
@@ -17742,6 +17777,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         sessionId: string;
+                        primarySessionId: string | null;
                         /** @enum {string} */
                         scope: "global" | "workspace" | "agent" | "spawned" | "voice";
                         workspaceId: string | null;

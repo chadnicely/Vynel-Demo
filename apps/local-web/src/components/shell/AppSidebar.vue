@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Component } from "vue";
 import { PhArrowLeft as ArrowLeft, PhCaretRight as ChevronRight } from "@phosphor-icons/vue";
+import type { SessionStatusView } from "@vynel/contracts/chat/session-status";
 import SidebarAccountRow from "./SidebarAccountRow.vue";
+import SidebarStatusMark from "./SidebarStatusMark.vue";
 
 export interface SidebarItem {
   id: string;
@@ -14,6 +16,10 @@ export interface SidebarItem {
   /** How much is in this section (the canvas's right-hand number). Absent =
    *  no honest count for it — the row shows nothing rather than a bare 0. */
   count?: number;
+  /** A CONVERSATION lives behind this row (today: Voice chat) — its derived
+   *  status wears the same mark the Sessions rows wear. Absent/null = the row
+   *  is a plain section and shows nothing. */
+  status?: SessionStatusView | null;
 }
 
 // The left navigation: plain rows at the top, then the feature sections
@@ -208,6 +214,13 @@ watch(
                 "
               />
               <span class="flex-1 truncate">{{ item.label }}</span>
+              <!-- One status, one colour: the conversation behind this row
+                   (Voice chat) wears the Sessions row's mark. -->
+              <SidebarStatusMark
+                v-if="item.status"
+                :status="item.status"
+                :label="item.label"
+              />
               <span
                 v-if="item.count !== undefined"
                 class="shrink-0 text-[10.5px] tabular-nums text-[var(--color-neutral-600)]"

@@ -310,7 +310,15 @@ export function useChatTurn(options: {
         .interruptSession(scope.workspaceId, sessionId)
         .catch(() => undefined);
     } else if (scope.kind === "global") {
-      void vynel.root.interruptTurn().catch(() => undefined);
+      // BY IDENTITY, not by scope: the Voice chat panel is a `global`-scope
+      // surface speaking into the SPOKEN thread, so a scope-shaped Stop
+      // interrupted the typed thread instead — killing a concurrent global
+      // turn while the voice turn ran on. The server owner-checks the id
+      // against a global-or-voice chain; with none it falls back to the
+      // global head, as before.
+      void vynel.root
+        .interruptTurn(sessionId === null ? {} : { sessionId })
+        .catch(() => undefined);
     }
   }
 
