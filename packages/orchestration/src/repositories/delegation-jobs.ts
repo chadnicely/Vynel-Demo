@@ -620,3 +620,30 @@ export function listDelegationJobsSince(
     .limit(cappedLimit)
     .all()
 }
+
+// Every job one CONVERSATION started — the parent side of the tree.
+//
+// `parentSessionId` is the enqueue-time SDK session id, so a conversation
+// that has swapped context has several of them; callers pass the whole chain.
+// Ordered oldest-first: this answers "what did this session set going", which
+// reads in the order it happened, and the cap is the list ceiling every other
+// read here uses.
+export function listDelegationJobsForParentSessions(
+  db: Database,
+  input: { userId: string; parentSessionIds: readonly string[]; limit?: number },
+): DelegationJob[] {
+  if (input.parentSessionIds.length === 0) return []
+  const cappedLimit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  return db
+    .select()
+    .from(delegationJobs)
+    .where(
+      and(
+        eq(delegationJobs.userId, input.userId),
+        inArray(delegationJobs.parentSessionId, [...input.parentSessionIds]),
+      ),
+    )
+    .orderBy(asc(delegationJobs.createdAt), asc(delegationJobs.id))
+    .limit(cappedLimit)
+    .all()
+}

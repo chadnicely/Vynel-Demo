@@ -204,3 +204,9 @@ export {
 // orchestration's designed dependency is the `agents` domain, not `chat`; a
 // caller reads a leaf's recorded detail via chat directly (the session-tier
 // composition imports both).
+
+// The PARENT side of the delegation tree (session-hardening F3) — every job
+// one conversation set going, for the session tier's children read. The
+// thread-keyed reads above answer "what did this ONE task cause"; this one
+// answers "what did this session cause".
+export { listDelegationJobsForParentSessions } from './repositories/index.js'
