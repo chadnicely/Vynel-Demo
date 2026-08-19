@@ -82,6 +82,8 @@ import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
 import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
 import { startDelegationLeaseHeartbeat } from './delegation-lease-heartbeat.js'
+import { resolveBackgroundTurnSettings } from './resolve-background-turn-settings.js'
+import { findPrimaryConversation } from '../continuity/index.js'
 
 // The bounds' package-side defaults — the SAME values `apps/local-api/src/env.ts`
 // defaults its knobs to (D5): the api edge forwards the env-resolved values, a
@@ -280,6 +282,9 @@ async function runClaimedJob(
         ...(deps.composeWorkspaceMcpServers !== undefined
           ? { composeWorkspaceMcpServers: deps.composeWorkspaceMcpServers }
           : {}),
+        ...(deps.pressureThreshold !== undefined
+          ? { pressureThreshold: deps.pressureThreshold }
+          : {}),
       },
       claimed,
     )
@@ -313,6 +318,9 @@ async function runClaimedJob(
           : {}),
         ...(deps.runGlobalRootReportTurn !== undefined
           ? { runGlobalRootReportTurn: deps.runGlobalRootReportTurn }
+          : {}),
+        ...(deps.pressureThreshold !== undefined
+          ? { pressureThreshold: deps.pressureThreshold }
           : {}),
       },
       claimed,
@@ -414,6 +422,10 @@ async function runClaimedJob(
     // global-spawned target and every workspace-target job) — picks the MCP
     // attachment's grounding workspace below.
     let spawnedTargetWorkspaceId: string | null = null
+    // The target conversation's HEAD segment — what the runner will resume,
+    // and whose row holds the settings the user chose for THAT conversation
+    // (session-hardening A5). Null on a first-ever turn.
+    let targetHeadSdkSessionId: string | null = null
     // Persona-sessions: a session target may be an agent COLLEAGUE — resolved
     // here so the delegate + MCP target branch on it below.
     let colleagueAgent: {
@@ -430,6 +442,7 @@ async function runClaimedJob(
         claimed.targetPrimarySessionId,
       )
       spawnedTargetWorkspaceId = targetPrimary?.workspaceId ?? null
+      targetHeadSdkSessionId = targetPrimary?.currentSdkSessionId ?? null
       if (targetPrimary?.scope === 'agent') {
         // A colleague target: resolve its agent fresh (workspace-then-user,
         // the one home). A gone agent or a missing scopeRef is a FAILED
@@ -479,7 +492,28 @@ async function runClaimedJob(
         claimed.workspaceId !== null ? findWorkspaceById(db, claimed.workspaceId) : null
       targetName = workspace?.name ?? claimed.workspaceName ?? 'Workspace'
       managerName = workspace ? resolveManagerName(workspace) : undefined
+      targetHeadSdkSessionId =
+        claimed.workspaceId !== null
+          ? (findPrimaryConversation(db, { userId: claimed.userId, workspaceId: claimed.workspaceId })
+              ?.currentSdkSessionId ?? null)
+          : null
     }
+
+    // The turn's settings — `job ?? target row ?? DEFAULT` (A5, decisions
+    // D3/D4): the job's stamped picks (the creator's resolved mode, a tool-arg
+    // model/effort) win; else what the target conversation's user chose for
+    // it; else `auto`. A colleague's own configured model backs a job that
+    // named none. The model is fit-checked against the head segment. Resolved
+    // ONCE here so the MCP composition and the runner never disagree about
+    // the mode this turn runs under.
+    const turnSettings = resolveBackgroundTurnSettings(db, {
+      headSdkSessionId: targetHeadSdkSessionId,
+      job: claimed,
+      fallbackModel: colleagueAgent?.model ?? null,
+      ...(deps.pressureThreshold !== undefined ? { threshold: deps.pressureThreshold } : {}),
+      logger: deps.logger,
+      jobId: claimed.id,
+    })
 
     // Surface-up: one gate + handler per job. The shared pipeline RECORDS each carded
     // tool's approval (web notifier always) and parks; the handler pushes the card to
@@ -540,9 +574,7 @@ async function runClaimedJob(
             // The turn's mode — the SAME value the runner passes to the
             // provider below, so the desktop plan envelope and the approval
             // floor can never disagree about what this turn may do.
-            ...(claimed.permissionMode !== null
-              ? { permissionMode: claimed.permissionMode }
-              : {}),
+            permissionMode: turnSettings.permissionMode,
           })
         : undefined
 
@@ -552,13 +584,14 @@ async function runClaimedJob(
       providerId: DEFAULT_PROVIDER_ID,
       ...(partialSessionId !== undefined ? { partialSessionId } : {}),
       ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
-      // The delegating turn's mode, stamped on the job at enqueue (surface-up step 1).
-      // Null (pre-mode job / channel origin) → the runner's bypass default.
-      ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
-      // The root's model/effort picks for this delegated turn, stamped on the job at
-      // enqueue. Null → the provider defaults (absent, exactOptionalPropertyTypes).
-      ...(claimed.model !== null ? { model: claimed.model } : {}),
-      ...(claimed.thinkingEffort !== null ? { thinkingEffort: claimed.thinkingEffort } : {}),
+      // The resolved settings (`job ?? target row ?? DEFAULT` — see above);
+      // absent model/effort = the provider defaults (exactOptionalPropertyTypes).
+      permissionMode: turnSettings.permissionMode,
+      ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+      ...(turnSettings.thinkingEffort !== undefined
+        ? { thinkingEffort: turnSettings.thinkingEffort }
+        : {}),
+      autoBuildout: turnSettings.autoBuildout,
       ...(mcpAttachment !== undefined ? { mcpAttachment } : {}),
       approvalHandler: handler,
       // Live observing: publish the turn's events on its trace channel; the end
@@ -656,10 +689,6 @@ async function runClaimedJob(
               ...continuationSteer,
               ...nudgeArming,
               ...sharedRunnerOptions,
-              // The agent's own model backs the job's pick (job pick wins).
-              ...(claimed.model === null && agentTarget.model !== null
-                ? { model: agentTarget.model }
-                : {}),
             })
         : spawnedTargetId !== null
           ? (delegationInput) =>

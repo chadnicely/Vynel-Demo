@@ -14,6 +14,8 @@
 //   - The voice-turn marker: re-states the speak directive AT THE MESSAGE — the
 //     system-prompt block alone decays on a long root session and the model
 //     slips back to text-only replies.
+//   - The autopilot marker (D8): the same per-message discipline for a
+//     conversation whose `autoBuildout` setting is on.
 //   - The channel reply marker: the same for `reply_to_channel`, composed at the
 //     channels edge (it knows the sender/group facts) and never persisted.
 
@@ -27,6 +29,8 @@ export type ComposeGlobalRootProviderMessageInput = {
   userMessageText: string
   /** This turn arrived by voice — append the per-message speak marker. */
   voice?: boolean
+  /** The conversation runs on autopilot — append the per-message marker. */
+  autoBuildout?: boolean
   /** The channels edge's per-message reply instruction, if any. */
   channelReplyMarker?: string
   /** An automatic CONTINUATION of the genuine turn (session-continuity §4.6):
@@ -61,6 +65,9 @@ export function composeGlobalRootProviderMessage(
       : input.userMessageText
   if (input.voice === true) {
     providerUserMessageText = `${providerUserMessageText}\n\n${loadSessionInstruction('voice-turn-marker')}`
+  }
+  if (input.autoBuildout === true) {
+    providerUserMessageText = `${providerUserMessageText}\n\n${loadSessionInstruction('autopilot-marker')}`
   }
   if (input.channelReplyMarker !== undefined) {
     providerUserMessageText = `${providerUserMessageText}\n\n${input.channelReplyMarker}`

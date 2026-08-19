@@ -60,6 +60,7 @@ import {
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
 import { requeueForAnotherAttempt, requeueIfRecoverable } from './classify-turn-failure.js'
 import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
+import { resolveBackgroundTurnSettings } from './resolve-background-turn-settings.js'
 import {
   DIRECT_DELIVERY_INSTRUCTIONS,
   REPORT_DELIVERY_INSTRUCTIONS,
@@ -124,8 +125,11 @@ export interface RunReportDeliveryDeps {
     threadId?: string
     jobId?: string
     targetPrimarySessionId?: string
+    permissionMode?: string
   }) => RoutedTurnMcpAttachment
   runGlobalRootReportTurn?: RunGlobalRootReportTurn
+  /** The pressure threshold the model fit check honors (the env smoke knob). */
+  pressureThreshold?: number
 }
 
 /** Run one claimed report-delivery job to a terminal state. Always returns true
@@ -351,6 +355,19 @@ export async function runReportDeliveryJob(
       if (runCwdPath === null) {
         throw new Error('report-delivery job has no run cwd (workspacePath is null — corrupt row)')
       }
+      // The notify turn runs under the REQUESTER conversation's own settings
+      // (`job ?? requester row ?? DEFAULT`, A5) — a delivery row carries no
+      // picks of its own, so this is what the user chose for that workspace;
+      // a note carries its sender's mode. No more hardcoded unattended mode.
+      const turnSettings = resolveBackgroundTurnSettings(db, {
+        headSdkSessionId:
+          findPrimaryConversation(db, { userId: claimed.userId, workspaceId: requesterWorkspaceId })
+            ?.currentSdkSessionId ?? null,
+        job: claimed,
+        ...(deps.pressureThreshold !== undefined ? { threshold: deps.pressureThreshold } : {}),
+        logger: deps.logger,
+        jobId: claimed.id,
+      })
 
       const handler = buildRoutedApprovalHandler({
         db,
@@ -373,6 +390,7 @@ export async function runReportDeliveryJob(
               userId: claimed.userId,
               workspaceId: requesterWorkspaceId,
               target: 'workspace-root',
+              permissionMode: turnSettings.permissionMode,
             })
           : undefined
 
@@ -396,6 +414,12 @@ export async function runReportDeliveryJob(
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
               ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               ...(mcpAttachment !== undefined ? { mcpAttachment } : {}),
+              permissionMode: turnSettings.permissionMode,
+              ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+              ...(turnSettings.thinkingEffort !== undefined
+                ? { thinkingEffort: turnSettings.thinkingEffort }
+                : {}),
+              autoBuildout: turnSettings.autoBuildout,
               approvalHandler: handler,
               // The notify variant: inbound row attributed FROM the child +
               // the kind's steer (report absorbs a RESULT; update absorbs

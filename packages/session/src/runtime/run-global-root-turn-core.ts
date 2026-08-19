@@ -56,6 +56,7 @@ import type {
 } from './session-types.js'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { runUnderRootTurnLock } from './root-turn-lock.js'
+import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 import { composeGlobalRootProviderMessage } from './compose-global-root-provider-message.js'
 
@@ -184,6 +185,7 @@ async function* runOneGlobalTurn(
     userId: input.userId,
     userMessageText: continuation?.providerText ?? input.userMessageText,
     ...(input.voice === true ? { voice: true } : {}),
+    ...(input.autoBuildout === true ? { autoBuildout: true } : {}),
     ...(input.channelReplyMarker !== undefined
       ? { channelReplyMarker: input.channelReplyMarker }
       : {}),
@@ -202,7 +204,9 @@ async function* runOneGlobalTurn(
     ...(attachedImages.length > 0 ? { attachedImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
-    permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
+    // The one default (D3): a caller that resolved nothing runs `auto` —
+    // never the provider's `bypass-with-behavior-gate` any more.
+    permissionMode: input.permissionMode ?? toPermissionMode(DEFAULT_SESSION_MODE),
     // Empty native allowlist; the MCP servers register below and their
     // calls gate through the provider's canUseTool policy map. The
     // manager has no native tools.

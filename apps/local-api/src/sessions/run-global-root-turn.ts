@@ -21,13 +21,17 @@
 import type { Database } from '@vynel/db'
 import type { PendingAskRegistry } from '@vynel/asks'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
+import { findChatSessionById } from '@vynel/chat/repositories'
+import { resolveTurnSessionSettings } from '@vynel/chat'
 import {
   composeSessionAgents,
   recordAgentRunStarted,
   recordAgentRunCompleted,
 } from '@vynel/orchestration'
 import type { Logger } from 'pino'
+import { DEFAULT_SESSION_MODE, toPermissionMode } from '@vynel/session'
 import {
+  fitPinnedModelToSession,
   runGlobalRootTurnCore,
   publishTurnActivityStep,
   type SessionActivityFeed,
@@ -48,6 +52,7 @@ import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
+import { wrapAppRequestWithMode } from './delegation-mode-header.js'
 import { loadEnv } from '../env.js'
 
 // How long a channel turn's ask_user form waits before expiring — matched to
@@ -236,9 +241,51 @@ export async function runGlobalRootTurn(
   deps: RunGlobalRootTurnDeps,
   input: RunGlobalRootTurnInput,
 ): Promise<RunGlobalRootTurnResult> {
-  // Origin-wrap at the edge — the core stays origin-agnostic (the additive invariant).
-  const appRequest =
+  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // record can key its rows by it (the SDK id is only assigned mid-stream).
+  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
+  // this early call cannot fight the authoritative in-lock `resolveTarget`.
+  const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
+    userId: input.userId,
+  })
+  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  // The turn's settings — what the user chose for the GLOBAL conversation
+  // (its head segment's row), `input ?? row ?? DEFAULT` (session-hardening D1:
+  // "channels run the global row's mode when set, else auto"). No more fixed
+  // unattended default: a stored Ask cards through the channel's own card
+  // push, a stored model/effort runs here too. The model is fit-checked
+  // against the head (a Telegram turn dying with "Prompt is too long" has
+  // nobody watching an error row); never persisted.
+  const globalRow =
+    conversationTarget.resumeSdkSessionId !== null
+      ? findChatSessionById(deps.db, conversationTarget.resumeSdkSessionId)
+      : null
+  const turnSettings = resolveTurnSessionSettings({ model: input.model }, globalRow)
+  const permissionMode = toPermissionMode(turnSettings.mode ?? DEFAULT_SESSION_MODE)
+  let turnModel = turnSettings.model
+  if (turnModel !== undefined && conversationTarget.resumeSdkSessionId !== null) {
+    const fit = fitPinnedModelToSession(deps.db, {
+      resumeSdkSessionId: conversationTarget.resumeSdkSessionId,
+      pinnedModel: turnModel,
+      ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
+    })
+    if (fit.wasReplaced) {
+      deps.logger.info(
+        { pinnedModel: turnModel, model: fit.model ?? null, occupancyTokens: fit.occupancyTokens },
+        'channel turn: the model pick cannot hold the global occupancy — running on the session model',
+      )
+      turnModel = fit.model
+    }
+  }
+  const autoBuildout = globalRow?.autoBuildout === true
+
+  // Origin-wrap at the edge — the core stays origin-agnostic (the additive
+  // invariant) — then the MODE header, so any delegation this turn enqueues
+  // inherits the resolved mode (D4: children inherit the creator's settings;
+  // the interactive streams stamp the same way).
+  const originAwareAppRequest =
     input.origin !== undefined ? wrapAppRequestWithOrigin(deps.appRequest, input.origin) : deps.appRequest
+  const appRequest = wrapAppRequestWithMode(originAwareAppRequest, permissionMode)
   // This turn's chat-session identity. Composed here (before the toolset) and
   // filled by the drain sink from the stream's first frame — the read half is
   // what lets an `ask_user` on a channel turn name the conversation it parked.
@@ -255,17 +302,9 @@ export async function runGlobalRootTurn(
   // whoami — the channel-driven brain knows who it is too (built with the swap
   // threshold in force, the env knob the boundary op honors).
   const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
-  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
   const sessionFeatureDescriptor = buildSessionFeatureDescriptor(
     swapThreshold !== undefined ? { swapThreshold } : {},
   )
-  // The global root's STABLE identity, resolved pre-lock so the desktop action
-  // record can key its rows by it (the SDK id is only assigned mid-stream).
-  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
-  // this early call cannot fight the authoritative in-lock `resolveTarget`.
-  const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
-    userId: input.userId,
-  })
   const enabledFeatureKeys = deps.readEnabledFeatureKeys?.()
   const toolPolicies = resolveSessionToolPolicies(deps.db, {
     userId: input.userId,
@@ -306,28 +345,20 @@ export async function runGlobalRootTurn(
       appRequest,
       desktopReader: deps.desktopReader,
       enableDesktopActions: deps.enableDesktopActions ?? false,
-      // A channel turn carries no UI mode selector, so it runs under the
-      // brain's own bypass default — and its desktop consent now says the same
-      // thing instead of contradicting it. Deliberately UNTOUCHED by the
-      // per-session settings arc (2026-08-17): the interactive stream resolves
-      // the thread's stored mode, this unattended runner does not — a stored
-      // 'ask' would park channel turns on cards nobody renders.
-      //
-      // It used to pass `undefined` → 'display-only', on the reasoning that
-      // authority stayed with standing per-app grants. Retiring those grants
-      // removed that authority, which left a channel turn able to do NOTHING on
-      // the desktop — breaking the whole point of asking Vynel to do something
-      // from your phone. Kafi, 2026-08-13: "auto mode means no matter schedule
-      // or remote it can do anything user asked, but will show that overlay".
-      //
-      // ⚠ DELIBERATE SECURITY DEBT, not an oversight. Anyone who reaches the
-      // channel drives the desktop with no approval anywhere — the overlay and
-      // the access log are the accountability. This is a knowing reversal of
-      // "a background turn can never self-grant" (Chad 2026-08-04), taken to get
-      // the functionality right first. The turn's ORIGIN is already known here,
-      // so the later tightening is a filter on this value — per-channel trust,
-      // Vynel's own mobile app trusted where Telegram is not — never a redesign.
-      desktopPlanConsent: deriveDesktopPlanConsent('bypass'),
+      // The SAME resolved mode the turn runs under (D1) — the desktop plan
+      // envelope and the approval floor never disagree about what this turn
+      // may do. Under the default `auto` this is standing consent: anyone who
+      // reaches the channel drives the desktop with no approval anywhere — the
+      // overlay and the access log are the accountability (Kafi 2026-08-13:
+      // "auto mode means no matter schedule or remote it can do anything user
+      // asked, but will show that overlay"; a knowing reversal of "a
+      // background turn can never self-grant", Chad 2026-08-04, taken to get
+      // the functionality right first — ⚠ DELIBERATE SECURITY DEBT). A user
+      // who set Ask on the global row now gets the approval card through the
+      // channel's own card push instead. The turn's ORIGIN is known here, so
+      // the later tightening is a filter on this value — per-channel trust —
+      // never a redesign.
+      desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),
     },
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
@@ -402,7 +433,12 @@ export async function runGlobalRootTurn(
       {
         userId: input.userId,
         userMessageText: input.userMessageText,
-        ...(input.model !== undefined ? { model: input.model } : {}),
+        permissionMode,
+        ...(turnModel !== undefined ? { model: turnModel } : {}),
+        ...(turnSettings.thinkingEffort !== undefined
+          ? { thinkingEffort: turnSettings.thinkingEffort }
+          : {}),
+        ...(autoBuildout ? { autoBuildout: true } : {}),
         ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
         ...(input.channelReplyMarker !== undefined
           ? { channelReplyMarker: input.channelReplyMarker }

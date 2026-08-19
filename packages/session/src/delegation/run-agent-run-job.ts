@@ -15,7 +15,8 @@
 //
 // Approvals: record-and-park (`buildRoutedApprovalHandler`) replaces the
 // leaf's fail-closed denial — a colleague turn is a routed turn like any
-// other; `permissionMode` threads from the job row.
+// other. Settings resolve `job ?? agent.model ?? colleague row ?? DEFAULT`
+// (session-hardening A5), the model fit-checked against the colleague's head.
 
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
@@ -38,6 +39,7 @@ import * as primarySessionsRepository from '../repositories/index.js'
 import { delegateToAgentSession } from './delegate-to-agent-session.js'
 import { settleFailedDelegationAttempt } from './settle-failed-delegation-attempt.js'
 import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
+import { resolveBackgroundTurnSettings } from './resolve-background-turn-settings.js'
 import {
   buildRoutedApprovalHandler,
   type RoutedApprovalHandler,
@@ -78,7 +80,10 @@ export interface RunAgentRunJobDeps {
     jobId?: string
     targetPrimarySessionId?: string
     requesterWorkspaceId?: string
+    permissionMode?: string
   }) => RoutedTurnMcpAttachment
+  /** The pressure threshold the model fit check honors (the env smoke knob). */
+  pressureThreshold?: number
 }
 
 /** Run one claimed agent-run job to a terminal state. Always returns true (a
@@ -195,6 +200,19 @@ export async function runAgentRunJob(
     }
     const { agentSlug, runCwdPath, agent, colleague } = resolved
 
+    // The turn's settings — `job ?? agent.model ?? colleague row ?? DEFAULT`
+    // (A5): the mention's stamped picks win, the agent's own configured model
+    // backs a job that named none, then what the user chose for the colleague
+    // conversation, then `auto`. Fit-checked against the colleague's head.
+    const turnSettings = resolveBackgroundTurnSettings(db, {
+      headSdkSessionId: colleague.currentSdkSessionId,
+      job: claimed,
+      fallbackModel: agent.model,
+      ...(deps.pressureThreshold !== undefined ? { threshold: deps.pressureThreshold } : {}),
+      logger: deps.logger,
+      jobId: claimed.id,
+    })
+
     // Surface-up: one gate + handler per job — record-and-park, the routed
     // shape (the leaf's fail-closed denier is retired with the leaf).
     const waitGate = new ApprovalWaitGate()
@@ -222,6 +240,8 @@ export async function runAgentRunJob(
       ...(claimed.requesterWorkspaceId !== null
         ? { requesterWorkspaceId: claimed.requesterWorkspaceId }
         : {}),
+      // The SAME mode the runner passes to the provider below (the tick's rule).
+      permissionMode: turnSettings.permissionMode,
     })
 
     const turnEvents = deps.turnEvents
@@ -273,13 +293,12 @@ export async function runAgentRunJob(
             providerId: DEFAULT_PROVIDER_ID,
             ...(partialSessionId !== undefined ? { partialSessionId } : {}),
             ...(feedThreadId !== null ? { threadId: feedThreadId } : {}),
-            ...(claimed.permissionMode !== null ? { permissionMode: claimed.permissionMode } : {}),
-            ...(claimed.model !== null
-              ? { model: claimed.model }
-              : agent.model !== null
-                ? { model: agent.model }
-                : {}),
-            ...(claimed.thinkingEffort !== null ? { thinkingEffort: claimed.thinkingEffort } : {}),
+            permissionMode: turnSettings.permissionMode,
+            ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
+            ...(turnSettings.thinkingEffort !== undefined
+              ? { thinkingEffort: turnSettings.thinkingEffort }
+              : {}),
+            autoBuildout: turnSettings.autoBuildout,
             ...(delegatedTurn.continuation !== null
               ? { steerInstructions: CONTINUATION_TASK_INSTRUCTIONS }
               : {}),

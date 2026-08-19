@@ -29,6 +29,7 @@ import {
   SESSION_SWAPPED_EVENT_TYPE,
 } from '../continuity/index.js'
 import { findPrimarySessionById } from '../repositories/index.js'
+import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { FakeAiAgentProvider } from './test-support/fake-ai-agent-provider.js'
 import { runGlobalRootTurnCore } from './run-global-root-turn-core.js'
 import { resolvePrimaryTranscript } from './resolve-primary-transcript.js'
@@ -523,6 +524,49 @@ describe('runGlobalRootTurnCore — the catch-up net is consumed only once the t
       // The persisted row stays the clean user text.
       const transcript = resolvePrimaryTranscript(db, { userId: user.id })
       expect(transcript.messages[0]?.body).toBe('anything new?')
+    })
+  })
+})
+
+describe('runGlobalRootTurnCore — settings defaults (D3) + the autopilot marker (D8)', () => {
+  it('a caller that resolved no mode runs the one default (auto), never the unattended gate', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const startInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a'],
+        resultText: 'ok',
+        startChatSessionInputs: startInputs,
+      })
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        bareTurnInput(user.id, 'hi'),
+        new CollectingSink(),
+      )
+      expect(startInputs[0]?.permissionMode).toBe('auto')
+      expect(startInputs[0]?.userMessageText).toBe('hi')
+    })
+  })
+
+  it('autoBuildout appends the per-message autopilot marker to the PROVIDER input only', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const startInputs: StartChatSessionInput[] = []
+      const provider = new FakeAiAgentProvider({
+        sessionIds: ['global-a'],
+        resultText: 'ok',
+        startChatSessionInputs: startInputs,
+      })
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider },
+        { ...bareTurnInput(user.id, 'carry on'), autoBuildout: true },
+        new CollectingSink(),
+      )
+      expect(startInputs[0]?.userMessageText).toBe(
+        `carry on\n\n${loadSessionInstruction('autopilot-marker')}`,
+      )
+      const transcript = resolvePrimaryTranscript(db, { userId: user.id })
+      expect(transcript.messages[0]?.body).toBe('carry on')
     })
   })
 })

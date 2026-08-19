@@ -11,7 +11,11 @@ import type { Database } from "@vynel/db";
 import type { Logger } from "pino";
 import type { SessionActivityFeed, SessionSink } from "@vynel/session/runtime";
 
-const { coreMock } = vi.hoisted(() => ({ coreMock: vi.fn() }));
+const { coreMock, resolveTargetMock, chatSessionRowMock } = vi.hoisted(() => ({
+  coreMock: vi.fn(),
+  resolveTargetMock: vi.fn(),
+  chatSessionRowMock: vi.fn(),
+}));
 
 vi.mock("@vynel/session/runtime", async () => {
   // The REAL step mapper runs (it's pure) so the drain sink's feed-narration
@@ -22,6 +26,9 @@ vi.mock("@vynel/session/runtime", async () => {
   return {
     runGlobalRootTurnCore: coreMock,
     publishTurnActivityStep: actual.publishTurnActivityStep,
+    // The REAL fit guard too (pure over the mocked row read) — the D1 tests
+    // assert its clamp.
+    fitPinnedModelToSession: actual.fitPinnedModelToSession,
   };
 });
 
@@ -68,13 +75,16 @@ vi.mock("@vynel/orchestration", async () => {
 // The runner now resolves the root's stable primary BEFORE composing (the
 // desktop action record keys rows by it) — real resolution needs a real db,
 // and these tests drive the stub `{}` one. The resolver itself is covered by
-// `get-or-create-primary-session.test.ts`.
+// `get-or-create-primary-session.test.ts`. Per-test overridable (the D1
+// settings tests point it at a head segment).
 vi.mock("./resolve-global-root-conversation.js", () => ({
-  resolveGlobalRootConversationTarget: async () => ({
-    primarySessionId: "root-primary-1",
-    resumeSdkSessionId: null,
-    workspacePath: "/tmp/global-root",
-  }),
+  resolveGlobalRootConversationTarget: resolveTargetMock,
+}));
+// The global row's settings read (session-hardening D1: the channel runner
+// resolves the row's mode/model/effort/autopilot) — stubbed per test.
+vi.mock("@vynel/chat/repositories", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  findChatSessionById: chatSessionRowMock,
 }));
 
 import {
@@ -119,7 +129,36 @@ function fakeDeps(activityFeed: SessionActivityFeed = fakeActivityFeed().feed) {
 
 beforeEach(() => {
   coreMock.mockReset();
+  resolveTargetMock.mockReset();
+  resolveTargetMock.mockResolvedValue({
+    primarySessionId: "root-primary-1",
+    resumeSdkSessionId: null,
+    workspacePath: "/tmp/global-root",
+  });
+  chatSessionRowMock.mockReset();
+  chatSessionRowMock.mockReturnValue(null);
 });
+
+/** A core stub that drains one text reply on the given session id. */
+function coreReplying(sessionId: string, text: string) {
+  coreMock.mockImplementation(
+    async (_deps: unknown, _input: unknown, sink: SessionSink) => {
+      await sink.onEvent({
+        kind: "user-message-persisted",
+        message: { sessionId },
+      } as SinkEvent);
+      await sink.onEvent({ kind: "text-chunk", messageId: "m1", textDelta: text });
+      await sink.onEnd?.();
+    },
+  );
+}
+
+type SettingsCoreInput = {
+  permissionMode?: string;
+  model?: string;
+  thinkingEffort?: string;
+  autoBuildout?: boolean;
+};
 
 describe("runGlobalRootTurn", () => {
   it("drains the sink: accumulates text chunks + captures the session id", async () => {
@@ -451,6 +490,66 @@ describe("runGlobalRootTurn", () => {
     expect(gateEdges).toEqual(["parked", "resolved"]);
     // Both the early resumed id and the swapped segment reach the lever.
     expect(resolvedSessionIds).toEqual(["root-sess-10", "root-sess-11"]);
+  });
+
+  // ── Settings on channel turns (session-hardening D1/D3/D8) ──
+
+  it("a channel turn on a mode-less global row runs the one default (auto) — never the unattended gate", async () => {
+    coreReplying("sess-1", "ok");
+    await runGlobalRootTurn(fakeDeps(), { userId: "u1", userMessageText: "hi" });
+    const coreInput = coreMock.mock.calls[0]?.[1] as SettingsCoreInput;
+    expect(coreInput.permissionMode).toBe("auto");
+    expect(coreInput).not.toHaveProperty("model");
+    expect(coreInput).not.toHaveProperty("thinkingEffort");
+    expect(coreInput).not.toHaveProperty("autoBuildout");
+  });
+
+  it("a channel turn resolves the GLOBAL row's mode / model / effort / autopilot (input ?? row ?? default)", async () => {
+    resolveTargetMock.mockResolvedValue({
+      primarySessionId: "root-primary-1",
+      resumeSdkSessionId: "global-head",
+      workspacePath: "/tmp/global-root",
+    });
+    chatSessionRowMock.mockReturnValue({
+      id: "global-head",
+      sessionMode: "ask",
+      selectedModel: "claude-sonnet-4-5",
+      thinkingEffort: "high",
+      autoBuildout: true,
+      lastContextTokens: 1_000,
+      model: "claude-sonnet-4-5",
+    });
+    coreReplying("global-head", "ok");
+    await runGlobalRootTurn(fakeDeps(), { userId: "u1", userMessageText: "hi" });
+    expect(chatSessionRowMock).toHaveBeenCalledWith(expect.anything(), "global-head");
+    const coreInput = coreMock.mock.calls[0]?.[1] as SettingsCoreInput;
+    expect(coreInput.permissionMode).toBe("ask");
+    expect(coreInput.model).toBe("claude-sonnet-4-5");
+    expect(coreInput.thinkingEffort).toBe("high");
+    expect(coreInput.autoBuildout).toBe(true);
+  });
+
+  it("the fit guard clamps a stored small-model pick that cannot hold the global occupancy — never persisted", async () => {
+    resolveTargetMock.mockResolvedValue({
+      primarySessionId: "root-primary-1",
+      resumeSdkSessionId: "global-head",
+      workspacePath: "/tmp/global-root",
+    });
+    chatSessionRowMock.mockReturnValue({
+      id: "global-head",
+      sessionMode: null,
+      selectedModel: "claude-haiku-4-5",
+      thinkingEffort: null,
+      autoBuildout: null,
+      // 400k grown under a 1M model — a 200k pin would die "Prompt is too long".
+      lastContextTokens: 400_000,
+      model: "claude-opus-4-6",
+    });
+    coreReplying("global-head", "ok");
+    await runGlobalRootTurn(fakeDeps(), { userId: "u1", userMessageText: "hi" });
+    const coreInput = coreMock.mock.calls[0]?.[1] as SettingsCoreInput;
+    expect(coreInput.model).toBe("claude-opus-4-6");
+    expect(coreInput.permissionMode).toBe("auto");
   });
 
   it("wrapAppRequestWithOrigin stamps the serialized origin header on every dispatch", async () => {
