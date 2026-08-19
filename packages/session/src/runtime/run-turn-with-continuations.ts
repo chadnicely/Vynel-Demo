@@ -84,7 +84,12 @@ export async function* runTurnWithContinuations(
       'a pending checkpoint survived from before this turn — it continues after it',
     )
   }
-  const drop = (reason: DropPendingCheckpointReason): void => {
+  // A delivery turn owns only a checkpoint left DURING it; a survivor from
+  // before belongs to the identity's next real turn and is left alone. Every
+  // other turn owns whatever is pending (a survivor was going to be continued
+  // after it — if this turn cannot, the survivor goes with it, visibly).
+  const drop = (checkpoint: PendingCheckpoint, reason: DropPendingCheckpointReason): void => {
+    if (input.autoContinue === false && checkpoint.checkpointedAt < startedAt) return
     dropPendingCheckpoint(db, primarySessionId, {
       reason,
       ...(input.logger !== undefined ? { logger: input.logger } : {}),
@@ -97,18 +102,17 @@ export async function* runTurnWithContinuations(
       const checkpoint = peekPendingCheckpoint(db, primarySessionId)
       if (checkpoint === null) break
       if (input.autoContinue === false) {
-        // A survivor predates this delivery — not its to drop.
-        if (checkpoint.checkpointedAt >= startedAt) drop('delivery-turn')
+        drop(checkpoint, 'delivery-turn')
         break
       }
       if (terminal !== 'completed') {
-        drop(terminal === 'interrupted' ? 'turn-stopped' : 'turn-failed')
+        drop(checkpoint, terminal === 'interrupted' ? 'turn-stopped' : 'turn-failed')
         break
       }
       // The cap check + depth bookkeeping first, the consume after: a refused
       // checkpoint is still on the row for the drop to note.
       if (!beginContinuation(db, checkpoint)) {
-        drop('cap-reached')
+        drop(checkpoint, 'cap-reached')
         break
       }
       takePendingCheckpoint(db, primarySessionId)
@@ -122,7 +126,10 @@ export async function* runTurnWithContinuations(
   } finally {
     // Cut short (the consumer stopped reading, or a runner threw): whatever is
     // still pending would hijack the next real turn's end — drop it, visibly.
-    if (!settled) drop('turn-cut-short')
+    if (!settled) {
+      const orphan = peekPendingCheckpoint(db, primarySessionId)
+      if (orphan !== null) drop(orphan, 'turn-cut-short')
+    }
   }
 }
 

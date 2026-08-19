@@ -303,6 +303,24 @@ describe('runTurnWithContinuations', () => {
       expect(peekPendingCheckpoint(db, primary)?.nextStep).toBe('the user turn that never continued')
       expect(noteBodies(db)).toEqual([])
 
+      // Even a delivery cut short (its client gone) leaves the survivor alone —
+      // the ownership rule holds on every exit, not just the clean one.
+      const cutShort = runTurnWithContinuations({
+        db,
+        primarySessionId: primary,
+        autoContinue: false,
+        now: () => new Date('2026-08-19T08:30:00.000Z'),
+        runTurn: async function* () {
+          yield { kind: 'text-chunk', messageId: 'm', textDelta: 'absorbing…' }
+          yield* turnEvents('t1b')
+        },
+      })
+      for await (const event of cutShort) {
+        if (event.kind === 'text-chunk') break
+      }
+      expect(peekPendingCheckpoint(db, primary)?.nextStep).toBe('the user turn that never continued')
+      expect(noteBodies(db)).toEqual([])
+
       // The delivery's own stray (the model checkpointed DURING it) is dropped, noted.
       const logger = { warn: vi.fn(), info: vi.fn() }
       await drain(
