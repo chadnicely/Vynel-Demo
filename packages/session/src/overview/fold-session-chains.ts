@@ -64,9 +64,13 @@ export function foldSessionChains(db: Database, userId: string): FoldedSessionCh
     const tail = chain[chain.length - 1]!
 
     // A workspace/agent chain that is hidden END TO END has no user-facing
-    // doorway (the global brain is the deliberate exception — fork B).
+    // doorway. Global is the deliberate exception (fork B); VOICE joined it
+    // (session-hardening D2) — its segments are born hidden too, and while
+    // the fold dropped them the spoken thread had no status facts at all, so
+    // a FAILED voice turn lit `problem` nowhere in the app. Admitting the
+    // chain gives it facts; who may SEE it is `isSessionInScope`'s job.
     const hasListedSegment = chain.some((segment) => segment.visibility === 'listed')
-    if (tail.scope !== 'global' && !hasListedSegment) continue
+    if (tail.scope !== 'global' && tail.scope !== 'voice' && !hasListedSegment) continue
 
     const title =
       tail.scope === 'global'

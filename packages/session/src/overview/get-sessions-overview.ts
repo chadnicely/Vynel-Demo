@@ -6,21 +6,20 @@
 // Session-tier composition — the one home both the Sessions panel route and
 // the Slice-④ `list_sessions` tool read, so the user and the planning root
 // always see the SAME numbers.
+//
+// THE VOICE WALL: because `list_sessions` is this exact answer, the spoken
+// thread never rides it — not even unscoped. The fold admits the voice chain
+// so it HAS status facts (session-hardening D2), and this read drops it again
+// before anything agent-visible sees it; the Voice chat surface reads its own
+// entry through `getVoiceChatOverviewEntry`.
 
 import type { Database } from '@vynel/db'
-import { resolveContextWindow } from '@vynel/contracts/chat/model-context-window'
 import {
   isSessionInScope,
   type SessionsOverviewEntry,
-  type SessionsOverviewSegment,
 } from '@vynel/contracts/chat/sessions-overview'
-import type { SessionStatusFacts } from '@vynel/contracts/chat/session-status'
-import { findSessionStatusMessageFacts } from '@vynel/chat/repositories'
-import { listPendingApprovalsForUser } from '@vynel/approvals'
-import { listPendingAsks } from '@vynel/asks'
-import { findWorkspaceById } from '@vynel/workspaces'
-import * as primarySessionsRepository from '../repositories/index.js'
-import { foldSessionChains } from './fold-session-chains.js'
+import { foldSessionChains, type FoldedSessionChain } from './fold-session-chains.js'
+import { buildOverviewEntryContext, composeOverviewEntry } from './compose-overview-entry.js'
 
 export type GetSessionsOverviewInput = {
   userId: string
@@ -42,57 +41,18 @@ const DEFAULT_ENTRY_LIMIT = 50
 // that wants a big first page can ask for one instead of being silently cut.
 const MAX_ENTRY_LIMIT = 200
 
+/** Every chain this surface may show — the voice thread removed. */
+function listableChains(db: Database, userId: string): FoldedSessionChain[] {
+  return foldSessionChains(db, userId).filter((chain) => chain.tail.scope !== 'voice')
+}
+
 export function getSessionsOverview(
   db: Database,
   input: GetSessionsOverviewInput,
 ): SessionsOverviewEntry[] {
-  const primaries = primarySessionsRepository.listPrimarySessionsForUser(db, input.userId)
-  const currentSdkSessionIds = new Set(
-    primaries
-      .map((primary) => primary.currentSdkSessionId)
-      .filter((sessionId): sessionId is string => sessionId !== null),
-  )
-
-  // Pending approvals per SDK session id — ONE user-wide query (already how
-  // the global queue reads), grouped here; an entry counts every pending card
-  // across its chain's segments. Session ids on approval rows are always
-  // correct (unlike their workspaceId — the recorded spawned-approvals gap),
-  // which is exactly why the per-session status can ship before that fix.
-  const pendingApprovalCountBySessionId = new Map<string, number>()
-  for (const approval of listPendingApprovalsForUser(db, input.userId)) {
-    pendingApprovalCountBySessionId.set(
-      approval.sessionId,
-      (pendingApprovalCountBySessionId.get(approval.sessionId) ?? 0) + 1,
-    )
-  }
-
-  // Pending `ask_user` forms, read the same way. Both queues mean "waiting on
-  // you", and a turn parked on either is still LIVE on the activity feed — so
-  // without this the conversation rendered "working" while it sat on a form
-  // nobody had told the user about. The row's session id is nullable (a
-  // channel-driven global turn may have no watching conversation); those rows
-  // simply never match a segment.
-  const pendingAskCountBySessionId = new Map<string, number>()
-  for (const ask of listPendingAsks(db, { userId: input.userId })) {
-    if (ask.sessionId === null) continue
-    pendingAskCountBySessionId.set(
-      ask.sessionId,
-      (pendingAskCountBySessionId.get(ask.sessionId) ?? 0) + 1,
-    )
-  }
-
-  const workspaceNameById = new Map<string, string | null>()
-  function workspaceNameFor(workspaceId: string | null): string | null {
-    if (workspaceId === null) return null
-    if (!workspaceNameById.has(workspaceId)) {
-      workspaceNameById.set(workspaceId, findWorkspaceById(db, workspaceId)?.name ?? null)
-    }
-    return workspaceNameById.get(workspaceId) ?? null
-  }
-
   // Fold every chain first (cheap, in-memory, newest-first), then curate, then
   // page, then compose the per-entry status facts for the survivors only.
-  const folded = foldSessionChains(db, input.userId)
+  const folded = listableChains(db, input.userId)
 
   // Curate FIRST when a scope was asked for, so a page is dense: filtering
   // after the cap would hand back a page of 50 that yields three rows for the
@@ -110,67 +70,27 @@ export function getSessionsOverview(
   const offset = Math.max(input.offset ?? 0, 0)
   const visible = inScope.slice(offset, offset + cap)
 
-  const entries: SessionsOverviewEntry[] = []
-  for (const { tail, chain, title, model } of visible) {
-    // The durable status facts (Move 3), all CONVERSATION-scoped: the
-    // assistant-set trio rides the tail (copy-forward keeps it there across
-    // swaps), while the message facts and the approval count span the whole
-    // chain. Asking the tail alone for messages was the swap bug — a fresh
-    // segment has none, so "the user never spoke" resurrected every
-    // superseded status and hid an error a mid-turn swap left behind.
-    // Derivation stays in ONE home (`deriveSessionStatus`, contracts);
-    // liveness is the activity feed's, married client-side.
-    const segmentIds = chain.map((segment) => segment.id)
-    const messageFacts = findSessionStatusMessageFacts(db, segmentIds)
-    const statusFacts: SessionStatusFacts = {
-      setStatus: tail.status,
-      statusNote: tail.statusNote,
-      statusSetAt: tail.statusSetAt?.toISOString() ?? null,
-      lastError:
-        messageFacts.lastAssistantError === null
-          ? null
-          : {
-              code: messageFacts.lastAssistantError.code,
-              message: messageFacts.lastAssistantError.message,
-              at: messageFacts.lastAssistantError.at.toISOString(),
-            },
-      pendingApprovalCount: segmentIds.reduce(
-        (count, segmentId) => count + (pendingApprovalCountBySessionId.get(segmentId) ?? 0),
-        0,
-      ),
-      pendingAskCount: segmentIds.reduce(
-        (count, segmentId) => count + (pendingAskCountBySessionId.get(segmentId) ?? 0),
-        0,
-      ),
-      latestUserMessageAt: messageFacts.latestUserMessageAt?.toISOString() ?? null,
-    }
+  const context = buildOverviewEntryContext(db, input.userId)
+  return visible.map((chain) => composeOverviewEntry(db, context, chain))
+}
 
-    entries.push({
-      sessionId: tail.id,
-      scope: tail.scope,
-      workspaceId: tail.workspaceId,
-      workspaceName: workspaceNameFor(tail.workspaceId),
-      title,
-      model,
-      contextTokens: tail.lastContextTokens,
-      contextWindow: resolveContextWindow(model),
-      lastMessageAt: tail.lastMessageAt.toISOString(),
-      statusFacts,
-      segments: chain.map(
-        (segment): SessionsOverviewSegment => ({
-          sessionId: segment.id,
-          title: segment.title,
-          startedAt: segment.startedAt.toISOString(),
-          lastMessageAt: segment.lastMessageAt.toISOString(),
-          contextTokens: segment.lastContextTokens,
-          continuedFromSessionId: segment.continuedFromSessionId,
-          isCurrent: currentSdkSessionIds.has(segment.id),
-        }),
-      ),
-    })
-  }
-
-  return entries
+/**
+ * The spoken thread as ONE overview entry — the Voice chat surface's own
+ * status read (session-hardening D2). Its own door because the shared list is
+ * `list_sessions`: the voice conversation stays behind the cross-session wall
+ * while still wearing the same status mark every other conversation wears.
+ *
+ * Null until the first spoken turn creates the chain.
+ */
+export function getVoiceChatOverviewEntry(
+  db: Database,
+  input: { userId: string },
+): SessionsOverviewEntry | null {
+  const voiceChain = foldSessionChains(db, input.userId).find(
+    (chain) => chain.tail.scope === 'voice',
+  )
+  if (voiceChain === undefined) return null
+  return composeOverviewEntry(db, buildOverviewEntryContext(db, input.userId), voiceChain)
 }
 
 /**
@@ -193,7 +113,7 @@ export function countSessionsOverview(
   db: Database,
   input: { userId: string; scope?: { workspaceId: string | null } },
 ): number {
-  const folded = foldSessionChains(db, input.userId)
+  const folded = listableChains(db, input.userId)
   return input.scope === undefined
     ? folded.length
     : folded.filter((chain) => isSessionInScope(chain.tail, input.scope!.workspaceId)).length
