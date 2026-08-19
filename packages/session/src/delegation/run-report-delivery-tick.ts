@@ -43,12 +43,14 @@ import {
   failDelegationJob,
   isSystemReporterSessionId,
   listDelegationJobsByThread,
+  requeueDelegationJob,
   resolveThreadIdOf,
   routeRequest,
   type DelegationJob,
 } from '@vynel/orchestration'
 import { recordDirectReplyMessage, type ChatTurnEvent } from '@vynel/chat'
 import { findPrimaryConversation, takePendingCheckpoint } from '../continuity/index.js'
+import { isRootTurnLockBusy, rootTurnLockKey } from '../runtime/root-turn-lock.js'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
 import {
@@ -80,6 +82,11 @@ import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
 /** The GLOBAL-root notify runner the api edge injects (it owns the env-coupled
  *  target resolve + the routing MCP composition — `runGlobalRootTurn` with the
  *  report attribution + steer). Returns the turn's sdk session id + reply. */
+/** How soon a global delivery that yielded to a busy root lock becomes claimable
+ *  again — long enough not to spin the poll, short enough that a report lands
+ *  moments after the interactive turn ends. */
+const GLOBAL_ROOT_BUSY_YIELD_MS = 5_000
+
 export type RunGlobalRootReportTurn = (input: {
   userId: string
   /** The child's report — the notify turn's inbound message. */
@@ -257,6 +264,26 @@ export async function runReportDeliveryJob(
     }
     // No root session row to land on — fall through to the notify machinery,
     // which handles the no-session shapes honestly.
+  }
+
+  // A GLOBAL notify turn runs under the user's root-turn lock. While an
+  // interactive global turn holds it, starting now would only park inside the
+  // core and burn one of the few pool slots for as long as that turn lasts (up
+  // to the cap — the audit's "a delivery burns its slot queued on the root
+  // lock"). Yield instead: back to pending, due again in a moment, no attempt
+  // spent — the slot goes to a job that can actually run right now.
+  if (isGlobalRequester && isRootTurnLockBusy(rootTurnLockKey(claimed.userId, false))) {
+    requeueDelegationJob(db, claimed.id, {
+      errorMessage: claimed.errorMessage ?? 'waiting for the global root — yielded the slot',
+      errorCode: claimed.errorCode ?? null,
+      attemptCount: claimed.attemptCount ?? 0,
+      nextAttemptAt: new Date(Date.now() + GLOBAL_ROOT_BUSY_YIELD_MS),
+    })
+    deps.logger.info(
+      { jobId: claimed.id, kind: queueLabel },
+      `${queueLabel}: the global root is mid-turn — yielded the pool slot, due again shortly`,
+    )
+    return true
   }
 
   const cancelHandle =
