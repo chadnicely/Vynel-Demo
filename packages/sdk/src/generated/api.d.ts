@@ -18100,6 +18100,13 @@ export interface operations {
                     };
                 };
             };
+            /** @description A voice-scope session: the spoken thread always runs the voice tier, so its settings are not the user’s to change. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Unknown session, or not owned. */
             404: {
                 headers: {

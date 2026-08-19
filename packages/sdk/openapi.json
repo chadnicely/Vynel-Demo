@@ -37560,6 +37560,9 @@
               }
             }
           },
+          "403": {
+            "description": "A voice-scope session: the spoken thread always runs the voice tier, so its settings are not the user’s to change."
+          },
           "404": {
             "description": "Unknown session, or not owned."
           }
