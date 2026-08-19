@@ -161,14 +161,14 @@ describe('update-delivery jobs (persona-sessions)', () => {
             resultText: 'Noted.',
             startChatSessionInputs: notifyInputs,
             // A confused model checkpoints on the notify turn.
-            onStartChatSession: () => markPendingCheckpoint(primary.id, 'should never run'),
+            onStartChatSession: () => markPendingCheckpoint(db, primary.id, 'should never run'),
           }),
           logger: silentLogger,
           activityFeed: new SessionActivityFeed(),
         }),
       ).toBe(true)
       expect(notifyInputs[0]!.onToolResultContext).toBeUndefined()
-      expect(peekPendingCheckpoint(primary.id)).toBeNull()
+      expect(peekPendingCheckpoint(db, primary.id)).toBeNull()
       // Nothing continues a delivery.
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
     })

@@ -378,6 +378,7 @@ export async function streamChatTurn(
     // continuing"); a continuation resumes the head its swap produced
     // (re-resolved). A plain session neither swaps nor continues.
     const turnStream = runContinuingTurn({
+          db: c.var.db,
       primarySessionId: primaryTarget?.primarySessionId ?? null,
       resumeSessionId,
       resolveHead: async () =>

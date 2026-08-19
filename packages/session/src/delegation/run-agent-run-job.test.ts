@@ -189,7 +189,7 @@ describe('agent-run jobs (persona-sessions)', () => {
         // The colleague checkpoints on its FIRST run only (what the tool does).
         onStartChatSession: () => {
           runs += 1
-          if (runs === 1) markPendingCheckpoint(colleague.id, 'review the second half of the PR')
+          if (runs === 1) markPendingCheckpoint(db, colleague.id, 'review the second half of the PR')
         },
       })
       const tick = () =>

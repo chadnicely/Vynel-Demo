@@ -132,7 +132,9 @@ export function composeOverviewEntry(
     title,
     model,
     contextTokens: tail.lastContextTokens,
-    contextWindow: resolveContextWindow(model),
+    // The persisted denominator (the model the chain is DRIVEN on) first, so the
+    // meter agrees with the swap decision after a small-model visitor.
+    contextWindow: tail.lastContextWindow ?? resolveContextWindow(model),
     lastMessageAt: tail.lastMessageAt.toISOString(),
     statusFacts,
     segments: chain.map(

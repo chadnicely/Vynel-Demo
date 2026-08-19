@@ -633,7 +633,7 @@ describe('runDelegationClaimAndRunTick', () => {
       const provider = new FakeAiAgentProvider({
         seededSessionId: 'ws-root-ckpt',
         resultText: 'Stopping here to swap — will continue after patching context.',
-        onStartChatSession: () => markPendingCheckpoint(primary.id, 'sum the July receipts'),
+        onStartChatSession: () => markPendingCheckpoint(db, primary.id, 'sum the July receipts'),
       })
       expect(
         await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() }),
@@ -708,7 +708,7 @@ describe('runDelegationClaimAndRunTick', () => {
         resultText: 'still going',
         onStartChatSession: () => {
           runs += 1
-          markPendingCheckpoint(spawned.primarySessionId, `step ${runs}`)
+          markPendingCheckpoint(db, spawned.primarySessionId, `step ${runs}`)
         },
       })
       const tick = () =>

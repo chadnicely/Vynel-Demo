@@ -49,7 +49,11 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import { recordDirectReplyMessage, type ChatTurnEvent } from '@vynel/chat'
-import { findPrimaryConversation, takePendingCheckpoint } from '../continuity/index.js'
+import {
+  dropPendingCheckpoint,
+  findPrimaryConversation,
+  peekPendingCheckpoint,
+} from '../continuity/index.js'
 import { isRootTurnLockBusy, rootTurnLockKey } from '../runtime/root-turn-lock.js'
 import { findWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { DEFAULT_PROVIDER_ID, type AiAgentProvider } from '@vynel/providers'
@@ -426,6 +430,9 @@ export async function runReportDeliveryJob(
           : undefined
 
       const turnEvents = deps.turnEvents
+      // The notify turn's own start — a checkpoint pending from BEFORE it is
+      // the user's restart survivor (durable register), never this turn's stray.
+      const notifyTurnStartedAt = new Date()
       outcome = await routeRequest(
         {
           userId: claimed.userId,
@@ -485,16 +492,20 @@ export async function runReportDeliveryJob(
           onHardCap: cancelLever.interrupt,
         },
       )
-      // A checkpoint the model still left on a notify turn is dropped: a
-      // delivery never continues as work (session-continuity §4.6).
+      // A checkpoint the model left ON THIS notify turn is dropped visibly: a
+      // delivery never continues as work (session-continuity §4.6). A
+      // checkpoint pending from BEFORE the turn is the user's own restart
+      // survivor (the durable register) — it belongs to their next message and
+      // is left alone (the interactive loop's rule for autoContinue:false).
       const primary = findPrimaryConversation(db, {
         userId: claimed.userId,
         workspaceId: requesterWorkspaceId,
       })
-      const stray = primary !== null ? takePendingCheckpoint(primary.id) : null
-      if (stray !== null) {
+      const pending = primary !== null ? peekPendingCheckpoint(db, primary.id) : null
+      if (primary !== null && pending !== null && pending.checkpointedAt >= notifyTurnStartedAt) {
+        dropPendingCheckpoint(db, primary.id, { reason: 'never-continues', logger: deps.logger })
         deps.logger.warn(
-          { jobId: claimed.id, primarySessionId: primary!.id, nextStep: stray.nextStep },
+          { jobId: claimed.id, primarySessionId: primary.id, nextStep: pending.nextStep },
           `${queueLabel}: checkpoint dropped — a delivery turn never continues as work`,
         )
       }

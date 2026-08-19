@@ -392,6 +392,7 @@ export async function streamSpawnedSessionTurn(
       // continuing"); a continuation resumes the head its swap produced
       // (re-read — a spawned session deleted meanwhile skips it, logged).
       const turnStream = runContinuingTurn({
+            db,
         primarySessionId: spawned.id,
         resumeSessionId,
         resolveHead: async () =>

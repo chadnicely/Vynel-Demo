@@ -325,7 +325,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
         // What the `checkpoint` tool does when the model calls it: the
         // primary exists before composition (whoami / checkpoint key on it).
         const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
-        markPendingCheckpoint(primary!.id, 'sum the July receipts')
+        markPendingCheckpoint(db, primary!.id, 'sum the July receipts')
       }
       const app = createApp({ db, logger: silentLogger })
 

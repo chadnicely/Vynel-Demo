@@ -14,11 +14,10 @@
 // Take + note run in one transaction: a drop is a state change and its
 // evidence lands with it or not at all.
 
-import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
 import { withTransaction } from '@vynel/db'
 import type { StructuralLogger } from '@vynel/logger'
-import { findChatSessionById, insertChatMessage, updateChatSession } from '@vynel/chat/repositories'
+import { recordSystemNoteMessage } from '@vynel/chat'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { takePendingCheckpoint, type PendingCheckpoint } from './pending-checkpoints.js'
 
@@ -84,7 +83,8 @@ export function dropPendingCheckpoint(
 
 // The head may not exist yet (an identity that never linked a segment) or may
 // be gone (a purged segment) — then there is no thread to write on and the log
-// line is the trace.
+// line is the trace. The row shape lives with the other system-authored writers
+// in packages/chat/src/records (one home); this composes the words.
 function recordDroppedCheckpointNote(
   db: Database,
   primarySessionId: string,
@@ -93,27 +93,10 @@ function recordDroppedCheckpointNote(
 ): void {
   const primary = primarySessionsRepository.findPrimarySessionById(db, primarySessionId)
   const headSessionId = primary?.currentSdkSessionId ?? null
-  if (headSessionId === null || findChatSessionById(db, headSessionId) === null) return
-  const now = (input.now ?? (() => new Date()))()
-  insertChatMessage(db, {
-    id: randomUUID(),
+  if (headSessionId === null) return
+  recordSystemNoteMessage(db, {
     sessionId: headSessionId,
-    role: 'user',
     body: composeDroppedCheckpointNote(checkpoint.nextStep, input.reason),
-    sourceKind: 'global-root',
-    sourceLabel: null,
-    partialSessionId: null,
-    threadId: null,
-    originChannel: null,
-    thinkingBody: null,
-    inputTokens: null,
-    outputTokens: null,
-    attachedImagesMetadata: null,
-    errorCode: null,
-    errorMessage: null,
-    startedAt: now,
-    completedAt: now,
-    createdAt: now,
+    now: (input.now ?? (() => new Date()))(),
   })
-  updateChatSession(db, headSessionId, { lastMessageAt: now })
 }

@@ -220,7 +220,7 @@ describe('runGlobalRootTurnCore — boundary continuity', () => {
         startChatSessionInputs: startInputs,
         onStartChatSession: (_input, ordinal) => {
           // What the `checkpoint` tool does when the model calls it on turn 1.
-          if (ordinal === 1) markPendingCheckpoint(primary.id, 'sum the July receipts')
+          if (ordinal === 1) markPendingCheckpoint(db, primary.id, 'sum the July receipts')
         },
       })
       const sink = new CollectingSink()
@@ -267,7 +267,7 @@ describe('runGlobalRootTurnCore — boundary continuity', () => {
         'Working.',
       ])
       // Consumed — nothing pending after the loop.
-      expect(peekPendingCheckpoint(primary.id)).toBeNull()
+      expect(peekPendingCheckpoint(db, primary.id)).toBeNull()
     })
   })
 
@@ -281,7 +281,7 @@ describe('runGlobalRootTurnCore — boundary continuity', () => {
         resultText: 'Absorbed.',
         usage: RELAXED_USAGE,
         startChatSessionInputs: startInputs,
-        onStartChatSession: () => markPendingCheckpoint(primary.id, 'a delivery never continues'),
+        onStartChatSession: () => markPendingCheckpoint(db, primary.id, 'a delivery never continues'),
       })
       const sink = new CollectingSink()
       await runGlobalRootTurnCore(
@@ -294,7 +294,7 @@ describe('runGlobalRootTurnCore — boundary continuity', () => {
       expect(startInputs).toHaveLength(1)
       expect(startInputs[0]?.onToolResultContext).toBeUndefined()
       expect(sink.events.filter((e) => e.kind === 'user-message-persisted')).toHaveLength(1)
-      expect(peekPendingCheckpoint(primary.id)).toBeNull()
+      expect(peekPendingCheckpoint(db, primary.id)).toBeNull()
     })
   })
 

@@ -103,6 +103,7 @@ export async function runGlobalRootTurnCore(
       // The genuine turn on the resolved head; each automatic continuation
       // re-resolves the head — the checkpoint's boundary swap moved it.
       const turnStream = runTurnWithContinuations({
+    db: deps.db,
         primarySessionId: target.primarySessionId,
         runTurn: (continuation) =>
           continuation === null

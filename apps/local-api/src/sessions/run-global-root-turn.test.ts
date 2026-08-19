@@ -544,6 +544,11 @@ describe("runGlobalRootTurn", () => {
       // 400k grown under a 1M model — a 200k pin would die "Prompt is too long".
       lastContextTokens: 400_000,
       model: "claude-opus-4-6",
+      // The chain reader (slice G) owner-gates its walk and prefers a persisted
+      // window — a legacy row: no window yet, single segment, this user's.
+      userId: "u1",
+      lastContextWindow: null,
+      continuedFromSessionId: null,
     });
     coreReplying("global-head", "ok");
     await runGlobalRootTurn(fakeDeps(), { userId: "u1", userMessageText: "hi" });
