@@ -598,3 +598,34 @@ export function listDelegationJobsSince(
     .limit(cappedLimit)
     .all()
 }
+
+// Every job one CONVERSATION started — the parent side of the tree.
+//
+// `parentSessionId` is the enqueue-time SDK session id, so a conversation
+// that has swapped context has several of them; callers pass the whole chain.
+//
+// Selected NEWEST-first under the cap and handed back oldest-first: a display
+// read that truncated from the old end would silently drop TODAY's children
+// on a long-lived conversation — the same cap-drops-what-you-asked-for class
+// the 2026-08-19 audit found on the node screen. (The `asc` siblings here are
+// FIFO CLAIM reads, where taking the oldest is the whole point.)
+export function listDelegationJobsForParentSessions(
+  db: Database,
+  input: { userId: string; parentSessionIds: readonly string[]; limit?: number },
+): DelegationJob[] {
+  if (input.parentSessionIds.length === 0) return []
+  const cappedLimit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  return db
+    .select()
+    .from(delegationJobs)
+    .where(
+      and(
+        eq(delegationJobs.userId, input.userId),
+        inArray(delegationJobs.parentSessionId, [...input.parentSessionIds]),
+      ),
+    )
+    .orderBy(desc(delegationJobs.createdAt), desc(delegationJobs.id))
+    .limit(cappedLimit)
+    .all()
+    .reverse()
+}

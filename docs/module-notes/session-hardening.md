@@ -332,6 +332,74 @@ and `StartChatTurnRequestSchema` already accept `mode`, so C's `input.voice` gat
   the test's title/comment "else the bypass default" becomes "else auto"). Every other suite in
   `packages/orchestration`, `packages/session`, `apps/local-api` is green on A (183 files / 1264 tests).
 
+### F → lead: **F edited three files outside its ownership.** All purely APPENDED
+
+F3 (`GET /sessions/:id/children`) needs a parent-keyed read of `delegation_jobs`, and
+`@vynel/orchestration` exports only `.` — so neither a deep import nor a session-side Drizzle read
+over another leaf's table was open. Rather than ship a half-feature or break invariant 2, F appended
+the read in its correct home and declares it here. **Every touch is a block appended at the END of
+its file, adding nothing and changing nothing that exists** — so a merge conflict would have to be
+manufactured. Please eyeball these three at integration:
+
+| File | Owner | The touch |
+|---|---|---|
+| `packages/orchestration/src/repositories/delegation-jobs.ts` | A | one appended `listDelegationJobsForParentSessions(db, { userId, parentSessionIds, limit? })` — a pure `inArray` read, same cap idiom as its siblings |
+| `packages/orchestration/src/index.ts` | A | one appended `export { listDelegationJobsForParentSessions } from './repositories/index.js'` (the barrel is explicit-named, so the function is unreachable without it) |
+| `packages/session/src/overview/index.ts` | D | two appended lines re-exporting `listSessionChildren` + its input type (the route imports from `@vynel/session/overview`) |
+
+**Note for A:** `delegation_jobs` has no index on `parentSessionId`. The new read is a UI door on a
+local SQLite file, so it is fine today; if A is already touching indexes for the lease work, an
+`idx_delegation_jobs_parent_created (parentSessionId, createdAt)` would be the natural companion.
+
+### F → D: `chat.getContinuing` answers with the chain HEAD only
+
+The node screen's arcs now match a message endpoint against **every segment** of every drawn
+conversation, which closes A5-10 for spawned sessions (the overview entry carries `segments`). It
+does **not** close for "The build": a workspace's continuing chain is dropped by
+`foldSessionChains` (`fold-session-chains.ts:69` — hidden end to end, tail scope ≠ `global`), so it
+has no overview entry, and `GET /workspaces/:id/chat/continuing` returns
+`{ rootSessionId, currentSdkSessionId, lastMessageAt }` — the head alone. An arc whose endpoint is a
+pre-swap segment of the build therefore still drops.
+
+D1 is already widening that payload (`primarySessionId`). **Ask:** add the chain's segment ids to it
+while you are there (`segmentSessionIds: string[]`, or reuse the overview's `segments` shape). F's
+`use-project-nodes.ts` builds a `nodeIdBySegmentId` map and has a marked seam ready for it — one line
+changes there and the gap closes. `apps/local-api/src/routes/chat/index.ts` is not in F's ownership,
+so nothing was changed.
+
+### F → lead: F1(h) was resolved by DROPPING the promise, not by adding a tooltip
+
+`NodesView`'s hint read "hover a node for details · click to open it" and no tooltip exists
+(`hitTest` is called only by the scene's own mouse handlers). Building one is a new visual, which D7
+defers to Kafi — so the hint now reads "click a node to open it", and the detail a tooltip would
+show (`note`, `tasksDone`/`tasksTotal`, and room for elapsed + child count) rides every `SceneNode`
+as `detail`, carried and unrendered. Rendering it is one component away.
+
 ## 7. Results
 
 _(filled at integration)_
+
+### F → lead: one DELIBERATE visual change inside the no-visual-change slice
+
+F1(e). `NodesRace` rendered `node.status === "building" ? "working" : "waiting to start"`, so four of
+the five states read "waiting to start" — a failed project said that beside its own red dot. Race now
+uses the same `SCENE_STATUS_LABEL` map as `NodesGrid`, so its words change for every state except
+`building`: "Needs attention" / "Waiting on you" / "All done" / "Idle". That is the fix, not a
+regression, but it is the one place the screen genuinely reads differently and the lead should have
+it from F rather than find it.
+
+Everything else is provably unchanged at today's counts: the three layout formulas reproduce the
+prototype's own arithmetic exactly below their thresholds, asserted rather than described in
+`constellation-layout.test.ts` (`orbitLaneIndex(i) === i` for i < 7 · `riseStep(n, W) === 1300·0.115`
+for n ≤ 10 · `constellationSlots(n)` = one full-radius ring at `-90° + i·360°/n` for n ≤ 12). The
+fleet bar's counts row is hidden while the level's polls are in flight — where it previously
+announced a number it had not read.
+
+### F → D (integration follow-up): the chain walk now has two homes
+
+`chainSegmentIdsOf` in `list-session-children.ts` reproduces `foldSessionChains`' walk — same
+membership test, same first-write-wins `childByParentId`, same head→tail traversal. Not calling the
+fold is deliberate and documented (it drops end-to-end-hidden chains, which is exactly the workspace
+build most likely to be asked about here), but the WALK itself wants one shared helper. F could not
+extract it: everything in `packages/session/src/overview/**` except the new file is D's. A
+`resolveChainSegments(rows, sessionId)` both call would be the clean landing.

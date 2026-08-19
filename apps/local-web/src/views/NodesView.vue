@@ -6,9 +6,11 @@ import { useFleetNodes } from "../composables/nodes/use-fleet-nodes.js";
 import { useProjectNodes } from "../composables/nodes/use-project-nodes.js";
 import { useMessageEdges } from "../composables/nodes/use-message-edges.js";
 import {
-  fleetMessages,
-  projectMessages,
-} from "../composables/nodes/message-scene-mapping.js";
+  activeNodeLevel,
+  hasLevelFor,
+  type NodeLevelRegistry,
+  type NodeLevelStackEntry,
+} from "../composables/nodes/node-level.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import NodesFleetBar from "../components/nodes/NodesFleetBar.vue";
@@ -16,18 +18,22 @@ import NodesGrid from "../components/nodes/NodesGrid.vue";
 import NodesRace from "../components/nodes/NodesRace.vue";
 import NodesInvitation from "../components/nodes/NodesInvitation.vue";
 import {
+  parseSceneNodeId,
+  type SceneNodeRef,
+} from "../utils/constellation-node-ref.js";
+import {
   startConstellationScene,
   type SceneHandle,
   type SceneLayout,
-  type SceneMessage,
 } from "../utils/constellation-scene.js";
 
 // The Nodes screen — the design prototype's constellation, running on the real
 // fleet. The scene itself (starfield, nebula, bloom core, curved glowing
 // strands, particles, satellites) is the prototype's canvas engine ported
 // wholesale into utils/constellation-scene.ts; this view owns the canvas
-// lifecycle and which level is on show. The dots' data lives in the two
-// `composables/nodes` composables, and each reading is its own component.
+// lifecycle and where the user is standing. Everything a level shows — its
+// dots, its arcs, its core label, what a click means — comes from that level's
+// own composable, and each reading is its own component.
 //
 // The canvas runs whether or not there are workspaces: with none, you still
 // get the starfield and the core awake at the centre, and the invitation
@@ -43,70 +49,92 @@ const overviewQuery = useDashboardOverview(() =>
 // Every project Vynel looks after — one dot each. `buildSceneNodes` drops the
 // archived ones, so the picture only ever shows rooms that can still work.
 const fleetWorkspaces = computed(() => overviewQuery.data.value?.workspaces ?? []);
-const fleetNodes = useFleetNodes(fleetWorkspaces);
 
-// ── TWO LEVELS, ONE SCREEN (Chad, 2026-08-11). The node menu never goes
-// away: the top level is ALL the software running; clicking a project node
-// descends into that ONE project — same bar, same three readings, but the
-// dots are now its sessions and work. A session node is what opens the chat.
+// ── A STACK OF LEVELS, ONE SCREEN (Chad, 2026-08-11). The node menu never
+// goes away: the top level is ALL the software running; clicking a project
+// node descends into that ONE project — same bar, same three readings, but
+// the dots are now its sessions and work. A session node is what opens the
+// chat.
+//
+// It used to be one `drilledProjectId` boolean branching through six
+// computeds, which is why the screen could not grow past two levels
+// (2026-08-19 audit). A level now owns everything about itself; the stack
+// says which one is on show.
 //
 // Always opens on the fleet. The prototype seeded this from the active tab so
 // a project's own node link could land you inside it, but the title bar's
 // `Nodes` is the only way in here and it leaves the workspace tab first — that
 // entry point is future work, not a dropped feature.
-const drilledProjectId = ref<string | null>(null);
-const drilledProject = computed(
+const stack = ref<NodeLevelStackEntry[]>([]);
+
+/** The workspace the stack is standing inside, or null out on the fleet. */
+const insideWorkspaceId = computed(() => {
+  const top = stack.value[stack.value.length - 1];
+  return top?.ref.kind === "workspace" ? top.ref.id : null;
+});
+const insideWorkspaceName = computed(
   () =>
-    fleetWorkspaces.value.find((room) => room.id === drilledProjectId.value) ??
-    null,
-);
-const isInsideProject = computed(() => drilledProjectId.value !== null);
-const projectNodes = useProjectNodes(drilledProjectId);
-
-/** What the current level draws — projects out here, sessions in there. */
-const displayNodes = computed(() =>
-  isInsideProject.value ? projectNodes.nodes.value : fleetNodes.nodes.value,
+    fleetWorkspaces.value.find((room) => room.id === insideWorkspaceId.value)
+      ?.name ?? null,
 );
 
-// The arcs — a line between two dots when they talk. Only ever asked for while
-// the constellation is the reading on show; the other two draw no lines.
+function descend(ref: SceneNodeRef, label: string) {
+  if (!hasLevelFor(ref.kind, registry)) return;
+  stack.value = [...stack.value, { ref, label }];
+}
+
+// The arcs — a line between two dots when they talk. ONE poll for the whole
+// screen; each level matches the same wire edges against its own dots. Only
+// ever asked for while the constellation is the reading on show; the other two
+// draw no lines.
 const edgesQuery = useMessageEdges(() => ui.nodesMode === "nodes");
+const edges = computed(() => edgesQuery.data.value?.edges ?? []);
 
-/** What the CURRENT level can draw a line between. Each level speaks its own
- *  id shape, so the same wire edge maps differently in here than out there. */
-const sceneMessages = computed<SceneMessage[]>(() => {
-  const edges = edgesQuery.data.value?.edges ?? [];
-  if (edges.length === 0) return [];
-  if (!isInsideProject.value) {
-    return fleetMessages(
-      edges,
-      new Set(fleetNodes.nodes.value.map((node) => node.id)),
-    );
-  }
-  return projectMessages(edges, {
-    projectId: drilledProjectId.value!,
-    continuingSessionId: projectNodes.continuingSessionId.value,
-    drawnSessionIds: new Set(
-      projectNodes.nodes.value
-        .filter((node) => node.id.startsWith("session:"))
-        .map((node) => node.id.slice("session:".length)),
-    ),
-  });
+const fleetLevel = useFleetNodes({
+  workspaces: fleetWorkspaces,
+  workspacesAnswered: () => overviewQuery.data.value !== undefined,
+  edges,
+  onPick: descend,
 });
 
-const isFleetEmpty = computed(
-  () =>
-    !isInsideProject.value &&
-    overviewQuery.data.value !== undefined &&
-    fleetNodes.nodes.value.length === 0,
-);
+const projectLevel = useProjectNodes({
+  workspaceId: insideWorkspaceId,
+  workspaceName: insideWorkspaceName,
+  edges,
+  // Inside a project every dot IS the room's work and the room's chat is where
+  // you act on it — one meaning, whichever kind was clicked.
+  onPick: () => openDrilledProject(),
+});
 
+// Which level a drilled-into KIND opens. A third level — a session's spawned
+// children, agent runs and tasks — is one composable plus one line here.
+const registry: NodeLevelRegistry = {
+  root: fleetLevel,
+  workspace: projectLevel,
+};
+
+const level = computed(() => activeNodeLevel(stack.value, registry));
+
+/** What the current level draws — projects out here, sessions in there. */
+const displayNodes = computed(() => level.value.nodes.value);
+const sceneMessages = computed(() => level.value.messages.value);
+
+/** The crumbs, outermost first. Empty out on the fleet. */
+const trail = computed(() => stack.value.map((entry) => entry.label));
+
+/** Nothing here, and we KNOW it — never the loading state wearing the same
+ *  face. An empty claim made from data we do not have yet is exactly the
+ *  recorded nodes bug, and the fleet half of the guard was never wired. */
+const levelHasAnswered = computed(() => level.value.hasAnswered.value);
+const isLevelEmpty = computed(
+  () => levelHasAnswered.value && displayNodes.value.length === 0,
+);
+const isFleetEmpty = computed(
+  () => stack.value.length === 0 && isLevelEmpty.value,
+);
 /** The project level with nothing to show yet — its own quiet invitation. */
 const isProjectEmpty = computed(
-  () =>
-    isInsideProject.value &&
-    projectNodes.hasAnswered.value &&
-    projectNodes.nodes.value.length === 0,
+  () => stack.value.length > 0 && isLevelEmpty.value,
 );
 
 const stage = ref<HTMLElement | null>(null);
@@ -130,31 +158,33 @@ function openWorkspace(workspaceId: string) {
 }
 
 function openDrilledProject() {
-  if (drilledProjectId.value !== null) openWorkspace(drilledProjectId.value);
+  if (insideWorkspaceId.value !== null) openWorkspace(insideWorkspaceId.value);
 }
 
-// One click, two meanings: out on the fleet a project node DESCENDS — the
-// bar stays, the dots become that project's sessions. In there, a session
-// node opens the room itself.
+// One click, one meaning PER LEVEL: out on the fleet a project node DESCENDS
+// — the bar stays, the dots become that project's sessions. In there, a dot
+// opens the room itself. The level says which; the id says what was clicked.
 function onNodeClick(nodeId: string) {
-  if (!isInsideProject.value) {
-    drilledProjectId.value = nodeId;
-    return;
-  }
-  openDrilledProject();
+  const ref = parseSceneNodeId(nodeId);
+  if (ref === null) return;
+  const label =
+    displayNodes.value.find((node) => node.id === nodeId)?.name ?? "";
+  level.value.onPick(ref, label);
 }
 
 // The centre orb wears the level's own name: out on the fleet everything
 // orbits Vynel itself, and once you have stepped inside, the project.
-const coreLabel = computed(() =>
-  isInsideProject.value ? (drilledProject.value?.name ?? "Project") : "Vynel",
-);
+const coreLabel = computed(() => level.value.coreLabel.value);
 
 function mountScene() {
   if (scene || !stage.value) return;
-  scene = startConstellationScene(stage.value, displayNodes.value, onNodeClick);
+  scene = startConstellationScene(
+    stage.value,
+    [...displayNodes.value],
+    onNodeClick,
+  );
   scene.setCoreLabel(coreLabel.value);
-  scene.setMessages(sceneMessages.value);
+  scene.setMessages([...sceneMessages.value]);
   scene.setLayout(layout.value);
 }
 
@@ -180,8 +210,8 @@ watch(
   },
 );
 
-watch(displayNodes, (next) => scene?.setNodes(next));
-watch(sceneMessages, (next) => scene?.setMessages(next));
+watch(displayNodes, (next) => scene?.setNodes([...next]));
+watch(sceneMessages, (next) => scene?.setMessages([...next]));
 watch(coreLabel, (name) => scene?.setCoreLabel(name), { immediate: true });
 
 onBeforeUnmount(() => {
@@ -194,10 +224,11 @@ onBeforeUnmount(() => {
   <div class="nodes-screen">
     <NodesFleetBar
       :mode="ui.nodesMode"
-      :drilled-project-name="isInsideProject ? (drilledProject?.name ?? '') : null"
+      :trail="trail"
       :nodes="displayNodes"
+      :has-answered="levelHasAnswered"
       @update:mode="ui.nodesMode = $event"
-      @back="drilledProjectId = null"
+      @back="stack = stack.slice(0, -1)"
       @open-chat="openDrilledProject"
     />
 
@@ -216,7 +247,7 @@ onBeforeUnmount(() => {
     <NodesInvitation
       v-if="isProjectEmpty"
       title="Nothing running in here yet"
-      :copy="`Ask for something in ${drilledProject?.name ?? 'this project'}'s chat and its sessions take their places here as the work happens.`"
+      :copy="`Ask for something in ${insideWorkspaceName ?? 'this project'}'s chat and its sessions take their places here as the work happens.`"
       cta="Open the chat"
       @act="openDrilledProject"
     />
@@ -244,7 +275,11 @@ onBeforeUnmount(() => {
           {{ option.label }}
         </button>
       </nav>
-      <p class="hint">hover a node for details · click to open it</p>
+      <!-- Says only what the screen does. It promised "hover a node for
+           details" and there is no tooltip — the hover grows the dot and
+           nothing more. The detail a tooltip would show now rides every
+           SceneNode; rendering it is Kafi's visual pass (D7). -->
+      <p class="hint">click a node to open it</p>
     </template>
   </div>
 </template>

@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import type { SceneNode } from "../../utils/constellation-scene.js";
+import { SCENE_STATUS_LABEL } from "../../composables/nodes/node-status.js";
 
 // Everything on one track toward done. Nothing reports progress until the
 // engine lands, so a working project sits mid-track and the rest wait at the
 // start; the lanes are honest about that. The runner keeps its eased `left`
 // transition so it glides the day real fractions arrive.
+//
+// The lane's WORDS are the shared ladder label, not a track position: this
+// reading kept a two-state "working / waiting to start" that the one-rule pass
+// fixed in the other two, so a failed project read as "waiting to start" beside
+// its own red dot (2026-08-19 audit, agent-4 §5a).
 defineProps<{ nodes: readonly SceneNode[] }>();
 </script>
 
@@ -20,9 +26,7 @@ defineProps<{ nodes: readonly SceneNode[] }>();
           >{{ node.initials }}</span
         >
       </span>
-      <span class="lane-state">{{
-        node.status === "building" ? "working" : "waiting to start"
-      }}</span>
+      <span class="lane-state">{{ SCENE_STATUS_LABEL[node.status] }}</span>
     </div>
   </div>
 </template>

@@ -6,6 +6,10 @@ import { z } from 'zod'
 import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 import { SESSION_SET_STATUSES } from '@vynel/contracts/chat/session-status'
+import {
+  SESSION_CHILD_KINDS,
+  SESSION_CHILD_STATUSES,
+} from '@vynel/contracts/chat/session-children'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
 
 export const SessionsOverviewSegmentSchema = z.object({
@@ -177,4 +181,24 @@ export const SessionsOverviewQuerySchema = z.object({
   workspaceId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+})
+
+// ── One conversation's children (session-hardening F3) ─────────────
+// Mirrors `@vynel/contracts/chat/session-children`. The node screen's third
+// level: the sessions this one spawned, the agent colleagues it ran and the
+// tasks it sent out. Nothing renders it yet — the door exists so that level
+// is a UI change alone.
+export const SessionChildSchema = z.object({
+  kind: z.enum(SESSION_CHILD_KINDS),
+  id: z.string(),
+  title: z.string(),
+  workspaceId: z.string().nullable(),
+  status: z.enum(SESSION_CHILD_STATUSES).nullable(),
+  createdAt: z.string(),
+  finishedAt: z.string().nullable(),
+})
+
+export const SessionChildrenResponseSchema = z.object({
+  sessionId: z.string(),
+  children: z.array(SessionChildSchema),
 })

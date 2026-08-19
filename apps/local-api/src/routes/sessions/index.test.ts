@@ -24,6 +24,7 @@ import {
   type NewChatMessage,
 } from '@vynel/chat/repositories'
 import { updateChatSessionSettings } from '@vynel/chat'
+import { enqueueWorkspaceDelegation } from '@vynel/orchestration'
 import { TurnEventBroadcaster } from '@vynel/session/delegation'
 import { sessionChannelKey } from '@vynel/session/runtime'
 import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
@@ -909,6 +910,76 @@ describe('the voice thread and the cross-session wall', () => {
         headers: { [TURN_SESSION_HEADER]: voiceThread.id },
       })
       expect(liftedDetail.status).toBe(200)
+    })
+  })
+})
+
+describe('GET /sessions/:sessionId/children', () => {
+  it('answers the conversation and the work it set going', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const now = new Date()
+      const workspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Acme',
+        kind: 'personal',
+        path: `/tmp/vynel/${randomUUID()}`,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const session = insertChatSession(db, makeSession(user.id, workspace.id))
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: session.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'Reconcile the July invoices',
+      })
+
+      const app = makeHarness(db)
+      const res = await app.request(`/sessions/${session.id}/children`)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        sessionId: string
+        children: Array<{ kind: string; title: string; status: string | null }>
+      }
+      expect(body.sessionId).toBe(session.id)
+      expect(body.children).toHaveLength(1)
+      expect(body.children[0]).toMatchObject({
+        kind: 'task',
+        title: 'Reconcile the July invoices',
+        status: 'queued',
+      })
+    })
+  })
+
+  it("404s on an unknown id and on another user's session alike (no enumeration leak)", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const stranger = seedUser(db)
+      const now = new Date()
+      const theirWorkspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: stranger.id,
+        name: 'Theirs',
+        kind: 'personal',
+        path: `/tmp/vynel/${randomUUID()}`,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const theirs = insertChatSession(db, makeSession(stranger.id, theirWorkspace.id))
+
+      // The harness's ambient user is the FIRST seeded one.
+      expect(user.id).not.toBe(stranger.id)
+      const app = makeHarness(db)
+      expect((await app.request('/sessions/no-such-session/children')).status).toBe(404)
+      expect((await app.request(`/sessions/${theirs.id}/children`)).status).toBe(404)
     })
   })
 })

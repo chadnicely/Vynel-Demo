@@ -37863,6 +37863,110 @@
         }
       }
     },
+    "/sessions/{sessionId}/children": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The conversation and its children, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "session",
+                              "agent-run",
+                              "task"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "queued",
+                              "running",
+                              "completed",
+                              "failed",
+                              null
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "finishedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "title",
+                          "workspaceId",
+                          "status",
+                          "createdAt",
+                          "finishedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "sessionId",
+                    "children"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown session, or not owned."
+          }
+        },
+        "operationId": "getSessionsBySessionIdChildren",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "One conversation's spawned sessions, agent runs and tasks.",
+        "x-sdk-name": "sessions.children"
+      }
+    },
     "/hub/session": {
       "get": {
         "responses": {

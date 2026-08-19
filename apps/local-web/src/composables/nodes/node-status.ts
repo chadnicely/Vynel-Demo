@@ -39,3 +39,18 @@ export function resolveNodeStatus(
       return "idle";
   }
 }
+
+/** One word per state, for every reading of this screen that shows words.
+ *
+ *  It lived in `NodesGrid` alone, so `NodesRace` kept a two-state label
+ *  ("working" / "waiting to start") that the one-rule pass never reached — a
+ *  failed project read as "waiting to start" beside its own red dot
+ *  (2026-08-19 audit, agent-4 §5a). Sharing the map is what stops the two
+ *  readings drifting apart again. */
+export const SCENE_STATUS_LABEL: Record<SceneNode["status"], string> = {
+  problem: "Needs attention",
+  building: "Working now",
+  waiting: "Waiting on you",
+  done: "All done",
+  idle: "Idle",
+};

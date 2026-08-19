@@ -22,7 +22,7 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { z } from 'zod'
 import { streamSSE } from 'hono/streaming'
 import { NotFoundError, ValidationError } from '@vynel/errors'
-import { getSessionsOverview } from '@vynel/session/overview'
+import { getSessionsOverview, listSessionChildren } from '@vynel/session/overview'
 import { createSpawnedSession } from '@vynel/session/spawned'
 import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
@@ -59,6 +59,7 @@ import {
   UpdateChatSessionSettingsRequestSchema,
   SetSessionStatusRequestSchema,
   SessionStatusResponseSchema,
+  SessionChildrenResponseSchema,
 } from './schemas.js'
 
 const SessionIdParamSchema = z.object({ sessionId: z.string().min(1) })
@@ -573,5 +574,44 @@ export const sessionsApp = factory
     async (c) => {
       const { sessionId } = c.req.valid('param')
       return streamSpawnedSessionTurn(c, sessionId, c.req.valid('json'))
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /:sessionId/children — what hangs off ONE conversation: the
+  // sessions it spawned, the agent colleagues it ran, and the tasks it
+  // sent out (session-hardening F3). The node screen's third level had no
+  // data source; the thread-keyed delegation trace answers a different
+  // question. Nothing renders it yet — the door exists so that level is a
+  // UI change alone.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/:sessionId/children',
+    describeRoute({
+      tags: ['sessions'],
+      summary: "One conversation's spawned sessions, agent runs and tasks.",
+      'x-sdk-name': 'sessions.children',
+      responses: {
+        200: {
+          description: 'The conversation and its children, oldest first.',
+          content: {
+            'application/json': { schema: resolver(SessionChildrenResponseSchema) },
+          },
+        },
+        404: { description: 'Unknown session, or not owned.' },
+      },
+      // No x-mcp — a UI door. The model reaches the same tree through the
+      // delegation trace and `list_sessions`.
+    }),
+    validator('param', SessionIdParamSchema),
+    ...userScoped,
+    (c) => {
+      const { sessionId } = c.req.valid('param')
+      const children = listSessionChildren(c.var.db, {
+        userId: c.var.user.id,
+        sessionId,
+      })
+      // Unknown and not-owned answer alike (no enumeration leak).
+      if (children === null) throw new NotFoundError('session', sessionId)
+      return c.json(children)
     },
   )

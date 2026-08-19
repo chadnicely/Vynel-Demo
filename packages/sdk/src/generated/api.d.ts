@@ -3898,6 +3898,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/{sessionId}/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One conversation's spawned sessions, agent runs and tasks. */
+        get: operations["getSessionsBySessionIdChildren"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/hub/session": {
         parameters: {
             query?: never;
@@ -18211,6 +18228,48 @@ export interface operations {
                 content?: never;
             };
             /** @description Unknown session, not owned, or not a spawned session. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSessionsBySessionIdChildren: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversation and its children, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sessionId: string;
+                        children: {
+                            /** @enum {string} */
+                            kind: "session" | "agent-run" | "task";
+                            id: string;
+                            title: string;
+                            workspaceId: string | null;
+                            /** @enum {string|null} */
+                            status: "queued" | "running" | "completed" | "failed" | null;
+                            createdAt: string;
+                            finishedAt: string | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unknown session, or not owned. */
             404: {
                 headers: {
                     [name: string]: unknown;
