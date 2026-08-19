@@ -171,3 +171,12 @@ prototype's own arithmetic exactly below their thresholds, asserted rather than 
 for n ≤ 10 · `constellationSlots(n)` = one full-radius ring at `-90° + i·360°/n` for n ≤ 12). The
 fleet bar's counts row is hidden while the level's polls are in flight — where it previously
 announced a number it had not read.
+
+### F → D (integration follow-up): the chain walk now has two homes
+
+`chainSegmentIdsOf` in `list-session-children.ts` reproduces `foldSessionChains`' walk — same
+membership test, same first-write-wins `childByParentId`, same head→tail traversal. Not calling the
+fold is deliberate and documented (it drops end-to-end-hidden chains, which is exactly the workspace
+build most likely to be asked about here), but the WALK itself wants one shared helper. F could not
+extract it: everything in `packages/session/src/overview/**` except the new file is D's. A
+`resolveChainSegments(rows, sessionId)` both call would be the clean landing.
