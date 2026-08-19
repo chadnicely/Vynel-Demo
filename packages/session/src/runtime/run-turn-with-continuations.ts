@@ -21,29 +21,42 @@
 // interrupted turn is the user's Stop — continuing would restart the work
 // they just halted (the house rule: Stop always wins at terminal time); an
 // errored turn would fire more turns into a failing engine. In both cases the
-// pending checkpoint is dropped (logged), and the next real message drives.
+// pending checkpoint is DROPPED VISIBLY (`dropPendingCheckpoint` — a note on
+// the thread, plus the log), and the next real message drives. The same drop
+// fires when the stream is cut short (a client disconnect, a thrown runner)
+// with a checkpoint still pending — nothing may hijack the next real turn.
 //
-// A GENUINE turn (the user's message, a delegated job) resets the depth guard
-// and drops a stale pending checkpoint (one an earlier turn left behind without
-// its continuation — a mid-turn disconnect); only automatic continuations
-// deepen the guard. Past `MAX_CONSECUTIVE_CONTINUATIONS` the pending checkpoint
-// is dropped and the loop stops — the next real message drives again.
+// A GENUINE turn (the user's message, a delegated job) resets the depth guard.
+// A checkpoint STILL PENDING when it starts is a survivor: the process died
+// between the checkpoint and its continuation (the register is the identity's
+// row — a restart forgets nothing). It is not dropped: this turn runs, and the
+// survivor is continued after it — the promised continuation is kept. Only
+// automatic continuations deepen the guard. Past `MAX_CONSECUTIVE_CONTINUATIONS`
+// the pending checkpoint is dropped and the loop stops — the next real message
+// drives again.
 //
 // `autoContinue: false` is the delivery/notify turn's shape (a report or note
 // absorbed by the identity — never work): the genuine turn runs, a checkpoint
-// the model still leaves is dropped, nothing continues.
+// the model still leaves DURING it is dropped, and a survivor from before it
+// is left alone — it belongs to the identity's next real turn, not to a
+// delivery.
 
+import type { Database } from '@vynel/db'
 import type { ChatTurnEvent } from '@vynel/chat'
 import type { StructuralLogger } from '@vynel/logger'
 import {
   beginContinuation,
   beginGenuineTurn,
+  dropPendingCheckpoint,
+  peekPendingCheckpoint,
   takePendingCheckpoint,
+  type DropPendingCheckpointReason,
   type PendingCheckpoint,
 } from '../continuity/index.js'
 import { composeContinuationTurn, type ContinuationTurn } from './continuation-turn.js'
 
 export type RunTurnWithContinuationsInput = {
+  db: Database
   primarySessionId: string
   /** Start one turn: the genuine turn when `continuation` is null, else the
    *  continuation (its persisted body, provider text and attribution). Called
@@ -53,6 +66,8 @@ export type RunTurnWithContinuationsInput = {
    *  checkpoint. Default true. */
   autoContinue?: boolean
   logger?: StructuralLogger
+  /** Injectable clock — the survivor/stray split reads it (tests). */
+  now?: () => Date
 }
 
 type TurnTerminal = 'completed' | 'interrupted' | 'errored' | 'none'
@@ -60,47 +75,59 @@ type TurnTerminal = 'completed' | 'interrupted' | 'errored' | 'none'
 export async function* runTurnWithContinuations(
   input: RunTurnWithContinuationsInput,
 ): AsyncIterable<ChatTurnEvent> {
-  const stale = beginGenuineTurn(input.primarySessionId)
-  if (stale !== null) {
-    input.logger?.warn(
-      { primarySessionId: input.primarySessionId, nextStep: stale.nextStep },
-      'stale checkpoint dropped — an earlier turn ended without its continuation',
+  const { db, primarySessionId } = input
+  const startedAt = (input.now ?? (() => new Date()))()
+  const survivor = beginGenuineTurn(db, primarySessionId)
+  if (survivor !== null) {
+    input.logger?.info(
+      { primarySessionId, nextStep: survivor.nextStep, checkpointedAt: survivor.checkpointedAt },
+      'a pending checkpoint survived from before this turn — it continues after it',
     )
   }
-  let terminal = yield* runOneTurn(input.runTurn(null))
-  for (;;) {
-    const checkpoint = takePendingCheckpoint(input.primarySessionId)
-    if (checkpoint === null) return
-    if (input.autoContinue === false) {
-      input.logger?.warn(
-        { primarySessionId: input.primarySessionId, nextStep: checkpoint.nextStep },
-        'checkpoint dropped — this turn kind never continues (a delivery, not work)',
+  const drop = (reason: DropPendingCheckpointReason): void => {
+    dropPendingCheckpoint(db, primarySessionId, {
+      reason,
+      ...(input.logger !== undefined ? { logger: input.logger } : {}),
+    })
+  }
+  let settled = false
+  try {
+    let terminal = yield* runOneTurn(input.runTurn(null))
+    for (;;) {
+      const checkpoint = peekPendingCheckpoint(db, primarySessionId)
+      if (checkpoint === null) break
+      if (input.autoContinue === false) {
+        // A survivor predates this delivery — not its to drop.
+        if (checkpoint.checkpointedAt >= startedAt) drop('delivery-turn')
+        break
+      }
+      if (terminal !== 'completed') {
+        drop(terminal === 'interrupted' ? 'turn-stopped' : 'turn-failed')
+        break
+      }
+      // The cap check + depth bookkeeping first, the consume after: a refused
+      // checkpoint is still on the row for the drop to note.
+      if (!beginContinuation(db, checkpoint)) {
+        drop('cap-reached')
+        break
+      }
+      takePendingCheckpoint(db, primarySessionId)
+      input.logger?.info(
+        { primarySessionId, depth: checkpoint.continuationDepth + 1 },
+        'continuing after a checkpoint',
       )
-      return
+      terminal = yield* runOneTurn(input.runTurn(composeContinuationTurn(checkpoint)))
     }
-    if (terminal !== 'completed') {
-      input.logger?.warn(
-        { primarySessionId: input.primarySessionId, nextStep: checkpoint.nextStep, terminal },
-        'checkpoint dropped — the turn did not complete (stopped or failed), so nothing continues',
-      )
-      return
-    }
-    if (!beginContinuation(checkpoint)) {
-      input.logger?.warn(
-        { primarySessionId: input.primarySessionId, depth: checkpoint.continuationDepth },
-        'checkpoint dropped — the automatic continuation cap was reached; the next real message continues',
-      )
-      return
-    }
-    input.logger?.info(
-      { primarySessionId: input.primarySessionId, depth: checkpoint.continuationDepth + 1 },
-      'continuing after a checkpoint',
-    )
-    terminal = yield* runOneTurn(input.runTurn(composeContinuationTurn(checkpoint)))
+    settled = true
+  } finally {
+    // Cut short (the consumer stopped reading, or a runner threw): whatever is
+    // still pending would hijack the next real turn's end — drop it, visibly.
+    if (!settled) drop('turn-cut-short')
   }
 }
 
 export type RunContinuingTurnInput = {
+  db: Database
   /** The continuing identity — null for a plain conversation (opened by id /
    *  fresh), which runs its one turn and never continues. */
   primarySessionId: string | null
@@ -129,6 +156,7 @@ export function runContinuingTurn(input: RunContinuingTurnInput): AsyncIterable<
   if (input.primarySessionId === null) return input.startOneTurn(input.resumeSessionId, null)
   const primarySessionId = input.primarySessionId
   return runTurnWithContinuations({
+    db: input.db,
     primarySessionId,
     runTurn: async function* (continuation) {
       if (continuation === null) {

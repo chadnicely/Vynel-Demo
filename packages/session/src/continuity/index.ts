@@ -62,8 +62,9 @@ export {
 } from './session-continuity-events.js'
 
 // The mid-turn context nudge (the provider's PostToolUse channel) + the
-// pending-checkpoint register the `checkpoint` tool writes and the runners
-// consume for the automatic continuation.
+// DURABLE pending-checkpoint register (the identity's own row) the `checkpoint`
+// tool writes and the runners consume for the automatic continuation, and the
+// one visible way to give a checkpoint up.
 export {
   buildContextNudge,
   composeContextNudgeText,
@@ -82,6 +83,12 @@ export {
   MAX_CONSECUTIVE_CONTINUATIONS,
   type PendingCheckpoint,
 } from './pending-checkpoints.js'
+export {
+  dropPendingCheckpoint,
+  composeDroppedCheckpointNote,
+  type DropPendingCheckpointInput,
+  type DropPendingCheckpointReason,
+} from './drop-pending-checkpoint.js'
 
 // The process-wide "swapping right now" register — the streams read it when
 // a turn parks behind an identity's lock (say "patching context", not "busy").

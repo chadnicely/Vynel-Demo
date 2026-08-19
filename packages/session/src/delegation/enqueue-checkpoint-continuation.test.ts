@@ -1,11 +1,13 @@
 // The delegated half of auto-continue, pinned on the real queue ops + real
 // SQLite: a completed work job whose turn left a checkpoint enqueues ONE
 // follow-up job of the same shape (target, chain, mode/model/effort, origin,
-// requester) carrying the continuation instruction; nothing pending → nothing
-// enqueued; a note never continues; the runaway cap holds; a genuine job start
-// drops a stale checkpoint.
+// requester) carrying the continuation instruction, and HANDS the checkpoint
+// to it on the identity's row (durable — the follow-up's claim after a
+// restart still continues); nothing pending → nothing enqueued; a note never
+// continues; the runaway cap holds; a genuine job start drops a left-behind
+// checkpoint visibly.
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
@@ -23,12 +25,11 @@ import {
 } from '@vynel/orchestration'
 import {
   MAX_CONSECUTIVE_CONTINUATIONS,
-  clearPendingCheckpoint,
   markPendingCheckpoint,
   peekPendingCheckpoint,
   takeContinuationJob,
 } from '../continuity/pending-checkpoints.js'
-import { insertPrimarySession } from '../repositories/index.js'
+import { findPrimarySessionById, insertPrimarySession } from '../repositories/index.js'
 import {
   beginDelegatedTurn,
   enqueueCheckpointContinuation,
@@ -36,11 +37,6 @@ import {
 } from './enqueue-checkpoint-continuation.js'
 
 const deps = { logger: pino({ level: 'silent' }) }
-const touched: string[] = []
-
-afterEach(() => {
-  for (const id of touched.splice(0)) clearPendingCheckpoint(id)
-})
 
 function seedUserAndWorkspace(db: Database) {
   const now = new Date()
@@ -88,7 +84,6 @@ describe('enqueueCheckpointContinuation', () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seedUserAndWorkspace(db)
       const primary = seedPrimary(db, user.id, workspace.id, 'workspace')
-      touched.push(primary.id)
       enqueueWorkspaceDelegation(db, {
         userId: user.id,
         parentSessionId: 'global-sdk-1',
@@ -106,7 +101,7 @@ describe('enqueueCheckpointContinuation', () => {
       completeDelegationJob(db, claimed.id, 'stopping here to swap', new Date())
 
       // The model checkpointed during the turn.
-      markPendingCheckpoint(primary.id, 'sum the July receipts')
+      markPendingCheckpoint(db, primary.id, 'sum the July receipts')
       const followUpId = enqueueCheckpointContinuation(db, claimed, deps)
       expect(followUpId).not.toBeNull()
       const followUp = findDelegationJobById(db, followUpId!)!
@@ -125,10 +120,15 @@ describe('enqueueCheckpointContinuation', () => {
       // The SHORT anchor row (the runners persist task text verbatim) — the
       // fuller instruction is the run's steer, keyed off the remembered mark.
       expect(followUp.taskText).toBe('Continuing after patching context — next: sum the July receipts')
-      expect(takeContinuationJob(followUp.id)?.nextStep).toBe('sum the July receipts')
-      // Consumed exactly once — a second call enqueues nothing.
-      expect(peekPendingCheckpoint(primary.id)).toBeNull()
+      // Handed to the follow-up ON THE ROW: the identity no longer sees it
+      // pending, the follow-up's claim takes it whole — a restart in between
+      // changes nothing (nothing lives in memory).
+      expect(peekPendingCheckpoint(db, primary.id)).toBeNull()
+      expect(findPrimarySessionById(db, primary.id)!.pendingCheckpointJobId).toBe(followUp.id)
       expect(enqueueCheckpointContinuation(db, claimed, deps)).toBeNull()
+      expect(takeContinuationJob(db, followUp.id)?.nextStep).toBe('sum the July receipts')
+      // Consumed exactly once.
+      expect(takeContinuationJob(db, followUp.id)).toBeNull()
     })
   })
 
@@ -136,7 +136,6 @@ describe('enqueueCheckpointContinuation', () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seedUserAndWorkspace(db)
       const spawned = seedPrimary(db, user.id, null, 'spawned')
-      touched.push(spawned.id)
       enqueueSessionDelegation(db, {
         userId: user.id,
         parentSessionId: 'global-sdk-1',
@@ -148,7 +147,7 @@ describe('enqueueCheckpointContinuation', () => {
       const claimed = claimNextPendingDelegationJob(db, new Date())!
       expect(resolveDelegatedJobIdentity(db, claimed)).toBe(spawned.id)
       completeDelegationJob(db, claimed.id, 'checkpointed', new Date())
-      markPendingCheckpoint(spawned.id, 'send the mailing')
+      markPendingCheckpoint(db, spawned.id, 'send the mailing')
       const followUp = findDelegationJobById(db, enqueueCheckpointContinuation(db, claimed, deps)!)!
       expect(followUp.targetPrimarySessionId).toBe(spawned.id)
       expect(followUp.workspaceId).toBeNull()
@@ -164,7 +163,6 @@ describe('enqueueCheckpointContinuation', () => {
       const { user, workspace } = seedUserAndWorkspace(db)
       // The colleague's continuing identity, grounded in the workspace.
       const colleague = seedPrimary(db, user.id, workspace.id, 'spawned')
-      touched.push(colleague.id)
       enqueueAgentRun(db, {
         userId: user.id,
         parentSessionId: 'chat-sdk-1',
@@ -181,7 +179,7 @@ describe('enqueueCheckpointContinuation', () => {
       expect(claimed.jobKind).toBe('agent-run')
       expect(resolveDelegatedJobIdentity(db, claimed)).toBe(colleague.id)
       completeDelegationJob(db, claimed.id, 'checkpointed', new Date())
-      markPendingCheckpoint(colleague.id, 'compare against June')
+      markPendingCheckpoint(db, colleague.id, 'compare against June')
       const followUp = findDelegationJobById(db, enqueueCheckpointContinuation(db, claimed, deps)!)!
       expect(followUp.jobKind).toBe('agent-run')
       expect(followUp.agentSlug).toBe('researcher')
@@ -193,6 +191,7 @@ describe('enqueueCheckpointContinuation', () => {
       expect(followUp.permissionMode).toBe('ask')
       expect(followUp.threadId).toBe(claimed.threadId)
       expect(followUp.taskText).toBe('Continuing after patching context — next: compare against June')
+      expect(takeContinuationJob(db, followUp.id)?.nextStep).toBe('compare against June')
       // A legacy agent-run row without a stamped target has no row-derived
       // identity (its workspace is the grounding) — the runner passes the
       // colleague it resolved.
@@ -223,7 +222,6 @@ describe('enqueueCheckpointContinuation', () => {
     await withTestDatabase((db) => {
       const { user } = seedUserAndWorkspace(db)
       const spawned = seedPrimary(db, user.id, null, 'spawned')
-      touched.push(spawned.id)
       enqueueNoteDelivery(db, {
         userId: user.id,
         senderSessionId: 'peer-sdk-1',
@@ -233,9 +231,9 @@ describe('enqueueCheckpointContinuation', () => {
       })
       const claimed = claimNextPendingDelegationJob(db, new Date())!
       expect(claimed.jobKind).toBe('note')
-      markPendingCheckpoint(spawned.id, 'should never run')
+      markPendingCheckpoint(db, spawned.id, 'should never run')
       expect(enqueueCheckpointContinuation(db, claimed, deps)).toBeNull()
-      expect(peekPendingCheckpoint(spawned.id)).toBeNull()
+      expect(peekPendingCheckpoint(db, spawned.id)).toBeNull()
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
     })
   })
@@ -244,7 +242,6 @@ describe('enqueueCheckpointContinuation', () => {
     await withTestDatabase((db) => {
       const { user } = seedUserAndWorkspace(db)
       const spawned = seedPrimary(db, user.id, null, 'spawned')
-      touched.push(spawned.id)
       enqueueSessionDelegation(db, {
         userId: user.id,
         parentSessionId: 'global-sdk-1',
@@ -259,7 +256,7 @@ describe('enqueueCheckpointContinuation', () => {
       // which must NOT reset the guard for a follow-up (it continues).
       for (let round = 0; round < MAX_CONSECUTIVE_CONTINUATIONS; round += 1) {
         completeDelegationJob(db, job.id, 'checkpointed', new Date())
-        markPendingCheckpoint(spawned.id, `step ${round + 1}`)
+        markPendingCheckpoint(db, spawned.id, `step ${round + 1}`)
         const followUpId = enqueueCheckpointContinuation(db, job, deps)
         expect(followUpId).not.toBeNull()
         job = claimNextPendingDelegationJob(db, new Date())!
@@ -267,13 +264,13 @@ describe('enqueueCheckpointContinuation', () => {
         expect(beginDelegatedTurn(db, job, deps).continuation?.nextStep).toBe(`step ${round + 1}`)
       }
       completeDelegationJob(db, job.id, 'checkpointed again', new Date())
-      markPendingCheckpoint(spawned.id, 'one too many')
+      markPendingCheckpoint(db, spawned.id, 'one too many')
       expect(enqueueCheckpointContinuation(db, job, deps)).toBeNull()
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
 
       // A genuine job on the same identity: the guard resets and a stale
       // checkpoint is dropped before the turn runs.
-      markPendingCheckpoint(spawned.id, 'left behind')
+      markPendingCheckpoint(db, spawned.id, 'left behind')
       enqueueSessionDelegation(db, {
         userId: user.id,
         parentSessionId: 'global-sdk-1',
@@ -283,9 +280,9 @@ describe('enqueueCheckpointContinuation', () => {
       })
       const genuine = claimNextPendingDelegationJob(db, new Date())!
       beginDelegatedTurn(db, genuine, deps)
-      expect(peekPendingCheckpoint(spawned.id)).toBeNull()
+      expect(peekPendingCheckpoint(db, spawned.id)).toBeNull()
       completeDelegationJob(db, genuine.id, 'checkpointed', new Date())
-      markPendingCheckpoint(spawned.id, 'continue the new task')
+      markPendingCheckpoint(db, spawned.id, 'continue the new task')
       expect(enqueueCheckpointContinuation(db, genuine, deps)).not.toBeNull()
     })
   })

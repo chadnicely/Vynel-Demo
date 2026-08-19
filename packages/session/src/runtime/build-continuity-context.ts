@@ -130,7 +130,7 @@ export function buildContinuityContext(
     sections.push(`LAST MESSAGES (verbatim, oldest first, newest last):\n${tail.lines.join('\n')}`)
   }
   // Peeked, never taken — the runner that continues the work consumes it.
-  const checkpoint = peekPendingCheckpoint(input.primarySessionId)
+  const checkpoint = peekPendingCheckpoint(db, input.primarySessionId)
   if (checkpoint !== null) {
     sections.push(
       `CHECKPOINT: you stopped here to swap contexts, mid-task. The next step you named: ${checkpoint.nextStep}`,

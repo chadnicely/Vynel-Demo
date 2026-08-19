@@ -15,11 +15,7 @@ import { insertChatSession, insertChatMessage, type NewChatMessage } from '@vyne
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { insertPrimarySession, type PrimarySessionScope } from '../repositories/index.js'
 import { buildContinuityContext, DEFAULT_TAIL_MESSAGE_LIMIT } from './build-continuity-context.js'
-import {
-  clearPendingCheckpoint,
-  markPendingCheckpoint,
-  peekPendingCheckpoint,
-} from '../continuity/pending-checkpoints.js'
+import { markPendingCheckpoint, peekPendingCheckpoint } from '../continuity/pending-checkpoints.js'
 import { listSessionChainTailMessages, resolveSessionChainOrigin } from './resolve-primary-transcript.js'
 
 function makeUser() {
@@ -196,18 +192,14 @@ describe('buildContinuityContext', () => {
       seedSegment(db, { sessionId: 'seg-a', userId: user.id, workspaceId: workspace.id, visibility: 'hidden' })
       const input = { primarySessionId: primary.id, userId: user.id, fromSdkSessionId: 'seg-a', summary: SUMMARY }
       expect(buildContinuityContext(db, input).carry).not.toContain('CHECKPOINT:')
-      markPendingCheckpoint(primary.id, 'sum the July receipts')
-      try {
-        const { carry } = buildContinuityContext(db, input)
-        const at = (needle: string) => carry.indexOf(needle)
-        expect(carry).toContain('CHECKPOINT: you stopped here to swap contexts, mid-task. The next step you named: sum the July receipts')
-        // Between the hand-off and the recovery instructions; still pending after.
-        expect(at('CHECKPOINT:')).toBeGreaterThan(at('HAND-OFF SUMMARY:'))
-        expect(at('HOW TO RECOVER MORE')).toBeGreaterThan(at('CHECKPOINT:'))
-        expect(peekPendingCheckpoint(primary.id)?.nextStep).toBe('sum the July receipts')
-      } finally {
-        clearPendingCheckpoint(primary.id)
-      }
+      markPendingCheckpoint(db, primary.id, 'sum the July receipts')
+      const { carry } = buildContinuityContext(db, input)
+      const at = (needle: string) => carry.indexOf(needle)
+      expect(carry).toContain('CHECKPOINT: you stopped here to swap contexts, mid-task. The next step you named: sum the July receipts')
+      // Between the hand-off and the recovery instructions; still pending after.
+      expect(at('CHECKPOINT:')).toBeGreaterThan(at('HAND-OFF SUMMARY:'))
+      expect(at('HOW TO RECOVER MORE')).toBeGreaterThan(at('CHECKPOINT:'))
+      expect(peekPendingCheckpoint(db, primary.id)?.nextStep).toBe('sum the July receipts')
     })
   })
 
