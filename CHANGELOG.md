@@ -9,6 +9,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Voice talks as it thinks.** Vynel now speaks the first sentence of its answer
+  the moment it is written — while it is still working out the rest — instead of
+  waiting to call a speaking tool after its work, and it never opens with a stock
+  "let me check" or "one moment": what you hear first is its real first sentence
+  about your request.
+- **Talk over it.** While Vynel is speaking you can just start talking: it stops
+  mid-sentence, listens, and answers the new thing — on the floating Jarvis
+  overlay and on the native voice daemon (which now filters out the echo of its
+  own voice instead of closing the mic). Closing or muting the overlay stops the
+  answer for good.
+- **Typed Voice chat is spoken per sentence** in the window, with a Stop button
+  for a running spoken turn.
 - **Autopilot.** The composer's Auto-buildout toggle now means something: when it
   is on, the assistant is told the user is probably away and keeps working on
   its own — making best-fit calls, researching with spawned agents when a

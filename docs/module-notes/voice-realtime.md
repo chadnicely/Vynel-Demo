@@ -53,6 +53,24 @@ Rules: house rules (CLAUDE.md); every change ships tests; targeted vitest/tsc on
 
 wake → answer starts speaking mid-generation · interrupt it mid-sentence by speaking → it stops, answers the new question · a long task: the model's own "I'll check your schedules" line (not a canned one) · the daemon leg with the Jarvis window off (native barge-in + echo filter: speaker near the mic) · typed panel turn speaks · a live call keeps working · watchdog still fires at 5 min.
 
-## Results
+## Results (lead, 2026-08-19)
 
-_(filled at integration)_
+Three slices landed on `feature/voice-realtime` (VR-A server · VR-B daemon + @vynel/voice · VR-C web), full
+gate green (108/108 typecheck · 5/5 parity · 892 files / 5 864 tests). Shipped: `voice-thread-tools.ts` denies
+`speak` on every voice-thread turn (one home; every other surface keeps it); `voice-turn.md` + marker = "heard as
+you write"; `SpokenSentenceBuffer` clause cut (~120 chars at , ; : / dash; never mid-word) + `LineSpeaker.speakStreamed`
+(first sentence plays while the model generates; N+1 synthesizes during N); shared `SpokenEchoFilter` (from the
+call leg) used by the daemon, the overlay and the call leg; the daemon driver: ASLEEP → ACTIVE → IN-TURN (mic OPEN
+while speaking; echo ignored; a real utterance cuts + `interruptTurn({sessionId})` + new turn; silence-based
+watchdog; late answer still spoken) → RELAYING (speak-tool lines, mic closed) → HANDED-OFF; `SpeechLane` serializes
+all daemon speech; the overlay plays per sentence with no ack, recognizer on while speaking (browser AEC +
+filter), cuts on the first real interim, interrupts by id, close/mute interrupts by id; the Voice chat panel speaks
+typed replies per sentence + Stop; "One moment." and the ack library deleted; call leg queues late replies (R2-F).
+Deviations from the plan, recorded: the overlay cuts on the first real INTERIM (not the final) so the assistant
+never talks over the user; `session-interrupted` is a quiet end on both legs (no apology after a Stop);
+`turn-updated` is an activity-feed frame, not on the SSE — the id comes from `session-created` /
+`user-message-persisted`; the daemon watchdog no longer aborts the read (both legs keep reading; the late
+answer is spoken). Known limits: native barge-in latency = VAD min-silence (~0.5 s, sherpa knob not env-wired) +
+STT; a per-call session has no server-side interrupt (scope spawned) — barge-in cuts playback only; the overlay
+leans on WebView2/Chrome AEC for its own playback (belt) + the filter (braces); a barge-in before the first
+id-bearing frame only aborts locally.
