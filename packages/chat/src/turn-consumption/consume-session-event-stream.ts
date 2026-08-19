@@ -150,8 +150,11 @@ export async function* consumeSessionEventStream(
     if (existingSession !== null) {
       const resumeSessionId = input.resumeSessionId
       const now = new Date()
+      // Find-or-insert by id (session-hardening A3c): a RETRIED delivery turn
+      // carries the same inbound id as its first attempt, whose row may already
+      // sit on this chain — re-use it, never append the report twice.
       userMessage = withTransaction(db, (tx) => {
-        const inserted = chatRepository.insertChatMessage(tx, {
+        const { message: inserted, inserted: isNew } = chatRepository.insertChatMessageIfAbsent(tx, {
           id: userMessageInput.id,
           sessionId: resumeSessionId,
           role: 'user',
@@ -171,7 +174,7 @@ export async function* consumeSessionEventStream(
           completedAt: now, // user messages are "complete" immediately
           createdAt: now,
         })
-        chatRepository.updateChatSession(tx, resumeSessionId, { lastMessageAt: now })
+        if (isNew) chatRepository.updateChatSession(tx, resumeSessionId, { lastMessageAt: now })
         return inserted
       })
       yield { kind: 'user-message-persisted', message: userMessage }

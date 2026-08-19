@@ -53,6 +53,11 @@ export type DelegateToWorkspaceRootInput = {
   /** The delegating (parent) session — the global root's current SDK session id. */
   parentSessionId: string
   userId: string
+  /** A STABLE id for this turn's inbound user row — a delivery job passes its
+   *  own id so a recoverable failure + requeue re-uses the report row it
+   *  already landed instead of appending it twice (session-hardening A3c).
+   *  Omit for a fresh random id. */
+  inboundMessageId?: string
   /** The workspace whose ROOT brain handles the task. */
   workspaceId: string
   /** The workspace folder on disk — the root's cwd. */
@@ -190,7 +195,11 @@ export async function delegateToWorkspaceRoot(
   const turnStream = consumeSessionEventStream({
     db,
     sessionEventStream,
-    userMessageInput: { id: randomUUID(), body: input.taskText, attachedImagesMetadata: null },
+    userMessageInput: {
+      id: input.inboundMessageId ?? randomUUID(),
+      body: input.taskText,
+      attachedImagesMetadata: null,
+    },
     userId: input.userId,
     workspaceId: input.workspaceId,
     workspacePath: input.workspacePath,

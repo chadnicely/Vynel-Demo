@@ -281,7 +281,8 @@ async function* runOneGlobalTurn(
     db: deps.db,
     sessionEventStream,
     userMessageInput: {
-      id: crypto.randomUUID(),
+      // A continuation persists its own anchor row — never the genuine turn's id.
+      id: continuation === null ? (input.userMessageId ?? crypto.randomUUID()) : crypto.randomUUID(),
       body: persistedUserMessageText,
       attachedImagesMetadata: attachedImagesMetadataFor(attachedImages),
       ...(attachedImages.length > 0 ? { attachedImages } : {}),

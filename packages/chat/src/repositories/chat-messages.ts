@@ -219,6 +219,21 @@ export function stampNewestUserMessageTraceKey(
     .run();
 }
 
+/** Persist a message unless a row with that id already exists — the
+ *  idempotent write behind a RETRIED turn: a delivery job carries a stable
+ *  inbound id per job (session-hardening A3c), so a recoverable failure +
+ *  requeue re-uses the report row it already landed instead of appending it
+ *  a second time (or crashing on the primary key). Returns the existing row
+ *  untouched when it exists. */
+export function insertChatMessageIfAbsent(
+  db: Database,
+  newMessage: NewChatMessage,
+): { message: ChatMessage; inserted: boolean } {
+  const existing = findChatMessageById(db, newMessage.id);
+  if (existing !== null) return { message: existing, inserted: false };
+  return { message: insertChatMessage(db, newMessage), inserted: true };
+}
+
 export function insertChatMessage(
   db: Database,
   newMessage: NewChatMessage,

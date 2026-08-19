@@ -117,6 +117,9 @@ export interface RunGlobalRootTurnInput {
   activityOrigin?: 'delegation'
   /** The delivery queue row driving this notify turn — liveness enrichment. */
   jobId?: string
+  /** A stable inbound-row id (the delivery job's) so a retried notify turn
+   *  never lands its report twice (session-hardening A3c). */
+  inboundMessageId?: string
   model?: string
   /** Surface-up: called for each `approval-requested` the brain's own turn emits (the
    *  core already RECORDED it — web notifier). The channel path pushes the card back
@@ -443,6 +446,7 @@ export async function runGlobalRootTurn(
         ...(input.channelReplyMarker !== undefined
           ? { channelReplyMarker: input.channelReplyMarker }
           : {}),
+        ...(input.inboundMessageId !== undefined ? { userMessageId: input.inboundMessageId } : {}),
         // The notify-turn variant (session-comms): the child's attribution on
         // the inbound row + the report-delivery steer.
         ...(input.inboundAttribution !== undefined
@@ -559,6 +563,7 @@ export function buildGlobalRootReportTurnRunner(
       steerPromptAppend: input.steerInstructions ?? REPORT_DELIVERY_INSTRUCTIONS,
       activityOrigin: 'delegation',
       ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
+      ...(input.inboundMessageId !== undefined ? { inboundMessageId: input.inboundMessageId } : {}),
     })
     return { sessionId: turn.sessionId, resultText: turn.resultText }
   }

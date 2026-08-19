@@ -99,6 +99,9 @@ export type RunGlobalRootReportTurn = (input: {
   steerInstructions?: string
   /** The delivery queue row — the notify turn's liveness enrichment. */
   jobId?: string
+  /** The stable inbound-row id for this delivery (its job id): a retried notify
+   *  turn re-uses the report row it already landed (A3c). */
+  inboundMessageId?: string
   /** The delivery's cap clock (A3): the runner marks it parked/resolved from
    *  the turn's own approval events, so a card the human takes 12 minutes to
    *  answer never counts against the cap — the workspace branch's parity. */
@@ -331,6 +334,7 @@ export async function runReportDeliveryJob(
               ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               steerInstructions,
               jobId: claimed.id,
+              inboundMessageId: claimed.id,
               waitGate,
               onSessionResolved: (sdkSessionId) => {
                 cancelHandle?.sessionResolved(sdkSessionId)
@@ -426,6 +430,9 @@ export async function runReportDeliveryJob(
               // interim status without treating the task as done; a system
               // notification wears 'system' — the quiet UI row).
               inboundAttribution: { sourceKind: inboundSourceKind, sourceLabel },
+              // The job id is the inbound row's id: a recoverable failure +
+              // requeue re-uses the report row instead of appending it (A3c).
+              inboundMessageId: claimed.id,
               steerInstructions,
               // A delivery is never work: no context nudge (nothing continues it).
               armContextNudge: false,

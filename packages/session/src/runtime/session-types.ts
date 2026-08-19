@@ -114,6 +114,10 @@ export interface RunGlobalRootTurnCoreInput {
    *  per-message marker rides the provider input. The callers resolve it
    *  from the row (`input ?? row`) like the other settings. */
   autoBuildout?: boolean
+  /** A STABLE id for this turn's inbound user row (a report delivery passes
+   *  its job id) so a retried notify turn re-uses the row it already landed
+   *  (session-hardening A3c). Omit for a fresh random id. */
+  userMessageId?: string
   /** Pre-composed MCP servers (composed by the apps/api caller — composition stays
    *  at the api edge per `api-side-turn-execution-with-mcp`). Opaque to the core. */
   mcpServers: Record<string, unknown>
