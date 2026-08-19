@@ -368,11 +368,13 @@ describe('buildContinuityContext', () => {
         "the user's voice conversation — the continuing spoken thread above all workspaces",
       )
       // Each line clips to 600 chars + a marker (~615 with the label); 5,000
-      // total fits eight of them — the newest eight (lines 5..12).
+      // total fits eight of them — the newest eight (lines 5..12). Nothing older
+      // was admitted, so no gap marker: a tail is a suffix by definition.
       expect(context.tailMessageCount).toBe(8)
       expect(context.carry).toContain('[user] line 12 ')
       expect(context.carry).toContain('[user] line 5 ')
       expect(context.carry).not.toContain('[user] line 4 ')
+      expect(context.carry).not.toContain('omitted here')
     })
   })
 
@@ -407,9 +409,14 @@ describe('buildContinuityContext', () => {
       expect(context.carry).not.toContain('[user] long 3 ')
       expect(context.carry).toContain('[user] short 2 fits')
       expect(context.carry).toContain('[user] short 1 fits')
-      // Chronological once composed: the short lines come first.
+      // Chronological once composed, and the skip is MARKED where it sits —
+      // the model never reads "short 2" as adjacent to "long 4".
       const carry = context.carry
-      expect(carry.indexOf('[user] short 1 fits')).toBeLessThan(carry.indexOf('[user] long 4 '))
+      const marker = '[… 1 message omitted here (over the tail budget) …]'
+      expect(carry).toContain(marker)
+      expect(carry.indexOf('[user] short 2 fits')).toBeLessThan(carry.indexOf(marker))
+      expect(carry.indexOf(marker)).toBeLessThan(carry.indexOf('[user] long 4 '))
+      expect(carry.indexOf('[user] short 1 fits')).toBeLessThan(carry.indexOf('[user] short 2 fits'))
     })
   })
 })

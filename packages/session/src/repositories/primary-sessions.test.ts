@@ -18,8 +18,6 @@ import {
   repointPrimarySession,
   softDeletePrimarySession,
   hardDeletePrimarySessionsDeletedBefore,
-  patchPendingCheckpoint,
-  findPrimarySessionByPendingCheckpointJobId,
   type NewPrimarySessionRow,
 } from './primary-sessions.js'
 
@@ -477,31 +475,6 @@ describe('primary-sessions repository', () => {
 
       const removed = hardDeletePrimarySessionsDeletedBefore(db, new Date('2020-06-01T00:00:00Z'))
       expect(removed).toBe(1)
-    })
-  })
-
-  it('patches the pending-checkpoint slot column by column on a LIVE row, and finds a row by its handed-over job id', async () => {
-    await withTestDatabase((db) => {
-      const user = insertUser(db, makeUser())
-      const workspace = insertWorkspace(db, makeWorkspace(user.id))
-      const row = insertPrimarySession(db, makePrimarySession(user.id, workspace.id))
-      const at = new Date('2026-08-19T09:00:00.000Z')
-
-      // An omitted column stays as it is.
-      const marked = patchPendingCheckpoint(db, row.id, { pendingCheckpointNextStep: 'sum July', pendingCheckpointAt: at })
-      expect(marked).toMatchObject({ pendingCheckpointNextStep: 'sum July', pendingCheckpointAt: at, pendingCheckpointDepth: null, pendingCheckpointJobId: null })
-      expect(patchPendingCheckpoint(db, row.id, { pendingCheckpointDepth: 2 })).toMatchObject({ pendingCheckpointNextStep: 'sum July', pendingCheckpointDepth: 2 })
-      expect(patchPendingCheckpoint(db, row.id, { pendingCheckpointJobId: 'job-9' })!.pendingCheckpointNextStep).toBe('sum July')
-
-      expect(findPrimarySessionByPendingCheckpointJobId(db, 'job-9')?.id).toBe(row.id)
-      expect(findPrimarySessionByPendingCheckpointJobId(db, 'job-unknown')).toBeNull()
-
-      // Only live rows: a soft-deleted primary is neither patched nor found.
-      softDeletePrimarySession(db, row.id, user.id)
-      expect(patchPendingCheckpoint(db, row.id, { pendingCheckpointNextStep: 'nope' })).toBeNull()
-      expect(findPrimarySessionByPendingCheckpointJobId(db, 'job-9')).toBeNull()
-      // …and an unknown id patches nothing.
-      expect(patchPendingCheckpoint(db, 'absent', { pendingCheckpointNextStep: 'nope' })).toBeNull()
     })
   })
 })

@@ -57,7 +57,7 @@ export type ContinuityContext = {
   carry: string
   /** The identity line, exposed for logs + tests. */
   identityLine: string
-  /** How many verbatim messages made it into the tail. */
+  /** How many verbatim messages made it into the tail (gap markers not counted). */
   tailMessageCount: number
 }
 
@@ -138,10 +138,13 @@ export function buildContinuityContext(
   }
   sections.push(recoveryInstructions(dutyBook))
 
-  return { carry: sections.join('\n\n'), identityLine, tailMessageCount: tail.lines.length }
+  return { carry: sections.join('\n\n'), identityLine, tailMessageCount: tail.messageCount }
 }
 
-function readTail(db: Database, input: BuildContinuityContextInput): { lines: string[] } {
+function readTail(
+  db: Database,
+  input: BuildContinuityContextInput,
+): { lines: string[]; messageCount: number } {
   const limit = input.tailMessageLimit ?? DEFAULT_TAIL_MESSAGE_LIMIT
   const messages = listSessionChainTailMessages(db, {
     userId: input.userId,
@@ -151,18 +154,35 @@ function readTail(db: Database, input: BuildContinuityContextInput): { lines: st
   const spoken = messages.filter((message) => message.body.trim().length > 0).slice(-limit)
   const lines: string[] = []
   let total = 0
+  let admitted = 0
+  let omittedRun = 0
   // Newest first while budgeting (the latest exchange matters most), then
   // restored to chronological order for the model. A line that would overflow
   // the budget is SKIPPED, not the end of the tail: one long message must not
   // cut off every shorter one behind it — the tail is the half of the carry
-  // the distill cannot reconstruct (audit C5, 2026-08-19).
+  // the distill cannot reconstruct (audit C5, 2026-08-19). A skip between two
+  // admitted lines leaves a budget-free marker in its place, so the tail never
+  // reads an adjacency that did not happen; skips older than the oldest
+  // admitted line need none (a tail is a suffix by definition).
   for (const message of [...spoken].reverse()) {
     const line = formatTailLine(message)
-    if (total + line.length > TAIL_TOTAL_MAX_CHARS) continue
+    if (total + line.length > TAIL_TOTAL_MAX_CHARS) {
+      omittedRun += 1
+      continue
+    }
+    if (omittedRun > 0) {
+      lines.unshift(omittedMarker(omittedRun))
+      omittedRun = 0
+    }
     lines.unshift(line)
     total += line.length
+    admitted += 1
   }
-  return { lines }
+  return { lines, messageCount: admitted }
+}
+
+function omittedMarker(count: number): string {
+  return `[… ${count} ${count === 1 ? 'message' : 'messages'} omitted here (over the tail budget) …]`
 }
 
 // One line per message: whitespace is flattened so the tail scans as a

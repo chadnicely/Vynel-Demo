@@ -31,9 +31,12 @@ export type DropPendingCheckpointReason =
   | 'turn-cut-short'
   /** `MAX_CONSECUTIVE_CONTINUATIONS` automatic continuations already ran. */
   | 'cap-reached'
-  /** A delivery / notify turn absorbed a report — never work, never continues. */
-  | 'delivery-turn'
-  /** A delegated run ended without enqueuing its follow-up (failed, timed out, or died). */
+  /** A turn kind that never continues work automatically (a delivery / notify
+   *  turn absorbing a report, a note, a voice turn) left a checkpoint anyway. */
+  | 'never-continues'
+  /** An earlier turn left it pending without its continuation — a delegated
+   *  run that ended before enqueuing its follow-up, a survivor another origin
+   *  found first. */
   | 'left-behind'
 
 const REASON_TEXT: Record<DropPendingCheckpointReason, string> = {
@@ -41,8 +44,8 @@ const REASON_TEXT: Record<DropPendingCheckpointReason, string> = {
   'turn-failed': 'the turn failed',
   'turn-cut-short': 'the turn was cut short',
   'cap-reached': 'the automatic continuation limit was reached',
-  'delivery-turn': 'a delivery turn never continues work',
-  'left-behind': 'the run that planned it ended without continuing',
+  'never-continues': 'this kind of turn never continues work automatically',
+  'left-behind': 'an earlier turn ended without continuing it',
 }
 
 /** The visible row's text — the sibling of the anchor "Continuing after

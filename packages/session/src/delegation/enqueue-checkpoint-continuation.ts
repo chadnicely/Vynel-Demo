@@ -59,7 +59,10 @@ export type DelegatedTurnStart = {
  *  a checkpoint without its follow-up job means the run that planned it never
  *  completed (it failed, timed out, or died in a restart), and that failure is
  *  the tick's / boot recovery's to report — resurrecting its next step after
- *  an unrelated job would redo work the requester was told had failed.
+ *  an unrelated job would redo work the requester was told had failed. (On a
+ *  workspace primary the leftover may instead be the user's own interactive
+ *  survivor that a job found first — dropped the same way, worded neutrally;
+ *  the note tells the user either way.)
  *  `primarySessionId` overrides the row-derived identity when the runner
  *  resolved it itself (an agent run's colleague primary). */
 export function beginDelegatedTurn(
@@ -102,7 +105,7 @@ export function enqueueCheckpointContinuation(
   const checkpoint = peekPendingCheckpoint(db, primarySessionId)
   if (checkpoint === null) return null
   if (job.jobKind === 'note') {
-    dropPendingCheckpoint(db, primarySessionId, { reason: 'delivery-turn', logger: deps.logger })
+    dropPendingCheckpoint(db, primarySessionId, { reason: 'never-continues', logger: deps.logger })
     return null
   }
   const followUpJobId = withTransaction(db, (tx) => {

@@ -337,12 +337,12 @@ describe('runTurnWithContinuations', () => {
         }),
       )
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.objectContaining({ nextStep: 'a delivery never continues', reason: 'delivery-turn' }),
+        expect.objectContaining({ nextStep: 'a delivery never continues', reason: 'never-continues' }),
         expect.stringContaining('checkpoint dropped'),
       )
       expect(peekPendingCheckpoint(db, primary)).toBeNull()
       expect(noteBodies(db)).toEqual([
-        'Not continued — the next step was: a delivery never continues (a delivery turn never continues work). Ask to continue when you want it picked up.',
+        'Not continued — the next step was: a delivery never continues (this kind of turn never continues work automatically). Ask to continue when you want it picked up.',
       ])
     })
   })

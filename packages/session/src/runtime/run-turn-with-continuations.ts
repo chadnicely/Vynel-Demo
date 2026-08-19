@@ -102,7 +102,7 @@ export async function* runTurnWithContinuations(
       const checkpoint = peekPendingCheckpoint(db, primarySessionId)
       if (checkpoint === null) break
       if (input.autoContinue === false) {
-        drop(checkpoint, 'delivery-turn')
+        drop(checkpoint, 'never-continues')
         break
       }
       if (terminal !== 'completed') {
