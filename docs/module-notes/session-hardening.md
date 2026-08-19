@@ -109,7 +109,7 @@ there); comments explain WHY; files ≤ ~300 lines (split when a change would cr
 
 ## 6. Cross-slice asks (append here instead of editing another owner's file)
 
-### F → lead: three files outside F's ownership were touched, all purely APPENDED
+### F → lead: **F edited three files outside its ownership.** All purely APPENDED
 
 F3 (`GET /sessions/:id/children`) needs a parent-keyed read of `delegation_jobs`, and
 `@vynel/orchestration` exports only `.` — so neither a deep import nor a session-side Drizzle read
@@ -155,3 +155,19 @@ as `detail`, carried and unrendered. Rendering it is one component away.
 ## 7. Results
 
 _(filled at integration)_
+
+### F → lead: one DELIBERATE visual change inside the no-visual-change slice
+
+F1(e). `NodesRace` rendered `node.status === "building" ? "working" : "waiting to start"`, so four of
+the five states read "waiting to start" — a failed project said that beside its own red dot. Race now
+uses the same `SCENE_STATUS_LABEL` map as `NodesGrid`, so its words change for every state except
+`building`: "Needs attention" / "Waiting on you" / "All done" / "Idle". That is the fix, not a
+regression, but it is the one place the screen genuinely reads differently and the lead should have
+it from F rather than find it.
+
+Everything else is provably unchanged at today's counts: the three layout formulas reproduce the
+prototype's own arithmetic exactly below their thresholds, asserted rather than described in
+`constellation-layout.test.ts` (`orbitLaneIndex(i) === i` for i < 7 · `riseStep(n, W) === 1300·0.115`
+for n ≤ 10 · `constellationSlots(n)` = one full-radius ring at `-90° + i·360°/n` for n ≤ 12). The
+fleet bar's counts row is hidden while the level's polls are in flight — where it previously
+announced a number it had not read.

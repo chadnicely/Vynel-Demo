@@ -157,8 +157,10 @@ describe("NodesView", () => {
     // The crumb pair: the way back, and where you are standing.
     expect(wrapper.find("button.crumb").text()).toContain("All projects");
     expect(wrapper.find(".crumb-here").text()).toBe("Evernote");
-    // The room has no conversations yet, so the level offers its own door.
+    // The room has no conversations yet, so the level offers its own door,
+    // named for the room rather than the level's core label.
     expect(wrapper.text()).toContain("Nothing running in here yet");
+    expect(wrapper.text()).toContain("Ask for something in Evernote's chat");
 
     await wrapper.find("button.crumb").trigger("click");
     await flushPromises();
