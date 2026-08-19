@@ -118,10 +118,12 @@ function readStoredThinkingEffort(): ComposerThinkingEffort {
     : DEFAULT_THINKING_EFFORT;
 }
 
-// Auto buildout — the canvas's composer toggle. NOTHING READS IT YET (Kafi,
-// 2026-08-15: "we don't have functions yet but add that"): it is a persisted
-// preference waiting for the build engine, deliberately not a dead switch that
-// forgets itself. Off by default — a build that runs itself is opt-in.
+// Auto buildout — the canvas's composer toggle, and since the session-hardening
+// arc it means AUTOPILOT (Kafi's D8): the turn is told the user is probably not
+// available, to continue by itself and make the best-fit call, researching with
+// spawned agents when a decision needs grounding, and to set `needs_input` if
+// it gets stuck. Resolved like the other settings and inherited by children.
+// Off by default — a build that runs itself is opt-in.
 function readStoredAutoBuildout(): boolean {
   return localStorage.getItem(COMPOSER_AUTO_BUILDOUT_STORAGE_KEY) === "on";
 }

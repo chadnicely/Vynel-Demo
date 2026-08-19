@@ -109,7 +109,35 @@ there); comments explain WHY; files ≤ ~300 lines (split when a change would cr
 
 ## 6. Cross-slice asks (append here instead of editing another owner's file)
 
-_(empty)_
+### From D (monitoring identity, voice status, interrupt, root routes)
+
+**Edits D made outside its ownership** (all forced by a contract change; each is one
+mechanical line, declared so the lead can check them at merge):
+
+1. `apps/local-api/src/routes/sessions/schemas.ts` — `SessionsOverviewEntrySchema` gains
+   `primarySessionId: z.string().nullable()`. Without it the OpenAPI/SDK entry type drifts from
+   `SessionsOverviewEntry` and the web client's assignment stops typechecking. **F rebases after D
+   here** (F appends the children route's schemas to the same file — different location).
+2. `apps/local-web/src/views/DesktopControlOverlayView.vue` — `root.interruptTurn()` →
+   `root.interruptTurn({})` (the route now takes an optional JSON body). Behaviour-identical.
+3. Entry test FIXTURES gained `primarySessionId: null`: `composables/chat/context-occupancy.test.ts`,
+   `views/sessions-view.test.ts` (both outside D's list; the other three were D's own).
+
+**Asks for other slices:**
+
+- **C (or whoever owns the overlay's Stop gate):** `DesktopControlOverlayView.vue:114-121` decides
+  `canStop` with `turn.primarySessionId === null` — "a root turn names no identity". Once C stamps
+  `primarySessionId` on GLOBAL turns that is never true, so the overlay's Stop silently disables for
+  the global root. It needs the identity comparison the rest of the app now uses (the overlay's
+  tracked-turn fold carries no `sessionId`, so it also cannot use D3's `sessionId` body yet).
+- **C:** `chat-turn.ts` still begins WITHOUT `primarySessionId`, and D's `{ kind: 'workspace' }`
+  identity depends on that absence to exclude sessions spawned in the room. If workspace turns ever
+  start stamping it, workspace binding silently stops working — change the predicate in the same move
+  (`apps/local-web/src/composables/activity/match-turn-to-identity.ts`).
+- **Unowned, low priority:** `listRunningSessionTurnsForUser`
+  (`packages/session/src/repositories/session-turns.ts`, re-exported from `runtime/index.ts`) lost its
+  only caller with `/activity/running` (D5). Its own repo tests still pass; left in place because
+  `packages/session/src/repositories` is not D's.
 
 ## 7. Results
 
