@@ -109,7 +109,34 @@ there); comments explain WHY; files ≤ ~300 lines (split when a change would cr
 
 ## 6. Cross-slice asks (append here instead of editing another owner's file)
 
-_(empty)_
+**From C (streams & bounds):**
+
+- **A — `run-global-root-turn-core.ts:93`:** derive the lock key through the new
+  `rootTurnLockKey(userId, isVoiceTurn)` (exported from `@vynel/session/runtime`, defined in
+  `root-turn-lock.ts`) instead of the inline template — the stream asks `isRootTurnLockBusy` about
+  the same key before it parks; one home for the shape.
+- **A — `run-global-root-turn-core.ts:202` (`?? 'bypass-with-behavior-gate'`):** the SSE stream
+  now ALWAYS passes a resolved `permissionMode` (`input ?? row ?? DEFAULT_SESSION_MODE`), so
+  this fallback is unreachable from the web/voice path; A5's `?? DEFAULT` change covers the channel
+  runner. C added the minimal `autoBuildout?: boolean` on `RunGlobalRootTurnCoreInput`
+  (`session-types.ts`, unowned) — identical to A's planned addition; keep one.
+- **B — `resolveTurnSessionSettings` (B1):** once it returns `autoBuildout`, collapse the one local
+  read in `apps/local-api/src/streams/interactive-turn-settings.ts` (`input.autoBuildout ??
+  row?.autoBuildout`) to `resolved.autoBuildout`. The streams already pass `autoBuildout` into
+  `startChatTurn` / the core via an optional spread, so B's `StartChatTurnInput.autoBuildout` +
+  A's core field light it up at merge with no further stream edit.
+- **D — `apps/local-api/src/routes/root/index.test.ts`:** C corrected two expectations its stream
+  changes invalidated (voice runs the tier: model `claude-sonnet-5` / effort `low` / mode `auto`;
+  a fresh mode-less global turn runs `auto`, resolved by the stream). Same lines A's core-default
+  change would have touched — resolve any merge conflict toward these values.
+- **B (`use-session-settings` / VoiceChatPanel) — FYI:** the server now forces the tier on every
+  `voice: true` turn (both `/root/turn` and `/sessions/:id/turn`) and ignores the body's
+  mode/model/effort/autoBuildout — read-only chips are honest by construction.
+- **E (`apps/voice`) — FYI:** `POST /sessions/:id/turn` accepts `voice: true` (Wave 0 field) and
+  now enforces the tier on it; the call client should send it (E5). The daemon can also expect a
+  `turn-queued { reason: 'busy' }` frame from `/root/turn` (E6) and a
+  `session-errored { errorCode: 'turn-wall-clock-exceeded' }` frame when the interactive clock
+  cuts a turn off.
 
 ## 7. Results
 

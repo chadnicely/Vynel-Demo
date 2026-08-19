@@ -84,6 +84,13 @@ dismissing, or ignoring (timeout).
    - **Boot recovery:** a pending ask whose awaiting process died is unanswerable — on boot,
      mark stale pending rows `expired` (the approvals recover precedent) so the UI never shows
      a zombie wizard.
+   *Revised by the session-hardening arc (2026-08-19, decision D5):* interactive asks now carry
+   a GENEROUS bound — `VYNEL_INTERACTIVE_ASK_MAX_MS` (2 h) on the descriptor — plus a 60 s
+   reaper (`asks-recovery-service`) for rows whose waiter died. A decision Claude asked for is
+   still never fabricated quickly; but a form the user walked away from must not hold the
+   thread's single-writer lock for the process lifetime. A parked ask suspends the owning
+   turn's wall clock. `ask_user` is NOT attached on the voice thread (the model asks in
+   speech).
 2. **App turns only in v1** — headless turns (schedule fires, channel inbound) don't get the
    tool; the prompt tells Claude to use sensible defaults there. Channel Q&A is a later arc.
    *Revised by the tool-policy arc (2026-08-14):* channel turns now DO attach `ask_user` with a
