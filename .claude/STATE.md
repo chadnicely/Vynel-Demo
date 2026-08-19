@@ -3,7 +3,23 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-20 (latest) BACKGROUND TURNS — `feature/background-turns` (global schedules run · schedule settings/lock/cap · channel wall clock · rail by identity), FULL GATE GREEN
+## ✅ 2026-08-20 (latest) SCHEDULE-FIRE FRAMING + AskUserQuestion DENY — `feature/schedule-fire-framing` (main b42ae81b), FULL GATE GREEN
+
+Kafi's live smoke of the fixed global schedules exposed the next layer: the fired prompt ("Remind me for tea")
+arrived as a PLAIN USER row — Claude read it as the user asking, self-answered a native `AskUserQuestion` in 14 ms
+(auto returns the input unchanged, so the form always resolves EMPTY) and "set a timer" with `sleep 900` in bash.
+Shipped: ONE fire frame decided in the leaf (`fire-schedule.ts` — injected `renderScheduleFireMarker`, instruction
+`schedule-fire-marker.md`: scheduler firing "<name>" now (<local time>), NOT the user typing, a reminder is
+DELIVERED now — never a timer/sleep/question) applied on both paths (workspace: `providerUserMessageText` +
+`messageAttribution system/"Schedule · <name>"`; global: `channelReplyMarker` + `inboundAttribution` + a new
+`autoContinue` override so the system attribution keeps nudge/continuation); the persisted row is the plain prompt
+as a quiet system notice (label home `@vynel/contracts scheduleSourceLabel`, swept into the failed-run notice);
+`AskUserQuestion` is in `disallowedTools` on EVERY session (providers, always-on union — `ask_user` is the real
+question channel). **Owed by Kafi:** re-run the Tea schedule (arrives as 📅 Schedule · Tea, reminder spoken/said
+immediately). **Open decision (Kafi):** expose create/update/enable/disable schedule tools to chat so "remind me
+for tea" TYPED in chat creates a real schedule (reverses D14's no-mutating half; fire-now stays unexposed).
+
+## ✅ 2026-08-20 BACKGROUND TURNS — `feature/background-turns` (global schedules run · schedule settings/lock/cap · channel wall clock · rail by identity), FULL GATE GREEN
 
 Kafi: "the schedule feature doesn't work now" + go on round-2 R2-A/B/C. Root cause found in the dev DB: every GLOBAL
 custom schedule failed "workspace not found." — `fire-schedule.ts` refused a non-verbatim turn without a workspace
