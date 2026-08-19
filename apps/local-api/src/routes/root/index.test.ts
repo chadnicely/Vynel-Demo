@@ -191,6 +191,30 @@ function seedGlobalSession(db: Database, userId: string, sessionId: string) {
   )
 }
 
+/** A session in any scope — the interrupt door's owner + scope gate is what
+ *  these seed rows exercise. */
+function seedScopedSession(
+  db: Database,
+  userId: string,
+  sessionId: string,
+  scope: 'global' | 'voice' | 'workspace',
+  workspaceId: string | null = null,
+) {
+  return insertChatSession(
+    db,
+    buildNewChatSessionRow({
+      sessionId,
+      userId,
+      workspaceId,
+      providerId: 'claude',
+      startedAt: new Date(),
+      title: 'A conversation',
+      visibility: 'hidden',
+      scope,
+    }),
+  )
+}
+
 describe('GET /root/continuing', () => {
   it('returns nulls before the first global-root turn, then the linked ids', async () => {
     await withTestDatabase(async (db) => {
@@ -996,13 +1020,24 @@ describe('POST /root/delegations/:partialSessionId/stop', () => {
   })
 })
 
+function postInterrupt(
+  app: ReturnType<typeof makeHarness>,
+  body: { sessionId?: string } = {},
+) {
+  return app.request('/root/turn/interrupt', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 describe('POST /root/turn/interrupt', () => {
-  it('interrupts the linked global-root session; no-ops before one exists', async () => {
+  it('with no session id: interrupts the linked global-root head; no-ops before one exists', async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)
       const app = makeHarness(db)
 
-      const before = await app.request('/root/turn/interrupt', { method: 'POST' })
+      const before = await postInterrupt(app)
       expect(await before.json()).toEqual({ interrupted: false })
       expect(interruptChatSessionMock).not.toHaveBeenCalled()
 
@@ -1014,9 +1049,59 @@ describe('POST /root/turn/interrupt', () => {
         sdkSessionId: 'g-run-1',
       })
 
-      const after = await app.request('/root/turn/interrupt', { method: 'POST' })
+      const after = await postInterrupt(app)
       expect(await after.json()).toEqual({ interrupted: true })
       expect(interruptChatSessionMock).toHaveBeenCalledWith('g-run-1')
+    })
+  })
+
+  // The Voice chat panel's Stop: before D3 it reached the GLOBAL session (a
+  // control on one thread killing work on another, since the lock split lets
+  // both run at once).
+  it('with a voice session id: interrupts THAT session, never the global head', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const app = makeHarness(db)
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id })
+      seedGlobalSession(db, user.id, 'g-run-1')
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: 'g-run-1',
+      })
+      seedScopedSession(db, user.id, 'voice-seg-1', 'voice')
+
+      const res = await postInterrupt(app, { sessionId: 'voice-seg-1' })
+      expect(await res.json()).toEqual({ interrupted: true })
+      expect(interruptChatSessionMock).toHaveBeenCalledWith('voice-seg-1')
+      expect(interruptChatSessionMock).not.toHaveBeenCalledWith('g-run-1')
+    })
+  })
+
+  it('404s an unknown, a foreign, and an out-of-scope session — the same answer, no enumeration leak', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const stranger = seedUser(db)
+      const app = makeHarness(db)
+      seedScopedSession(db, stranger.id, 'their-global', 'global')
+      const ws = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Acme',
+        kind: 'personal',
+        path: '/tmp/vynel/acme',
+        isArchived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastAccessedAt: new Date(),
+      })
+      seedScopedSession(db, user.id, 'room-seg-1', 'workspace', ws.id)
+
+      for (const sessionId of ['nope', 'their-global', 'room-seg-1']) {
+        const res = await postInterrupt(app, { sessionId })
+        expect(res.status).toBe(404)
+      }
+      expect(interruptChatSessionMock).not.toHaveBeenCalled()
     })
   })
 })
@@ -1081,6 +1166,47 @@ describe('GET /root/voice-chat/* (the spoken thread UI doors)', () => {
         await app.request('/root/transcript')
       ).json()) as { messages: { body: string }[] }
       expect(globalTranscript.messages.map((m) => m.body)).not.toContain('traffic in dhaka?')
+    })
+  })
+})
+
+// The Voice chat surface's own status read (session-hardening D2): the spoken
+// thread wears the same status mark as any conversation, WITHOUT riding
+// `GET /sessions/overview` — which is also the `list_sessions` tool.
+describe('GET /root/voice-chat/status', () => {
+  it('nulls before the first spoken turn, then serves the voice entry with its facts', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = makeHarness(db)
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-root-'))
+
+      const before = (await (await app.request('/root/voice-chat/status')).json()) as {
+        entry: unknown
+      }
+      expect(before.entry).toBeNull()
+
+      const voiceSdkSessionId = nextSdkSessionId
+      await withVynelUserDataDir(dataDir, async () => {
+        const spoken = await app.request('/root/turn', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userMessageText: 'traffic in dhaka?', voice: true }),
+        })
+        await spoken.text()
+      })
+
+      const after = (await (await app.request('/root/voice-chat/status')).json()) as {
+        entry: {
+          sessionId: string
+          primarySessionId: string | null
+          scope: string
+          statusFacts: { pendingApprovalCount: number }
+        } | null
+      }
+      expect(after.entry?.sessionId).toBe(voiceSdkSessionId)
+      expect(after.entry?.scope).toBe('voice')
+      expect(after.entry?.primarySessionId).not.toBeNull()
+      expect(after.entry?.statusFacts.pendingApprovalCount).toBe(0)
     })
   })
 })

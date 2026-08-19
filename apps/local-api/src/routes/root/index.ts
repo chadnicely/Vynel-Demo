@@ -4,24 +4,25 @@
 //
 //   GET  /continuing            -> resolve the global root conversation (landing helper)
 //   GET  /transcript            -> the global root conversation history (cold-start hydration)
+//   GET  /voice-chat/*          -> the spoken thread's own doors (voice-chat.ts)
 //   GET  /trace/:partialSessionId -> TIER 1: the condensed delegation trace
 //   GET  /trace/:partialSessionId/stream -> observe a LIVE delegation's turn (SSE)
 //   GET  /sessions/:sessionId   -> TIER 2: one owned session in full (trace drill-down)
 //   GET  /sessions/:sessionId/transcript -> a folded chain's full history (Sessions panel)
 //   GET  /delegations           -> the user's in-flight delegations (processing indicator)
 //   POST /turn                  -> start a global-root turn; SSE stream (LLM-native routing)
+//   POST /turn/interrupt        -> stop a running global/voice turn (interrupt.ts)
 //
 // None opts into MCP: the turn is not a tool surface, and the reads are UI
 // landing/liveness helpers. Locked Hono protocol: `describeRoute` from the local
 // openapi.js wrapper, `validator` from `hono-openapi/zod`, chained methods on
-// `factory.createApp()`.
+// `factory.createApp()`. The voice doors and the interrupt live in their own
+// files and compose here via `.route('/', ...)` (the `files` sub-app idiom) —
+// the split kept this file inside the size cap (session-hardening D4).
 
 import { resolver, validator } from 'hono-openapi/zod'
 import { streamSSE } from 'hono/streaming'
-import {
-  findPrimaryConversation,
-  findVoicePrimarySessionForUser,
-} from '@vynel/session/continuity'
+import { findPrimaryConversation } from '@vynel/session/continuity'
 import {
   listInFlightDelegations,
   findDelegationJobByPartialSessionId,
@@ -35,6 +36,8 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { streamGlobalRootTurn } from '../../streams/global-root-turn.js'
+import { voiceChatRoutes } from './voice-chat.js'
+import { interruptRoutes } from './interrupt.js'
 import {
   resolvePrimaryTranscript,
   resolveSessionChainTranscript,
@@ -55,11 +58,12 @@ import {
   ChatSessionDetailResponseSchema,
   ListInFlightDelegationsResponseSchema,
   StopDelegationResponseSchema,
-  InterruptGlobalTurnResponseSchema,
 } from './schemas.js'
 
 export const rootApp = factory
   .createApp()
+  .route('/', voiceChatRoutes)
+  .route('/', interruptRoutes)
   // ──────────────────────────────────────────────────────────────────
   // GET /continuing — resolve the global root conversation (read-only;
   // nulls until the first global-root turn creates it). Wire keys keep
@@ -128,77 +132,6 @@ export const rootApp = factory
           resolvePrimaryTranscript(c.var.db, { userId: c.var.user.id }),
         ),
       ),
-  )
-  // ──────────────────────────────────────────────────────────────────
-  // The VOICE thread's UI doors (voice-session arc) — the spoken twin of the
-  // two routes above. UI-only (no x-mcp): the tool surface stays behind the
-  // cross-session wall; these are how the Voice chat menu reads its own area.
-  // ──────────────────────────────────────────────────────────────────
-  .get(
-    '/voice-chat/continuing',
-    describeRoute({
-      tags: ['root'],
-      summary:
-        'Resolve the voice conversation (read-only; nulls until the first voice turn creates it).',
-      'x-sdk-name': 'root.getVoiceContinuing',
-      responses: {
-        200: {
-          description:
-            '{ rootSessionId, currentSdkSessionId, lastMessageAt } — the voice thread identity; nulls when nothing was ever spoken.',
-          content: {
-            'application/json': { schema: resolver(ContinuingConversationResponseSchema) },
-          },
-        },
-      },
-    }),
-    ...userScoped,
-    (c) => {
-      const voiceSession = findVoicePrimarySessionForUser(c.var.db, c.var.user.id)
-      const currentSessionId = voiceSession?.currentSdkSessionId ?? null
-      const current =
-        currentSessionId === null ? null : findChatSessionById(c.var.db, currentSessionId)
-      return c.json({
-        rootSessionId: voiceSession?.id ?? null,
-        currentSdkSessionId: currentSessionId,
-        lastMessageAt: current?.lastMessageAt.toISOString() ?? null,
-      })
-    },
-  )
-  .get(
-    '/voice-chat/transcript',
-    describeRoute({
-      tags: ['root'],
-      summary: 'Get the voice conversation history (messages across swap segments).',
-      'x-sdk-name': 'root.getVoiceTranscript',
-      responses: {
-        200: {
-          description:
-            '{ session, messages, toolCallsByMessageId } — the spoken thread, chain-spanning like /transcript.',
-          content: {
-            'application/json': { schema: resolver(ContinuingTranscriptResponseSchema) },
-          },
-        },
-      },
-    }),
-    ...userScoped,
-    (c) => {
-      const voiceSession = findVoicePrimarySessionForUser(c.var.db, c.var.user.id)
-      const headSessionId = voiceSession?.currentSdkSessionId ?? null
-      if (headSessionId === null) {
-        return c.json({ session: null, messages: [], toolCallsByMessageId: {} })
-      }
-      // The same chain walk the continuing threads use, started from the voice
-      // head — the wall stays down only for this owner-scoped UI door.
-      return c.json(
-        enrichPrimaryTranscript(
-          c.var.db,
-          resolveSessionChainTranscript(c.var.db, {
-            userId: c.var.user.id,
-            headSessionId,
-          }),
-        ),
-      )
-    },
   )
   // ──────────────────────────────────────────────────────────────────
   // GET /trace/:partialSessionId — TIER 1: the condensed delegation trace
@@ -468,36 +401,4 @@ export const rootApp = factory
     validator('json', StartGlobalRootTurnRequestSchema),
     ...userScoped,
     async (c) => streamGlobalRootTurn(c, c.req.valid('json')),
-  )
-  // ──────────────────────────────────────────────────────────────────
-  // POST /turn/interrupt — stop the global root's RUNNING turn server-side.
-  // The composer's Stop used to only abort the client stream: the server-side
-  // turn kept running detached to completion (and could keep delegating).
-  // This is the missing lever — resolve the brain's current SDK session and
-  // interrupt it through the provider (the workspace interrupt's sibling).
-  // ──────────────────────────────────────────────────────────────────
-  .post(
-    '/turn/interrupt',
-    describeRoute({
-      tags: ['root'],
-      summary: "Interrupt the global root's running turn (the workspace interrupt's sibling).",
-      'x-sdk-name': 'root.interruptTurn',
-      responses: {
-        200: {
-          description: '{ interrupted } — false when no global-root session exists yet.',
-          content: {
-            'application/json': { schema: resolver(InterruptGlobalTurnResponseSchema) },
-          },
-        },
-      },
-      // No x-mcp — a human stop control, never an agent tool.
-    }),
-    ...userScoped,
-    async (c) => {
-      const primary = findPrimaryConversation(c.var.db, { userId: c.var.user.id })
-      const sessionId = primary?.currentSdkSessionId ?? null
-      if (sessionId === null) return c.json({ interrupted: false })
-      await interruptChatSession(DEFAULT_PROVIDER_ID, sessionId)
-      return c.json({ interrupted: true })
-    },
   )
