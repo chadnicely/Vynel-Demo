@@ -7,3 +7,7 @@ export {
   loadSessionInstruction,
   type SessionInstructionId,
 } from './load-session-instruction.js'
+export {
+  renderScheduleFireMarker,
+  type RenderScheduleFireMarkerInput,
+} from './render-schedule-fire-marker.js'

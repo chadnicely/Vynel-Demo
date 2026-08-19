@@ -5,7 +5,12 @@
 // `FireScheduleDeps` (startChatTurn + MCP/capability composition) and drives it
 // on the per-minute interval.
 
-export type { StructuralLogger, FireScheduleDeps, FiredTurnSettings } from './schedules-types.js'
+export type {
+  StructuralLogger,
+  FireScheduleDeps,
+  FiredTurnSettings,
+  ScheduleFireFrame,
+} from './schedules-types.js'
 
 // Row types — the HTTP serializers type their inputs against these (the
 // channels `Channel` re-export precedent). Repositories stay internal.

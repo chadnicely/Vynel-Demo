@@ -28,12 +28,17 @@ import { resolveInstructionsContentDirectory } from '../content-root.js'
 // is the per-message directive for a session whose `autoBuildout` setting is on
 // (Kafi 2026-08-19: "Claude needs to know he is on autopilot — the user is
 // probably not available; continue by yourself; if stuck, set needs_input").
+// `schedule-fire-marker` frames a FIRED schedule prompt as the scheduler
+// speaking (2026-08-20: an unframed fire read as the user asking, so the model
+// asked back and set a sleep timer) — it carries `{{scheduleName}}` /
+// `{{firedAtLocal}}` placeholders, filled by `renderScheduleFireMarker`.
 export type SessionInstructionId =
   | 'global-root'
   | 'workspace-agent'
   | 'voice-turn'
   | 'voice-turn-marker'
   | 'autopilot-marker'
+  | 'schedule-fire-marker'
 
 const cache = new Map<SessionInstructionId, string>()
 

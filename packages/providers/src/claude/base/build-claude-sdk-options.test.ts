@@ -70,10 +70,13 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.resume).toBe('sess-9')
   })
 
-  it('sets allowedTools / disallowedTools only when the name lists are non-empty', () => {
+  // test: correct expectation for disallowedTools — was "absent when the deny
+  // list is empty"; now every session denies the unanswerable natives, so the
+  // option is always present (AskUserQuestion has no Vynel answer channel).
+  it('sets allowedTools only when non-empty; disallowedTools always carries the caller denials + the unanswerable natives', () => {
     const empty = buildClaudeSdkOptions({ ...base, permissionMode: 'ask' })
     expect(empty.allowedTools).toBeUndefined()
-    expect(empty.disallowedTools).toBeUndefined()
+    expect(empty.disallowedTools).toEqual(['AskUserQuestion'])
 
     const withTools = buildClaudeSdkOptions({
       ...base,
@@ -82,7 +85,27 @@ describe('buildClaudeSdkOptions', () => {
       deniedToolNames: ['Bash'],
     })
     expect(withTools.allowedTools).toEqual(['Read'])
-    expect(withTools.disallowedTools).toEqual(['Bash'])
+    expect(withTools.disallowedTools).toEqual(['Bash', 'AskUserQuestion'])
+  })
+
+  it('always disallows AskUserQuestion — no Vynel answer channel — without duplicating a caller denial', () => {
+    // canUseTool answers the native form via `updatedInput.answers`; our
+    // callback returns allow-unchanged (auto) or cards an approval (ask), so
+    // the form always resolves EMPTY — the model asks and hears silence. The
+    // real question channel stays mcp__vynel-ask__ask_user.
+    const alreadyDenied = buildClaudeSdkOptions({
+      ...base,
+      permissionMode: 'auto',
+      deniedToolNames: ['AskUserQuestion', 'mcp__vynel__speak'],
+    })
+    expect(alreadyDenied.disallowedTools).toEqual(['AskUserQuestion', 'mcp__vynel__speak'])
+
+    // Every mode, not just the unattended ones — interactive asks go through
+    // the vynel-ask card flow too.
+    for (const permissionMode of ['ask', 'auto', 'bypass', 'bypass-with-behavior-gate', 'plan-only'] as const) {
+      const options = buildClaudeSdkOptions({ ...base, permissionMode })
+      expect(options.disallowedTools, permissionMode).toContain('AskUserQuestion')
+    }
   })
 
   it('forwards mcpServers verbatim with NO mcp__ entries in allowedTools', () => {

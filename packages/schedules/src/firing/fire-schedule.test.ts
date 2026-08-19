@@ -11,6 +11,7 @@ import {
 } from '../test-support.js'
 import { fireSchedule } from './fire-schedule.js'
 import { listScheduleRunsForSchedule } from '../repositories/index.js'
+import { formatScheduledTime } from '../rendering/render-schedule-channel-message.js'
 import type { StubFireDeps } from '../test-support.js'
 import type { ChatTurnEvent, ChatSessionResponse } from '@vynel/contracts/chat/chat-http'
 
@@ -264,10 +265,19 @@ describe('fireSchedule — a GLOBAL custom schedule runs a GLOBAL-ROOT turn (bac
 
       expect(run.status).toBe('completed')
       expect(run.chatSessionId).toBe('global-sdk-1') // the global turn's session, bound to the run
-      // The GLOBAL path: the rendered prompt is the root's user message; no
+      // The GLOBAL path: the rendered prompt is the root's user message —
+      // plus the fire frame (schedule-fire framing): the marker for the
+      // provider input, the schedule's system-notice label for the row. No
       // workspace turn, no workspace MCP composition.
       expect(deps.state.globalTurns).toEqual([
-        { userId: schedule.userId, userMessageText: 'Sweep my inbox, Dana.' },
+        {
+          userId: schedule.userId,
+          userMessageText: 'Sweep my inbox, Dana.',
+          frame: {
+            marker: `(SCHEDULE-FIRE Inbox sweep @ ${formatScheduledTime(new Date('2026-08-20T08:00:00Z'), 'UTC')})`,
+            sourceLabel: 'Schedule · Inbox sweep',
+          },
+        },
       ])
       expect(startChatTurn).not.toHaveBeenCalled()
       expect(deps.state.builtMcpServer).toBe(false)
@@ -372,6 +382,86 @@ describe('fireSchedule — a GLOBAL custom schedule runs a GLOBAL-ROOT turn (bac
       expect(run.chatSessionId).toBeNull()
       expect(deps.state.globalTurns).toEqual([])
       expect(startChatTurn).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('fireSchedule — the fire frame (schedule-fire framing: the scheduler speaks, never the user)', () => {
+  it('a fired WORKSPACE turn: the model reads prompt + marker, the row persists the plain prompt as a schedule system notice', async () => {
+    startChatTurn.mockImplementation(() => fakeChatTurn('sess-framed', 'brewed'))
+    await withTestDatabase(async (db) => {
+      const schedule = seedChatOnlySchedule(db) // 'Morning briefing', UTC
+      const deps = { ...stubFireDeps(), startChatTurn }
+      const scheduledFireAt = new Date('2026-08-20T08:00:00Z')
+
+      await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt, triggerKind: 'poll' },
+        deps,
+      )
+
+      // The marker was rendered from THIS schedule's facts — its display name
+      // and the fire time in the schedule's OWN timezone (the channel
+      // header's formatter, the one home).
+      const firedAtLocal = formatScheduledTime(scheduledFireAt, schedule.timezone)
+      expect(deps.state.renderedMarkers).toEqual([
+        { scheduleDisplayName: 'Morning briefing', firedAtLocal },
+      ])
+      const callInput = startChatTurn.mock.calls[0]?.[1]
+      // Persisted body = the plain rendered prompt (what the user set up)…
+      expect(callInput.userMessageText).toBe('Good morning, Dana.')
+      // …the MODEL reads the frame appended to it (provider input only)…
+      expect(callInput.providerUserMessageText).toBe(
+        `Good morning, Dana.\n\n(SCHEDULE-FIRE Morning briefing @ ${firedAtLocal})`,
+      )
+      // …and the row is attributed to the schedule (the UI's quiet system
+      // notice), never "You".
+      expect(callInput.messageAttribution).toEqual({
+        userSourceKind: 'system',
+        userSourceLabel: 'Schedule · Morning briefing',
+      })
+    })
+  })
+
+  it('a fired GLOBAL turn carries the same frame: marker + system-notice label beside the plain prompt', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedGlobalCustomSchedule(db, { displayName: 'Tea', promptTemplate: 'Remind me for tea' })
+      const deps = { ...stubFireDeps(), startChatTurn }
+      const scheduledFireAt = new Date('2026-08-20T14:00:00Z')
+
+      await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt, triggerKind: 'poll' },
+        deps,
+      )
+
+      const firedAtLocal = formatScheduledTime(scheduledFireAt, schedule.timezone)
+      expect(deps.state.renderedMarkers).toEqual([{ scheduleDisplayName: 'Tea', firedAtLocal }])
+      expect(deps.state.globalTurns).toEqual([
+        {
+          userId: schedule.userId,
+          userMessageText: 'Remind me for tea',
+          frame: {
+            marker: `(SCHEDULE-FIRE Tea @ ${firedAtLocal})`,
+            sourceLabel: 'Schedule · Tea',
+          },
+        },
+      ])
+    })
+  })
+
+  it('a verbatim reminder renders NO marker — there is no model to frame for', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedReminderSchedule(db)
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'manual' },
+        deps,
+      )
+
+      expect(deps.state.renderedMarkers).toEqual([])
     })
   })
 })

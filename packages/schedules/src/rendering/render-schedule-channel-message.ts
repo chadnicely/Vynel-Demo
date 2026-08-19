@@ -17,7 +17,10 @@ export function renderScheduleChannelMessage(
   return `${header}\n\n${assistantText}`
 }
 
-function formatScheduledTime(date: Date, timezone: string): string {
+/** The one home for rendering a fire time in the schedule's own timezone —
+ *  the channel header above and the fired prompt's model-facing frame both
+ *  read it, so "when it fired" never renders two ways. */
+export function formatScheduledTime(date: Date, timezone: string): string {
   try {
     return new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,

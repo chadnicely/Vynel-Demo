@@ -23,6 +23,7 @@
 // every producer resuming a workspace's continuing conversation attaches the
 // same server set (the deferred-tool "server disconnected" class).
 
+import { renderScheduleFireMarker } from '@vynel/instructions/session-instructions'
 import { ApprovalWaitGate } from '@vynel/orchestration'
 import {
   startChatTurn,
@@ -208,6 +209,11 @@ export async function buildScheduleFireDeps(
   // runner channels use. The runner holds the per-user root lock itself and
   // arms the cap inside it (`wallClock` — the delegated knob here, where the
   // channels pass the interactive one), announcing on the feed as a schedule.
+  // The fire FRAME (schedule-fire framing) maps onto the runner's existing
+  // seams: the marker rides the per-message marker slot (provider input only),
+  // the row is attributed to the schedule as a system notice, and the explicit
+  // `autoContinue` keeps the fire a WORK turn — attribution alone would demote
+  // it to a delivery turn.
   const startGlobalRootTurn: FireScheduleDeps['startGlobalRootTurn'] = async (turnDb, input) =>
     runGlobalRootTurn(
       {
@@ -221,6 +227,9 @@ export async function buildScheduleFireDeps(
       {
         userId: input.userId,
         userMessageText: input.userMessageText,
+        channelReplyMarker: input.frame.marker,
+        inboundAttribution: { sourceKind: 'system', sourceLabel: input.frame.sourceLabel },
+        autoContinue: true,
         activityOrigin: 'schedule',
         wallClock: { maxMs: hardCapMs },
         ...(input.onSessionResolved !== undefined
@@ -235,6 +244,10 @@ export async function buildScheduleFireDeps(
     composeSessionCapabilities,
     resolveWorkspaceTurnSettings,
     startGlobalRootTurn,
+    // The fire marker's words + placeholders live with the instruction file
+    // (@vynel/instructions) — the leaf composes the frame but must not import
+    // a sibling leaf, so the renderer is handed in here.
+    renderScheduleFireMarker,
     // The session runtime's `startChatTurn` yields the RUNTIME `ChatTurnEvent`
     // (Date timestamps, `ChatSession` rows) and takes the narrower provider
     // mode / provider id types; `FireScheduleDeps['startChatTurn']` is typed

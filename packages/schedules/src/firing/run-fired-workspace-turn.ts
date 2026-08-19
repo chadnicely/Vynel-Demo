@@ -21,11 +21,15 @@ import { findWorkspaceById } from '@vynel/db/repositories/workspaces'
 import { NotFoundError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
 import type { Schedule } from '../repositories/index.js'
-import type { FireScheduleDeps } from '../schedules-types.js'
+import type { FireScheduleDeps, ScheduleFireFrame } from '../schedules-types.js'
 
 export interface RunFiredWorkspaceTurnInput {
   schedule: Schedule & { workspaceId: string }
   renderedPrompt: string
+  /** The fire frame the executor composed (schedule-fire framing): the model
+   *  reads prompt + marker, the persisted row is the plain prompt attributed
+   *  to the schedule as a system notice. */
+  frame: ScheduleFireFrame
   scheduleRunId: string
   /** Called with the chat session id as soon as the stream names one (and
    *  again on a mid-turn swap) — the executor binds it to the run row. */
@@ -76,6 +80,13 @@ export async function runFiredWorkspaceTurn(
       workspacePath: workspace.path,
       providerId: DEFAULT_PROVIDER_ID,
       userMessageText: renderedPrompt,
+      // The frame (schedule-fire framing): what the MODEL reads carries the
+      // fire marker; the persisted row stays the plain prompt, attributed to
+      // the schedule so the transcript shows a quiet system notice — an
+      // unframed fire rendered as "You · <prompt>" and the model treated the
+      // instruction as the user asking.
+      providerUserMessageText: `${renderedPrompt}\n\n${input.frame.marker}`,
+      messageAttribution: { userSourceKind: 'system', userSourceLabel: input.frame.sourceLabel },
       scheduleRunId,
       permissionMode: settings.permissionMode,
       ...(settings.model !== undefined ? { model: settings.model } : {}),

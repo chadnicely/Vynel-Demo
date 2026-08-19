@@ -112,8 +112,10 @@ export interface RunGlobalRootTurnInput {
   origin?: DelegationOrigin
   /** The inbound channel's kind — stamped on the persisted user row ("via Telegram"). */
   originChannel?: 'telegram' | 'discord' | 'zoom'
-  /** The per-message reply instruction (channel pipeline; voice-turn-marker
-   *  precedent) — appended to PROVIDER input only, never the persisted row. */
+  /** The per-message marker (channel pipeline; voice-turn-marker precedent) —
+   *  appended to PROVIDER input only, never the persisted row. Channels pass
+   *  the reply-through-the-tool instruction; a schedule fire passes its fire
+   *  frame (schedule-fire framing). */
   channelReplyMarker?: string
   /** REPORT-DELIVERY notify turn (session-comms): the inbound message is a
    *  child's report — attribute its row as coming FROM that child. Omit → the
@@ -128,6 +130,12 @@ export interface RunGlobalRootTurnInput {
   /** REPORT-DELIVERY notify turn: the report-delivery steer, appended to the
    *  system prompt. Omit → the shipped prompt. */
   steerPromptAppend?: string
+  /** Override the delivery-turn derivation below. Omitted, an ATTRIBUTED
+   *  inbound (`inboundAttribution` set) is treated as a delivery the root
+   *  absorbs — no context nudge, no automatic continuation. A schedule fire
+   *  passes `true`: its row is attributed (the scheduler speaking, a system
+   *  notice) but the turn IS work and keeps the genuine-turn machinery. */
+  autoContinue?: boolean
   /** The liveness-feed origin for this turn. Omit → the channel kind, else
    *  'web' (the shipped behavior); the report-delivery runner passes
    *  'delegation', a global schedule fire passes 'schedule' (BT1), so the
@@ -569,8 +577,14 @@ export async function runGlobalRootTurn(
           ? { steerPromptAppend: input.steerPromptAppend }
           : {}),
         // A delivery turn (a child's report / update absorbed by the root)
-        // is never work: no context nudge, no automatic continuation.
-        ...(input.inboundAttribution !== undefined ? { autoContinue: false } : {}),
+        // is never work: no context nudge, no automatic continuation. The
+        // caller's explicit `autoContinue` wins — a schedule fire is
+        // attributed AND work (schedule-fire framing).
+        ...(input.autoContinue !== undefined
+          ? { autoContinue: input.autoContinue }
+          : input.inboundAttribution !== undefined
+            ? { autoContinue: false }
+            : {}),
         mcpServers: composedMcp.mcpServers,
         deniedMcpToolPatterns: composedMcp.deniedMcpToolPatterns,
         mutatingToolNames: composedMcp.mutatingToolNames,

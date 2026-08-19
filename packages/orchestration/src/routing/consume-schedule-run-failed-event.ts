@@ -6,6 +6,7 @@
 // core's registry is the seam (loose cross-domain contract: the payload shape
 // is re-declared here, field-for-field with the producer).
 
+import { scheduleSourceLabel } from '@vynel/contracts/schedules/schedule-source-label'
 import { enqueueReportDelivery } from './enqueue-report-delivery.js'
 import type { Database } from '@vynel/db'
 
@@ -30,7 +31,7 @@ export function consumeScheduleRunFailedEvent(
     // Loose provenance ref (never a FK) — there may be no chat session at all
     // when the fire failed before the turn started.
     reporterSessionId: `schedule:${payload.scheduleId}`,
-    reporterLabel: `Schedule · ${payload.scheduleDisplayName}`,
+    reporterLabel: scheduleSourceLabel(payload.scheduleDisplayName),
     reportBody:
       `The scheduled task "${payload.scheduleDisplayName}" failed to run at ${payload.firedAt}: ` +
       `${payload.errorMessage}. Tell the user it failed, and if the cause is something they can ` +
