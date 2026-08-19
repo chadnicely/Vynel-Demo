@@ -11,8 +11,8 @@ edit after a **restart**.
 |---|---|
 | `global-root.md` | The global brain — the router above all workspaces (web + voice + channel root turns). |
 | `workspace-agent.md` | The assistant working inside a workspace — appended to every workspace chat turn (including resumed ones). |
-| `voice-turn.md` | A modifier appended on top of `global-root.md` for voice turns only. |
-| `voice-turn-marker.md` | The one-line sibling of `voice-turn.md`, appended to a voice turn's USER MESSAGE (provider input only) — on a long root session the system-prompt block decays and the model slips back to text-only replies; the per-message restatement keeps `speak` in recency. |
+| `voice-turn.md` | A modifier appended on top of `global-root.md` for voice turns only. The spoken thread's text IS its voice (the client speaks the streamed deltas), so the `speak` tool is NOT attached on a voice turn — this file teaches the spoken style and says the tool is gone. |
+| `voice-turn-marker.md` | The one-line sibling of `voice-turn.md`, appended to a voice turn's USER MESSAGE (provider input only) — on a long root session the system-prompt block decays and the model slips back to essay-shaped replies; the per-message restatement keeps the spoken style, and the "no `speak` tool" line, in recency (the thread's own transcript is full of the model's older `speak` calls, and a resumed turn will copy them). |
 
 ## Rules for editing these files
 

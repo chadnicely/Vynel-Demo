@@ -708,6 +708,39 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
     })
   })
 
+  it('a VOICE turn carries the speak DENY and yields its session id before the first chunk (VR1 / A3)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-voice-tools-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-voice-tools')
+        const app = createApp({ db, logger: silentLogger })
+
+        const frames = await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'what did she say', voice: true })
+        ).text()
+        // The call leg speaks the streamed text, so the tool that would say it
+        // again is denied — regardless of which branch composed this turn.
+        expect(startChatSessionInputs[0]!.deniedToolNames).toContain('mcp__vynel__speak')
+        // The barge-in contract: a resumed turn's user row persists before the
+        // provider starts, so the id leads the first spoken delta. The
+        // toContain guard is load-bearing — a MISSING frame indexes to -1 and
+        // would satisfy the ordering check on its own.
+        expect(frames).toContain('event: user-message-persisted')
+        expect(frames).toContain('event: text-chunk')
+        expect(frames.indexOf('event: user-message-persisted')).toBeLessThan(
+          frames.indexOf('event: text-chunk'),
+        )
+
+        // A keyboard turn into the same session keeps the tool.
+        await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'typed' })
+        ).text()
+        expect(startChatSessionInputs[1]!.deniedToolNames).not.toContain('mcp__vynel__speak')
+      })
+    })
+  })
+
   it('the interactive wall clock: a turn past VYNEL_INTERACTIVE_TURN_MAX_MS is interrupted, records the failure row, streams the errored frame, and frees the target lock (D5)', async () => {
     await withTestDatabase(async (db) => {
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-clock-'))

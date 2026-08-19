@@ -27,6 +27,25 @@
 //      turn holds the target lock, suspended while a card is parked, and cuts
 //      the turn off honestly (interrupt + failure row) at
 //      `VYNEL_INTERACTIVE_TURN_MAX_MS`.
+//   7. A VOICE turn also loses the `speak` tool (voice-realtime VR1): the
+//      streamed TEXT is what the caller hears. The rule + its WHY live in
+//      `sessions/voice-thread-tools.ts`, and it is applied here unconditionally
+//      — today's call session composes no `vynel` server only because it is
+//      spawned + global-grounded, which is grounding, not policy.
+//
+// The VOICE CLIENT CONTRACT on this leg (the sibling of the one documented in
+// `global-root-turn.ts`, with one asymmetry the daemon must know about).
+// A call client SPEAKS this stream's `text-chunk` deltas as they arrive, and
+// learns the turn's session id from the same frames the wake leg uses, in the
+// same guaranteed order: `user-message-persisted` (`message.sessionId`) is
+// written before the provider starts on a resumed turn, `session-created`
+// (`session.id`) lands on a fresh segment, and a mid-turn compaction swap
+// re-issues both — keep the LATEST. NOTE the asymmetry with the wake leg: a
+// per-call session is scope 'spawned', which `POST /root/turn/interrupt`
+// deliberately refuses (it admits global + voice chains only) and the workspace
+// door cannot reach either (the session is global-grounded). So a call barge-in
+// cuts local playback today and has NO server-side interrupt; a spawned-session
+// stop door is a product call, not something to widen this route into.
 
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
@@ -57,6 +76,7 @@ import {
   mergeComposedSessionMcpServers,
 } from '../sessions/compose-session-mcp-servers.js'
 import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js'
+import { withVoiceThreadToolDenials } from '../sessions/voice-thread-tools.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { wrapAppRequestWithMode } from '../sessions/delegation-mode-header.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
@@ -258,10 +278,17 @@ export async function streamSpawnedSessionTurn(
         },
       )
     : null
-  const composedMcp =
+  const composedTurnMcp =
     backgroundMcp !== null && studyMcp !== null
       ? mergeComposedSessionMcpServers(backgroundMcp, studyMcp)
       : (backgroundMcp ?? studyMcp)
+  // The spoken thread's own rule, applied ONCE over the merged attachment
+  // (locked decision 7): a call turn's streamed text is what the caller hears,
+  // so `speak` is denied for it — a keyboard turn into the same session keeps it.
+  const composedMcp =
+    isVoiceTurn && composedTurnMcp !== null
+      ? withVoiceThreadToolDenials(composedTurnMcp)
+      : composedTurnMcp
 
   const locks = c.var.sessionTargetLocks
   const turnEvents = c.var.turnEvents
