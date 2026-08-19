@@ -70,7 +70,7 @@ function buildEnvSchema(portBase: number) {
   // the job settles `failed` with an honest failure delivery. Replaces the old
   // 600 s "stop waiting" budget that released the lock under a live turn.
   VYNEL_DELEGATED_TURN_MAX_MS: z.coerce.number().int().positive().default(3_600_000),
-  // An interactive turn (global / workspace / spawned DM) is interrupted past
+  // An interactive turn (global / workspace / spawned DM, and channel-driven global turns) is interrupted past
   // this wall clock and records a failure row — the root lock and the target
   // locks can no longer be held forever by one hung provider await.
   VYNEL_INTERACTIVE_TURN_MAX_MS: z.coerce.number().int().positive().default(3_600_000),

@@ -1,7 +1,8 @@
 // The api-side `schedules` service — the long-lived per-minute poll that
-// claims due schedules atomically and fires them IN-PROCESS via the workspace
-// turn path (composeSessionMcpServers + startChatTurn). Started from `server.ts`
-// AFTER `createApp(...)`, stopped on shutdown.
+// claims due schedules atomically and fires them IN-PROCESS: a workspace
+// schedule via the workspace turn path (composeSessionMcpServers +
+// startChatTurn), a global one via the global-root runner. Started from
+// `server.ts` AFTER `createApp(...)`, stopped on shutdown.
 //
 // Lives in `apps/local-api`, NOT `apps/worker` (locked SCHED-1 / blueprint §2 +
 // §5.6): the fired turn is MCP-intrinsic — it needs the in-process Vynel MCP
@@ -9,18 +10,28 @@
 // process. (Cadence is NOT the driver — the per-minute poll is within reach of
 // a worker cron; the MCP-intrinsic turn is what pins it here.)
 //
-// The fire deps (startChatTurn + the MCP/capability composition, closing over
-// appRequest) are built once via the shared `buildScheduleFireDeps` helper so
-// the poll service and the `fire-now` routes drive the SAME turn machinery.
+// The fire deps (the turns + the settings/MCP/capability composition, closing
+// over appRequest; the shared target locks; the delegated cap from env) are
+// built once via the shared `buildScheduleFireDeps` helper so the poll service
+// and the `fire-now` routes drive the SAME turn machinery (background-turns
+// BT1–BT3). The fire POOL is this service's own: ONE per process, shared by
+// every tick, so at most `maxConcurrentFires` fires run at once however the
+// ticks overlap (a wedged batch and the next minute's due set never stack past
+// the knob — the delegation service's process-wide run count, same idea).
 //
 // Spec: `docs/blueprints/schedules/blueprint.md §5.6` + coding.md §1.1.
 
-import { runScheduleClaimAndFireTick } from '@vynel/schedules'
+import {
+  runScheduleClaimAndFireTick,
+  ScheduleFirePool,
+  type ScheduleTickSummary,
+} from '@vynel/schedules'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
-import type { TurnEventBroadcaster } from '@vynel/session/delegation'
+import type { SessionTargetLocks, TurnEventBroadcaster } from '@vynel/session/delegation'
 import type { HonoAppRequestFn } from '../factory.js'
+import { loadEnv } from '../env.js'
 import { buildScheduleFireDeps } from '../sessions/build-schedule-fire-deps.js'
 import type { ReadEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 
@@ -31,32 +42,56 @@ export interface SchedulesServiceOptions {
   logger: Logger
   appRequest: HonoAppRequestFn // from createApp(...) in server.ts (app.request.bind(app))
   activityFeed: SessionActivityFeed // shared turn-liveness registry (server.ts)
+  /** The process-wide single-writer lock per target, SHARED with the
+   *  delegation pool + the session-turn route (server.ts) — a fired workspace
+   *  turn holds the workspace key for its whole run. REQUIRED so a forgotten
+   *  wiring fails typecheck instead of silently locking in private. */
+  targetLocks: SessionTargetLocks
   turnEvents?: TurnEventBroadcaster // shared live-turn pub/sub (Watch everywhere, Slice ③)
   /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
+  /** How many schedule fires may run at once, process-wide (BT3). Omit =
+   *  `VYNEL_MAX_CONCURRENT_DELEGATIONS` — the delegation pool's knob, so one
+   *  parked card never blocks the batch. */
+  maxConcurrentFires?: number
 }
 
 export async function startSchedulesService(
   options: SchedulesServiceOptions,
 ): Promise<{ stop: () => void }> {
-  const { db, logger, appRequest, activityFeed, turnEvents, readEnabledFeatureKeys } = options
+  const { db, logger, appRequest, activityFeed, targetLocks, turnEvents, readEnabledFeatureKeys } =
+    options
+  const maxConcurrentFires = options.maxConcurrentFires ?? loadEnv().VYNEL_MAX_CONCURRENT_DELEGATIONS
 
-  const fireDeps = await buildScheduleFireDeps(
-    db,
+  const fireDeps = await buildScheduleFireDeps({
     appRequest,
     logger,
     activityFeed,
-    turnEvents,
-    readEnabledFeatureKeys,
-  )
+    targetLocks,
+    ...(turnEvents !== undefined ? { turnEvents } : {}),
+    ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
+  })
+  const firePool = new ScheduleFirePool(maxConcurrentFires)
 
   const pollTimer = setInterval(() => {
-    runScheduleClaimAndFireTick(db, fireDeps).catch((err) =>
-      logger.error({ err }, 'schedule poll tick failed'),
+    runScheduleClaimAndFireTick(db, fireDeps, firePool).then(
+      (summary) => logTickSummary(logger, summary),
+      (err: unknown) => logger.error({ err }, 'schedule poll tick failed'),
     )
   }, SCHEDULE_POLL_INTERVAL_MS)
 
-  logger.info({}, 'schedules service started (poll 60s)')
+  logger.info(
+    { maxConcurrentFires },
+    'schedules service started (poll 60s, one bounded fire pool per process)',
+  )
 
   return { stop: () => clearInterval(pollTimer) }
+}
+
+// A fire that threw out of the executor has no run row to tell its story — the
+// worker logged it once with the schedule id; the tick summary is the only
+// other place it shows. A clean tick logs nothing (the per-fire lines suffice).
+function logTickSummary(logger: Logger, summary: ScheduleTickSummary): void {
+  if (summary.failedCount === 0) return
+  logger.warn(summary, 'schedule poll tick: fire(s) threw before a run row could record them')
 }

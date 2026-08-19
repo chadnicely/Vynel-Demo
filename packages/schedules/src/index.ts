@@ -5,7 +5,7 @@
 // `FireScheduleDeps` (startChatTurn + MCP/capability composition) and drives it
 // on the per-minute interval.
 
-export type { StructuralLogger, FireScheduleDeps } from './schedules-types.js'
+export type { StructuralLogger, FireScheduleDeps, FiredTurnSettings } from './schedules-types.js'
 
 // Row types — the HTTP serializers type their inputs against these (the
 // channels `Channel` re-export precedent). Repositories stay internal.
@@ -28,7 +28,13 @@ export { listScheduleRuns, type ListScheduleRunsInput } from './queries/list-sch
 export { renderSchedulePrompt } from './rendering/render-schedule-prompt.js'
 export { renderScheduleChannelMessage } from './rendering/render-schedule-channel-message.js'
 
-// Fire path (async — drives the provider stream).
+// Fire path (async — drives the provider stream). The poll service owns ONE
+// `ScheduleFirePool` per process and hands it to every tick (the bound holds
+// across ticks).
 export { fireSchedule, type FireScheduleInput } from './firing/fire-schedule.js'
 export { manualFireSchedule } from './firing/manual-fire-schedule.js'
-export { runScheduleClaimAndFireTick } from './firing/run-schedule-claim-and-fire-tick.js'
+export {
+  runScheduleClaimAndFireTick,
+  type ScheduleTickSummary,
+} from './firing/run-schedule-claim-and-fire-tick.js'
+export { ScheduleFirePool } from './firing/schedule-fire-pool.js'

@@ -74,3 +74,11 @@ export {
   type RequestCancelResult,
 } from './delegation-cancel-registry.js'
 export { SessionTargetLocks } from './session-target-locks.js'
+// The settings rule every background turn shares (`job ?? target row ??
+// DEFAULT`) — the schedule fire binder (apps/local-api) reuses it for a fired
+// workspace turn instead of keeping a second copy.
+export {
+  resolveBackgroundTurnSettings,
+  type BackgroundTurnSettings,
+  type BackgroundTurnSettingsInput,
+} from './resolve-background-turn-settings.js'

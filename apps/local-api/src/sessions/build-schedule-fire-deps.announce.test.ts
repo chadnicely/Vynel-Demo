@@ -14,7 +14,7 @@ import type { HonoAppRequestFn } from '../factory.js'
 const { fakeStartChatTurn } = vi.hoisted(() => ({ fakeStartChatTurn: vi.fn() }))
 
 vi.mock('@vynel/session/runtime', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@vynel/session/runtime')>()
+  const actual = await importOriginal<object>()
   return { ...actual, startChatTurn: fakeStartChatTurn }
 })
 // Keep the SDK-heavy descriptor modules out (the schedules-service.test stub).
@@ -26,6 +26,7 @@ vi.mock('@vynel/instructions', () => ({
 }))
 
 import { SessionActivityFeed } from '@vynel/session/runtime'
+import { SessionTargetLocks } from '@vynel/session/delegation'
 import type { SessionActivityEvent } from '@vynel/contracts/chat/session-activity'
 import { buildScheduleFireDeps } from './build-schedule-fire-deps.js'
 
@@ -39,6 +40,11 @@ const turnInput = {
   workspacePath: 'C:/tmp/ws-1',
   providerId: 'claude',
   userMessageText: 'fire!',
+  scheduleRunId: 'run-1',
+  permissionMode: 'auto',
+  mcpServers: {},
+  deniedToolNames: [],
+  systemPromptAppend: '',
 }
 
 function collect(feed: SessionActivityFeed, userId: string) {
@@ -55,7 +61,12 @@ describe('buildScheduleFireDeps — the activity announce wrapper', () => {
     })
     const feed = new SessionActivityFeed()
     const events = collect(feed, 'u1')
-    const deps = await buildScheduleFireDeps(fakeDb, fakeAppRequest, silentLogger, feed)
+    const deps = await buildScheduleFireDeps({
+      appRequest: fakeAppRequest,
+      logger: silentLogger,
+      activityFeed: feed,
+      targetLocks: new SessionTargetLocks(),
+    })
 
     const seen: string[] = []
     for await (const event of deps.startChatTurn(fakeDb, turnInput as never, {
@@ -85,7 +96,12 @@ describe('buildScheduleFireDeps — the activity announce wrapper', () => {
     })
     const feed = new SessionActivityFeed()
     const events = collect(feed, 'u1')
-    const deps = await buildScheduleFireDeps(fakeDb, fakeAppRequest, silentLogger, feed)
+    const deps = await buildScheduleFireDeps({
+      appRequest: fakeAppRequest,
+      logger: silentLogger,
+      activityFeed: feed,
+      targetLocks: new SessionTargetLocks(),
+    })
 
     await expect(async () => {
       for await (const event of deps.startChatTurn(fakeDb, turnInput as never, {

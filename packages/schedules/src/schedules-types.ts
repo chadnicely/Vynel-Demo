@@ -5,6 +5,7 @@
 
 import type { Database } from '@vynel/db'
 import type { ChatTurnEvent } from '@vynel/contracts/chat/chat-http'
+import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
 
 // The subset of pino the core logs against (matches the chat/channels
 // StructuralLogger precedent — core never depends on the full pino type).
@@ -14,18 +15,35 @@ export interface StructuralLogger {
   error(obj: object, msg?: string): void
 }
 
-// Deps injected into the fire path by the api-side service. Keeps @vynel/mcp +
-// apps/api OUT of packages/schedules (the leaf stays unit-testable with stubs) —
-// the chat turn, the MCP composition, and the capability composition are all
-// declared STRUCTURALLY here and supplied by the api-side schedules service.
+// The settings a fired turn runs under — `target row ?? DEFAULT` (session-
+// hardening D5 shape with no tool arg: the mode / model / effort the user chose
+// for the target conversation, else the one default; autopilot off the row,
+// D8). Resolved by the api-side binder with the delegated paths' resolver —
+// the leaf only declares the shape it forwards to the turn.
+export interface FiredTurnSettings {
+  permissionMode: string
+  model: string | undefined
+  thinkingEffort: ThinkingEffortLevel | undefined
+  autoBuildout: boolean
+}
+
+// Deps injected into the fire path by the api-side service. Keeps @vynel/mcp,
+// @vynel/session + apps/api OUT of packages/schedules (the leaf stays
+// unit-testable with stubs) — the workspace turn, the global-root turn, the
+// settings resolution, the MCP composition, and the capability composition are
+// all declared STRUCTURALLY here and supplied by the api-side binder
+// (`apps/local-api/src/sessions/build-schedule-fire-deps.ts`), which also
+// wraps each turn in its bound + lock (background-turns BT3).
 export interface FireScheduleDeps {
   logger?: StructuralLogger
-  // Run the headless chat turn for a fired schedule. Injected + typed
+  // Run the headless WORKSPACE turn for a fired schedule. Injected + typed
   // STRUCTURALLY here (the exact call shape fire-schedule invokes) so the
   // schedules leaf never imports the chat leaf's `startChatTurn` — a leaf→leaf
-  // runtime import (invariant #2). The api-side service binds the real one. The
-  // stream yields the `ChatTurnEvent` wire union (contracts); the fired turn
-  // reads `session-created`/`text-chunk`/`session-errored` off it.
+  // runtime import (invariant #2). The api-side binder wraps the real one in
+  // the workspace target lock + the delegated hard cap (a capped turn ends by
+  // THROWING the cap error after its stream settles). The stream yields the
+  // `ChatTurnEvent` wire union (contracts); the fired turn reads
+  // `session-created`/`text-chunk`/`session-errored` off it.
   startChatTurn: (
     db: Database,
     input: {
@@ -34,14 +52,45 @@ export interface FireScheduleDeps {
       workspacePath: string
       providerId: string
       userMessageText: string
+      /** The run this turn belongs to — the binder's log + cap-lever key. */
+      scheduleRunId: string
       permissionMode: string
+      model?: string
+      thinkingEffort?: ThinkingEffortLevel
+      /** Autopilot (D8): the binder's runtime appends the per-message marker. */
+      autoBuildout?: boolean
       mcpServers: Record<string, unknown>
       deniedToolNames: string[]
       systemPromptAppend: string
       alwaysRequireApprovalToolNames?: string[]
+      askModeApprovalToolNames?: string[]
     },
     deps?: { logger?: StructuralLogger },
   ) => AsyncIterable<ChatTurnEvent>
+  // Run a GLOBAL-ROOT turn for a fired GLOBAL schedule (null workspaceId,
+  // non-verbatim template — background-turns BT1): the rendered prompt is the
+  // user message on the user's global conversation. Bound api-side to the same
+  // runner channels use (it holds the per-user root-turn lock itself); the
+  // binder adds the delegated hard cap. Resolves to the chat session the turn
+  // ran on + the answer text; rejects on a failed turn (the run is marked
+  // failed). `onSessionResolved` fires as soon as the stream names its session
+  // (and again on a mid-turn swap) so the run row can bind it while running.
+  startGlobalRootTurn: (
+    db: Database,
+    input: {
+      userId: string
+      userMessageText: string
+      onSessionResolved?: (chatSessionId: string) => void
+    },
+  ) => Promise<{ sessionId: string; resultText: string }>
+  // The settings a fired WORKSPACE turn runs under — what the user chose for
+  // that workspace's continuing conversation (its primary row), else the
+  // defaults; the model fit-clamped like every other delegated pick (BT2).
+  // Injected so the leaf never imports @vynel/session's resolver.
+  resolveWorkspaceTurnSettings: (
+    db: Database,
+    input: { userId: string; workspaceId: string },
+  ) => FiredTurnSettings
   // The workspace MCP attachment for a fired turn — the route-derived `vynel`
   // server + the deny of a disabled capability's tools. The api-side service
   // binds it to composeSessionMcpServers([vynelWorkspaceDescriptor], …) with

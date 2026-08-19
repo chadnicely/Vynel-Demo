@@ -7,20 +7,34 @@ import {
 } from "@vynel/contracts/workspaces/manager-name";
 import { useWorkingRail, type RailEntity } from "../../composables/activity/use-working-rail.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
+import { GLOBAL_TAB_ID, useUiStore, type ChatMainView } from "../../stores/ui-store.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
+import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 
 // The working rail (redesign): one small icon per ACTIVE entity — workspaces,
-// sessions, colleagues, the brain — appearing while work runs and gone the
-// moment it completes. Click → the entity's REAL conversation (the sidebar);
-// the brain → the global thread. Gold ring = working (presence), amber dot =
-// waiting on you. Strictly what's active NOW: an empty rail renders nothing.
+// sessions, colleagues, the brain, the spoken thread — appearing while work
+// runs and gone the moment it completes. Click → the entity's REAL
+// conversation (the sidebar); the brain → the global thread; the voice chip →
+// the Voice chat surface (the spoken thread has no sidebar door — it lives
+// behind its own wall). Gold ring = working (presence), amber dot = waiting on
+// you. Strictly what's active NOW: an empty rail renders nothing.
 const { entities } = useWorkingRail();
 const sidebar = useConversationSidebarStore();
+const ui = useUiStore();
 const router = useRouter();
 const { resolvePersona } = usePersonaResolver();
 
 const workspacesQuery = useWorkspaceList();
+// A session chip announced by the feed alone carries no name (an interactive
+// turn stamps no persona) — the overview knows the conversation by the same
+// continuing identity the feed stamps, so the chip is never nameless.
+const overviewQuery = useSessionsOverview(true);
+function overviewEntryOf(primarySessionId: string) {
+  return (overviewQuery.data.value ?? []).find(
+    (entry) => entry.primarySessionId === primarySessionId,
+  );
+}
 function labelOf(entity: RailEntity): string {
   if (entity.kind === "workspace") {
     const workspace = (workspacesQuery.data.value ?? []).find(
@@ -29,6 +43,9 @@ function labelOf(entity: RailEntity): string {
     if (workspace !== undefined) {
       return formatManagerLabel(resolveManagerName(workspace), workspace.name);
     }
+  }
+  if (entity.kind === "session" && entity.label === "") {
+    return overviewEntryOf(entity.primarySessionId)?.title ?? "Working…";
   }
   return entity.label === "" ? "Working…" : entity.label;
 }
@@ -44,20 +61,38 @@ const rows = computed(() =>
   })),
 );
 
+// The global surfaces live on the pinned Global tab (the shell's menu rows
+// land there the same way): activate it, point its canvas, route to chat.
+// The brain's chip means the continuing thread — the one its turn runs on —
+// not whichever history pick the tab was parked on.
+function openGlobalSurface(view: Extract<ChatMainView, "chat" | "voice-chat">) {
+  ui.activateTab(GLOBAL_TAB_ID);
+  ui.globalTab.shell.mainView = view;
+  if (view === "chat") ui.globalTab.shell.target = "continuous";
+  void router.push({ name: "chat" });
+}
+
 function openEntity(entity: RailEntity) {
   if (entity.kind === "brain") {
-    void router.push({ name: "chat" });
+    openGlobalSurface("chat");
+    return;
+  }
+  if (entity.kind === "voice") {
+    openGlobalSurface("voice-chat");
     return;
   }
   if (entity.kind === "workspace") {
     sidebar.openWorkspace({ workspaceId: entity.workspaceId });
     return;
   }
-  if (entity.segmentId !== null) {
-    sidebar.openSession({ sessionId: entity.segmentId, title: labelOf(entity) });
+  // The served segment, else the chain head the overview knows for this
+  // identity (a turn learns its segment mid-turn; the overview may already
+  // have it). Neither yet — a quiet no-op; the next frame resolves it.
+  const sessionId =
+    entity.segmentId ?? overviewEntryOf(entity.primarySessionId)?.sessionId ?? null;
+  if (sessionId !== null) {
+    sidebar.openSession({ sessionId, title: labelOf(entity) });
   }
-  // No conversation yet (an unlinked primary — a seconds-wide creation
-  // window): a quiet no-op; the next poll resolves the segment.
 }
 </script>
 

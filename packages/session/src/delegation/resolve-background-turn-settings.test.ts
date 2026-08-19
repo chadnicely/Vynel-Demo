@@ -148,4 +148,22 @@ describe('resolveBackgroundTurnSettings — job ?? target row ?? DEFAULT', () =>
       ).toBe('claude-haiku-4-5')
     })
   })
+
+  it('a turn that starts a FRESH session on the target (a schedule fire) reads the row’s picks but skips the fit', async () => {
+    await withTestDatabase((db) => {
+      const userId = seedUser(db)
+      // The same fat head — but the new session carries none of its occupancy,
+      // so the user's small-model pick for that conversation runs as chosen.
+      const headSdkSessionId = seedSegment(db, userId, {
+        sessionMode: 'ask',
+        selectedModel: 'claude-haiku-4-5',
+        lastContextTokens: 400_000,
+        model: 'claude-opus-4-6',
+        autoBuildout: true,
+      })
+      expect(
+        resolveBackgroundTurnSettings(db, { headSdkSessionId, startsFreshSession: true, job: NO_PICKS }),
+      ).toEqual({ permissionMode: 'ask', model: 'claude-haiku-4-5', thinkingEffort: undefined, autoBuildout: true })
+    })
+  })
 })

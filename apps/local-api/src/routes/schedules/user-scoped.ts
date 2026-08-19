@@ -243,14 +243,14 @@ export const schedulesUserApp = factory
     async (c) => {
       const fireDeps =
         c.var.scheduleFireDeps ??
-        (await buildScheduleFireDeps(
-          c.var.db,
-          c.var.appRequest,
-          c.var.logger,
-          c.var.activityFeed,
-          undefined,
-          buildEnabledFeatureKeysReader(c.var.hubSession),
-        ))
+        (await buildScheduleFireDeps({
+          appRequest: c.var.appRequest,
+          logger: c.var.logger,
+          activityFeed: c.var.activityFeed,
+          targetLocks: c.var.sessionTargetLocks,
+          turnEvents: c.var.turnEvents,
+          readEnabledFeatureKeys: buildEnabledFeatureKeysReader(c.var.hubSession),
+        }))
       const run = await manualFireSchedule(
         c.var.db,
         { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },
