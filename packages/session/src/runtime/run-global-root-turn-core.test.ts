@@ -15,6 +15,7 @@ import type { ChatTurnEvent } from '@vynel/chat'
 import type { Database } from '@vynel/db'
 import type { NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
 import {
+  claimNextPendingDelegationJob,
   collectDelegationReportsForRoot,
   enqueueWorkspaceDelegation,
   failDelegationJob,
@@ -436,6 +437,8 @@ describe('runGlobalRootTurnCore — the catch-up net is consumed only once the t
       workspaceName: workspace.name,
       taskText: 'audit the pages',
     })
+    // The terminal writers are a CAS on the CLAIM — settle a claimed row.
+    claimNextPendingDelegationJob(db, now)
     failDelegationJob(db, jobId, 'the audit crashed', now)
     return jobId
   }

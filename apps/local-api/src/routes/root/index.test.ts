@@ -530,6 +530,8 @@ describe('GET /root/trace/:partialSessionId/stream (SSE observe)', () => {
   it('closes immediately for a terminal job — the fetched trace is the whole story', async () => {
     await withTestDatabase(async (db) => {
       const { jobId, partialSessionId } = seedJob(db)
+      // The terminal writers are a CAS on the CLAIM — settle a claimed row.
+      expect(claimNextPendingDelegationJob(db, new Date())?.id).toBe(jobId)
       failDelegationJob(db, jobId, 'done elsewhere', new Date())
       const app = makeHarness(db)
 
@@ -1006,6 +1008,8 @@ describe('POST /root/delegations/:partialSessionId/stop', () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db) // the resolver's local user (first row wins)
       const { jobId, partialSessionId } = seedStopJob(db, user.id)
+      // The terminal writers are a CAS on the CLAIM — settle a claimed row.
+      expect(claimNextPendingDelegationJob(db, new Date())?.id).toBe(jobId)
       failDelegationJob(db, jobId, 'done elsewhere', new Date())
       const app = makeHarness(db)
 

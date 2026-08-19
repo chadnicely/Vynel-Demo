@@ -12,6 +12,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
 import {
+  claimNextPendingDelegationJob,
   enqueueWorkspaceDelegation,
   completeDelegationJob,
   collectDelegationReportsForRoot,
@@ -39,6 +40,8 @@ function seedUnseenReport(db: Database, userId: string): void {
     workspaceName: workspace.name,
     taskText: 'audit the pages',
   })
+  // The terminal writers are a CAS on the CLAIM — settle a claimed row.
+  claimNextPendingDelegationJob(db, now)
   completeDelegationJob(db, jobId, 'Audit done: 3 findings.', now)
 }
 
