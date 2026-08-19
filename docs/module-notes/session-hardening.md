@@ -138,6 +138,59 @@ there); comments explain WHY; files ≤ ~300 lines (split when a change would cr
   `session-errored { errorCode: 'turn-wall-clock-exceeded' }` frame when the interactive clock
   cuts a turn off.
 
+**From B (settings & modes) — what B built, and the four lines it could not write.**
+
+What landed, so the other slices can wire against it:
+
+- `resolveTurnSessionSettings` now returns a **fourth** field, `autoBuildout`
+  (`input ?? row ?? undefined`), and `TurnSettingsInput` carries it. `TurnSettingsWriteInput`
+  is gone (it was `TurnSettingsInput & { autoBuildout }` — now redundant); the
+  `@vynel/chat` barrel no longer exports that name.
+- `startChatTurn` gained **`autoBuildout?: boolean`** on its input. True appends
+  `loadSessionInstruction('autopilot-marker')` to the PROVIDER user message (after any
+  `providerUserMessageText`); the persisted row keeps the clean text.
+- `recordSpawnedSessionSegment` gained **`settings?: ChatSessionSettingsPatch`** (the birth
+  write), forwarded from `createSpawnedSession`'s new **`settings?: ChatSessionSettingsPatch`**.
+- `updateChatSessionSettings` throws **`ForbiddenError`** on a `voice`-scope row (empty patch
+  included). The PATCH route declares 403; `packages/sdk` artifacts are regenerated.
+- `AppComposer` / `ChatComposer` gained **`settingsLocked`** (+ `settingsLockedNote` on
+  AppComposer); `useSessionSettings` takes `{ locked }` and its `update()` throws when set.
+
+Asks:
+
+1. **→ LEAD, post-merge — NOT slice C.** C's worktree branched from `25e86499`, where
+   `startChatTurn` has no `autoBuildout` knob (B adds it), so this could not have typechecked
+   in C's checkout and is in nobody's diff. After B merges, add to the `startChatTurn(...)`
+   call in **`apps/local-api/src/streams/chat-turn.ts`** and **`.../session-turn.ts`**:
+   `...(turnSettings.autoBuildout !== undefined ? { autoBuildout: turnSettings.autoBuildout } : {})`.
+   Two lines, two files. **Until they land, D8 (autopilot) runs on the GLOBAL brain only** —
+   A5 wired `input.autoBuildout` on the core; workspace/DM and spawned-session turns resolve
+   the setting and drop it. (Channels + schedule fires resolve it nowhere — outside every
+   slice's ownership; a follow-up, not a regression.)
+2. **→ Slice C (streams).** B4's Voice-panel poll predicate is now `scopeKind === 'voice'` with
+   **no `origin` fallback** — deliberately, since a global-scoped voice-origin turn is the bug
+   this arc removes. It is dormant until C3 stamps `scopeKind: 'voice'` on the voice leg's
+   `activityFeed.begin`. B's test constructs the feed entry synthetically, so nothing is red in
+   the meantime; the live behaviour needs C.
+3. **→ Slice D, or the lead if D has already handed back** (`apps/local-web/src/stores/ui-store.ts:121-124`).
+   The `readStoredAutoBuildout` comment still says "NOTHING READS IT YET … waiting for the
+   build engine". It is now autopilot (D8) and the runners read it — please restate.
+4. **→ Whoever lands next in `packages/chat/src/schema/chat-sessions.ts:116-118`** (unowned).
+   The `autoBuildout` column comment still says "nothing consumes it yet (the build engine is
+   pending)". B left it rather than take a comment-only diff on a file it does not own.
+5. **→ Lead, a scoping call.** The audit item is "**spawned / agent / leaf** sessions born with
+   NULL settings". B2's mandate — and B2's fix — is the SPAWNED create handler.
+   `packages/chat/src/records/record-leaf-session.ts` still births agent/leaf rows with NULL
+   settings columns. Behaviour is nonetheless correct after A5 (a delegated/agent run resolves
+   `job ?? target row ?? DEFAULT`), so this is a row-hygiene gap, not a live defect — but the
+   audit item is two-thirds closed, not closed.
+
+Files B touched OUTSIDE its list, all functionally (flagged for the merge): `packages/chat/src/index.ts`
+(drop the dead `TurnSettingsWriteInput` export), `packages/chat/src/records/record-spawned-session-segment.ts`
+(the birth write — pre-agreed), `packages/ui/src/components/ChatComposer.vue` (+ its test; the
+`settingsLocked` prop — unowned by any slice), `packages/contracts/src/chat/voice-tier.ts` (B5's
+doc rule at the tier home), `packages/sdk/{openapi.json,src/generated/api.d.ts}` (regenerated).
+
 ## 7. Results
 
 _(filled at integration)_

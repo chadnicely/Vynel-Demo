@@ -85,7 +85,6 @@ export type {
   ResolvedTurnSettings,
 } from './settings/resolve-turn-session-settings.js'
 export { persistTurnSessionSettings } from './settings/persist-turn-session-settings.js'
-export type { TurnSettingsWriteInput } from './settings/persist-turn-session-settings.js'
 
 // Status — the assistant-set session light (`set_session_status`).
 export { setSessionStatus } from './status/set-session-status.js'

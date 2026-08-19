@@ -8,6 +8,24 @@
 //
 // Lives in `@vynel/contracts` (the api↔web↔daemon shared, db-free home) per
 // the promotion rule: the third consumer made the copies a liability.
+//
+// THE RULE THAT MAKES THIS CONSTANT THE TRUTH (session-hardening D2): a VOICE
+// turn NEITHER READS NOR WRITES the per-session settings. It does not resolve
+// `chat_sessions.sessionMode / selectedModel / thinkingEffort` — the server
+// forces the three values below over whatever the caller sent — and it writes
+// nothing back, so no voice row ever holds a setting. The consequences are
+// deliberate and load-bearing:
+//
+//   - every leg sends the tier explicitly (daemon wake, live call, web
+//     overlay, the typed Voice-chat panel) so the request already says what
+//     the server would force anyway;
+//   - the Voice panel's chips are READ-ONLY and its composer carries no
+//     session id: there is nothing to change and nothing to change it on;
+//   - `updateChatSessionSettings` refuses a `voice`-scope row outright (403) —
+//     a stored value there could only be a lie the UI shows and no turn honours.
+//
+// A spoken thread has one way to run. If that ever stops being true, it stops
+// here first — not in a stream, a composer, or a daemon.
 
 import type { ThinkingEffortLevel } from './thinking-effort.js'
 

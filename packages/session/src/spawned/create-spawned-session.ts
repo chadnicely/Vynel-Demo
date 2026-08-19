@@ -24,6 +24,7 @@ import type { Database } from '@vynel/db'
 import type { AiAgentProvider } from '@vynel/providers'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { recordSpawnedSessionSegment } from '@vynel/chat'
+import type { ChatSessionSettingsPatch } from '@vynel/chat'
 import type { Logger } from 'pino'
 import { runSeededSwapSession } from '../runtime/run-seeded-swap-session.js'
 import { linkPrimarySessionToSdkSession } from '../continuity/index.js'
@@ -40,6 +41,12 @@ export type CreateSpawnedSessionInput = {
   workspacePath: string
   /** The creating workspace (Slice ④b) — absent = global-grounded (v1 behavior). */
   workspaceId?: string
+  /** The CREATOR's resolved composer settings (session-hardening D4) — the
+   *  child is born running what its parent runs, instead of a NULL row that
+   *  silently resolves the bare default on its first turn. The route reads
+   *  them off the ambient turn's session; a create with no creating turn
+   *  (a CLI, the voice call leg) omits them and the row stays "never set". */
+  settings?: ChatSessionSettingsPatch
   logger?: Logger
 }
 
@@ -84,13 +91,15 @@ export async function createSpawnedSession(
     sdkSessionId: sessionId,
   })
 
-  // 3. The listed, named first segment — the session exists in the panel from birth.
+  // 3. The listed, named first segment — the session exists in the panel from
+  //    birth, carrying the creator's settings (D4).
   recordSpawnedSessionSegment(db, {
     sessionId,
     userId: input.userId,
     providerId: DEFAULT_PROVIDER_ID,
     name: input.name,
     workspaceId: input.workspaceId ?? null,
+    ...(input.settings !== undefined ? { settings: input.settings } : {}),
   })
 
   return { primarySessionId: primary.id, sessionId, name: input.name }

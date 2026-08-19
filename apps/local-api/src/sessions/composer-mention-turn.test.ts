@@ -189,6 +189,9 @@ describe('prepareComposerMentionTurn', () => {
       expect(agentJob?.workspacePath).toBe('/tmp/global-root')
       expect(agentJob?.requesterWorkspaceId).toBeNull()
       expect(agentJob?.model).toBe('claude-haiku-4-5')
+      // The effort rides BOTH branches — an @agent run that dropped it silently
+      // ran at the adaptive default while its mention was on another level.
+      expect(agentJob?.thinkingEffort).toBe('low')
       // Persona-sessions: a colleague turn is a routed turn — it inherits the
       // originating turn's mode (the retired leaf posture pinned null here).
       expect(agentJob?.permissionMode).toBe('ask')

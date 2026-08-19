@@ -33,6 +33,7 @@ import { insertChatSession } from '@vynel/chat/repositories'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SESSION_COMPACTED_EVENT_TYPE } from '../continuity/index.js'
+import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { startChatTurn } from './start-chat-turn.js'
 
 function makeUser(id: string = randomUUID()) {
@@ -223,6 +224,89 @@ describe('startChatTurn — checkpoint + auto-continue wiring (session-continuit
       )
       expect(persistedBody).toBe('Continuing after patching context — next: sum the receipts')
       expect(persistedSourceKind).toBe('global-root')
+    })
+  })
+})
+
+describe('startChatTurn — the autopilot marker (session-hardening D8/B1)', () => {
+  it('appends the marker to the PROVIDER text while the persisted row stays clean', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'sdk-autopilot',
+          userId: user.id,
+          workspaceId: workspace.id,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Head',
+        }),
+      )
+      let persistedBody: string | null = null
+      for await (const event of startChatTurn(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        providerId: 'claude',
+        resumeSessionId: 'sdk-autopilot',
+        userMessageText: 'ship the landing page',
+        autoBuildout: true,
+        permissionMode: 'auto',
+      })) {
+        if (event.kind === 'user-message-persisted') persistedBody = event.message.body
+      }
+      const providerText = capturedInputs.at(-1)?.userMessageText as string
+      expect(providerText).toContain('ship the landing page')
+      expect(providerText).toContain(loadSessionInstruction('autopilot-marker'))
+      // The transcript shows what the user typed — the marker is provider-only.
+      expect(persistedBody).toBe('ship the landing page')
+    })
+  })
+
+  it('rides a CONTINUATION turn as well — it decorates the provider text, not the raw body', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      for await (const _event of startChatTurn(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        providerId: 'claude',
+        userMessageText: 'Continuing after patching context',
+        providerUserMessageText: 'NEXT STEP: sum the receipts',
+        autoBuildout: true,
+        permissionMode: 'auto',
+      })) {
+        void _event
+      }
+      const providerText = capturedInputs.at(-1)?.userMessageText as string
+      expect(providerText).toContain('NEXT STEP: sum the receipts')
+      expect(providerText).toContain('AUTOPILOT')
+      expect(providerText).not.toContain('Continuing after patching context')
+    })
+  })
+
+  it('omitted or false leaves the provider text untouched', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const baseInput = {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        providerId: 'claude' as const,
+        userMessageText: 'just this',
+        permissionMode: 'auto' as const,
+      }
+      for await (const _event of startChatTurn(db, baseInput)) void _event
+      expect(capturedInputs.at(-1)?.userMessageText).toBe('just this')
+
+      for await (const _event of startChatTurn(db, { ...baseInput, autoBuildout: false })) {
+        void _event
+      }
+      expect(capturedInputs.at(-1)?.userMessageText).toBe('just this')
     })
   })
 })
