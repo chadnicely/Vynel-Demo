@@ -1,5 +1,10 @@
 import type { VoiceBrainEvent } from '../loop/voice-session-types.js'
-import { streamTurnEvents, VOICE_MODEL, VOICE_THINKING_EFFORT } from '../brain/run-brain-turn.js'
+import {
+  streamTurnEvents,
+  VOICE_MODE,
+  VOICE_MODEL,
+  VOICE_THINKING_EFFORT,
+} from '../brain/run-brain-turn.js'
 
 // The daemon's client for the per-call spawned session: create it (global-
 // grounded — the `purpose` IS the priming payload: goal, mode, disclosure) and
@@ -30,10 +35,17 @@ export function createCallSessionClient(apiUrl: string): CallSessionClient {
       return { sessionId: created.sessionId }
     },
     runCallTurn(sessionId, utterance) {
+      // A live call is a VOICE leg like the wake line: `voice: true` makes the
+      // server force the tier (and read/write no settings), and the tier goes on
+      // the wire too so the daemon is honest about what it asked for. Without
+      // it the call session fell to the interactive default and a floor tool
+      // carded a live call nobody could answer (session audit A2/A3/V-a).
       return streamTurnEvents(`${apiUrl}/sessions/${sessionId}/turn`, {
         userMessageText: utterance,
         model: VOICE_MODEL,
         thinkingEffort: VOICE_THINKING_EFFORT,
+        mode: VOICE_MODE,
+        voice: true,
       })
     },
   }

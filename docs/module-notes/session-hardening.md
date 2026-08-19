@@ -249,6 +249,56 @@ mechanical line, declared so the lead can check them at merge):
   only caller with `/activity/running` (D5). Its own repo tests still pass; left in place because
   `packages/session/src/repositories` is not D's.
 
+### E → B (or the lead): the overlay must ignore relayed `speak` while its OWN turn is live
+
+**Ships with E3, or E3 must be reverted.** E3's brief says "the overlay's OWN turn already
+de-duplicates client-side (`voice-turn-adapter`)". It does not — I checked the code:
+
+- `use-voice-daemon-link.ts:70-73` plays EVERY relayed `speak` event through its own
+  `createSpokenAudioPlayer()`, unconditionally. Its own header (`:21-26`) states the contract it was
+  built to: "a `speak` tool call with **no live overlay session** … is sent to exactly one client".
+- `use-voice-session.ts:96` plays the overlay's own turn's `speak` calls through a SECOND, separate
+  player (the adapter's `spoke` events). `voice-turn-adapter`'s `spoke` flag de-dupes its own gist
+  fallback against its own `speak` calls — it never sees daemon-relayed ones.
+- Both composables are mounted together (`JarvisView.vue:26-27`, `VoiceOverlay.vue:20-21`).
+
+So the daemon publishing during a handoff double-plays the overlay's own turn — which is exactly what
+the old no-op branch was defending against (native `driver.speak` double-plays too: browser speaker +
+daemon speaker on one machine). The daemon cannot route by producer on its own: `/speak` carries only
+`{ text, callId? }`, and a server-side discriminator can't help either — the overlay leg, the daemon
+wake leg and the Voice-chat panel leg are all `voice`-scope global turns.
+
+**E deliberately did NOT ship the daemon half alone.** `VYNEL_VOICE_JARVIS_WINDOW` defaults to `'1'`
+and `shouldHandOff: () => jarvisEnabled || overlay.hasClient` (`main.ts:232`), so handed-off is the
+DEFAULT path for every wake — publishing there would double-play *every spoken reply* in the shipped
+config, and no daemon-side test can catch it (the loop is daemon → api relay → browser). E ships the
+honest drop instead: a `warn` naming the drop and pointing here, replacing the no-op that logged the
+line as played. **Apply these two together, as one commit:**
+
+1. **web** (`apps/local-web/src/composables/voice/use-voice-daemon-link.ts`): take an optional
+   `isPlayingOwnTurn: () => boolean` and skip the `event.kind === "speak"` branch when it is true;
+   `JarvisView.vue:26-27` / `VoiceOverlay.vue:20-21` pass `() => voice.isActive`.
+2. **daemon** (`apps/voice/src/main.ts`, the `driver.isHandedOff` branch of `onSpeak`):
+
+   ```ts
+   if (overlay.publishSpeak(text)) {
+     logger.info({ text: preview }, 'speak — handed to the overlay that owns the session')
+   } else {
+     logger.info({ text: preview }, 'speak — overlay client gone mid-handoff, speaking natively')
+     driver.speak(text)
+   }
+   ```
+
+Net effect once both land: a schedule / panel / delivery `speak` during an overlay conversation is
+*played* instead of silently dropped; only one landing inside the overlay's own live turn is still
+dropped (today ALL are).
+
+### E → C (informational, no action): `mode` on the call leg
+
+`runCallTurn` now sends `mode: VOICE_TIER_MODE` + `voice: true`. Both `StartSessionTurnRequestSchema`
+and `StartChatTurnRequestSchema` already accept `mode`, so C's `input.voice` gate simply overrides it
+— the daemon sends it as belt-and-braces, not as the enforcement.
+
 ## 7. Results
 
 _(filled at integration)_

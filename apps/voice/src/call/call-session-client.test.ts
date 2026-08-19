@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { VoiceBrainEvent } from '../loop/voice-session-types.js'
-import { VOICE_MODEL } from '../brain/run-brain-turn.js'
+import { VOICE_MODE, VOICE_MODEL, VOICE_THINKING_EFFORT } from '../brain/run-brain-turn.js'
 import { createCallSessionClient } from './call-session-client.js'
 
 const API = 'http://127.0.0.1:18892'
@@ -73,6 +73,21 @@ describe('createCallSessionClient', () => {
     const body = JSON.parse(init.body as string) as Record<string, unknown>
     expect(body['userMessageText']).toBe('Vynel, check the deploy')
     expect(body['model']).toBe(VOICE_MODEL)
+  })
+
+  it('runs the call leg on the VOICE TIER — a live call must never wait on a card', async () => {
+    const fetchSpy = stubFetch(new Response('event: turn-stream-ended\ndata: {}\n\n', { status: 200 }))
+
+    await collect(createCallSessionClient(API).runCallTurn('sess-1', 'hello'))
+
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string)).toEqual({
+      userMessageText: 'hello',
+      model: VOICE_MODEL,
+      thinkingEffort: VOICE_THINKING_EFFORT,
+      mode: VOICE_MODE,
+      voice: true,
+    })
   })
 
   it('yields a failed event when the turn request is rejected', async () => {

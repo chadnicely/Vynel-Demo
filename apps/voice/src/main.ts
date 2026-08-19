@@ -134,25 +134,38 @@ async function main(): Promise<void> {
       // The overlay speaks with the daemon's own voice — one voice everywhere.
       onSynthesize: async (text) =>
         encodeWav(await sharedSynthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
-      // The `speak` MCP tool — any global session's voice output. Route it to
-      // whoever can actually play it:
-      //   - a LIVE overlay command session (handed-off) plays its own turn's
-      //     speak calls from its stream — re-routing would double-play;
+      // The `speak` MCP tool — any session's voice output. Route it to whoever
+      // can actually play it:
+      //   - while an overlay owns the command session (handed-off) it is
+      //     DROPPED, because every route out of here double-plays the overlay's
+      //     own turn: publishing hits `use-voice-daemon-link`, which plays every
+      //     relayed speak through its own player while the overlay is already
+      //     playing that same turn off its own stream; speaking natively puts
+      //     the browser speaker and the daemon speaker on one machine. The
+      //     daemon cannot tell the producers apart — `/speak` carries only
+      //     `{ text, callId? }` and all three voice legs are `voice`-scope
+      //     global turns. So it is dropped LOUDLY (the audit's complaint was a
+      //     no-op logging the line as played) until the web-side guard lands —
+      //     docs/module-notes/session-hardening.md §6 has the coupled fix;
       //   - otherwise a connected-but-idle client is ASKED to play it (typed
       //     chat, scheduled tasks — the browser owns reliable playback while
       //     an overlay window holds the audio device);
       //   - no client at all → the daemon's native speaker queue.
       // Accept + hand off → resolves immediately.
       onSpeak: (text) => {
+        const preview = text.slice(0, 80)
         if (driver.isHandedOff) {
-          logger.info({ text: text.slice(0, 80) }, 'speak — the live overlay session plays it')
+          logger.warn(
+            { text: preview },
+            'speak dropped — the overlay owns the room (session-hardening.md §6)',
+          )
         } else if (!driver.isAwake && overlay.publishSpeak(text)) {
           // Delegate only while the native loop is IDLE: a client playing audio
           // mid native conversation would be heard by the open daemon mic (the
           // echo defense only guards the daemon's own speaker path).
-          logger.info({ text: text.slice(0, 80) }, 'speak — delivered to a connected overlay client')
+          logger.info({ text: preview }, 'speak — delivered to a connected overlay client')
         } else {
-          logger.info({ text: text.slice(0, 80) }, 'speak requested (native)')
+          logger.info({ text: preview }, 'speak requested (native)')
           driver.speak(text)
         }
         return Promise.resolve()
@@ -208,6 +221,11 @@ async function main(): Promise<void> {
           { error: error instanceof Error ? error.message : String(error), text: text.slice(0, 80) },
           'speak failed — nothing was heard for this line',
         ),
+      onTurnWatchdog: (utterance) =>
+        logger.warn(
+          { utterance: utterance.slice(0, 80), watchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS },
+          'turn watchdog fired — the room is back, the server turn is still running',
+        ),
       // The browser owns the command session (Web Speech STT + spoken reply
       // run there). Jarvis mode: every wake hands off — the floating window is
       // opened/focused, and the held wake replays once it connects. Otherwise:
@@ -233,7 +251,11 @@ async function main(): Promise<void> {
         },
       },
     },
-    { idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS, voiceId: env.VYNEL_VOICE_ID },
+    {
+      idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS,
+      turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
+      voiceId: env.VYNEL_VOICE_ID,
+    },
   )
 
   audioShell.start((audio) => {
