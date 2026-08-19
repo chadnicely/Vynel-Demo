@@ -14,6 +14,7 @@ import { matchTurnToIdentity } from "../../composables/activity/match-turn-to-id
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
+import { useSpokenReply } from "../../composables/voice/use-spoken-reply.js";
 import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
 import type { ComposerSettings } from "../../composables/chat/use-session-settings.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
@@ -27,9 +28,11 @@ import {
 // rendered on the Global canvas under its own menu row. The thread is the
 // SPOKEN TWIN: its transcript comes through the voice UI doors (the tool
 // surface stays walled), a typed message runs a real voice turn (`voice:
-// true` — the reply speaks aloud when the daemon is up, and always lands
-// here as text), and a turn the daemon started streams in live through the
-// same session watch every thread uses.
+// true` — its streamed reply is spoken here in the browser a sentence at a
+// time, voice-realtime VR1, and always lands here as text), and a turn the
+// daemon started streams in live through the same session watch every thread
+// uses. Stop works on both: an own turn by its engine, a watched one by the
+// running voice turn's session id — never the global head (round-2 R2-E).
 const ASSISTANT_NAME = "Claude";
 
 // The spoken thread runs the VOICE TIER on every leg (session-hardening D2):
@@ -109,6 +112,9 @@ const watchedTurn = useWatchedTurn({
 });
 
 const activeTurn = computed(() => turn.view.value ?? watchedTurn.view.value);
+// Own OR watched — after the detach the watch is the one that knows; the
+// composer's Stop reads it.
+const isTurnStreaming = computed(() => activeTurn.value?.status === "streaming");
 const turnErrorText = computed(
   () => turn.errorText.value ?? watchedTurn.lastTurnErrorText.value,
 );
@@ -121,6 +127,34 @@ watch(
     if (previous !== null && next === null) void transcriptQuery.refetch();
   },
 );
+
+// The typed turn's VOICE: its reply is spoken here, sentence by sentence, as
+// the text grows — whichever fold renders it (own stream, then the shared
+// watch after the detach). Armed at send so a daemon-started turn streaming
+// into this panel stays the overlay's to voice.
+const spokenReply = useSpokenReply();
+watch(
+  () => activeTurn.value,
+  (view, previous) => {
+    if (view === null) {
+      if (previous !== null) spokenReply.settle();
+      return;
+    }
+    spokenReply.feed(view.segments.map((segment) => segment.text).join("\n"));
+  },
+);
+
+/** Stop, identity-shaped: the engine's own turn knows its session; a WATCHED
+ *  voice turn (the daemon's, another window's) is stopped by the session the
+ *  feed says it runs on — falling back to the thread's head. Never the
+ *  global head: the engine refuses an id-less voice interrupt. */
+const runningVoiceSessionId = computed(
+  () => activity.runningPrimarySessionIdFor({ kind: "voice" }) ?? headSessionId.value,
+);
+function stopTurn() {
+  spokenReply.cancel();
+  turn.interrupt(runningVoiceSessionId.value);
+}
 
 const openPointerTarget = useOpenPointerTarget();
 const decideApproval = useDecideApproval();
@@ -140,6 +174,7 @@ function onDecideApproval(
 }
 
 function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
+  spokenReply.arm();
   void turn.startTurn({
     sessionId: headSessionId.value,
     isContinuous: true,
@@ -215,11 +250,11 @@ const isEmpty = computed(
         :settings-defaults="VOICE_TURN_SETTINGS"
         settings-locked
         :settings-locked-note="HANDS_FREE_NOTE"
-        :streaming="turn.isStreaming.value"
+        :streaming="isTurnStreaming"
         placeholder="Message the voice thread…"
         destination-label="Voice"
         @send="queuedSend.submit"
-        @interrupt="turn.interrupt"
+        @interrupt="stopTurn"
       />
     </footer>
   </div>

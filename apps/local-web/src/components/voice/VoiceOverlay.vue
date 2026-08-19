@@ -3,14 +3,21 @@ import { computed, ref, watch } from "vue";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useVoiceSession } from "../../composables/voice/use-voice-session.js";
 import { useVoiceDaemonLink } from "../../composables/voice/use-voice-daemon-link.js";
-import { voiceStageCaption, voiceStageOrbState } from "./voice-stage-view.js";
+import {
+  voiceStageCaption,
+  voiceStageIsListening,
+  voiceStageOrbState,
+} from "./voice-stage-view.js";
 import VoiceStage from "./VoiceStage.vue";
 
 // The in-app Jarvis view: the daemon hears "Hey Vynel" locally and hands the
 // session here — Web Speech (Google STT) transcribes commands with a live
-// interim caption, the brain answers over /root/turn, speechSynthesis speaks
-// each sentence as it forms. Also opens from the mic button with no daemon.
-// (The floating desktop variant of this surface is views/JarvisView.vue.)
+// interim caption, the brain answers over /root/turn on the spoken thread, and
+// the reply's streamed text is spoken in the browser a sentence at a time while
+// the mic stays open (talk over it to interrupt). Also opens from the mic
+// button with no daemon. Closing it by any route ends the session — which
+// stops a running turn by its own session id (round-2 R2-E), never the global
+// head. (The floating desktop variant of this surface is views/JarvisView.vue.)
 
 const ui = useUiStore();
 const isMuted = ref(false);
@@ -58,6 +65,7 @@ function toggleMute() {
 }
 
 const orbState = computed(() => voiceStageOrbState(voice.view.value, isMuted.value));
+const isListening = computed(() => voiceStageIsListening(voice.view.value, isMuted.value));
 const caption = computed(() =>
   voiceStageCaption(voice.view.value, isMuted.value, voice.failure.value),
 );
@@ -79,6 +87,7 @@ const wakeStatus = computed(() =>
           :caption="caption"
           :status-line="wakeStatus"
           :is-muted="isMuted"
+          :is-listening="isListening"
           @toggle-mute="toggleMute"
           @close="ui.isVoiceOverlayOpen = false"
         />

@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createSentencePipeline,
   createSpokenAudioPlayer,
-  playSentencesPipelined,
   toSpokenSentences,
+  type SentencePipelineIo,
 } from "./spoken-audio-player.js";
 
-// The pipeline is the latency win: sentence N+1 must be FETCHING while N plays,
-// and order/cancel/failure behavior must hold. Tested pure with fakes — the
-// fetch/Audio wiring stays thin around it.
+// The pipeline is the latency win: sentence N+1 must be FETCHING while N plays
+// — across `play()` calls too, since a streamed reply arrives one sentence per
+// call (voice-realtime) — and order/cancel/failure behavior must hold. Tested
+// pure with fakes; the fetch/Audio wiring stays thin around it.
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -19,6 +21,39 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
     resolve = r;
   });
   return { promise, resolve };
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** A scripted pipeline: fetches resolve at once (or null for `failing`),
+ *  playback holds until the test releases it. */
+function makeFakeIo(options: { failing?: string[]; holdPlayback?: boolean } = {}) {
+  const log: string[] = [];
+  const releases: Array<() => void> = [];
+  let stopped = 0;
+  const io: SentencePipelineIo<string> = {
+    fetchWav: (text) => {
+      log.push(`fetch:${text}`);
+      return Promise.resolve(options.failing?.includes(text) ? null : text);
+    },
+    playWav: (wav) => {
+      log.push(`play:${wav}`);
+      if (!options.holdPlayback) return Promise.resolve();
+      const gate = deferred<void>();
+      releases.push(gate.resolve);
+      return gate.promise;
+    },
+    stopPlayback: () => {
+      stopped += 1;
+      releases.splice(0).forEach((release) => release());
+    },
+  };
+  return {
+    io,
+    log,
+    releaseCurrent: () => releases.shift()?.(),
+    stoppedCount: () => stopped,
+  };
 }
 
 describe("toSpokenSentences", () => {
@@ -35,45 +70,77 @@ describe("toSpokenSentences", () => {
   });
 });
 
-describe("playSentencesPipelined", () => {
+describe("createSentencePipeline", () => {
   it("prefetches the next sentence while the current one plays", async () => {
-    const log: string[] = [];
-    const playGate = deferred<void>();
-    const done = playSentencesPipelined(
-      ["one.", "two."],
-      (text) => {
-        log.push(`fetch:${text}`);
-        return Promise.resolve(text);
-      },
-      async (wav) => {
-        log.push(`play:${wav}`);
-        if (wav === "one.") await playGate.promise;
-      },
-      () => false,
-    );
-    // Let the first fetch resolve and playback begin.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    const fake = makeFakeIo({ holdPlayback: true });
+    const pipeline = createSentencePipeline(fake.io);
+    const done = pipeline.enqueue(["one.", "two."]);
+    await flush();
     // Sentence two was fetched BEFORE sentence one finished playing.
-    expect(log).toEqual(["fetch:one.", "fetch:two.", "play:one."]);
-    playGate.resolve();
+    expect(fake.log).toEqual(["fetch:one.", "fetch:two.", "play:one."]);
+    fake.releaseCurrent();
+    await flush();
+    expect(fake.log).toEqual(["fetch:one.", "fetch:two.", "play:one.", "play:two."]);
+    fake.releaseCurrent();
     await done;
-    expect(log).toEqual(["fetch:one.", "fetch:two.", "play:one.", "play:two."]);
+  });
+
+  it("pipelines ACROSS enqueue calls — a sentence queued mid-playback is synthesized before the current one ends", async () => {
+    const fake = makeFakeIo({ holdPlayback: true });
+    const pipeline = createSentencePipeline(fake.io);
+    const first = pipeline.enqueue(["one."]);
+    await flush();
+    expect(fake.log).toEqual(["fetch:one.", "play:one."]);
+    // The next streamed sentence arrives while "one." is still playing.
+    const second = pipeline.enqueue(["two."]);
+    await flush();
+    expect(fake.log).toEqual(["fetch:one.", "play:one.", "fetch:two."]);
+    fake.releaseCurrent();
+    await first;
+    await flush();
+    expect(fake.log.at(-1)).toBe("play:two.");
+    fake.releaseCurrent();
+    await second;
   });
 
   it("skips a sentence whose fetch failed and keeps going", async () => {
-    const played: string[] = [];
-    await playSentencesPipelined(
-      ["one.", "two.", "three."],
-      (text) => Promise.resolve(text === "two." ? null : text),
-      (wav) => {
-        played.push(wav);
-        return Promise.resolve();
-      },
-      () => false,
-    );
-    expect(played).toEqual(["one.", "three."]);
+    const fake = makeFakeIo({ failing: ["two."] });
+    const pipeline = createSentencePipeline(fake.io);
+    await pipeline.enqueue(["one.", "two.", "three."]);
+    expect(fake.log.filter((entry) => entry.startsWith("play:"))).toEqual([
+      "play:one.",
+      "play:three.",
+    ]);
   });
 
+  it("cancel cuts the playing sentence, drops the queue, settles every caller — and the next enqueue plays", async () => {
+    const fake = makeFakeIo({ holdPlayback: true });
+    const pipeline = createSentencePipeline(fake.io);
+    const done = pipeline.enqueue(["one.", "two.", "three."]);
+    await flush();
+    expect(fake.log).toEqual(["fetch:one.", "fetch:two.", "play:one."]);
+    pipeline.cancel();
+    await expect(done).resolves.toBeUndefined(); // the barge-in never wedges the caller
+    expect(fake.stoppedCount()).toBe(1);
+    await flush();
+    // Nothing queued before the cancel ever plays.
+    expect(fake.log.filter((entry) => entry.startsWith("play:"))).toEqual(["play:one."]);
+
+    const after = pipeline.enqueue(["four."]);
+    await flush();
+    expect(fake.log.at(-1)).toBe("play:four.");
+    fake.releaseCurrent();
+    await after;
+  });
+
+  it("resolves immediately for an empty list", async () => {
+    const fake = makeFakeIo();
+    await expect(createSentencePipeline(fake.io).enqueue([])).resolves.toBeUndefined();
+    expect(fake.log).toEqual([]);
+  });
+});
+
+describe("createSpokenAudioPlayer", () => {
   it("cancel mid-playback settles play() — the session loop must never wedge", async () => {
     // pause() fires neither onended nor onerror, so without cancel() resolving
     // the in-flight playback, play() would hang forever and with it the awaiting
@@ -96,24 +163,20 @@ describe("playSentencesPipelined", () => {
 
     const player = createSpokenAudioPlayer();
     const done = player.play("One sentence.");
-    await new Promise((resolve) => setTimeout(resolve, 0)); // reach playback
+    await flush(); // reach playback
     player.cancel();
     await expect(done).resolves.toBeUndefined();
   });
 
-  it("stops between steps once cancelled", async () => {
-    const played: string[] = [];
-    let cancelled = false;
-    await playSentencesPipelined(
-      ["one.", "two."],
-      (text) => Promise.resolve(text),
-      (wav) => {
-        played.push(wav);
-        cancelled = true; // cancel lands during the first playback
-        return Promise.resolve();
-      },
-      () => cancelled,
-    );
-    expect(played).toEqual(["one."]);
+  it("synthesizes through the daemon proxy once per sentence and stays silent when it is down", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+    vi.stubGlobal("fetch", fetchMock);
+    const player = createSpokenAudioPlayer();
+    await player.play("First one. Second one.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map((call) => JSON.parse(call[1].body).text)).toEqual([
+      "First one.",
+      "Second one.",
+    ]);
   });
 });

@@ -13,6 +13,16 @@ export function voiceStageOrbState(
   return view.state === "ended" ? "idle" : view.state;
 }
 
+/** The mic is open — in every live phase, not just while idle-listening: the
+ *  session listens THROUGH its own reply (voice-realtime VR2), so the stage
+ *  shows "listening" beside a thinking or speaking orb. */
+export function voiceStageIsListening(
+  view: VoiceCommandSessionView,
+  isMuted: boolean,
+): boolean {
+  return !isMuted && view.state !== "ended";
+}
+
 export function voiceStageCaption(
   view: VoiceCommandSessionView,
   isMuted: boolean,
@@ -24,6 +34,7 @@ export function voiceStageCaption(
   // The command was on screen while it was spoken; once it's sent the user
   // needs to see the turn is IN FLIGHT, not a frozen echo of their own words.
   if (view.state === "thinking") return "Thinking…";
+  // The reply so far — it grows a sentence at a time as the speech does.
   if (view.state === "speaking") return view.spokenText;
   return "Say “Hey Vynel” — or tap the mic to talk";
 }

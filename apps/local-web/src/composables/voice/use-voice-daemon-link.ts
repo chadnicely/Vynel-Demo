@@ -31,12 +31,12 @@ export function useVoiceDaemonLink(options: {
   /** 'jarvis' = the floating window — the daemon prefers it for wake delivery. */
   surface?: VoiceSurface;
   /** True while THIS window's own overlay session is live. While it is, a relayed
-   *  'speak' is skipped: the overlay already plays its own turn's speak calls off
-   *  its own stream, and the daemon (handed off to us) now publishes every speak
-   *  it receives — playing the relayed copy too would double-play the reply
-   *  (session-hardening arc, the coupled E3 fix). A schedule's or the Voice-chat
-   *  panel's speak that lands mid-conversation is dropped with it — the price of
-   *  the daemon not being able to tell producers apart. */
+   *  'speak' is skipped: the overlay already voices its own turn (the thread's
+   *  streamed text) off its own stream, and the daemon (handed off to us)
+   *  publishes every speak it receives — playing a relayed copy too would
+   *  double-play (session-hardening arc, the coupled E3 fix). A schedule's speak
+   *  that lands mid-conversation is dropped with it — the price of the daemon
+   *  not being able to tell producers apart. */
   isPlayingOwnTurn?: () => boolean;
 }) {
   const live = useLiveChannelStore();

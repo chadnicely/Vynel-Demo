@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineComponent } from "vue";
-import { mount } from "@vue/test-utils";
+import { mount, type VueWrapper } from "@vue/test-utils";
 import type { VynelClient } from "@vynel/sdk";
 import {
   VOICE_TIER_MODEL,
@@ -49,10 +49,8 @@ describe("useVoiceSession", () => {
   });
 });
 
-// The VOICE TIER on every leg (session-hardening D2): the overlay leg used to
-// send the model and the effort but no MODE, so a spoken turn resolved the
-// chat default — a hands-free surface that can card is a turn nobody can
-// answer. The mode now rides the request beside the other two.
+// The overlay's real turn request + its barge-in lever, driven through a stub
+// recognizer and scripted SSE bodies — no Web Speech, no network.
 class SilentRecognizer {
   lang = "";
   interimResults = false;
@@ -66,36 +64,71 @@ class SilentRecognizer {
   abort(): void {}
 }
 
+function sseFrame(kind: string, payload: object): Uint8Array {
+  return new TextEncoder().encode(`event: ${kind}\ndata: ${JSON.stringify(payload)}\n\n`);
+}
+
+function makeStreamHandle() {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+  });
+  return {
+    stream,
+    push: (kind: string, payload: object) => controller.enqueue(sseFrame(kind, payload)),
+    close: () => controller.close(),
+    abort: () => controller.error(new DOMException("aborted", "AbortError")),
+  };
+}
+
+let wrapper: VueWrapper | null = null;
+afterEach(() => {
+  wrapper?.unmount();
+  wrapper = null;
+  delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+  vi.unstubAllGlobals();
+});
+
+function mountWithStream() {
+  (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition = SilentRecognizer;
+  // The player synthesizes through the daemon TTS proxy — answer it here so the
+  // test never opens a socket (a 503 = silent; the failure path is covered in
+  // the player's own tests).
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(null, { status: 503 })),
+  );
+  const handles: ReturnType<typeof makeStreamHandle>[] = [];
+  const POST = vi.fn(async (_path: string, init?: { signal?: AbortSignal }) => {
+    const handle = makeStreamHandle();
+    handles.push(handle);
+    init?.signal?.addEventListener("abort", () => handle.abort());
+    return { data: handle.stream, response: { ok: true, status: 200 } };
+  });
+  const interruptTurn = vi.fn(async () => ({ interrupted: true }));
+
+  let session!: ReturnType<typeof useVoiceSession>;
+  const Harness = defineComponent({
+    setup() {
+      session = useVoiceSession({ onEnded: () => {} });
+      return () => null;
+    },
+  });
+  wrapper = mount(Harness, {
+    global: {
+      provide: {
+        [vynelClientKey as symbol]: { POST, root: { interruptTurn } } as unknown as VynelClient,
+      },
+    },
+  });
+  return { session, POST, interruptTurn, stream: () => handles[0]! };
+}
+
 describe("useVoiceSession — the overlay's turn request", () => {
   it("sends the voice tier: model, effort, hands-free mode, voice:true", async () => {
-    (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition =
-      SilentRecognizer;
-    // The spoken ack fetches the daemon TTS proxy — answer it here so the test
-    // never opens a socket (its failure path is already covered elsewhere).
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(null, { status: 503 })),
-    );
-    const POST = vi.fn(async () => ({
-      data: new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.close();
-        },
-      }),
-      response: { ok: true, status: 200 },
-    }));
-
-    let session!: ReturnType<typeof useVoiceSession>;
-    const Harness = defineComponent({
-      setup() {
-        session = useVoiceSession({ onEnded: () => {} });
-        return () => null;
-      },
-    });
-    const wrapper = mount(Harness, {
-      global: { provide: { [vynelClientKey as symbol]: { POST } as unknown as VynelClient } },
-    });
-
+    const { session, POST } = mountWithStream();
     // An initial command runs the brain turn straight away (the wake phrase and
     // the request arrived in one breath) — no capture needed.
     session.start("what is on my calendar");
@@ -113,10 +146,23 @@ describe("useVoiceSession — the overlay's turn request", () => {
       mode: VOICE_TIER_MODE,
       voice: true,
     });
+    session.end();
+  });
+
+  it("closing mid-reply interrupts the turn BY ITS SESSION ID (never the global head)", async () => {
+    const { session, POST, interruptTurn, stream } = mountWithStream();
+    session.start("read me the news");
+    await vi.waitFor(() => expect(POST).toHaveBeenCalled());
+    // The stream names the spoken thread's segment, then the reply starts.
+    stream().push("user-message-persisted", {
+      kind: "user-message-persisted",
+      message: { id: "u-1", sessionId: "voice-seg-7", role: "user", body: "read me the news" },
+    });
+    stream().push("text-chunk", { kind: "text-chunk", messageId: "m-1", textDelta: "Here is the first headline. " });
+    await vi.waitFor(() => expect(session.view.value.state).toBe("speaking"));
 
     session.end();
-    wrapper.unmount();
-    delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
-    vi.unstubAllGlobals();
+    await vi.waitFor(() => expect(interruptTurn).toHaveBeenCalledWith({ sessionId: "voice-seg-7" }));
+    expect(interruptTurn).not.toHaveBeenCalledWith({});
   });
 });

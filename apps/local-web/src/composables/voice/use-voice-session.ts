@@ -22,9 +22,9 @@ import {
 } from "./voice-command-session.js";
 
 // Binds one browser voice-command session to Vue state for the Jarvis overlay:
-// Web Speech STT in, a global `/root/turn` per command on the fast voice model.
-// The browser NEVER speaks on its own — voice output follows the brain's `speak`
-// calls (with the adapter's no-`speak` gist fallback as the safety net).
+// Web Speech STT in, a voice-thread `/root/turn` per utterance on the voice
+// tier, the reply's streamed text spoken in the browser sentence by sentence,
+// and a barge-in that stops the server turn by its own id.
 
 const IDLE_VIEW: VoiceCommandSessionView = {
   state: "ended",
@@ -32,8 +32,8 @@ const IDLE_VIEW: VoiceCommandSessionView = {
   spokenText: "",
 };
 
-/** Run one voice turn against the global root; yields the adapter's events and
- *  maps a transport failure to a 'failed' terminal (unless we aborted it). */
+/** Run one voice turn against the spoken thread; yields the adapter's events
+ *  and maps a transport failure to a 'failed' terminal (unless we aborted it). */
 async function* runGlobalVoiceTurn(
   client: VynelClient,
   utterance: string,
@@ -50,7 +50,7 @@ async function* runGlobalVoiceTurn(
         model: VOICE_MODEL,
         thinkingEffort: VOICE_THINKING_EFFORT,
         mode: VOICE_MODE,
-        voice: true, // reply via the speak tool; text is the on-screen record
+        voice: true, // the spoken thread — its streamed text is its voice
         signal,
       }),
     );
@@ -100,6 +100,10 @@ export function useVoiceSession(options: {
           runGlobalVoiceTurn(vynel, utterance, signal),
         playSpoken: (text) => player.play(text),
         cancelSpoken: () => player.cancel(),
+        // Identity-shaped: the spoken thread's own segment, never the global head.
+        interruptTurn: async (sessionId) => {
+          await vynel.root.interruptTurn({ sessionId });
+        },
         onView: (next) => {
           view.value = next;
         },

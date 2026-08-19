@@ -1,21 +1,25 @@
 import { SpokenSentenceBuffer } from "@vynel/voice";
 
-// Play a spoken reply IN THE BROWSER — the reliable audio path. The daemon's own
+// Play spoken replies IN THE BROWSER — the reliable audio path. The daemon's own
 // speaker can't play while the overlay window holds the audio device (Windows
 // device contention), so when an overlay is the active surface, IT plays the
 // voice: fetch the daemon's Kokoro synthesis (one voice, `/voice/synthesize`
-// proxies to the daemon) and play the WAV. Bonus: the browser's echo cancellation
-// covers its own output, so the Web Speech mic never hears the reply.
+// proxies to the daemon) and play the WAV.
 //
-// The line is split at sentence boundaries and PIPELINED — sentence N+1's WAV is
-// fetched while sentence N plays, so first sound waits for one sentence's
-// synthesis, not the whole reply's (the native daemon loop's exact behavior).
-// Sentence-sizing also keeps each request under the daemon's /synthesize cap.
+// ONE QUEUE, PIPELINED: every `play()` call queues its sentences behind whatever
+// is already playing, and the NEXT queued sentence's WAV is fetched while the
+// current one plays — so a reply streamed sentence by sentence (voice-realtime
+// VR1/VR4) starts sounding after ONE sentence's synthesis and keeps up with
+// generation, and a second `play()` never waits for the first to finish its
+// synthesis. `cancel()` is the barge-in: it stops the current playback and
+// drops everything queued. Sentence-sizing also keeps each request under the
+// daemon's /synthesize cap.
 
 export interface SpokenAudioPlayer {
-  /** Synthesize + play `text`; resolves when playback finished (or was cancelled). */
+  /** Queue `text` (split into sentences) behind what is playing; resolves when
+   *  its last sentence finished playing (or everything was cancelled). */
   play(text: string): Promise<void>;
-  /** Stop playback and drop anything in flight. */
+  /** Stop playback and drop every queued sentence. */
   cancel(): void;
 }
 
@@ -26,34 +30,100 @@ export function toSpokenSentences(text: string): string[] {
   return [...buffer.push(text), ...buffer.flush()];
 }
 
-/** The pipeline: play sentences in order while prefetching the NEXT sentence's
- *  audio during the current one's playback. A failed fetch skips its sentence
- *  (the caption already showed the words); `isCancelled` stops between steps.
- *  Pure over its callbacks — unit-tested with fakes. */
-export async function playSentencesPipelined<Wav>(
-  sentences: readonly string[],
-  fetchWav: (text: string) => Promise<Wav | null>,
-  playWav: (wav: Wav) => Promise<void>,
-  isCancelled: () => boolean,
-): Promise<void> {
-  if (sentences.length === 0) return;
-  let nextWav = fetchWav(sentences[0]!);
-  for (let i = 0; i < sentences.length; i += 1) {
-    const wav = await nextWav;
-    if (isCancelled()) return;
-    if (i + 1 < sentences.length) nextWav = fetchWav(sentences[i + 1]!);
-    if (wav !== null) await playWav(wav);
-    if (isCancelled()) return;
+/** The I/O a sentence pipeline drives — fakes in tests, fetch + Audio in the browser. */
+export interface SentencePipelineIo<Wav> {
+  /** Synthesize one sentence; null = skip it (the caption already showed the words). */
+  fetchWav(text: string, signal: AbortSignal): Promise<Wav | null>;
+  /** Play one WAV; resolves when it ended — or when `stopPlayback` cut it. */
+  playWav(wav: Wav): Promise<void>;
+  /** Cut the in-flight playback (its `playWav` must resolve). */
+  stopPlayback(): void;
+}
+
+export interface SentencePipeline {
+  /** Queue sentences in order; resolves once the last one played or was cancelled. */
+  enqueue(sentences: readonly string[]): Promise<void>;
+  /** Drop the queue, abort in-flight synthesis, cut playback. */
+  cancel(): void;
+}
+
+interface QueuedSentence<Wav> {
+  readonly text: string;
+  /** The cancel generation it was queued under — a later generation means a
+   *  `cancel()` landed while its WAV was in flight, and it must not play. */
+  readonly generation: number;
+  wav: Promise<Wav | null> | null;
+  settle(): void;
+}
+
+/** The pipeline core — pure over its I/O. ONE drain loop serves every
+ *  `enqueue()`: it prefetches sentence N+1 while N plays, across call
+ *  boundaries, and a `cancel()` mid-await never wedges it (the next enqueue
+ *  finds the same loop still running). */
+export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): SentencePipeline {
+  let queue: QueuedSentence<Wav>[] = [];
+  let generation = 0;
+  let abort = new AbortController();
+  let draining = false;
+
+  async function drain(): Promise<void> {
+    if (draining) return;
+    draining = true;
+    try {
+      while (queue.length > 0) {
+        const current = queue[0]!;
+        current.wav ??= io.fetchWav(current.text, abort.signal);
+        const next = queue[1];
+        if (next !== undefined) next.wav ??= io.fetchWav(next.text, abort.signal);
+        const wav = await current.wav;
+        // A cancel while the WAV was in flight already settled + dropped it.
+        if (current.generation !== generation) continue;
+        if (wav !== null) await io.playWav(wav);
+        if (queue[0] === current) {
+          queue.shift();
+          current.settle();
+        }
+      }
+    } finally {
+      draining = false;
+    }
   }
+
+  return {
+    enqueue(sentences: readonly string[]): Promise<void> {
+      if (sentences.length === 0) return Promise.resolve();
+      const settled = sentences.map(
+        (text) =>
+          new Promise<void>((resolve) => {
+            const item: QueuedSentence<Wav> = { text, generation, wav: null, settle: resolve };
+            queue.push(item);
+            // Lookahead of ONE: a sentence that lands right behind the playing
+            // one starts synthesizing now (the drain loop is parked in that
+            // playback), anything further back waits its turn — the daemon's
+            // synth is CPU-bound, so we never flood it with a whole reply.
+            if (queue.length <= 2) item.wav = io.fetchWav(text, abort.signal);
+          }),
+      );
+      void drain();
+      return Promise.all(settled).then(() => undefined);
+    },
+    cancel(): void {
+      generation += 1;
+      abort.abort();
+      abort = new AbortController();
+      io.stopPlayback();
+      const dropped = queue;
+      queue = [];
+      for (const item of dropped) item.settle();
+    },
+  };
 }
 
 export function createSpokenAudioPlayer(): SpokenAudioPlayer {
-  let cancelled = false;
   let playing: HTMLAudioElement | null = null;
-  let abort: AbortController | null = null;
-  // The in-flight playback's resolver — cancel() must settle it: pause() fires
-  // neither onended nor onerror, so without this a cancel mid-playback would
-  // hang play() forever (and with it the session loop awaiting it — the
+  // The in-flight playback's resolver — stopPlayback() must settle it: pause()
+  // fires neither onended nor onerror, so without this a cancel mid-playback
+  // would hang play() forever (and with it the session loop awaiting it — the
   // deaf-daemon class: done never settles, /session/end never posts).
   let resolvePlaying: (() => void) | null = null;
 
@@ -90,25 +160,17 @@ export function createSpokenAudioPlayer(): SpokenAudioPlayer {
     }
   }
 
+  function stopPlayback(): void {
+    playing?.pause();
+    playing = null;
+    resolvePlaying?.();
+    resolvePlaying = null;
+  }
+
+  const pipeline = createSentencePipeline<Blob>({ fetchWav, playWav, stopPlayback });
+
   return {
-    async play(text: string): Promise<void> {
-      cancelled = false;
-      abort = new AbortController();
-      const signal = abort.signal;
-      await playSentencesPipelined(
-        toSpokenSentences(text),
-        (sentence) => fetchWav(sentence, signal),
-        playWav,
-        () => cancelled,
-      );
-    },
-    cancel(): void {
-      cancelled = true;
-      abort?.abort();
-      playing?.pause();
-      playing = null;
-      resolvePlaying?.();
-      resolvePlaying = null;
-    },
+    play: (text) => pipeline.enqueue(toSpokenSentences(text)),
+    cancel: () => pipeline.cancel(),
   };
 }
