@@ -3,12 +3,17 @@
 // registry holds; the answer/dismiss routes (or a scope cancel / boot expiry)
 // resolve it.
 //
-// Timeout policy is the CALLER's: an INTERACTIVE stream passes none — a
-// decision Claude chose to ask for cannot be fabricated (Chad, module notes
-// fork #1); the user's dismiss is the only "proceed without me" path there.
-// An UNATTENDED surface (channel turns) passes `timeoutMs` — nobody may be
+// Timeout policy is the CALLER's, and every caller now passes one
+// (session-hardening arc, decision D5 — "every wait has a bound and an
+// owner"): an INTERACTIVE stream passes the generous
+// `VYNEL_INTERACTIVE_ASK_MAX_MS` (2 h — a decision Claude chose to ask for is
+// still never fabricated quickly, Chad's fork #1; but a form the user walked
+// away from must not hold the thread's lock for the process lifetime), an
+// UNATTENDED surface (channel turns) passes its short bound — nobody may be
 // looking at the app, so a bounded wait resolves 'expired' and the turn
-// proceeds with judgment instead of parking a background job forever.
+// proceeds with judgment instead of parking a background job forever. The
+// optional `waitGate` lets the owning turn's wall clock SUSPEND while the ask
+// is parked — deciding time is never working time.
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
@@ -49,14 +54,25 @@ export interface AskUserToolScope {
   resolveSessionId?: () => string | undefined
 }
 
+/** The park signal the owning turn's wall clock listens on — structural (the
+ *  orchestration `ApprovalWaitGate` satisfies it) so this leaf imports no
+ *  sibling. Parked at register, released on ANY resolution (answer, dismiss,
+ *  cancel, expiry). */
+export interface AskWaitGate {
+  markParked: () => void
+  markResolved: () => void
+}
+
 export interface AskUserToolDeps {
   waiters: PendingAskRegistry
   // The owning turn's key (minted per stream request) — turn-end cleanup
   // cancels exactly this turn's parked asks, never a sibling turn's.
   turnKey: string
-  /** Bounded wait for unattended surfaces — see the file header. Omit on
-   *  interactive streams (the recorded no-timeout decision). */
+  /** The bounded wait — see the file header. Omitted only by a caller that
+   *  deliberately owns the bound elsewhere; every shipped surface passes one. */
   timeoutMs?: number
+  /** The owning turn's wall-clock gate — a parked ask suspends the clock. */
+  waitGate?: AskWaitGate
   logger?: StructuralLogger
 }
 
@@ -96,11 +112,16 @@ export async function runAskUserBridge(
       userId: scope.userId,
       workspaceId: scope.workspaceId,
       turnKey: deps.turnKey,
+      // Every resolution path (answer, dismiss, turn-end cancel, expiry) goes
+      // through the registry's record — so this is the ONE place the gate is
+      // released, exactly once per ask (the registry deletes the record).
       resolve: (outcome) => {
         if (expiryTimer !== undefined) clearTimeout(expiryTimer)
+        deps.waitGate?.markResolved()
         resolve(outcome)
       },
     })
+    deps.waitGate?.markParked()
     if (deps.timeoutMs !== undefined) {
       expiryTimer = setTimeout(() => {
         // The user may have answered in the same tick — the registry's

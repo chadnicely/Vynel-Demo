@@ -6,3 +6,4 @@ export {
   buildAskFeatureDescriptor,
   ASK_PROMPT_INSTRUCTIONS,
 } from './ask-mcp-feature-descriptor.js'
+export type { AskUserToolDeps, AskWaitGate } from './ask-user-tool.js'

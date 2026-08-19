@@ -1,10 +1,16 @@
-// Core op — mark pending asks `expired`, in two modes:
-//   - BOOT RECOVERY (no askIds): every pending row process-wide. The waiter
+// Core op — mark pending asks `expired`, in three modes:
+//   - BOOT RECOVERY (no selector): every pending row process-wide. The waiter
 //     registry died with the previous process, so a pending row is
 //     unanswerable — expiring it keeps the UI from showing a zombie wizard
 //     (the approvals recover-stale precedent).
-//   - SCOPE CANCEL (askIds given): the rows whose waiters a turn's `finally`
+//   - SCOPE CANCEL (`askIds`): the rows whose waiters a turn's `finally`
 //     just cancelled (interrupt/disconnect while an ask was open).
+//   - AGE REAP (`pendingBefore`): pending rows created before the cutoff —
+//     the running 60 s reaper's read (session-hardening D5). A LIVE waiter
+//     expires itself at the same bound through its own timer; what this mode
+//     catches is the row whose waiter is gone (the tool call was interrupted
+//     before its handler parked, a timer that never armed) and would otherwise
+//     stay pending for the process lifetime.
 // Each expiry co-commits its `ask.resolved` event in ONE transaction.
 
 import { randomUUID } from 'node:crypto'
@@ -17,7 +23,7 @@ import type { StructuralLogger } from '../asks-types.js'
 
 export function expireAskRequests(
   db: Database,
-  input: { askIds?: readonly string[] } = {},
+  input: { askIds?: readonly string[]; pendingBefore?: Date } = {},
   deps: { logger?: StructuralLogger } = {},
 ): { expiredCount: number } {
   const pending =
@@ -25,7 +31,9 @@ export function expireAskRequests(
       ? input.askIds
           .map((askId) => asksRepository.findAskRequestById(db, askId))
           .filter((ask) => ask !== null && ask.status === 'pending')
-      : asksRepository.listAllPendingAskRequests(db)
+      : input.pendingBefore !== undefined
+        ? asksRepository.listPendingAskRequestsCreatedBefore(db, input.pendingBefore)
+        : asksRepository.listAllPendingAskRequests(db)
 
   const now = new Date()
   let expiredCount = 0

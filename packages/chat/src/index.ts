@@ -40,6 +40,10 @@ export type {
   ConsumeSessionEventStreamInput,
   TurnMessageAttribution,
 } from './turn-consumption/consume-session-event-stream.js'
+// The honest failure row for a turn that died with no assistant output — the
+// consumer's own rule for a provider error, shared with the interactive wall
+// clock (a turn cut off at its limit says so on the thread the same way).
+export { persistTurnFailureRow } from './turn-consumption/persist-turn-failure-row.js'
 // Boot recovery for orphaned tool-call rows — server.ts reaps `started` →
 // `cancelled` at boot (the consumer's teardown reap can't run on process death).
 export { reapAllStartedChatToolCalls } from './repositories/chat-tool-calls.js'

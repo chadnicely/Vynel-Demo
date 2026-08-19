@@ -161,4 +161,56 @@ describe('runAskUserBridge', () => {
       await bridge
     })
   })
+
+  it('marks the wait gate parked while the ask is open and releases it on EVERY resolution path', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const waiters = new PendingAskRegistry()
+      let parkedCount = 0
+      const waitGate = {
+        markParked: () => {
+          parkedCount += 1
+        },
+        markResolved: () => {
+          parkedCount -= 1
+        },
+      }
+
+      // Answered.
+      const answered = runAskUserBridge(
+        db,
+        { userId, workspaceId },
+        { waiters, turnKey: 'turn-1', waitGate },
+        makeQuestions(),
+      )
+      expect(parkedCount).toBe(1)
+      const [pending] = listPendingAskRequestsForUser(db, userId)
+      waiters.resolve(pending!.id, { answered: true, answers: {} })
+      await answered
+      expect(parkedCount).toBe(0)
+
+      // Cancelled by the owning turn's finally.
+      const cancelled = runAskUserBridge(
+        db,
+        { userId, workspaceId },
+        { waiters, turnKey: 'turn-2', waitGate },
+        makeQuestions(),
+      )
+      expect(parkedCount).toBe(1)
+      waiters.cancelForTurn('turn-2')
+      await cancelled
+      expect(parkedCount).toBe(0)
+
+      // Expired by the bounded wait.
+      const expired = runAskUserBridge(
+        db,
+        { userId, workspaceId },
+        { waiters, turnKey: 'turn-3', timeoutMs: 20, waitGate },
+        makeQuestions(),
+      )
+      expect(parkedCount).toBe(1)
+      await expect(expired).resolves.toEqual({ answered: false, reason: 'expired' })
+      expect(parkedCount).toBe(0)
+    })
+  })
 })

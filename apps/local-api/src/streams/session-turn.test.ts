@@ -4,7 +4,10 @@
 // registry mocked at the module boundary (the chat-turn.test.ts precedent).
 // Pins the three locked decisions: the background-toolset parity per
 // grounding, head-resume (+ link-on-swap), and the FIFO queue behind a held
-// target lock.
+// target lock — plus the session-hardening seams (2026-08-19): the voice
+// leg's forced tier + no settings write, the unconditionally stamped mode
+// header, and the interactive wall clock (a fake that can HANG a turn until
+// interrupted; `loadEnv` overridable per test for the bound).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -29,11 +32,30 @@ import type {
 // continuity step measures.
 let swapToSessionId: string | null = null
 let usageTokensForTurn: number | null = null
+/** The next turn HANGS after its first chunk until interrupted (the wall-clock case). */
+let nextTurnHangs = false
 const startChatSessionInputs: StartChatSessionInput[] = []
 let summarizeSessionCalls = 0
+const { interruptChatSessionMock, hangResolvers, wrapAppRequestWithModeSpy, envOverrides } =
+  vi.hoisted(() => {
+    const hangResolvers = new Map<string, () => void>()
+    return {
+      hangResolvers,
+      // A REAL interrupt ends the hung fake turn — the way the SDK runtime ends
+      // a session the provider interrupts.
+      interruptChatSessionMock: vi.fn(async (sessionId: string) => {
+        hangResolvers.get(sessionId)?.()
+        hangResolvers.delete(sessionId)
+      }),
+      wrapAppRequestWithModeSpy: vi.fn(),
+      envOverrides: { current: {} as Record<string, unknown> },
+    }
+  })
 function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
   startChatSessionInputs.push(input)
   const sessionId = swapToSessionId ?? input.resumeSessionId ?? `sdk-${randomUUID()}`
+  const hangs = nextTurnHangs
+  nextTurnHangs = false
   async function* events(): AsyncIterable<NormalizedSessionEvent> {
     yield {
       kind: 'session-started',
@@ -48,6 +70,11 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
       messageId,
       textDelta: 'Reply from the session.',
       isFinalChunk: true,
+    }
+    if (hangs) {
+      await new Promise<void>((resolve) => hangResolvers.set(sessionId, resolve))
+      yield { kind: 'session-interrupted', sessionId, interruptedAt: new Date() }
+      return
     }
     if (usageTokensForTurn !== null) {
       yield {
@@ -74,12 +101,34 @@ vi.mock('@vynel/providers', async () => {
     ...actual,
     resolveAiAgentProvider: () => ({
       startChatSession: fakeStartChatSession,
+      interruptChatSession: interruptChatSessionMock,
       summarizeSession: async () => {
         summarizeSessionCalls += 1
         return USABLE_CARRY
       },
     }),
   }
+})
+// The real header writer, with the stamped mode recorded (the parent == child pin).
+vi.mock('../sessions/delegation-mode-header.js', async () => {
+  const actual = await vi.importActual<typeof import('../sessions/delegation-mode-header.js')>(
+    '../sessions/delegation-mode-header.js',
+  )
+  return {
+    ...actual,
+    wrapAppRequestWithMode: (
+      appRequest: Parameters<typeof actual.wrapAppRequestWithMode>[0],
+      permissionMode: string,
+    ) => {
+      wrapAppRequestWithModeSpy(permissionMode)
+      return actual.wrapAppRequestWithMode(appRequest, permissionMode)
+    },
+  }
+})
+// The bounds knobs, per test — everything else stays the real parsed env.
+vi.mock('../env.js', async () => {
+  const actual = await vi.importActual<typeof import('../env.js')>('../env.js')
+  return { ...actual, loadEnv: () => ({ ...actual.loadEnv(), ...envOverrides.current }) }
 })
 
 import {
@@ -111,8 +160,13 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 beforeEach(() => {
   swapToSessionId = null
   usageTokensForTurn = null
+  nextTurnHangs = false
   summarizeSessionCalls = 0
   startChatSessionInputs.length = 0
+  interruptChatSessionMock.mockClear()
+  wrapAppRequestWithModeSpy.mockClear()
+  hangResolvers.clear()
+  envOverrides.current = {}
 })
 
 function seedUser(db: Database) {
@@ -583,6 +637,111 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         expect(fresh?.visibility).toBe('hidden')
         expect(fresh?.scope).toBe('spawned')
         expect(findChatSessionById(db, 'sdk-sp-a')?.visibility).toBe('listed')
+      })
+    })
+  })
+
+  it('stamps the RESOLVED mode on the routing header even when nothing was set — parent == child (A6)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-mode-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-mode')
+        const app = createApp({ db, logger: silentLogger })
+
+        // Born with NULL settings, no mode in the body → the default runs AND
+        // is what the children inherit (used to stamp nothing → NULL → the
+        // runner's own default).
+        await (await postTurn(app, spawned.sessionId, { userMessageText: 'no mode' })).text()
+        expect(startChatSessionInputs[0]!.permissionMode).toBe('auto')
+        expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('auto')
+
+        wrapAppRequestWithModeSpy.mockClear()
+        await (await postTurn(app, spawned.sessionId, { userMessageText: 'ask', mode: 'ask' })).text()
+        expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')
+        expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('ask')
+      })
+    })
+  })
+
+  it('a VOICE turn (the live-call leg) runs the tier — auto / sonnet-5 / low — forced over the body into a NULL-settings session and writes nothing (V1)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-voice-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-call')
+        const app = createApp({ db, logger: silentLogger })
+
+        // Agent-1's repro shape: the call client's body onto a spawned row born
+        // NULL — the interactive path used to resolve the carding default and
+        // stamp the pins onto the row. Nothing in the body rides either.
+        const frames = await (
+          await postTurn(app, spawned.sessionId, {
+            userMessageText: 'note that down',
+            voice: true,
+            model: 'claude-haiku-4-5',
+            thinkingEffort: 'max',
+            mode: 'ask',
+          })
+        ).text()
+        expect(frames).toContain('event: turn-stream-ended')
+
+        const input = startChatSessionInputs[0]!
+        expect(input.permissionMode).toBe('auto')
+        expect(input.model).toBe('claude-sonnet-5')
+        expect(input.thinkingEffort).toBe('low')
+        // The children inherit the tier's mode too.
+        expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('auto')
+        // The row stays untouched — the tier's pins are the surface's, not chips.
+        const row = findChatSessionById(db, 'sdk-sp-call')
+        expect(row?.sessionMode).toBeNull()
+        expect(row?.selectedModel).toBeNull()
+        expect(row?.thinkingEffort).toBeNull()
+
+        // A keyboard turn into the same session still resolves + persists as before.
+        await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'typed', mode: 'ask' })
+        ).text()
+        expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')
+        expect(findChatSessionById(db, 'sdk-sp-call')?.sessionMode).toBe('ask')
+      })
+    })
+  })
+
+  it('the interactive wall clock: a turn past VYNEL_INTERACTIVE_TURN_MAX_MS is interrupted, records the failure row, streams the errored frame, and frees the target lock (D5)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-clock-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-clock')
+        const locks = new SessionTargetLocks()
+        const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+        envOverrides.current = { VYNEL_INTERACTIVE_TURN_MAX_MS: 60 }
+
+        nextTurnHangs = true
+        const frames = await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'never ends' })
+        ).text()
+
+        // The clock interrupted THE turn's head (nothing else released the hang).
+        expect(interruptChatSessionMock).toHaveBeenCalledWith('sdk-sp-clock')
+        expect(frames).toContain('"errorCode":"turn-wall-clock-exceeded"')
+        expect(frames).toContain('turn exceeded the 0.001-minute limit')
+        expect(frames).toContain('event: session-interrupted')
+        expect(frames).toContain('event: turn-stream-ended')
+        // The durable fact on the thread.
+        const errored = listChatMessagesForSession(db, 'sdk-sp-clock').find(
+          (message) => message.errorCode === 'turn-wall-clock-exceeded',
+        )
+        expect(errored?.errorMessage).toBe('turn exceeded the 0.001-minute limit')
+        // The single-writer key is free again.
+        expect(locks.isBusy(spawned.primarySessionId)).toBe(false)
+
+        // A normal turn never trips it.
+        envOverrides.current = { VYNEL_INTERACTIVE_TURN_MAX_MS: 5_000 }
+        interruptChatSessionMock.mockClear()
+        await (await postTurn(app, spawned.sessionId, { userMessageText: 'quick' })).text()
+        expect(interruptChatSessionMock).not.toHaveBeenCalled()
       })
     })
   })

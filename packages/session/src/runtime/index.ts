@@ -178,3 +178,20 @@ export {
   type FitPinnedModelToSessionInput,
   type FitPinnedModelToSessionResult,
 } from './fit-pinned-model-to-session.js'
+
+// The global-root lock's read side (session-hardening arc): the key shape ONE
+// home + the busy probe the global/voice SSE stream emits its queued sentinel
+// from. `runUnderRootTurnLock` itself stays the core's private acquire.
+export { isRootTurnLockBusy, rootTurnLockKey } from './root-turn-lock.js'
+
+// The interactive turn's wall clock — the one bound every user-facing stream
+// puts on a turn it holds a lock for; suspended while parked on a human.
+export {
+  startTurnWallClock,
+  trackApprovalParks,
+  failTurnOnWallClock,
+  TURN_WALL_CLOCK_ERROR_CODE,
+  type StartTurnWallClockInput,
+  type TurnWallClock,
+  type TurnWallClockFailure,
+} from './turn-wall-clock.js'

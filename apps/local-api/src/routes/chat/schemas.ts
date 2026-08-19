@@ -98,10 +98,13 @@ export const StartChatTurnRequestSchema = z.object({
   // The user-facing session mode (values from SESSION_MODE_VALUES above). The
   // server maps it to the provider permission mode (`toPermissionMode`) and
   // resolves the default when omitted (the session's persisted setting, else
-  // `ask` — real since the per-session settings landed, 2026-08-17).
+  // `DEFAULT_SESSION_MODE` — `auto` since the session-hardening arc,
+  // 2026-08-19); the resolved mode also rides to every child the turn
+  // enqueues.
   mode: z.enum(SESSION_MODE_VALUES).optional(),
-  // The composer's Auto-buildout toggle — write-through persistence only
-  // (nothing consumes it yet); rides the turn so a NEW conversation's first
+  // The composer's Auto-buildout toggle — autopilot (session-hardening D8):
+  // resolved like the other settings (input ?? row); when true the turn
+  // carries the autopilot marker; rides the turn so a NEW conversation's first
   // turn stamps the row it creates.
   autoBuildout: z.boolean().optional(),
 });
