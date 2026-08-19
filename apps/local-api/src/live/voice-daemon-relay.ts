@@ -15,6 +15,9 @@
 //   - `wake` is SINGLE delivery — the daemon sends it to its newest capable
 //     client, the relay hands it to the upstream's NEWEST window (the daemon's
 //     own rule, one hop later) and remembers that window as the wake OWNER;
+//     the owner leaving while siblings stay re-subscribes the upstream, so the
+//     daemon (whose owner IS the upstream) sees its session runner disconnect
+//     and takes the mic back instead of staying handed off;
 //   - `speak` is SINGLE delivery too — the daemon routes it to the upstream
 //     that owns the handoff (else its newest), the relay hands it to the
 //     window that took the wake while it is still subscribed, else the newest
@@ -224,6 +227,23 @@ export function createVoiceDaemonRelay(options: VoiceDaemonRelayOptions): VoiceD
     link.lastState = null
   }
 
+  /** Re-subscribe to the daemon so it SEES a disconnect. Its handoff owner is
+   *  this upstream, not a window: when the window that took the wake leaves
+   *  while siblings keep the link open, the daemon would never learn its
+   *  session runner is gone and stay handed off — deaf, the mic never taken
+   *  back. The reconnect is the disconnect it understands (onClientsGone →
+   *  endHandoff; a wake it still holds replays to a sibling). The link light
+   *  holds across the gap — a failed reconnect still reports it off — and a
+   *  link already down needs nothing: the daemon saw that one, the pending
+   *  retry re-subscribes. */
+  function cycleUpstream(link: UpstreamLink): void {
+    const upstream = link.upstream
+    if (upstream === null) return
+    link.upstream = null
+    upstream.abort()
+    void runUpstream(link)
+  }
+
   return {
     subscribe(subscriber, listener) {
       if (disposed) return () => {}
@@ -244,8 +264,10 @@ export function createVoiceDaemonRelay(options: VoiceDaemonRelayOptions): VoiceD
         released = true
         link.listeners.delete(listener)
         // The owning window left — the next speak takes the newest, not a ghost.
-        if (link.wakeOwner === listener) link.wakeOwner = null
+        const wasOwner = link.wakeOwner === listener
+        if (wasOwner) link.wakeOwner = null
         if (link.listeners.size === 0) stopUpstream(link)
+        else if (wasOwner) cycleUpstream(link)
       }
     },
     isConnected: (subscriber) => links.get(liveChannelKeys.voice(subscriber))?.connected ?? false,

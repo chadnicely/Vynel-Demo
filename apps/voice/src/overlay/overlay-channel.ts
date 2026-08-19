@@ -58,8 +58,11 @@ export interface OverlayChannelHooks {
 }
 
 export interface OverlayChannelOptions {
-  /** 'jarvis' = only the floating window runs wake sessions (app tabs still
-   *  get state events + manual sessions); 'any' = the newest capable client does. */
+  /** Which surface's capable clients may take a wake: 'jarvis' = only the
+   *  floating window (app tabs still get state events + manual sessions);
+   *  'app' = only a capable app tab — the window feature is off, and the
+   *  desktop shell's hidden jarvis webview (connected regardless) must not
+   *  swallow the wake; 'any' = the newest capable client of either. */
   readonly wakeSurface: OverlaySurface | 'any'
   /** The daemon's per-turn watchdog, carried on every wake event. */
   readonly turnWatchdogMs: number

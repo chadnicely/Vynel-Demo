@@ -14,12 +14,12 @@ import {
 } from "./speech-recognition.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 import { adaptChatTurnStreamToVoice } from "./voice-turn-adapter.js";
-import {
-  startVoiceCommandSession,
-  type VoiceCommandSession,
-  type VoiceCommandSessionView,
-  type VoiceTurnEvent,
-} from "./voice-command-session.js";
+import { startVoiceCommandSession } from "./voice-command-session.js";
+import type {
+  VoiceCommandSession,
+  VoiceCommandSessionView,
+  VoiceTurnEvent,
+} from "./voice-command-session-types.js";
 
 // Binds one browser voice-command session to Vue state for the Jarvis overlay:
 // Web Speech STT in, a voice-thread `/root/turn` per utterance on the voice
@@ -30,6 +30,7 @@ const IDLE_VIEW: VoiceCommandSessionView = {
   state: "ended",
   transcript: "",
   spokenText: "",
+  notice: "",
 };
 
 /** Run one voice turn against the spoken thread; yields the adapter's events
@@ -145,9 +146,16 @@ export function useVoiceSession(options: {
     return session?.currentSessionId ?? null;
   }
 
+  /** Play another producer's line (a relayed `speak`) through the live
+   *  session's own player + echo filter while a turn is in flight — false when
+   *  there is none to take it, and the caller plays it on its own player. */
+  function speakExternal(text: string): boolean {
+    return session?.speakExternal(text) ?? false;
+  }
+
   onUnmounted(() => {
     session?.end();
   });
 
-  return { view, failure, isActive, canListen, start, end, currentSessionId };
+  return { view, failure, isActive, canListen, start, end, currentSessionId, speakExternal };
 }

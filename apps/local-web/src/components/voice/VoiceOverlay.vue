@@ -28,6 +28,7 @@ const voice = useVoiceSession({ onEnded: handleSessionEnded });
 const daemon = useVoiceDaemonLink({
   onWake: handleWake,
   ownLiveSessionId: voice.currentSessionId,
+  speakThroughSession: voice.speakExternal,
 });
 
 // The session settled (idle silence, close, or a start that couldn't begin):

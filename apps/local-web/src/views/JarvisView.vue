@@ -31,6 +31,7 @@ const daemon = useVoiceDaemonLink({
   surface: "jarvis",
   onWake: handleWake,
   ownLiveSessionId: voice.currentSessionId,
+  speakThroughSession: voice.speakExternal,
 });
 
 function handleSessionEnded(): void {

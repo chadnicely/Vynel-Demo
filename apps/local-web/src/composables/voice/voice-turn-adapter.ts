@@ -1,6 +1,6 @@
 import { SpokenSentenceBuffer } from "@vynel/voice";
 import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
-import type { VoiceTurnEvent } from "./voice-command-session.js";
+import type { VoiceTurnEvent } from "./voice-command-session-types.js";
 
 // Adapt a voice-thread chat-turn stream to voice-session events. The thread's
 // streamed TEXT is its voice (voice-realtime VR1): every `text-chunk` delta

@@ -16,6 +16,7 @@ import {
   parseVynelPortBase,
   resolveVynelPorts,
 } from '@vynel/contracts/network/ports'
+import { DEFAULT_VOICE_TURN_WATCHDOG_MS } from '@vynel/contracts/voice/turn-watchdog'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..') // src -> voice -> apps -> repo-root
@@ -76,13 +77,18 @@ function buildEnvSchema(portBase: number) {
   // "still working — I'll tell you when it's done" and hand the room back,
   // while the turn streams on in the background and its answer is spoken
   // when it lands. A call turn measures time in flight instead (its caller
-  // hears nothing until the reply is whole).
-  VYNEL_VOICE_TURN_WATCHDOG_MS: z.coerce.number().int().positive().default(300_000),
+  // hears nothing until the reply is whole). The default is the contracts'
+  // one home — the browser leg falls back to the same number without a wake.
+  VYNEL_VOICE_TURN_WATCHDOG_MS: z.coerce.number().int().positive().default(DEFAULT_VOICE_TURN_WATCHDOG_MS),
   // Loopback port for the browser Jarvis-view channel (SSE wake/state events).
   VYNEL_VOICE_DAEMON_PORT: z.coerce.number().int().positive().default(ports.voiceDaemon),
-  // '1' = wake opens/focuses the floating Jarvis window (chrome --app) and the
-  // browser owns every command session; '0' = the pre-window behavior (hand
-  // off only to an already-connected tab, else answer natively).
+  // '1' = wake opens/focuses the floating Jarvis window (chrome --app / the
+  // desktop shell's jarvis webview) and the browser owns every command
+  // session; '0' = the native leg answers unless a wake-capable BROWSER tab
+  // (Web Speech, outside the desktop shell) is connected. The desktop shell's
+  // own windows never take a wake with the feature off — its main window
+  // declares no wake capability and its hidden jarvis webview (always
+  // connected) is not a target on the 'app' wake surface.
   VYNEL_VOICE_JARVIS_WINDOW: z.enum(['0', '1']).default('1'),
   // Where the floating window points (local-web's /jarvis route).
   VYNEL_VOICE_JARVIS_URL: z.string().url().default(`http://localhost:${ports.localWeb}/jarvis`),

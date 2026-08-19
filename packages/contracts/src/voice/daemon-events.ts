@@ -15,9 +15,10 @@ export function isVoiceSurface(value: unknown): value is VoiceSurface {
 }
 
 /** What a voice subscriber declares when it joins: which window it is, and
- *  whether it can RUN a wake session. The daemon hands a wake only to a
- *  capable client — a window without Web Speech (the Tauri main window) that
- *  took one would swallow it silently. */
+ *  whether it may RUN a wake session — a host declaration (the jarvis window
+ *  always; a browser tab only with Web Speech; the desktop shell's main window
+ *  never), not a feature detect. The daemon hands a wake only to a capable
+ *  client — one that took a wake it cannot answer would swallow it silently. */
 export interface VoiceSubscriber {
   readonly surface: VoiceSurface
   readonly wake: boolean

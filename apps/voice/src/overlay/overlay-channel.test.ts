@@ -335,6 +335,35 @@ describe('overlay channel', () => {
     await waitFor(() => !channel.hasClient)
     expect(hooks.clientsGone).toBe(1)
   })
+
+  it("wakeSurface 'app' (window feature off): the jarvis surface never receives wakes, a capable app tab does", async () => {
+    const { channel, hooks } = buildChannel({ wakeSurface: 'app', turnWatchdogMs: TURN_WATCHDOG_MS })
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    // The desktop shell keeps its hidden jarvis webview connected whatever the
+    // flag says — a wake handed to it would vanish into a window nobody sees.
+    const hiddenJarvis = await subscribe(port, 'jarvis')
+    await waitFor(() => channel.hasClient)
+    expect(channel.hasWakeTarget).toBe(false)
+
+    channel.publishWake('open my notes')
+    await settle()
+    expect(wakeEvents(hiddenJarvis.events)).toEqual([])
+
+    // A browser tab that declared Web Speech is the one client that may run it.
+    const browserTab = await subscribe(port, 'app', '1')
+    await waitFor(() => wakeEvents(browserTab.events).length === 1)
+    expect(channel.hasWakeTarget).toBe(true)
+
+    // Losing the tab (the wake runner) fires onClientsGone; losing the hidden
+    // jarvis webview never does — it was never a runner here.
+    browserTab.close()
+    await waitFor(() => hooks.clientsGone === 1)
+    hiddenJarvis.close()
+    await waitFor(() => !channel.hasClient)
+    expect(hooks.clientsGone).toBe(1)
+  })
 })
 
 describe('overlay channel — wake capability', () => {

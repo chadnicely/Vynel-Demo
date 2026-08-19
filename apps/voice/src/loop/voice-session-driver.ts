@@ -1,4 +1,5 @@
 import type { PcmAudio } from '@vynel/voice-engine'
+import { DEFAULT_VOICE_TURN_WATCHDOG_MS } from '@vynel/contracts/voice/turn-watchdog'
 import { detectWakeWord } from '@vynel/voice'
 import { DaemonSpeaker } from './daemon-speaker.js'
 import { SpokenBrainTurn, type SpokenTurnOutcome } from './spoken-brain-turn.js'
@@ -35,7 +36,6 @@ import type { VoiceSessionDriverDeps, VoiceSessionDriverOptions } from './voice-
 // audio device + models + brain client are wired in the shell.
 
 const DEFAULT_IDLE_TIMEOUT_MS = 15_000
-const DEFAULT_TURN_WATCHDOG_MS = 300_000
 const FAILED_TURN_LINE = 'Sorry, I ran into a problem with that.'
 const STILL_WORKING_LINE = "Still working on that — I'll tell you when it's done."
 
@@ -69,7 +69,7 @@ export class VoiceSessionDriver {
   constructor(deps: VoiceSessionDriverDeps, options: VoiceSessionDriverOptions = {}) {
     this.#deps = deps
     this.#idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS
-    this.#turnWatchdogMs = options.turnWatchdogMs ?? DEFAULT_TURN_WATCHDOG_MS
+    this.#turnWatchdogMs = options.turnWatchdogMs ?? DEFAULT_VOICE_TURN_WATCHDOG_MS
     this.#speaker = new DaemonSpeaker(deps.synthesizer, deps.io, options.voiceId)
   }
 

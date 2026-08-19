@@ -8,6 +8,7 @@ import type {
 import { useLiveChannelStore } from "../../stores/live-channel-store.js";
 import { isWebSpeechAvailable } from "./speech-recognition.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
+import { isTauriShell } from "./tauri-overlay-window.js";
 
 // The browser end of the daemon's overlay channel. The always-on native daemon
 // hears "Hey Vynel" locally (Moonshine — the room never leaves the machine)
@@ -20,19 +21,28 @@ import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 // back. No daemon running is fine — the relay retries quietly and the overlay
 // still works from its manual mic button.
 //
-// 'speak' events are the daemon delegating PLAYBACK: a `speak` tool call with
-// no live overlay session (typed chat, a scheduled task) is sent to exactly one
-// client — this one — which synthesizes + plays it. Queued sequentially so two
-// proactive lines never talk over each other. Single delivery survives the
-// relay: the daemon picks its owner (else newest) upstream, the api picks the
-// window that took the wake (else the surface's newest).
+// 'speak' events are the daemon delegating PLAYBACK: a `speak` tool call from
+// another producer (typed chat, a scheduled task) is sent to exactly one
+// client — this one — which synthesizes + plays it: through the live voice
+// session's own player while a turn is in flight (one queue, one echo filter),
+// else on this link's side player, queued sequentially so two proactive lines
+// never talk over each other. Single delivery survives the relay: the daemon
+// picks its owner (else newest) upstream, the api picks the window that took
+// the wake (else the surface's newest).
 
-/** Can THIS window run a wake session? The floating Jarvis window always
- *  declares it (it exists for wakes); an app tab only with Web Speech in the
- *  window — a WebView2/Tauri tab without it that took the wake would swallow
- *  it silently while the daemon waits, handed off and deaf. */
+/** Can THIS window run a wake session? A HOST declaration, not a feature
+ *  detect: the floating Jarvis window always declares it (it exists for
+ *  wakes); the desktop shell's app window NEVER does — WebView2 ships Web
+ *  Speech, so a detect would make the main window a wake target and the wake
+ *  would land in the app (or the shell's hidden jarvis webview) instead of
+ *  the native leg when the window feature is off; a plain browser tab keeps
+ *  the pre-window behavior and takes a wake only with Web Speech (a tab
+ *  without it that took one would swallow it while the daemon waits, deaf). */
 function describeVoiceSubscriber(surface: VoiceSurface): VoiceSubscriber {
-  return { surface, wake: surface === "jarvis" || isWebSpeechAvailable() };
+  return {
+    surface,
+    wake: surface === "jarvis" || (!isTauriShell() && isWebSpeechAvailable()),
+  };
 }
 
 export function useVoiceDaemonLink(options: {
@@ -48,6 +58,13 @@ export function useVoiceDaemonLink(options: {
    *  relayed copy would double-play and is dropped. Every other producer (a
    *  schedule, the typed chat) plays here even mid-turn. */
   ownLiveSessionId?: () => string | null;
+  /** Hand a relayed line to THIS window's live voice session. Mid-turn the
+   *  session's player has the room and its mic is open — a second player would
+   *  talk over the reply, and its line, unknown to the session's echo filter,
+   *  could come back off the speaker as a barge-in. The session queues it in
+   *  order and remembers it; false = no turn in flight, the line plays on this
+   *  link's own player (a proactive line in an idle window). */
+  speakThroughSession?: (text: string) => boolean;
 }) {
   const live = useLiveChannelStore();
   const isDaemonConnected = ref(false);
@@ -92,6 +109,7 @@ export function useVoiceDaemonLink(options: {
     } else if (event.kind === "speak" && event.text) {
       // An older relay omits the producer: unknown is never "ours".
       if (isOwnVoice(event.sessionId ?? null)) return;
+      if (options.speakThroughSession?.(event.text)) return;
       speakQueue.push(event.text);
       void drainSpeakQueue();
     }

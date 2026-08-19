@@ -172,10 +172,15 @@ async function main(): Promise<void> {
     logger,
     // With the floating window on, ONLY it runs wake sessions — app tabs keep
     // their state events + manual mic sessions but never race it for a wake.
-    // The watchdog rides every wake so the browser leg is bounded by the same
-    // knob as the native leg (one home: env).
+    // With it OFF the jarvis surface is never a target either: the desktop
+    // shell keeps its hidden jarvis webview connected whatever the flag says,
+    // and a wake handed to it would vanish into a window nobody sees — so
+    // 0 = native unless a wake-capable BROWSER tab is connected (an 'app'
+    // subscriber that declared it can run a session). The watchdog rides
+    // every wake so the browser leg is bounded by the same knob as the native
+    // leg (one home: env).
     {
-      wakeSurface: jarvisEnabled ? 'jarvis' : 'any',
+      wakeSurface: jarvisEnabled ? 'jarvis' : 'app',
       turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
       routes: [{ path: '/calls', app: createCallEndpoints(callRegistry, callConversations, logger) }],
     },
@@ -232,9 +237,10 @@ async function main(): Promise<void> {
       // run there). Jarvis mode: every wake hands off — the floating window is
       // opened/focused, and the held wake replays once it connects. Otherwise:
       // hand off only to a connected client that declared it can RUN a
-      // session — the desktop main window is connected for state events + the
-      // mic button but has no Web Speech, and must not swallow the wake; with
-      // no capable client the native leg answers.
+      // session — the desktop shell's windows never do (its main window is
+      // connected for state events + the mic button, and must not swallow
+      // the wake), a browser tab does only with Web Speech; with no capable
+      // client the native leg answers.
       wakeHandoff: {
         shouldHandOff: () => jarvisEnabled || overlay.hasWakeTarget,
         publishWake: (command) => {

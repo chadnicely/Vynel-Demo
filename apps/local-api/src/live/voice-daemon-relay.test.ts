@@ -168,12 +168,103 @@ describe('voice daemon relay', () => {
     expect(latest.events.some((event) => event.kind === 'speak')).toBe(false)
     expect(older.events.some((event) => event.kind === 'speak')).toBe(false)
 
-    // The owner leaves → the next speak falls back to the newest window.
+    // The owner leaves → the next speak falls back to the newest window. (It
+    // arrives on the RE-SUBSCRIBED upstream: the owner's exit cycled the link
+    // so the daemon saw its runner go — the test below.)
     releaseOwner()
-    h.streams[0]!.emit({ kind: 'speak', text: 'and deployed', sessionId: null })
+    await h.settle()
+    h.streams[1]!.emit({ kind: 'speak', text: 'and deployed', sessionId: null })
     await h.settle()
     expect(latest.events.at(-1)).toEqual({ kind: 'speak', text: 'and deployed', sessionId: null })
     expect(older.events.some((event) => event.kind === 'speak')).toBe(false)
+    h.relay.dispose()
+  })
+
+  it('the wake OWNER leaving while siblings stay re-subscribes upstream — the daemon must see its runner go', async () => {
+    const h = makeHarness()
+    const sibling = h.listen()
+    const owner = h.listen()
+    h.relay.subscribe(JARVIS, sibling.listener)
+    await h.settle()
+    const releaseOwner = h.relay.subscribe(JARVIS, owner.listener)
+    await h.settle()
+    h.streams[0]!.emit({ kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 })
+    await h.settle()
+    expect(owner.events.at(-1)).toMatchObject({ kind: 'wake' })
+    sibling.events.length = 0
+
+    // A NON-owner leaving never cycles the link — nothing changed for the daemon.
+    const bystander = h.listen()
+    const releaseBystander = h.relay.subscribe(JARVIS, bystander.listener)
+    await h.settle()
+    releaseBystander()
+    await h.settle()
+    expect(h.fetchDaemon).toHaveBeenCalledTimes(1)
+    expect(h.streams[0]!.aborted).toBe(false)
+
+    // The owner leaves: the daemon's handoff owner IS this upstream, so only a
+    // disconnect tells it the session runner is gone (→ endHandoff there).
+    releaseOwner()
+    await h.settle()
+    expect(h.streams[0]!.aborted).toBe(true)
+    expect(h.fetchDaemon).toHaveBeenCalledTimes(2)
+    expect(h.streams[1]!.url).toBe('http://127.0.0.1:18893/events?surface=jarvis&wake=1')
+    expect(h.relay.isConnected(JARVIS)).toBe(true)
+    // The light never blinked off for the sibling — the link was down for a
+    // beat by design, not by failure.
+    expect(sibling.events.filter((event) => event.kind === 'daemon-link')).toEqual([])
+    // The fresh upstream serves the siblings: a wake the daemon still held
+    // replays here, to the newest of them.
+    h.streams[1]!.emit({ kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 })
+    await h.settle()
+    expect(sibling.events.at(-1)).toEqual({ kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 })
+    h.relay.dispose()
+  })
+
+  it('an owner leaving while the link is already down changes nothing — the pending retry re-subscribes', async () => {
+    const h = makeHarness()
+    const sibling = h.listen()
+    const owner = h.listen()
+    h.relay.subscribe(JARVIS, sibling.listener)
+    await h.settle()
+    const releaseOwner = h.relay.subscribe(JARVIS, owner.listener)
+    await h.settle()
+    h.streams[0]!.emit({ kind: 'wake', command: '' })
+    await h.settle()
+    h.streams[0]!.close() // the daemon restarted — a reconnect is pending
+    await h.settle()
+    expect(h.timers).toHaveLength(1)
+
+    releaseOwner()
+    await h.settle()
+    expect(h.fetchDaemon).toHaveBeenCalledTimes(1) // no cycle on a dead link
+    h.timers[0]!.callback()
+    await h.settle()
+    expect(h.fetchDaemon).toHaveBeenCalledTimes(2)
+    expect(h.relay.isConnected(JARVIS)).toBe(true)
+    h.relay.dispose()
+  })
+
+  it('a cycle whose reconnect fails still turns the light off and retries', async () => {
+    const h = makeHarness()
+    const sibling = h.listen()
+    const owner = h.listen()
+    h.relay.subscribe(JARVIS, sibling.listener)
+    await h.settle()
+    const releaseOwner = h.relay.subscribe(JARVIS, owner.listener)
+    await h.settle()
+    h.streams[0]!.emit({ kind: 'wake', command: '' })
+    await h.settle()
+    sibling.events.length = 0
+
+    h.fetchDaemon.mockImplementationOnce(async () => {
+      throw new Error('ECONNREFUSED')
+    })
+    releaseOwner()
+    await h.settle()
+    expect(sibling.events).toEqual([{ kind: 'daemon-link', connected: false }])
+    expect(h.relay.isConnected(JARVIS)).toBe(false)
+    expect(h.timers.map((timer) => timer.delayMs)).toEqual([1_000])
     h.relay.dispose()
   })
 
