@@ -158,7 +158,7 @@ describe('enqueueCheckpointContinuation', () => {
     })
   })
 
-  it('an AGENT-RUN job continues as an agent-run follow-up on the colleague — its workspace is the grounding, never the identity', async () => {
+  it('an AGENT-RUN job continues as an agent-run follow-up on the colleague — same mode/model/effort; its workspace is the grounding, never the identity', async () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seedUserAndWorkspace(db)
       // The colleague's continuing identity, grounded in the workspace.
@@ -174,6 +174,8 @@ describe('enqueueCheckpointContinuation', () => {
         targetPrimarySessionId: colleague.id,
         requesterWorkspaceId: workspace.id,
         permissionMode: 'ask',
+        model: 'claude-sonnet-5',
+        thinkingEffort: 'high',
       })
       const claimed = claimNextPendingDelegationJob(db, new Date())!
       expect(claimed.jobKind).toBe('agent-run')
@@ -189,6 +191,10 @@ describe('enqueueCheckpointContinuation', () => {
       expect(followUp.targetPrimarySessionId).toBe(colleague.id)
       expect(followUp.requesterWorkspaceId).toBe(workspace.id)
       expect(followUp.permissionMode).toBe('ask')
+      // The colleague keeps the settings it was sent with (audit A2-10: the
+      // agent-run follow-up used to drop the effort pin).
+      expect(followUp.model).toBe('claude-sonnet-5')
+      expect(followUp.thinkingEffort).toBe('high')
       expect(followUp.threadId).toBe(claimed.threadId)
       expect(followUp.taskText).toBe('Continuing after patching context — next: compare against June')
       expect(takeContinuationJob(db, followUp.id)?.nextStep).toBe('compare against June')

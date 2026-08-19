@@ -135,7 +135,9 @@ export function enqueueCheckpointContinuation(
 }
 
 /** The same-shape follow-up row per job kind: exactly one target is set (the
- *  row invariant) — the branch narrows the types. */
+ *  row invariant) — the branch narrows the types. ONE shared spread carries
+ *  everything a continuation must keep (chain, requester, mode / model /
+ *  effort, channel origin); a kind adds only its target. */
 function enqueueFollowUpJob(
   db: Database,
   job: DelegationJob,
@@ -153,6 +155,7 @@ function enqueueFollowUpJob(
     taskText: composeContinuationTurn(checkpoint).persistedBody,
     ...(job.permissionMode !== null ? { permissionMode: job.permissionMode } : {}),
     ...(job.model !== null ? { model: job.model } : {}),
+    ...(job.thinkingEffort !== null ? { thinkingEffort: job.thinkingEffort } : {}),
     ...(job.requesterWorkspaceId !== null ? { requesterWorkspaceId: job.requesterWorkspaceId } : {}),
   }
   const origin =
@@ -167,9 +170,11 @@ function enqueueFollowUpJob(
           },
         }
       : {}
-  const thinkingEffort = job.thinkingEffort !== null ? { thinkingEffort: job.thinkingEffort } : {}
   if (job.jobKind === 'agent-run') {
     if (job.agentSlug === null) return null
+    // An agent-run row never carries a channel origin (`enqueueAgentRun` has no
+    // field for one — a mention's reply lands on the requester's thread), so
+    // there is nothing of `origin` to carry here.
     return enqueueAgentRun(db, {
       ...shared,
       agentSlug: job.agentSlug,
@@ -183,7 +188,6 @@ function enqueueFollowUpJob(
     return enqueueSessionDelegation(db, {
       ...shared,
       ...origin,
-      ...thinkingEffort,
       targetPrimarySessionId: job.targetPrimarySessionId,
       runCwdPath: job.workspacePath ?? '',
     })
@@ -192,7 +196,6 @@ function enqueueFollowUpJob(
     return enqueueWorkspaceDelegation(db, {
       ...shared,
       ...origin,
-      ...thinkingEffort,
       workspaceId: job.workspaceId,
       workspacePath: job.workspacePath ?? '',
       workspaceName: job.workspaceName ?? '',
