@@ -9,9 +9,14 @@ import type { SceneNode } from "../../utils/constellation-scene.js";
 // it is handed and emits what was clicked.
 const props = defineProps<{
   mode: NodesMode;
-  /** Null out on the fleet; the project's name once you have stepped inside. */
-  drilledProjectName: string | null;
+  /** Where you are standing, outermost first. Empty out on the fleet. */
+  trail: readonly string[];
   nodes: readonly SceneNode[];
+  /** The level's reads have answered. Until they have, the counts below would
+   *  be a claim made from data we do not have — every project falling to its
+   *  grey fallback read as "N idle" for the whole poll flight (2026-08-19
+   *  audit, agent-4 §5a). */
+  hasAnswered: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -26,7 +31,12 @@ const MODES: Array<{ id: NodesMode; label: string }> = [
   { id: "race", label: "Race" },
 ];
 
-const isInsideProject = computed(() => props.drilledProjectName !== null);
+const isInsideProject = computed(() => props.trail.length > 0);
+/** Where `back` lands — the level above, or the fleet at the first step in. */
+const backLabel = computed(
+  () => props.trail[props.trail.length - 2] ?? "All projects",
+);
+const hereLabel = computed(() => props.trail[props.trail.length - 1] ?? "");
 
 // One vocabulary with the dots (Kafi, 2026-08-17). `problem` used to have no
 // chip at all here, so a failed project was counted under "paused" — the bar
@@ -49,11 +59,9 @@ const counts = computed(() => ({
       class="crumb"
       @click="emit('back')"
     >
-      <ChevronLeft :size="13" /> All projects
+      <ChevronLeft :size="13" /> {{ backLabel }}
     </button>
-    <span v-if="isInsideProject" class="crumb-here">{{
-      props.drilledProjectName
-    }}</span>
+    <span v-if="isInsideProject" class="crumb-here">{{ hereLabel }}</span>
     <nav class="modes" aria-label="Fleet view">
       <button
         v-for="option in MODES"
@@ -77,7 +85,7 @@ const counts = computed(() => ({
         Chat
       </button>
     </nav>
-    <p class="counts">
+    <p v-if="props.hasAnswered" class="counts">
       <span v-if="counts.problem" class="count"
         ><i class="dot problem" />{{ counts.problem }} need attention</span
       >

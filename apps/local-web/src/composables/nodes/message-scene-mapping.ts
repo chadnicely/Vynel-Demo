@@ -1,4 +1,5 @@
 import type { SceneMessage } from "../../utils/constellation-scene.js";
+import { sceneNodeId } from "../../utils/constellation-node-ref.js";
 
 /** Structural — we ask only for the fields we draw with, rather than coupling
  *  the mapping to the generated wire type. */
@@ -30,39 +31,40 @@ function keep(
   };
 }
 
-/** The fleet's arcs — workspace to workspace. A node id IS the workspace id out
- *  here, so an endpoint is drawable exactly when that room is on screen. */
+/** The fleet's arcs — workspace to workspace. An endpoint is drawable exactly
+ *  when that room is one of the dots on screen. */
 export function fleetMessages(
   edges: readonly MessageEdgeLike[],
-  drawnWorkspaceIds: ReadonlySet<string>,
+  drawnNodeIds: ReadonlySet<string>,
 ): SceneMessage[] {
-  const anchor = (workspaceId: string | null) =>
-    workspaceId !== null && drawnWorkspaceIds.has(workspaceId) ? workspaceId : null;
+  const anchor = (workspaceId: string | null) => {
+    if (workspaceId === null) return null;
+    const nodeId = sceneNodeId({ kind: "workspace", id: workspaceId });
+    return drawnNodeIds.has(nodeId) ? nodeId : null;
+  };
   return edges
     .map((edge) => keep(edge, anchor(edge.fromWorkspaceId), anchor(edge.toWorkspaceId)))
     .filter((message): message is SceneMessage => message !== null);
 }
 
-/** One project's arcs — conversation to conversation. Two id shapes meet here:
- *  a spawned session is its own dot, while the room's continuing build is
- *  "The build" — so a message addressed to the WORKSPACE rather than to a
- *  session is addressed to that node. */
+/** One project's arcs — conversation to conversation.
+ *
+ *  Endpoints arrive as SEGMENT ids, and a conversation is a CHAIN of them: it
+ *  used to match only each conversation's current head, so after a context
+ *  swap every arc touching a pre-swap segment silently vanished from a screen
+ *  whose whole job is showing what just happened (2026-08-19 audit, A5-10).
+ *  `nodeIdBySegmentId` therefore carries the whole chain of every dot drawn. */
 export function projectMessages(
   edges: readonly MessageEdgeLike[],
   input: {
     projectId: string;
-    /** The segment the continuing build is currently on — how "The build"
-     *  recognises itself as a sender. */
-    continuingSessionId: string | null;
-    drawnSessionIds: ReadonlySet<string>;
+    /** Every segment of every drawn conversation → the node that draws it. */
+    nodeIdBySegmentId: ReadonlyMap<string, string>;
   },
 ): SceneMessage[] {
-  const buildNodeId = `continuing:${input.projectId}`;
-  const bySession = (sessionId: string | null): string | null => {
-    if (sessionId === null) return null;
-    if (sessionId === input.continuingSessionId) return buildNodeId;
-    return input.drawnSessionIds.has(sessionId) ? `session:${sessionId}` : null;
-  };
+  const buildNodeId = sceneNodeId({ kind: "workspace", id: input.projectId });
+  const bySession = (sessionId: string | null): string | null =>
+    sessionId === null ? null : (input.nodeIdBySegmentId.get(sessionId) ?? null);
   return edges
     .map((edge) => {
       // A delivery names no target session: it goes to the requester's primary

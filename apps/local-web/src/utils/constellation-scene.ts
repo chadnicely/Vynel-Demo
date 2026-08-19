@@ -9,26 +9,53 @@
 // is a single frame loop sharing one set of mutable buffers (positions, stars,
 // particles, orbiters) that are read and written every tick; splitting it would
 // mean exporting that state across module seams for no gain in legibility, and
-// the seam it does have — the data mapping — already lives in
-// constellation-layout.ts where it can be tested without a canvas.
+// the seams it does have — the data mapping and the layout arithmetic — live
+// in constellation-layout.ts where they can be tested without a canvas.
 //
 // The look is Nocturne's, not the token bridge's — the prototype's exact
 // violets, because these are literal canvas paint values (gradients, glow
 // colors, alpha ramps) rather than themeable surfaces.
 
+import {
+  constellationSlots,
+  inheritedSlots,
+  orbitLaneCount,
+  orbitLaneIndex,
+  riseStep,
+} from "./constellation-layout.js";
+
+/** What a dot would say if you asked it. The derivations already produce all
+ *  of this and used to discard it at the `resolveNodeStatus(...)` call sites;
+ *  it now rides the node so a later pass can render it. NOTHING draws it
+ *  today — D7 defers the visual (Kafi, 2026-08-19). */
+export interface SceneNodeDetail {
+  /** The status ladder's own note — a set-state's reason, or an error. */
+  note?: string | null;
+  tasksDone?: number;
+  tasksTotal?: number;
+  /** Ms since the live turn started, when one is running. */
+  elapsedMs?: number;
+  /** How many spawned sessions / agent runs / tasks hang off this one. */
+  childCount?: number;
+}
+
 export interface SceneNode {
+  /** `<kind>:<id>` — minted and parsed in constellation-node-ref.ts, never
+   *  by hand. The scene treats it as opaque and only ever compares it. */
   id: string;
   name: string;
   initials: string;
   /** Drives colour, glow and the orbiters — the five fleet states. */
   status: "building" | "waiting" | "problem" | "done" | "idle";
+  detail?: SceneNodeDetail;
 }
 
 // ONE state, ONE colour WITHIN this screen (Chad, 2026-08-12): working (a live
 // turn, or a queue running a task) is PURPLE, completed is green, waiting on
 // YOU is orange, a problem is red, idle is grey. The palette is scene-local —
-// main's other surfaces render `WorkspaceEffectiveStatus` — and `problem` is
-// the one state nothing feeds here yet.
+// main's other surfaces render `WorkspaceEffectiveStatus`, which
+// `resolveNodeStatus` renames into these five (Kafi's one-rule pass,
+// 2026-08-17, is what finally gave `problem` a feeder).
 const COL: Record<SceneNode["status"], string> = {
   building: "#b5abfc",
   waiting: "#ff9a3d",
@@ -64,7 +91,8 @@ interface Star {
   accent: boolean;
 }
 interface Particle {
-  i: number;
+  /** The NODE it travels to, not its slot: the list re-sorts under us. */
+  nodeId: string;
   t: number;
   dir: number;
   speed: number;
@@ -163,27 +191,37 @@ export function startConstellationScene(
   let introT = 0;
   let hoverIndex = -1;
   let layoutMode: SceneLayout = "constellation";
+  // Slot-aligned scratch, RECONCILED BY NODE ID on every `setNodes` (see
+  // there). The frame loop still walks slots — it draws thousands of times a
+  // second — but which slot a node holds is decided once per update.
   const positions: Array<{ x: number; y: number }> = [];
   const core = { x: 0, y: 0 };
   const particles: Particle[] = [];
   let messages: SceneMessage[] = [];
   let spawnAcc: number[] = [];
   let orbiters: Orbiter[][] = [];
+  /** id → slot, rebuilt once per `setNodes`. Every per-frame lookup (message
+   *  anchors, particle hosts) reads this instead of scanning the array —
+   *  `anchorOf` used to `findIndex` twice per message per frame at 60fps
+   *  (2026-08-19 audit, agent-4 §5a). */
+  let slotById = new Map<string, number>();
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, x), 3);
 
-  function seedPerNode() {
-    spawnAcc = nodes.map(() => 0);
-    orbiters = nodes.map(() =>
-      Array.from({ length: 3 }, (_, k) => ({
-        ang: Math.random() * Math.PI * 2,
-        r: 34 + k * 6,
-        speed: 2.2 + Math.random() * 1.8,
-      })),
-    );
+  const freshOrbiters = (): Orbiter[] =>
+    Array.from({ length: 3 }, (_, k) => ({
+      ang: Math.random() * Math.PI * 2,
+      r: 34 + k * 6,
+      speed: 2.2 + Math.random() * 1.8,
+    }));
+
+  function indexNodes() {
+    slotById = new Map(nodes.map((node, i) => [node.id, i]));
   }
-  seedPerNode();
+  spawnAcc = nodes.map(() => 0);
+  orbiters = nodes.map(freshOrbiters);
+  indexNodes();
 
   function resize() {
     dpr = devicePixelRatio || 1;
@@ -220,16 +258,15 @@ export function startConstellationScene(
 
     if (layoutMode === "orbit") {
       target = { x: W / 2, y: H / 2 + 6 };
-      const lane = (i: number) =>
-        Math.min(W * 0.46, H * 0.47) * (0.3 + 0.115 * i);
       nodes.forEach((node, i) => {
+        const lane = orbitLane(orbitLaneIndex(i));
         // Anything working laps the core faster — motion IS the status here.
         const ang =
           i * 2.39996 +
           t * 0.00005 * (1.7 - i * 0.13) * (isLive(node) ? 2.1 : 0.7);
         wanted[i] = {
-          x: target.x + Math.cos(ang) * lane(i) * k,
-          y: target.y + Math.sin(ang) * lane(i) * 0.82 * k,
+          x: target.x + Math.cos(ang) * lane * k,
+          y: target.y + Math.sin(ang) * lane * 0.82 * k,
         };
       });
     } else if (layoutMode === "rise") {
@@ -237,10 +274,11 @@ export function startConstellationScene(
       // (Chad, 2026-08-11: nodes were sitting on the selectors).
       target = { x: W / 2, y: H - 200 };
       const { y0, y1 } = riseBand();
+      const step = riseStep(n, W);
       nodes.forEach((node, i) => {
         const x = Math.min(
           W - 80,
-          Math.max(80, W * 0.5 + (i - (n - 1) / 2) * Math.min(W, 1300) * 0.115),
+          Math.max(80, W * 0.5 + (i - (n - 1) / 2) * step),
         );
         // Height = how far along it is. Nothing reports progress yet, so a
         // working node floats mid-band and everything else sits on the floor.
@@ -254,11 +292,18 @@ export function startConstellationScene(
       target = { x: W / 2, y: H / 2 + 6 };
       const rx = Math.max(180, Math.min(W * 0.37, 520)) * k;
       const ry = Math.max(130, Math.min(H * 0.36, 300)) * k;
+      const slots = constellationSlots(n);
       nodes.forEach((_, i) => {
-        const ang = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+        const slot = slots[i]!;
         wanted[i] = {
-          x: target.x + Math.cos(ang) * rx + Math.sin(t / 1700 + i * 2.1) * 7,
-          y: target.y + Math.sin(ang) * ry + Math.cos(t / 1400 + i * 1.3) * 6,
+          x:
+            target.x +
+            Math.cos(slot.angle) * rx * slot.radiusScale +
+            Math.sin(t / 1700 + i * 2.1) * 7,
+          y:
+            target.y +
+            Math.sin(slot.angle) * ry * slot.radiusScale +
+            Math.cos(t / 1400 + i * 1.3) * 6,
         };
       });
     }
@@ -289,20 +334,33 @@ export function startConstellationScene(
     return { y0: H - 280, y1: 110 };
   }
 
+  /** One orbit lane's radius. ONE home shared by the nodes and the guide
+   *  ellipses — the two used to compute it separately and could only agree by
+   *  coincidence. */
+  function orbitLane(laneIndex: number) {
+    return Math.min(W * 0.46, H * 0.47) * (0.3 + 0.115 * laneIndex);
+  }
+
   /** Guide furniture the layout needs to be readable: orbit lanes, or the
    *  altitude scale Rise measures against. */
   function drawLayoutFurniture() {
     if (layoutMode === "orbit") {
-      nodes.forEach((node, i) => {
-        const lane = Math.min(W * 0.46, H * 0.47) * (0.3 + 0.115 * i);
+      // ONE ellipse per LANE, not per node: past the lane cap several nodes
+      // share a lane, and stroking it once each would quietly darken it.
+      // A lane is lit when anything on it is working.
+      for (let laneIndex = 0; laneIndex < orbitLaneCount(nodes.length); laneIndex += 1) {
+        const lane = orbitLane(laneIndex);
+        const lit = nodes.some(
+          (node, i) => orbitLaneIndex(i) === laneIndex && isLive(node),
+        );
         nd.beginPath();
         nd.ellipse(core.x, core.y, lane, lane * 0.82, 0, 0, Math.PI * 2);
-        nd.strokeStyle = isLive(node)
+        nd.strokeStyle = lit
           ? "rgba(145,132,217,0.13)"
           : "rgba(145,132,217,0.06)";
         nd.lineWidth = 1;
         nd.stroke();
-      });
+      }
     } else if (layoutMode === "rise") {
       const { y0, y1 } = riseBand();
       nd.textBaseline = "middle";
@@ -333,8 +391,8 @@ export function startConstellationScene(
    *  which is what it visually IS here. */
   function anchorOf(id: string | null) {
     if (id === null) return core;
-    const index = nodes.findIndex((node) => node.id === id);
-    return positions[index] ?? core;
+    const slot = slotById.get(id);
+    return (slot === undefined ? undefined : positions[slot]) ?? core;
   }
 
   /** Which way an arc bows, stable per message, so two between the same pair
@@ -419,7 +477,10 @@ export function startConstellationScene(
     }
   }
 
-  /** Quadratic bezier core→node with a sideways bow, so strands arc. */
+  /** Quadratic bezier core→node with a sideways bow, so strands arc. The bow
+   *  alternates by SLOT on purpose — it is a pattern that keeps neighbouring
+   *  strands from overlaying each other, not a property of any one node, so
+   *  it stays index-keyed while everything else moved to node ids. */
   function curvePoint(i: number, t: number) {
     const p = positions[i]!;
     const mx = (core.x + p.x) / 2;
@@ -558,7 +619,7 @@ export function startConstellationScene(
         spawnAcc[i]! -= 1;
         const dir = Math.random() < 0.5 ? 1 : -1;
         particles.push({
-          i,
+          nodeId: node.id,
           t: dir === 1 ? 0 : 1,
           dir,
           speed: 0.55 + Math.random() * 0.75,
@@ -572,11 +633,12 @@ export function startConstellationScene(
     for (let n = particles.length - 1; n >= 0; n--) {
       const p = particles[n]!;
       p.t += p.speed * p.dir * dt;
-      if (p.t < 0 || p.t > 1 || !positions[p.i]) {
+      const slot = slotById.get(p.nodeId);
+      if (p.t < 0 || p.t > 1 || slot === undefined || !positions[slot]) {
         particles.splice(n, 1);
         continue;
       }
-      const pos = curvePoint(p.i, p.t);
+      const pos = curvePoint(slot, p.t);
       fx.beginPath();
       fx.arc(pos.x + p.off, pos.y + p.off * 0.4, p.size * 1.4, 0, Math.PI * 2);
       fx.fillStyle = p.col;
@@ -757,14 +819,39 @@ export function startConstellationScene(
 
   return {
     setNodes(next) {
-      // Positions survive a status-only change so nothing jumps; a changed
-      // set re-seeds the per-node scratch.
-      if (next.length !== nodes.length) {
-        positions.length = 0;
-        particles.length = 0;
-      }
+      // Scratch follows the NODE, not its slot. Keyed by array index, a
+      // same-length re-sort — which the overview does on every turn boundary,
+      // it is sorted by `lastMessageAt` — silently handed one dot's eased
+      // position, particle trail and satellites to another, and a changed
+      // COUNT threw away every position so the whole fleet flew in from
+      // nowhere (2026-08-19 audit, B7). A node that was on screen keeps
+      // exactly what it had; only a genuinely new one starts fresh.
+      const inherited = inheritedSlots(
+        next.map((node) => node.id),
+        slotById,
+      );
+      const keptPositions = inherited.map((slot) =>
+        slot === undefined ? undefined : positions[slot],
+      );
+      const keptSpawnAcc = inherited.map((slot) =>
+        slot === undefined ? 0 : (spawnAcc[slot] ?? 0),
+      );
+      const keptOrbiters = inherited.map(
+        (slot) =>
+          (slot === undefined ? undefined : orbiters[slot]) ?? freshOrbiters(),
+      );
+
+      positions.length = 0;
+      keptPositions.forEach((position, i) => {
+        // A hole is deliberate: `layout` seeds an unplaced node at its target
+        // instead of easing it in from (0,0).
+        if (position !== undefined) positions[i] = position;
+      });
+      positions.length = next.length;
+      spawnAcc = keptSpawnAcc;
+      orbiters = keptOrbiters;
       nodes = next;
-      if (spawnAcc.length !== next.length) seedPerNode();
+      indexNodes();
     },
     setMessages(next) {
       messages = next;
