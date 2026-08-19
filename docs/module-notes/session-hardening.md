@@ -446,9 +446,54 @@ live client sees it on the next refetch (turn-stream-ended already invalidates).
 kind for it (contracts + web pill) is a follow-up if Kafi wants it live; wording is his to polish.
 
 
-## 7. Results
+## 7. Results (lead, 2026-08-19)
 
-_(filled at integration)_
+**Integrated on `feature/session-audit`; merged to main the same day.** All seven slices landed
+(A 6 commits · B 7 · C 4 · D 10 · E 4 · F 9 · G 9), merged A/C/B/D/E → F → G with only §6 doc-append
+conflicts; the lead folded every cross-slice ask that a slice could not write itself:
+
+- E3 coupled fix — the daemon publishes handed-off speak, the overlay skips only its own live turn.
+- Desktop overlay Stop keys on identity (root head / voice session id / delegation; refuses otherwise);
+  the fold learns `sessionId` from `turn-started`/`turn-updated`.
+- `autoBuildout` resolves through B's one resolver in the streams' settings home.
+- A3c notify-retry idempotency: the delivery job id IS the inbound row id; every user-row write is
+  find-or-insert (`insertChatMessageIfAbsent` + the three call sites); task delegates carry it too.
+  Negative-checked: without the stable id the regression test lands two rows.
+- `segmentSessionIds` on both continuing payloads from ONE exported chain reader
+  (`listSessionChainSegmentIds`) — F's arcs anchor pre-swap segments of the build.
+- A global delivery claimed while the root lock is busy YIELDS its pool slot (pending, due in 5 s,
+  no attempt spent).
+- G-1/G-3/G-4/G-6/G-8: db-first register at every caller; the report tick's stray-checkpoint drop
+  is survivor-safe; whoami + the overview meter read the chosen-model-first denominator; the
+  dropped-checkpoint note row lives in `chat/records` (`recordSystemNoteMessage`).
+- Reviewer passes (two `code-reviewer` agents, server + web): 3 must-fixes, all folded — (1) the
+  channel/delivery global runner stamps `primarySessionId` on its feed begin; (2) a voice-surface
+  Stop with no known session sends nothing (never the global head); (3) the delegation terminal
+  writes are a CAS on the CLAIM (complete/fail: claimed only; requeue: claimed | pending; null =
+  settled elsewhere → the settle homes and the requeue helper stand down; env refuses a heartbeat
+  that cannot renew inside the lease). Should-fixes folded: call-leg watchdog (room handed back,
+  the late reply still spoken), `rootTurnLockKey` in the core, task-delegate inbound ids, project
+  level treats an errored poll as answered, the Voice chat panel's liveness read via
+  `matchTurnToIdentity`, the activity-store docstring, yield log → debug, three indents.
+
+**Gate:** `pnpm test` on the integrated branch — 108/108 typecheck · 5/5 parity · 888 files /
+5 791 tests (4 pre-existing skips) — green before the review fold; re-run green after it (§7 tail).
+
+**Deferred (recorded, not slipped):** `EnqueueAgentRunInput.origin` (no live caller sends a channel
+origin for an @agent run) · leaf sessions keep their by-design `bypass-with-behavior-gate` (the
+Mode-B by-reference rail has no live call site) · a live `ChatTurnEvent` for the dropped-checkpoint
+note (persisted row only today) · `useMessageEdges` stays a poll · `constellation-scene.ts` stays
+one file (layout arithmetic extracted + tested) · the Nodes visual redesign (Kafi's) · Phase-2
+multi-process semantics of the lease/sweeper · `run-task-job.ts` (415 lines) and the pre-existing
+>300-line runners.
+
+**Kafi's live smokes (the "9+" is code-complete; these make it real):** desktop REBUILD + the
+wake-overlay REBAKE first · voice wake / live call / typed panel on the tier with no card · a
+> 10-min delegated task keeps its lock (tiny `VYNEL_DELEGATED_TURN_MAX_MS` to see the cap) · a
+restart mid-checkpoint continues · the Voice chat menu mark + the global light · Stop on both
+threads · Telegram runs the global row's mode (auto) · autopilot: toggle Auto-buildout, walk away ·
+the daemon watchdog (`VYNEL_VOICE_TURN_WATCHDOG_MS=15000`) · a report delivery retried after a
+transient failure lands once.
 
 ### F → lead: one DELIBERATE visual change inside the no-visual-change slice
 
