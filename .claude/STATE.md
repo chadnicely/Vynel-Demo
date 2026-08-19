@@ -3,7 +3,41 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) CUSTOMIZATION TO THE DB — SHIPPED (icons · colours · menu layout · tree positions · autosave)
+## ✅ 2026-08-19 (latest) VOICE SESSION — MERGED TO MAIN `939cef22` (the spoken twin thread + Voice chat menu)
+
+Kafi's arc (worktree feature/voice-session, 4 commits `5f55f2e` `22983eb` `d920073` + merge):
+voice works like the global session in its OWN area. Voice turns moved OFF the global primary
+onto the scope-'voice' continuing session (identity existed since voice-jarvis piece 1; nothing
+ran turns on it): `resolveVoiceConversationTarget` + the core keys everything off `input.voice`
+— lock `${userId}:voice` (global + voice turns run CONCURRENTLY now), segments scope 'voice'
+hidden ('Voice conversation'), catch-up SKIPPED on voice turns (user-wide collector marks
+exactly-once; voice must never steal the global chat's reports). ChatSessionScope/wire/zod all
+gained 'voice'; no scope view lists it; the cross-session WALL covers it (reviewer round-1
+must-fix: chat-search fence + sessions-route forbiddenScopes + isTurnFromGlobalRoot all know
+'voice'; one assistant two areas — each reads both). Pins: VOICE_MODEL `claude-sonnet-5` +
+effort 'low' (daemon wake, call client, web overlay leg) — the haiku-200k crash class is gone.
+Comms: `send_message to:"global"` (NOTES ONLY — both-null 'note' row rides the delivery rail
+under the GLOBAL single-writer key, NOTE steer, marker composed once at enqueue; a voice turn's
+send is signed "Voice" off the ambient turn-session header). UI: 'Voice chat' menu row between
+Chat and Sessions (GLOBAL only), VoiceChatPanel on the Global canvas over two UI-ONLY doors
+`GET /root/voice-chat/continuing|transcript` (no x-mcp — the wall stays up); typing IS a voice
+turn (useChatTurn `voice: true`; replies speak aloud while the daemon runs). Reviewer round-2
+PASSED after one must-fix (VoiceChatPanel refetchInterval-as-computed = TDZ crash on mid-turn
+mount → plain function, the house poller pattern) + by-id menu insertion + exact voice-turn poll
+read. Merged main's 0.3.3 customization arc INTO the branch first (CHANGELOG rebuilt — fresh
+[Unreleased] holds only voice entries; generated artifacts REGENERATED never auto-merged, 304
+SDK methods / 107 tools; app-shell trio expectation advanced to Home/Chat/Voice chat/Sessions),
+784 local-web tests + 90 route tests green, then ff'd main. REMAINING: Kafi's live smokes
+(wake→speak on the fresh thread · global untouched mid-speech · voice note → [Note from Voice]
+in global chat · Voice chat menu: transcript/live/typed+spoken; ⚠ the compiled wake-overlay exe
+bakes the web overlay leg — REBAKE before smoking or the old haiku pin rides). OPEN FORKS for
+Kafi: `direct_to_user` answers reach only the global catch-up net (a voice-only user never hears
+them); voice-fired TASKS still parent on the global conversation (reports land in global chat —
+coherent with "voice shows under global", re-plumb later); next-touch: split the voice doors out
+of routes/root/index.ts (503 lines). Module note: docs/module-notes/voice-session.md. LATER:
+per-call sessions gain the routing toolset (memory voice-session-sonnet-directive).
+
+## ✅ 2026-08-19 CUSTOMIZATION TO THE DB — SHIPPED (icons · colours · menu layout · tree positions · autosave)
 
 All four slices landed (see the plan block below for the shape): `@vynel/customization` leaf +
 migration 0049; `/customizations` routes + SDK; the store server-backed (boot hydrate — server wins,
