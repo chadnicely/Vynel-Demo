@@ -152,10 +152,13 @@ function readTail(db: Database, input: BuildContinuityContextInput): { lines: st
   const lines: string[] = []
   let total = 0
   // Newest first while budgeting (the latest exchange matters most), then
-  // restored to chronological order for the model.
+  // restored to chronological order for the model. A line that would overflow
+  // the budget is SKIPPED, not the end of the tail: one long message must not
+  // cut off every shorter one behind it — the tail is the half of the carry
+  // the distill cannot reconstruct (audit C5, 2026-08-19).
   for (const message of [...spoken].reverse()) {
     const line = formatTailLine(message)
-    if (total + line.length > TAIL_TOTAL_MAX_CHARS) break
+    if (total + line.length > TAIL_TOTAL_MAX_CHARS) continue
     lines.unshift(line)
     total += line.length
   }

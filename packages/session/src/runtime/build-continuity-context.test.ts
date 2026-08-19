@@ -375,6 +375,43 @@ describe('buildContinuityContext', () => {
       expect(context.carry).not.toContain('[user] line 4 ')
     })
   })
+
+  it('the whole-tail budget SKIPS a line that would overflow and keeps filling — one long message never cuts off the shorter ones behind it', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id, 'Seo'))
+      const primary = seedPrimary(db, user.id, workspace.id, 'seg-a')
+      seedSegment(db, { sessionId: 'seg-a', userId: user.id, workspaceId: workspace.id, visibility: 'hidden' })
+      // Oldest → newest: two short lines, one long, then eight long ones. The
+      // eight newest (~615 chars each) fill ~4,920 of the 5,000; the ninth
+      // newest ("long 3") would overflow — it is skipped, and the two short
+      // ones behind it still fit.
+      seedMessage(db, 'seg-a', 'user', 'short 1 fits')
+      seedMessage(db, 'seg-a', 'user', 'short 2 fits')
+      seedMessage(db, 'seg-a', 'user', 'long 3 ' + 'z'.repeat(700))
+      for (let index = 4; index <= 11; index++) {
+        seedMessage(db, 'seg-a', 'user', `long ${index} ` + 'z'.repeat(700))
+      }
+
+      const context = buildContinuityContext(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        fromSdkSessionId: 'seg-a',
+        summary: SUMMARY,
+        tailMessageLimit: 20,
+      })
+
+      expect(context.tailMessageCount).toBe(10)
+      expect(context.carry).toContain('[user] long 11 ')
+      expect(context.carry).toContain('[user] long 4 ')
+      expect(context.carry).not.toContain('[user] long 3 ')
+      expect(context.carry).toContain('[user] short 2 fits')
+      expect(context.carry).toContain('[user] short 1 fits')
+      // Chronological once composed: the short lines come first.
+      const carry = context.carry
+      expect(carry.indexOf('[user] short 1 fits')).toBeLessThan(carry.indexOf('[user] long 4 '))
+    })
+  })
 })
 
 describe('chain readers', () => {
