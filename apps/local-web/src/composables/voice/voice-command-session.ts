@@ -68,6 +68,9 @@ export interface VoiceCommandSessionDeps {
   /** Stop the running server turn BY IDENTITY (best-effort). */
   interruptTurn(sessionId: string): Promise<void>;
   onView(view: VoiceCommandSessionView): void;
+  /** The reason a turn's stream broke. The session already apologises out loud;
+   *  this is the CAUSE, which would otherwise be swallowed. The owner logs it. */
+  onTurnError?(error: unknown): void;
 }
 
 export interface VoiceCommandSessionOptions {
@@ -201,8 +204,13 @@ export function startVoiceCommandSession(
           break;
         }
       }
-    } catch {
-      if (!ended && !run.isCut) playbacks.push(sayFailure(run));
+    } catch (error) {
+      // An abort is this session's own doing (a barge-in, `end()`) and says
+      // nothing; anything else is a real break the owner has to be able to see.
+      if (!ended && !run.isCut) {
+        deps.onTurnError?.(error);
+        playbacks.push(sayFailure(run));
+      }
     } finally {
       // The turn settles once its last sentence played (or was cut) — the idle
       // window counts from the end of speech, not the end of the stream, and

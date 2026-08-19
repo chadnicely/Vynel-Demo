@@ -42,7 +42,14 @@ class RecordingIo implements VoiceSessionIo {
   cutPlaybackCount = 0
   onEndSpeech: (() => void) | null = null
   onCut: (() => void) | null = null
+  /** Break the status surface ONCE (a dead IPC channel) — the only seam a turn
+   *  can throw through where nothing inside it catches. */
+  failNextSetState = false
   setState(state: VoiceSessionState): void {
+    if (this.failNextSetState) {
+      this.failNextSetState = false
+      throw new Error('status surface is gone')
+    }
     this.states.push(state)
   }
   emitAudio(audio: PcmAudio): void {
@@ -354,6 +361,32 @@ describe('VoiceSessionDriver — barge-in + the echo filter (VR2)', () => {
     await settle()
     expect(turns).toBe(1) // not a command, not a barge-in
     expect(io.cutPlaybackCount).toBe(0)
+  })
+
+  it('a barge-in word buried in a LONG reply is still the user — the echo memory is not the whole answer', async () => {
+    const brain = controllableBrain()
+    const { driver, io, interruptTurn } = buildDriver(
+      ['hey vynel deploy status', 'stop'],
+      brain.runTurn,
+    )
+    await driver.pushAudio(chunk())
+    const first = brain.runs[0]!
+    first.emit({ kind: 'session', sessionId: 's-long' })
+    first.emit({
+      kind: 'text',
+      delta:
+        'I can stop the deployment if you want me to. The build is green and the tests all passed. ' +
+        'Nothing else is waiting on you right now. Your next meeting starts in about twenty minutes. ',
+    })
+    await settle()
+
+    // "stop" sits three sentences back in what we are saying — matching the
+    // whole answer would swallow exactly the word people barge in with.
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(io.cutPlaybackCount).toBeGreaterThan(0)
+    expect(interruptTurn).toHaveBeenCalledWith('s-long')
+    expect(brain.runs[1]!.utterance).toBe('stop')
   })
 
   it('a REAL transcript while it speaks cuts playback, interrupts the server turn, and runs the new turn', async () => {
@@ -715,6 +748,73 @@ describe('VoiceSessionDriver — the watchdog', () => {
     await vi.advanceTimersByTimeAsync(10)
     expect(interruptTurn).toHaveBeenCalledWith('s-bg')
     expect(brain.runs[1]!.utterance).toBe('new question')
+  })
+
+  it('the status says SPEAKING while the late answer plays — not listening', async () => {
+    vi.useFakeTimers()
+    const brain = controllableBrain()
+    const { driver, io } = buildDriver(['hey vynel take forever'], brain.runTurn, {
+      turnWatchdogMs: 1_000,
+    })
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+    run.emit({ kind: 'session', sessionId: 's-slow' })
+    await vi.advanceTimersByTimeAsync(1_001)
+    expect(io.states.at(-1)).toBe('listening') // the notice drained, the room is back
+    const afterNotice = io.states.length
+
+    run.emit({ kind: 'text', delta: 'Your deploy is green. ' })
+    run.emit({ kind: 'completed' })
+    await vi.advanceTimersByTimeAsync(10)
+    // The room is handed back but the daemon IS talking — the indicator has to
+    // say so, or it reads as listening through the whole answer.
+    expect(io.states.slice(afterNotice)).toEqual(['speaking', 'listening'])
+  })
+
+  it('a late answer that lands after the daemon fell ASLEEP still reads as speaking', async () => {
+    // The real shape of the watchdog path: it fires at five minutes, the idle
+    // window closes fifteen seconds later, and the answer lands long after.
+    vi.useFakeTimers()
+    const brain = controllableBrain()
+    const { driver, io } = buildDriver(['hey vynel take forever'], brain.runTurn, {
+      turnWatchdogMs: 1_000,
+      idleTimeoutMs: 2_000,
+    })
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+    run.emit({ kind: 'session', sessionId: 's-slow' })
+    await vi.advanceTimersByTimeAsync(1_001) // the watchdog hands the room back
+    await vi.advanceTimersByTimeAsync(2_001) // …and the conversation window closes
+    expect(io.states.at(-1)).toBe('idle')
+    const afterSleep = io.states.length
+
+    run.emit({ kind: 'text', delta: 'Your deploy is green. ' })
+    run.emit({ kind: 'completed' })
+    await vi.advanceTimersByTimeAsync(10)
+    expect(io.states.slice(afterSleep)).toEqual(['speaking', 'listening'])
+  })
+
+  it('a background turn that CRASHES hands the room back and apologises', async () => {
+    vi.useFakeTimers()
+    const brain = controllableBrain()
+    const { driver, io, synthesizer } = buildDriver(['hey vynel take forever'], brain.runTurn, {
+      turnWatchdogMs: 1_000,
+    })
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+    run.emit({ kind: 'session', sessionId: 's-crash' })
+    await vi.advanceTimersByTimeAsync(1_001)
+
+    // The status surface dies as the late answer's trailing fragment is flushed
+    // — a reject on the DETACHED settle, where nothing else would catch it.
+    io.failNextSetState = true
+    run.emit({ kind: 'text', delta: 'Your deploy is green' }) // no terminator: flushed after the stream
+    run.emit({ kind: 'completed' })
+    await vi.advanceTimersByTimeAsync(10)
+
+    expect(synthesizer.spoken).toContain('Sorry, I ran into a problem with that.')
+    expect(io.states.at(-1)).toBe('listening')
+    expect(driver.isAwake).toBe(true)
   })
 
   it('never fires the watchdog on a turn that answers in time', async () => {

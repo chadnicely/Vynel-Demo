@@ -250,8 +250,11 @@ export class VoiceSessionDriver {
       echoFilter: this.#speaker.echoFilter,
       turnWatchdogMs: this.#turnWatchdogMs,
       openSpeech: () => this.#speaker.openStreamedLine(),
+      // A LATE answer (the watchdog already handed the room back) is still
+      // speech: without this the status reads 'listening' through the whole
+      // reply. A relay drain owns its own status — never overwrite it.
       onSpeaking: () => {
-        if (this.#runningTurn === turn && this.#state === 'in-turn') this.#deps.io.setState('speaking')
+        if (this.#runningTurn === turn && this.#state !== 'relaying') this.#deps.io.setState('speaking')
       },
     })
     this.#runningTurn = turn
@@ -277,6 +280,8 @@ export class VoiceSessionDriver {
       this.#deps.onTurnWatchdog?.(utterance)
       this.#leaveTurn()
       if (!turn.hasSpoken) this.speak(STILL_WORKING_LINE)
+      // Safe detached: run() never rejects, so a crash still arrives as an
+      // outcome and the room comes back the same way any failure brings it.
       void settled.then((outcome) => this.#settleBackgroundTurn(turn, outcome))
       return
     }

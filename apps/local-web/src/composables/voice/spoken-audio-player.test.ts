@@ -133,6 +133,40 @@ describe("createSentencePipeline", () => {
     await after;
   });
 
+  it("a THROWING playWav settles every caller and keeps the line moving", async () => {
+    // The command session ends a turn on `Promise.all(playbacks)` — an io that
+    // rejects instead of resolving would leave those promises unsettled and the
+    // session would never finish the turn (the deaf-daemon class).
+    const log: string[] = [];
+    const pipeline = createSentencePipeline<string>({
+      fetchWav: (text) => Promise.resolve(text),
+      playWav: (wav) => {
+        log.push(`play:${wav}`);
+        return wav === "two." ? Promise.reject(new Error("device died")) : Promise.resolve();
+      },
+      stopPlayback: () => {},
+    });
+
+    await expect(pipeline.enqueue(["one.", "two.", "three."])).resolves.toBeUndefined();
+    expect(log).toEqual(["play:one.", "play:two.", "play:three."]);
+  });
+
+  it("a THROWING fetchWav reads as silence, never as a stuck queue", async () => {
+    const log: string[] = [];
+    const pipeline = createSentencePipeline<string>({
+      fetchWav: (text) =>
+        text === "two." ? Promise.reject(new Error("offline")) : Promise.resolve(text),
+      playWav: (wav) => {
+        log.push(`play:${wav}`);
+        return Promise.resolve();
+      },
+      stopPlayback: () => {},
+    });
+
+    await expect(pipeline.enqueue(["one.", "two.", "three."])).resolves.toBeUndefined();
+    expect(log).toEqual(["play:one.", "play:three."]);
+  });
+
   it("resolves immediately for an empty list", async () => {
     const fake = makeFakeIo();
     await expect(createSentencePipeline(fake.io).enqueue([])).resolves.toBeUndefined();

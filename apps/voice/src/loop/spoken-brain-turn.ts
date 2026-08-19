@@ -70,7 +70,10 @@ export class SpokenBrainTurn {
     return this.#speech !== null
   }
 
-  /** Run the turn to its end: the stream read AND the speech drained. */
+  /** Run the turn to its end: the stream read AND the speech drained. NEVER
+   *  rejects — every failure comes back as an outcome, because the driver may
+   *  be watching this DETACHED (a turn the watchdog released keeps running in
+   *  the background, with nothing left holding its promise). */
   async run(utterance: string): Promise<SpokenTurnOutcome> {
     const watchdog = armTurnWatchdog(this.#deps.turnWatchdogMs)
     void watchdog.whenExpired.then(() => {
@@ -124,9 +127,20 @@ export class SpokenBrainTurn {
       this.#streamEnded = true
       watchdog.disarm()
     }
-    if (this.#cancelled) outcome = 'interrupted'
-    else this.#speak(buffer.flush())
-    await this.#finishSpeech()
+    // The stream's own failures are already outcomes; this tail is the last
+    // place one could still escape as a rejection (the speaker seams, the
+    // driver's onSpeaking) — it comes back as an outcome like every other.
+    try {
+      if (this.#cancelled) outcome = 'interrupted'
+      else this.#speak(buffer.flush())
+      await this.#finishSpeech()
+    } catch (error) {
+      outcome = 'failed'
+      this.#deps.logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        'voice turn broke while finishing its speech',
+      )
+    }
     return outcome
   }
 

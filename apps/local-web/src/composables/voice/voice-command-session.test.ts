@@ -31,6 +31,7 @@ function buildDeps(
   const played: string[] = [];
   const interrupted: string[] = [];
   const brainCalls: string[] = [];
+  const turnErrors: unknown[] = [];
   const releases: Array<() => void> = [];
   let cancelCount = 0;
   let hangingResolve: ((value: string | null) => void) | null = null;
@@ -74,6 +75,9 @@ function buildDeps(
     onView: (view) => {
       views.push(view);
     },
+    onTurnError: (error) => {
+      turnErrors.push(error);
+    },
   };
   return {
     deps,
@@ -81,6 +85,7 @@ function buildDeps(
     played,
     interrupted,
     brainCalls,
+    turnErrors,
     releasePlayback: () => releases.shift()?.(),
     cancelCount: () => cancelCount,
   };
@@ -98,6 +103,12 @@ async function* brainSpeaking(...texts: string[]): AsyncIterable<VoiceTurnEvent>
 
 async function* brainFailing(): AsyncIterable<VoiceTurnEvent> {
   yield { kind: "failed", message: "boom" };
+}
+
+/** The transport itself dies mid-turn — a throw, not a `failed` frame. */
+async function* brainBreaking(): AsyncIterable<VoiceTurnEvent> {
+  yield { kind: "session", sessionId: "voice-seg-1" };
+  throw new Error("stream broke");
 }
 
 /** A brain that names its session, speaks one line, then stays open until
@@ -271,6 +282,39 @@ describe("startVoiceCommandSession", () => {
     await session.done;
   });
 
+  it("a barge-in word buried in a LONG reply still cuts — the echo memory is not the whole answer", async () => {
+    const harness = buildDeps(
+      [
+        "deploy status",
+        async (onInterim) => {
+          await settle();
+          onInterim("stop"); // we said "I can stop the deployment" three sentences back
+          await settle();
+          return "stop";
+        },
+      ],
+      (utterance) =>
+        utterance === "deploy status"
+          ? brainSpeaking(
+              "I can stop the deployment if you want me to.",
+              "The build is green and the tests all passed.",
+              "Nothing else is waiting on you right now.",
+              "Your next meeting starts in about twenty minutes.",
+            )
+          : brainSpeaking("Stopped."),
+      { holdPlayback: true },
+    );
+    const session = startVoiceCommandSession(harness.deps, { idleTimeoutMs: 60_000 });
+    await settle(40);
+
+    expect(harness.cancelCount()).toBeGreaterThanOrEqual(1);
+    expect(harness.interrupted).toEqual(["voice-seg-1"]);
+    expect(harness.brainCalls).toEqual(["deploy status", "stop"]);
+    expect(harness.turnErrors).toEqual([]); // an abort is our own doing, not a break
+    session.end();
+    await session.done;
+  });
+
   it("a tiny fragment while speaking never cuts (the first syllable of our own line coming back)", async () => {
     const hanging = brainHanging("It's 26 degrees and clear.");
     const harness = buildDeps(
@@ -392,6 +436,17 @@ describe("startVoiceCommandSession", () => {
     await settle();
     expect(captions(views)).toContain("Sorry, I ran into a problem with that.");
     expect(played).toEqual(["Sorry, I ran into a problem with that."]);
+    session.end();
+    await session.done;
+  });
+
+  it("surfaces the CAUSE when the turn's stream breaks, not just the spoken apology", async () => {
+    const harness = buildDeps(["what's up"], () => brainBreaking());
+    const session = startVoiceCommandSession(harness.deps, { idleTimeoutMs: 60_000 });
+    await settle(20);
+
+    expect(harness.played).toEqual(["Sorry, I ran into a problem with that."]);
+    expect((harness.turnErrors[0] as Error).message).toBe("stream broke");
     session.end();
     await session.done;
   });

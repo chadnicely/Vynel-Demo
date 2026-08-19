@@ -58,7 +58,13 @@ function brainRun() {
   }
 }
 
-function turnHarness(options: { turnWatchdogMs?: number; interrupt?: () => Promise<boolean> } = {}) {
+function turnHarness(
+  options: {
+    turnWatchdogMs?: number
+    interrupt?: () => Promise<boolean>
+    onSpeaking?: () => void
+  } = {},
+) {
   const run = brainRun()
   const interruptTurn = vi.fn(options.interrupt ?? (async () => true))
   const brain: VoiceBrainClient = { runTurn: run.runTurn, interruptTurn }
@@ -80,7 +86,7 @@ function turnHarness(options: { turnWatchdogMs?: number; interrupt?: () => Promi
   speakerRef = speaker
   const lane = new SpeechLane()
   const echoFilter = new SpokenEchoFilter()
-  const speakingStarted = vi.fn()
+  const speakingStarted = vi.fn(options.onSpeaking)
   const turn = new SpokenBrainTurn({
     logger: pino({ level: 'silent' }),
     brain,
@@ -210,5 +216,23 @@ describe('SpokenBrainTurn', () => {
     expect(await quietSettled).toBe('completed')
     expect(quiet.spoken).toEqual([])
     expect(quiet.turn.hasSpoken).toBe(false)
+  })
+
+  it('NEVER rejects — a throwing speaker seam settles as a failed outcome', async () => {
+    // The driver watches a watchdog-released turn DETACHED: a rejection there
+    // is an unhandled one, and the room never comes back from it.
+    const h = turnHarness({
+      onSpeaking: () => {
+        throw new Error('status surface is gone')
+      },
+    })
+
+    const settled = h.turn.run('status?')
+    // No terminator, so the only chunk is flushed AFTER the stream ends — the
+    // one place a throw used to escape run()'s own try.
+    h.run.emit({ kind: 'text', delta: 'The deploy finished a moment ago' })
+    h.run.emit({ kind: 'completed' })
+
+    await expect(settled).resolves.toBe('failed')
   })
 })

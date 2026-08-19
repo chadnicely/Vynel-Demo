@@ -207,7 +207,9 @@ export class CallConversation {
       this.#runPendingWork()
     }
     const watchdog = armTurnWatchdog(this.#deps.turnWatchdogMs)
-    void watchdog.whenExpired.then(async () => {
+    // The room is only back once the notice has been SPOKEN, so the finally
+    // waits for it (`watchdog.expired` says whether it will settle at all).
+    const noticeSpoken = watchdog.whenExpired.then(async () => {
       if (handedBack || this.#stopped) return
       this.#deps.logger.warn(
         { callId: this.#deps.callId, watchdogMs: this.#deps.turnWatchdogMs },
@@ -216,6 +218,14 @@ export class CallConversation {
       if (speakPolicy === 'always') await this.#speak(CALL_TURN_STILL_WORKING_LINE)
       handBack()
     })
+    // Say the turn's last word — or QUEUE it once the watchdog owns the speaker.
+    // `handedBack` only flips when the notice FINISHED playing, so a reply that
+    // lands while it is still synthesizing would be spoken on top of it and
+    // thrown away as "already speaking": the expiry is the honest test.
+    const sayLast = async (line: string): Promise<void> => {
+      if (handedBack || watchdog.expired) this.#queueLine(line)
+      else await this.#speak(line)
+    }
     try {
       let reply = ''
       let failed = false
@@ -237,30 +247,25 @@ export class CallConversation {
           break
         }
       }
-      // The wait is over — whatever is spoken from here is the answer, and the
-      // watchdog's notice must never land on top of it (it would collide with
-      // the line in flight and be dropped, handing the room back mid-reply).
+      // The wait is over — a watchdog that has not fired yet must never speak
+      // its notice on top of the answer that just arrived.
       watchdog.disarm()
       if (this.#stopped || interrupted) return
       if (failed) {
         // A silent failure mid-conversation reads as being ignored — but a
         // failed note flush must not interrupt the call to announce itself.
-        if (speakPolicy === 'always') await this.#speak(CALL_TURN_FAILED_LINE)
+        if (speakPolicy === 'always') await sayLast(CALL_TURN_FAILED_LINE)
         return
       }
       const spoken = stripSpokenMarkup(reply).trim()
       if (spoken === '') return
       if (speakPolicy === 'unless-noted' && isNotedSentinel(spoken)) return
-      if (handedBack) {
-        // The watchdog handed the room back and the reply landed LATE — a
-        // newer turn or a direct line may own the speaker now. Queue it
-        // behind them (never lost, never thrown away as "already speaking").
-        this.#queueLine(spoken)
-        return
-      }
-      await this.#speak(spoken)
+      await sayLast(spoken)
     } finally {
       watchdog.disarm()
+      // Never hand back UNDER the notice: the queued reply would start on top
+      // of the line still in flight and be rejected as "already speaking".
+      if (watchdog.expired) await noticeSpoken
       handBack()
     }
   }

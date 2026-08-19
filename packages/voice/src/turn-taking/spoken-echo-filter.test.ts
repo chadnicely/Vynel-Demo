@@ -34,6 +34,23 @@ describe('isEchoOfSpokenLine', () => {
   it('no recent lines, no echo', () => {
     expect(isEchoOfSpokenLine('cool', [])).toBe(false)
   })
+
+  it('a short utterance is weighed against the TAIL — a long reply never swallows a barge-in', () => {
+    // The whole streamed answer is ONE remembered line, so "stop" three
+    // sentences back must not make the user's "stop" our own voice.
+    const reply =
+      'I can stop the deployment if you want me to. The build is green and the tests all passed. ' +
+      'Nothing else is waiting on you right now. Your next meeting starts in about twenty minutes.'
+
+    expect(isEchoOfSpokenLine('stop', [reply])).toBe(false)
+    expect(isEchoOfSpokenLine('hold on', [reply])).toBe(false)
+    expect(isEchoOfSpokenLine('twenty minutes', [reply])).toBe(true) // what we just said
+    expect(isEchoOfSpokenLine('i can stop the deployment', [reply])).toBe(true) // a long run, anywhere
+  })
+
+  it('a short line is its own tail — nothing changes for a one-line reply', () => {
+    expect(isEchoOfSpokenLine('cool', [LINE])).toBe(true)
+  })
 })
 
 describe('SpokenEchoFilter', () => {
@@ -56,6 +73,17 @@ describe('SpokenEchoFilter', () => {
 
     expect(filter.isEcho('at nine then lunch with sam', 0)).toBe(true)
     expect(filter.hearableLines(0)).toEqual(['Your first meeting is at nine. Then lunch with Sam at noon.'])
+  })
+
+  it('a barge-in word buried in a long streamed reply is the USER, not an echo', () => {
+    const filter = new SpokenEchoFilter()
+    const line = filter.remember('I can stop the deployment if you want me to.')
+    line.append('The build is green and the tests all passed.')
+    line.append('Nothing else is waiting on you right now.')
+    line.append('Your next meeting starts in about twenty minutes.')
+
+    expect(filter.isEcho('stop', 0)).toBe(false)
+    expect(filter.isEcho('twenty minutes', 0)).toBe(true)
   })
 
   it('anything that is not in a spoken line is the user', () => {

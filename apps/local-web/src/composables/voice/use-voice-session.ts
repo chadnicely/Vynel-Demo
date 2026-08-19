@@ -107,6 +107,12 @@ export function useVoiceSession(options: {
         onView: (next) => {
           view.value = next;
         },
+        // Spoken as an apology; the cause lands on the overlay's failure line (the
+        // web app has no logger seam and the house rule bans console output) so a
+        // turn that keeps breaking is readable where it happened.
+        onTurnError: (error) => {
+          failure.value = `The voice turn broke: ${error instanceof Error ? error.message : String(error)}`;
+        },
       },
       initialCommand ? { initialCommand } : {},
     );

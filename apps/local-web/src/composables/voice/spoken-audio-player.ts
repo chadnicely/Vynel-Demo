@@ -66,19 +66,28 @@ export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): Senten
   let abort = new AbortController();
   let draining = false;
 
+  /** `null` = no audio for this sentence. A rejecting fetch is a bug in the io,
+   *  but it must read as silence, never as a queue that never settles. */
+  const synthesize = (text: string): Promise<Wav | null> =>
+    io.fetchWav(text, abort.signal).catch(() => null);
+
   async function drain(): Promise<void> {
     if (draining) return;
     draining = true;
     try {
       while (queue.length > 0) {
         const current = queue[0]!;
-        current.wav ??= io.fetchWav(current.text, abort.signal);
+        current.wav ??= synthesize(current.text);
         const next = queue[1];
-        if (next !== undefined) next.wav ??= io.fetchWav(next.text, abort.signal);
+        if (next !== undefined) next.wav ??= synthesize(next.text);
         const wav = await current.wav;
         // A cancel while the WAV was in flight already settled + dropped it.
         if (current.generation !== generation) continue;
-        if (wav !== null) await io.playWav(wav);
+        // A REJECTING playWav must never unwind the loop: every queued sentence
+        // is a promise someone awaits (the voice session's turn ends on them),
+        // so a throw here would strand the whole reply unsettled. One silent
+        // sentence is the cost — the caption already showed the words.
+        if (wav !== null) await io.playWav(wav).catch(() => undefined);
         if (queue[0] === current) {
           queue.shift();
           current.settle();
@@ -86,6 +95,11 @@ export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): Senten
       }
     } finally {
       draining = false;
+      // The loop only ever exits on an EMPTY queue — anything still here means
+      // it unwound, and each of those promises has a caller awaiting it.
+      const stranded = queue;
+      queue = [];
+      for (const item of stranded) item.settle();
     }
   }
 
@@ -101,7 +115,7 @@ export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): Senten
             // one starts synthesizing now (the drain loop is parked in that
             // playback), anything further back waits its turn — the daemon's
             // synth is CPU-bound, so we never flood it with a whole reply.
-            if (queue.length <= 2) item.wav = io.fetchWav(text, abort.signal);
+            if (queue.length <= 2) item.wav = synthesize(text);
           }),
       );
       void drain();
