@@ -20,6 +20,7 @@ import {
   presentToolCall,
   splitSourceLabel,
   workspaceMonogram,
+  type ReauthorizeState,
 } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
 import { workspaceAccentCss } from "../../utils/workspace-accent.js";
@@ -71,6 +72,12 @@ const props = withDefaults(
      *  stamp the latest card with the state treatment. Null/running/
      *  not_running = the plain working look. */
     workspaceStatus?: WorkspaceEffectiveStatus | null;
+    /** Whether this thread can SEND at all. A blocked card's "Run it anyway"
+     *  posts a message on this session, so a view-only thread (a session
+     *  opened from the library, an earlier chain part, the monitor's pane)
+     *  offers the button disabled and says so — never a click that goes
+     *  nowhere. Default true: the chat surfaces all own a composer. */
+    reauthorizable?: boolean;
   }>(),
   {
     assistantName: "Assistant",
@@ -80,6 +87,7 @@ const props = withDefaults(
     workspacesByName: undefined,
     sessionModel: null,
     workspaceStatus: null,
+    reauthorizable: true,
   },
 );
 
@@ -95,10 +103,15 @@ const emit = defineEmits<{
   reauthorizeToolCall: [toolCall: ChatToolCallResponse];
 }>();
 
-// A blocked card's "Run it anyway" is live only while nothing streams on this
-// thread — a mid-turn re-issue would queue behind the very reply that is
-// still explaining the refusal.
-const canReauthorize = computed(() => props.activeTurn?.status !== "streaming");
+// ONE word on a blocked card's "Run it anyway" for every card on this thread,
+// settled rows and the live turn alike: a view-only thread never sends;
+// otherwise the button is live only while nothing streams here — a mid-turn
+// re-issue would queue behind the very reply that is still explaining the
+// refusal.
+const reauthorizeState = computed<ReauthorizeState>(() => {
+  if (!props.reauthorizable) return "view-only";
+  return props.activeTurn?.status === "streaming" ? "streaming" : "ready";
+});
 
 // A persona-attributed row (a manager's reply, a colleague's report/update)
 // wears ITS OWN face in the author line (B8) — resolved from the label the
@@ -953,7 +966,7 @@ watch(
                 <ToolCallList
                   class="tool-list"
                   :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
-                  :reauthorizable="canReauthorize"
+                  :reauthorize-state="reauthorizeState"
                   @reauthorize="(call) => emit('reauthorizeToolCall', call)"
                 />
               </template>
@@ -1045,6 +1058,7 @@ watch(
             :view="props.activeTurn"
             :author-label="props.assistantName"
             :author-icon-url="props.assistantIconUrl"
+            :reauthorize-state="reauthorizeState"
             @decide-approval="
               (id, decision) => emit('decideApproval', id, decision)
             "

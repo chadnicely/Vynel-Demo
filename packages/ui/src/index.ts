@@ -71,4 +71,5 @@ export type {
 export type { MenuItemModel } from "./components/menu-shared.js";
 export type { SegmentedTab } from "./components/SegmentedTabs.vue";
 export type { SelectChipOption } from "./components/SelectChip.vue";
+export type { ReauthorizeState } from "./components/ToolCallCard.vue";
 export type { VoiceOrbState } from "./components/VoiceOrb.vue";

@@ -995,5 +995,37 @@ describe("ThreadStream", () => {
 
       expect(wrapper.emitted("reauthorizeToolCall")).toEqual([[blockedCall]]);
     });
+
+    // A view-only thread (no composer under it) has nowhere to send a re-issue:
+    // the button is offered disabled and SAYS it is view-only — a settled card
+    // and a card in a lingering live turn alike — and a click emits nothing.
+    it("reauthorizable=false keeps every blocked card's button disabled with the view-only title, settled and live", async () => {
+      const liveBlockedCall = { ...blockedCall, id: "tc-blocked-live", toolUseId: "tu-blocked-live" };
+      const activeTurn: ActiveTurnView = {
+        ...createActiveTurnView(),
+        status: "completed",
+        segments: [
+          { messageId: "live-1", text: "Setting it up.", thinking: "", toolCalls: [liveBlockedCall] },
+        ],
+      };
+      const wrapper = mount(ThreadStream, {
+        props: {
+          messages,
+          toolCallsByMessageId: { a1: [blockedCall] },
+          activeTurn,
+          reauthorizable: false,
+        },
+        global: { plugins: [createPinia()] },
+      });
+
+      const buttons = wrapper.findAll(".reauthorize-button");
+      expect(buttons).toHaveLength(2);
+      for (const button of buttons) {
+        expect(button.attributes("disabled")).toBeDefined();
+        expect(button.attributes("title")).toContain("view-only");
+        await button.trigger("click");
+      }
+      expect(wrapper.emitted("reauthorizeToolCall")).toBeUndefined();
+    });
   });
 });

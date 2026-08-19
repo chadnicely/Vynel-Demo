@@ -173,7 +173,7 @@ describe('consumeSessionEventStream — tool-use-blocked', () => {
     })
   })
 
-  it('a block for an unknown call is dropped (logged), and a SUBAGENT block never touches a row', async () => {
+  it('a block for an unknown call is dropped (logged), and a SUBAGENT block is audited only — never a row, never "unknown"', async () => {
     await withTestDatabase(async (db) => {
       const { logger, warn } = recordingLogger()
       const events = await consume(
@@ -182,7 +182,9 @@ describe('consumeSessionEventStream — tool-use-blocked', () => {
           sessionStarted,
           toolStarted,
           { ...toolBlocked, toolUseId: 'tu_never_started' },
-          { ...toolBlocked, parentToolUseId: 'tu_agent_1' },
+          // The SDK's `agent_id` attribution — same tool_use id as the real row
+          // on purpose: the subagent rule must fire BEFORE any row lookup.
+          { ...toolBlocked, agentId: 'agent_7' },
           refusalEcho,
         ],
         logger,
@@ -192,11 +194,18 @@ describe('consumeSessionEventStream — tool-use-blocked', () => {
       const row = findChatToolCallByToolUseId(db, 'tu_blocked')
       expect(row?.status).toBe('failed')
       expect(settledFrames(events).map((frame) => frame.toolCall.status)).toEqual(['failed'])
-      expect(
-        warn.mock.calls.some(([, message]) =>
-          String(message).includes('tool-use-blocked for unknown toolUseId'),
-        ),
-      ).toBe(true)
+
+      // Every block is audited once (the subagent's line names the subagent);
+      // only the truly unknown call is reported as dropped.
+      const contextsFor = (fragment: string) =>
+        warn.mock.calls
+          .filter(([, message]) => String(message).includes(fragment))
+          .map(([context]) => context)
+      expect(contextsFor('blocked by the provider')).toEqual([
+        { toolUseId: 'tu_never_started', toolName: 'Bash', reasonType: 'classifier' },
+        { toolUseId: 'tu_blocked', toolName: 'Bash', reasonType: 'classifier', agentId: 'agent_7' },
+      ])
+      expect(contextsFor('unknown toolUseId')).toEqual([{ toolUseId: 'tu_never_started' }])
     })
   })
 })

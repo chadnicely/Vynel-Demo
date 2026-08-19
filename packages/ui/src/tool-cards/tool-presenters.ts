@@ -77,11 +77,16 @@ function countLines(text: string): number {
 function asDisplayString(payload: unknown): string {
   if (payload === null || payload === undefined) return "";
   if (typeof payload === "string") return payload;
-  // A BLOCKED call's output is the refusal record; what came back to the model
-  // is its message — the card's blocked line already names who refused and why.
-  const blocked = readBlockedToolOutput(payload);
-  if (blocked !== null) return blocked.message;
   return JSON.stringify(payload, null, 2);
+}
+
+/** The output the panes render. A BLOCKED call's row output is the refusal
+ *  record; what came back to the model is its message — the card's blocked
+ *  line already names who refused and why. Gated on the STATUS (the row's
+ *  truth): an ordinary result that merely looks like the record stays as is. */
+function displayableToolOutput(toolCall: ChatToolCallResponse): unknown {
+  if (toolCall.status !== "blocked") return toolCall.toolOutput;
+  return readBlockedToolOutput(toolCall.toolOutput)?.message ?? toolCall.toolOutput;
 }
 
 function inputField(input: unknown, field: string): string | null {
@@ -103,7 +108,8 @@ function truncated(text: string, max: number): string {
 export function presentToolCall(
   toolCall: ChatToolCallResponse,
 ): ToolCallPresentation {
-  const { toolName, toolInput, toolOutput } = toolCall;
+  const { toolName, toolInput } = toolCall;
+  const toolOutput = displayableToolOutput(toolCall);
 
   // Desktop-control calls read as actions on the user's screen ("Pressed
   // 'Save' in Notepad"), never as raw payload panes — the same grammar the

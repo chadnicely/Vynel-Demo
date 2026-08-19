@@ -25,12 +25,9 @@ function sanitizeDecisionReason(value: unknown): string | null {
   return cleaned === '' ? null : cleaned
 }
 
-/** `parentToolUseId` is the runner-side subagent attribution the main
- *  translator already reads off the message (non-string = the main thread). */
 export function translateClaudeSystemMessage(
   message: Record<string, unknown>,
   sessionId: string,
-  parentToolUseId: string | undefined,
 ): NormalizedSessionEvent[] {
   if (message['subtype'] !== 'permission_denied') {
     return []
@@ -42,6 +39,11 @@ export function translateClaudeSystemMessage(
   ) {
     return []
   }
+  // Subagent attribution rides as `agent_id` here — the SDK never stamps this
+  // advisory with the `parent_tool_use_id` the chunk/tool messages carry
+  // ("mirrors can_use_tool for host-side routing"), so the consumer can tell a
+  // subagent's block apart but cannot key it to an Agent card.
+  const agentId = message['agent_id']
   return [
     {
       kind: 'tool-use-blocked',
@@ -53,7 +55,7 @@ export function translateClaudeSystemMessage(
       reason: sanitizeDecisionReason(message['decision_reason']),
       message: message['message'],
       blockedAt: new Date(),
-      ...(parentToolUseId !== undefined ? { parentToolUseId } : {}),
+      ...(typeof agentId === 'string' ? { agentId } : {}),
     },
   ]
 }

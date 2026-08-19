@@ -91,7 +91,7 @@ export function translateClaudeSdkEvent(
     case 'user':
       return translateUserMessage(sdkEvent, sessionId, currentAssistantMessageId)
     case 'system':
-      return translateClaudeSystemMessage(sdkEvent, sessionId, readParentToolUseId(sdkEvent))
+      return translateClaudeSystemMessage(sdkEvent, sessionId)
     default:
       // `result` is handled by the runner (lifecycle) — its usage is cumulative,
       // so it is NOT the occupancy source (see the header note).

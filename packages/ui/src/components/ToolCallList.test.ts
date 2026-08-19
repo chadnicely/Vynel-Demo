@@ -53,7 +53,7 @@ describe("ToolCallList — no delegation chip (the pointer is the tracker)", () 
 });
 
 // The classifier-deny card's re-authorize rides through the list: the host's
-// `reauthorizable` reaches every card, and a card's click comes back WITH the
+// `reauthorizeState` reaches every card, and a card's click comes back WITH the
 // call (the host needs its tool name to phrase the re-issued message).
 describe("ToolCallList — re-authorizing a blocked call", () => {
   const blockedCall = makeToolCall({
@@ -68,7 +68,7 @@ describe("ToolCallList — re-authorizing a blocked call", () => {
 
   it("re-emits the card's reauthorize with the blocked call when the host allows it", async () => {
     const wrapper = mount(ToolCallList, {
-      props: { toolCalls: [blockedCall], reauthorizable: true },
+      props: { toolCalls: [blockedCall], reauthorizeState: "ready" },
     });
 
     await wrapper.get(".reauthorize-button").trigger("click");
@@ -91,7 +91,7 @@ describe("ToolCallList — re-authorizing a blocked call", () => {
           makeToolCall({ id: "tc-a", toolUseId: "tu-a", toolName: "Bash", toolInput: { command: "ls" } }),
           blockedCall,
         ],
-        reauthorizable: true,
+        reauthorizeState: "ready",
       },
     });
 

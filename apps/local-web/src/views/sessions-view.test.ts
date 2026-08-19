@@ -120,6 +120,25 @@ function makeTranscript(
   };
 }
 
+/** A call the provider's own safety check refused — the classifier-deny card. */
+const blockedCall: ChatToolCallResponse = {
+  id: "tc-blocked",
+  parentMessageId: "m-1",
+  toolUseId: "tu-blocked",
+  toolName: "Bash",
+  toolInput: { command: 'ssh ops@host "crontab -"' },
+  toolOutput: {
+    blockedBy: "classifier",
+    reason: "Writing a remote crontab is irreversible without clear user intent",
+    message: "The user doesn't want to take this action right now.",
+  },
+  status: "blocked",
+  approvalStatus: null,
+  isErrorResult: true,
+  startedAt: "2026-07-21T09:00:00.000Z",
+  completedAt: "2026-07-21T09:00:01.000Z",
+};
+
 async function mountView(
   entries: SessionsOverviewEntry[],
   options: {
@@ -553,23 +572,6 @@ describe("SessionsView", () => {
   // same session-turn route a typed message takes, carrying the explicit
   // approval that names the tool.
   it("Run it anyway on a BLOCKED tool card sends the explicit approval as a normal turn on the same session", async () => {
-    const blockedCall: ChatToolCallResponse = {
-      id: "tc-blocked",
-      parentMessageId: "m-1",
-      toolUseId: "tu-blocked",
-      toolName: "Bash",
-      toolInput: { command: 'ssh ops@host "crontab -"' },
-      toolOutput: {
-        blockedBy: "classifier",
-        reason: "Writing a remote crontab is irreversible without clear user intent",
-        message: "The user doesn't want to take this action right now.",
-      },
-      status: "blocked",
-      approvalStatus: null,
-      isErrorResult: true,
-      startedAt: "2026-07-21T09:00:00.000Z",
-      completedAt: "2026-07-21T09:00:01.000Z",
-    };
     const { wrapper, turnCalls } = await mountView([makeEntry()], {
       transcriptMessages: [{ id: "m-1", body: "Setting the cron up." }],
       transcriptToolCalls: { "m-1": [blockedCall] },
@@ -593,6 +595,48 @@ describe("SessionsView", () => {
     });
     // One click, one message — the button is spent.
     expect(wrapper.find(".reauthorize-button").exists()).toBe(false);
+  });
+
+  // A view-only open (no composer) has nowhere to send the re-issue: the card
+  // still tells the story, but the button is disabled and says so — and a
+  // click must never reach the turn route.
+  it("a view-only open offers Run it anyway disabled with the view-only title — a click sends nothing", async () => {
+    const { wrapper, turnCalls } = await mountView(
+      [
+        makeEntry({
+          sessionId: "sp-2",
+          segments: [
+            makeSegment({ sessionId: "sp-1", isCurrent: false }),
+            makeSegment({
+              sessionId: "sp-2",
+              title: "Continued conversation",
+              continuedFromSessionId: "sp-1",
+            }),
+          ],
+        }),
+      ],
+      {
+        transcriptMessages: [{ id: "m-1", body: "Setting the cron up." }],
+        transcriptToolCalls: { "m-1": [blockedCall] },
+      },
+    );
+
+    // The superseded part opens view-only (no composer).
+    await wrapper.get(".chain-toggle").trigger("click");
+    await wrapper.findAll(".chain-node")[0]!.trigger("click");
+    await flushPromises();
+    expect(wrapper.find("textarea").exists()).toBe(false);
+
+    const button = wrapper.get('[data-testid="tool-call-blocked"] .reauthorize-button');
+    expect(button.attributes("disabled")).toBeDefined();
+    expect(button.attributes("title")).toContain("view-only");
+
+    await button.trigger("click");
+    await flushPromises();
+
+    expect(turnCalls).toHaveLength(0);
+    // Not spent either — nothing was sent.
+    expect(wrapper.find(".reauthorize-button").exists()).toBe(true);
   });
 
   it("a mid-turn send QUEUES (visible chip) and fires after the turn settles — nothing lost", async () => {

@@ -38,3 +38,14 @@ local-api: `routes/chat/schemas.ts` enum (+regenerated `packages/sdk` artifacts)
 ui: `ToolCallCard.vue` (blocked line + "Run it anyway") · `ToolCallList.vue` (pass-through) · presenter · tests.
 local-web: `ThreadStream.vue` · `LiveTurn.vue` · `AppComposer.vue` (`sendText`) · `use-reauthorize-tool-call.ts`
 (the owners' ONE handler) · the five thread owners · desktop fold/overlay (+'blocked') · sessions-view owner test.
+
+## Review fold (2026-08-20)
+
+- View-only threads (library opens, earlier chain parts, the monitor's pane — `chattable:false`, no
+  composer) offered an enabled "Run it anyway" that went nowhere. `ThreadStream` now takes
+  `reauthorizable` (default true; `SessionThreadView` passes `chattable`) and computes ONE
+  `ReauthorizeState` (`ready | streaming | view-only`, exported by `@vynel/ui`) for settled cards and
+  the live turn alike; the card's disabled title names the reason.
+- `SDKPermissionDeniedMessage` attributes a subagent by `agent_id`, never `parent_tool_use_id` — the
+  event carries `agentId`; the handler audits every block once and settles only a main-thread row.
+- The presenter unwraps the refusal record only on `status:'blocked'` — a lookalike output stays raw.

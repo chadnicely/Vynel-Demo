@@ -95,8 +95,13 @@ export type ToolUseBlockedEvent = {
   /** The rejection text the model received in place of a result. */
   message: string
   blockedAt: Date
-  /** See TextChunkEvent — a subagent's refused call. */
-  parentToolUseId?: string
+  /** Set when the refused call ran inside a SUBAGENT — the provider's own id
+   *  for that subagent (Claude's `agent_id`). Unlike the chunk/tool events,
+   *  this advisory names NO spawning tool call, so a consumer cannot settle it
+   *  onto an Agent card's entry (that entry settles off the error echo that
+   *  follows) — it can only tell the block apart from a main-thread one.
+   *  Absent = the main thread. */
+  agentId?: string
 }
 
 /** The agent is paused awaiting a tool-approval decision. */

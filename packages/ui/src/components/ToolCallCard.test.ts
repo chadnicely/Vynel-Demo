@@ -173,7 +173,7 @@ describe("ToolCallCard", () => {
       const wrapper = mount(ToolCallCard, {
         props: {
           toolCall: makeBlocked("Writing a remote crontab is irreversible without clear user intent"),
-          reauthorizable: true,
+          reauthorizeState: "ready",
         },
       });
 
@@ -191,7 +191,7 @@ describe("ToolCallCard", () => {
 
     it("falls back to a plain sentence when the provider gave no reason", () => {
       const wrapper = mount(ToolCallCard, {
-        props: { toolCall: makeBlocked(null), reauthorizable: true },
+        props: { toolCall: makeBlocked(null), reauthorizeState: "ready" },
       });
 
       expect(wrapper.get('[data-testid="tool-call-blocked"]').text()).toContain(
@@ -201,7 +201,7 @@ describe("ToolCallCard", () => {
 
     it("emits reauthorize ONCE on click, then hides the button", async () => {
       const wrapper = mount(ToolCallCard, {
-        props: { toolCall: makeBlocked("no clear intent"), reauthorizable: true },
+        props: { toolCall: makeBlocked("no clear intent"), reauthorizeState: "ready" },
       });
 
       await wrapper.get(".reauthorize-button").trigger("click");
@@ -212,18 +212,41 @@ describe("ToolCallCard", () => {
       expect(wrapper.find('[data-testid="tool-call-blocked"]').exists()).toBe(true);
     });
 
-    it("keeps the button disabled (and silent) while the host says a turn is streaming", async () => {
+    it("keeps the button disabled (and silent) while the host says a turn is streaming — and when it says nothing", async () => {
       const wrapper = mount(ToolCallCard, {
         props: { toolCall: makeBlocked("no clear intent") },
       });
 
       const button = wrapper.get(".reauthorize-button");
       expect(button.attributes("disabled")).toBeDefined();
+      expect(button.attributes("title")).toBe("Wait for the current reply to finish");
       await button.trigger("click");
       expect(wrapper.emitted("reauthorize")).toBeUndefined();
 
-      await wrapper.setProps({ reauthorizable: true });
+      await wrapper.setProps({ reauthorizeState: "streaming" });
+      expect(wrapper.get(".reauthorize-button").attributes("disabled")).toBeDefined();
+
+      await wrapper.setProps({ reauthorizeState: "ready" });
       expect(wrapper.get(".reauthorize-button").attributes("disabled")).toBeUndefined();
+      expect(wrapper.get(".reauthorize-button").attributes("title")).toBe(
+        "Send: Approved — go ahead and run Bash exactly as proposed.",
+      );
+    });
+
+    it("on a VIEW-ONLY thread the button stays disabled and says so — not 'wait for the reply'", async () => {
+      const wrapper = mount(ToolCallCard, {
+        props: { toolCall: makeBlocked("no clear intent"), reauthorizeState: "view-only" },
+      });
+
+      const button = wrapper.get(".reauthorize-button");
+      expect(button.attributes("disabled")).toBeDefined();
+      expect(button.attributes("title")).toBe(
+        "This thread is view-only — run it from the conversation's own chat",
+      );
+      await button.trigger("click");
+      expect(wrapper.emitted("reauthorize")).toBeUndefined();
+      // Still offered (not spent) — the state is the host's, not a click's.
+      expect(wrapper.find(".reauthorize-button").exists()).toBe(true);
     });
 
     it("expanded, the terminal shows what the model got back — not the raw refusal record", async () => {

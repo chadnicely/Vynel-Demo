@@ -377,6 +377,36 @@ const testCases: TestCase[] = [
     ],
   },
   {
+    // The SDK attributes a subagent's refusal with `agent_id` — never the
+    // `parent_tool_use_id` the other messages carry — so that is what rides.
+    name: 'system permission_denied inside a subagent -> ToolUseBlockedEvent carrying agentId',
+    sdkEvent: {
+      type: 'system',
+      subtype: 'permission_denied',
+      tool_name: 'Bash',
+      tool_use_id: 'tu_blocked_sub',
+      agent_id: 'agent_7',
+      decision_reason_type: 'classifier',
+      decision_reason: 'no clear user intent',
+      message: 'Permission denied.',
+      uuid: 'evt-pd-sub',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'tool-use-blocked',
+        sessionId: SESSION_ID,
+        toolUseId: 'tu_blocked_sub',
+        toolName: 'Bash',
+        reasonType: 'classifier',
+        reason: 'no clear user intent',
+        message: 'Permission denied.',
+        blockedAt: expect.any(Date),
+        agentId: 'agent_7',
+      },
+    ],
+  },
+  {
     name: 'system permission_denied missing its tool_use_id -> [] (no throw)',
     sdkEvent: {
       type: 'system',

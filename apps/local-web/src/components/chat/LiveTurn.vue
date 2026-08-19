@@ -8,6 +8,7 @@ import {
   ToolCallList,
   MarkdownText,
   deriveSettledAgentActivity,
+  type ReauthorizeState,
 } from "@vynel/ui";
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
@@ -35,6 +36,10 @@ const props = withDefaults(
     /** The persona's custom avatar; null = the Claude mark (MessageRow's
      *  settled rows render the same glyph). */
     authorIconUrl?: string | null;
+    /** The thread's word on a BLOCKED card's "Run it anyway" — ThreadStream
+     *  computes it ONCE for settled and live cards alike (this view's status
+     *  IS the thread's active turn). Absent = the button waits. */
+    reauthorizeState?: ReauthorizeState | undefined;
   }>(),
   { authorLabel: "Assistant", authorIconUrl: null },
 );
@@ -48,11 +53,6 @@ const emit = defineEmits<{
    *  ThreadStream's settled cards; the host re-issues the intent. */
   reauthorizeToolCall: [toolCall: ChatToolCallResponse];
 }>();
-
-// A blocked card appears while the turn is still streaming (the model is
-// told the refusal and stops) — the button waits for the settle; a click in
-// the settle window queues behind nothing and sends.
-const canReauthorize = computed(() => props.view.status !== "streaming");
 
 // The live edge — only the LAST segment is still being written, so only it
 // wears the cursor and a live thinking shimmer. Earlier segments are done and
@@ -190,7 +190,7 @@ const elapsedLabel = useTickingElapsed(
           v-if="row.segment.toolCalls.length > 0"
           :tool-calls="row.segment.toolCalls"
           :agent-activity="props.view.agentActivity"
-          :reauthorizable="canReauthorize"
+          :reauthorize-state="props.reauthorizeState"
           @reauthorize="(call) => emit('reauthorizeToolCall', call)"
         />
         <PointerRow

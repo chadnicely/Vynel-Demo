@@ -174,6 +174,26 @@ describe("presentToolCall", () => {
       output: "STOP and wait.",
     });
   });
+
+  it("leaves an ordinary output that merely looks like the refusal record alone — the STATUS decides", () => {
+    const lookalike = { blockedBy: "classifier", reason: "x", message: "y" };
+    const completed = presentToolCall(
+      makeToolCall("Bash", { command: "cat policy.json" }, lookalike),
+    );
+    const failed = presentToolCall({
+      ...makeToolCall("Bash", { command: "cat policy.json" }, lookalike),
+      status: "failed",
+      isErrorResult: true,
+    });
+
+    for (const presentation of [completed, failed]) {
+      expect(presentation.body).toEqual({
+        kind: "terminal",
+        command: "cat policy.json",
+        output: JSON.stringify(lookalike, null, 2),
+      });
+    }
+  });
 });
 
 describe("languageForFilePath", () => {

@@ -177,7 +177,9 @@ const composerScope = computed(() => {
 
 // A BLOCKED tool card's "Run it anyway" (the provider's own safety check
 // refused the call): re-issue the intent through this thread's own
-// composer — same session, same settings, the same send queue.
+// composer — same session, same settings, the same send queue. A view-only
+// open mounts no composer, so the thread is told (`reauthorizable`) and the
+// card says so instead of offering a click that lands nowhere.
 const { composer, reauthorizeToolCall } = useReauthorizeToolCall();
 
 const decideApproval = useDecideApproval();
@@ -238,6 +240,7 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
         :session-model="sessionModel"
         :workspace-status="threadStatus"
         :scroll-to-trace-id="props.anchorTraceId"
+        :reauthorizable="props.chattable"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
         @reauthorize-tool-call="reauthorizeToolCall"

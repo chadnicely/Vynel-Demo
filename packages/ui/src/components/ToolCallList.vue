@@ -4,6 +4,7 @@ import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { groupConsecutiveToolCalls } from "../tool-cards/group-tool-calls.js";
 import { describeToolCallGroup } from "../tool-cards/tool-presenters.js";
 import ToolCallCard from "./ToolCallCard.vue";
+import type { ReauthorizeState } from "./ToolCallCard.vue";
 import type { AgentActivityLike } from "./AgentActivityPane.vue";
 import {
   describeAgentActivityCall,
@@ -24,9 +25,9 @@ const props = defineProps<{
   /** Put a "Watch" chip on Agent/Task cards — the host handles `watchAgent`
    *  (opens the focused agent view). */
   watchableAgents?: boolean | undefined;
-  /** A blocked card's "Run it anyway" is live — no turn streams on this
-   *  session right now; the host handles `reauthorize` (re-issues the intent). */
-  reauthorizable?: boolean | undefined;
+  /** The thread's word on a blocked card's "Run it anyway" (see
+   *  ToolCallCard); the host handles `reauthorize` (re-issues the intent). */
+  reauthorizeState?: ReauthorizeState | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -90,7 +91,7 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
         <ToolCallCard
           :tool-call="group[0]!"
           :watchable="isWatchableAgent(group[0]!)"
-          :reauthorizable="props.reauthorizable === true"
+          :reauthorize-state="props.reauthorizeState"
           @watch="emit('watchAgent', group[0]!)"
           @reauthorize="emit('reauthorize', group[0]!)"
         />
@@ -139,7 +140,7 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
             <ToolCallCard
               :tool-call="toolCall"
               :watchable="isWatchableAgent(toolCall)"
-              :reauthorizable="props.reauthorizable === true"
+              :reauthorize-state="props.reauthorizeState"
               @watch="emit('watchAgent', toolCall)"
               @reauthorize="emit('reauthorize', toolCall)"
             />

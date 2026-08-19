@@ -36,16 +36,28 @@ export type HandleToolUseBlockedInput = {
 }
 
 /** Settles the refused call's row `blocked` and returns the settle frame —
- *  null when no row is known for it (nothing to settle, logged). */
+ *  null when there is nothing to settle: a SUBAGENT's block (audited only), or
+ *  no row known for the call (logged). */
 export function handleToolUseBlocked(input: HandleToolUseBlockedInput): ChatTurnEvent | null {
   const { db, event, toolCallByToolUseId, blockedToolUseIds, logger } = input
 
   // The audit line — name + deciding component only, never the input (the
   // refused command may be the very thing the user would not want logged).
   logger?.warn(
-    { toolUseId: event.toolUseId, toolName: event.toolName, reasonType: event.reasonType },
+    {
+      toolUseId: event.toolUseId,
+      toolName: event.toolName,
+      reasonType: event.reasonType,
+      ...(event.agentId !== undefined ? { agentId: event.agentId } : {}),
+    },
     "tool call blocked by the provider's own safety check — the tool never ran",
   )
+
+  // A subagent's refused call has no top-level row — the advisory names the
+  // subagent, not the Agent card it runs under, so its lean entry settles off
+  // the error echo that follows — and the user cannot re-issue into a subagent
+  // anyway. The audit line above is its whole record.
+  if (event.agentId !== undefined) return null
 
   const dbId = toolCallByToolUseId.get(event.toolUseId)
   if (dbId === undefined) {

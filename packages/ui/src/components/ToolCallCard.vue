@@ -18,15 +18,24 @@ import ToolCallDetail from "./ToolCallDetail.vue";
 // adds one line under the chip — who refused it and why — with the single
 // honest recovery: re-issue the intent. The card only asks; the thread owner
 // sends (props down, emits up).
+
+/** What the host says about "Run it anyway" on a blocked card: `ready` — the
+ *  thread can send and nothing streams on it; `streaming` — wait for the
+ *  current reply; `view-only` — this thread never sends (a library open, an
+ *  earlier chain part), so the intent must be re-issued from the
+ *  conversation's own chat. */
+export type ReauthorizeState = "ready" | "streaming" | "view-only";
+
 const props = defineProps<{
   toolCall: ChatToolCallResponse;
   initiallyExpanded?: boolean;
   /** Show a "Watch" chip (an Agent card whose run can open the focused
    *  agent view) — the host wires where it navigates. */
   watchable?: boolean;
-  /** A blocked call's "Run it anyway" is live — the host says no turn is
-   *  streaming on this session right now. Absent/false = the button waits. */
-  reauthorizable?: boolean;
+  /** A blocked call's "Run it anyway": live only when `ready`; otherwise
+   *  disabled, the title saying why. Absent = `streaming` — the button waits
+   *  until the host says otherwise. */
+  reauthorizeState?: ReauthorizeState | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -59,12 +68,28 @@ const blockedReason = computed(() =>
 );
 const BLOCKED_NO_REASON = "It wasn't sure you meant this — run it anyway if you do.";
 
+// The disabled button still explains itself — a view-only thread must not
+// read as "wait", there is nothing to wait for there.
+const REAUTHORIZE_LOCKED_TITLES: Record<Exclude<ReauthorizeState, "ready">, string> = {
+  streaming: "Wait for the current reply to finish",
+  "view-only": "This thread is view-only — run it from the conversation's own chat",
+};
+const reauthorizeState = computed<ReauthorizeState>(
+  () => props.reauthorizeState ?? "streaming",
+);
+const canReauthorize = computed(() => reauthorizeState.value === "ready");
+const reauthorizeTitle = computed(() =>
+  reauthorizeState.value === "ready"
+    ? `Send: ${reauthorizeToolCallMessage(props.toolCall.toolName)}`
+    : REAUTHORIZE_LOCKED_TITLES[reauthorizeState.value],
+);
+
 // One click = one re-issued message; the button hides itself after (the
 // thread shows the sent message, which IS the feedback). A fresh mount — a
 // reload, the settled rows replacing the live card — may offer it again.
 const hasReauthorized = ref(false);
 function reauthorize() {
-  if (!props.reauthorizable || hasReauthorized.value) return;
+  if (!canReauthorize.value || hasReauthorized.value) return;
   hasReauthorized.value = true;
   emit("reauthorize");
 }
@@ -185,12 +210,8 @@ const durationLabel = computed(() => {
         v-if="!hasReauthorized"
         type="button"
         class="reauthorize-button"
-        :disabled="!props.reauthorizable"
-        :title="
-          props.reauthorizable
-            ? `Send: ${reauthorizeToolCallMessage(props.toolCall.toolName)}`
-            : 'Wait for the current reply to finish'
-        "
+        :disabled="!canReauthorize"
+        :title="reauthorizeTitle"
         @click="reauthorize"
       >
         Run it anyway

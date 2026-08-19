@@ -398,10 +398,9 @@ export async function* consumeSessionEventStream(
         }
 
         case 'tool-use-blocked': {
-          // A subagent's refused call has no top-level row — its Agent card's
-          // lean entry settles off the error echo that follows, and the user
-          // cannot re-issue into a subagent anyway.
-          if (event.parentToolUseId !== undefined) break
+          // Main thread AND subagent blocks go through the handler — it audits
+          // every one and settles only a top-level row (a subagent's block
+          // names no Agent card to land on; see the handler).
           const settled = handleToolUseBlocked({
             db,
             event,
