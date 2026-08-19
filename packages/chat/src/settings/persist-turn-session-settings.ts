@@ -13,14 +13,10 @@ import type { StructuralLogger } from '../chat-types.js'
 import { updateChatSessionSettings } from './update-chat-session-settings.js'
 import type { TurnSettingsInput } from './resolve-turn-session-settings.js'
 
-export type TurnSettingsWriteInput = TurnSettingsInput & {
-  autoBuildout?: boolean | undefined
-}
-
 export function persistTurnSessionSettings(
   db: Database,
   sessionId: string,
-  input: TurnSettingsWriteInput,
+  input: TurnSettingsInput,
   options: { logger?: StructuralLogger } = {},
 ): void {
   const patch = {

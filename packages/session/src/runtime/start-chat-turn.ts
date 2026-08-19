@@ -18,6 +18,7 @@
 //    the bytes are persisted to `.vynel/transcripts/<sessionId>/images/` by the
 //    consumer once the session id resolves (D22 — chat owns that layout).
 
+import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { resolveAiAgentProvider } from '@vynel/providers'
 import type { Database } from '@vynel/db'
 import type {
@@ -72,6 +73,16 @@ export type StartChatTurnInput = {
   model?: string
   /** Reasoning effort for this turn (the composer's picker). Omit = Auto. */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /**
+   * AUTOPILOT for this turn (session-hardening D8) — the RESOLVED
+   * `autoBuildout` (`input ?? row`, `resolveTurnSessionSettings`). True appends
+   * the `autopilot-marker` instruction to the PROVIDER input only: the user is
+   * probably not there, so the model decides and keeps going instead of
+   * stopping to ask. Per-message rather than in the system prompt, because a
+   * system-prompt block decays under conversational momentum on a long session
+   * — the voice-turn-marker precedent. The persisted row keeps the clean text.
+   */
+  autoBuildout?: boolean
   /** Provider permission mode (the route maps the user-facing `SessionMode`
    *  here via `@vynel/session`'s `toPermissionMode`). Forwarded to the provider. */
   permissionMode: ClaudePermissionMode
@@ -170,11 +181,17 @@ export async function* startChatTurn(
 
   // 2. Resolve provider + start the underlying session. Conditional spread
   //    for optional fields per `exactOptionalPropertyTypes` (MEMORY foot-gun).
+  //    The autopilot marker rides the PROVIDER text — after any continuation
+  //    instruction, so the last thing the model reads is "keep going".
+  const providerUserMessageText =
+    input.autoBuildout === true
+      ? `${input.providerUserMessageText ?? input.userMessageText}\n\n${loadSessionInstruction('autopilot-marker')}`
+      : (input.providerUserMessageText ?? input.userMessageText)
   const provider = resolveAiAgentProvider(input.providerId)
   const sessionEventStream = provider.startChatSession({
     workspacePath: input.workspacePath,
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
-    userMessageText: input.providerUserMessageText ?? input.userMessageText,
+    userMessageText: providerUserMessageText,
     ...(chatMessageImages !== undefined ? { attachedImages: chatMessageImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
