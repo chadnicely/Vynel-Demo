@@ -32,6 +32,10 @@ export {
   type ContextPressure,
 } from './detect-context-pressure.js'
 
+// The one reading of a segment's context-window denominator + the model that
+// grew its chain (the swap measurement and the fit guard both read it).
+export { resolveSegmentContextWindow, type SegmentContextWindow } from './segment-context-window.js'
+
 export { type SessionStore, type SessionLocation, FilesystemSessionStore } from './session-store.js'
 
 export {

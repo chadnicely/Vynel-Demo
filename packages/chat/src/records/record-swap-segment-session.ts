@@ -108,6 +108,11 @@ export function recordSwapSegmentSession(
             status: predecessor.status,
             statusNote: predecessor.statusNote,
             statusSetAt: predecessor.statusSetAt,
+            // The chain's context-window denominator carries over too: a fresh
+            // segment has no usage yet, and its readers (the meter, whoami, the
+            // fit guard) must not fall to the 200k floor of a NULL model when
+            // the chain is driven on a 1M one (session-hardening, 2026-08-19).
+            lastContextWindow: predecessor.lastContextWindow,
           }
         : {}),
     })
