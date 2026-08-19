@@ -3,7 +3,23 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-20 (latest) SCHEDULE-FIRE FRAMING + AskUserQuestion DENY — `feature/schedule-fire-framing` (main b42ae81b), FULL GATE GREEN
+## ✅ 2026-08-20 (latest) SCHEDULES VISIBLE + CREATABLE FROM CHAT — `feature/schedule-on-primary` + `feature/schedule-tools` (main 5221f1cc), FULL GATE GREEN ×2
+
+Kafi's letterman smoke: a workspace fire ran "totally in background, not in the primary session". Two slices:
+**(1) on-primary** — reverses blueprint D3: a workspace fire resolves the continuing conversation IN-LOCK
+(get-or-create, db-first), resumes the chain head with continuity, stamps the begin frame with the primary id
+(named chip; the open thread streams it), binds the run row on `user-message-persisted` (a resumed head emits no
+`session-created`), fit clamp live again (occupancy rides the fire); first-ever fire = fresh session that BECOMES
+the conversation. **(2) tools** — reverses D14's no-mutating half: `create/update/enable/disable_schedule`
+(workspace surfaces) + `*_my_schedule` (global-interactive/global-channel/delegated-global; create takes scope
+global-or-workspace) as ask-tier tools (card in ask, run in auto — deliberately NOT the every-mode mutating floor);
+`fire-now` + DELETE stay unexposed; the MCP generator learned to flatten discriminated-union bodies (scope enum);
+global-root + workspace-agent instructions steer reminders to the tools, never sleep/timers. **Owed by Kafi (one
+combined smoke):** letterman schedule → watch it stream in the open thread + named chip; typed "remind me in 20
+minutes" in global chat → a real schedule row appears and fires as 📅 Schedule · <name>. **Worktrees:** session-audit
+= feature/schedule-tools · voice-routing = feature/schedule-on-primary (both merged).
+
+## ✅ 2026-08-20 SCHEDULE-FIRE FRAMING + AskUserQuestion DENY — `feature/schedule-fire-framing` (main b42ae81b), FULL GATE GREEN
 
 Kafi's live smoke of the fixed global schedules exposed the next layer: the fired prompt ("Remind me for tea")
 arrived as a PLAIN USER row — Claude read it as the user asking, self-answered a native `AskUserQuestion` in 14 ms
