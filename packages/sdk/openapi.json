@@ -11361,6 +11361,7 @@
                                 "completed",
                                 "failed",
                                 "denied",
+                                "blocked",
                                 "cancelled"
                               ]
                             },
@@ -12058,6 +12059,7 @@
                                 "completed",
                                 "failed",
                                 "denied",
+                                "blocked",
                                 "cancelled"
                               ]
                             },
@@ -32007,6 +32009,7 @@
                                 "completed",
                                 "failed",
                                 "denied",
+                                "blocked",
                                 "cancelled"
                               ]
                             },
@@ -32580,6 +32583,7 @@
                                     "completed",
                                     "failed",
                                     "denied",
+                                    "blocked",
                                     "cancelled"
                                   ]
                                 },
@@ -33406,6 +33410,7 @@
                                 "completed",
                                 "failed",
                                 "denied",
+                                "blocked",
                                 "cancelled"
                               ]
                             },
@@ -33972,6 +33977,7 @@
                                 "completed",
                                 "failed",
                                 "denied",
+                                "blocked",
                                 "cancelled"
                               ]
                             },
@@ -34551,6 +34557,7 @@
                                 "completed",
                                 "failed",
                                 "denied",
+                                "blocked",
                                 "cancelled"
                               ]
                             },
@@ -37207,6 +37214,7 @@
                                 "completed",
                                 "failed",
                                 "denied",
+                                "blocked",
                                 "cancelled"
                               ]
                             },

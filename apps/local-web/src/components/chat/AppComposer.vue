@@ -242,6 +242,17 @@ async function onSend(text: string, files: File[]) {
     settings.values.value,
   );
 }
+
+// A message the HOST composes on the user's behalf — the blocked tool card's
+// "Run it anyway" re-issue. It leaves through the same `send` as a typed
+// message (the host's queue, the session's settings as the chips show them)
+// and leaves the draft, a marked turn and a running dictation untouched: it
+// is not what the person was typing.
+function sendText(text: string) {
+  emit("send", text, [], settings.values.value);
+}
+
+defineExpose({ sendText });
 </script>
 
 <template>

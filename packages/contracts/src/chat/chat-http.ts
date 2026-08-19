@@ -19,8 +19,11 @@
 
 export type ChatMessageRole = "user" | "assistant" | "system";
 
+/** `blocked` = the provider's OWN safety check refused the call before it ran
+ *  (no approval card was shown); `toolOutput` then carries the
+ *  `BlockedToolOutput` payload (`./blocked-tool-call`). */
 export type ToolCallStatus =
-  "started" | "completed" | "failed" | "denied" | "cancelled";
+  "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
 
 export type ApprovalStatus = "approved" | "denied" | "timed-out" | "cancelled";
 

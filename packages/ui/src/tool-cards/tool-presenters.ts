@@ -1,4 +1,5 @@
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
+import { readBlockedToolOutput } from "@vynel/contracts/chat/blocked-tool-call";
 import { presentDesktopToolCall } from "./desktop-step-presenter.js";
 
 // Presentation logic for tool calls — turns a raw {toolName, toolInput,
@@ -76,6 +77,10 @@ function countLines(text: string): number {
 function asDisplayString(payload: unknown): string {
   if (payload === null || payload === undefined) return "";
   if (typeof payload === "string") return payload;
+  // A BLOCKED call's output is the refusal record; what came back to the model
+  // is its message — the card's blocked line already names who refused and why.
+  const blocked = readBlockedToolOutput(payload);
+  if (blocked !== null) return blocked.message;
   return JSON.stringify(payload, null, 2);
 }
 

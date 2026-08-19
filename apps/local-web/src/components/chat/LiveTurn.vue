@@ -12,6 +12,7 @@ import {
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
 import { deriveActionKind } from "@vynel/approvals/action-kind";
+import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import {
   liveClockStartMs,
   type ActiveTurnContinuation,
@@ -43,7 +44,15 @@ const emit = defineEmits<{
   /** An agent-run pointer's click — same contract as ThreadStream's settled
    *  pointers; the host routes it to the sidebar's activity pane. */
   openPointer: [pointer: ThreadPointerModel];
+  /** "Run it anyway" on a BLOCKED card in the live turn — same contract as
+   *  ThreadStream's settled cards; the host re-issues the intent. */
+  reauthorizeToolCall: [toolCall: ChatToolCallResponse];
 }>();
+
+// A blocked card appears while the turn is still streaming (the model is
+// told the refusal and stops) — the button waits for the settle; a click in
+// the settle window queues behind nothing and sends.
+const canReauthorize = computed(() => props.view.status !== "streaming");
 
 // The live edge — only the LAST segment is still being written, so only it
 // wears the cursor and a live thinking shimmer. Earlier segments are done and
@@ -181,6 +190,8 @@ const elapsedLabel = useTickingElapsed(
           v-if="row.segment.toolCalls.length > 0"
           :tool-calls="row.segment.toolCalls"
           :agent-activity="props.view.agentActivity"
+          :reauthorizable="canReauthorize"
+          @reauthorize="(call) => emit('reauthorizeToolCall', call)"
         />
         <PointerRow
           v-for="pointer in agentPointersFor(row.segment)"

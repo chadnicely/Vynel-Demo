@@ -18,6 +18,7 @@ import {
   isSessionInScope,
   type SessionsOverviewEntry,
 } from "@vynel/contracts/chat/sessions-overview";
+import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useUiStore } from "../stores/ui-store.js";
 import SessionsView from "./SessionsView.vue";
@@ -95,6 +96,7 @@ function makeEntry(
  *  Extra per-row fields (attribution, trace keys) ride via the overrides. */
 function makeTranscript(
   messages: Array<{ id: string; body: string } & Record<string, unknown>>,
+  toolCallsByMessageId: Record<string, ChatToolCallResponse[]> = {},
 ) {
   return {
     session: { id: "sdk-1" },
@@ -114,7 +116,7 @@ function makeTranscript(
       createdAt: "2026-07-21T09:00:00.000Z",
       ...overrides,
     })),
-    toolCallsByMessageId: {},
+    toolCallsByMessageId,
   };
 }
 
@@ -129,6 +131,8 @@ async function mountView(
     detailError?: string;
     /** Override the opened session's transcript rows. */
     transcriptMessages?: Array<{ id: string; body: string } & Record<string, unknown>>;
+    /** Tool calls under the transcript rows (keyed by message id). */
+    transcriptToolCalls?: Record<string, ChatToolCallResponse[]>;
   } = {},
 ) {
   // A followed chain reads the chain-spanning transcript; a deliberately
@@ -138,6 +142,7 @@ async function mountView(
       throw new Error(options.detailError);
     return makeTranscript(
       options.transcriptMessages ?? [{ id: "m-1", body: "Earlier findings." }],
+      options.transcriptToolCalls,
     );
   });
   const getSession = vi.fn(async () => {
@@ -145,6 +150,7 @@ async function mountView(
       throw new Error(options.detailError);
     return makeTranscript(
       options.transcriptMessages ?? [{ id: "m-1", body: "Earlier findings." }],
+      options.transcriptToolCalls,
     );
   });
   const turnCalls: Array<{ path: string; init: Record<string, unknown> }> = [];
@@ -540,6 +546,53 @@ describe("SessionsView", () => {
       "Working on a task — your message is queued.",
     );
     expect(wrapper.text()).toContain("Found three pricing tiers.");
+  });
+
+  // The classifier-deny card end to end on an owner: the thread relays the
+  // card's "Run it anyway", the OWNER sends it through its own composer — the
+  // same session-turn route a typed message takes, carrying the explicit
+  // approval that names the tool.
+  it("Run it anyway on a BLOCKED tool card sends the explicit approval as a normal turn on the same session", async () => {
+    const blockedCall: ChatToolCallResponse = {
+      id: "tc-blocked",
+      parentMessageId: "m-1",
+      toolUseId: "tu-blocked",
+      toolName: "Bash",
+      toolInput: { command: 'ssh ops@host "crontab -"' },
+      toolOutput: {
+        blockedBy: "classifier",
+        reason: "Writing a remote crontab is irreversible without clear user intent",
+        message: "The user doesn't want to take this action right now.",
+      },
+      status: "blocked",
+      approvalStatus: null,
+      isErrorResult: true,
+      startedAt: "2026-07-21T09:00:00.000Z",
+      completedAt: "2026-07-21T09:00:01.000Z",
+    };
+    const { wrapper, turnCalls } = await mountView([makeEntry()], {
+      transcriptMessages: [{ id: "m-1", body: "Setting the cron up." }],
+      transcriptToolCalls: { "m-1": [blockedCall] },
+    });
+
+    await openRow(wrapper);
+
+    const line = wrapper.get('[data-testid="tool-call-blocked"]');
+    expect(line.text()).toContain("Blocked by Claude's safety check");
+    expect(line.text()).toContain("irreversible without clear user intent");
+
+    await line.get(".reauthorize-button").trigger("click");
+    await flushPromises();
+
+    expect(turnCalls).toHaveLength(1);
+    expect(turnCalls[0]!.path).toBe("/sessions/{sessionId}/turn");
+    expect(turnCalls[0]!.init).toMatchObject({
+      params: { path: { sessionId: "sp-1" } },
+      body: { userMessageText: "Approved — go ahead and run Bash exactly as proposed." },
+      parseAs: "stream",
+    });
+    // One click, one message — the button is spent.
+    expect(wrapper.find(".reauthorize-button").exists()).toBe(false);
   });
 
   it("a mid-turn send QUEUES (visible chip) and fires after the turn settles — nothing lost", async () => {

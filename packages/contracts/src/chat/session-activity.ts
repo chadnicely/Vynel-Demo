@@ -58,8 +58,9 @@ export interface SessionTurnActivity {
   personaName?: string | null
 }
 
-/** A settled tool call's terminal status (mirrors the chat stream's vocabulary). */
-export type SessionTurnStepStatus = 'completed' | 'failed' | 'denied' | 'cancelled'
+/** A settled tool call's terminal status (mirrors the chat stream's vocabulary —
+ *  `blocked` = the provider's own safety check refused it before it ran). */
+export type SessionTurnStepStatus = 'completed' | 'failed' | 'denied' | 'blocked' | 'cancelled'
 
 /** How a turn ended: 'failed' = the drain saw a terminal `session-errored` or
  *  threw (the workspace status vocabulary's "stuck on an error" signal); a

@@ -8527,7 +8527,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
@@ -8706,7 +8706,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
@@ -16403,7 +16403,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
@@ -16574,7 +16574,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
@@ -16815,7 +16815,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
@@ -16939,7 +16939,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
@@ -17070,7 +17070,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;
@@ -17953,7 +17953,7 @@ export interface operations {
                                 toolInput?: unknown;
                                 toolOutput?: unknown;
                                 /** @enum {string} */
-                                status: "started" | "completed" | "failed" | "denied" | "cancelled";
+                                status: "started" | "completed" | "failed" | "denied" | "blocked" | "cancelled";
                                 /** @enum {string|null} */
                                 approvalStatus: "approved" | "denied" | "timed-out" | "cancelled" | null;
                                 isErrorResult: boolean;

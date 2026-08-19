@@ -1,6 +1,7 @@
 import type {
   SessionActivityEvent,
   SessionTurnScopeKind,
+  SessionTurnStepStatus,
 } from "@vynel/contracts/chat/session-activity";
 import { DESKTOP_TOOL_PREFIX, parseDesktopPlanCard } from "@vynel/ui";
 
@@ -29,7 +30,9 @@ export interface DesktopStep {
   toolUseId: string;
   toolName: string;
   toolInput: unknown;
-  status: "running" | "completed" | "failed" | "denied" | "cancelled";
+  /** Running here, then whatever the feed settled it with (the chat stream's
+   *  vocabulary — one home, so a new terminal status cannot drift past it). */
+  status: "running" | SessionTurnStepStatus;
 }
 
 /** The plan the user approved for this turn — what Claude said it would do. */

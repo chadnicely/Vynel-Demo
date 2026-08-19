@@ -24,10 +24,14 @@ const props = defineProps<{
   /** Put a "Watch" chip on Agent/Task cards — the host handles `watchAgent`
    *  (opens the focused agent view). */
   watchableAgents?: boolean | undefined;
+  /** A blocked card's "Run it anyway" is live — no turn streams on this
+   *  session right now; the host handles `reauthorize` (re-issues the intent). */
+  reauthorizable?: boolean | undefined;
 }>();
 
 const emit = defineEmits<{
   watchAgent: [toolCall: ChatToolCallResponse];
+  reauthorize: [toolCall: ChatToolCallResponse];
 }>();
 
 // NOTE: the dispatch card carries NO delegation chip of its own — the thread
@@ -86,7 +90,9 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
         <ToolCallCard
           :tool-call="group[0]!"
           :watchable="isWatchableAgent(group[0]!)"
+          :reauthorizable="props.reauthorizable === true"
           @watch="emit('watchAgent', group[0]!)"
+          @reauthorize="emit('reauthorize', group[0]!)"
         />
         <p v-if="agentTickerFor(group[0]!)" class="agent-ticker">
           <PresenceDot state="live" />
@@ -133,7 +139,9 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
             <ToolCallCard
               :tool-call="toolCall"
               :watchable="isWatchableAgent(toolCall)"
+              :reauthorizable="props.reauthorizable === true"
               @watch="emit('watchAgent', toolCall)"
+              @reauthorize="emit('reauthorize', toolCall)"
             />
             <p v-if="agentTickerFor(toolCall)" class="agent-ticker">
               <PresenceDot state="live" />

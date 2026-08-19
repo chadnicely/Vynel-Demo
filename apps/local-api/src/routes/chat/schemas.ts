@@ -145,11 +145,14 @@ const ChatMessageSourceKindSchema = z.enum([
   "agent",
   "system",
 ]);
+// Mirrors ToolCallStatus in @vynel/chat's schema — 'blocked' joined with the
+// classifier-deny card (the provider's own safety check refused the call).
 const ToolCallStatusSchema = z.enum([
   "started",
   "completed",
   "failed",
   "denied",
+  "blocked",
   "cancelled",
 ]);
 const ApprovalStatusSchema = z.enum([

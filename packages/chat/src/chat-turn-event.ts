@@ -18,6 +18,10 @@ export type ChatTurnEvent =
   | { kind: 'text-chunk'; messageId: string; textDelta: string }
   | { kind: 'thinking-chunk'; messageId: string; thinkingDelta: string }
   | { kind: 'tool-call-started'; toolCall: ChatToolCall }
+  // Every terminal settle rides this one frame, the row carrying its status —
+  // a provider-refused call (`tool-use-blocked`) included: the row reads
+  // `status: 'blocked'` with the refusal record as its toolOutput, so no live
+  // viewer needs a second kind to fold.
   | { kind: 'tool-call-completed'; toolCall: ChatToolCall }
   // A SUBAGENT's live activity, keyed by the spawning Agent tool call's
   // toolUseId. The UI nests these under the card while the turn streams —

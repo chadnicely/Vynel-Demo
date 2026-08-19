@@ -12,6 +12,7 @@ import { useChatTurn } from "../../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { matchTurnToIdentity } from "../../composables/activity/match-turn-to-identity.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
+import { useReauthorizeToolCall } from "../../composables/chat/use-reauthorize-tool-call.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useSpokenReply } from "../../composables/voice/use-spoken-reply.js";
@@ -157,6 +158,11 @@ function stopTurn() {
 }
 
 const openPointerTarget = useOpenPointerTarget();
+// A BLOCKED tool card's "Run it anyway" (the provider's own safety check
+// refused the call): re-issue the intent through this thread's own
+// composer — same session, same settings, the same send queue.
+const { composer, reauthorizeToolCall } = useReauthorizeToolCall();
+
 const decideApproval = useDecideApproval();
 function onDecideApproval(
   approvalRequestId: string,
@@ -221,6 +227,7 @@ const isEmpty = computed(
         :session-model="sessionModel"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
+        @reauthorize-tool-call="reauthorizeToolCall"
       />
     </div>
 
@@ -247,6 +254,7 @@ const isEmpty = computed(
       <!-- NO session-id on purpose: with one, the composer would GET and PATCH
            the voice row's settings — a row no voice turn ever reads. -->
       <AppComposer
+        ref="composer"
         :settings-defaults="VOICE_TURN_SETTINGS"
         settings-locked
         :settings-locked-note="HANDS_FREE_NOTE"
