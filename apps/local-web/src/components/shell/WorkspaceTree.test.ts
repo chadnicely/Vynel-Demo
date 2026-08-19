@@ -4,25 +4,30 @@
 // menu is exercised in @vynel/ui's own tests; the double-click path drives
 // the same startRename.
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import WorkspaceTree from "./WorkspaceTree.vue";
 
+// Two groups + two ungrouped rows. Every row keeps its place whatever its
+// state — Blog is parked (quiet, nothing open) and still sits at the root.
 function mountTree() {
   return mount(WorkspaceTree, {
     props: {
       workspaces: [
         { id: "ws-a", name: "Acme", groupId: "grp-1" },
+        { id: "ws-c", name: "Cove", groupId: "grp-1" },
         { id: "ws-b", name: "Blog", groupId: null },
+        { id: "ws-d", name: "Dune", groupId: null },
       ],
-      groups: [{ id: "grp-1", name: "Clients" }],
+      groups: [
+        { id: "grp-1", name: "Clients" },
+        { id: "grp-2", name: "Side" },
+      ],
       activeWorkspaceId: null,
-      // Alive views (open tasks) — parked rows would fold into NOT RUNNING
-      // and out of the folder/root zones these tests drive.
       statusByWorkspaceId: {
         "ws-a": { status: "running" as const, note: null, tasksDone: 1, tasksTotal: 3 },
-        "ws-b": { status: "not_running" as const, note: null, tasksDone: 0, tasksTotal: 2 },
+        "ws-b": { status: "not_running" as const, note: null, tasksDone: 0, tasksTotal: 0 },
       },
       globalStatus: "not_running" as const,
       accountName: "Sam",
@@ -32,6 +37,8 @@ function mountTree() {
 }
 
 describe("WorkspaceTree", () => {
+  beforeEach(() => localStorage.clear());
+
   it("double-clicking a folder name opens a focused rename input; Enter emits", async () => {
     const wrapper = mountTree();
 
@@ -157,29 +164,119 @@ describe("WorkspaceTree", () => {
     wrapper.unmount();
   });
 
-  it("dropping a dragged row on a folder emits the move; same folder is a no-op", async () => {
+  // A dragover with a pointer position: the tree reads which half of the
+  // hovered element it's in. happy-dom rects are all zeros, so the target's
+  // box is pinned to 30px tall and the pointer placed by hand.
+  function dragOverAt(element: Element, clientY: number) {
+    (element as HTMLElement).getBoundingClientRect = () =>
+      ({ top: 0, height: 30, bottom: 30, left: 0, right: 100, width: 100, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    const event = new Event("dragover", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clientY", { value: clientY });
+    element.dispatchEvent(event);
+  }
+  function rowOf(wrapper: ReturnType<typeof mountTree>, name: string) {
+    return wrapper.findAll('[draggable="true"]').find((node) => node.text().includes(name))!;
+  }
+  function slotOf(wrapper: ReturnType<typeof mountTree>, name: string) {
+    return wrapper.findAll("li.tree-slot").find((node) => node.text().includes(name))!;
+  }
+  function headerOf(wrapper: ReturnType<typeof mountTree>, name: string) {
+    return wrapper.findAll(".tree-group-header").find((node) => node.text().includes(name))!;
+  }
+  function storedOrder() {
+    return JSON.parse(localStorage.getItem("vynel.tree.order") ?? "{}");
+  }
+
+  it("parked rows stay exactly where they are — no NOT RUNNING group", () => {
+    const wrapper = mountTree();
+    expect(wrapper.text()).not.toContain("Not running");
+    // Blog (parked) still lists at the root, in server order, dimmed.
+    const rootNames = wrapper
+      .findAll("ul.tree-root li.tree-slot")
+      .map((node) => node.find(".truncate").text());
+    expect(rootNames).toEqual(["Blog", "Dune"]);
+    wrapper.unmount();
+  });
+
+  it("dropping a row on a group's header joins that group (last); its own group is a no-op emit", async () => {
     const wrapper = mountTree();
 
-    // Drag the root row (Blog) onto the Clients folder.
-    const blogRow = wrapper
-      .findAll('[draggable="true"]')
-      .find((node) => node.text().includes("Blog"));
-    await blogRow!.trigger("dragstart");
-    const folder = wrapper
-      .findAll("div")
-      .find((node) => node.classes().includes("border-dashed") && node.text().includes("Clients"));
-    await folder!.trigger("dragover");
-    await folder!.trigger("drop");
+    await rowOf(wrapper, "Blog").trigger("dragstart");
+    await headerOf(wrapper, "Clients").trigger("dragover");
+    await wrapper.find(".tree-group").trigger("drop");
     expect(wrapper.emitted("move-workspace")).toEqual([["ws-b", "grp-1"]]);
+    expect(storedOrder().workspaces["grp-1"]).toEqual(["ws-a", "ws-c", "ws-b"]);
 
-    // Dragging the member (Acme) onto its own folder must not emit.
-    const acmeRow = wrapper
-      .findAll('[draggable="true"]')
-      .find((node) => node.text().includes("Acme"));
-    await acmeRow!.trigger("dragstart");
-    await folder!.trigger("dragover");
-    await folder!.trigger("drop");
+    // Dragging a member (Acme) onto its own group's header must not emit.
+    await rowOf(wrapper, "Acme").trigger("dragstart");
+    await headerOf(wrapper, "Clients").trigger("dragover");
+    await wrapper.find(".tree-group").trigger("drop");
     expect(wrapper.emitted("move-workspace")).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it("dropping a row above another reorders the list and the order sticks", async () => {
+    const wrapper = mountTree();
+
+    // Dune dragged onto the TOP half of Blog → before Blog.
+    await rowOf(wrapper, "Dune").trigger("dragstart");
+    dragOverAt(slotOf(wrapper, "Blog").element, 5);
+    await nextTick();
+    expect(slotOf(wrapper, "Blog").classes()).toContain("tree-drop-before");
+    await slotOf(wrapper, "Blog").trigger("drop");
+
+    expect(wrapper.emitted("move-workspace")).toBeUndefined();
+    expect(storedOrder().workspaces.root).toEqual(["ws-d", "ws-b"]);
+    const rootNames = wrapper
+      .findAll("ul.tree-root li.tree-slot")
+      .map((node) => node.find(".truncate").text());
+    expect(rootNames).toEqual(["Dune", "Blog"]);
+    wrapper.unmount();
+  });
+
+  it("dropping a root row between a group's members joins the group at that spot", async () => {
+    const wrapper = mountTree();
+
+    // Blog onto the BOTTOM half of Acme → after Acme, before Cove.
+    await rowOf(wrapper, "Blog").trigger("dragstart");
+    dragOverAt(slotOf(wrapper, "Acme").element, 25);
+    await nextTick();
+    expect(slotOf(wrapper, "Acme").classes()).toContain("tree-drop-after");
+    await slotOf(wrapper, "Acme").trigger("drop");
+
+    expect(wrapper.emitted("move-workspace")).toEqual([["ws-b", "grp-1"]]);
+    expect(storedOrder().workspaces["grp-1"]).toEqual(["ws-a", "ws-b", "ws-c"]);
+    expect(storedOrder().workspaces.root ?? []).toEqual([]);
+    wrapper.unmount();
+  });
+
+  it("a group drags above another group and the order sticks", async () => {
+    const wrapper = mountTree();
+
+    await headerOf(wrapper, "Side").trigger("dragstart");
+    dragOverAt(headerOf(wrapper, "Clients").element, 5);
+    await nextTick();
+    expect(wrapper.find(".tree-group").classes()).toContain("tree-drop-before");
+    await wrapper.find(".tree-group").trigger("drop");
+
+    expect(storedOrder().groups).toEqual(["grp-2", "grp-1"]);
+    const headerNames = wrapper.findAll(".tree-group-header").map((node) => node.find(".truncate").text());
+    expect(headerNames).toEqual(["Side", "Clients"]);
+    wrapper.unmount();
+  });
+
+  it("the stored order survives a remount and ignores ids that are gone", async () => {
+    localStorage.setItem(
+      "vynel.tree.order",
+      JSON.stringify({ groups: ["grp-2", "gone", "grp-1"], workspaces: { root: ["ws-d", "ws-b"] } }),
+    );
+    const wrapper = mountTree();
+    const headerNames = wrapper.findAll(".tree-group-header").map((node) => node.find(".truncate").text());
+    expect(headerNames).toEqual(["Side", "Clients"]);
+    const rootNames = wrapper
+      .findAll("ul.tree-root li.tree-slot")
+      .map((node) => node.find(".truncate").text());
+    expect(rootNames).toEqual(["Dune", "Blog"]);
     wrapper.unmount();
   });
 })

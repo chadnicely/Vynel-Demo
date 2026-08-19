@@ -42,6 +42,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   into that group; the New workspace dialog gained a **Group** pick with an
   inline **New group…**. Clicking a workspace row always opens that
   workspace's chat.
+- **The left menu keeps your order — and you set it by dragging.** The
+  NOT RUNNING group is gone: a quiet workspace dims where it sits instead of
+  jumping to the bottom. Drag a workspace above or below another to reorder
+  it, onto a group's title to move it into that group (last), or onto the
+  empty root area to take it out; drag a group's title above or below
+  another group to reorder groups. Where you put things stays put.
+- **Drag and drop now works in the desktop app.** The desktop shell's own
+  drag-drop hook was swallowing every drag on Windows; it's off, so the
+  sidebar's reorder and regroup drags behave like they do in the browser.
+  (Needs a desktop rebuild to take effect.)
 - **Pick any accent colour.** Customize → Accent color has a custom swatch
   beside the palette: choose any colour and the workspace's icon in the
   left menu, its chips in chat, and its rail mark all take it.

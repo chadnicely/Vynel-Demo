@@ -3,7 +3,24 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) SIDEBAR TREE PASS — icons left, state right, groups compact, group-scoped create
+## ✅ 2026-08-19 (latest) TREE ORDER + DnD — NOT RUNNING gone, drag-to-order, desktop DnD unblocked
+
+Kafi: the NOT RUNNING pseudo-group "kind of miss"; rows must hold their place regardless of state,
+groups + workspaces draggable with a stored position; and DnD is dead in the desktop build. Shipped:
+`WorkspaceTree.vue` rewritten around two colocated modules — `tree-order.ts` (pure: `sortByStoredOrder`,
+`withWorkspacePlaced`, `withGroupPlaced`, localStorage `vynel.tree.order` = { groups: id[], workspaces:
+{ [groupId|"root"]: id[] } }; the DISPLAYED sequence is what gets stored; unknown ids follow in server
+order) + `use-tree-drag-drop.ts` (one state machine: workspace → between rows (edge by pointer half →
+insertion line), onto a group header (join, last), onto the root zone (leave, last); group → above/below
+another group; membership changes emit `move-workspace`, position writes locally). Position is LOCAL
+(Chad's customization precedent) — server-side sync is a candidate follow-up if multi-device matters.
+Parked rows dim in place (row's existing opacity). DESKTOP: Tauri v2's default drag-drop handler
+swallows native DnD in WebView2 → `.disable_drag_drop_handler()` on the main `WebviewWindowBuilder`
+(`apps/desktop/src-tauri/src/windows.rs`; nothing in local-web used Tauri's file-drop events;
+`cargo check` green) — needs a desktop REBUILD + Kafi's smoke. Verified: 16 tree/order tests + live
+playwright drag (root reorder persisted).
+
+## ✅ 2026-08-19 SIDEBAR TREE PASS — icons left, state right, groups compact, group-scoped create
 
 Kafi's next small change (screenshot-driven): `WorkspaceTreeRow` = caret · the workspace's OWN icon
 (customized `workspaceImage` else monogram over `--ws-N`; the option carries `imageUrl`/`accentVar`
