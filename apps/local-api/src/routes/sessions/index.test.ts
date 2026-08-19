@@ -23,6 +23,7 @@ import {
   type NewChatSession,
   type NewChatMessage,
 } from '@vynel/chat/repositories'
+import { updateChatSessionSettings } from '@vynel/chat'
 import { TurnEventBroadcaster } from '@vynel/session/delegation'
 import { sessionChannelKey } from '@vynel/session/runtime'
 import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
@@ -522,6 +523,84 @@ describe('POST /sessions/spawned (Slice ④ — create_session)', () => {
           sessionId: 'sdk-spawned-ws',
         })
         expect(spawned?.workspaceId).toBe(ws.id)
+      })
+    })
+  })
+
+  it('birth-stamps the AMBIENT creator settings onto the new session (D4)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-stamp-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const ws = seedWorkspace(db, user.id, 'Acme')
+        // The creating turn's own row already holds its resolved chips (the
+        // interactive streams' write-through).
+        const creator = insertChatSession(db, makeSession(user.id, ws.id))
+        updateChatSessionSettings(db, creator.id, {
+          sessionMode: 'bypass',
+          selectedModel: 'claude-opus-4-8',
+          thinkingEffort: 'high',
+          autoBuildout: true,
+        })
+        const app = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-child'))
+
+        const res = await app.request('/sessions/spawned', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [TURN_SESSION_HEADER]: creator.id,
+          },
+          body: JSON.stringify({ name: 'Child', purpose: 'Do the follow-up.' }),
+        })
+        expect(res.status).toBe(200)
+
+        const child = findChatSessionById(db, 'sdk-child')
+        expect(child?.sessionMode).toBe('bypass')
+        expect(child?.selectedModel).toBe('claude-opus-4-8')
+        expect(child?.thinkingEffort).toBe('high')
+        expect(child?.autoBuildout).toBe(true)
+      })
+    })
+  })
+
+  it('stays NULL with no ambient turn, and when the header names a foreign session', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-null-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        // The LOCAL user is whoever exists first — seed them before the stranger.
+        const user = seedUser(db)
+        const stranger = seedUser(db)
+        const strangerWs = seedWorkspace(db, stranger.id, 'Theirs')
+        const foreign = insertChatSession(db, makeSession(stranger.id, strangerWs.id))
+        updateChatSessionSettings(db, foreign.id, { sessionMode: 'bypass' })
+
+        // No header at all — the CLI / voice-call-leg path.
+        const bare = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-bare'))
+        expect(
+          (
+            await bare.request('/sessions/spawned', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name: 'Bare', purpose: 'p' }),
+            })
+          ).status,
+        ).toBe(200)
+        expect(findChatSessionById(db, 'sdk-bare')?.sessionMode).toBeNull()
+        expect(findChatSessionById(db, 'sdk-bare')?.userId).toBe(user.id)
+
+        // A header naming ANOTHER user's session is no creator either — never
+        // a cross-tenant read, and never a 404 (no-creator is a valid path).
+        const spoofed = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-spoof'))
+        const res = await spoofed.request('/sessions/spawned', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [TURN_SESSION_HEADER]: foreign.id,
+          },
+          body: JSON.stringify({ name: 'Spoofed', purpose: 'p' }),
+        })
+        expect(res.status).toBe(200)
+        expect(findChatSessionById(db, 'sdk-spoof')?.sessionMode).toBeNull()
       })
     })
   })

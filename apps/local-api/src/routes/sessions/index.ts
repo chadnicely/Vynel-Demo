@@ -31,7 +31,9 @@ import {
   searchChatSessions,
   updateChatSessionSettings,
   setSessionStatus,
+  type ChatSessionSettingsPatch,
 } from '@vynel/chat'
+import type { Database } from '@vynel/db'
 import {
   TURN_SESSION_HEADER,
   isTurnFromGlobalRoot,
@@ -74,6 +76,30 @@ function toSessionSettings(session: {
     selectedModel: session.selectedModel,
     thinkingEffort: session.thinkingEffort,
     autoBuildout: session.autoBuildout,
+  }
+}
+
+// The BIRTH STAMP's source (session-hardening D4): a spawned session is born
+// running whatever its CREATOR runs, so a parent on bypass never spawns a child
+// that cards. The creator is the ambient turn — named by the server-stamped
+// turn-session header, never by the model — and its row already holds the
+// resolved chips (the interactive streams' write-through). "No creator" is a
+// legitimate path, not an error: a CLI call, a voice call leg, or a header
+// naming a row this user does not own all yield an empty stamp, and the child's
+// columns stay null ("never set") to resolve the default at turn time.
+function readCreatorSessionSettings(
+  db: Database,
+  userId: string,
+  turnSessionId: string | undefined,
+): ChatSessionSettingsPatch {
+  if (turnSessionId === undefined) return {}
+  const creator = findChatSessionById(db, turnSessionId)
+  if (creator === null || creator.userId !== userId) return {}
+  return {
+    ...(creator.sessionMode !== null ? { sessionMode: creator.sessionMode } : {}),
+    ...(creator.selectedModel !== null ? { selectedModel: creator.selectedModel } : {}),
+    ...(creator.thinkingEffort !== null ? { thinkingEffort: creator.thinkingEffort } : {}),
+    ...(creator.autoBuildout !== null ? { autoBuildout: creator.autoBuildout } : {}),
   }
 }
 
@@ -310,6 +336,11 @@ export const sessionsApp = factory
         purpose,
         workspacePath: workspace === null ? ensureGlobalRootWorkspaceDir() : workspace.path,
         ...(workspace !== null ? { workspaceId: workspace.id } : {}),
+        settings: readCreatorSessionSettings(
+          c.var.db,
+          c.var.user.id,
+          parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)),
+        ),
         logger: c.var.logger,
       })
       return c.json({ status: 'created' as const, sessionId: created.sessionId, name: created.name })
