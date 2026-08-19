@@ -156,11 +156,26 @@ describe("WorkspaceTree", () => {
     const html = acmeRow.html();
     expect(html.indexOf("Acme")).toBeLessThan(html.indexOf('aria-label="Working"'));
 
-    // A parked room shows the play glyph, no spinner.
+    // A parked room shows the play glyph, no spinner …
     const blogRow = wrapper
       .findAll('[draggable="true"]')
       .find((node) => node.text().includes("Blog"))!;
     expect(blogRow.find('[aria-label="Working"]').exists()).toBe(false);
+    expect(blogRow.find(".tree-state-parked").exists()).toBe(true);
+    // … and so does a parked room that still has open tasks — the count sits
+    // before the mark, never instead of it (Kafi: one rule, always an indicator).
+    await wrapper.setProps({
+      statusByWorkspaceId: {
+        "ws-d": { status: "not_running" as const, note: null, tasksDone: 5, tasksTotal: 6 },
+      },
+    });
+    const duneRow = wrapper
+      .findAll('[draggable="true"]')
+      .find((node) => node.text().includes("Dune"))!;
+    expect(duneRow.text()).toContain("5/6");
+    expect(duneRow.find(".tree-state-parked").exists()).toBe(true);
+    const duneHtml = duneRow.html();
+    expect(duneHtml.indexOf("5/6")).toBeLessThan(duneHtml.indexOf("tree-state-parked"));
     wrapper.unmount();
   });
 

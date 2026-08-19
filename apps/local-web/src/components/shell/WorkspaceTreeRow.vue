@@ -11,9 +11,10 @@ import type { WorkspaceStatusView } from "../../composables/workspaces/use-works
 // One workspace row of the tree: caret · the workspace's OWN icon (its
 // uploaded image, else its monogram over its accent — the same face its
 // chips wear in chat) · name · the state cluster on the RIGHT: `done/total`,
-// then ONE mark — spinner while working, a bold status dot when it needs
-// you / hit a problem / completed, the play glyph when parked (Kafi,
-// 2026-08-19: state moved right, icon took the left, marks bolder). Used at
+// then ONE mark, ALWAYS — spinner while working, a bold status dot when it
+// needs you / hit a problem / completed, the play glyph when parked (Kafi,
+// 2026-08-19: state moved right, icon took the left, marks bolder; every
+// row ends with its state, open tasks or not). Used at
 // the root, inside groups, and under NOT RUNNING, so the row lives in
 // exactly one home. Draggable: the tree owns the drag-and-drop state; the
 // row only reports its lifecycle. Data-blind — the icon fields ride in on
@@ -147,9 +148,10 @@ function progressLabel(): string | null {
           class="tree-mark size-2.5 shrink-0 rounded-full"
           :data-status="markStatus()"
         />
-        <!-- The parked-row affordance: pick it up where it left off. -->
+        <!-- Parked: the play mark — ALWAYS, open tasks or not (one rule: every
+             row ends with its state; the count sits before it). -->
         <Play
-          v-else-if="status() === 'not_running' && !progressLabel()"
+          v-else
           :size="12"
           weight="fill"
           class="tree-state-parked shrink-0 text-[var(--color-neutral-500)]"
