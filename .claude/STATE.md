@@ -3,6 +3,26 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## 🚧 2026-08-19 IN FLIGHT — CUSTOMIZATION TO THE DB (icons · colours · menu layout · tree positions · autosave)
+
+Kafi (locked): everything the user arranges moves to the DB — persona image, workspace image, the
+accent, a NEW separate colour for the conversation (persona) icon (A: two colours), the per-scope
+menu layout, and the tree positions (B: JSON layout, one write per drop). Customize form per Kafi's
+mock: a swatch row (Auto · palette · custom) beside EACH icon; the Save button goes — names, icons,
+colours all AUTOSAVE (debounced, optimistic, quiet "Saved" tick).
+Slices (commit each): **1** `@vynel/customization` leaf — schema `scope_customizations`
+(userId+scopeKey unique; accent slot/hex, persona slot/hex, personaImage, workspaceImage, menuLayout
+JSON) + `tree_layouts` (userId unique, layout JSON) → drizzle.sqlite.config + generated migration
+(NEVER hand-written); sync repos; core ops list/save; tests. **2** contracts + routes
+(GET /customizations · PUT /customizations/scopes/:scopeKey · PUT /customizations/tree-layout; no
+x-mcp) + SDK regen + parity. **3** web: `customize-store` server-backed (hydrate at boot; localStorage
+`vynel.customize` becomes cache + ONE-TIME carry-over source: server row wins, else local is pushed
+up); debounced per-scope PUT; tree order leaves `tree-order.ts`'s localStorage → AppShell owns
+`treeLayout` (prop in, `order-change` out) saved through the store. **4** Customize form: two colour
+rows, autosave name/persona (blur / typing pause via PATCH workspace), Save removed; persona colour
+flows to `resolvePersona().accent` (chat author avatar + rail); workspace accent unchanged.
+Resume rule: read this block, check `git log` for which slices landed, continue.
+
 ## ✅ 2026-08-19 (latest) TREE ORDER + DnD — NOT RUNNING gone, drag-to-order, desktop DnD unblocked
 
 Kafi: the NOT RUNNING pseudo-group "kind of miss"; rows must hold their place regardless of state,
