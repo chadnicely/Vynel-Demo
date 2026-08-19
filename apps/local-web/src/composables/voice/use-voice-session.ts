@@ -3,6 +3,7 @@ import type { VynelClient } from "@vynel/sdk";
 // The voice tier — ONE home in contracts (daemon, overlay, panel defaults).
 import {
   VOICE_TIER_MODEL as VOICE_MODEL,
+  VOICE_TIER_MODE as VOICE_MODE,
   VOICE_TIER_THINKING_EFFORT as VOICE_THINKING_EFFORT,
 } from "@vynel/contracts/chat/voice-tier";
 import { useVynel } from "../use-vynel.js";
@@ -43,8 +44,12 @@ async function* runGlobalVoiceTurn(
       streamChatTurnEvents(client, {
         scope: { kind: "global" },
         userMessageText: utterance,
-        model: VOICE_MODEL, // the voice tier: sonnet at low effort
+        // The voice tier on EVERY leg (D2): sonnet at low effort, hands-free.
+        // The mode matters most — a spoken turn that stops on an approval card
+        // is a turn nobody can answer.
+        model: VOICE_MODEL,
         thinkingEffort: VOICE_THINKING_EFFORT,
+        mode: VOICE_MODE,
         voice: true, // reply via the speak tool; text is the on-screen record
         signal,
       }),

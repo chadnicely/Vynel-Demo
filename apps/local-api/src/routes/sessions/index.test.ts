@@ -721,6 +721,29 @@ describe('GET + PATCH /sessions/:sessionId/settings (per-session composer settin
     })
   })
 
+  it('403s a VOICE-scope session — the spoken thread is pinned to its tier (D2)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const voiceSegment = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'voice', visibility: 'hidden' }),
+      )
+      const app = makeHarness(db)
+
+      // Reading is fine — the panel shows the tier.
+      expect((await app.request(`/sessions/${voiceSegment.id}/settings`)).status).toBe(200)
+
+      const res = await app.request(`/sessions/${voiceSegment.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'ask' }),
+      })
+      expect(res.status).toBe(403)
+      expect((await res.json()) as { code: string }).toMatchObject({ code: 'forbidden' })
+      expect(findChatSessionById(db, voiceSegment.id)?.sessionMode).toBeNull()
+    })
+  })
+
   it("404s unknown ids and other users' sessions alike (no enumeration leak)", async () => {
     await withTestDatabase(async (db) => {
       const user = seedUser(db)

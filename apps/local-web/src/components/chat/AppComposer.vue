@@ -69,11 +69,22 @@ const props = withDefaults(
     settingsDefaults?:
       | Partial<Pick<ComposerSettings, "modelId" | "thinkingEffort" | "mode">>
       | undefined;
+    /** The SURFACE pins its settings (the hands-free voice thread, D2): the
+     *  chips render inert and NO change is written anywhere — not to a session
+     *  row, and not to the local new-chat defaults, which an unwired locked
+     *  composer would otherwise quietly rewrite. The autopilot switch goes with
+     *  them: a pinned surface has one way to run. */
+    settingsLocked?: boolean | undefined;
+    /** Why they are pinned — one quiet line above the box, so the inert chips
+     *  read as deliberate rather than broken. */
+    settingsLockedNote?: string | null | undefined;
   }>(),
   {
     allowAttachments: true,
     scope: () => ({ kind: "global" }) as SectionScope,
     destinationLabel: null,
+    settingsLocked: false,
+    settingsLockedNote: null,
   },
 );
 
@@ -97,6 +108,7 @@ const ui = useUiStore();
 const settings = useSessionSettings(
   () => props.sessionId ?? null,
   props.settingsDefaults,
+  { locked: () => props.settingsLocked },
 );
 
 const draft = ref("");
@@ -270,6 +282,14 @@ async function onSend(text: string, files: File[]) {
       ✕
     </button>
   </p>
+  <!-- Why the chips are inert (a hands-free surface pins its own tier). -->
+  <p
+    v-if="props.settingsLockedNote"
+    class="m-0 mb-1 px-1 text-[10.5px] text-[var(--ink-3)]"
+    data-testid="composer-settings-locked-note"
+  >
+    {{ props.settingsLockedNote }}
+  </p>
   <ChatComposer
     v-model:draft="draft"
     :placeholder="props.placeholder"
@@ -281,7 +301,8 @@ async function onSend(text: string, files: File[]) {
     :mode-id="settings.values.value.mode"
     :efforts="effortOptions"
     :effort-id="settings.values.value.thinkingEffort"
-    :auto-buildout="settings.values.value.autoBuildout"
+    :settings-locked="props.settingsLocked"
+    :auto-buildout="props.settingsLocked ? undefined : settings.values.value.autoBuildout"
     :context-fraction="props.contextFraction ?? null"
     :context-tooltip="props.contextTooltip ?? undefined"
     :allow-attachments="props.allowAttachments"

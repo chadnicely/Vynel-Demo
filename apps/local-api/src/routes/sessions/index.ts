@@ -461,6 +461,10 @@ export const sessionsApp = factory
           description: 'The updated settings.',
           content: { 'application/json': { schema: resolver(ChatSessionSettingsSchema) } },
         },
+        403: {
+          description:
+            'A voice-scope session: the spoken thread always runs the voice tier, so its settings are not the user’s to change.',
+        },
         404: { description: 'Unknown session, or not owned.' },
       },
       // No x-mcp — mutating a user preference; the model steers its own turns

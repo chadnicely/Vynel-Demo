@@ -58,9 +58,16 @@ const props = withDefaults(
   workspaceSuggestions?: ComposerSuggestItem[] | undefined;
   slashSuggestions?: ComposerSuggestItem[] | undefined;
   /** Auto buildout — the canvas's composer toggle. Undefined hides it, so a
-   *  surface opts in by binding state. NOTHING CONSUMES IT YET: it is a
-   *  persisted preference waiting on the build engine (Kafi, 2026-08-15). */
+   *  surface opts in by binding state. True = AUTOPILOT: the turn's runner
+   *  appends the autopilot instruction to the model's input, so it decides and
+   *  keeps going instead of stopping to ask (session-hardening D8). */
   autoBuildout?: boolean | undefined;
+  /** The SURFACE pins these settings — render the chips as plain values with
+   *  no menus, and emit no changes. For a surface whose server forces its own
+   *  tier on every turn (the hands-free voice thread): an interactive picker
+   *  there would promise a change the next turn silently overrides. The HOST
+   *  says why in its own line above the box; this component only stops lying. */
+  settingsLocked?: boolean | undefined;
   }>(),
   // Both defaults are explicit for the SAME reason: Vue casts an absent
   // boolean prop to false, so "not passed" would otherwise be indistinguishable
@@ -106,6 +113,20 @@ const suggestMenuStyle = computed(() => ({
 
 // Attachments default ON — only an explicit false opts a surface out.
 const attachmentsAllowed = computed(() => props.allowAttachments);
+
+// A locked chip shows the SELECTED option's label, falling back to the raw id
+// so a pinned value the host never listed still reads as itself.
+function labelFor(options: ComposerOption[] | undefined, id: string | undefined): string {
+  if (id === undefined) return "";
+  return options?.find((option) => option.id === id)?.label ?? id;
+}
+const lockedSettingLabels = computed(() =>
+  [
+    labelFor([...props.models, ...(props.moreModels ?? [])], props.modelId),
+    labelFor(props.modes, props.modeId),
+    labelFor(props.efforts, props.effortId),
+  ].filter((label) => label !== ""),
+);
 
 function autoGrow() {
   const element = textareaElement.value;
@@ -325,36 +346,46 @@ function onDrop(event: DragEvent) {
         :tooltip="props.contextTooltip"
       />
 
-      <SelectChip
-        :options="props.models"
-        :more-options="props.moreModels"
-        more-label="More models"
-        :model-value="props.modelId"
-        label="Model"
-        opens-up
-        @update:model-value="(id) => emit('update:modelId', id)"
-      />
+      <!-- Pinned by the surface: the values are shown, not offered. -->
+      <template v-if="props.settingsLocked">
+        <template v-for="(label, index) in lockedSettingLabels" :key="label">
+          <span v-if="index > 0" class="divider" aria-hidden="true" />
+          <span class="locked-chip" data-testid="composer-locked-setting">{{ label }}</span>
+        </template>
+      </template>
 
-      <span class="divider" aria-hidden="true" />
+      <template v-else>
+        <SelectChip
+          :options="props.models"
+          :more-options="props.moreModels"
+          more-label="More models"
+          :model-value="props.modelId"
+          label="Model"
+          opens-up
+          @update:model-value="(id) => emit('update:modelId', id)"
+        />
 
-      <SelectChip
-        :options="props.modes"
-        :model-value="props.modeId"
-        label="Mode"
-        opens-up
-        @update:model-value="(id) => emit('update:modeId', id)"
-      />
-
-      <template v-if="props.efforts && props.effortId !== undefined">
         <span class="divider" aria-hidden="true" />
 
         <SelectChip
-          :options="props.efforts"
-          :model-value="props.effortId"
-          label="Thinking"
+          :options="props.modes"
+          :model-value="props.modeId"
+          label="Mode"
           opens-up
-          @update:model-value="(id) => emit('update:effortId', id)"
+          @update:model-value="(id) => emit('update:modeId', id)"
         />
+
+        <template v-if="props.efforts && props.effortId !== undefined">
+          <span class="divider" aria-hidden="true" />
+
+          <SelectChip
+            :options="props.efforts"
+            :model-value="props.effortId"
+            label="Thinking"
+            opens-up
+            @update:model-value="(id) => emit('update:effortId', id)"
+          />
+        </template>
       </template>
 
       <button
@@ -598,6 +629,16 @@ function onDrop(event: DragEvent) {
   height: 14px;
   background: var(--hair-strong);
   margin: 0 2px;
+}
+
+/* A pinned setting: the SelectChip's resting look, minus the affordances —
+   no hover lift, no caret, nothing to click. */
+.locked-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  color: var(--ink-3);
+  font: 500 11.5px/1.5 var(--font-ui);
 }
 
 .spacer {
