@@ -74,10 +74,11 @@ export const useActivityStore = defineStore("activity", () => {
    *  stamped at turn END, so a fresh conversation's first turn has no
    *  `currentSdkSessionId` yet). Null when nothing of that identity runs.
    *
-   *  Pass an IDENTITY, never a family: `{ kind: 'global' }` answers "anything
-   *  in the global area", which includes the spoken thread and every spawned
-   *  run — binding a view to that is how the Global chat came to render the
-   *  voice conversation. The global thread binds through
+   *  Pass an IDENTITY, never a family: `{ kind: 'global' }` answers "is the
+   *  GLOBAL family alive" — the root's own turn and every spawned/delegated run
+   *  announcing under it (NOT the spoken thread; `isTurnInGlobalArea` is the
+   *  union) — and binding a view to a family is how the Global chat came to
+   *  render another conversation. The global thread binds through
    *  `{ kind: 'primary' }` with the id `GET /root/continuing` hands back. */
   function runningPrimarySessionIdFor(identity: TurnIdentity): string | null {
     for (const turn of Object.values(serverTurns.value)) {

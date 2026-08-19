@@ -130,12 +130,14 @@ export function useProjectNodes(input: {
     return rows;
   });
 
-  /** Both reads have answered — only then is "nothing here" the truth rather
-   *  than the loading state. */
+  /** Both reads have ANSWERED — a result or an error, like the fleet level:
+   *  only then is "nothing here" the truth rather than the loading state, and
+   *  a failed read must not leave the stage blank forever (no counts, no
+   *  invitation, no error). */
   const hasAnswered = computed(
     () =>
-      sessionsQuery.data.value !== undefined &&
-      continuingQuery.data.value !== undefined,
+      (sessionsQuery.data.value !== undefined || sessionsQuery.isError.value) &&
+      (continuingQuery.data.value !== undefined || continuingQuery.isError.value),
   );
 
   /** Every segment of every drawn conversation, pointing at the dot that

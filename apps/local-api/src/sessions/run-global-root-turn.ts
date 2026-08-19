@@ -404,6 +404,10 @@ export async function runGlobalRootTurn(
   const activity = deps.activityFeed.begin({
     userId: input.userId,
     scopeKind: 'global',
+    // Identity on the wire (session-hardening D1): every global turn names the
+    // global primary it runs on, so readers match by identity — the desktop
+    // overlay's Stop, the pre-resolution windows — never by an absence.
+    primarySessionId: conversationTarget.primarySessionId,
     // The channels service sets originChannel; the report-delivery runner sets
     // activityOrigin 'delegation'; 'web' is the defensive fallback.
     origin: input.activityOrigin ?? input.originChannel ?? 'web',

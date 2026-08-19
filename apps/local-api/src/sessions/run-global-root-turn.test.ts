@@ -263,6 +263,9 @@ describe("runGlobalRootTurn", () => {
     expect(activity.begin).toHaveBeenCalledWith({
       userId: "u1",
       scopeKind: "global",
+      // Identity on the wire (session-hardening D1): every global turn names
+      // its primary; the web reviewer caught the channel runner missing it.
+      primarySessionId: "root-primary-1",
       origin: "telegram",
     });
     expect(activity.handle.sessionResolved).toHaveBeenCalledWith("sess-1");
@@ -352,6 +355,9 @@ describe("runGlobalRootTurn", () => {
     expect(activity.begin).toHaveBeenCalledWith({
       userId: "u1",
       scopeKind: "global",
+      // Identity on the wire (session-hardening D1): every global turn names
+      // its primary; the web reviewer caught the channel runner missing it.
+      primarySessionId: "root-primary-1",
       origin: "delegation",
       partialSessionId: "delivery-trace-1",
       personaName: "Acme research",
@@ -436,6 +442,9 @@ describe("runGlobalRootTurn", () => {
     expect(activity.begin).toHaveBeenCalledWith({
       userId: "u1",
       scopeKind: "global",
+      // Identity on the wire (session-hardening D1): every global turn names
+      // its primary; the web reviewer caught the channel runner missing it.
+      primarySessionId: "root-primary-1",
       origin: "delegation",
       partialSessionId: "delivery-trace-2",
       personaName: "Mark · Acme",

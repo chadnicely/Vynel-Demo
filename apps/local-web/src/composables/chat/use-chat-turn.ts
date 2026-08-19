@@ -305,6 +305,11 @@ export function useChatTurn(options: {
     // safe to ignore here (the abort already settled the UI).
     const scope = options.scope();
     const sessionId = activeSessionId.value ?? displayedSessionId;
+    // A VOICE surface that does not yet know its session (a first-ever spoken
+    // turn, a failed transcript read) must NOT send the empty body — the
+    // server resolves that to the GLOBAL head, the other thread the lock split
+    // lets run beside it. Abort locally and let the turn end on its own.
+    if (options.voice === true && sessionId === null) return;
     if (scope.kind === "workspace" && sessionId !== null) {
       void vynel.chat
         .interruptSession(scope.workspaceId, sessionId)

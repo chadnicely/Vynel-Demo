@@ -10,6 +10,7 @@ import { useVynel } from "../../composables/use-vynel.js";
 import { sessionKeys } from "../../composables/chat/session-keys.js";
 import { useChatTurn } from "../../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
+import { matchTurnToIdentity } from "../../composables/activity/match-turn-to-identity.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
@@ -53,9 +54,10 @@ const activity = useActivityStore();
 // panel does not own. It used to announce as `global` with `origin: 'voice'`,
 // which made every reader infer identity from an absence; scope is now the
 // only thing this predicate reads.
+// ONE liveness predicate for every reader (D1) — never a private re-derivation.
 const hasVoiceServerTurn = computed(() =>
-  Object.values(activity.serverTurns).some(
-    (serverTurn) => serverTurn.scopeKind === "voice",
+  Object.values(activity.serverTurns).some((serverTurn) =>
+    matchTurnToIdentity(serverTurn, { kind: "voice" }),
   ),
 );
 

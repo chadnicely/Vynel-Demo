@@ -65,6 +65,7 @@ afterEach(() => {
 function makeHarness(options?: {
   detachWhen?: () => boolean;
   scope?: SessionScope;
+  voice?: boolean;
 }) {
   const handles: ReturnType<typeof makeStreamHandle>[] = [];
   const POST = vi.fn(async (_path: string, init?: { signal?: AbortSignal }) => {
@@ -91,6 +92,7 @@ function makeHarness(options?: {
       turn = useChatTurn({
         scope: () => options?.scope ?? { kind: "workspace", workspaceId: "ws-1" },
         ...(options?.detachWhen !== undefined ? { detachWhen: options.detachWhen } : {}),
+        ...(options?.voice === true ? { voice: true } : {}),
       });
       return () => h("div");
     },
@@ -230,6 +232,17 @@ describe("useChatTurn.interrupt on the global scope", () => {
     const harness = makeHarness({ scope: { kind: "global" } });
     harness.turn().interrupt();
     expect(harness.interruptTurn).toHaveBeenCalledWith({});
+  });
+
+  it("a VOICE surface with no known session sends nothing — never the global head", () => {
+    // A first-ever spoken turn (no head yet) or a failed transcript read: the
+    // empty body would resolve to the GLOBAL primary and stop the other
+    // thread the lock split lets run beside voice.
+    const harness = makeHarness({ scope: { kind: "global" }, voice: true });
+    harness.turn().interrupt(null);
+    expect(harness.interruptTurn).not.toHaveBeenCalled();
+    harness.turn().interrupt("voice-segment-1");
+    expect(harness.interruptTurn).toHaveBeenCalledWith({ sessionId: "voice-segment-1" });
   });
 
   it("uses the DISPLAYED thread when this engine holds no turn of its own", () => {
