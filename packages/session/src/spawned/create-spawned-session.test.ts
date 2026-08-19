@@ -125,6 +125,46 @@ describe('createSpawnedSession', () => {
     })
   })
 
+  it("birth-stamps the creator settings onto the segment (D4), and stays NULL without them", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const inherited = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-inherits' }),
+        {
+          userId: user.id,
+          name: 'Inherits',
+          purpose: 'p',
+          workspacePath: '/tmp/x',
+          settings: {
+            sessionMode: 'bypass',
+            selectedModel: 'claude-opus-4-8',
+            thinkingEffort: 'high',
+            autoBuildout: true,
+          },
+        },
+      )
+      const born = findChatSessionById(db, inherited.sessionId)
+      expect(born?.sessionMode).toBe('bypass')
+      expect(born?.selectedModel).toBe('claude-opus-4-8')
+      expect(born?.thinkingEffort).toBe('high')
+      expect(born?.autoBuildout).toBe(true)
+
+      // No creating turn (a CLI, the voice call leg): every column stays
+      // "never set", so the turn resolves the default instead of an inherited lie.
+      const orphan = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-orphan' }),
+        { userId: user.id, name: 'Orphan', purpose: 'p', workspacePath: '/tmp/x' },
+      )
+      const bare = findChatSessionById(db, orphan.sessionId)
+      expect(bare?.sessionMode).toBeNull()
+      expect(bare?.selectedModel).toBeNull()
+      expect(bare?.thinkingEffort).toBeNull()
+      expect(bare?.autoBuildout).toBeNull()
+    })
+  })
+
   it('allows MANY spawned sessions per user (no liveness unique index)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

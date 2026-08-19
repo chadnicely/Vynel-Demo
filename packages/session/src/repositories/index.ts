@@ -2,4 +2,5 @@
 // relative `../repositories/index.js` by the continuity + runtime logic.
 
 export * from './primary-sessions.js'
+export * from './primary-session-checkpoints.js'
 export * from './session-turns.js'

@@ -16,10 +16,11 @@ import { sessionKeys } from "./session-keys.js";
 //   - NO session yet (a fresh conversation): values are the ui-store's
 //     localStorage defaults, and a change updates those defaults — the first
 //     turn's write-through then stamps them onto the row the turn creates.
-//
-// The send path reuses the same `values` (AppComposer emits them with the
-// send), so what the user SAW is exactly what the turn request carries —
-// no PATCH-vs-send race.
+//   - LOCKED (a surface whose server pins its own tier — the hands-free voice
+//     thread, D2): there is no third layer. A write would land on whichever of
+//     the two above happens to be active, and the "no session" branch is the
+//     dangerous one: it rewrites the user's GLOBAL new-chat defaults from a
+//     composer that only ever speaks for one thread. So `update` throws.
 
 /** What the composer chips render and every turn request carries. */
 export interface ComposerSettings {
@@ -59,12 +60,18 @@ export function useSessionSettings(
    *  (sonnet at low effort) instead of the chat default (Kafi 2026-08-19).
    *  A persisted row value still wins; a chip change still persists. */
   surfaceDefaults?: Partial<Pick<ComposerSettings, "modelId" | "thinkingEffort" | "mode">>,
+  options?: {
+    /** This surface's settings are PINNED by the server (the voice tier) —
+     *  reading them is fine, writing is a bug in the caller. */
+    locked?: MaybeRefOrGetter<boolean>;
+  },
 ) {
   const vynel = useVynel();
   const ui = useUiStore();
   const queryClient = useQueryClient();
 
   const activeSessionId = computed(() => toValue(sessionId));
+  const isLocked = computed(() => toValue(options?.locked ?? false));
 
   const query = useQuery({
     queryKey: computed(() =>
@@ -156,6 +163,11 @@ export function useSessionSettings(
   });
 
   function update(patch: ComposerSettingsPatch): void {
+    if (isLocked.value) {
+      throw new Error(
+        "This conversation's settings are pinned by the server and cannot be changed from the composer.",
+      );
+    }
     const id = activeSessionId.value;
     if (id === null) {
       // No session yet — the change updates the new-chat defaults; the first

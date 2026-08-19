@@ -1,8 +1,9 @@
-// Unit test for the api-side delegation service. The claim-and-run tick + the orphan-count
-// repo are mocked; we assert the ~1s poll wiring, the BOUNDED POOL (capacity fill, the
-// same-workspace exclusion set, slot release on settle), the startup orphan log, and that
-// stop() halts the poll. Fake timers drive the cadence. A mock tick signals "claimed" by
-// invoking deps.onRunStarted synchronously — exactly the real tick's contract.
+// Unit test for the api-side delegation service. The claim-and-run tick + the orphan
+// repos are mocked; we assert the ~1s poll wiring, the BOUNDED POOL (capacity fill, the
+// same-workspace exclusion set, slot release on settle), the startup orphan pass, the
+// 60 s lease sweeper (session-hardening A2), the bounds forwarded to every tick, and
+// that stop() halts both timers. Fake timers drive the cadence. A mock tick signals
+// "claimed" by invoking deps.onRunStarted synchronously — exactly the real tick's contract.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Database } from '@vynel/db'
@@ -29,7 +30,7 @@ vi.mock('@vynel/session/delegation', async (importOriginal) => ({
 vi.mock('@vynel/orchestration', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   failOrphanedClaimedDelegations: reclaimMock,
-  requeueOrphanedClaimedReportDeliveries: requeueDeliveriesMock,
+  requeueOrphanedClaimedDeliveries: requeueDeliveriesMock,
 }))
 
 import { SessionTargetLocks } from '@vynel/session/delegation'
@@ -64,6 +65,9 @@ function fakeOptions() {
 type TickDeps = {
   onRunStarted?: (run: { jobId: string; targetKey: string }) => void
   excludeTargetKeys?: ReadonlySet<string>
+  hardCapMs?: number
+  leaseMs?: number
+  heartbeatMs?: number
 }
 
 function tickDepsOfCall(callIndex: number): TickDeps {
@@ -83,24 +87,93 @@ afterEach(() => {
 })
 
 describe('startDelegationService', () => {
-  it('startup REQUEUES orphaned claimed report deliveries before failing the rest (B1)', () => {
-    requeueDeliveriesMock.mockReturnValue([{ id: 'd1', jobKind: 'report-delivery' }])
+  it('startup REQUEUES orphaned claimed message deliveries (report / direct / note) before failing the rest', () => {
+    requeueDeliveriesMock.mockReturnValue([
+      { id: 'd1', jobKind: 'report-delivery' },
+      { id: 'd2', jobKind: 'note' },
+    ])
     const options = fakeOptions()
     const service = startDelegationService(options)
 
-    expect(requeueDeliveriesMock).toHaveBeenCalledTimes(1)
-    expect(reclaimMock).toHaveBeenCalledTimes(1)
+    // The BOOT scope: every claimed row (no lease filter).
+    expect(requeueDeliveriesMock).toHaveBeenCalledWith(options.db, expect.any(Date), {})
+    expect(reclaimMock).toHaveBeenCalledWith(options.db, expect.any(Date), {})
     // The requeue pass runs FIRST (predicates disjoint; log clarity).
     expect(requeueDeliveriesMock.mock.invocationCallOrder[0]!).toBeLessThan(
       reclaimMock.mock.invocationCallOrder[0]!,
     )
     expect(options.logger.warn).toHaveBeenCalledWith(
-      { requeued: 1 },
-      expect.stringContaining('requeued orphaned "claimed" report deliveries'),
+      { requeued: 2, cause: 'boot' },
+      expect.stringContaining('requeued orphaned "claimed" message deliveries'),
     )
-    // A requeued delivery gets NO failure push — it will simply run again.
+    // A requeued message gets NO failure push — it will simply run again.
     expect(failureDeliveryMock).not.toHaveBeenCalled()
     service.stop()
+  })
+
+  it('the 60 s lease sweeper settles ONLY lapsed leases, by kind, with the same two repo passes', async () => {
+    const options = fakeOptions()
+    const service = startDelegationService(options)
+    requeueDeliveriesMock.mockClear()
+    reclaimMock.mockClear()
+    requeueDeliveriesMock.mockReturnValue([{ id: 'd-lapsed', jobKind: 'direct-delivery' }])
+    reclaimMock.mockReturnValue([
+      {
+        id: 'j-lapsed',
+        userId: 'u-1',
+        parentSessionId: 'sdk-parent',
+        workspaceId: null,
+        workspaceName: 'Nova',
+        targetPrimarySessionId: null,
+        taskText: 'do the thing',
+        partialSessionId: 'p-1',
+        threadId: 't-1',
+        jobKind: null,
+        agentSlug: null,
+        requesterWorkspaceId: null,
+      },
+    ])
+
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(reclaimMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(requeueDeliveriesMock).toHaveBeenCalledWith(options.db, expect.any(Date), {
+      onlyExpiredLeases: true,
+    })
+    expect(reclaimMock).toHaveBeenCalledWith(options.db, expect.any(Date), {
+      onlyExpiredLeases: true,
+    })
+    // A lapsed WORK orphan gets its honest failure delivery, worded for the cause.
+    expect(failureDeliveryMock).toHaveBeenCalledWith(
+      options.db,
+      expect.objectContaining({ id: 'j-lapsed' }),
+      expect.stringContaining('stopped responding'),
+    )
+    service.stop()
+  })
+
+  it('forwards the bounds (hard cap, lease, heartbeat) to every tick — explicit options win over the env knobs', async () => {
+    const options = fakeOptions()
+    const service = startDelegationService({
+      ...options,
+      hardCapMs: 1234,
+      leaseMs: 5678,
+      heartbeatMs: 91,
+    })
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(tickDepsOfCall(0)).toMatchObject({ hardCapMs: 1234, leaseMs: 5678, heartbeatMs: 91 })
+    service.stop()
+
+    // Omitted: the env defaults (D5 — 60 min cap, 3 min lease, 30 s heartbeat).
+    tickMock.mockClear()
+    const defaulted = startDelegationService(fakeOptions())
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(tickDepsOfCall(0)).toMatchObject({
+      hardCapMs: 3_600_000,
+      leaseMs: 180_000,
+      heartbeatMs: 30_000,
+    })
+    defaulted.stop()
   })
 
   it('runs the claim-and-run tick on the ~1s poll with db + provider + logger', async () => {
@@ -286,10 +359,10 @@ describe('startDelegationService', () => {
     const options = fakeOptions()
     const service = startDelegationService(options)
 
-    expect(reclaimMock).toHaveBeenCalledWith(options.db, expect.any(Date))
+    expect(reclaimMock).toHaveBeenCalledWith(options.db, expect.any(Date), {})
     expect(options.logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ reclaimed: 4 }),
-      expect.stringContaining('reclaimed'),
+      expect.objectContaining({ failed: 4, cause: 'boot' }),
+      expect.stringContaining('settled orphaned'),
     )
     // The restart-parity push: one delivery per WORK orphan, none for the
     // delivery orphan (anti-cascade) and none for the note orphan, each
@@ -319,12 +392,14 @@ describe('startDelegationService', () => {
     service.stop()
   })
 
-  it('stop() halts the poll', async () => {
+  it('stop() halts the poll AND the lease sweeper', async () => {
     const service = startDelegationService(fakeOptions())
     await vi.advanceTimersByTimeAsync(1_000)
     const callsBeforeStop = tickMock.mock.calls.length
+    const sweepsBeforeStop = reclaimMock.mock.calls.length
     service.stop()
-    await vi.advanceTimersByTimeAsync(5_000)
+    await vi.advanceTimersByTimeAsync(125_000)
     expect(tickMock.mock.calls.length).toBe(callsBeforeStop)
+    expect(reclaimMock.mock.calls.length).toBe(sweepsBeforeStop)
   })
 })

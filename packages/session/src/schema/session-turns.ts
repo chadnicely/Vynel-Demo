@@ -21,7 +21,7 @@
 import { table, id, text, timestamp, index } from '@vynel/db/dialect'
 import { users } from '@vynel/db/schema/users'
 import { workspaces } from '@vynel/db/schema/workspaces'
-import type { SessionTurnOrigin } from '@vynel/contracts/chat/session-activity'
+import type { SessionTurnOrigin, SessionTurnScopeKind } from '@vynel/contracts/chat/session-activity'
 
 // 'failed' = the drain saw a terminal `session-errored` or threw — the
 // "stuck on an error" signal the workspace status vocabulary reads. A user
@@ -34,7 +34,7 @@ export const sessionTurns = table(
     /** The feed's turnId — one identity across the live stream and this row. */
     id: id().primaryKey(),
     userId: id().references(() => users.id, { onDelete: 'cascade' }),
-    scopeKind: text().$type<'global' | 'workspace'>().notNull(),
+    scopeKind: text().$type<SessionTurnScopeKind>().notNull(),
     workspaceId: text().references(() => workspaces.id, { onDelete: 'cascade' }),
     origin: text().$type<SessionTurnOrigin>().notNull(),
     // The SDK session the turn runs on — null until the runtime resolves it

@@ -1,4 +1,7 @@
-import type { SessionActivityEvent } from "@vynel/contracts/chat/session-activity";
+import type {
+  SessionActivityEvent,
+  SessionTurnScopeKind,
+} from "@vynel/contracts/chat/session-activity";
 import { DESKTOP_TOOL_PREFIX, parseDesktopPlanCard } from "@vynel/ui";
 
 // The pure fold behind the desktop-control overlay: activity-feed events in,
@@ -40,16 +43,21 @@ export interface ActiveDesktopPlan {
  *  frame; both stay null when the overlay attached mid-turn and never saw it. */
 export interface TrackedDesktopTurn {
   turnId: string;
-  scopeKind: "global" | "workspace";
+  scopeKind: SessionTurnScopeKind;
   /** 'delegation' = a spawned/background session is driving, NOT the root. */
   origin: string | null;
   /** The delegated turn's stop handle (`root.stopDelegation`). */
   partialSessionId: string | null;
-  /** The continuing session this turn runs ON, when it isn't the global root.
-   *  Its presence is what tells us the ROOT interrupt cannot stop this turn:
-   *  the UI's spawned-session surface announces `origin: 'web'` like any other
-   *  web turn, so origin alone cannot distinguish them. */
+  /** The continuing identity this turn runs ON. Since the session-hardening arc
+   *  EVERY global/voice turn carries it (the root's own turn names the global
+   *  primary; the spoken thread names the voice primary; a spawned session
+   *  names its own), so Stop matches it against the global primary id instead
+   *  of reading its absence as "the root". */
   primarySessionId: string | null;
+  /** The SDK session the turn runs on — null until the runtime resolves it
+   *  (`turn-updated`). The identity-shaped interrupt needs it for a VOICE turn:
+   *  the global head would stop the OTHER thread. */
+  sessionId: string | null;
 }
 
 /** What a `turn-started` frame told us about one turn, kept until that turn
@@ -141,6 +149,7 @@ function trackTurn(state: DesktopActivityState, turnId: string): TrackedDesktopT
     origin: known?.origin ?? null,
     partialSessionId: known?.partialSessionId ?? null,
     primarySessionId: known?.primarySessionId ?? null,
+    sessionId: known?.sessionId ?? null,
   };
 }
 
@@ -249,6 +258,7 @@ export function applyDesktopActivityEvent(
         origin: event.origin,
         partialSessionId: event.partialSessionId ?? null,
         primarySessionId: event.primarySessionId ?? null,
+        sessionId: event.sessionId,
       };
       const knownTurns = rememberTurn(state.knownTurns, event.turnId, meta);
       // If this IS the turn already being followed (the feed replays
@@ -256,6 +266,21 @@ export function applyDesktopActivityEvent(
       // previously had to guess.
       return state.trackedTurn?.turnId === event.turnId
         ? { ...state, knownTurns, trackedTurn: { turnId: event.turnId, ...meta } }
+        : { ...state, knownTurns };
+    }
+    case "turn-updated": {
+      // The runtime resolved the turn's session mid-turn (a fresh conversation
+      // learns its id late) — Stop on a voice turn needs it. Same reference
+      // when the turn is not one we know: nothing on the overlay changed.
+      const known = state.knownTurns[event.turnId];
+      const isTracked = state.trackedTurn?.turnId === event.turnId;
+      if (known === undefined && !isTracked) return state;
+      const knownTurns =
+        known === undefined
+          ? state.knownTurns
+          : { ...state.knownTurns, [event.turnId]: { ...known, sessionId: event.sessionId } };
+      return isTracked && state.trackedTurn !== null
+        ? { ...state, knownTurns, trackedTurn: { ...state.trackedTurn, sessionId: event.sessionId } }
         : { ...state, knownTurns };
     }
     case "turn-ended": {

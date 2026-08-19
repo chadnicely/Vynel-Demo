@@ -1,25 +1,8 @@
-// Zod schemas for the `/activity` surface (persona-sessions): the durable
-// running-turns read — the refresh/restart rebuild seed for the live views.
+// Zod schemas for the `/activity` surface — the node screen's message edges.
+// (The durable running-turns read was removed with its route: after a restart
+// every turn is reaped, so there was nothing to rebuild from and no caller.)
 
 import { z } from 'zod'
-
-export const RunningSessionTurnSchema = z.object({
-  turnId: z.string(),
-  scopeKind: z.enum(['global', 'workspace']),
-  workspaceId: z.string().nullable(),
-  origin: z.enum(['web', 'voice', 'telegram', 'discord', 'zoom', 'schedule', 'delegation']),
-  sessionId: z.string().nullable(),
-  primarySessionId: z.string().nullable(),
-  jobId: z.string().nullable(),
-  threadId: z.string().nullable(),
-  partialSessionId: z.string().nullable(),
-  /** ISO-8601. */
-  startedAt: z.string(),
-})
-
-export const RunningSessionTurnsResponseSchema = z.object({
-  turns: z.array(RunningSessionTurnSchema),
-})
 
 // The message edges the node screen draws a line for — who spoke to whom, just
 // now. Endpoints are reported, never resolved: the drawing surface matches the

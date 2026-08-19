@@ -18,7 +18,10 @@ const isMuted = ref(false);
 // Hoisted handlers so the two composables can reference each other's owners —
 // both callbacks only ever fire after setup completes.
 const voice = useVoiceSession({ onEnded: handleSessionEnded });
-const daemon = useVoiceDaemonLink({ onWake: handleWake });
+const daemon = useVoiceDaemonLink({
+  onWake: handleWake,
+  isPlayingOwnTurn: () => voice.isActive.value,
+});
 
 // The session settled (idle silence, close, or a start that couldn't begin):
 // give the mic back to the daemon, and put the overlay away — unless the user

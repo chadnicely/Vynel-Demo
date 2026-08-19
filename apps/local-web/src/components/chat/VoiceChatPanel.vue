@@ -10,6 +10,7 @@ import { useVynel } from "../../composables/use-vynel.js";
 import { sessionKeys } from "../../composables/chat/session-keys.js";
 import { useChatTurn } from "../../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
+import { matchTurnToIdentity } from "../../composables/activity/match-turn-to-identity.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
@@ -18,6 +19,7 @@ import type { ComposerSettings } from "../../composables/chat/use-session-settin
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import {
   VOICE_TIER_MODEL,
+  VOICE_TIER_MODE,
   VOICE_TIER_THINKING_EFFORT,
 } from "@vynel/contracts/chat/voice-tier";
 
@@ -30,18 +32,32 @@ import {
 // same session watch every thread uses.
 const ASSISTANT_NAME = "Claude";
 
+// The spoken thread runs the VOICE TIER on every leg (session-hardening D2):
+// the same model, effort and hands-free mode whether the words are spoken or
+// typed here. The server forces it for `voice` turns regardless of what a
+// caller sends, so the composer shows it read-only and the send carries it
+// literally — this thread never reads or writes a settings row.
+const VOICE_TURN_SETTINGS: ComposerSettings = {
+  modelId: VOICE_TIER_MODEL,
+  mode: VOICE_TIER_MODE,
+  thinkingEffort: VOICE_TIER_THINKING_EFFORT,
+  autoBuildout: false,
+};
+const HANDS_FREE_NOTE =
+  "Hands-free — the voice thread always runs on its own tier, so these settings can’t be changed here.";
+
 const vynel = useVynel();
 const activity = useActivityStore();
 
-// A voice turn announces on the feed as a GLOBAL turn with origin 'voice' —
-// that signal keeps the transcript polling while the daemon drives a turn
-// this panel does not own.
-// An EXACT read, not find-first-global: since the lock split a global and a
-// voice turn can run concurrently, and the first global-scoped entry may be
-// the typed one — this poll signal must see the voice turn either way.
+// A voice turn announces on the feed with its OWN scope (`voice`) — that
+// signal keeps the transcript polling while the daemon drives a turn this
+// panel does not own. It used to announce as `global` with `origin: 'voice'`,
+// which made every reader infer identity from an absence; scope is now the
+// only thing this predicate reads.
+// ONE liveness predicate for every reader (D1) — never a private re-derivation.
 const hasVoiceServerTurn = computed(() =>
-  Object.values(activity.serverTurns).some(
-    (serverTurn) => serverTurn.scopeKind === "global" && serverTurn.origin === "voice",
+  Object.values(activity.serverTurns).some((serverTurn) =>
+    matchTurnToIdentity(serverTurn, { kind: "voice" }),
   ),
 );
 
@@ -123,16 +139,15 @@ function onDecideApproval(
   );
 }
 
-function sendMessage(
-  text: string,
-  attachments: TurnAttachmentInput[],
-  settings: ComposerSettings,
-) {
+function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
   void turn.startTurn({
     sessionId: headSessionId.value,
     isContinuous: true,
     userText: text,
-    settings,
+    // The composer's emitted settings are deliberately ignored: they are the
+    // read-only tier already, and sending the constant keeps this leg honest
+    // even if a future default drifts underneath the chips.
+    settings: VOICE_TURN_SETTINGS,
     ...(attachments.length > 0 ? { attachments } : {}),
   });
 }
@@ -194,12 +209,12 @@ const isEmpty = computed(
         <PresenceDot state="live" />
         Working — your message is queued.
       </p>
+      <!-- NO session-id on purpose: with one, the composer would GET and PATCH
+           the voice row's settings — a row no voice turn ever reads. -->
       <AppComposer
-        :session-id="headSessionId"
-        :settings-defaults="{
-          modelId: VOICE_TIER_MODEL,
-          thinkingEffort: VOICE_TIER_THINKING_EFFORT,
-        }"
+        :settings-defaults="VOICE_TURN_SETTINGS"
+        settings-locked
+        :settings-locked-note="HANDS_FREE_NOTE"
         :streaming="turn.isStreaming.value"
         placeholder="Message the voice thread…"
         destination-label="Voice"

@@ -61,8 +61,8 @@ describe('delegation retry mechanics', () => {
         attemptCount: 1,
         nextAttemptAt: deadline,
       })
-      expect(requeued.status).toBe('pending')
-      expect(requeued.claimedAt).toBeNull()
+      expect(requeued?.status).toBe('pending')
+      expect(requeued?.claimedAt).toBeNull()
 
       // Backed off — not claimable now.
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()

@@ -15,11 +15,7 @@ import { insertChatSession, insertChatMessage, type NewChatMessage } from '@vyne
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { insertPrimarySession, type PrimarySessionScope } from '../repositories/index.js'
 import { buildContinuityContext, DEFAULT_TAIL_MESSAGE_LIMIT } from './build-continuity-context.js'
-import {
-  clearPendingCheckpoint,
-  markPendingCheckpoint,
-  peekPendingCheckpoint,
-} from '../continuity/pending-checkpoints.js'
+import { markPendingCheckpoint, peekPendingCheckpoint } from '../continuity/pending-checkpoints.js'
 import { listSessionChainTailMessages, resolveSessionChainOrigin } from './resolve-primary-transcript.js'
 
 function makeUser() {
@@ -196,18 +192,14 @@ describe('buildContinuityContext', () => {
       seedSegment(db, { sessionId: 'seg-a', userId: user.id, workspaceId: workspace.id, visibility: 'hidden' })
       const input = { primarySessionId: primary.id, userId: user.id, fromSdkSessionId: 'seg-a', summary: SUMMARY }
       expect(buildContinuityContext(db, input).carry).not.toContain('CHECKPOINT:')
-      markPendingCheckpoint(primary.id, 'sum the July receipts')
-      try {
-        const { carry } = buildContinuityContext(db, input)
-        const at = (needle: string) => carry.indexOf(needle)
-        expect(carry).toContain('CHECKPOINT: you stopped here to swap contexts, mid-task. The next step you named: sum the July receipts')
-        // Between the hand-off and the recovery instructions; still pending after.
-        expect(at('CHECKPOINT:')).toBeGreaterThan(at('HAND-OFF SUMMARY:'))
-        expect(at('HOW TO RECOVER MORE')).toBeGreaterThan(at('CHECKPOINT:'))
-        expect(peekPendingCheckpoint(primary.id)?.nextStep).toBe('sum the July receipts')
-      } finally {
-        clearPendingCheckpoint(primary.id)
-      }
+      markPendingCheckpoint(db, primary.id, 'sum the July receipts')
+      const { carry } = buildContinuityContext(db, input)
+      const at = (needle: string) => carry.indexOf(needle)
+      expect(carry).toContain('CHECKPOINT: you stopped here to swap contexts, mid-task. The next step you named: sum the July receipts')
+      // Between the hand-off and the recovery instructions; still pending after.
+      expect(at('CHECKPOINT:')).toBeGreaterThan(at('HAND-OFF SUMMARY:'))
+      expect(at('HOW TO RECOVER MORE')).toBeGreaterThan(at('CHECKPOINT:'))
+      expect(peekPendingCheckpoint(db, primary.id)?.nextStep).toBe('sum the July receipts')
     })
   })
 
@@ -376,11 +368,55 @@ describe('buildContinuityContext', () => {
         "the user's voice conversation — the continuing spoken thread above all workspaces",
       )
       // Each line clips to 600 chars + a marker (~615 with the label); 5,000
-      // total fits eight of them — the newest eight (lines 5..12).
+      // total fits eight of them — the newest eight (lines 5..12). Nothing older
+      // was admitted, so no gap marker: a tail is a suffix by definition.
       expect(context.tailMessageCount).toBe(8)
       expect(context.carry).toContain('[user] line 12 ')
       expect(context.carry).toContain('[user] line 5 ')
       expect(context.carry).not.toContain('[user] line 4 ')
+      expect(context.carry).not.toContain('omitted here')
+    })
+  })
+
+  it('the whole-tail budget SKIPS a line that would overflow and keeps filling — one long message never cuts off the shorter ones behind it', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id, 'Seo'))
+      const primary = seedPrimary(db, user.id, workspace.id, 'seg-a')
+      seedSegment(db, { sessionId: 'seg-a', userId: user.id, workspaceId: workspace.id, visibility: 'hidden' })
+      // Oldest → newest: two short lines, one long, then eight long ones. The
+      // eight newest (~615 chars each) fill ~4,920 of the 5,000; the ninth
+      // newest ("long 3") would overflow — it is skipped, and the two short
+      // ones behind it still fit.
+      seedMessage(db, 'seg-a', 'user', 'short 1 fits')
+      seedMessage(db, 'seg-a', 'user', 'short 2 fits')
+      seedMessage(db, 'seg-a', 'user', 'long 3 ' + 'z'.repeat(700))
+      for (let index = 4; index <= 11; index++) {
+        seedMessage(db, 'seg-a', 'user', `long ${index} ` + 'z'.repeat(700))
+      }
+
+      const context = buildContinuityContext(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        fromSdkSessionId: 'seg-a',
+        summary: SUMMARY,
+        tailMessageLimit: 20,
+      })
+
+      expect(context.tailMessageCount).toBe(10)
+      expect(context.carry).toContain('[user] long 11 ')
+      expect(context.carry).toContain('[user] long 4 ')
+      expect(context.carry).not.toContain('[user] long 3 ')
+      expect(context.carry).toContain('[user] short 2 fits')
+      expect(context.carry).toContain('[user] short 1 fits')
+      // Chronological once composed, and the skip is MARKED where it sits —
+      // the model never reads "short 2" as adjacent to "long 4".
+      const carry = context.carry
+      const marker = '[… 1 message omitted here (over the tail budget) …]'
+      expect(carry).toContain(marker)
+      expect(carry.indexOf('[user] short 2 fits')).toBeLessThan(carry.indexOf(marker))
+      expect(carry.indexOf(marker)).toBeLessThan(carry.indexOf('[user] long 4 '))
+      expect(carry.indexOf('[user] short 1 fits')).toBeLessThan(carry.indexOf('[user] short 2 fits'))
     })
   })
 })

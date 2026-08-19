@@ -30,6 +30,14 @@ export function useVoiceDaemonLink(options: {
   onWake: (command: string) => void;
   /** 'jarvis' = the floating window — the daemon prefers it for wake delivery. */
   surface?: VoiceSurface;
+  /** True while THIS window's own overlay session is live. While it is, a relayed
+   *  'speak' is skipped: the overlay already plays its own turn's speak calls off
+   *  its own stream, and the daemon (handed off to us) now publishes every speak
+   *  it receives — playing the relayed copy too would double-play the reply
+   *  (session-hardening arc, the coupled E3 fix). A schedule's or the Voice-chat
+   *  panel's speak that lands mid-conversation is dropped with it — the price of
+   *  the daemon not being able to tell producers apart. */
+  isPlayingOwnTurn?: () => boolean;
 }) {
   const live = useLiveChannelStore();
   const isDaemonConnected = ref(false);
@@ -68,6 +76,7 @@ export function useVoiceDaemonLink(options: {
     } else if (event.kind === "state") {
       isDaemonSpeaking.value = event.state === "speaking";
     } else if (event.kind === "speak" && event.text) {
+      if (options.isPlayingOwnTurn?.() === true) return;
       speakQueue.push(event.text);
       void drainSpeakQueue();
     }

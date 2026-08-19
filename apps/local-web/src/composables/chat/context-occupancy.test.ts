@@ -12,6 +12,7 @@ function makeEntry(
 ): SessionsOverviewEntry {
   return {
     sessionId: "s-new",
+    primarySessionId: null,
     scope: "global",
     workspaceId: null,
     workspaceName: null,

@@ -50,7 +50,9 @@ export interface ComposerMentionTurnInput {
    *  workspace folder, or the global root's hidden dir). */
   originWorkspacePath: string
   /** The turn's picks, threaded onto persona delegations AND colleague runs
-   *  (persona-sessions — a colleague turn is a routed turn like any other). */
+   *  (persona-sessions — a colleague turn is a routed turn like any other).
+   *  All three ride BOTH branches: an @agent run that dropped the effort ran at
+   *  the adaptive default while the mention that spawned it was on max. */
   permissionMode?: DelegationPermissionMode
   model?: string
   thinkingEffort?: ThinkingEffortLevel
@@ -191,6 +193,9 @@ export async function prepareComposerMentionTurn(
             ? { permissionMode: input.permissionMode }
             : {}),
           ...(input.model !== undefined ? { model: input.model } : {}),
+          ...(input.thinkingEffort !== undefined
+            ? { thinkingEffort: input.thinkingEffort }
+            : {}),
         })
         stampPointerAnchor(jobId, sdkSessionId)
       } catch (err) {

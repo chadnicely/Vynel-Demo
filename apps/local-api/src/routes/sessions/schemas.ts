@@ -6,6 +6,10 @@ import { z } from 'zod'
 import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
 import { SESSION_SET_STATUSES } from '@vynel/contracts/chat/session-status'
+import {
+  SESSION_CHILD_KINDS,
+  SESSION_CHILD_STATUSES,
+} from '@vynel/contracts/chat/session-children'
 import { SESSION_MODES, type SessionMode } from '@vynel/session'
 
 export const SessionsOverviewSegmentSchema = z.object({
@@ -39,6 +43,10 @@ export const SessionStatusFactsSchema = z.object({
 
 export const SessionsOverviewEntrySchema = z.object({
   sessionId: z.string(),
+  /** The chain's continuing identity — the value the activity feed stamps as
+   *  `primarySessionId`, so a live turn matches its entry before it resolves
+   *  a session id (session-hardening D1). */
+  primarySessionId: z.string().nullable(),
   scope: z.enum(['global', 'workspace', 'agent', 'spawned', 'voice']),
   workspaceId: z.string().nullable(),
   workspaceName: z.string().nullable(),
@@ -113,10 +121,17 @@ export const StartSessionTurnRequestSchema = z.object({
   /** The user-facing session mode — `toPermissionMode` after resolving
    *  input ?? the session's persisted setting ?? `DEFAULT_SESSION_MODE`. */
   mode: z.enum(SESSION_MODE_VALUES).optional(),
-  /** The composer's Auto-buildout toggle — write-through persistence only
-   *  (nothing consumes it yet); rides the turn so a NEW conversation's first
-   *  turn stamps the row it creates. */
+  /** The composer's Auto-buildout toggle — autopilot (session-hardening arc):
+   *  resolved like the other settings; when true the turn carries the autopilot
+   *  marker; rides the turn so a NEW conversation's first turn stamps the row
+   *  it creates. */
   autoBuildout: z.boolean().optional(),
+  /** A VOICE turn into this session (the live-call leg): the server forces the
+   *  voice tier (sonnet-5 / low / auto), reads and writes no settings, and
+   *  fit-clamps the pin — exactly the global stream's voice gates
+   *  (session-hardening arc, 2026-08-19; the call leg used to fall to the
+   *  interactive default and card a live call). */
+  voice: z.boolean().optional(),
 })
 
 // ── Per-session composer settings (2026-08-17) ─────────────────────
@@ -166,4 +181,24 @@ export const SessionsOverviewQuerySchema = z.object({
   workspaceId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+})
+
+// ── One conversation's children (session-hardening F3) ─────────────
+// Mirrors `@vynel/contracts/chat/session-children`. The node screen's third
+// level: the sessions this one spawned, the agent colleagues it ran and the
+// tasks it sent out. Nothing renders it yet — the door exists so that level
+// is a UI change alone.
+export const SessionChildSchema = z.object({
+  kind: z.enum(SESSION_CHILD_KINDS),
+  id: z.string(),
+  title: z.string(),
+  workspaceId: z.string().nullable(),
+  status: z.enum(SESSION_CHILD_STATUSES).nullable(),
+  createdAt: z.string(),
+  finishedAt: z.string().nullable(),
+})
+
+export const SessionChildrenResponseSchema = z.object({
+  sessionId: z.string(),
+  children: z.array(SessionChildSchema),
 })

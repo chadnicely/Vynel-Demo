@@ -284,3 +284,57 @@ describe("ChatComposer", () => {
     expect(ringIndex).toBeLessThan(modelIndex);
   });
 });
+
+// A surface whose server pins its own settings (the hands-free voice thread)
+// must not be offered a picker: an interactive chip there promised a change
+// the next turn silently overrode.
+describe("ChatComposer — settingsLocked", () => {
+  const lockedProps = {
+    ...baseProps,
+    efforts: [
+      { id: "low", label: "Low" },
+      { id: "max", label: "Max" },
+    ],
+    effortId: "low",
+    settingsLocked: true,
+  };
+
+  it("renders the selected values as plain text — no pickers to open", () => {
+    const wrapper = mount(ChatComposer, { props: lockedProps });
+
+    expect(wrapper.find('[aria-label="Model"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Mode"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Thinking"]').exists()).toBe(false);
+
+    expect(
+      wrapper
+        .findAll('[data-testid="composer-locked-setting"]')
+        .map((chip) => chip.text()),
+    ).toEqual(["Opus 4.8", "Ask", "Low"]);
+  });
+
+  it("falls back to the raw id for a pinned value the host never listed", () => {
+    const wrapper = mount(ChatComposer, {
+      props: { ...lockedProps, modelId: "claude-sonnet-5" },
+    });
+    expect(
+      wrapper.findAll('[data-testid="composer-locked-setting"]')[0]!.text(),
+    ).toBe("claude-sonnet-5");
+  });
+
+  it("still sends — locking the settings never locks the message", async () => {
+    const wrapper = mount(ChatComposer, { props: lockedProps });
+    const input = wrapper.find("textarea");
+    await input.setValue("hands free");
+    await input.trigger("keydown", { key: "Enter" });
+    expect(wrapper.emitted("send")).toEqual([["hands free", []]]);
+  });
+
+  it("unlocked is unchanged — the pickers are there and still emit", async () => {
+    const wrapper = mount(ChatComposer, { props: baseProps });
+    expect(wrapper.findAll('[data-testid="composer-locked-setting"]')).toHaveLength(0);
+    await wrapper.find('[aria-label="Mode"]').trigger("click");
+    await wrapper.findAll(".menu-row")[1]!.trigger("click");
+    expect(wrapper.emitted("update:modeId")).toEqual([["auto"]]);
+  });
+});

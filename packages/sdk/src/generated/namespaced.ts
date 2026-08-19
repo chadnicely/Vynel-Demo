@@ -28,11 +28,6 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listRunningTurns: async () => {
-    const { data, error, response } = await client["GET"]("/activity/running")
-    if (error || data === undefined) throw new SdkError(response, error ?? data)
-    return data
-  },
   stream: async () => {
     const { data, error, response } = await client["GET"]("/activity/stream")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -1412,13 +1407,20 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getVoiceStatus: async () => {
+    const { data, error, response } = await client["GET"]("/root/voice-chat/status")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   getVoiceTranscript: async () => {
     const { data, error, response } = await client["GET"]("/root/voice-chat/transcript")
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  interruptTurn: async () => {
-    const { data, error, response } = await client["POST"]("/root/turn/interrupt")
+  interruptTurn: async (input: NonNullable<paths["/root/turn/interrupt"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/root/turn/interrupt", {
+      body: input,
+    })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
@@ -1708,6 +1710,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   sessions: {
+  children: async (sessionId: NonNullable<paths["/sessions/{sessionId}/children"]["get"]['parameters']>['path']["sessionId"]) => {
+    const { data, error, response } = await client["GET"]("/sessions/{sessionId}/children", {
+      params: { path: { sessionId: sessionId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   createSpawned: async (input: NonNullable<paths["/sessions/spawned"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/sessions/spawned", {
       body: input,

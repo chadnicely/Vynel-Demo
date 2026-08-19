@@ -16,18 +16,42 @@
 // (multi-pod) replaces this with a Postgres advisory lock keyed the same way.
 
 const rootTurnTailByLockKey = new Map<string, Promise<unknown>>()
+// Turns queued or running per key — the `isRootTurnLockBusy` read. Kept beside
+// the tail (not derived from it) because a settled promise cannot be asked
+// whether it settled; the count drops as each chained turn settles.
+const rootTurnCountByLockKey = new Map<string, number>()
 
-const swallow = (): void => {}
+/** The lock key one global-root identity serializes on: the user id for the global
+ *  conversation, `${userId}:voice` for the spoken twin. ONE home for the shape — the
+ *  runner derives the key it holds from this, and the SSE stream asks
+ *  `isRootTurnLockBusy` about the same key before it parks. */
+export function rootTurnLockKey(userId: string, isVoiceTurn: boolean): string {
+  return isVoiceTurn ? `${userId}:voice` : userId
+}
+
+/** Whether a turn is queued or running on the lock key RIGHT NOW — the global
+ *  stream's queued-sentinel probe (`turn-queued { reason: 'busy' }` before it
+ *  parks, the workspace/DM streams' `locks.isBusy` twin). */
+export function isRootTurnLockBusy(lockKey: string): boolean {
+  return (rootTurnCountByLockKey.get(lockKey) ?? 0) > 0
+}
 
 /** Run `turn` only after the lock key's previous root turn has settled (success OR failure — a
  *  failed turn must never wedge the chain). Returns the turn's result. */
 export function runUnderRootTurnLock<T>(lockKey: string, turn: () => Promise<T>): Promise<T> {
   const previousTail = rootTurnTailByLockKey.get(lockKey) ?? Promise.resolve()
+  rootTurnCountByLockKey.set(lockKey, (rootTurnCountByLockKey.get(lockKey) ?? 0) + 1)
   // Chain after the previous turn regardless of its outcome (both handlers run `turn`).
   const chainedTurn = previousTail.then(turn, turn)
-  // The next caller waits for THIS turn to settle; swallow the value/error in the tail so a
-  // rejection here never becomes an unhandled rejection (the real value/rejection flows to the
-  // caller via `chainedTurn`).
-  rootTurnTailByLockKey.set(lockKey, chainedTurn.then(swallow, swallow))
+  // Runs on BOTH outcomes: drops this turn from the busy count and, being the
+  // tail's handler, swallows the value/error so a rejection here never becomes
+  // an unhandled rejection (the real value/rejection flows to the caller via
+  // `chainedTurn`). The next caller waits for THIS turn to settle.
+  const settle = (): void => {
+    const remaining = (rootTurnCountByLockKey.get(lockKey) ?? 1) - 1
+    if (remaining <= 0) rootTurnCountByLockKey.delete(lockKey)
+    else rootTurnCountByLockKey.set(lockKey, remaining)
+  }
+  rootTurnTailByLockKey.set(lockKey, chainedTurn.then(settle, settle))
   return chainedTurn
 }

@@ -14,21 +14,30 @@
 // backstop still cards its tools (surface-up: a carded tool parks for the user's
 // decision; the fail-closed deny remains the un-injected fallback).
 //
-// The timeout is "stop WAITING", NOT "stop the target": on timeout we return a
-// timed-out envelope, but the routed turn keeps running in its own SDK session.
-// The result is not surfaced after the timeout (a deferred follow-up); the
-// up-report says only that the workspace is still working.
+// THE ENVELOPE SETTLES ONLY WHEN THE DELEGATE SETTLES (session-hardening arc,
+// 2026-08-19). The old shape raced the delegate against a "stop waiting" budget
+// and returned a `timed-out` envelope while the routed turn kept running — the
+// tick then released the target's single-writer lock under a live turn, and the
+// next claim resumed the SAME SDK session concurrently (audit L1, reproduced by
+// three agents). The bound is now a HARD CAP on the turn itself: when it fires,
+// `deps.onHardCap` runs ONCE (the caller cancels the turn — the cancel registry /
+// Stop path interrupts its SDK session) and this coordinator keeps awaiting the
+// delegate; whatever the delegate then settles to, the envelope reads `capped`
+// with an honest message. The target lock, held for the coordinator's lifetime,
+// therefore covers the WHOLE run.
 //
 // SURFACE-UP (decision C): while a routed approval is PARKED on a human decision
-// the wait clock SUSPENDS (via the optional `waitGate`) — the budget measures the
-// workspace's working time, not the human's deciding time. The unanswered bound
+// the cap clock SUSPENDS (via the optional `waitGate`) — the cap measures the
+// target's working time, not the human's deciding time. The unanswered bound
 // is the approvals reaper, which denies a stale card and resumes the clock.
 
 import type { StructuralLogger } from '../orchestration-types.js'
 import type { ApprovalWaitGate } from './approval-wait-gate.js'
+import { startPausableTimeout } from './pausable-timeout.js'
 
-/** Conservative per-sub-session wait budget — bounds a routed leaf's turn. */
-export const DEFAULT_ROUTE_TIMEOUT_MS = 120_000
+/** The hard cap on one routed turn's working time when the caller names none —
+ *  60 minutes, the same value `VYNEL_DELEGATED_TURN_MAX_MS` defaults to (D5). */
+export const DEFAULT_ROUTE_HARD_CAP_MS = 60 * 60 * 1000
 
 export type RouteRequestInput = {
   userId: string
@@ -40,13 +49,16 @@ export type RouteRequestInput = {
   targetWorkspacePath: string
   /** The task to route down — the workspace root's message. */
   taskText: string
-  /** Per-sub-session wait budget (ms). Defaults to DEFAULT_ROUTE_TIMEOUT_MS. */
-  timeoutMs?: number
+  /** The hard cap on the routed turn's WORKING time (ms; suspended while the
+   *  wait gate is parked). Defaults to DEFAULT_ROUTE_HARD_CAP_MS. */
+  hardCapMs?: number
 }
 
 export type RouteRequestResult =
   | { status: 'completed'; reference: string; result: string }
-  | { status: 'timed-out'; timeoutMs: number }
+  /** The cap fired, the turn was cancelled and has since SETTLED — the run is
+   *  over, whatever the delegate produced. `message` is the row-ready reason. */
+  | { status: 'capped'; hardCapMs: number; message: string }
   | { status: 'failed'; message: string }
 
 /** The injected delegation (apps/api binds `delegateToWorkspaceRoot`). The binder
@@ -62,58 +74,53 @@ export type DelegateForRouting = (input: {
 export type RouteRequestDeps = {
   delegate: DelegateForRouting
   logger?: StructuralLogger
-  /** When given, the wait clock SUSPENDS while the gate reports a parked approval
+  /** When given, the cap clock SUSPENDS while the gate reports a parked approval
    *  (surface-up decision C) and resumes with the remaining budget on resolve. */
   waitGate?: ApprovalWaitGate
+  /** Fires ONCE when the cap is spent: cancel the routed turn (interrupt its SDK
+   *  session). The coordinator keeps awaiting the delegate — cancelling is the
+   *  caller's lever, settling is the turn's. A throw here is logged, never
+   *  propagated (the delegate still settles on its own). */
+  onHardCap?: () => void | Promise<void>
 }
 
-/** A timeout that can pause (keeping its remaining budget) and resume — the
- *  suspend-while-parked wait clock. Returns the racing promise + a cancel. */
-function startPausableTimeout(
-  timeoutMs: number,
-  waitGate: ApprovalWaitGate | undefined,
-): { promise: Promise<RouteRequestResult>; cancel: () => void } {
-  let handle: ReturnType<typeof setTimeout> | undefined
-  let remainingMs = timeoutMs
-  let armedAt: number | null = null
-  let cancelled = false
-
-  const promise = new Promise<RouteRequestResult>((resolve) => {
-    const arm = (): void => {
-      if (cancelled) return
-      armedAt = Date.now()
-      handle = setTimeout(() => resolve({ status: 'timed-out', timeoutMs }), remainingMs)
-    }
-    const disarm = (): void => {
-      if (handle !== undefined) clearTimeout(handle)
-      handle = undefined
-      if (armedAt !== null) remainingMs = Math.max(0, remainingMs - (Date.now() - armedAt))
-      armedAt = null
-    }
-    waitGate?.onParkedChange((parked) => (parked ? disarm() : arm()))
-    if (!waitGate?.isParked) arm()
-  })
-
-  return {
-    promise,
-    cancel: () => {
-      cancelled = true
-      if (handle !== undefined) clearTimeout(handle)
-    },
-  }
+/** "exceeded the 60-minute cap" — minutes when the cap is one, raw ms below that
+ *  (test-sized caps must not read as "0-minute"). */
+export function describeHardCap(hardCapMs: number): string {
+  return hardCapMs >= 60_000 ? `${Math.round(hardCapMs / 60_000)}-minute` : `${hardCapMs}ms`
 }
 
 export async function routeRequest(
   input: RouteRequestInput,
   deps: RouteRequestDeps,
 ): Promise<RouteRequestResult> {
-  const timeoutMs = input.timeoutMs ?? DEFAULT_ROUTE_TIMEOUT_MS
+  const hardCapMs = input.hardCapMs ?? DEFAULT_ROUTE_HARD_CAP_MS
 
-  const wait = startPausableTimeout(timeoutMs, deps.waitGate)
+  let settled = false
+  let capFired = false
+  const cap = startPausableTimeout(hardCapMs, deps.waitGate)
+  // Detached on purpose: the cap's only job is to pull the cancel lever; the
+  // await below stays on the delegate alone. A cap that fires in the same tick
+  // the delegate settles must not cancel a turn that is already over.
+  void cap.promise.then(async () => {
+    if (settled) return
+    capFired = true
+    deps.logger?.warn(
+      { targetWorkspaceId: input.targetWorkspaceId, hardCapMs },
+      'routeRequest: the routed turn exceeded its hard cap — cancelling it and awaiting its end',
+    )
+    try {
+      await deps.onHardCap?.()
+    } catch (error: unknown) {
+      deps.logger?.warn(
+        { targetWorkspaceId: input.targetWorkspaceId, error: String(error) },
+        'routeRequest: the hard-cap cancel lever threw (the turn still settles on its own)',
+      )
+    }
+  })
 
-  // The delegation promise NEVER rejects — failures convert to a `failed` envelope
-  // here, so a post-timeout rejection can't surface as an unhandled rejection.
-  const delegationPromise: Promise<RouteRequestResult> = deps
+  // The delegation promise NEVER rejects — failures convert to a `failed` envelope.
+  const outcome: RouteRequestResult = await deps
     .delegate({
       parentSessionId: input.parentSessionId,
       userId: input.userId,
@@ -134,16 +141,20 @@ export async function routeRequest(
         message: error instanceof Error ? error.message : String(error),
       }),
     )
+  settled = true
+  cap.cancel()
 
-  const outcome = await Promise.race([delegationPromise, wait.promise])
-  wait.cancel()
-
-  if (outcome.status === 'timed-out') {
+  if (capFired) {
+    // The turn ran past the cap and was cancelled; how it then settled (a
+    // clean interrupt throw, a partial completion that outran the interrupt)
+    // is bookkeeping — the honest outcome is the cap.
     deps.logger?.warn(
-      { targetWorkspaceId: input.targetWorkspaceId, timeoutMs },
-      'routeRequest: timed out waiting for the workspace root (it keeps running in its own session)',
+      { targetWorkspaceId: input.targetWorkspaceId, hardCapMs, settledAs: outcome.status },
+      'routeRequest: the capped turn settled',
     )
-  } else if (outcome.status === 'failed') {
+    return { status: 'capped', hardCapMs, message: `exceeded the ${describeHardCap(hardCapMs)} cap` }
+  }
+  if (outcome.status === 'failed') {
     deps.logger?.warn(
       { targetWorkspaceId: input.targetWorkspaceId, message: outcome.message },
       'routeRequest: routed delegation failed',

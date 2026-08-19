@@ -118,18 +118,22 @@ export {
   isWorkJobKind,
 } from './schema/delegation-jobs.js'
 // The queue's CONSUMER half (brain-tree Ch1) — the app-tier delegation service
-// claims one pending job per tick, runs it, and records the terminal state; at
-// startup it fails the jobs a crash left stuck `claimed`. Re-exported (the
+// claims one pending job per tick (leased, heartbeated), runs it, and records
+// the terminal state; at startup and on the lease sweeper it settles the
+// claims whose run is gone, by kind. Re-exported (the
 // findDelegationJobByPartialSessionId precedent) — repos stay in this leaf.
 export {
   claimNextPendingDelegationJob,
+  heartbeatDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   completeDelegationJob,
   failDelegationJob,
   requeueDelegationJob,
   failPendingDelegationJob,
   failOrphanedClaimedDelegations,
-  requeueOrphanedClaimedReportDeliveries,
+  requeueOrphanedClaimedDeliveries,
+  ORPHAN_REQUEUE_JOB_KINDS,
+  type OrphanedClaimScope,
   findDelegationJobById,
   listDelegationJobsByThread,
   type DelegationJob,
@@ -170,21 +174,24 @@ export {
 } from './queries/list-delegated-tasks.js'
 
 // LLM-native routing (Slice 4): the request-down / report-up coordinator the
-// global-root routing MCP tool invokes. Pure — the composing tier injects the
-// by-reference `delegateToLeafSession` as the `delegate` dep.
+// delegation tick drives. Pure — the composing tier injects the target runner
+// as the `delegate` dep; the envelope settles only when the delegate does, and
+// the hard cap cancels through the injected `onHardCap` lever.
 export {
   routeRequest,
-  DEFAULT_ROUTE_TIMEOUT_MS,
+  describeHardCap,
+  DEFAULT_ROUTE_HARD_CAP_MS,
   type RouteRequestInput,
   type RouteRequestResult,
   type RouteRequestDeps,
   type DelegateForRouting,
 } from './routing/route-request.js'
 // Surface-up approval: the parked-approval wait signal (the tick creates one per
-// job and hands it to both the approval handler and routeRequest's wait clock) +
+// job and hands it to both the approval handler and routeRequest's cap clock) +
 // the drain option types the api-side handler builder conforms to + the steer
 // reason its fail-closed fallback denies with.
 export { ApprovalWaitGate } from './routing/approval-wait-gate.js'
+export { startPausableTimeout, type PausableTimeout } from './routing/pausable-timeout.js'
 export {
   ROUTED_LEAF_APPROVAL_DENY_REASON,
   ROUTED_LEAF_MAX_CARDED_DENIALS,
@@ -203,3 +210,9 @@ export {
 // orchestration's designed dependency is the `agents` domain, not `chat`; a
 // caller reads a leaf's recorded detail via chat directly (the session-tier
 // composition imports both).
+
+// The PARENT side of the delegation tree (session-hardening F3) — every job
+// one conversation set going, for the session tier's children read. The
+// thread-keyed reads above answer "what did this ONE task cause"; this one
+// answers "what did this session cause".
+export { listDelegationJobsForParentSessions } from './repositories/index.js'

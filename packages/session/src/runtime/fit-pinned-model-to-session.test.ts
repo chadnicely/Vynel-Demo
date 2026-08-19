@@ -12,7 +12,7 @@ const PIN = 'claude-haiku-4-5' // 200k window
 
 function seedSession(
   db: Database,
-  row: { lastContextTokens?: number; model?: string },
+  row: { lastContextTokens?: number; model?: string; lastContextWindow?: number },
 ): void {
   const now = new Date()
   insertUser(db, {
@@ -40,6 +40,24 @@ function seedSession(
   updateChatSession(db, SESSION_ID, {
     ...(row.lastContextTokens !== undefined ? { lastContextTokens: row.lastContextTokens } : {}),
     ...(row.model !== undefined ? { model: row.model } : {}),
+    ...(row.lastContextWindow !== undefined ? { lastContextWindow: row.lastContextWindow } : {}),
+  })
+}
+
+// A fresh swap segment chained onto SESSION_ID: no usage, no model of its own.
+function seedFreshSwapSegment(db: Database, sessionId: string): void {
+  insertChatSession(db, {
+    ...buildNewChatSessionRow({
+      sessionId,
+      userId: USER_ID,
+      workspaceId: null,
+      providerId: 'claude',
+      startedAt: new Date(),
+      title: 'Continued conversation',
+      scope: 'global',
+      visibility: 'hidden',
+    }),
+    continuedFromSessionId: SESSION_ID,
   })
 }
 
@@ -69,6 +87,29 @@ describe('fitPinnedModelToSession', () => {
       seedSession(db, { lastContextTokens: 442_846, model: '<synthetic>' })
       const fit = fitPinnedModelToSession(db, { resumeSdkSessionId: SESSION_ID, pinnedModel: PIN })
       expect(fit).toEqual({ model: undefined, wasReplaced: true, occupancyTokens: 442_846 })
+    })
+  })
+
+  it('a fresh swap segment that has not run yet falls back to the model that grew its CHAIN, not the engine default', async () => {
+    await withTestDatabase((db) => {
+      // The predecessor grew under fable (1M); the fresh head has nothing of its own.
+      seedSession(db, { lastContextTokens: 442_846, model: 'claude-fable-5', lastContextWindow: 1_000_000 })
+      seedFreshSwapSegment(db, 'session-fresh')
+      // Nothing measured on the fresh head → the pin fits (0 tokens) — the guard
+      // is about THIS segment's occupancy.
+      expect(fitPinnedModelToSession(db, { resumeSdkSessionId: 'session-fresh', pinnedModel: PIN })).toEqual({
+        model: PIN,
+        wasReplaced: false,
+        occupancyTokens: 0,
+      })
+      // Once the fresh head has grown past the pin (its usage written, its model
+      // still unreported — the mid-turn split), the fallback is the chain's model.
+      updateChatSession(db, 'session-fresh', { lastContextTokens: 180_000 })
+      expect(fitPinnedModelToSession(db, { resumeSdkSessionId: 'session-fresh', pinnedModel: PIN })).toEqual({
+        model: 'claude-fable-5',
+        wasReplaced: true,
+        occupancyTokens: 180_000,
+      })
     })
   })
 

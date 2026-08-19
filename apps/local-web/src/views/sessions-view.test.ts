@@ -66,6 +66,7 @@ function makeEntry(
 ): SessionsOverviewEntry {
   return {
     sessionId: "sp-1",
+    primarySessionId: null,
     scope: "spawned",
     workspaceId: null,
     workspaceName: null,

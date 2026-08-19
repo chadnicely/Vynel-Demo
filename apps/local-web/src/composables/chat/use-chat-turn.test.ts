@@ -13,6 +13,7 @@ import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import { useChatTurn } from "./use-chat-turn.js";
+import type { SessionScope } from "./session-scope.js";
 import type { ComposerSettings } from "./use-session-settings.js";
 
 function sseFrame(kind: string, payload: object): Uint8Array {
@@ -61,7 +62,11 @@ afterEach(() => {
   wrapper = null;
 });
 
-function makeHarness(options?: { detachWhen?: () => boolean }) {
+function makeHarness(options?: {
+  detachWhen?: () => boolean;
+  scope?: SessionScope;
+  voice?: boolean;
+}) {
   const handles: ReturnType<typeof makeStreamHandle>[] = [];
   const POST = vi.fn(async (_path: string, init?: { signal?: AbortSignal }) => {
     const handle = makeStreamHandle();
@@ -71,7 +76,12 @@ function makeHarness(options?: { detachWhen?: () => boolean }) {
     return { data: handle.stream, response: { ok: true, status: 200 } };
   });
   const interruptSession = vi.fn(async () => undefined);
-  const fakeClient = { POST, chat: { interruptSession } } as never;
+  const interruptTurn = vi.fn(async () => ({ interrupted: true }));
+  const fakeClient = {
+    POST,
+    chat: { interruptSession },
+    root: { interruptTurn },
+  } as never;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
   let turn!: ReturnType<typeof useChatTurn>;
@@ -80,8 +90,9 @@ function makeHarness(options?: { detachWhen?: () => boolean }) {
     setup() {
       activity = useActivityStore();
       turn = useChatTurn({
-        scope: () => ({ kind: "workspace", workspaceId: "ws-1" }),
+        scope: () => options?.scope ?? { kind: "workspace", workspaceId: "ws-1" },
         ...(options?.detachWhen !== undefined ? { detachWhen: options.detachWhen } : {}),
+        ...(options?.voice === true ? { voice: true } : {}),
       });
       return () => h("div");
     },
@@ -98,6 +109,7 @@ function makeHarness(options?: { detachWhen?: () => boolean }) {
     handles,
     POST,
     interruptSession,
+    interruptTurn,
     invalidateQueries,
     turn: () => turn,
     activity: () => activity,
@@ -190,5 +202,52 @@ describe("useChatTurn", () => {
     await done;
     harness.turn().interrupt();
     expect(harness.interruptSession).toHaveBeenCalledWith("ws-1", "sdk-1");
+  });
+});
+
+// Stop is identity-shaped (session-hardening D3). The Voice chat panel is a
+// GLOBAL-scope surface speaking into the SPOKEN thread, so a scope-shaped
+// interrupt reached the typed thread instead — killing a concurrent global
+// turn while the voice turn ran on.
+describe("useChatTurn.interrupt on the global scope", () => {
+  it("names the session the turn is running on", async () => {
+    const harness = makeHarness({ scope: { kind: "global" } });
+    const done = harness
+      .turn()
+      .startTurn({ sessionId: null, isContinuous: true, userText: "Hey", settings: SETTINGS });
+    await vi.waitFor(() => expect(harness.POST).toHaveBeenCalledTimes(1));
+    harness
+      .stream()
+      .push("session-created", { kind: "session-created", session: { id: "voice-segment-1" } });
+    await vi.waitFor(() => expect(harness.turn().activeSessionId.value).toBe("voice-segment-1"));
+
+    harness.turn().interrupt();
+    expect(harness.interruptTurn).toHaveBeenCalledWith({ sessionId: "voice-segment-1" });
+    // The interrupt already aborted the stream — the send settles as the
+    // user-cancelled turn it is.
+    await done.catch(() => undefined);
+  });
+
+  it("falls back to the global head when no session is resolved yet", () => {
+    const harness = makeHarness({ scope: { kind: "global" } });
+    harness.turn().interrupt();
+    expect(harness.interruptTurn).toHaveBeenCalledWith({});
+  });
+
+  it("a VOICE surface with no known session sends nothing — never the global head", () => {
+    // A first-ever spoken turn (no head yet) or a failed transcript read: the
+    // empty body would resolve to the GLOBAL primary and stop the other
+    // thread the lock split lets run beside voice.
+    const harness = makeHarness({ scope: { kind: "global" }, voice: true });
+    harness.turn().interrupt(null);
+    expect(harness.interruptTurn).not.toHaveBeenCalled();
+    harness.turn().interrupt("voice-segment-1");
+    expect(harness.interruptTurn).toHaveBeenCalledWith({ sessionId: "voice-segment-1" });
+  });
+
+  it("uses the DISPLAYED thread when this engine holds no turn of its own", () => {
+    const harness = makeHarness({ scope: { kind: "global" } });
+    harness.turn().interrupt("watched-segment-1");
+    expect(harness.interruptTurn).toHaveBeenCalledWith({ sessionId: "watched-segment-1" });
   });
 });

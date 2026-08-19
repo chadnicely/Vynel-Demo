@@ -113,6 +113,15 @@ export const delegationJobs = table(
     partialSessionId: text(),
     status: text().$type<DelegationJobStatus>().notNull(),
     claimedAt: timestamp(),
+    // The claim LEASE (session-hardening arc, 2026-08-19): a claim sets
+    // `leaseExpiresAt = now + VYNEL_DELEGATION_LEASE_MS` and the running tick
+    // heartbeats it forward; the sweeper treats an expired lease as an
+    // orphaned claim (crash, or a run that stopped heartbeating) and settles
+    // the row by kind exactly like the boot pass. Nullable: pre-lease rows and
+    // non-claimed rows carry NULL (a NULL lease on a claimed row = legacy,
+    // handled by the boot pass only).
+    leaseExpiresAt: timestamp(),
+    heartbeatAt: timestamp(),
     completedAt: timestamp(),
     resultText: text(),
     errorMessage: text(),
@@ -131,12 +140,14 @@ export const delegationJobs = table(
     originExternalSenderId: text(),
     originExternalChatContextId: text(),
     // The permission mode the routed turn runs under (surface-up approval, step 1) —
-    // threaded from the delegating turn's user-facing mode. Null = the pre-mode
-    // default (`bypass-with-behavior-gate`: only the irreversible floor cards).
+    // threaded from the delegating turn's user-facing mode. Null = nobody stamped
+    // one: the runner resolves the TARGET conversation's own mode, else the one
+    // default (`auto` — session-hardening A5/D3).
     permissionMode: text().$type<DelegationPermissionMode>(),
     // The delegating root's MODEL + THINKING-EFFORT picks for the routed turn —
     // threaded into the provider's startChatSession by the claim-and-run tick.
-    // Null = the provider defaults (today's behavior, byte-for-byte).
+    // Null = the target conversation's own picks, else the provider defaults
+    // (`job ?? target row ?? DEFAULT`, session-hardening A5).
     model: text(),
     thinkingEffort: text().$type<ThinkingEffortLevel>(),
     // What this row IS — see the `DelegationJobKind` union doc above. Nullable

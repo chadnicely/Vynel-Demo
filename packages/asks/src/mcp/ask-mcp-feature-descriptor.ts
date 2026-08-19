@@ -1,9 +1,11 @@
 // The `vynel-ask` MCP feature descriptor — `ask_user` expressed as the shared
 // `McpFeatureDescriptor` so the apps/local-api composer attaches it like every
-// other feature. Attached to the interactive app turns (unbounded wait — the
-// user is present) AND to channel turns with a bounded `timeoutMs` (module
-// notes fork #2, revised by the tool-policy arc: the Telegram nudge makes an
-// unattended ask answerable, and expiry keeps it from parking the job).
+// other feature. Attached to the interactive app turns (the generous
+// `VYNEL_INTERACTIVE_ASK_MAX_MS` bound — session-hardening D5) AND to channel
+// turns with their short `timeoutMs` (module notes fork #2, revised by the
+// tool-policy arc: the Telegram nudge makes an unattended ask answerable, and
+// expiry keeps it from parking the job). NOT attached on the voice thread —
+// the model asks in speech and the next utterance is the answer.
 //
 // A FACTORY, not a static export (the notebook precedent doesn't fit): the
 // tool must park on the process-wide waiter registry, which the composer's

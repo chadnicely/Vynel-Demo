@@ -14,8 +14,10 @@ export type { StructuralLogger } from '@vynel/logger'
  * `toPermissionMode`; `plan-only` is provider-internal and never routed).
  * `bypass` is the user's explicit no-prompts grant (2026-07-30); it inherits
  * onto delegations the turn spawns. Stored on `delegation_jobs.permissionMode`;
- * null = the unattended default (`bypass-with-behavior-gate`: the irreversible
- * floor still cards). Kept as a local literal union — orchestration sits BELOW
+ * null = nobody stamped one — the runner resolves the TARGET conversation's
+ * own mode, else the one default (`auto`, session-hardening D3).
+ * `bypass-with-behavior-gate` stays a valid provider mode a caller may stamp
+ * explicitly; no path falls back to it. Kept as a local literal union — orchestration sits BELOW
  * `@vynel/session`, so it cannot import the mode model from there; drift fails
  * to typecheck where the value meets the provider's
  * `StartChatSessionInput.permissionMode`.

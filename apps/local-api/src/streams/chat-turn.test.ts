@@ -4,7 +4,11 @@
 // approvals route-test precedent) so no live SDK runtime is started. The
 // `@vynel/session` test-support FakeAiAgentProvider is not exported from the
 // package (no `./runtime/test-support` subpath), so the stub lives here — same
-// normalized-event shapes.
+// normalized-event shapes. The session-hardening seams (2026-08-19) ride the
+// same harness: the unconditionally stamped mode header, the bounded ask
+// descriptor, the primary-head lock guard on by-id turns, and the interactive
+// wall clock (the fake can HANG a turn until interrupted; `loadEnv` is
+// overridable per test for the bound).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -30,11 +34,36 @@ const startChatSessionInputs: StartChatSessionInput[] = []
 // A test's seam to act MID-TURN the way a tool would (mark a checkpoint on
 // the turn's identity) — the fake has no tools of its own.
 let onStartChatSession: ((input: StartChatSessionInput, ordinal: number) => void) | null = null
+/** The next turn HANGS after its first chunk until interrupted (the wall-clock case). */
+let nextTurnHangs = false
+const {
+  interruptChatSessionMock,
+  hangResolvers,
+  wrapAppRequestWithModeSpy,
+  buildAskFeatureDescriptorSpy,
+  envOverrides,
+} = vi.hoisted(() => {
+  const hangResolvers = new Map<string, () => void>()
+  return {
+    hangResolvers,
+    // A REAL interrupt ends the hung fake turn — the way the SDK runtime ends
+    // a session the provider interrupts.
+    interruptChatSessionMock: vi.fn(async (sessionId: string) => {
+      hangResolvers.get(sessionId)?.()
+      hangResolvers.delete(sessionId)
+    }),
+    wrapAppRequestWithModeSpy: vi.fn(),
+    buildAskFeatureDescriptorSpy: vi.fn(),
+    envOverrides: { current: {} as Record<string, unknown> },
+  }
+})
 function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
   startChatSessionInputs.push(input)
   onStartChatSession?.(input, startChatSessionInputs.length)
   const sessionId = queuedSessionIds.shift() ?? nextSdkSessionId
   const usageTokens = queuedUsageTokens.length > 0 ? queuedUsageTokens.shift()! : usageTokensForTurn
+  const hangs = nextTurnHangs
+  nextTurnHangs = false
   async function* events(): AsyncIterable<NormalizedSessionEvent> {
     yield {
       kind: 'session-started',
@@ -48,6 +77,11 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
       messageId: 'assistant-m1',
       textDelta: 'Hello from the fake provider.',
       isFinalChunk: true,
+    }
+    if (hangs) {
+      await new Promise<void>((resolve) => hangResolvers.set(sessionId, resolve))
+      yield { kind: 'session-interrupted', sessionId, interruptedAt: new Date() }
+      return
     }
     if (usageTokens !== null) {
       yield {
@@ -74,12 +108,48 @@ vi.mock('@vynel/providers', async () => {
     ...actual,
     resolveAiAgentProvider: () => ({
       startChatSession: fakeStartChatSession,
+      interruptChatSession: interruptChatSessionMock,
       summarizeSession: async () => USABLE_CARRY,
     }),
   }
 })
+// The real header writer, with the stamped mode recorded (the parent == child pin).
+vi.mock('../sessions/delegation-mode-header.js', async () => {
+  const actual = await vi.importActual<typeof import('../sessions/delegation-mode-header.js')>(
+    '../sessions/delegation-mode-header.js',
+  )
+  return {
+    ...actual,
+    wrapAppRequestWithMode: (
+      appRequest: Parameters<typeof actual.wrapAppRequestWithMode>[0],
+      permissionMode: string,
+    ) => {
+      wrapAppRequestWithModeSpy(permissionMode)
+      return actual.wrapAppRequestWithMode(appRequest, permissionMode)
+    },
+  }
+})
+// The real ask descriptor, with its deps recorded — the bound + gate assertions.
+vi.mock('@vynel/asks/mcp', async () => {
+  const actual = await vi.importActual<typeof import('@vynel/asks/mcp')>('@vynel/asks/mcp')
+  return {
+    ...actual,
+    buildAskFeatureDescriptor: (deps: Parameters<typeof actual.buildAskFeatureDescriptor>[0]) => {
+      buildAskFeatureDescriptorSpy(deps)
+      return actual.buildAskFeatureDescriptor(deps)
+    },
+  }
+})
+// The bounds knobs, per test — everything else stays the real parsed env.
+vi.mock('../env.js', async () => {
+  const actual = await vi.importActual<typeof import('../env.js')>('../env.js')
+  return { ...actual, loadEnv: () => ({ ...actual.loadEnv(), ...envOverrides.current }) }
+})
 
-import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/repositories'
+import {
+  findChatSessionById,
+  listChatMessagesForSession,
+} from '@vynel/chat/repositories'
 import {
   findPrimaryConversation,
   linkPrimarySessionToSdkSession,
@@ -99,6 +169,12 @@ beforeEach(() => {
   queuedUsageTokens.length = 0
   startChatSessionInputs.length = 0
   onStartChatSession = null
+  nextTurnHangs = false
+  interruptChatSessionMock.mockClear()
+  wrapAppRequestWithModeSpy.mockClear()
+  buildAskFeatureDescriptorSpy.mockClear()
+  hangResolvers.clear()
+  envOverrides.current = {}
 })
 
 function seedWorld(db: Database) {
@@ -249,7 +325,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
         // What the `checkpoint` tool does when the model calls it: the
         // primary exists before composition (whoami / checkpoint key on it).
         const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
-        markPendingCheckpoint(primary!.id, 'sum the July receipts')
+        markPendingCheckpoint(db, primary!.id, 'sum the July receipts')
       }
       const app = createApp({ db, logger: silentLogger })
 
@@ -282,7 +358,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
     })
   })
 
-  it('maps the session mode to the provider permission mode (default ask when absent)', async () => {
+  it('maps the session mode to the provider permission mode (default auto when absent)', async () => {
     // Closes the workspace-route half of the mode-forwarding pin — the global
     // route has had this end-to-end assertion since surface-up step 1.
     await withTestDatabase(async (db) => {
@@ -294,7 +370,8 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       expect(startChatSessionInputs[0]!.permissionMode).toBe('bypass')
 
       await (await postTurn(app, workspace.id, { userMessageText: 'hi again' })).text()
-      expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')
+      // test: correct expectation — DEFAULT_SESSION_MODE is auto since 2026-08-19 (was ask).
+      expect(startChatSessionInputs[1]!.permissionMode).toBe('auto')
     })
   })
 
@@ -420,6 +497,124 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       )
       const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
       expect(primary).not.toBeNull()
+    })
+  })
+
+  it('stamps the RESOLVED mode on the routing header even when nothing was set — parent == child (A6)', async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const app = createApp({ db, logger: silentLogger })
+
+      // A fresh conversation, no mode in the body → the default runs AND is
+      // what the children inherit (used to stamp nothing → NULL → the runner's
+      // own default: an ask-mode parent's children could run unattended).
+      await (await postTurn(app, workspace.id, { userMessageText: 'no mode' })).text()
+      expect(startChatSessionInputs[0]!.permissionMode).toBe('auto')
+      expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('auto')
+
+      wrapAppRequestWithModeSpy.mockClear()
+      await (await postTurn(app, workspace.id, { userMessageText: 'careful', mode: 'ask' })).text()
+      expect(startChatSessionInputs[1]!.permissionMode).toBe('ask')
+      expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('ask')
+    })
+  })
+
+  it('attaches ask_user with the interactive bound (VYNEL_INTERACTIVE_ASK_MAX_MS) + the wall-clock gate (D5)', async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      envOverrides.current = { VYNEL_INTERACTIVE_ASK_MAX_MS: 654_321 }
+      const app = createApp({ db, logger: silentLogger })
+
+      await (await postTurn(app, workspace.id, { userMessageText: 'hi' })).text()
+      expect(startChatSessionInputs[0]!.mcpServers).toHaveProperty('vynel-ask')
+      expect(buildAskFeatureDescriptorSpy).toHaveBeenCalledTimes(1)
+      const deps = buildAskFeatureDescriptorSpy.mock.calls[0]![0] as {
+        timeoutMs?: number
+        waitGate?: unknown
+      }
+      expect(deps.timeoutMs).toBe(654_321)
+      expect(deps.waitGate).toBeDefined()
+    })
+  })
+
+  it('a by-id turn on the primary\'s CURRENT head takes the workspace key too — a foreign id never does (S7)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const locks = new SessionTargetLocks()
+      const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+
+      // Seed the primary; a plain (non-primary) session too.
+      await (await postTurn(app, workspace.id, { userMessageText: 'seed', continueRoot: true })).text()
+      const head = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })!
+        .currentSdkSessionId!
+      nextSdkSessionId = 'sdk-plain'
+      await (await postTurn(app, workspace.id, { userMessageText: 'plain seed' })).text()
+
+      // A "delegated run" holds the workspace key.
+      const releaseDelegatedRun = await locks.acquire(workspace.id)
+
+      // By-id onto the primary's head: it must QUEUE (two writers on one CLI
+      // session otherwise) — the by-id path used to take no lock at all.
+      const headTurn = postTurn(app, workspace.id, {
+        userMessageText: 'onto the head',
+        resumeSessionId: head,
+      })
+      await sleep(50)
+      expect(startChatSessionInputs.some((i) => i.userMessageText === 'onto the head')).toBe(false)
+
+      // By-id onto a session the pool never writes: no lock, runs straight through.
+      const plainFrames = await (
+        await postTurn(app, workspace.id, {
+          userMessageText: 'onto the plain one',
+          resumeSessionId: 'sdk-plain',
+        })
+      ).text()
+      expect(plainFrames).not.toContain('event: turn-queued')
+      expect(plainFrames).toContain('event: turn-stream-ended')
+
+      releaseDelegatedRun()
+      const headFrames = await (await headTurn).text()
+      expect(headFrames).toContain('event: turn-queued')
+      expect(headFrames).toContain('"reason":"busy"')
+      expect(headFrames).toContain('event: turn-stream-ended')
+      const headInput = startChatSessionInputs.find((i) => i.userMessageText === 'onto the head')
+      expect(headInput?.resumeSessionId).toBe(head)
+      expect(locks.isBusy(workspace.id)).toBe(false)
+    })
+  })
+
+  it('the interactive wall clock: a turn past VYNEL_INTERACTIVE_TURN_MAX_MS is interrupted, records the failure row, streams the errored frame, and frees the workspace key (D5)', async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const locks = new SessionTargetLocks()
+      const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+      envOverrides.current = { VYNEL_INTERACTIVE_TURN_MAX_MS: 60 }
+
+      nextTurnHangs = true
+      const hungSessionId = nextSdkSessionId
+      const frames = await (
+        await postTurn(app, workspace.id, { userMessageText: 'never ends', continueRoot: true })
+      ).text()
+
+      // The clock interrupted THE turn's session (nothing else released the hang).
+      expect(interruptChatSessionMock).toHaveBeenCalledWith(hungSessionId)
+      expect(frames).toContain('"errorCode":"turn-wall-clock-exceeded"')
+      expect(frames).toContain('turn exceeded the 0.001-minute limit')
+      expect(frames).toContain('event: session-interrupted')
+      expect(frames).toContain('event: turn-stream-ended')
+      const errored = listChatMessagesForSession(db, hungSessionId).find(
+        (message) => message.errorCode === 'turn-wall-clock-exceeded',
+      )
+      expect(errored?.errorMessage).toBe('turn exceeded the 0.001-minute limit')
+      // The workspace key released with the stream.
+      expect(locks.isBusy(workspace.id)).toBe(false)
+
+      // A normal turn never trips it.
+      envOverrides.current = { VYNEL_INTERACTIVE_TURN_MAX_MS: 5_000 }
+      interruptChatSessionMock.mockClear()
+      nextSdkSessionId = `sdk-${randomUUID()}`
+      await (await postTurn(app, workspace.id, { userMessageText: 'quick', continueRoot: true })).text()
+      expect(interruptChatSessionMock).not.toHaveBeenCalled()
     })
   })
 })

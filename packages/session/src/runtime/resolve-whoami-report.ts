@@ -18,9 +18,11 @@ import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
 import { findChatSessionById } from '@vynel/chat/repositories'
 import { findWorkspaceById } from '@vynel/workspaces'
-import { resolveContextWindow } from '@vynel/contracts/chat/model-context-window'
 import * as primarySessionsRepository from '../repositories/index.js'
-import { DEFAULT_CONTEXT_PRESSURE_THRESHOLD } from '../continuity/index.js'
+import {
+  DEFAULT_CONTEXT_PRESSURE_THRESHOLD,
+  resolveSegmentContextWindow,
+} from '../continuity/index.js'
 import { describeContinuingIdentity } from './describe-continuing-identity.js'
 import { resolveDutyBook, type DutyBook, type DutyBookKind } from './duty-book.js'
 
@@ -116,7 +118,14 @@ export function resolveWhoamiReport(
   const swapThreshold = input.swapThreshold ?? DEFAULT_CONTEXT_PRESSURE_THRESHOLD
   const context: WhoamiContextState | null =
     ownedSegment !== null
-      ? contextStateOf(ownedSegment.lastContextTokens, ownedSegment.model, swapThreshold)
+      ? contextStateOf(
+          ownedSegment.lastContextTokens,
+          ownedSegment.model,
+          // The SAME denominator the swap decision uses (chosen-model-first,
+          // chain fallback) — "where am I" and "when do I swap" must agree.
+          resolveSegmentContextWindow(db, ownedSegment.id).contextWindow,
+          swapThreshold,
+        )
       : null
 
   return {
@@ -142,9 +151,9 @@ export function resolveWhoamiReport(
 function contextStateOf(
   usedTokens: number | null,
   model: string | null,
+  contextWindow: number,
   swapThreshold: number,
 ): WhoamiContextState {
-  const contextWindow = resolveContextWindow(model)
   return {
     usedTokens,
     contextWindow,

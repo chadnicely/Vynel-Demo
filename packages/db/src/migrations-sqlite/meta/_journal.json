@@ -351,6 +351,13 @@
       "when": 1787099195973,
       "tag": "0049_mighty_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1787111619518,
+      "tag": "0050_session_hardening_durable_state",
+      "breakpoints": true
     }
   ]
 }

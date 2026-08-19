@@ -32,6 +32,7 @@ function hostHarness() {
     logger,
     assistantName: 'Vynel',
     sessionClient,
+    turnWatchdogMs: 0,
     // One segment per push keeps the routing observable via `transcribe`.
     createVad: () => ({ push: (audio) => [audio], flush: () => [] }),
     transcribe,

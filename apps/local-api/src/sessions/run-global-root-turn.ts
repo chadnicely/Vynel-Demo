@@ -21,13 +21,17 @@
 import type { Database } from '@vynel/db'
 import type { PendingAskRegistry } from '@vynel/asks'
 import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
+import { findChatSessionById } from '@vynel/chat/repositories'
+import { resolveTurnSessionSettings } from '@vynel/chat'
 import {
   composeSessionAgents,
   recordAgentRunStarted,
   recordAgentRunCompleted,
 } from '@vynel/orchestration'
 import type { Logger } from 'pino'
+import { DEFAULT_SESSION_MODE, toPermissionMode } from '@vynel/session'
 import {
+  fitPinnedModelToSession,
   runGlobalRootTurnCore,
   publishTurnActivityStep,
   type SessionActivityFeed,
@@ -48,6 +52,7 @@ import { resolveSessionToolPolicies } from './session-tool-catalog.js'
 import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
 import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
+import { wrapAppRequestWithMode } from './delegation-mode-header.js'
 import { loadEnv } from '../env.js'
 
 // How long a channel turn's ask_user form waits before expiring — matched to
@@ -112,6 +117,9 @@ export interface RunGlobalRootTurnInput {
   activityOrigin?: 'delegation'
   /** The delivery queue row driving this notify turn — liveness enrichment. */
   jobId?: string
+  /** A stable inbound-row id (the delivery job's) so a retried notify turn
+   *  never lands its report twice (session-hardening A3c). */
+  inboundMessageId?: string
   model?: string
   /** Surface-up: called for each `approval-requested` the brain's own turn emits (the
    *  core already RECORDED it — web notifier). The channel path pushes the card back
@@ -121,6 +129,13 @@ export interface RunGlobalRootTurnInput {
     toolName: string
     toolInput: unknown
   }) => void
+  /** Surface-up's other edge: a card this turn raised was decided (approved,
+   *  denied, or reaped). The report-delivery runner pairs it with the one
+   *  above to suspend/resume the delivery's cap clock. */
+  onApprovalResolved?: (approval: { approvalRequestId: string }) => void
+  /** The RUNNING SDK session id, as the stream reveals it (and again on a
+   *  mid-turn swap) — the delegation tick's cancel bridge + hard-cap lever. */
+  onSessionResolved?: (sdkSessionId: string) => void
 }
 
 export interface RunGlobalRootTurnResult {
@@ -157,7 +172,10 @@ class GlobalRootDrainSink implements SessionSink {
   turnOutcome: 'ended' | 'failed' = 'ended'
 
   constructor(
-    private readonly onApprovalRequested?: RunGlobalRootTurnInput['onApprovalRequested'],
+    private readonly hooks: Pick<
+      RunGlobalRootTurnInput,
+      'onApprovalRequested' | 'onApprovalResolved' | 'onSessionResolved'
+    >,
     /** The turn's activity-feed handle — session identity + tool-step narration. */
     private readonly activity?: SessionTurnActivityHandle,
     /** The turn's session carrier — composed BEFORE this sink exists, so the
@@ -179,6 +197,7 @@ class GlobalRootDrainSink implements SessionSink {
       this.sessionId = event.message.sessionId
       this.activity?.sessionResolved(event.message.sessionId)
       this.turnSession?.resolve(event.message.sessionId)
+      this.hooks.onSessionResolved?.(event.message.sessionId)
     } else if (event.kind === 'session-created') {
       // A fresh root or a mid-turn swap — follow it so the result reports the
       // segment the reply actually landed on (user-message-persisted now
@@ -186,17 +205,20 @@ class GlobalRootDrainSink implements SessionSink {
       this.sessionId = event.session.id
       this.activity?.sessionResolved(event.session.id)
       this.turnSession?.resolve(event.session.id)
+      this.hooks.onSessionResolved?.(event.session.id)
     } else if (event.kind === 'text-chunk') {
       this.resultText += event.textDelta
     } else if (event.kind === 'approval-requested') {
       // Surface-up: the core already recorded the card (web notifier); this hands it
       // to the channel path so the sender is asked too. Auto-approved cards arrive as
       // `approval-auto-resolved` and are deliberately not pushed.
-      this.onApprovalRequested?.({
+      this.hooks.onApprovalRequested?.({
         approvalRequestId: event.approvalRequestId,
         toolName: event.toolName,
         toolInput: event.toolInput,
       })
+    } else if (event.kind === 'approval-resolved') {
+      this.hooks.onApprovalResolved?.({ approvalRequestId: event.approvalRequestId })
     } else if (event.kind === 'session-errored') {
       this.streamErrorMessage = event.errorMessage
       if (!event.isRecoverable) this.turnOutcome = 'failed'
@@ -222,9 +244,51 @@ export async function runGlobalRootTurn(
   deps: RunGlobalRootTurnDeps,
   input: RunGlobalRootTurnInput,
 ): Promise<RunGlobalRootTurnResult> {
-  // Origin-wrap at the edge — the core stays origin-agnostic (the additive invariant).
-  const appRequest =
+  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // record can key its rows by it (the SDK id is only assigned mid-stream).
+  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
+  // this early call cannot fight the authoritative in-lock `resolveTarget`.
+  const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
+    userId: input.userId,
+  })
+  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  // The turn's settings — what the user chose for the GLOBAL conversation
+  // (its head segment's row), `input ?? row ?? DEFAULT` (session-hardening D1:
+  // "channels run the global row's mode when set, else auto"). No more fixed
+  // unattended default: a stored Ask cards through the channel's own card
+  // push, a stored model/effort runs here too. The model is fit-checked
+  // against the head (a Telegram turn dying with "Prompt is too long" has
+  // nobody watching an error row); never persisted.
+  const globalRow =
+    conversationTarget.resumeSdkSessionId !== null
+      ? findChatSessionById(deps.db, conversationTarget.resumeSdkSessionId)
+      : null
+  const turnSettings = resolveTurnSessionSettings({ model: input.model }, globalRow)
+  const permissionMode = toPermissionMode(turnSettings.mode ?? DEFAULT_SESSION_MODE)
+  let turnModel = turnSettings.model
+  if (turnModel !== undefined && conversationTarget.resumeSdkSessionId !== null) {
+    const fit = fitPinnedModelToSession(deps.db, {
+      resumeSdkSessionId: conversationTarget.resumeSdkSessionId,
+      pinnedModel: turnModel,
+      ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
+    })
+    if (fit.wasReplaced) {
+      deps.logger.info(
+        { pinnedModel: turnModel, model: fit.model ?? null, occupancyTokens: fit.occupancyTokens },
+        'channel turn: the model pick cannot hold the global occupancy — running on the session model',
+      )
+      turnModel = fit.model
+    }
+  }
+  const autoBuildout = globalRow?.autoBuildout === true
+
+  // Origin-wrap at the edge — the core stays origin-agnostic (the additive
+  // invariant) — then the MODE header, so any delegation this turn enqueues
+  // inherits the resolved mode (D4: children inherit the creator's settings;
+  // the interactive streams stamp the same way).
+  const originAwareAppRequest =
     input.origin !== undefined ? wrapAppRequestWithOrigin(deps.appRequest, input.origin) : deps.appRequest
+  const appRequest = wrapAppRequestWithMode(originAwareAppRequest, permissionMode)
   // This turn's chat-session identity. Composed here (before the toolset) and
   // filled by the drain sink from the stream's first frame — the read half is
   // what lets an `ask_user` on a channel turn name the conversation it parked.
@@ -241,17 +305,9 @@ export async function runGlobalRootTurn(
   // whoami — the channel-driven brain knows who it is too (built with the swap
   // threshold in force, the env knob the boundary op honors).
   const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
-  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
   const sessionFeatureDescriptor = buildSessionFeatureDescriptor(
     swapThreshold !== undefined ? { swapThreshold } : {},
   )
-  // The global root's STABLE identity, resolved pre-lock so the desktop action
-  // record can key its rows by it (the SDK id is only assigned mid-stream).
-  // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
-  // this early call cannot fight the authoritative in-lock `resolveTarget`.
-  const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
-    userId: input.userId,
-  })
   const enabledFeatureKeys = deps.readEnabledFeatureKeys?.()
   const toolPolicies = resolveSessionToolPolicies(deps.db, {
     userId: input.userId,
@@ -292,28 +348,20 @@ export async function runGlobalRootTurn(
       appRequest,
       desktopReader: deps.desktopReader,
       enableDesktopActions: deps.enableDesktopActions ?? false,
-      // A channel turn carries no UI mode selector, so it runs under the
-      // brain's own bypass default — and its desktop consent now says the same
-      // thing instead of contradicting it. Deliberately UNTOUCHED by the
-      // per-session settings arc (2026-08-17): the interactive stream resolves
-      // the thread's stored mode, this unattended runner does not — a stored
-      // 'ask' would park channel turns on cards nobody renders.
-      //
-      // It used to pass `undefined` → 'display-only', on the reasoning that
-      // authority stayed with standing per-app grants. Retiring those grants
-      // removed that authority, which left a channel turn able to do NOTHING on
-      // the desktop — breaking the whole point of asking Vynel to do something
-      // from your phone. Kafi, 2026-08-13: "auto mode means no matter schedule
-      // or remote it can do anything user asked, but will show that overlay".
-      //
-      // ⚠ DELIBERATE SECURITY DEBT, not an oversight. Anyone who reaches the
-      // channel drives the desktop with no approval anywhere — the overlay and
-      // the access log are the accountability. This is a knowing reversal of
-      // "a background turn can never self-grant" (Chad 2026-08-04), taken to get
-      // the functionality right first. The turn's ORIGIN is already known here,
-      // so the later tightening is a filter on this value — per-channel trust,
-      // Vynel's own mobile app trusted where Telegram is not — never a redesign.
-      desktopPlanConsent: deriveDesktopPlanConsent('bypass'),
+      // The SAME resolved mode the turn runs under (D1) — the desktop plan
+      // envelope and the approval floor never disagree about what this turn
+      // may do. Under the default `auto` this is standing consent: anyone who
+      // reaches the channel drives the desktop with no approval anywhere — the
+      // overlay and the access log are the accountability (Kafi 2026-08-13:
+      // "auto mode means no matter schedule or remote it can do anything user
+      // asked, but will show that overlay"; a knowing reversal of "a
+      // background turn can never self-grant", Chad 2026-08-04, taken to get
+      // the functionality right first — ⚠ DELIBERATE SECURITY DEBT). A user
+      // who set Ask on the global row now gets the approval card through the
+      // channel's own card push instead. The turn's ORIGIN is known here, so
+      // the later tightening is a filter on this value — per-channel trust —
+      // never a redesign.
+      desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),
     },
     // The global root has no workspace, so no capability override rows can
     // exist for it — the catalog defaults ARE its enabled set (without this,
@@ -356,6 +404,10 @@ export async function runGlobalRootTurn(
   const activity = deps.activityFeed.begin({
     userId: input.userId,
     scopeKind: 'global',
+    // Identity on the wire (session-hardening D1): every global turn names the
+    // global primary it runs on, so readers match by identity — the desktop
+    // overlay's Stop, the pre-resolution windows — never by an absence.
+    primarySessionId: conversationTarget.primarySessionId,
     // The channels service sets originChannel; the report-delivery runner sets
     // activityOrigin 'delegation'; 'web' is the defensive fallback.
     origin: input.activityOrigin ?? input.originChannel ?? 'web',
@@ -370,7 +422,7 @@ export async function runGlobalRootTurn(
       ? { personaName: input.inboundAttribution.sourceLabel }
       : {}),
   })
-  const sink = new GlobalRootDrainSink(input.onApprovalRequested, activity, turnSession)
+  const sink = new GlobalRootDrainSink(input, activity, turnSession)
   try {
     await runGlobalRootTurnCore(
       {
@@ -388,11 +440,17 @@ export async function runGlobalRootTurn(
       {
         userId: input.userId,
         userMessageText: input.userMessageText,
-        ...(input.model !== undefined ? { model: input.model } : {}),
+        permissionMode,
+        ...(turnModel !== undefined ? { model: turnModel } : {}),
+        ...(turnSettings.thinkingEffort !== undefined
+          ? { thinkingEffort: turnSettings.thinkingEffort }
+          : {}),
+        ...(autoBuildout ? { autoBuildout: true } : {}),
         ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
         ...(input.channelReplyMarker !== undefined
           ? { channelReplyMarker: input.channelReplyMarker }
           : {}),
+        ...(input.inboundMessageId !== undefined ? { userMessageId: input.inboundMessageId } : {}),
         // The notify-turn variant (session-comms): the child's attribution on
         // the inbound row + the report-delivery steer.
         ...(input.inboundAttribution !== undefined
@@ -474,9 +532,28 @@ export function buildGlobalRootReportTurnRunner(
   deps: RunGlobalRootTurnDeps,
 ): RunGlobalRootReportTurn {
   return async (input) => {
+    // The delivery's cap clock: only cards THIS turn raised move the gate (a
+    // decision arriving for a card it never parked must not release someone
+    // else's suspension — the routed handler's rule).
+    const parkedApprovalIds = new Set<string>()
+    const waitGate = input.waitGate
     const turn = await runGlobalRootTurn(deps, {
       userId: input.userId,
       userMessageText: input.reportBody,
+      ...(waitGate !== undefined
+        ? {
+            onApprovalRequested: ({ approvalRequestId }) => {
+              parkedApprovalIds.add(approvalRequestId)
+              waitGate.markParked()
+            },
+            onApprovalResolved: ({ approvalRequestId }) => {
+              if (parkedApprovalIds.delete(approvalRequestId)) waitGate.markResolved()
+            },
+          }
+        : {}),
+      ...(input.onSessionResolved !== undefined
+        ? { onSessionResolved: input.onSessionResolved }
+        : {}),
       inboundAttribution: {
         sourceKind: input.sourceKind ?? 'workspace-manager',
         sourceLabel: input.sourceLabel,
@@ -490,6 +567,7 @@ export function buildGlobalRootReportTurnRunner(
       steerPromptAppend: input.steerInstructions ?? REPORT_DELIVERY_INSTRUCTIONS,
       activityOrigin: 'delegation',
       ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
+      ...(input.inboundMessageId !== undefined ? { inboundMessageId: input.inboundMessageId } : {}),
     })
     return { sessionId: turn.sessionId, resultText: turn.resultText }
   }

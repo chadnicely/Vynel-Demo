@@ -16,6 +16,7 @@ import type {
   SessionActivityEvent,
   SessionTurnActivity,
   SessionTurnOrigin,
+  SessionTurnScopeKind,
   SessionTurnOutcome,
   SessionTurnStep,
 } from '@vynel/contracts/chat/session-activity'
@@ -28,7 +29,7 @@ export function activityChannelKey(userId: string): string {
 
 export interface BeginTurnActivityInput {
   userId: string
-  scopeKind: 'global' | 'workspace'
+  scopeKind: SessionTurnScopeKind
   workspaceId?: string
   /** Known up front only for a resume; a fresh conversation resolves it mid-turn. */
   sessionId?: string
@@ -54,7 +55,7 @@ export interface SessionTurnRecorder {
   turnStarted: (turn: {
     turnId: string
     userId: string
-    scopeKind: 'global' | 'workspace'
+    scopeKind: SessionTurnScopeKind
     workspaceId: string | null
     sessionId: string | null
     origin: SessionTurnOrigin

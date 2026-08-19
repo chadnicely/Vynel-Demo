@@ -1,11 +1,12 @@
-// Tests for the per-session composer settings: the update op, the turn
-// streams' resolution rule, and the write-through helper — real SQLite via
-// @vynel/testing (never mock the DB).
+// Tests for the per-session composer settings: the update op and the
+// write-through helper — real SQLite via @vynel/testing (never mock the DB).
+// The resolution rule has its own colocated file
+// (`resolve-turn-session-settings.test.ts`).
 
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
-import { NotFoundError } from '@vynel/errors'
+import { ForbiddenError, NotFoundError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
@@ -14,7 +15,6 @@ import {
   type NewChatSession,
 } from '../repositories/index.js'
 import { updateChatSessionSettings } from './update-chat-session-settings.js'
-import { resolveTurnSessionSettings } from './resolve-turn-session-settings.js'
 import { persistTurnSessionSettings } from './persist-turn-session-settings.js'
 
 function makeUser() {
@@ -45,7 +45,7 @@ function makeWorkspace(userId: string) {
   }
 }
 
-function makeSession(userId: string, workspaceId: string): NewChatSession {
+function makeSession(userId: string, workspaceId: string | null): NewChatSession {
   const now = new Date()
   return {
     id: `session-${randomUUID()}`,
@@ -138,58 +138,24 @@ describe('updateChatSessionSettings (core)', () => {
       expect(() => updateChatSessionSettings(db, 'session-nope', {})).toThrow(NotFoundError)
     })
   })
-})
 
-describe('resolveTurnSessionSettings', () => {
-  it('explicit input wins over the persisted row', async () => {
+  it('refuses a VOICE-scope row — the spoken thread is pinned to the tier (D2)', async () => {
     await withTestDatabase((db) => {
       const user = makeUser()
       insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const session = insertChatSession(db, makeSession(user.id, ws.id))
-      updateChatSessionSettings(db, session.id, {
-        sessionMode: 'auto',
-        selectedModel: 'claude-sonnet-5',
-        thinkingEffort: 'low',
+      const voiceSegment = insertChatSession(db, {
+        ...makeSession(user.id, null),
+        scope: 'voice',
+        visibility: 'hidden',
       })
-      const row = findChatSessionById(db, session.id)
-      const resolved = resolveTurnSessionSettings(
-        { mode: 'bypass', model: 'claude-opus-4-8', thinkingEffort: 'max' },
-        row,
-      )
-      expect(resolved).toEqual({
-        mode: 'bypass',
-        model: 'claude-opus-4-8',
-        thinkingEffort: 'max',
-      })
+      expect(() =>
+        updateChatSessionSettings(db, voiceSegment.id, { sessionMode: 'ask' }),
+      ).toThrow(ForbiddenError)
+      // Even an EMPTY patch is refused: the read-back would tell the caller its
+      // settings surface works here, and it does not.
+      expect(() => updateChatSessionSettings(db, voiceSegment.id, {})).toThrow(ForbiddenError)
+      expect(findChatSessionById(db, voiceSegment.id)?.sessionMode).toBeNull()
     })
-  })
-
-  it('falls back to the persisted row when the input omits a field', async () => {
-    await withTestDatabase((db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const ws = makeWorkspace(user.id)
-      insertWorkspace(db, ws)
-      const session = insertChatSession(db, makeSession(user.id, ws.id))
-      updateChatSessionSettings(db, session.id, {
-        sessionMode: 'auto',
-        selectedModel: 'claude-sonnet-5',
-      })
-      const row = findChatSessionById(db, session.id)
-      const resolved = resolveTurnSessionSettings({}, row)
-      expect(resolved.mode).toBe('auto')
-      expect(resolved.model).toBe('claude-sonnet-5')
-      // Never set on the row either — stays undefined so the caller's own
-      // surface default applies (the global core keeps its bypass default).
-      expect(resolved.thinkingEffort).toBeUndefined()
-    })
-  })
-
-  it('a null row (fresh conversation) resolves to the input alone', () => {
-    const resolved = resolveTurnSessionSettings({ mode: 'ask' }, null)
-    expect(resolved).toEqual({ mode: 'ask', model: undefined, thinkingEffort: undefined })
   })
 })
 

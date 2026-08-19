@@ -70,8 +70,13 @@ export const SESSION_MODES: readonly {
 ] as const
 
 /**
- * The default mode for a new session — `ask` for v1 (explicit opt-in to
- * autonomy). Flipping the launch default to `auto` or `bypass` is a one-line
- * change here.
+ * The default mode for a session nobody configured — `auto` (Kafi 2026-08-19:
+ * "make all auto, as Anthropic already set auto default; one day ask will be
+ * gone"). Was `ask` for v1 (explicit opt-in to autonomy). This constant is THE
+ * fallback for every surface — interactive streams, the global root, channels,
+ * delivery turns, delegated children — so a session that never picked a mode
+ * behaves identically everywhere; the provider's `bypass-with-behavior-gate`
+ * is no longer a fallback anywhere. Users who explicitly picked Ask/Bypass keep
+ * it (persisted per session).
  */
-export const DEFAULT_SESSION_MODE: SessionMode = 'ask'
+export const DEFAULT_SESSION_MODE: SessionMode = 'auto'

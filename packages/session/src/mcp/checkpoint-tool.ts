@@ -4,8 +4,9 @@
 // context the way it already does — the distill + the contextBuilder). The
 // tool records the pending checkpoint on the turn's OWN identity (the compose
 // context's stable primary id — never model input, so it cannot checkpoint
-// another session), and answers with what to do next: end this turn with a
-// one-line note to the user. The boundary swap then runs, and the runner
+// another session; the register is that identity's own row, so the mark
+// outlives the process), and answers with what to do next: end this turn with
+// a one-line note to the user. The boundary swap then runs, and the runner
 // continues the work on the fresh context automatically.
 //
 // A plain conversation (no continuing identity) cannot checkpoint — it neither
@@ -13,6 +14,7 @@
 
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
+import type { Database } from '@vynel/db'
 import { markPendingCheckpoint } from '../continuity/pending-checkpoints.js'
 import type { McpToolFn } from '@vynel/mcp-contract'
 
@@ -32,6 +34,7 @@ export interface CheckpointToolScope {
 }
 
 export function buildCheckpointResponse(
+  db: Database,
   scope: CheckpointToolScope,
   args: { nextStep: string },
 ): { content: Array<{ type: 'text'; text: string }>; isError?: boolean } {
@@ -56,7 +59,7 @@ export function buildCheckpointResponse(
       isError: true,
     }
   }
-  markPendingCheckpoint(scope.primarySessionId, nextStep)
+  markPendingCheckpoint(db, scope.primarySessionId, nextStep)
   return {
     content: [
       {
@@ -71,14 +74,14 @@ export function buildCheckpointResponse(
 }
 
 /** Construct the `checkpoint` SDK MCP tool. */
-export function makeCheckpointTool(scope: CheckpointToolScope): unknown {
+export function makeCheckpointTool(db: Database, scope: CheckpointToolScope): unknown {
   return (tool as unknown as McpToolFn)(
     'checkpoint',
     TOOL_DESCRIPTION,
     { nextStep: z.string().min(1).max(NEXT_STEP_MAX_CHARS).describe('The single next step to take on the fresh context — one line.') },
     async (args) => {
       try {
-        return buildCheckpointResponse(scope, { nextStep: String(args['nextStep'] ?? '') })
+        return buildCheckpointResponse(db, scope, { nextStep: String(args['nextStep'] ?? '') })
       } catch (err) {
         return {
           content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],

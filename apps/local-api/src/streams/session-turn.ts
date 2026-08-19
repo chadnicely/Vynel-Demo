@@ -18,6 +18,15 @@
 //      runs (`withBoundaryContinuity` on the stream, still under the target
 //      lock): a session driven only by direct messages must not ride to the
 //      ceiling while its delegated turns would have swapped it.
+//   5. A VOICE turn (`input.voice` — the live-call leg, session-hardening D2)
+//      runs the voice tier forced over the body, reads and writes no settings,
+//      and fit-clamps the pin — the same gates the global stream applies, so
+//      a per-call session born with NULL settings can never fall to a carding
+//      mode on a surface with no card renderer.
+//   6. The turn is BOUNDED (D5): the interactive wall clock runs while this
+//      turn holds the target lock, suspended while a card is parked, and cuts
+//      the turn off honestly (interrupt + failure row) at
+//      `VYNEL_INTERACTIVE_TURN_MAX_MS`.
 
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
@@ -26,17 +35,15 @@ import { NotFoundError } from '@vynel/errors'
 import {
   startChatTurn,
   runContinuingTurn,
+  startTurnWallClock,
+  trackApprovalParks,
+  failTurnOnWallClock,
   type ContinuationTurn,
 } from '@vynel/session/runtime'
-import { toPermissionMode, DEFAULT_SESSION_MODE } from '@vynel/session'
+import { ApprovalWaitGate } from '@vynel/orchestration'
 import { isPrimarySwapping, linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
-import {
-  resolveTurnSessionSettings,
-  persistTurnSessionSettings,
-  type ChatTurnEvent,
-} from '@vynel/chat'
-import { findChatSessionById } from '@vynel/chat/repositories'
+import { persistTurnSessionSettings, type ChatTurnEvent } from '@vynel/chat'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
 import { buildEnabledFeatureKeysReader } from '../sessions/enabled-feature-keys.js'
@@ -54,6 +61,7 @@ import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { wrapAppRequestWithMode } from '../sessions/delegation-mode-header.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
 import { writeSseSafely } from './write-sse-safely.js'
+import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
 import { loadEnv } from '../env.js'
 import type { StartSessionTurnRequestSchema } from '../routes/sessions/schemas.js'
 
@@ -87,25 +95,34 @@ export async function streamSpawnedSessionTurn(
   // server. The desktop half is matched below; the vynel delta is pre-existing
   // and stays within ONE server name, so it never strips a server.
   const runCwdPath = resolveSpawnedSessionRunCwd(db, spawned)
-  // Per-session settings resolution: explicit input ?? the session's persisted
-  // setting ?? the surface default. Read off the HANDLE segment pre-lock —
-  // settings are swap-stable (copied forward onto fresh segments), so the
-  // post-wait head carries the same values.
-  const turnSettings = resolveTurnSessionSettings(input, findChatSessionById(db, sessionId))
-  const turnPermissionMode = toPermissionMode(turnSettings.mode ?? DEFAULT_SESSION_MODE)
+  const env = loadEnv()
+  const swapThreshold = env.VYNEL_CONTEXT_PRESSURE_THRESHOLD
+  // Per-session settings resolution (one home: `resolveInteractiveTurnSettings`):
+  // a keyboard turn = explicit input ?? the session's persisted setting ?? the
+  // default; a VOICE turn = the voice tier, forced, no row read. Read off the
+  // HANDLE segment pre-lock — settings are swap-stable (copied forward onto
+  // fresh segments), so the post-wait head carries the same values; the voice
+  // fit clamp against the handle is at worst conservative for one turn.
+  const isVoiceTurn = input.voice === true
+  const turnSettings = resolveInteractiveTurnSettings(
+    db,
+    input,
+    { sessionId, ...(swapThreshold !== undefined ? { pressureThreshold: swapThreshold } : {}) },
+    { logger: c.var.logger },
+  )
+  const turnPermissionMode = turnSettings.permissionMode
   // The turn's own session identity — the segment it resumes (re-resolved
   // after the queue wait below, and again on a mid-turn compaction swap). The
   // dock the user has open on this thread is keyed by that same segment id.
   const turnSession = createTurnSessionCarrier(sessionId)
-  // The turn's mode rides every routing request its tools make (the
-  // chat-turn/global-root rule) — without it this stream's delegations
-  // enqueued modeless and children ran the unattended default, carding the
-  // floor under an AUTO parent. Stamped only when a mode RESOLVED.
-  const modeAwareAppRequest =
-    turnSettings.mode !== undefined
-      ? wrapAppRequestWithMode(c.var.appRequest, turnPermissionMode)
-      : c.var.appRequest
-  const turnSessionAppRequest = turnSession.wrapAppRequest(modeAwareAppRequest)
+  // The turn's RESOLVED mode rides every routing request its tools make (the
+  // chat-turn/global-root rule), unconditionally — the default included — so
+  // a child this turn enqueues runs the mode its parent ran, provably. Stamping
+  // only a resolved mode left a mode-less parent's children on NULL → the
+  // runner's own default: parent and child could disagree (audit A6).
+  const turnSessionAppRequest = turnSession.wrapAppRequest(
+    wrapAppRequestWithMode(c.var.appRequest, turnPermissionMode),
+  )
   // The toolset per scope: a SPAWNED session keeps its standing shape (the
   // plain background set when workspace-grounded, nothing when global). An
   // agent COLLEAGUE composes the DELEGATED 'agent-session' set instead (G5's
@@ -117,7 +134,6 @@ export async function streamSpawnedSessionTurn(
   // whoami for the one branch no shared composer covers (below) — built with
   // the swap threshold in force, like every other site.
   const { buildSessionFeatureDescriptor } = await import('@vynel/session/mcp')
-  const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
   const composedBackgroundMcp =
     spawned.scope === 'agent'
       ? (await buildDelegatedTurnMcpComposer(turnSessionAppRequest, {}, readEnabledFeatureKeys))({
@@ -188,9 +204,9 @@ export async function streamSpawnedSessionTurn(
           ...(c.var.desktopActionsEnabled !== undefined
             ? { enableDesktopActions: c.var.desktopActionsEnabled }
             : {}),
-          // The user IS here on this path — it is them typing into the session
-          // — so the turn's own mode decides plan authority, exactly as it does
-          // on the global-root chat.
+          // The user IS here on this path — typing into the session, or
+          // speaking on a live call — so the turn's own mode decides plan
+          // authority, exactly as it does on the global-root chat.
           desktopPlanConsent: deriveDesktopPlanConsent(turnPermissionMode),
         },
         {
@@ -222,6 +238,8 @@ export async function streamSpawnedSessionTurn(
       originWorkspaceId: spawned.workspaceId,
       originWorkspacePath: runCwdPath,
       permissionMode: turnPermissionMode,
+      // The RESOLVED model — a voice turn's fitted tier, never an unfitted pin
+      // (the turn and its dispatches run the same model).
       ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
       ...(turnSettings.thinkingEffort !== undefined
         ? { thinkingEffort: turnSettings.thinkingEffort }
@@ -280,7 +298,9 @@ export async function streamSpawnedSessionTurn(
       turnSession.resolve(resumeSessionId)
       // Settings write-through onto the head: what the composer sent becomes
       // the row's persisted truth. Input-only — omitted fields stay "never set".
-      persistTurnSessionSettings(db, resumeSessionId, input, { logger })
+      // NEVER for a voice turn: the tier's pins are the surface's, not the
+      // user's chips (the voice no-write rule, both legs).
+      if (!isVoiceTurn) persistTurnSessionSettings(db, resumeSessionId, input, { logger })
 
       // ONE provider turn on `turnResumeSessionId` — the genuine turn
       // (`continuation` null) or an automatic continuation after a checkpoint
@@ -322,10 +342,15 @@ export async function streamSpawnedSessionTurn(
             ...(turnSettings.thinkingEffort !== undefined
               ? { thinkingEffort: turnSettings.thinkingEffort }
               : {}),
+            // Autopilot (D8) — the resolved Auto-buildout rides the turn; the
+            // runner appends the marker when true.
+            ...(turnSettings.autoBuildout !== undefined
+              ? { autoBuildout: turnSettings.autoBuildout }
+              : {}),
             // The same mode resolution as the workspace chat stream — the user
-            // is talking directly, so the interactive default applies (NOT the
-            // routed-turn bypass default). Resolved through the session's
-            // persisted settings above.
+            // is talking directly (typing, or speaking on a call: the voice
+            // tier's mode), resolved through the session's persisted settings
+            // above; never the routed-turn default.
             permissionMode: turnPermissionMode,
             // The system prompt carries ONLY the MCP composer's per-feature
             // sections + the mention-dispatch note — never
@@ -367,6 +392,7 @@ export async function streamSpawnedSessionTurn(
       // continuing"); a continuation resumes the head its swap produced
       // (re-read — a spawned session deleted meanwhile skips it, logged).
       const turnStream = runContinuingTurn({
+        db,
         primarySessionId: spawned.id,
         resumeSessionId,
         resolveHead: async () =>
@@ -379,27 +405,61 @@ export async function streamSpawnedSessionTurn(
         logger,
       })
 
+      // 'failed' when the drain sees a terminal session-errored, throws, or the
+      // wall clock cuts the turn off.
+      let turnOutcome: 'ended' | 'failed' = 'ended'
+      // The interactive wall clock (D5) — armed now that this turn HOLDS the
+      // target lock (queue time was the holder's budget), suspended while a
+      // card is parked (this stream attaches no ask_user), cleared in the
+      // finally. Expiry: the honest failure row + an interrupt of the head the
+      // turn is on (`turnSession.current()` follows a mid-turn swap), so the
+      // provider ends the stream and the lock releases through the finally.
+      const waitGate = new ApprovalWaitGate()
+      const approvalParks = trackApprovalParks(waitGate)
+      const wallClock = startTurnWallClock({
+        maxMs: env.VYNEL_INTERACTIVE_TURN_MAX_MS,
+        waitGate,
+        logger,
+        onExpire: async () => {
+          turnOutcome = 'failed'
+          const failure = await failTurnOnWallClock(
+            { db, logger },
+            { sessionId: turnSession.current(), maxMs: env.VYNEL_INTERACTIVE_TURN_MAX_MS },
+          )
+          await writeSseSafely(
+            stream,
+            'session-errored',
+            JSON.stringify({
+              kind: 'session-errored',
+              sessionId: turnSession.current() ?? resumeSessionId,
+              ...failure,
+              isRecoverable: false,
+            }),
+            logger,
+          )
+        },
+      })
       // Announce on the liveness feed — a spawned session is global-scoped on
       // the feed (the delegation tick's session-target shape); an agent
       // colleague announces under its GROUNDING workspace (the agent-run
-      // parity), origin 'web'. Begun immediately before the try (zombie-turn
-      // doctrine).
+      // parity). Origin 'voice' for the live-call leg, else 'web'. Begun
+      // immediately before the try (zombie-turn doctrine).
       const activity = c.var.activityFeed.begin({
         userId,
         ...(spawned.scope === 'agent' && spawned.workspaceId !== null
           ? { scopeKind: 'workspace' as const, workspaceId: spawned.workspaceId }
           : { scopeKind: 'global' as const }),
         sessionId: resumeSessionId,
-        origin: 'web',
+        origin: isVoiceTurn ? 'voice' : 'web',
         // The continuing identity (persona-sessions) — the live views key a
         // direct-send turn to the same session card a delegated run uses.
         primarySessionId: spawned.id,
       })
-      // 'failed' when the drain sees a terminal session-errored or throws.
-      let turnOutcome: 'ended' | 'failed' = 'ended'
       try {
         for await (const event of turnStream) {
           if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
+          // A parked card suspends the wall clock; its decision resumes it.
+          approvalParks.onTurnEvent(event)
           if (event.kind === 'session-created') {
             // Mid-turn compaction swap — advance the primary's link so the
             // NEXT turn resumes the new head (event-driven, the
@@ -437,6 +497,7 @@ export async function streamSpawnedSessionTurn(
           logger,
         )
       } finally {
+        wallClock.clear()
         // The terminal frame fires on EVERY exit (clean, thrown, disconnect).
         await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
         // Fires even on client disconnect (generator cleanup). Best-effort.

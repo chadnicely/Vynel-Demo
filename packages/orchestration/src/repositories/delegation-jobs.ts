@@ -18,7 +18,6 @@ import {
   isNotNull,
   isNull,
   lte,
-  ne,
   notInArray,
   or,
 } from 'drizzle-orm'
@@ -115,10 +114,18 @@ export function findLatestDelegationJobForParentSince(
 // (mirrors claimDueSchedule's `changes > 0` semantics, returning the row
 // instead of a boolean). This is the ONLY concurrency guard; no explicit
 // transaction is needed.
+//
+// LEASE (session-hardening A2): with `leaseMs` the claim also stamps
+// `leaseExpiresAt = claimedAt + leaseMs` + `heartbeatAt = claimedAt`; the
+// running tick then heartbeats the lease forward, and the sweeper reaps a
+// claim whose lease lapsed (crash, wedged process). Without it the row keeps
+// the legacy NULL lease — the boot pass's only.
 export function claimNextPendingDelegationJob(
   db: Database,
   claimedAt: Date,
   options: {
+    /** Stamp a claim lease of this many ms (see above). */
+    leaseMs?: number
     /** Targets with a LIVE run — a target key is the job's `workspaceId` OR its
      *  `targetPrimarySessionId` (Slice ④), OR the shared
      *  `GLOBAL_ROOT_DELIVERY_TARGET_KEY` for a global-requester
@@ -190,11 +197,39 @@ export function claimNextPendingDelegationJob(
   if (!candidate) return null
   const [claimed] = db
     .update(delegationJobs)
-    .set({ status: 'claimed', claimedAt })
+    .set({
+      status: 'claimed',
+      claimedAt,
+      ...(options.leaseMs !== undefined
+        ? {
+            leaseExpiresAt: new Date(claimedAt.getTime() + options.leaseMs),
+            heartbeatAt: claimedAt,
+          }
+        : {}),
+    })
     .where(and(eq(delegationJobs.id, candidate.id), eq(delegationJobs.status, 'pending')))
     .returning()
     .all()
   return claimed ?? null
+}
+
+/** Extend a RUNNING claim's lease: `heartbeatAt = at`, `leaseExpiresAt = at +
+ *  leaseMs`. Guarded on `status = 'claimed'` — a run whose row was already
+ *  settled (swept, stopped, requeued) must not resurrect a lease on it; false
+ *  tells the heartbeat its job is no longer the row's. */
+export function heartbeatDelegationJob(
+  db: Database,
+  id: string,
+  at: Date,
+  leaseMs: number,
+): boolean {
+  const updated = db
+    .update(delegationJobs)
+    .set({ heartbeatAt: at, leaseExpiresAt: new Date(at.getTime() + leaseMs) })
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'claimed')))
+    .returning()
+    .all()
+  return updated.length > 0
 }
 
 export type FindPendingUpdateDeliveryInput = {
@@ -266,15 +301,19 @@ export function completeDelegationJob(
   id: string,
   resultText: string,
   completedAt: Date,
-): DelegationJob {
+): DelegationJob | null {
+  // CAS on the claim (session-hardening review): with a runtime lease sweeper a
+  // run whose heartbeats starved may already have been settled — its terminal
+  // write must not overwrite that (a false "failed" notice followed by the row
+  // flipping back to completed). Null = the claim is no longer this run's; the
+  // caller logs and stands down.
   const [updated] = db
     .update(delegationJobs)
     .set({ status: 'completed', resultText, completedAt })
-    .where(eq(delegationJobs.id, id))
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'claimed')))
     .returning()
     .all()
-  if (!updated) throw new Error(`completeDelegationJob: no row for ${id}`)
-  return updated
+  return updated ?? null
 }
 
 export function failDelegationJob(
@@ -283,7 +322,8 @@ export function failDelegationJob(
   errorMessage: string,
   completedAt: Date,
   options: { errorCode?: string } = {},
-): DelegationJob {
+): DelegationJob | null {
+  // CAS on the claim — see completeDelegationJob. Null = settled elsewhere.
   const [updated] = db
     .update(delegationJobs)
     .set({
@@ -292,18 +332,20 @@ export function failDelegationJob(
       completedAt,
       ...(options.errorCode !== undefined ? { errorCode: options.errorCode } : {}),
     })
-    .where(eq(delegationJobs.id, id))
+    .where(and(eq(delegationJobs.id, id), eq(delegationJobs.status, 'claimed')))
     .returning()
     .all()
-  if (!updated) throw new Error(`failDelegationJob: no row for ${id}`)
-  return updated
+  return updated ?? null
 }
 
-/** Requeue a claimed job for another attempt (recoverable failure — rate limit,
+/** Requeue a job for another attempt (recoverable failure — rate limit,
  *  network, provider start timeout): back to `pending` with the attempt counter
  *  bumped and a backoff deadline the claim gates on. The channels outbound
- *  retry shape, applied to delegation. The tick owns the row (claimed), so this
- *  is a plain update, not a CAS. */
+ *  retry shape, applied to delegation. Guarded on `claimed` OR `pending` (a
+ *  row the lease sweeper already handed back is pending; re-stamping its
+ *  deadline is harmless) — never a terminal row: with a runtime sweeper the
+ *  tick no longer owns the row unconditionally. Null = the row was terminal
+ *  already; the caller stands down. */
 export function requeueDelegationJob(
   db: Database,
   id: string,
@@ -313,22 +355,23 @@ export function requeueDelegationJob(
     attemptCount: number
     nextAttemptAt: Date
   },
-): DelegationJob {
+): DelegationJob | null {
   const [updated] = db
     .update(delegationJobs)
     .set({
       status: 'pending',
       claimedAt: null,
+      leaseExpiresAt: null,
+      heartbeatAt: null,
       errorMessage: input.errorMessage,
       errorCode: input.errorCode,
       attemptCount: input.attemptCount,
       nextAttemptAt: input.nextAttemptAt,
     })
-    .where(eq(delegationJobs.id, id))
+    .where(and(eq(delegationJobs.id, id), inArray(delegationJobs.status, ['claimed', 'pending'])))
     .returning()
     .all()
-  if (!updated) throw new Error(`requeueDelegationJob: no row for ${id}`)
-  return updated
+  return updated ?? null
 }
 
 /** Fail a job ONLY while it is still `pending` — the user-stop path's CAS.
@@ -538,65 +581,6 @@ export function markDelegationsSurfacedToRoot(
     .run()
 }
 
-// Reclaim jobs orphaned in `claimed` by a server crash/restart mid-run — mark them FAILED
-// (NOT re-run: exactly-once is preserved; the Ch1 decision was no-RE-EXECUTE, not no-cleanup).
-// Called at service startup, where nothing is running yet, so every `claimed` row is orphaned;
-// leaving them claimed made them linger forever as "in-flight" (visible in the Ch3.5 processing
-// indicator). `surfacedToRootAt` is set so a restart doesn't spam the root with "couldn't
-// complete" — an orphan is a system artifact, not a real task outcome. Returns the FULL rows
-// (persona-sessions): with acknowledge-first, a child that said "will report when done" and
-// then silently vanished breaks the spoken contract — the startup pass pushes an honest
-// failure delivery for orphaned WORK rows (the caller filters; deliveries stay anti-cascade).
-// `report-delivery` rows are EXCLUDED — they requeue instead
-// (`requeueOrphanedClaimedReportDeliveries` below): the report body is the only
-// copy of a child's result, so an orphaned delivery is retried, never destroyed.
-export function failOrphanedClaimedDelegations(db: Database, at: Date): DelegationJob[] {
-  return db
-    .update(delegationJobs)
-    .set({
-      status: 'failed',
-      errorMessage: 'orphaned — the server restarted while this task was running',
-      completedAt: at,
-      surfacedToRootAt: at,
-    })
-    .where(
-      and(
-        eq(delegationJobs.status, 'claimed'),
-        // NULL-safe kind gate (legacy NULL jobKind = task): everything but the
-        // report deliveries, which the requeue pass below owns.
-        or(isNull(delegationJobs.jobKind), ne(delegationJobs.jobKind, 'report-delivery')),
-      ),
-    )
-    .returning()
-    .all()
-}
-
-// The report-delivery half of the boot reap: a claimed delivery orphaned by a
-// crash goes back to `pending` (claimedAt cleared, immediately due) instead of
-// dying — the report body is the ONLY copy of the child's result, and at boot
-// nothing is running, so re-delivery is safe at-least-once (a turn that died
-// AFTER persisting its inbound row re-delivers a duplicate marker message; the
-// recorded delivery-retry trade). The attempt counter is deliberately NOT
-// bumped: orphaning is the process's failure, not the delivery's, and a
-// bounded counter here would eventually destroy a report on a crash-looping
-// machine — the one outcome this function exists to prevent. `update-delivery`
-// rows stay on the terminal-drop path above (ephemeral status, never requeued).
-export function requeueOrphanedClaimedReportDeliveries(db: Database, at: Date): DelegationJob[] {
-  return db
-    .update(delegationJobs)
-    .set({
-      status: 'pending',
-      claimedAt: null,
-      errorMessage: 'requeued — the server restarted while this report was being delivered',
-      nextAttemptAt: at,
-    })
-    .where(
-      and(eq(delegationJobs.status, 'claimed'), eq(delegationJobs.jobKind, 'report-delivery')),
-    )
-    .returning()
-    .all()
-}
-
 // EVERY kind, not just work: the node screen draws a line whenever two
 // conversations talk, and a `send_message` between them is a DELIVERY row.
 // Filtering to tasks here (as the run views do) would hide exactly the traffic
@@ -619,4 +603,35 @@ export function listDelegationJobsSince(
     .orderBy(desc(delegationJobs.createdAt), desc(delegationJobs.id))
     .limit(cappedLimit)
     .all()
+}
+
+// Every job one CONVERSATION started — the parent side of the tree.
+//
+// `parentSessionId` is the enqueue-time SDK session id, so a conversation
+// that has swapped context has several of them; callers pass the whole chain.
+//
+// Selected NEWEST-first under the cap and handed back oldest-first: a display
+// read that truncated from the old end would silently drop TODAY's children
+// on a long-lived conversation — the same cap-drops-what-you-asked-for class
+// the 2026-08-19 audit found on the node screen. (The `asc` siblings here are
+// FIFO CLAIM reads, where taking the oldest is the whole point.)
+export function listDelegationJobsForParentSessions(
+  db: Database,
+  input: { userId: string; parentSessionIds: readonly string[]; limit?: number },
+): DelegationJob[] {
+  if (input.parentSessionIds.length === 0) return []
+  const cappedLimit = Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT)
+  return db
+    .select()
+    .from(delegationJobs)
+    .where(
+      and(
+        eq(delegationJobs.userId, input.userId),
+        inArray(delegationJobs.parentSessionId, [...input.parentSessionIds]),
+      ),
+    )
+    .orderBy(desc(delegationJobs.createdAt), desc(delegationJobs.id))
+    .limit(cappedLimit)
+    .all()
+    .reverse()
 }

@@ -305,12 +305,25 @@ export function useChatTurn(options: {
     // safe to ignore here (the abort already settled the UI).
     const scope = options.scope();
     const sessionId = activeSessionId.value ?? displayedSessionId;
+    // A VOICE surface that does not yet know its session (a first-ever spoken
+    // turn, a failed transcript read) must NOT send the empty body — the
+    // server resolves that to the GLOBAL head, the other thread the lock split
+    // lets run beside it. Abort locally and let the turn end on its own.
+    if (options.voice === true && sessionId === null) return;
     if (scope.kind === "workspace" && sessionId !== null) {
       void vynel.chat
         .interruptSession(scope.workspaceId, sessionId)
         .catch(() => undefined);
     } else if (scope.kind === "global") {
-      void vynel.root.interruptTurn().catch(() => undefined);
+      // BY IDENTITY, not by scope: the Voice chat panel is a `global`-scope
+      // surface speaking into the SPOKEN thread, so a scope-shaped Stop
+      // interrupted the typed thread instead — killing a concurrent global
+      // turn while the voice turn ran on. The server owner-checks the id
+      // against a global-or-voice chain; with none it falls back to the
+      // global head, as before.
+      void vynel.root
+        .interruptTurn(sessionId === null ? {} : { sessionId })
+        .catch(() => undefined);
     }
   }
 

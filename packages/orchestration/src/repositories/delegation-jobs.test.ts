@@ -18,12 +18,12 @@ import {
   claimNextPendingDelegationJob,
   completeDelegationJob,
   failDelegationJob,
+  requeueDelegationJob,
   GLOBAL_ROOT_DELIVERY_TARGET_KEY,
   listPendingDelegationJobsForUser,
   listUnsurfacedTerminalDelegationsForUser,
-  failOrphanedClaimedDelegations,
   listInFlightDelegationsForUser,
-  requeueOrphanedClaimedReportDeliveries,
+  heartbeatDelegationJob,
   type NewDelegationJob,
 } from './delegation-jobs.js'
 
@@ -331,43 +331,113 @@ describe('delegation_jobs repository', () => {
     })
   })
 
+  // ── The claim LEASE (session-hardening A2) ──
+
+  it('a claim with leaseMs stamps leaseExpiresAt = claimedAt + leaseMs and heartbeatAt = claimedAt; without it the lease stays NULL (legacy)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
+      insertDelegationJob(
+        db,
+        makeDelegationJob(user.id, workspace.id, { createdAt: new Date(Date.now() + 1000) }),
+      )
+      const claimedAt = new Date('2026-08-19T10:00:00Z')
+      const leased = claimNextPendingDelegationJob(db, claimedAt, { leaseMs: 180_000 })!
+      expect(leased.leaseExpiresAt?.getTime()).toBe(claimedAt.getTime() + 180_000)
+      expect(leased.heartbeatAt?.getTime()).toBe(claimedAt.getTime())
+
+      const legacy = claimNextPendingDelegationJob(db, claimedAt)!
+      expect(legacy.leaseExpiresAt).toBeNull()
+      expect(legacy.heartbeatAt).toBeNull()
+    })
+  })
+
+  it("heartbeatDelegationJob extends a CLAIMED row's lease and refuses a row that is no longer claimed", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
+      const claimedAt = new Date('2026-08-19T10:00:00Z')
+      const claimed = claimNextPendingDelegationJob(db, claimedAt, { leaseMs: 180_000 })!
+
+      const beatAt = new Date('2026-08-19T10:00:30Z')
+      expect(heartbeatDelegationJob(db, claimed.id, beatAt, 180_000)).toBe(true)
+      const beaten = findDelegationJobById(db, claimed.id)!
+      expect(beaten.heartbeatAt?.getTime()).toBe(beatAt.getTime())
+      expect(beaten.leaseExpiresAt?.getTime()).toBe(beatAt.getTime() + 180_000)
+
+      // Settled under the heartbeat (a sweep, a Stop): the beat must not
+      // resurrect a lease on it — it reports false and the row keeps its state.
+      completeDelegationJob(db, claimed.id, 'done', new Date())
+      expect(heartbeatDelegationJob(db, claimed.id, new Date(), 180_000)).toBe(false)
+      expect(findDelegationJobById(db, claimed.id)!.status).toBe('completed')
+    })
+  })
+
   it('claimNextPendingDelegationJob returns null when none pending', async () => {
     await withTestDatabase(async (db) => {
       expect(claimNextPendingDelegationJob(db, new Date())).toBeNull()
     })
   })
 
-  it('completeDelegationJob sets status + resultText + completedAt; findById reflects it; throws on missing', async () => {
+  // test: correct expectation — the terminal writes are a CAS on the CLAIM since
+  // the session-hardening review (a runtime lease sweeper can settle a row
+  // under a live run); they answer null instead of throwing, and only a
+  // claimed row moves.
+  it('completeDelegationJob moves a CLAIMED row to completed; a missing or unclaimed row answers null', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const job = insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
+      // Pending (never claimed): the write is refused — nothing owns the row.
+      expect(completeDelegationJob(db, job.id, 'too early', new Date())).toBeNull()
+      expect(findDelegationJobById(db, job.id)?.status).toBe('pending')
+
+      const claimed = claimNextPendingDelegationJob(db, new Date())
+      expect(claimed?.id).toBe(job.id)
       const completedAt = new Date('2026-06-03T09:30:00Z')
       const completed = completeDelegationJob(db, job.id, 'Done: 42 pages summarized', completedAt)
-      expect(completed.status).toBe('completed')
-      expect(completed.resultText).toBe('Done: 42 pages summarized')
-      expect(completed.completedAt?.getTime()).toBe(completedAt.getTime())
+      expect(completed?.status).toBe('completed')
+      expect(completed?.resultText).toBe('Done: 42 pages summarized')
+      expect(completed?.completedAt?.getTime()).toBe(completedAt.getTime())
       const found = findDelegationJobById(db, job.id)
       expect(found?.status).toBe('completed')
       expect(found?.resultText).toBe('Done: 42 pages summarized')
-      expect(() => completeDelegationJob(db, randomUUID(), 'x', new Date())).toThrow()
+      // Terminal already: a late write cannot flip it (the sweeper race).
+      expect(failDelegationJob(db, job.id, 'late failure', new Date())).toBeNull()
+      expect(findDelegationJobById(db, job.id)?.status).toBe('completed')
+      expect(completeDelegationJob(db, randomUUID(), 'x', new Date())).toBeNull()
     })
   })
 
-  it('failDelegationJob sets status + errorMessage + completedAt; findById reflects it; throws on missing', async () => {
+  it('failDelegationJob moves a CLAIMED row to failed; a terminal row stays as it was', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const job = insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
+      expect(claimNextPendingDelegationJob(db, new Date())?.id).toBe(job.id)
       const completedAt = new Date('2026-06-03T10:00:00Z')
       const failed = failDelegationJob(db, job.id, 'Provider timed out', completedAt)
-      expect(failed.status).toBe('failed')
-      expect(failed.errorMessage).toBe('Provider timed out')
-      expect(failed.completedAt?.getTime()).toBe(completedAt.getTime())
+      expect(failed?.status).toBe('failed')
+      expect(failed?.errorMessage).toBe('Provider timed out')
+      expect(failed?.completedAt?.getTime()).toBe(completedAt.getTime())
       const found = findDelegationJobById(db, job.id)
       expect(found?.status).toBe('failed')
       expect(found?.errorMessage).toBe('Provider timed out')
-      expect(() => failDelegationJob(db, randomUUID(), 'x', new Date())).toThrow()
+      // A late completion cannot overwrite the sweeper's/stop's verdict.
+      expect(completeDelegationJob(db, job.id, 'finished after all', new Date())).toBeNull()
+      expect(findDelegationJobById(db, job.id)?.status).toBe('failed')
+      // …and a requeue of a terminal row is refused too.
+      expect(
+        requeueDelegationJob(db, job.id, {
+          errorMessage: 'x',
+          errorCode: null,
+          attemptCount: 1,
+          nextAttemptAt: new Date(),
+        }),
+      ).toBeNull()
+      expect(failDelegationJob(db, randomUUID(), 'x', new Date())).toBeNull()
     })
   })
 
@@ -409,73 +479,6 @@ describe('delegation_jobs repository', () => {
       expect(listPendingDelegationJobsForUser(db, user.id, 2)).toHaveLength(2)
       // an over-max request is clamped, never amplified beyond the row count
       expect(listPendingDelegationJobsForUser(db, user.id, 1000).length).toBeLessThanOrEqual(5)
-    })
-  })
-
-  it('failOrphanedClaimedDelegations marks claimed rows failed (surfaced) + leaves others', async () => {
-    await withTestDatabase(async (db) => {
-      const user = insertUser(db, makeUser())
-      const workspace = insertWorkspace(db, makeWorkspace(user.id))
-      // A completed job (terminal — must be untouched) + a pending job we then claim.
-      const completed = insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
-      completeDelegationJob(db, completed.id, 'ok', new Date())
-      insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
-      const claimed = claimNextPendingDelegationJob(db, new Date())
-
-      // Returns the FULL rows now (persona-sessions: the startup pass pushes a
-      // failure delivery per WORK orphan) — still only the claimed one.
-      const orphans = failOrphanedClaimedDelegations(db, new Date())
-      expect(orphans).toHaveLength(1)
-      expect(orphans[0]!.id).toBe(claimed!.id)
-
-      const reclaimed = findDelegationJobById(db, claimed!.id)!
-      expect(reclaimed.status).toBe('failed')
-      expect(reclaimed.errorMessage).toContain('orphaned')
-      expect(reclaimed.surfacedToRootAt).not.toBeNull() // marked surfaced → no restart spam to the root
-      // The completed job is left alone.
-      expect(findDelegationJobById(db, completed.id)!.status).toBe('completed')
-    })
-  })
-
-  it('the boot reap splits by kind: claimed report-deliveries REQUEUE, everything else fails (B1)', async () => {
-    await withTestDatabase(async (db) => {
-      const user = insertUser(db, makeUser())
-      const workspace = insertWorkspace(db, makeWorkspace(user.id))
-      const report = insertDelegationJob(
-        db,
-        makeDelegationJob(user.id, workspace.id, { status: 'claimed', jobKind: 'report-delivery' }),
-      )
-      const update = insertDelegationJob(
-        db,
-        makeDelegationJob(user.id, workspace.id, { status: 'claimed', jobKind: 'update-delivery' }),
-      )
-      const task = insertDelegationJob(
-        db,
-        makeDelegationJob(user.id, workspace.id, { status: 'claimed' }),
-      )
-      // A PENDING report-delivery — not orphaned, both passes must leave it.
-      const pendingReport = insertDelegationJob(
-        db,
-        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
-      )
-
-      const requeued = requeueOrphanedClaimedReportDeliveries(db, new Date())
-      expect(requeued.map((j) => j.id)).toEqual([report.id])
-      const revived = findDelegationJobById(db, report.id)!
-      // The report body is the ONLY copy of the result — revived, never destroyed.
-      expect(revived.status).toBe('pending')
-      expect(revived.claimedAt).toBeNull()
-      expect(revived.surfacedToRootAt).toBeNull()
-      // Orphaning is the process's failure, not the delivery's — no attempt burned.
-      expect(revived.attemptCount).toBe(report.attemptCount)
-
-      const failed = failOrphanedClaimedDelegations(db, new Date())
-      expect(failed.map((j) => j.id).sort()).toEqual([task.id, update.id].sort())
-      // The fail pass never touches the requeued delivery or the pending one.
-      expect(findDelegationJobById(db, report.id)!.status).toBe('pending')
-      expect(findDelegationJobById(db, update.id)!.status).toBe('failed')
-      expect(findDelegationJobById(db, task.id)!.status).toBe('failed')
-      expect(findDelegationJobById(db, pendingReport.id)!.status).toBe('pending')
     })
   })
 
@@ -572,23 +575,30 @@ describe('delegation_jobs repository', () => {
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
 
       // A legacy task row (NULL jobKind) — surfaces.
-      const task = insertDelegationJob(db, makeDelegationJob(user.id, workspace.id))
-      completeDelegationJob(db, task.id, 'the report', new Date())
+      // Terminal rows are inserted terminal: the writers are a CAS on a CLAIM.
+      const task = insertDelegationJob(db, {
+        ...makeDelegationJob(user.id, workspace.id),
+        status: 'completed',
+        resultText: 'the report',
+        completedAt: new Date(),
+      })
       // A completed report-delivery row — its resultText is the notify turn's
       // own reply; injecting it as "a report from a workspace" would be a
       // false echo. Excluded.
-      const completedDelivery = insertDelegationJob(
-        db,
-        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
-      )
-      completeDelegationJob(db, completedDelivery.id, 'absorbed', new Date())
+      const completedDelivery = insertDelegationJob(db, {
+        ...makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+        status: 'completed',
+        resultText: 'absorbed',
+        completedAt: new Date(),
+      })
       // A failed report-delivery row — a delivery failure is not a task
       // failure; excluded too.
-      const failedDelivery = insertDelegationJob(
-        db,
-        makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
-      )
-      failDelegationJob(db, failedDelivery.id, 'notify turn failed', new Date())
+      const failedDelivery = insertDelegationJob(db, {
+        ...makeDelegationJob(user.id, workspace.id, { jobKind: 'report-delivery' }),
+        status: 'failed',
+        errorMessage: 'notify turn failed',
+        completedAt: new Date(),
+      })
 
       expect(listUnsurfacedTerminalDelegationsForUser(db, user.id).map((j) => j.id)).toEqual([
         task.id,

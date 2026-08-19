@@ -24,12 +24,16 @@ import { resolveInstructionsContentDirectory } from '../content-root.js'
 // specification of which session the instruction governs. `voice-turn-marker`
 // is the per-MESSAGE sibling of `voice-turn`: the same directive re-stated on
 // the turn's provider input, because on a long root session the system-prompt
-// block decays under conversational momentum — recency wins.
+// block decays under conversational momentum — recency wins. `autopilot-marker`
+// is the per-message directive for a session whose `autoBuildout` setting is on
+// (Kafi 2026-08-19: "Claude needs to know he is on autopilot — the user is
+// probably not available; continue by yourself; if stuck, set needs_input").
 export type SessionInstructionId =
   | 'global-root'
   | 'workspace-agent'
   | 'voice-turn'
   | 'voice-turn-marker'
+  | 'autopilot-marker'
 
 const cache = new Map<SessionInstructionId, string>()
 

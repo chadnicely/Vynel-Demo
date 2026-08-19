@@ -107,10 +107,17 @@ export interface RunGlobalRootTurnCoreInput {
    *  SDK's adaptive default (background turns). */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   /** The provider permission mode for the brain's OWN tools this turn (the caller maps
-   *  the user-facing `SessionMode` via `toPermissionMode`). Omit for the pre-mode
-   *  default, `bypass-with-behavior-gate` — the brain's routing tools run silently and
-   *  only the irreversible floor + declared mutating tools card. */
+   *  the user-facing `SessionMode` via `toPermissionMode`). Omit → the one default
+   *  (`DEFAULT_SESSION_MODE`, `auto` — session-hardening D3). */
   permissionMode?: SessionPermissionMode
+  /** The conversation runs on AUTOPILOT (`autoBuildout`, decision D8): the
+   *  per-message marker rides the provider input. The callers resolve it
+   *  from the row (`input ?? row`) like the other settings. */
+  autoBuildout?: boolean
+  /** A STABLE id for this turn's inbound user row (a report delivery passes
+   *  its job id) so a retried notify turn re-uses the row it already landed
+   *  (session-hardening A3c). Omit for a fresh random id. */
+  userMessageId?: string
   /** Pre-composed MCP servers (composed by the apps/api caller — composition stays
    *  at the api edge per `api-side-turn-execution-with-mcp`). Opaque to the core. */
   mcpServers: Record<string, unknown>

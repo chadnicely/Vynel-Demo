@@ -90,6 +90,14 @@ export const chatSessions = table(
     // first usage report. Numerator of the UI context meter and the root's
     // planning number (`contextWindowForModel(model)` is the denominator).
     lastContextTokens: integer(),
+    // The context WINDOW (tokens) of the model that produced `lastContextTokens`
+    // — the denominator of the meter and of the pressure check, captured at the
+    // same write so a later turn on a different model (a delegated small-model
+    // pick, a fit-clamped voice turn) cannot silently rewrite the denominator
+    // of a chain driven on a 1M model. Null until the first usage report;
+    // readers fall back to `contextWindowForModel(model)` (session-hardening
+    // arc, 2026-08-19).
+    lastContextWindow: integer(),
     // The continuity chain link: the session id this swap segment CONTINUED
     // from, stamped by recordSwapSegmentSession at swap time. Null = chain
     // head. LOOSE ref (no FK) — segments purge independently.
@@ -105,9 +113,11 @@ export const chatSessions = table(
     sessionMode: text().$type<ChatSessionSelectedMode>(),
     selectedModel: text(),
     thinkingEffort: text().$type<ThinkingEffortLevel>(),
-    // The composer's Auto-buildout toggle — persisted per session; nothing
-    // consumes it yet (the build engine is pending), same standing as the
-    // ui-store original.
+    // The composer's Auto-buildout toggle = AUTOPILOT (Kafi 2026-08-19): when
+    // true the turn carries the `autopilot-marker` instruction — the user is
+    // probably away, continue alone, set needs_input only when truly stuck.
+    // Resolved like the three above (input ?? row ?? default) and inherited by
+    // birth-stamped children.
     autoBuildout: boolean(),
     // ── Assistant-set session status (Move 3, 2026-08-17) ───────────
     // The workspaces status trio, per conversation: a FACT with a timestamp

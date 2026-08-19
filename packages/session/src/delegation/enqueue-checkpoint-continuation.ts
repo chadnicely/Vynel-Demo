@@ -7,13 +7,15 @@
 // patching context — next: …") — rather than the interactive streams' in-place
 // loop. The tick claims it next (FIFO on the same target key), AFTER the
 // boundary swap that ran inside the finished turn, so it resumes the fresh
-// head; the follow-up's id is remembered in the register so its claim reads
-// as a CONTINUATION (the runaway guard keeps counting; the run gets the
-// continuation steer, `CONTINUATION_TASK_INSTRUCTIONS`), never as a genuine
-// turn. The ticks call both halves: `beginDelegatedTurn` before the turn,
-// `enqueueCheckpointContinuation` after a completed one.
+// head; the pending checkpoint is HANDED to the follow-up on the identity's
+// own row (durable — a restart between the enqueue and the claim changes
+// nothing), so its claim reads as a CONTINUATION (the runaway guard keeps
+// counting; the run gets the continuation steer, `CONTINUATION_TASK_INSTRUCTIONS`),
+// never as a genuine turn. The ticks call both halves: `beginDelegatedTurn`
+// before the turn, `enqueueCheckpointContinuation` after a completed one.
 
 import type { Database } from '@vynel/db'
+import { withTransaction } from '@vynel/db'
 import type { StructuralLogger } from '@vynel/logger'
 import {
   enqueueAgentRun,
@@ -25,10 +27,11 @@ import {
 import {
   beginContinuation,
   beginGenuineTurn,
+  dropPendingCheckpoint,
   findPrimaryConversation,
   markContinuationJob,
+  peekPendingCheckpoint,
   takeContinuationJob,
-  takePendingCheckpoint,
   type PendingCheckpoint,
 } from '../continuity/index.js'
 import { composeContinuationTurn } from '../runtime/continuation-turn.js'
@@ -51,25 +54,29 @@ export type DelegatedTurnStart = {
 
 /** A turn is beginning for a claimed job. A follow-up job continues its
  *  checkpoint (the guard keeps counting); a genuine job resets the runaway
- *  guard and drops a stale checkpoint (logged). `primarySessionId` overrides
- *  the row-derived identity when the runner resolved it itself (an agent run's
- *  colleague primary). */
+ *  guard and DROPS a checkpoint still pending from before — visibly, with a
+ *  note on the thread. Why drop rather than continue it: on the delegated rail
+ *  a checkpoint without its follow-up job means the run that planned it never
+ *  completed (it failed, timed out, or died in a restart), and that failure is
+ *  the tick's / boot recovery's to report — resurrecting its next step after
+ *  an unrelated job would redo work the requester was told had failed. (On a
+ *  workspace primary the leftover may instead be the user's own interactive
+ *  survivor that a job found first — dropped the same way, worded neutrally;
+ *  the note tells the user either way.)
+ *  `primarySessionId` overrides the row-derived identity when the runner
+ *  resolved it itself (an agent run's colleague primary). */
 export function beginDelegatedTurn(
   db: Database,
   job: DelegationJob,
   deps: { logger: StructuralLogger },
   options: { primarySessionId?: string } = {},
 ): DelegatedTurnStart {
-  const continuation = takeContinuationJob(job.id)
+  const continuation = takeContinuationJob(db, job.id)
   if (continuation !== null) return { continuation }
   const primarySessionId = options.primarySessionId ?? resolveDelegatedJobIdentity(db, job)
   if (primarySessionId === null) return { continuation: null }
-  const stale = beginGenuineTurn(primarySessionId)
-  if (stale !== null) {
-    deps.logger.warn(
-      { jobId: job.id, primarySessionId, nextStep: stale.nextStep },
-      'stale checkpoint dropped — an earlier turn ended without its continuation',
-    )
+  if (beginGenuineTurn(db, primarySessionId) !== null) {
+    dropPendingCheckpoint(db, primarySessionId, { reason: 'left-behind', logger: deps.logger })
   }
   return { continuation: null }
 }
@@ -81,6 +88,11 @@ export function beginDelegatedTurn(
  * (never work — a checkpoint left by one is dropped, not continued).
  * `primarySessionId` overrides the row-derived identity when the runner
  * resolved it itself (an agent run's colleague primary).
+ *
+ * One transaction: the depth bookkeeping, the follow-up row and the hand-over
+ * land together or not at all — a restart can never leave a follow-up without
+ * its mark (a genuine claim that would reset the guard) or a mark without its
+ * follow-up (a checkpoint nobody would ever claim).
  */
 export function enqueueCheckpointContinuation(
   db: Database,
@@ -90,25 +102,28 @@ export function enqueueCheckpointContinuation(
 ): string | null {
   const primarySessionId = options.primarySessionId ?? resolveDelegatedJobIdentity(db, job)
   if (primarySessionId === null) return null
-  const checkpoint = takePendingCheckpoint(primarySessionId)
+  const checkpoint = peekPendingCheckpoint(db, primarySessionId)
   if (checkpoint === null) return null
   if (job.jobKind === 'note') {
-    deps.logger.warn(
-      { jobId: job.id, primarySessionId },
-      'checkpoint dropped — a note turn never continues as work',
-    )
+    dropPendingCheckpoint(db, primarySessionId, { reason: 'never-continues', logger: deps.logger })
     return null
   }
-  if (!beginContinuation(checkpoint)) {
-    deps.logger.warn(
-      { jobId: job.id, primarySessionId, depth: checkpoint.continuationDepth },
-      'checkpoint dropped — the automatic continuation cap was reached; the next task continues',
-    )
-    return null
-  }
-  const followUpJobId = enqueueFollowUpJob(db, job, primarySessionId, checkpoint)
+  const followUpJobId = withTransaction(db, (tx) => {
+    if (!beginContinuation(tx, checkpoint)) {
+      dropPendingCheckpoint(tx, primarySessionId, { reason: 'cap-reached', logger: deps.logger })
+      return null
+    }
+    const enqueuedJobId = enqueueFollowUpJob(tx, job, primarySessionId, checkpoint)
+    if (enqueuedJobId === null) {
+      // A row shape no follow-up can be built from (a legacy agent-run without
+      // its slug): nothing continues, and nothing must look continuable.
+      dropPendingCheckpoint(tx, primarySessionId, { reason: 'left-behind', logger: deps.logger })
+      return null
+    }
+    markContinuationJob(tx, enqueuedJobId, checkpoint)
+    return enqueuedJobId
+  })
   if (followUpJobId === null) return null
-  markContinuationJob(followUpJobId, checkpoint)
   deps.logger.info(
     {
       jobId: job.id,
@@ -123,7 +138,9 @@ export function enqueueCheckpointContinuation(
 }
 
 /** The same-shape follow-up row per job kind: exactly one target is set (the
- *  row invariant) — the branch narrows the types. */
+ *  row invariant) — the branch narrows the types. ONE shared spread carries
+ *  everything a continuation must keep (chain, requester, mode / model /
+ *  effort, channel origin); a kind adds only its target. */
 function enqueueFollowUpJob(
   db: Database,
   job: DelegationJob,
@@ -141,6 +158,7 @@ function enqueueFollowUpJob(
     taskText: composeContinuationTurn(checkpoint).persistedBody,
     ...(job.permissionMode !== null ? { permissionMode: job.permissionMode } : {}),
     ...(job.model !== null ? { model: job.model } : {}),
+    ...(job.thinkingEffort !== null ? { thinkingEffort: job.thinkingEffort } : {}),
     ...(job.requesterWorkspaceId !== null ? { requesterWorkspaceId: job.requesterWorkspaceId } : {}),
   }
   const origin =
@@ -155,9 +173,11 @@ function enqueueFollowUpJob(
           },
         }
       : {}
-  const thinkingEffort = job.thinkingEffort !== null ? { thinkingEffort: job.thinkingEffort } : {}
   if (job.jobKind === 'agent-run') {
     if (job.agentSlug === null) return null
+    // An agent-run row never carries a channel origin (`enqueueAgentRun` has no
+    // field for one — a mention's reply lands on the requester's thread), so
+    // there is nothing of `origin` to carry here.
     return enqueueAgentRun(db, {
       ...shared,
       agentSlug: job.agentSlug,
@@ -171,7 +191,6 @@ function enqueueFollowUpJob(
     return enqueueSessionDelegation(db, {
       ...shared,
       ...origin,
-      ...thinkingEffort,
       targetPrimarySessionId: job.targetPrimarySessionId,
       runCwdPath: job.workspacePath ?? '',
     })
@@ -180,7 +199,6 @@ function enqueueFollowUpJob(
     return enqueueWorkspaceDelegation(db, {
       ...shared,
       ...origin,
-      ...thinkingEffort,
       workspaceId: job.workspaceId,
       workspacePath: job.workspacePath ?? '',
       workspaceName: job.workspaceName ?? '',

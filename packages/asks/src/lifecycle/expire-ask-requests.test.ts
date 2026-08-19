@@ -43,4 +43,32 @@ describe('expireAskRequests', () => {
       expect(findAskRequestById(db, dismissed.id)!.status).toBe('dismissed')
     })
   })
+
+  it('age-reap mode expires only the pending rows created before the cutoff (the 60 s reaper read)', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const cutoff = new Date(Date.now() - 2 * 60 * 60_000)
+      const stale = insertAskRequest(
+        db,
+        makeAskRequest(userId, workspaceId, { createdAt: new Date(cutoff.getTime() - 60_000) }),
+      )
+      const fresh = insertAskRequest(db, makeAskRequest(userId, workspaceId))
+      const staleButAnswered = insertAskRequest(
+        db,
+        makeAskRequest(userId, null, {
+          status: 'answered',
+          resolvedAt: new Date(),
+          createdAt: new Date(cutoff.getTime() - 60_000),
+        }),
+      )
+
+      const result = expireAskRequests(db, { pendingBefore: cutoff })
+      expect(result.expiredCount).toBe(1)
+      expect(findAskRequestById(db, stale.id)!.status).toBe('expired')
+      // A young pending row is a live form — its own waiter owns its bound.
+      expect(findAskRequestById(db, fresh.id)!.status).toBe('pending')
+      expect(findAskRequestById(db, staleButAnswered.id)!.status).toBe('answered')
+      expect(listOutboxEventsByType(db, ASK_RESOLVED)).toHaveLength(1)
+    })
+  })
 })

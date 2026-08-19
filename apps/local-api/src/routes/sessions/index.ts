@@ -22,7 +22,7 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { z } from 'zod'
 import { streamSSE } from 'hono/streaming'
 import { NotFoundError, ValidationError } from '@vynel/errors'
-import { getSessionsOverview } from '@vynel/session/overview'
+import { getSessionsOverview, listSessionChildren } from '@vynel/session/overview'
 import { createSpawnedSession } from '@vynel/session/spawned'
 import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
@@ -31,7 +31,9 @@ import {
   searchChatSessions,
   updateChatSessionSettings,
   setSessionStatus,
+  type ChatSessionSettingsPatch,
 } from '@vynel/chat'
+import type { Database } from '@vynel/db'
 import {
   TURN_SESSION_HEADER,
   isTurnFromGlobalRoot,
@@ -57,6 +59,7 @@ import {
   UpdateChatSessionSettingsRequestSchema,
   SetSessionStatusRequestSchema,
   SessionStatusResponseSchema,
+  SessionChildrenResponseSchema,
 } from './schemas.js'
 
 const SessionIdParamSchema = z.object({ sessionId: z.string().min(1) })
@@ -74,6 +77,30 @@ function toSessionSettings(session: {
     selectedModel: session.selectedModel,
     thinkingEffort: session.thinkingEffort,
     autoBuildout: session.autoBuildout,
+  }
+}
+
+// The BIRTH STAMP's source (session-hardening D4): a spawned session is born
+// running whatever its CREATOR runs, so a parent on bypass never spawns a child
+// that cards. The creator is the ambient turn — named by the server-stamped
+// turn-session header, never by the model — and its row already holds the
+// resolved chips (the interactive streams' write-through). "No creator" is a
+// legitimate path, not an error: a CLI call, a voice call leg, or a header
+// naming a row this user does not own all yield an empty stamp, and the child's
+// columns stay null ("never set") to resolve the default at turn time.
+function readCreatorSessionSettings(
+  db: Database,
+  userId: string,
+  turnSessionId: string | undefined,
+): ChatSessionSettingsPatch {
+  if (turnSessionId === undefined) return {}
+  const creator = findChatSessionById(db, turnSessionId)
+  if (creator === null || creator.userId !== userId) return {}
+  return {
+    ...(creator.sessionMode !== null ? { sessionMode: creator.sessionMode } : {}),
+    ...(creator.selectedModel !== null ? { selectedModel: creator.selectedModel } : {}),
+    ...(creator.thinkingEffort !== null ? { thinkingEffort: creator.thinkingEffort } : {}),
+    ...(creator.autoBuildout !== null ? { autoBuildout: creator.autoBuildout } : {}),
   }
 }
 
@@ -310,6 +337,11 @@ export const sessionsApp = factory
         purpose,
         workspacePath: workspace === null ? ensureGlobalRootWorkspaceDir() : workspace.path,
         ...(workspace !== null ? { workspaceId: workspace.id } : {}),
+        settings: readCreatorSessionSettings(
+          c.var.db,
+          c.var.user.id,
+          parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)),
+        ),
         logger: c.var.logger,
       })
       return c.json({ status: 'created' as const, sessionId: created.sessionId, name: created.name })
@@ -430,6 +462,10 @@ export const sessionsApp = factory
           description: 'The updated settings.',
           content: { 'application/json': { schema: resolver(ChatSessionSettingsSchema) } },
         },
+        403: {
+          description:
+            'A voice-scope session: the spoken thread always runs the voice tier, so its settings are not the user’s to change.',
+        },
         404: { description: 'Unknown session, or not owned.' },
       },
       // No x-mcp — mutating a user preference; the model steers its own turns
@@ -538,5 +574,44 @@ export const sessionsApp = factory
     async (c) => {
       const { sessionId } = c.req.valid('param')
       return streamSpawnedSessionTurn(c, sessionId, c.req.valid('json'))
+    },
+  )
+  // ──────────────────────────────────────────────────────────────────
+  // GET /:sessionId/children — what hangs off ONE conversation: the
+  // sessions it spawned, the agent colleagues it ran, and the tasks it
+  // sent out (session-hardening F3). The node screen's third level had no
+  // data source; the thread-keyed delegation trace answers a different
+  // question. Nothing renders it yet — the door exists so that level is a
+  // UI change alone.
+  // ──────────────────────────────────────────────────────────────────
+  .get(
+    '/:sessionId/children',
+    describeRoute({
+      tags: ['sessions'],
+      summary: "One conversation's spawned sessions, agent runs and tasks.",
+      'x-sdk-name': 'sessions.children',
+      responses: {
+        200: {
+          description: 'The conversation and its children, oldest first.',
+          content: {
+            'application/json': { schema: resolver(SessionChildrenResponseSchema) },
+          },
+        },
+        404: { description: 'Unknown session, or not owned.' },
+      },
+      // No x-mcp — a UI door. The model reaches the same tree through the
+      // delegation trace and `list_sessions`.
+    }),
+    validator('param', SessionIdParamSchema),
+    ...userScoped,
+    (c) => {
+      const { sessionId } = c.req.valid('param')
+      const children = listSessionChildren(c.var.db, {
+        userId: c.var.user.id,
+        sessionId,
+      })
+      // Unknown and not-owned answer alike (no enumeration leak).
+      if (children === null) throw new NotFoundError('session', sessionId)
+      return c.json(children)
     },
   )

@@ -12,6 +12,7 @@ import {
   findChatSessionById,
   insertChatSession,
   listChatSessionsForWorkspace,
+  updateChatSession,
 } from '../repositories/index.js'
 import { buildNewChatSessionRow } from '../turn-consumption/build-new-chat-session-row.js'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
@@ -137,6 +138,8 @@ describe('recordSwapSegmentSession (core)', () => {
         thinkingEffort: 'xhigh',
         autoBuildout: true,
       })
+      // The chain's denominator, as the consumer left it on the predecessor.
+      updateChatSession(db, predecessorId, { lastContextTokens: 850_000, lastContextWindow: 1_000_000 })
 
       const segment = recordSwapSegmentSession(db, {
         sessionId: `sdk-${randomUUID()}`,
@@ -150,6 +153,10 @@ describe('recordSwapSegmentSession (core)', () => {
       expect(segment.selectedModel).toBe('claude-opus-4-8')
       expect(segment.thinkingEffort).toBe('xhigh')
       expect(segment.autoBuildout).toBe(true)
+      // The denominator carries over; the occupancy does not (a fresh segment
+      // has run nothing yet).
+      expect(segment.lastContextWindow).toBe(1_000_000)
+      expect(segment.lastContextTokens).toBeNull()
     })
   })
 

@@ -37,11 +37,13 @@ import {
 } from '../continuity/index.js'
 import { resolvePrimaryConversationTarget } from '../runtime/index.js'
 import { withBoundaryContinuity } from '../runtime/with-boundary-continuity.js'
+import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from '../runtime/session-turn-channel.js'
 import {
+  composeRoutedTurnProviderText,
   composeRoutedTurnSystemPrompt,
   routedTurnMcpSessionFields,
   type RoutedTurnMcpAttachment,
@@ -51,6 +53,11 @@ export type DelegateToWorkspaceRootInput = {
   /** The delegating (parent) session — the global root's current SDK session id. */
   parentSessionId: string
   userId: string
+  /** A STABLE id for this turn's inbound user row — a delivery job passes its
+   *  own id so a recoverable failure + requeue re-uses the report row it
+   *  already landed instead of appending it twice (session-hardening A3c).
+   *  Omit for a fresh random id. */
+  inboundMessageId?: string
   /** The workspace whose ROOT brain handles the task. */
   workspaceId: string
   /** The workspace folder on disk — the root's cwd. */
@@ -75,9 +82,13 @@ export type DelegateToWorkspaceRootInput = {
   /** The delegation CHAIN key — stamped beside the per-hop trace key on every
    *  row the turn persists (persona-sessions: the UI's settle-match key). */
   threadId?: string
-  /** The permission mode the routed turn runs under (surface-up step 1) — from the
-   *  job row. Omit for the pre-mode default (`bypass-with-behavior-gate`). */
+  /** The permission mode the routed turn runs under (surface-up step 1) — the
+   *  tick resolves it (`job ?? target row ?? DEFAULT`, session-hardening A5).
+   *  Omit → the one default (`auto`). */
   permissionMode?: DelegationPermissionMode
+  /** The target conversation runs on AUTOPILOT (D8): the per-message marker
+   *  rides the provider input; the persisted task text stays clean. */
+  autoBuildout?: boolean
   /** The background workspace MCP attachment (the tick composes it at the api
    *  edge). Omit → the turn runs bare, stripping the session's deferred MCP
    *  tools — only acceptable for a target that never had them. */
@@ -153,11 +164,12 @@ export async function delegateToWorkspaceRoot(
     ...(target.resumeSdkSessionId !== null
       ? { resumeSessionId: target.resumeSdkSessionId }
       : {}),
-    userMessageText: input.taskText,
+    userMessageText: composeRoutedTurnProviderText(input.taskText, input.autoBuildout === true),
     systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions),
-    permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
+    permissionMode: input.permissionMode ?? toPermissionMode(DEFAULT_SESSION_MODE),
     // Empty grants: a resumed root keeps the workspace's existing tool grants; a
-    // fresh root gets the SDK defaults. The behavior gate still cards the floor.
+    // fresh root gets the SDK defaults. The provider's own floor still cards
+    // under `ask` / explicit bypass; `auto` runs without a Vynel card.
     allowedToolNames: [],
     ...routedTurnMcpSessionFields(input.mcpAttachment),
     ...(input.model !== undefined ? { model: input.model } : {}),
@@ -183,7 +195,11 @@ export async function delegateToWorkspaceRoot(
   const turnStream = consumeSessionEventStream({
     db,
     sessionEventStream,
-    userMessageInput: { id: randomUUID(), body: input.taskText, attachedImagesMetadata: null },
+    userMessageInput: {
+      id: input.inboundMessageId ?? randomUUID(),
+      body: input.taskText,
+      attachedImagesMetadata: null,
+    },
     userId: input.userId,
     workspaceId: input.workspaceId,
     workspacePath: input.workspacePath,

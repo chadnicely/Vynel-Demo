@@ -15,10 +15,15 @@ import {
 import { insertApprovalRequest } from '@vynel/approvals/test-support'
 import { insertAskRequest, makeAskRequest } from '@vynel/asks/test-support'
 import {
+  getOrCreateContinuingSession,
   getOrCreatePrimarySession,
   linkPrimarySessionToSdkSession,
 } from '../continuity/index.js'
-import { getSessionsOverview, countSessionsOverview } from './get-sessions-overview.js'
+import {
+  getSessionsOverview,
+  getVoiceChatOverviewEntry,
+  countSessionsOverview,
+} from './get-sessions-overview.js'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -734,6 +739,139 @@ describe('countSessionsOverview', () => {
         makeSession(user.id, ws.id, { id: 'chain-b', continuedFromSessionId: 'chain-a' }),
       )
       expect(countSessionsOverview(db, { userId: user.id })).toBe(1)
+    })
+  })
+})
+
+// ── The continuing identity on every entry (session-hardening D1) ──────
+// The activity feed stamps `primarySessionId` on the turns it announces; the
+// entry has to carry the same value or the client is back to inferring
+// identity from a null session id — the bug that let the Global chat render
+// the spoken thread.
+describe('entry identity', () => {
+  it('carries the primary that points at the chain head', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      const session = insertChatSession(db, makeSession(user.id, ws.id))
+      const primary = await getOrCreatePrimarySession(db, { userId: user.id, workspaceId: ws.id })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: primary.id,
+        userId: user.id,
+        sdkSessionId: session.id,
+      })
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry!.primarySessionId).toBe(primary.id)
+    })
+  })
+
+  it('is null for a chain no live primary points at', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id))
+
+      const [entry] = getSessionsOverview(db, { userId: user.id })
+      expect(entry!.primarySessionId).toBeNull()
+    })
+  })
+})
+
+// ── The voice thread (session-hardening D2) ───────────────────────────
+// The fold admits the spoken chain so it HAS status facts; this read drops it
+// again, because the same answer is the `list_sessions` tool's. The Voice chat
+// surface reads it through its own door.
+describe('the voice thread', () => {
+  function insertVoiceSegment(db: Parameters<typeof insertChatSession>[0], userId: string) {
+    return insertChatSession(
+      db,
+      makeSession(userId, null, {
+        scope: 'voice',
+        visibility: 'hidden',
+        title: 'Voice conversation',
+        lastMessageAt: new Date('2026-07-03T09:00:00Z'),
+      }),
+    )
+  }
+
+  it('never rides the shared list — unscoped, scoped, or counted', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const ws = insertWorkspace(db, makeWorkspace(user.id))
+      insertChatSession(db, makeSession(user.id, ws.id, { title: 'Fix the build' }))
+      insertVoiceSegment(db, user.id)
+
+      expect(getSessionsOverview(db, { userId: user.id }).map((e) => e.scope)).toEqual([
+        'workspace',
+      ])
+      expect(
+        getSessionsOverview(db, { userId: user.id, scope: { workspaceId: null } }),
+      ).toHaveLength(0)
+      expect(countSessionsOverview(db, { userId: user.id })).toBe(1)
+    })
+  })
+
+  it('is served as ONE entry with its own status facts', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const head = insertVoiceSegment(db, user.id)
+      // A failed spoken turn: the assistant row carries the error the status
+      // ladder turns into `problem` — invisible everywhere before D2.
+      insertChatMessage(db, {
+        ...makeMessage(head.id, 'assistant', new Date('2026-07-03T09:00:00Z')),
+        errorCode: 'session_limit',
+        errorMessage: "You've hit your session limit",
+      })
+      const voicePrimary = await getOrCreateContinuingSession(db, {
+        userId: user.id,
+        scope: 'voice',
+      })
+      linkPrimarySessionToSdkSession(db, {
+        primarySessionId: voicePrimary.id,
+        userId: user.id,
+        sdkSessionId: head.id,
+      })
+
+      const entry = getVoiceChatOverviewEntry(db, { userId: user.id })
+      expect(entry?.scope).toBe('voice')
+      expect(entry?.sessionId).toBe(head.id)
+      expect(entry?.primarySessionId).toBe(voicePrimary.id)
+      expect(entry?.statusFacts.lastError?.message).toBe("You've hit your session limit")
+    })
+  })
+
+  // Both swap writers carry `scope` forward from the predecessor
+  // (`record-swap-segment-session.ts:95`, `handle-session-started.ts:133`), and
+  // BOTH the fold's voice branch and the list's voice wall key on the TAIL's
+  // scope — so a writer that ever stopped carrying it would surface the spoken
+  // conversation in `list_sessions` as an "Assistant" entry. Pinned here.
+  it('folds its whole chain, hidden swap segments included, and the tail stays voice-scoped', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const head = insertVoiceSegment(db, user.id)
+      insertChatSession(
+        db,
+        makeSession(user.id, null, {
+          scope: 'voice',
+          visibility: 'hidden',
+          title: 'Continued conversation',
+          continuedFromSessionId: head.id,
+          lastMessageAt: new Date('2026-07-03T10:00:00Z'),
+        }),
+      )
+
+      const entry = getVoiceChatOverviewEntry(db, { userId: user.id })
+      expect(entry?.segments).toHaveLength(2)
+      expect(entry?.scope).toBe('voice')
+      expect(getSessionsOverview(db, { userId: user.id })).toHaveLength(0)
+    })
+  })
+
+  it('is null before anything was ever spoken', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      expect(getVoiceChatOverviewEntry(db, { userId: user.id })).toBeNull()
     })
   })
 })

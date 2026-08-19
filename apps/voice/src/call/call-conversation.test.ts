@@ -26,6 +26,10 @@ const replyOf = (text: string): VoiceBrainEvent[] => [
 interface HarnessOptions {
   mode: CallMode
   transcripts: Record<number, string>
+  /** The per-turn watchdog; the harness disables it unless a test arms it. */
+  turnWatchdogMs?: number
+  /** A turn stream that stays open until released — the watchdog's fixture. */
+  heldTurn?: { release: () => void }
   /** Reply events per turn, consumed in call order. Default: reply 'Done.'. */
   turnReplies?: VoiceBrainEvent[][]
   /** Hold synthesis pending until released — makes isSpeaking observable. */
@@ -46,6 +50,17 @@ function conversationHarness(options: HarnessOptions) {
     createCallSession: vi.fn(async () => ({ sessionId: 'sess-1' })),
     runCallTurn: vi.fn((_sessionId: string, message: string) => {
       turnMessages.push(message)
+      const held = options.heldTurn
+      if (held !== undefined && turnMessages.length === 1) {
+        // The first turn streams its reply only once the test releases it.
+        let release!: () => void
+        const gate = new Promise<void>((resolve) => (release = resolve))
+        held.release = release
+        return (async function* () {
+          await gate
+          yield* eventsOf(replyOf('Here is the late answer.'))
+        })()
+      }
       return eventsOf(replies.shift() ?? replyOf('Done.'))
     }),
   }
@@ -91,6 +106,7 @@ function conversationHarness(options: HarnessOptions) {
     },
     lineSpeaker: speaker,
     sessionClient,
+    turnWatchdogMs: options.turnWatchdogMs ?? 0,
   })
 
   return {
@@ -112,6 +128,39 @@ afterEach(() => {
 })
 
 describe('CallConversation — participant mode', () => {
+  it('the watchdog hands the room back on a slow turn, and the late reply is still spoken', async () => {
+    // A live call must never sit mute for as long as a server turn can run:
+    // past the watchdog the caller hears "still working" and can talk again,
+    // while the turn keeps streaming — its answer lands when it lands.
+    const heldTurn = { release: () => {} }
+    const harness = conversationHarness({
+      mode: 'participant',
+      transcripts: { 1: 'so what is the deploy status?', 2: 'and the build?' },
+      turnWatchdogMs: 20,
+      heldTurn,
+      turnReplies: [replyOf('Build is green.')],
+    })
+
+    harness.hear(1)
+    await settle()
+    expect(harness.turnMessages).toEqual(['so what is the deploy status?'])
+
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    await settle()
+    // The watchdog fired: the notice was spoken and the room is free — a new
+    // utterance runs its own turn while the first still streams.
+    expect(harness.spokenSentences).toEqual(["Still working on that — I'll say so as soon as it's done."])
+    harness.hear(2)
+    await settle()
+    expect(harness.turnMessages).toEqual(['so what is the deploy status?', 'and the build?'])
+    expect(harness.spokenSentences).toContain('Build is green.')
+
+    // The slow turn finishes later — its reply is spoken, not lost.
+    heldTurn.release()
+    await settle()
+    expect(harness.spokenSentences).toContain('Here is the late answer.')
+  })
+
   it('runs a turn on every real utterance and speaks the stripped reply', async () => {
     const harness = conversationHarness({
       mode: 'participant',

@@ -1,0 +1,521 @@
+# Session hardening — the 9+ arc (2026-08-19)
+
+Input: `docs/audits/session-2026-08-19/README.md` (five-agent audit, verdict 7/10). Goal set by Kafi:
+**9+ / 10, solid.** This note is the plan: Kafi's decisions (§1), the assumptions the lead made
+(§2), the slices with file OWNERSHIP so parallel agents never collide (§3), the acceptance bar per
+slice (§4), and the integration protocol (§5). Branch: `feature/session-audit` (worktree
+`.claude/worktrees/session-audit`, band 18940). Slice branches: `feature/sh-<letter>` off it.
+
+---
+
+## 1. Decisions (Kafi, 2026-08-19 — locked)
+
+| # | Decision | Consequence |
+|---|---|---|
+| D1 | **Voice never cards. Channels run the global row's mode when set, else `auto` (security hardening later).** | Voice turns run `auto` (SDK auto — no Vynel card of any kind; Claude's own safety check applies). Channel runner resolves `row.sessionMode ?? DEFAULT`. |
+| D2 | **Voice thread = sonnet-5 / low / auto on EVERY leg** (wake, call, overlay, typed panel). No card "through voice or chat". Chips read-only. | Server enforces the tier for `voice` turns regardless of input; nothing is written to the voice row; the panel shows read-only "Hands-free" chips. |
+| D3 | **`DEFAULT_SESSION_MODE` → `auto` for everything** ("Anthropic already set auto default … one day ask will be gone"). | Every `?? 'ask'` and every unattended `?? 'bypass-with-behavior-gate'` fallback resolves the same default. Users who explicitly picked Ask/Bypass keep it (persisted). |
+| D4 | **Children inherit the creator's resolved settings; tool args override.** | Spawned/agent sessions are birth-stamped from the creating turn's row; delegated turns resolve `tool arg ?? target row ?? default`; agent runs carry effort like personas. |
+| D5 | **Bounds (env-overridable):** delegated run holds its lock for the WHOLE run, hard cap 60 min → abort + honest failure delivery, clock suspended while parked; interactive turn 60 min wall clock (suspended while parked) → interrupt + failure row; `ask_user` NOT attached on voice; interactive ask 2 h + a 60 s reaper; channels 10 min; approval reaper stays 5 min ×2; voice daemon watchdog 5 min; job lease heartbeat 30 s / expiry 3 min; continuation cap 3. | Knobs: `VYNEL_DELEGATED_TURN_MAX_MS` `VYNEL_INTERACTIVE_TURN_MAX_MS` `VYNEL_INTERACTIVE_ASK_MAX_MS` `VYNEL_DELEGATION_LEASE_MS` `VYNEL_DELEGATION_HEARTBEAT_MS` (local-api env), `VYNEL_VOICE_TURN_WATCHDOG_MS` (voice env). |
+| D6 | **Migrations OK:** pending checkpoint on `primary_sessions`; lease on `delegation_jobs`; `'voice'` feed scope; `chat_sessions.lastContextWindow`. | All additive + nullable, drizzle-generated (never hand-written), copy-forward where relevant. |
+| D7 | **Nodes: bugs + enlargeable structure, NO new visuals.** Voice is a CHILD of global in the model. Layout redesign (workspace/global as suns) is Kafi's later UI pass. | `SceneNodeRef` union + level stack + detail bag + count-aware layouts + `GET /sessions/:id/children`; screen looks the same. |
+| D8 | **`autoBuildout` = autopilot.** "Claude needs to know he is on autopilot; the user is probably not available; continue by yourself; make the best-fit decision, researching with spawned agents if a decision needs grounding; if stuck, set status `needs_input`." | Resolved like the other settings; when true a per-message autopilot marker rides the provider input (system-prompt blocks decay on long sessions — the voice-marker precedent). Inherited by children (D4). |
+
+## 2. Lead assumptions (stated so they can be overruled)
+
+- **Stamp the RESOLVED mode always** on the interactive streams (parent == child). The 08-19 "only when
+  resolved" choice protected global parity; with one default everywhere it is moot, and the inversion
+  (mode-less parent `ask`, children unattended) was a safety hole.
+- **`bypass-with-behavior-gate` stops being a fallback anywhere.** It stays a valid provider mode; no
+  Vynel path reaches it by default. The floor set stays defined for `ask` + explicit-bypass semantics.
+- **Voice `autoContinue: false`** (STATE.md records voice auto-continue as deferred; the daemon returns
+  at the first `session-completed`; continuations would run unheard holding the voice lock).
+- **`ask_user` on the voice thread is not attached** (D5); the model asks in speech; the next utterance is
+  the answer. On explicit-Ask threads elsewhere cards keep working as today.
+- **Delivery / update / direct / note turns and schedule fires** resolve the requester row's mode
+  `?? DEFAULT` (D3) — no more hardcoded NULL→unattended.
+- **Restart policy:** claimed `note` and `direct-delivery` rows REQUEUE at boot like `report-delivery`
+  (a note is a handed-over thought, a direct-delivery is a final answer). Lease-expired rows follow the
+  same kind rule.
+- **Continuation settings** stay pinned to the checkpointing turn (already the case for interactive
+  continuations and for the follow-up job) — no change, recorded as settled.
+- **`/activity/running`** (the "rebuild seed" with no consumer) is removed with its SDK method — after a
+  restart every turn is reaped, so there is nothing to rebuild from; the durable `session_turns` mirror
+  stays for facts.
+- **Voice status placement:** the Voice chat menu row wears its own mark; the shell's global light
+  aggregates global ∪ voice (voice is a child of global, D7).
+- **The interactive interrupt** becomes identity-shaped (`sessionId`), owner-checked against a
+  global-or-voice chain — the same door per-call sessions will use.
+- **Global + voice sharing one cwd** for concurrent seeded swaps: unexamined by five agents, no
+  corruption found; NOT in scope — recorded as a live-smoke item.
+- **The 911-line tick** is split at the kind branch ONLY after its functional changes land and are
+  green (Slice A step 2), never in the same commit.
+
+## 3. Slices + ownership (parallel agents, one worktree each)
+
+Wave 0 (lead, on `feature/session-audit`, before any fan-out): `DEFAULT_SESSION_MODE = 'auto'` +
+every test pin; `VOICE_TIER_MODE = 'auto'` beside the pins; the four schema changes generated
+(`primary_sessions.pending_checkpoint_{next_step,depth,at,job_id}`, `delegation_jobs.lease_expires_at`
++ `heartbeat_at`, `chat_sessions.last_context_window`; `'voice'` widened on the `session_turns.scopeKind`
+TS type + `SessionTurnActivity.scopeKind` wire enum + `BeginTurnActivityInput`); env knobs (D5) with
+documented defaults; `EnqueueAgentRunInput.thinkingEffort` + its insert; `startPausableTimeout` extracted
+from `route-request.ts` into an exported `pausable-timeout.ts`; a `voice?: boolean` field on
+`StartSessionTurnRequestSchema` + `StartChatTurnRequest`; this note. Green (typecheck + touched suites)
+then committed. Every slice branches from that commit.
+
+| Slice | Model | Owns (nobody else edits these) | Delivers |
+|---|---|---|---|
+| **A · Delegation engine** | fable | `packages/orchestration/src/**` (except `pausable-timeout.ts` once extracted), `packages/session/src/delegation/**` EXCEPT `enqueue-checkpoint-continuation.ts`, `packages/session/src/runtime/{run-global-root-turn-core,compose-global-root-provider-message}.ts`, `apps/local-api/src/services/delegation-service.ts`, `apps/local-api/src/sessions/run-global-root-turn.ts` | A1 lock lifetime = whole run: `routeRequest` no longer resolves `timed-out` while the delegate runs; the hard cap (`VYNEL_DELEGATED_TURN_MAX_MS`, pausable via the wait gate) requests cancel through the cancel registry → interrupt → the run settles → job `failed: exceeded the N-minute cap` + failure delivery; the pool releases the key only when the delegate promise settles. **Regression test: a capped run does not free its key until its turn settled; two jobs on one target never run concurrently.** A2 lease: claim sets `leaseExpiresAt`; a 30 s heartbeat extends it; a 60 s sweeper handles expired leases by kind (report/note/direct requeue; task/agent-run fail + failure delivery); boot pass widened (note + direct requeue). A3 delivery rail: the global branch marks its wait gate from approval events; a capped delivery is recoverable (requeue once); notify retry is idempotent (an existing attribution/ref key, else add `deliveryJobId` to the inbound row via a generated migration); the two bare writes become one transaction. A4 catch-up: `markDelegationsSurfacedToRoot` moves to AFTER the turn is underway (`session-started` / first persisted user row) — the compose function returns `jobIds`, the core marks. A5 settings on delegated turns: `delegate-to-*` resolve mode/model/effort as `job ?? target row ?? DEFAULT`; `fitPinnedModelToSession` applied to every delegated/agent-run model (incl. `agent.model`); channel runner resolves `row.sessionMode ?? DEFAULT`; global core's `?? 'bypass-with-behavior-gate'` → `?? DEFAULT`; the core appends the autopilot marker when the resolved `autoBuildout` is true (B ships the instruction file; A reads `input.autoBuildout`). A6 (after A1–A5 are green, separate commit): split the tick at the kind branch (`run-task-job.ts` / `run-note-job.ts` siblings) — behaviour-neutral. |
+| **B · Settings & modes** | opus | `packages/chat/src/settings/**`, `packages/session/src/spawned/**`, `packages/session/src/runtime/start-chat-turn.ts`, `packages/instructions/**` (new `autopilot-marker.md` + id), `apps/local-api/src/routes/sessions/index.ts` (the `POST /sessions/spawned` birth-stamp only — coordinate with F who adds a children route in the same file: B edits the create handler, F appends a route; rebase order B → F), `apps/local-api/src/sessions/composer-mention-turn.ts`, `apps/local-web/src/components/chat/VoiceChatPanel.vue`, `apps/local-web/src/components/chat/AppComposer.vue` (read-only chips prop), `apps/local-web/src/composables/voice/**`, `apps/local-web/src/composables/chat/use-session-settings.ts` | B1 `resolveTurnSessionSettings` returns `autoBuildout`; the autopilot marker rides the provider input on the workspace/DM path (`start-chat-turn.ts`) when true (A does the global core). B2 birth-stamp: `POST /sessions/spawned` reads the ambient turn-session's row (the creator's `chat_sessions` row already holds the resolved chips via write-through) and passes mode/model/effort/autoBuildout to `createSpawnedSession` → `recordSpawnedSessionSegment` writes them; a call-leg create (no ambient turn) stays NULL and gets the voice tier from C. B3 `@agent` mentions carry `thinkingEffort` (field landed in Wave 0). B4 voice web legs: the overlay leg and the panel send the tier incl. `mode: VOICE_TIER_MODE`; VoiceChatPanel passes NO `sessionId` to the composer (no PATCH), shows read-only "Hands-free" chips (AppComposer gains a `readonlySettings`/`settingsLocked` prop), and its poll predicate becomes `scopeKind === 'voice'`. B5 `use-session-settings`: guard — a `voice`-scope row cannot be PATCHed (server: `updateChatSessionSettings` refuses `voice` scope with a typed error). Tests for every home. |
+| **C · Streams & bounds** | fable | `apps/local-api/src/streams/**`, `apps/local-api/src/routes/{sessions,chat}/schemas.ts`, `apps/local-api/src/sessions/{delegation-mode-header,turn-session-header}.ts`, `packages/session/src/runtime/root-turn-lock.ts`, `packages/asks/**`, NEW `apps/local-api/src/services/asks-recovery-service.ts`, `apps/local-api/src/boot.ts` (wiring lines only), NEW `packages/session/src/runtime/turn-wall-clock.ts` | C1 stamp the resolved mode always (chat-turn, session-turn). C2 voice gates on `session-turn.ts` (`input.voice`): tier mode/model/effort forced, no row read/write, fit clamp; the call leg is thereby closed. C3 `global-root-turn.ts` voice leg: mode forced `auto` (explicit), tier forced over any input, `ask_user` not attached, `autoContinue: false`, feed `begin({ scopeKind: 'voice', primarySessionId })`; global turns stamp `primarySessionId` too; `turn-queued { reason: 'busy' }` via a new `isRootTurnLockBusy(lockKey)`. C4 interactive wall clock: ONE helper (`turn-wall-clock.ts`, built on `pausable-timeout` + the ask/approval park events) used by all three streams: `VYNEL_INTERACTIVE_TURN_MAX_MS`, suspended while an approval or ask is parked, on expiry `interruptChatSession` + failure row "turn exceeded the N-minute limit" + `turn-ended failed`. C5 asks: interactive descriptor gets `timeoutMs = VYNEL_INTERACTIVE_ASK_MAX_MS`; new 60 s `asks-recovery-service` calls `expireAskRequests` with the same bound (orphans after a waiter died). C6 (should) `chat-turn.ts` non-continue path: if `resumeSessionId` is a live primary's head, take that primary's key. Tests: stream suites for every gate, the wall clock (fake timers), `turn-queued busy`, feed scope. |
+| **D · Monitoring identity, voice status, interrupt, root routes** | opus | `apps/local-web/src/stores/**`, `apps/local-web/src/composables/{sessions,activity}/**`, `apps/local-web/src/composables/chat/{use-chat-turn,use-continuing-conversation,use-watched-turn,use-session-detail}.ts`, `apps/local-web/src/components/{sessions,activity,sidebar,shell,tasks}/**`, `packages/session/src/overview/**` (except F's new `list-session-children.ts`), `apps/local-api/src/routes/root/**`, `apps/local-api/src/routes/activity/**`, `packages/contracts/src/chat/{session-activity,sessions-overview,session-status}.ts` | D1 identity readers: `runningPrimarySessionIdFor`, `liveTurnStartedAtForEntry`, `hasGlobalServerTurn` / `globalServerTurnOrigin` key on IDENTITY (`primarySessionId` now stamped; `scopeKind: 'voice'`) through ONE `matchTurnToIdentity` helper; the continuing payload carries `primarySessionId`; voice counts as a child of global for the presence dot. D2 voice status: `foldSessionChains` admits `scope: 'voice'`; the three unscoped-overview consumers filter it; the Voice chat menu row wears its own mark; the shell global light aggregates global ∪ voice; `useSessionStatuses` covers voice. D3 interrupt: `POST /root/turn/interrupt` takes optional owner-checked `sessionId` (global-or-voice chain), `use-chat-turn.interrupt` passes `activeSessionId`. D4 split `routes/root/index.ts` (voice-chat doors + interrupt out). D5 remove `/activity/running` + `listRunningTurns` consumer-less seed. D6 fix the stale load-bearing comments in owned files. Tests: store/composable suites (voice never binds to global; identity match; aggregate light), route tests (interrupt by id, owner check), overview fold test for voice. |
+| **E · Voice daemon** | opus | `apps/voice/src/**`, `packages/voice/src/**` | E1 watchdog: after `VYNEL_VOICE_TURN_WATCHDOG_MS` busy the driver speaks "still working — I'll tell you when it's done" and returns to listening while the server turn continues (speak calls still route normally). E2 `streamTurnEvents` gets an `AbortController` tied to the watchdog + a connect deadline. E3 `onSpeak` handed-off branch routes by producer (the overlay's own turn is already de-duplicated client-side): publish to the overlay, else native — never a no-op. E4 `mapFrameToBrainEvent`: a recoverable `session-errored` is not `failed`. E5 call client sends `{ mode: VOICE_TIER_MODE, voice: true }` (+ the wake leg sends `voice: true` already). E6 daemon renders `turn-queued` as a short spoken "one moment". Tests: driver state machine (watchdog), brain client (abort, recoverable), call client body. |
+| **F · Nodes structure + bugs** | opus | `apps/local-web/src/views/NodesView.vue`, `apps/local-web/src/components/nodes/**`, `apps/local-web/src/composables/nodes/**`, `apps/local-web/src/utils/constellation-*.ts`, NEW `packages/session/src/overview/list-session-children.ts`, the children route appended to `apps/local-api/src/routes/sessions/index.ts` (+ schemas), `packages/contracts/src/chat/session-children.ts` (new) | F1 bugs: project level uses a SCOPED overview read; `hasAnswered` wired at the fleet level; scene scratch buffers keyed by node id; count-aware layouts (rings / radius ÷ n) so ~9+ nodes stay on stage; `NodesRace` uses the real ladder label; arcs map the chain's whole segment set; `anchorOf` stops `findIndex`-ing per frame. F2 structure: `SceneNodeRef` discriminated union (`workspace | global | voice | session | agent-run | task`, minted + parsed in ONE place), a level STACK replacing the `isInsideProject` boolean, `SceneNode.detail` bag (note, elapsed, child count — rendered only in the tooltip), edges folded onto the live channel (should). F3 data: `GET /sessions/:id/children` (spawned sessions + agent runs + tasks by parent primary, from `session_turns.primarySessionId` + `delegation_jobs.threadId`), voice modelled as a child of global. NO visual change; screenshot parity before/after. |
+| **G · Continuity durability + denominators** | fable | `packages/session/src/continuity/**`, `packages/session/src/runtime/{run-turn-with-continuations,apply-primary-turn-continuity,build-continuity-context,fit-pinned-model-to-session,with-boundary-continuity,bridge-primary-session-after-turn}.ts`, `packages/session/src/delegation/enqueue-checkpoint-continuation.ts`, `packages/session/src/mcp/checkpoint-tool.ts`, `packages/session/src/repositories/primary-sessions.ts`, `packages/chat/src/turn-consumption/{handle-usage-reported,handle-session-started}.ts`, `packages/chat/src/records/record-swap-segment-session.ts` | G1 durable checkpoints: `pending-checkpoints.ts` becomes DB-backed on the new `primary_sessions` columns (same API surface: begin/peek/take/depth/cap; the follow-up job id persisted so its claim counts); a restart mid-checkpoint resumes the continuation instead of silently dropping it; `beginGenuineTurn` still resets depth. G2 `enqueue-checkpoint-continuation` agent-run branch carries effort + origin. G3 `lastContextWindow`: written with every usage report, copied forward on swap (both homes), used as the pressure denominator + by the fit guard, with the fold's chain fallback when a fresh segment has none. G4 carry tail budgeting SKIPS an over-long line instead of breaking. G5 continuity census test (every `consumeSessionEventStream` production site is wrapped by `withBoundaryContinuity`, 5 ↔ 5). Tests for each. |
+
+Shared rules for every slice: audit-mode discipline is over — this is real work: **every change ships its
+tests**, targeted `npx vitest run --project node|local-web <files>` + `npx tsc --noEmit -p <pkg>` green
+before hand-back; **never** `pnpm test`/turbo (Chad's CPU rule); regenerate SDK/catalog locally only to
+validate (`pnpm api:generate`) — the LEAD regenerates once after the merge; conventional commits on the
+slice branch, no `Co-Authored-By`; no source edits outside the ownership list (if a slice needs a line
+in another owner's file, it writes the ask into `docs/module-notes/session-hardening.md` §6 and stops
+there); comments explain WHY; files ≤ ~300 lines (split when a change would cross it).
+
+## 4. Acceptance bar (what "solid" means)
+
+- No unbounded wait anywhere a turn can park: every approval/ask/lock/turn has a bound and an owner.
+- Single-writer invariant: one live turn per target key at all times, provable by a test.
+- One identity vocabulary on the wire: `scopeKind ∈ {global, workspace, voice}` + `primarySessionId`
+  on every `begin`; no reader infers identity from an absence.
+- Voice: tier + auto on every leg, no card, no PATCH, own status mark, Stop reaches ITS thread.
+- Settings: `input ?? row ?? DEFAULT('auto')` everywhere; children inherit; `autoBuildout` = autopilot.
+- Continuity: survives a restart mid-checkpoint; the denominator survives a foreign model.
+- Nodes: bug-free bindings, enlargeable in one composable per level, screen unchanged.
+- The seams have tests (lock lifetime · call-leg tier · catch-up-not-consumed · voice-not-
+  interruptible-by-global · continuity census · identity match).
+
+## 5. Integration protocol (lead)
+
+1. Wave 0 green + committed on `feature/session-audit`; slice worktrees `feature/sh-{a..g}` created
+   from that commit, `pnpm install` each.
+2. Agents work in parallel; each ends with `git status` clean, targeted checks green, a ≤40-line
+   hand-back (commits, tests added, anything for §6).
+3. Merge order **A → C → B → G → D → E → F** into `feature/session-audit` (`--no-ff`); after ALL merges
+   the lead regenerates (`pnpm api:generate`), diffs the generated artifacts, runs the five parity
+   guards, repo typecheck, and the vitest suites of every touched package/app.
+4. `code-reviewer` on the integrated diff; fold must-fixes; then Kafi runs (or okays) the FULL gate.
+5. STATE.md + CHANGELOG + this note's §7 (results); Kafi's live smokes: voice wake/call/panel, a >10-min
+   delegated task, a restart mid-checkpoint, the Voice chat mark, Stop on both threads, Telegram auto.
+
+## 6. Cross-slice asks (append here instead of editing another owner's file)
+
+**From C (streams & bounds):**
+
+- **A — `run-global-root-turn-core.ts:93`:** derive the lock key through the new
+  `rootTurnLockKey(userId, isVoiceTurn)` (exported from `@vynel/session/runtime`, defined in
+  `root-turn-lock.ts`) instead of the inline template — the stream asks `isRootTurnLockBusy` about
+  the same key before it parks; one home for the shape.
+- **A — `run-global-root-turn-core.ts:202` (`?? 'bypass-with-behavior-gate'`):** the SSE stream
+  now ALWAYS passes a resolved `permissionMode` (`input ?? row ?? DEFAULT_SESSION_MODE`), so
+  this fallback is unreachable from the web/voice path; A5's `?? DEFAULT` change covers the channel
+  runner. C added the minimal `autoBuildout?: boolean` on `RunGlobalRootTurnCoreInput`
+  (`session-types.ts`, unowned) — identical to A's planned addition; keep one.
+- **B — `resolveTurnSessionSettings` (B1):** once it returns `autoBuildout`, collapse the one local
+  read in `apps/local-api/src/streams/interactive-turn-settings.ts` (`input.autoBuildout ??
+  row?.autoBuildout`) to `resolved.autoBuildout`. The streams already pass `autoBuildout` into
+  `startChatTurn` / the core via an optional spread, so B's `StartChatTurnInput.autoBuildout` +
+  A's core field light it up at merge with no further stream edit.
+- **D — `apps/local-api/src/routes/root/index.test.ts`:** C corrected two expectations its stream
+  changes invalidated (voice runs the tier: model `claude-sonnet-5` / effort `low` / mode `auto`;
+  a fresh mode-less global turn runs `auto`, resolved by the stream). Same lines A's core-default
+  change would have touched — resolve any merge conflict toward these values.
+- **B (`use-session-settings` / VoiceChatPanel) — FYI:** the server now forces the tier on every
+  `voice: true` turn (both `/root/turn` and `/sessions/:id/turn`) and ignores the body's
+  mode/model/effort/autoBuildout — read-only chips are honest by construction.
+- **E (`apps/voice`) — FYI:** `POST /sessions/:id/turn` accepts `voice: true` (Wave 0 field) and
+  now enforces the tier on it; the call client should send it (E5). The daemon can also expect a
+  `turn-queued { reason: 'busy' }` frame from `/root/turn` (E6) and a
+  `session-errored { errorCode: 'turn-wall-clock-exceeded' }` frame when the interactive clock
+  cuts a turn off.
+
+**From B (settings & modes) — what B built, and the four lines it could not write.**
+
+What landed, so the other slices can wire against it:
+
+- `resolveTurnSessionSettings` now returns a **fourth** field, `autoBuildout`
+  (`input ?? row ?? undefined`), and `TurnSettingsInput` carries it. `TurnSettingsWriteInput`
+  is gone (it was `TurnSettingsInput & { autoBuildout }` — now redundant); the
+  `@vynel/chat` barrel no longer exports that name.
+- `startChatTurn` gained **`autoBuildout?: boolean`** on its input. True appends
+  `loadSessionInstruction('autopilot-marker')` to the PROVIDER user message (after any
+  `providerUserMessageText`); the persisted row keeps the clean text.
+- `recordSpawnedSessionSegment` gained **`settings?: ChatSessionSettingsPatch`** (the birth
+  write), forwarded from `createSpawnedSession`'s new **`settings?: ChatSessionSettingsPatch`**.
+- `updateChatSessionSettings` throws **`ForbiddenError`** on a `voice`-scope row (empty patch
+  included). The PATCH route declares 403; `packages/sdk` artifacts are regenerated.
+- `AppComposer` / `ChatComposer` gained **`settingsLocked`** (+ `settingsLockedNote` on
+  AppComposer); `useSessionSettings` takes `{ locked }` and its `update()` throws when set.
+
+Asks:
+
+1. **→ LEAD, post-merge — NOT slice C.** C's worktree branched from `25e86499`, where
+   `startChatTurn` has no `autoBuildout` knob (B adds it), so this could not have typechecked
+   in C's checkout and is in nobody's diff. After B merges, add to the `startChatTurn(...)`
+   call in **`apps/local-api/src/streams/chat-turn.ts`** and **`.../session-turn.ts`**:
+   `...(turnSettings.autoBuildout !== undefined ? { autoBuildout: turnSettings.autoBuildout } : {})`.
+   Two lines, two files. **Until they land, D8 (autopilot) runs on the GLOBAL brain only** —
+   A5 wired `input.autoBuildout` on the core; workspace/DM and spawned-session turns resolve
+   the setting and drop it. (Channels + schedule fires resolve it nowhere — outside every
+   slice's ownership; a follow-up, not a regression.)
+2. **→ Slice C (streams).** B4's Voice-panel poll predicate is now `scopeKind === 'voice'` with
+   **no `origin` fallback** — deliberately, since a global-scoped voice-origin turn is the bug
+   this arc removes. It is dormant until C3 stamps `scopeKind: 'voice'` on the voice leg's
+   `activityFeed.begin`. B's test constructs the feed entry synthetically, so nothing is red in
+   the meantime; the live behaviour needs C.
+3. **→ Slice D, or the lead if D has already handed back** (`apps/local-web/src/stores/ui-store.ts:121-124`).
+   The `readStoredAutoBuildout` comment still says "NOTHING READS IT YET … waiting for the
+   build engine". It is now autopilot (D8) and the runners read it — please restate.
+4. **→ Whoever lands next in `packages/chat/src/schema/chat-sessions.ts:116-118`** (unowned).
+   The `autoBuildout` column comment still says "nothing consumes it yet (the build engine is
+   pending)". B left it rather than take a comment-only diff on a file it does not own.
+5. **→ Lead, a scoping call.** The audit item is "**spawned / agent / leaf** sessions born with
+   NULL settings". B2's mandate — and B2's fix — is the SPAWNED create handler.
+   `packages/chat/src/records/record-leaf-session.ts` still births agent/leaf rows with NULL
+   settings columns. Behaviour is nonetheless correct after A5 (a delegated/agent run resolves
+   `job ?? target row ?? DEFAULT`), so this is a row-hygiene gap, not a live defect — but the
+   audit item is two-thirds closed, not closed.
+
+Files B touched OUTSIDE its list, all functionally (flagged for the merge): `packages/chat/src/index.ts`
+(drop the dead `TurnSettingsWriteInput` export), `packages/chat/src/records/record-spawned-session-segment.ts`
+(the birth write — pre-agreed), `packages/ui/src/components/ChatComposer.vue` (+ its test; the
+`settingsLocked` prop — unowned by any slice), `packages/contracts/src/chat/voice-tier.ts` (B5's
+doc rule at the tier home), `packages/sdk/{openapi.json,src/generated/api.d.ts}` (regenerated).
+
+### From D (monitoring identity, voice status, interrupt, root routes)
+
+**Deviation from §3 D2 — read this first.** The plan said "the fold admits voice; the three
+UNSCOPED-overview consumers filter it out". That leaks: `GET /sessions/overview` unscoped **is**
+`list_sessions`' answer (root + workspace-interactive surfaces), so an admitted voice entry would
+hand every workspace manager the spoken thread's row — its title, its `statusNote`/`lastError` text
+and its segment ids — and the route cannot tell a UI call from a tool call (a query flag would just
+become a tool argument). So: the fold admits voice, and `getSessionsOverview` /
+`countSessionsOverview` drop it unconditionally; `isSessionInScope` says the exclusion out loud;
+the Voice chat surface reads `GET /root/voice-chat/status` → `getVoiceChatOverviewEntry`.
+Consequence: **`LiveSessionPane.vue` and `SessionThreadView.vue` need no filter** — they resolve an
+entry by session id out of a list a voice entry can no longer reach, so a filter there would be
+unreachable code. `TasksPanel` did change, but at the TURN level (it counts running turns, not
+entries) — voice is excluded there because the box names its rows from that same list.
+
+**Wire assumptions D's readers make** (check against C at merge):
+
+- Voice turns announce `scopeKind: 'voice'`; global turns announce
+  `primarySessionId = <the global primary's id>` — the same value `GET /root/continuing` returns as
+  `rootSessionId`. No continuing-payload field was added; `rootSessionId` already carried it.
+- **Workspace turns stamp NO `primarySessionId`** (`chat-turn.ts:379`, and the workspace-root branch
+  of `run-delegation-claim-and-run-tick.ts:322`). `matchTurnToIdentity({ kind: 'workspace' })` uses
+  that absence to exclude sessions spawned in the room. See the ask to C below.
+- Both swap writers carry `scope` forward (`record-swap-segment-session.ts:95`,
+  `handle-session-started.ts:133`), so a voice chain's TAIL stays voice-scoped across a compaction
+  swap — the fold branch, the list's voice wall and D3's interrupt gate all key on it. Pinned by a
+  test.
+- `getVoiceChatOverviewEntry` takes the newest voice chain (the fold sorts `lastMessageAt` desc).
+  Correct while the partial-unique index keeps one live voice primary per user.
+
+**Edits D made outside its ownership** (all forced by a contract change; each is one
+mechanical line, declared so the lead can check them at merge):
+
+1. `apps/local-api/src/routes/sessions/schemas.ts` — `SessionsOverviewEntrySchema` gains
+   `primarySessionId: z.string().nullable()`. Without it the OpenAPI/SDK entry type drifts from
+   `SessionsOverviewEntry` and the web client's assignment stops typechecking. **F rebases after D
+   here** (F appends the children route's schemas to the same file — different location).
+2. `apps/local-web/src/views/DesktopControlOverlayView.vue` — `root.interruptTurn()` →
+   `root.interruptTurn({})` (the route now takes an optional JSON body). Behaviour-identical.
+3. Entry test FIXTURES gained `primarySessionId: null`: `composables/chat/context-occupancy.test.ts`,
+   `views/sessions-view.test.ts` (both outside D's list; the other three were D's own).
+
+**Asks for other slices:**
+
+- **C (or whoever owns the overlay's Stop gate):** `DesktopControlOverlayView.vue:114-121` decides
+  `canStop` with `turn.primarySessionId === null` — "a root turn names no identity". Once C stamps
+  `primarySessionId` on GLOBAL turns that is never true, so the overlay's Stop silently disables for
+  the global root. It needs the identity comparison the rest of the app now uses (the overlay's
+  tracked-turn fold carries no `sessionId`, so it also cannot use D3's `sessionId` body yet).
+- **C:** `chat-turn.ts` still begins WITHOUT `primarySessionId`, and D's `{ kind: 'workspace' }`
+  identity depends on that absence to exclude sessions spawned in the room. If workspace turns ever
+  start stamping it, workspace binding silently stops working — change the predicate in the same move
+  (`apps/local-web/src/composables/activity/match-turn-to-identity.ts`).
+- **Unowned, low priority:** `listRunningSessionTurnsForUser`
+  (`packages/session/src/repositories/session-turns.ts`, re-exported from `runtime/index.ts`) lost its
+  only caller with `/activity/running` (D5). Its own repo tests still pass; left in place because
+  `packages/session/src/repositories` is not D's.
+
+### E → B (or the lead): the overlay must ignore relayed `speak` while its OWN turn is live
+
+**Ships with E3, or E3 must be reverted.** E3's brief says "the overlay's OWN turn already
+de-duplicates client-side (`voice-turn-adapter`)". It does not — I checked the code:
+
+- `use-voice-daemon-link.ts:70-73` plays EVERY relayed `speak` event through its own
+  `createSpokenAudioPlayer()`, unconditionally. Its own header (`:21-26`) states the contract it was
+  built to: "a `speak` tool call with **no live overlay session** … is sent to exactly one client".
+- `use-voice-session.ts:96` plays the overlay's own turn's `speak` calls through a SECOND, separate
+  player (the adapter's `spoke` events). `voice-turn-adapter`'s `spoke` flag de-dupes its own gist
+  fallback against its own `speak` calls — it never sees daemon-relayed ones.
+- Both composables are mounted together (`JarvisView.vue:26-27`, `VoiceOverlay.vue:20-21`).
+
+So the daemon publishing during a handoff double-plays the overlay's own turn — which is exactly what
+the old no-op branch was defending against (native `driver.speak` double-plays too: browser speaker +
+daemon speaker on one machine). The daemon cannot route by producer on its own: `/speak` carries only
+`{ text, callId? }`, and a server-side discriminator can't help either — the overlay leg, the daemon
+wake leg and the Voice-chat panel leg are all `voice`-scope global turns.
+
+**E deliberately did NOT ship the daemon half alone.** `VYNEL_VOICE_JARVIS_WINDOW` defaults to `'1'`
+and `shouldHandOff: () => jarvisEnabled || overlay.hasClient` (`main.ts:232`), so handed-off is the
+DEFAULT path for every wake — publishing there would double-play *every spoken reply* in the shipped
+config, and no daemon-side test can catch it (the loop is daemon → api relay → browser). E ships the
+honest drop instead: a `warn` naming the drop and pointing here, replacing the no-op that logged the
+line as played. **Apply these two together, as one commit:**
+
+1. **web** (`apps/local-web/src/composables/voice/use-voice-daemon-link.ts`): take an optional
+   `isPlayingOwnTurn: () => boolean` and skip the `event.kind === "speak"` branch when it is true;
+   `JarvisView.vue:26-27` / `VoiceOverlay.vue:20-21` pass `() => voice.isActive`.
+2. **daemon** (`apps/voice/src/main.ts`, the `driver.isHandedOff` branch of `onSpeak`):
+
+   ```ts
+   if (overlay.publishSpeak(text)) {
+     logger.info({ text: preview }, 'speak — handed to the overlay that owns the session')
+   } else {
+     logger.info({ text: preview }, 'speak — overlay client gone mid-handoff, speaking natively')
+     driver.speak(text)
+   }
+   ```
+
+Net effect once both land: a schedule / panel / delivery `speak` during an overlay conversation is
+*played* instead of silently dropped; only one landing inside the overlay's own live turn is still
+dropped (today ALL are).
+
+### E → C (informational, no action): `mode` on the call leg
+
+`runCallTurn` now sends `mode: VOICE_TIER_MODE` + `voice: true`. Both `StartSessionTurnRequestSchema`
+and `StartChatTurnRequestSchema` already accept `mode`, so C's `input.voice` gate simply overrides it
+— the daemon sends it as belt-and-braces, not as the enforcement.
+
+- **A → lead / chat (unowned `packages/chat/src/turn-consumption/consume-session-event-stream.ts`) — A3(c)
+  notify-retry idempotency needs ONE consumer seam.** The duplicate-inbound bug is real: a resumed
+  notify turn persists its inbound row in the consumer's durability-first early write (BEFORE the
+  provider starts, `consume-session-event-stream.ts` ~L147-171, keyed by `userMessageInput.id`),
+  so a recoverable failure (`provider_start_timeout`, a 5xx) + requeue appends the report a second
+  time. The key already exists (the row carries the delivery job's `partialSessionId`); what is
+  missing is a way to REUSE it, and only the consumer inserts. Ask: make the resumed early write
+  find-or-insert by `userMessageInput.id` — `const existing = findChatMessageById(db,
+  userMessageInput.id); userMessage = existing ?? insert(...)` (yield `user-message-persisted`
+  either way; `handleSessionStarted` already receives it as `alreadyPersistedUserMessage`).
+  Then, in A's files, the delivery tick passes a STABLE inbound id per delivery job
+  (`claimed.id` → a new `inboundMessageId?` on `delegateToWorkspaceRoot` /
+  `RunGlobalRootReportTurn` / the core's `userMessageInput.id`) so a retry reuses the row. NOT
+  landed in A: without the seam a stable id makes the retry CRASH on the PK (worse than today's
+  duplicate), and a tick-side skip cannot stop the consumer's insert. No schema change is needed
+  (`partialSessionId` / `id` already key it). Test to add with it: enqueue a workspace report
+  delivery, first attempt fails recoverably after `session-started`, requeue, second attempt
+  completes → exactly ONE inbound row on the requester's transcript.
+- **A → C (`apps/local-api/src/boot.ts`, wiring lines) — optional symmetry.** `startDelegationService`
+  now reads `VYNEL_DELEGATED_TURN_MAX_MS` / `VYNEL_DELEGATION_LEASE_MS` / `VYNEL_DELEGATION_HEARTBEAT_MS`
+  itself via `loadEnv()` when the new optional `hardCapMs` / `leaseMs` / `heartbeatMs` options are
+  omitted (the `run-global-root-turn.ts` precedent), so boot.ts needs NO change; pass them explicitly
+  there only if the lead prefers every knob wired in one place like `maxConcurrentDelegations`.
+- **A → D (`apps/local-api/src/routes/root/index.test.ts`, D's file) / lead at merge — two expectations
+  pin the RETIRED core fallback.** A5 changed `run-global-root-turn-core.ts`'s
+  `permissionMode ?? 'bypass-with-behavior-gate'` to `?? toPermissionMode(DEFAULT_SESSION_MODE)` (D3, as
+  briefed), so on the integrated branch these two go red until their expectation is corrected to
+  `'auto'`: L760 ("a VOICE turn neither inherits nor overwrites…" — `startChatSessionInputs[1].permissionMode`;
+  C3 makes the voice leg an EXPLICIT `auto`, same value) and L802 ("runs the brain turn under the requested
+  mode; absent → the stored setting, else the bypass default" — `startChatSessionInputs[0].permissionMode`;
+  the test's title/comment "else the bypass default" becomes "else auto"). Every other suite in
+  `packages/orchestration`, `packages/session`, `apps/local-api` is green on A (183 files / 1264 tests).
+
+### F → lead: **F edited three files outside its ownership.** All purely APPENDED
+
+F3 (`GET /sessions/:id/children`) needs a parent-keyed read of `delegation_jobs`, and
+`@vynel/orchestration` exports only `.` — so neither a deep import nor a session-side Drizzle read
+over another leaf's table was open. Rather than ship a half-feature or break invariant 2, F appended
+the read in its correct home and declares it here. **Every touch is a block appended at the END of
+its file, adding nothing and changing nothing that exists** — so a merge conflict would have to be
+manufactured. Please eyeball these three at integration:
+
+| File | Owner | The touch |
+|---|---|---|
+| `packages/orchestration/src/repositories/delegation-jobs.ts` | A | one appended `listDelegationJobsForParentSessions(db, { userId, parentSessionIds, limit? })` — a pure `inArray` read, same cap idiom as its siblings |
+| `packages/orchestration/src/index.ts` | A | one appended `export { listDelegationJobsForParentSessions } from './repositories/index.js'` (the barrel is explicit-named, so the function is unreachable without it) |
+| `packages/session/src/overview/index.ts` | D | two appended lines re-exporting `listSessionChildren` + its input type (the route imports from `@vynel/session/overview`) |
+
+**Note for A:** `delegation_jobs` has no index on `parentSessionId`. The new read is a UI door on a
+local SQLite file, so it is fine today; if A is already touching indexes for the lease work, an
+`idx_delegation_jobs_parent_created (parentSessionId, createdAt)` would be the natural companion.
+
+### F → D: `chat.getContinuing` answers with the chain HEAD only
+
+The node screen's arcs now match a message endpoint against **every segment** of every drawn
+conversation, which closes A5-10 for spawned sessions (the overview entry carries `segments`). It
+does **not** close for "The build": a workspace's continuing chain is dropped by
+`foldSessionChains` (`fold-session-chains.ts:69` — hidden end to end, tail scope ≠ `global`), so it
+has no overview entry, and `GET /workspaces/:id/chat/continuing` returns
+`{ rootSessionId, currentSdkSessionId, lastMessageAt }` — the head alone. An arc whose endpoint is a
+pre-swap segment of the build therefore still drops.
+
+D1 is already widening that payload (`primarySessionId`). **Ask:** add the chain's segment ids to it
+while you are there (`segmentSessionIds: string[]`, or reuse the overview's `segments` shape). F's
+`use-project-nodes.ts` builds a `nodeIdBySegmentId` map and has a marked seam ready for it — one line
+changes there and the gap closes. `apps/local-api/src/routes/chat/index.ts` is not in F's ownership,
+so nothing was changed.
+
+### F → lead: F1(h) was resolved by DROPPING the promise, not by adding a tooltip
+
+`NodesView`'s hint read "hover a node for details · click to open it" and no tooltip exists
+(`hitTest` is called only by the scene's own mouse handlers). Building one is a new visual, which D7
+defers to Kafi — so the hint now reads "click a node to open it", and the detail a tooltip would
+show (`note`, `tasksDone`/`tasksTotal`, and room for elapsed + child count) rides every `SceneNode`
+as `detail`, carried and unrendered. Rendering it is one component away.
+
+### From G (continuity durability + denominators)
+
+**G-1 · MERGE FIX-UPS in A/C-owned files (required — the register is DB-backed, every call takes `db`
+first; sync, everything else identical).** The lead applies these at G's merge (13 one-token edits):
+
+| File (owner) | Line (at 25e86499) | Change |
+|---|---|---|
+| `packages/session/src/runtime/run-global-root-turn-core.ts` (A) | 103 `runTurnWithContinuations({` | add `db: deps.db,` as the first field |
+| `packages/session/src/delegation/run-report-delivery-tick.ts` (A) | 404 | `takePendingCheckpoint(primary.id)` → `takePendingCheckpoint(db, primary.id)` — better: the G-3 shape. Until fixed, `run-report-delivery-tick.{direct,system}.test.ts` are collateral red too (the notify path throws inside `withTransaction("<id>")`) — expect 7 red test files pre-fix-up, not 5. |
+| `apps/local-api/src/streams/chat-turn.ts` (C) | 360 `runContinuingTurn({` | add `db: c.var.db,` |
+| `apps/local-api/src/streams/session-turn.ts` (C) | 369 `runContinuingTurn({` | add `db,` |
+| `packages/session/src/runtime/run-global-root-turn-core.test.ts` (A) | 216, 263, 277, 290 | `markPendingCheckpoint(primary.id, …)` → `markPendingCheckpoint(db, primary.id, …)`; `peekPendingCheckpoint(primary.id)` → `peekPendingCheckpoint(db, primary.id)` |
+| `packages/session/src/delegation/run-delegation-claim-and-run-tick.test.ts` (A) | 627, 702 | same (`db,` first) |
+| `packages/session/src/delegation/run-agent-run-job.test.ts` (A) | 192 | same |
+| `packages/session/src/delegation/run-report-delivery-tick.update.test.ts` (A) | 164, 171 | same |
+| `apps/local-api/src/streams/chat-turn.test.ts` (C) | 252 | same |
+
+Verified in G's worktree with exactly these edits applied temporarily (then reverted): core 7/7,
+tick 34/34, agent-run 5/5, report-update 5/5, chat-turn 10/10, session-turn 11/11 green (the
+reviewer re-verified the report-tick direct/system suites 3/3 with the `:404` fix alone).
+
+**G-2 · `EnqueueAgentRunInput.origin` (A, `packages/orchestration/src/routing/enqueue-agent-run.ts`).**
+An agent-run row never carries a channel origin (the input has no field; the insert hard-codes nulls),
+so the checkpoint follow-up's shared spread cannot carry `origin` for the agent-run kind (it carries
+mode/model/effort/requester/chain for all three; origin for session + workspace). If a colleague
+mentioned from Telegram should keep its address, add `origin?: DelegationOrigin` there (+ the three
+insert columns) — the follow-up then spreads `...origin` on all three kinds with no further change.
+
+**G-3 · `run-report-delivery-tick.ts:398-408` (A) — the stray-checkpoint drop (should-fix at merge).**
+The report tick's workspace notify turn takes a pending checkpoint unconditionally after the turn.
+With the durable register a checkpoint pending BEFORE that delivery may be a restart survivor of
+the user's own turn; the interactive loop leaves such a survivor alone for `autoContinue: false`
+turns (drops only a checkpoint whose `checkpointedAt ≥ turn start`). A silent one-token `db,` there
+would eat the survivor and Kafi's "restart mid-checkpoint" smoke can fail whenever a report lands on
+that workspace before the user's next message. Recipe: capture `const startedAt = new Date()` before
+the notify turn; after it, `const stray = primary !== null ? peekPendingCheckpoint(db, primary.id) :
+null; if (stray !== null && stray.checkpointedAt >= startedAt) dropPendingCheckpoint(db, primary.id,
+{ reason: 'never-continues', logger: deps.logger })` — a visible note instead of a bare take.
+
+**G-4 · `packages/session/src/runtime/resolve-whoami-report.ts` (unowned).** whoami's context state
+computes the window from `segment.model`; the swap decision now reads
+`resolveSegmentContextWindow(db, segmentId).contextWindow` (chosen-model-first denominator, chain
+fallback). One-line swap so the model's "where am I" and the swap agree — the nudge deliberately keeps
+the RUNNING model's window (its own ceiling).
+
+**G-5 · `packages/chat/src/schema/chat-sessions.ts` comment on `lastContextWindow` (unowned, doc-only).**
+It reads "the window of the model that produced lastContextTokens"; the shipped rule is "the window of
+the model the conversation is DRIVEN on — `selectedModel` when set, else the model that produced the
+report" (WHY in `handle-usage-reported.ts`). Reword when the file is next touched.
+
+**G-6 · The meter's denominator (D, `packages/session/src/overview/get-sessions-overview.ts:156`) —
+optional.** The overview computes `contextWindow` as `resolveContextWindow(model)` from the fold's
+chain model; with the persisted denominator the honest read is `tail.lastContextWindow ??
+resolveContextWindow(model)` (one line), so the meter stops disagreeing with the swap decision after
+a small-model visitor. (The row itself is not on the sessions-overview wire; only the computed number is.)
+
+**G-8 · One home for system-authored chat rows (chat, unowned `packages/chat/src/records/*` + the
+index).** `continuity/drop-pending-checkpoint.ts` inserts its note row from `packages/session` — the
+first system-authored `chat_messages` writer outside `packages/chat/src/records/*` (the siblings:
+`record-direct-reply-message.ts`, `record-pushed-report-message.ts`). The one-home move is a
+`records/record-dropped-checkpoint-note.ts` (or a small `recordSystemNoteRow`) exported through
+chat's index — not done under G's ownership because the index is a shared file (B adds settings
+exports there); a two-file move for whoever touches `records/` next.
+
+**G-7 · Dropped-checkpoint note is a persisted row only (no live frame).** `dropPendingCheckpoint`
+writes the anchor-shaped row (`role: user`, `sourceKind: 'global-root'`, no label — "Not continued —
+the next step was: … (why). Ask to continue when you want it picked up.") on the identity's head; a
+live client sees it on the next refetch (turn-stream-ended already invalidates). A `ChatTurnEvent`
+kind for it (contracts + web pill) is a follow-up if Kafi wants it live; wording is his to polish.
+
+
+## 7. Results (lead, 2026-08-19)
+
+**Integrated on `feature/session-audit`; merged to main the same day.** All seven slices landed
+(A 6 commits · B 7 · C 4 · D 10 · E 4 · F 9 · G 9), merged A/C/B/D/E → F → G with only §6 doc-append
+conflicts; the lead folded every cross-slice ask that a slice could not write itself:
+
+- E3 coupled fix — the daemon publishes handed-off speak, the overlay skips only its own live turn.
+- Desktop overlay Stop keys on identity (root head / voice session id / delegation; refuses otherwise);
+  the fold learns `sessionId` from `turn-started`/`turn-updated`.
+- `autoBuildout` resolves through B's one resolver in the streams' settings home.
+- A3c notify-retry idempotency: the delivery job id IS the inbound row id; every user-row write is
+  find-or-insert (`insertChatMessageIfAbsent` + the three call sites); task delegates carry it too.
+  Negative-checked: without the stable id the regression test lands two rows.
+- `segmentSessionIds` on both continuing payloads from ONE exported chain reader
+  (`listSessionChainSegmentIds`) — F's arcs anchor pre-swap segments of the build.
+- A global delivery claimed while the root lock is busy YIELDS its pool slot (pending, due in 5 s,
+  no attempt spent).
+- G-1/G-3/G-4/G-6/G-8: db-first register at every caller; the report tick's stray-checkpoint drop
+  is survivor-safe; whoami + the overview meter read the chosen-model-first denominator; the
+  dropped-checkpoint note row lives in `chat/records` (`recordSystemNoteMessage`).
+- Reviewer passes (two `code-reviewer` agents, server + web): 3 must-fixes, all folded — (1) the
+  channel/delivery global runner stamps `primarySessionId` on its feed begin; (2) a voice-surface
+  Stop with no known session sends nothing (never the global head); (3) the delegation terminal
+  writes are a CAS on the CLAIM (complete/fail: claimed only; requeue: claimed | pending; null =
+  settled elsewhere → the settle homes and the requeue helper stand down; env refuses a heartbeat
+  that cannot renew inside the lease). Should-fixes folded: call-leg watchdog (room handed back,
+  the late reply still spoken), `rootTurnLockKey` in the core, task-delegate inbound ids, project
+  level treats an errored poll as answered, the Voice chat panel's liveness read via
+  `matchTurnToIdentity`, the activity-store docstring, yield log → debug, three indents.
+
+**Gate:** `pnpm test` on the integrated branch — 108/108 typecheck · 5/5 parity · 888 files /
+5 791 tests (4 pre-existing skips) — green before the review fold; re-run green after it (§7 tail).
+
+**Deferred (recorded, not slipped):** `EnqueueAgentRunInput.origin` (no live caller sends a channel
+origin for an @agent run) · leaf sessions keep their by-design `bypass-with-behavior-gate` (the
+Mode-B by-reference rail has no live call site) · a live `ChatTurnEvent` for the dropped-checkpoint
+note (persisted row only today) · `useMessageEdges` stays a poll · `constellation-scene.ts` stays
+one file (layout arithmetic extracted + tested) · the Nodes visual redesign (Kafi's) · Phase-2
+multi-process semantics of the lease/sweeper · `run-task-job.ts` (415 lines) and the pre-existing
+>300-line runners.
+
+**Kafi's live smokes (the "9+" is code-complete; these make it real):** desktop REBUILD + the
+wake-overlay REBAKE first · voice wake / live call / typed panel on the tier with no card · a
+> 10-min delegated task keeps its lock (tiny `VYNEL_DELEGATED_TURN_MAX_MS` to see the cap) · a
+restart mid-checkpoint continues · the Voice chat menu mark + the global light · Stop on both
+threads · Telegram runs the global row's mode (auto) · autopilot: toggle Auto-buildout, walk away ·
+the daemon watchdog (`VYNEL_VOICE_TURN_WATCHDOG_MS=15000`) · a report delivery retried after a
+transient failure lands once.
+
+### F → lead: one DELIBERATE visual change inside the no-visual-change slice
+
+F1(e). `NodesRace` rendered `node.status === "building" ? "working" : "waiting to start"`, so four of
+the five states read "waiting to start" — a failed project said that beside its own red dot. Race now
+uses the same `SCENE_STATUS_LABEL` map as `NodesGrid`, so its words change for every state except
+`building`: "Needs attention" / "Waiting on you" / "All done" / "Idle". That is the fix, not a
+regression, but it is the one place the screen genuinely reads differently and the lead should have
+it from F rather than find it.
+
+Everything else is provably unchanged at today's counts: the three layout formulas reproduce the
+prototype's own arithmetic exactly below their thresholds, asserted rather than described in
+`constellation-layout.test.ts` (`orbitLaneIndex(i) === i` for i < 7 · `riseStep(n, W) === 1300·0.115`
+for n ≤ 10 · `constellationSlots(n)` = one full-radius ring at `-90° + i·360°/n` for n ≤ 12). The
+fleet bar's counts row is hidden while the level's polls are in flight — where it previously
+announced a number it had not read.
+
+### F → D (integration follow-up): the chain walk now has two homes
+
+`chainSegmentIdsOf` in `list-session-children.ts` reproduces `foldSessionChains`' walk — same
+membership test, same first-write-wins `childByParentId`, same head→tail traversal. Not calling the
+fold is deliberate and documented (it drops end-to-end-hidden chains, which is exactly the workspace
+build most likely to be asked about here), but the WALK itself wants one shared helper. F could not
+extract it: everything in `packages/session/src/overview/**` except the new file is D's. A
+`resolveChainSegments(rows, sessionId)` both call would be the clean landing.

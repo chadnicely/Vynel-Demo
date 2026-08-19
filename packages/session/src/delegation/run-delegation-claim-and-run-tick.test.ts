@@ -157,7 +157,7 @@ async function drainPendingReportDeliveries(db: Database): Promise<void> {
 }
 
 describe('runDelegationClaimAndRunTick', () => {
-  it('runs the routed turn under the job’s permission mode (surface-up step 1), defaulting to bypass', async () => {
+  it('runs the routed turn under the job’s permission mode (surface-up step 1), defaulting to the one default (auto)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
@@ -203,7 +203,10 @@ describe('runDelegationClaimAndRunTick', () => {
         logger: silentLogger,
         activityFeed: new SessionActivityFeed(),
       })
-      expect(defaultInputs[0]!.permissionMode).toBe('bypass-with-behavior-gate')
+      // test: correct expectation — a mode-less job on a mode-less target runs
+      // DEFAULT_SESSION_MODE ('auto', session-hardening D3), never the
+      // provider's bypass-with-behavior-gate fallback (was 'bypass-with-behavior-gate').
+      expect(defaultInputs[0]!.permissionMode).toBe('auto')
     })
   })
 
@@ -333,6 +336,10 @@ describe('runDelegationClaimAndRunTick', () => {
       // threadId rides along so a hop THIS turn makes continues the chain
       // instead of starting a fresh one (expect.any: the key is minted at
       // enqueue, so the test can't know it up front).
+      // test: correct expectation — the composer receives the RESOLVED mode
+      // (job ?? target row ?? DEFAULT, session-hardening A5) so the desktop
+      // plan envelope and the runner can never disagree; a mode-less job on a
+      // mode-less target resolves 'auto'.
       expect(composeWorkspaceMcpServers).toHaveBeenCalledWith({
         db,
         userId: user.id,
@@ -340,6 +347,7 @@ describe('runDelegationClaimAndRunTick', () => {
         target: 'workspace-root',
         threadId: expect.any(String),
         jobId: expect.any(String),
+        permissionMode: 'auto',
       })
       expect(workspaceInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       expect('allowedMcpToolPatterns' in workspaceInputs[0]!).toBe(false)
@@ -388,6 +396,7 @@ describe('runDelegationClaimAndRunTick', () => {
         targetPrimarySessionId: grounded.primarySessionId,
         threadId: expect.any(String),
         jobId: expect.any(String),
+        permissionMode: 'auto',
       })
       expect(groundedInputs[0]!.mcpServers).toEqual({ vynel: { name: 'vynel' } })
       await drainPendingReportDeliveries(db)
@@ -624,7 +633,7 @@ describe('runDelegationClaimAndRunTick', () => {
       const provider = new FakeAiAgentProvider({
         seededSessionId: 'ws-root-ckpt',
         resultText: 'Stopping here to swap — will continue after patching context.',
-        onStartChatSession: () => markPendingCheckpoint(primary.id, 'sum the July receipts'),
+        onStartChatSession: () => markPendingCheckpoint(db, primary.id, 'sum the July receipts'),
       })
       expect(
         await runDelegationClaimAndRunTick(db, { provider, logger: silentLogger, activityFeed: new SessionActivityFeed() }),
@@ -699,7 +708,7 @@ describe('runDelegationClaimAndRunTick', () => {
         resultText: 'still going',
         onStartChatSession: () => {
           runs += 1
-          markPendingCheckpoint(spawned.primarySessionId, `step ${runs}`)
+          markPendingCheckpoint(db, spawned.primarySessionId, `step ${runs}`)
         },
       })
       const tick = () =>

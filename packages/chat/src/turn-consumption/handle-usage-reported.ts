@@ -3,15 +3,30 @@
 // (the session unification grew the file past 300 — mirrors the existing
 // `handle-session-started` / `handle-approval-requested` extractions).
 //
-// Persists per-message occupancy + the session counters + the session model, and
-// returns the UI `usage-reported` event plus the (possibly advanced) session model
-// — `sessionModel` is loop state in the consumer, so it's threaded in/out rather
-// than closed over.
+// Persists per-message occupancy + the session counters + the session model +
+// the context-window DENOMINATOR, and returns the UI `usage-reported` event plus
+// the (possibly advanced) session model — `sessionModel` is loop state in the
+// consumer, so it's threaded in/out rather than closed over.
+//
+// THE DENOMINATOR (`lastContextWindow`, session-hardening 2026-08-19): the window
+// the occupancy is measured against — by the boundary swap, the fit guard, the
+// meter. It is the window of the model the CONVERSATION IS DRIVEN ON: the
+// session's chosen model (`selectedModel`, the composer chip, copied forward on
+// swaps) when one is set, else the model that produced this report. Why chosen-
+// first: a chain the user drives on a 1M model must not start swapping at 17%
+// because a delegated small-model visitor filled ITS window, and a chain the
+// user drives on a small model must swap before the user's next turn even
+// when a big-model visitor pushed it past that window — the visitor's own
+// ceiling is the live nudge's business (it reads the running model), the
+// chain's ceiling is this column's. With no chosen model (channel-born, voice,
+// delegated-only identities) the model that ran is the best truth. Written
+// beside `lastContextTokens` on every report so the pair never disagrees.
 
 import * as chatRepository from '../repositories/index.js'
 import type { Database } from '@vynel/db'
 import type { ChatMessage } from '../repositories/index.js'
 import type { NormalizedSessionEvent } from '@vynel/providers'
+import { resolveContextWindow } from '@vynel/contracts/chat/model-context-window'
 import type { ChatTurnEvent } from '../chat-turn-event.js'
 
 export type HandleUsageReportedInput = {
@@ -53,12 +68,15 @@ export function handleUsageReported(input: HandleUsageReportedInput): HandleUsag
     // The session-level occupancy mirror — the sessions panel + the root's
     // list_sessions read it without joining messages. Overwritten per report;
     // the LAST of a turn IS the current occupancy. The model rides the same
-    // update when it first reports (constant per session; drives the
-    // context-window denominator).
+    // update when it first reports (what actually ran), and the denominator
+    // rides every report (chosen model first — see the header).
     const advancedModel = event.model && event.model !== sessionModel ? event.model : null
+    const denominatorModel =
+      chatRepository.findChatSessionById(db, sessionId)?.selectedModel ?? event.model ?? sessionModel
     chatRepository.updateChatSession(db, sessionId, {
       lastContextTokens: contextTokens,
       ...(advancedModel !== null ? { model: advancedModel } : {}),
+      ...(denominatorModel ? { lastContextWindow: resolveContextWindow(denominatorModel) } : {}),
     })
     if (advancedModel !== null) sessionModel = advancedModel
   }

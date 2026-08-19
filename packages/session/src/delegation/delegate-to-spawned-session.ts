@@ -43,11 +43,13 @@ import {
 } from '../continuity/index.js'
 import { withBoundaryContinuity } from '../runtime/with-boundary-continuity.js'
 import * as primarySessionsRepository from '../repositories/index.js'
+import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import type { Logger } from 'pino'
 import type { RoutedApprovalHandler } from './build-routed-approval-handler.js'
 import type { TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from '../runtime/session-turn-channel.js'
 import {
+  composeRoutedTurnProviderText,
   composeRoutedTurnSystemPrompt,
   routedTurnMcpSessionFields,
   type RoutedTurnMcpAttachment,
@@ -57,6 +59,10 @@ export type DelegateToSpawnedSessionInput = {
   /** The delegating (parent) session — the global root's current SDK session id. */
   parentSessionId: string
   userId: string
+  /** A STABLE id for this turn's inbound task row (the job id) — a requeued
+   *  task re-uses the row it already landed instead of writing it twice
+   *  (session-hardening A3c). Omit for a fresh random id. */
+  inboundMessageId?: string
   /** The spawned primary session whose conversation handles the task. */
   targetPrimarySessionId: string
   /** The run cwd (the job row's stored path) — the spawned session's SDK cwd. */
@@ -90,9 +96,12 @@ export type DelegateToSpawnedSessionInput = {
   partialSessionId?: string
   /** The delegation CHAIN key — per-task, carried across hops (persona-sessions). */
   threadId?: string
-  /** The permission mode the routed turn runs under — from the job row. Omit for
-   *  the pre-mode default (`bypass-with-behavior-gate`). */
+  /** The permission mode the routed turn runs under — the tick resolves it
+   *  (`job ?? target row ?? DEFAULT`, session-hardening A5). Omit → `auto`. */
   permissionMode?: DelegationPermissionMode
+  /** The target conversation runs on AUTOPILOT (D8): the per-message marker
+   *  rides the provider input; the persisted task text stays clean. */
+  autoBuildout?: boolean
   /** The background workspace MCP attachment (Slice ④b: a WORKSPACE-grounded
    *  spawned session gets its ground's toolset; the tick composes it with the
    *  spawned primary's own workspaceId). Omit for a global-grounded target.
@@ -164,11 +173,10 @@ export async function delegateToSpawnedSession(
   const sessionEventStream = provider.startChatSession({
     workspacePath: input.runCwdPath,
     resumeSessionId: primary.currentSdkSessionId,
-    userMessageText: input.taskText,
+    userMessageText: composeRoutedTurnProviderText(input.taskText, input.autoBuildout === true),
     systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions),
-    permissionMode: input.permissionMode ?? 'bypass-with-behavior-gate',
-    // Empty grants: the resumed session keeps its existing tool grants; the
-    // behavior gate still cards the floor.
+    permissionMode: input.permissionMode ?? toPermissionMode(DEFAULT_SESSION_MODE),
+    // Empty grants: the resumed session keeps its existing tool grants.
     allowedToolNames: [],
     ...routedTurnMcpSessionFields(input.mcpAttachment),
     ...(input.model !== undefined ? { model: input.model } : {}),
@@ -193,7 +201,11 @@ export async function delegateToSpawnedSession(
   const turnStream = consumeSessionEventStream({
     db,
     sessionEventStream,
-    userMessageInput: { id: randomUUID(), body: input.taskText, attachedImagesMetadata: null },
+    userMessageInput: {
+      id: input.inboundMessageId ?? randomUUID(),
+      body: input.taskText,
+      attachedImagesMetadata: null,
+    },
     userId: input.userId,
     // The session's OWN ground, not a blanket null (2026-08-17). Hard-coding
     // null filed a workspace-grounded session's approvals as the brain's:

@@ -4,7 +4,7 @@
 // ui-store's new-chat defaults. Without the middle rung, a typed message in
 // the Voice panel defaulted to the CHAT model instead of the voice tier.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
@@ -15,6 +15,7 @@ import {
   VOICE_TIER_THINKING_EFFORT,
 } from "@vynel/contracts/chat/voice-tier";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
+import { useUiStore } from "../../stores/ui-store.js";
 import {
   useSessionSettings,
   type ComposerSettings,
@@ -22,6 +23,7 @@ import {
 
 function mountSettings(input: {
   sessionId: string | null;
+  locked?: boolean;
   serverSettings?: {
     sessionMode: string | null;
     selectedModel: string | null;
@@ -33,8 +35,15 @@ function mountSettings(input: {
   >;
 }) {
   let captured!: ReturnType<typeof useSessionSettings>;
+  const updateSettings = vi.fn(async () => ({
+    sessionMode: null,
+    selectedModel: null,
+    thinkingEffort: null,
+    autoBuildout: null,
+  }));
   const client = {
     sessions: {
+      updateSettings,
       getSettings: async () =>
         input.serverSettings ?? {
           sessionMode: null,
@@ -50,6 +59,7 @@ function mountSettings(input: {
       captured = useSessionSettings(
         () => input.sessionId,
         input.surfaceDefaults,
+        { locked: () => input.locked === true },
       );
       return () => h("div");
     },
@@ -71,7 +81,7 @@ function mountSettings(input: {
       provide: { [vynelClientKey as symbol]: client },
     },
   });
-  return () => captured;
+  return Object.assign(() => captured, { updateSettings, ui: () => useUiStore() });
 }
 
 describe("useSessionSettings — the fallback ladder", () => {
@@ -110,5 +120,45 @@ describe("useSessionSettings — the fallback ladder", () => {
     await flushPromises();
     // The ui-store default (localStorage-less test env → DEFAULT_CHAT_MODEL).
     expect(settings.values.value.modelId).toBe("claude-opus-5");
+  });
+});
+
+// A LOCKED surface (the hands-free voice thread) has no third layer to write
+// to: with no session id, `update` would have rewritten the user's GLOBAL
+// new-chat defaults from a composer that speaks for one thread only. It throws
+// instead — loudly, because reaching it at all is a caller bug.
+describe("useSessionSettings — a locked surface refuses writes", () => {
+  it("throws instead of PATCHing the row or rewriting the local defaults", async () => {
+    const harness = mountSettings({
+      sessionId: "voice-seg-1",
+      locked: true,
+      surfaceDefaults: { modelId: VOICE_TIER_MODEL },
+    });
+    const settings = harness();
+    await flushPromises();
+    const ui = harness.ui();
+    const modelBefore = ui.composerModelId;
+
+    expect(() => settings.update({ modelId: "claude-opus-4-8" })).toThrow(/pinned/);
+    expect(harness.updateSettings).not.toHaveBeenCalled();
+    expect(ui.composerModelId).toBe(modelBefore);
+  });
+
+  it("with NO session id it still refuses — the dangerous branch is the local one", async () => {
+    const harness = mountSettings({ sessionId: null, locked: true });
+    const settings = harness();
+    await flushPromises();
+    const ui = harness.ui();
+
+    expect(() => settings.update({ mode: "bypass" })).toThrow(/pinned/);
+    expect(ui.composerMode).not.toBe("bypass");
+  });
+
+  it("an UNLOCKED surface is unchanged — the local defaults still take the write", async () => {
+    const harness = mountSettings({ sessionId: null });
+    const settings = harness();
+    await flushPromises();
+    settings.update({ modelId: "claude-opus-4-8" });
+    expect(harness.ui().composerModelId).toBe("claude-opus-4-8");
   });
 });

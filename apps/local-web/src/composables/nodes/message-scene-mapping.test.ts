@@ -25,13 +25,14 @@ function edge(overrides: Partial<MessageEdgeLike> = {}): MessageEdgeLike {
 }
 
 describe("fleetMessages", () => {
+  const drawn = new Set(["workspace:ws-home", "workspace:ws-acme"]);
+
   it("draws room to room when both are on screen", () => {
-    const drawn = new Set(["ws-home", "ws-acme"]);
     expect(fleetMessages([edge()], drawn)).toEqual([
       {
         id: "job-1",
-        fromId: "ws-home",
-        toId: "ws-acme",
+        fromId: "workspace:ws-home",
+        toId: "workspace:ws-acme",
         direction: "ask",
         sentAt: Date.parse(AT),
       },
@@ -41,33 +42,38 @@ describe("fleetMessages", () => {
   it("an endpoint that is not on screen becomes the core", () => {
     // The global root has no workspace — the message really did come from the
     // centre of this picture.
-    const [message] = fleetMessages([edge({ fromWorkspaceId: null })], new Set(["ws-acme"]));
-    expect(message).toMatchObject({ fromId: null, toId: "ws-acme" });
+    const [message] = fleetMessages(
+      [edge({ fromWorkspaceId: null })],
+      new Set(["workspace:ws-acme"]),
+    );
+    expect(message).toMatchObject({ fromId: null, toId: "workspace:ws-acme" });
   });
 
   it("drops a message with both ends off screen", () => {
-    expect(fleetMessages([edge()], new Set(["ws-other"]))).toEqual([]);
+    expect(fleetMessages([edge()], new Set(["workspace:ws-other"]))).toEqual([]);
   });
 
   it("never draws a room talking to itself", () => {
     const same = edge({ fromWorkspaceId: "ws-acme", toWorkspaceId: "ws-acme" });
-    expect(fleetMessages([same], new Set(["ws-acme"]))).toEqual([]);
+    expect(fleetMessages([same], new Set(["workspace:ws-acme"]))).toEqual([]);
   });
 
   it("carries the direction through, so a reply is coloured as one", () => {
-    const [message] = fleetMessages(
-      [edge({ direction: "reply" })],
-      new Set(["ws-home", "ws-acme"]),
-    );
+    const [message] = fleetMessages([edge({ direction: "reply" })], drawn);
     expect(message!.direction).toBe("reply");
   });
 });
 
 describe("projectMessages", () => {
+  // The build is on its second segment; the spawned session has swapped once
+  // and is drawn under its newest one.
   const input = {
     projectId: "ws-acme",
-    continuingSessionId: "segment-7",
-    drawnSessionIds: new Set(["spawned-1"]),
+    nodeIdBySegmentId: new Map([
+      ["segment-7", "workspace:ws-acme"],
+      ["spawned-1-old", "session:spawned-1"],
+      ["spawned-1", "session:spawned-1"],
+    ]),
   };
 
   it("the build handing work to a spawned session", () => {
@@ -76,9 +82,23 @@ describe("projectMessages", () => {
       input,
     );
     expect(message).toMatchObject({
-      fromId: "continuing:ws-acme",
+      fromId: "workspace:ws-acme",
       toId: "session:spawned-1",
       direction: "ask",
+    });
+  });
+
+  it("finds a conversation by ANY segment of its chain, not just its head", () => {
+    // Before this, an arc whose endpoint was a pre-swap segment silently
+    // vanished — on the one screen whose job is showing what just happened
+    // (2026-08-19 audit, A5-10).
+    const [message] = projectMessages(
+      [edge({ fromSessionId: "segment-7", toSessionId: "spawned-1-old" })],
+      input,
+    );
+    expect(message).toMatchObject({
+      fromId: "workspace:ws-acme",
+      toId: "session:spawned-1",
     });
   });
 
@@ -96,7 +116,7 @@ describe("projectMessages", () => {
     );
     expect(message).toMatchObject({
       fromId: "session:spawned-1",
-      toId: "continuing:ws-acme",
+      toId: "workspace:ws-acme",
       direction: "reply",
     });
   });
@@ -115,6 +135,15 @@ describe("projectMessages", () => {
       input,
     );
     expect(message).toMatchObject({ fromId: "session:spawned-1", toId: null });
+  });
+
+  it("never draws a conversation talking to its own earlier segment", () => {
+    expect(
+      projectMessages(
+        [edge({ fromSessionId: "spawned-1-old", toSessionId: "spawned-1" })],
+        input,
+      ),
+    ).toEqual([]);
   });
 
   it("drops a message between two conversations this room does not show", () => {

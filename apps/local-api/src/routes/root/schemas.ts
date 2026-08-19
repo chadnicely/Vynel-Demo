@@ -20,6 +20,7 @@ import {
   AttachedImageInputSchema,
   MAX_ATTACHED_IMAGES,
 } from '../chat/schemas.js'
+import { SessionsOverviewEntrySchema } from '../sessions/schemas.js'
 
 export {
   ContinuingConversationResponseSchema,
@@ -49,8 +50,9 @@ export const StartGlobalRootTurnRequestSchema = z
     // This turn came in by VOICE — the reply is spoken aloud, so the brain answers
     // short + conversational + markdown-free (spoken-style directive appended).
     voice: z.boolean().optional(),
-    // The composer's Auto-buildout toggle — write-through persistence only
-    // (nothing consumes it yet); persisted onto the global thread's current segment.
+    // The composer's Auto-buildout toggle = autopilot (session-hardening arc):
+    // resolved like the other settings, the autopilot marker rides the turn when
+    // true; persisted onto the global thread's current segment.
     autoBuildout: z.boolean().optional(),
   })
   .refine(
@@ -147,8 +149,22 @@ export const StopDelegationResponseSchema = z.object({
   result: z.enum(['stopped', 'stopping', 'already-finished']),
 })
 
+export const InterruptGlobalTurnRequestSchema = z.object({
+  /** WHICH thread to stop — a segment of the caller's global or voice chain.
+   *  Omitted = the global root's head (the pre-D3 behaviour), for a caller
+   *  that has not resolved a session id yet. */
+  sessionId: z.string().min(1).optional(),
+})
+
 export const InterruptGlobalTurnResponseSchema = z.object({
   // True = an interrupt was REQUESTED for the linked session (an idle session
   // makes it a provider no-op); false = no global-root session exists yet.
   interrupted: z.boolean(),
+})
+
+/** The Voice chat surface's own status read — one overview entry, or null
+ *  before the first spoken turn. The entry shape is the sessions surface's
+ *  (one home, no drift). */
+export const VoiceChatStatusResponseSchema = z.object({
+  entry: SessionsOverviewEntrySchema.nullable(),
 })

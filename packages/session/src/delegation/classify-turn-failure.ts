@@ -40,17 +40,40 @@ export function requeueIfRecoverable(
   logger: Logger,
   label: string,
 ): boolean {
+  if (!isRecoverableTurnFailure(errorMessage)) return false
+  return requeueForAnotherAttempt(db, job, errorMessage, logger, label)
+}
+
+/** Requeue for another attempt while attempts remain — the attempt bound
+ *  ALONE, for a failure the caller already judged worth retrying (a delivery
+ *  turn cut by the hard cap: the report body is the only copy, so it goes
+ *  round again instead of dying terminal). Returns false at the ceiling. */
+export function requeueForAnotherAttempt(
+  db: Database,
+  job: DelegationJob,
+  errorMessage: string,
+  logger: Logger,
+  label: string,
+): boolean {
   const attemptCount = (job.attemptCount ?? 0) + 1
-  if (!isRecoverableTurnFailure(errorMessage) || attemptCount >= DELEGATION_MAX_ATTEMPTS) {
-    return false
-  }
+  if (attemptCount >= DELEGATION_MAX_ATTEMPTS) return false
   const nextAttemptAt = new Date(Date.now() + nextAttemptDelayMs(attemptCount))
-  requeueDelegationJob(db, job.id, {
+  const requeued = requeueDelegationJob(db, job.id, {
     errorMessage,
     errorCode: extractEmbeddedErrorCode(errorMessage),
     attemptCount,
     nextAttemptAt,
   })
+  if (requeued === null) {
+    // The row is terminal already — the lease sweeper (or a stop) settled it
+    // while this run was still going. Nothing to requeue, and NOT ours to fail
+    // again: "handled" so the caller neither fails it nor pushes a give-up.
+    logger.warn(
+      { jobId: job.id, message: errorMessage },
+      `${label}: recoverable failure on a row already settled elsewhere — standing down`,
+    )
+    return true
+  }
   logger.warn(
     { jobId: job.id, attemptCount, nextAttemptAt, message: errorMessage },
     `${label}: recoverable failure — requeued with backoff`,

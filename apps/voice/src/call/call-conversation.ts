@@ -9,6 +9,7 @@ import {
   type LineSpeaker,
 } from '@vynel/voice'
 import type { CallSessionClient } from './call-session-client.js'
+import { armTurnWatchdog } from '../loop/turn-watchdog.js'
 
 // One live call's conversation loop: Cable-B segments → transcript → the pure
 // turn policy → the per-call session → spoken reply into the call sink.
@@ -30,6 +31,10 @@ import type { CallSessionClient } from './call-session-client.js'
 const NOTE_BATCH_SIZE = 8
 const NOTE_BATCH_MS = 60_000
 const CALL_TURN_FAILED_LINE = 'Sorry — I hit a problem with that.'
+// The watchdog's line: the caller gets the room back while the turn runs on;
+// its reply is still spoken when it lands (the call leg reads its answer off
+// the stream — abandoning the read would lose it, so it is never abandoned).
+const CALL_TURN_STILL_WORKING_LINE = "Still working on that — I'll say so as soon as it's done."
 // How long past the end of playback a line's echo can still arrive: the call
 // round-trip + the far end's speaker→mic pickup + VAD closing the segment.
 const ECHO_RETURN_WINDOW_MS = 4_000
@@ -47,6 +52,10 @@ export interface CallConversationDeps {
   readonly transcribe: (audio: PcmAudio) => Promise<string>
   readonly lineSpeaker: LineSpeaker
   readonly sessionClient: CallSessionClient
+  /** The daemon's per-turn watchdog (session-hardening D5): past this many ms
+   *  in flight the conversation says "still working", hands the room back
+   *  and keeps reading — the reply is spoken when it arrives. `0` disables. */
+  readonly turnWatchdogMs: number
 }
 
 export class CallConversation {
@@ -190,6 +199,27 @@ export class CallConversation {
 
   async #runTurn(message: string, speakPolicy: 'always' | 'unless-noted'): Promise<void> {
     this.#turnInFlight = true
+    // Hand the room back exactly once — either when the turn ends or when the
+    // watchdog fires first (then the turn keeps streaming in the background
+    // and a later utterance may already own `#turnInFlight`; the late finally
+    // must not touch it).
+    let handedBack = false
+    const handBack = (): void => {
+      if (handedBack) return
+      handedBack = true
+      this.#turnInFlight = false
+      this.#runPendingWork()
+    }
+    const watchdog = armTurnWatchdog(this.#deps.turnWatchdogMs)
+    void watchdog.whenExpired.then(async () => {
+      if (handedBack || this.#stopped) return
+      this.#deps.logger.warn(
+        { callId: this.#deps.callId, watchdogMs: this.#deps.turnWatchdogMs },
+        'call turn watchdog fired — handing the room back; the turn keeps running and its reply will still be spoken',
+      )
+      if (speakPolicy === 'always') await this.#speak(CALL_TURN_STILL_WORKING_LINE)
+      handBack()
+    })
     try {
       let reply = ''
       let failed = false
@@ -216,8 +246,8 @@ export class CallConversation {
       if (speakPolicy === 'unless-noted' && isNotedSentinel(spoken)) return
       await this.#speak(spoken)
     } finally {
-      this.#turnInFlight = false
-      this.#runPendingWork()
+      watchdog.disarm()
+      handBack()
     }
   }
 

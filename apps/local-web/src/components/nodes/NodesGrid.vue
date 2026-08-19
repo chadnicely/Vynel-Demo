@@ -1,21 +1,10 @@
 <script setup lang="ts">
 import type { SceneNode } from "../../utils/constellation-scene.js";
+import { SCENE_STATUS_LABEL } from "../../composables/nodes/node-status.js";
 
 // The same level as cards, for reading rather than watching.
 defineProps<{ nodes: readonly SceneNode[] }>();
 const emit = defineEmits<{ open: [nodeId: string] }>();
-
-// One word per state, matching the dots and the fleet bar. This used to say
-// "Working now" or "Nothing running" and nothing else — so a project that had
-// failed, or was waiting on you, read as "Nothing running" right beside a red
-// or amber dot for the same project (Kafi's one-rule pass, 2026-08-17).
-const STATE_LABEL: Record<SceneNode["status"], string> = {
-  problem: "Needs attention",
-  building: "Working now",
-  waiting: "Waiting on you",
-  done: "All done",
-  idle: "Idle",
-};
 </script>
 
 <template>
@@ -31,7 +20,7 @@ const STATE_LABEL: Record<SceneNode["status"], string> = {
       <span class="card-face">{{ node.initials }}</span>
       <span class="card-body">
         <span class="card-name">{{ node.name }}</span>
-        <span class="card-state">{{ STATE_LABEL[node.status] }}</span>
+        <span class="card-state">{{ SCENE_STATUS_LABEL[node.status] }}</span>
       </span>
     </button>
   </div>

@@ -143,7 +143,9 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         // or drop a standing "problem/needs_input" light — back to "never
         // set"; the fresh segment inherits its predecessor's values (settings
         // stay overridable by the streams' write-through, the status by the
-        // read-time supersession rule).
+        // read-time supersession rule). The context-window denominator rides
+        // along (the recordSwapSegmentSession rule — one copy-forward shape
+        // for both swap writers).
         ...(predecessor !== null
           ? {
               sessionMode: predecessor.sessionMode,
@@ -153,12 +155,13 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
               status: predecessor.status,
               statusNote: predecessor.statusNote,
               statusSetAt: predecessor.statusSetAt,
+              lastContextWindow: predecessor.lastContextWindow,
             }
           : {}),
       })
       const inserted =
         alreadyPersistedUserMessage ??
-        chatRepository.insertChatMessage(tx, {
+        chatRepository.insertChatMessageIfAbsent(tx, {
           id: userMessageInput.id,
           sessionId,
           role: 'user',
@@ -177,7 +180,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
           startedAt: now,
           completedAt: now, // user messages are "complete" immediately
           createdAt: now,
-        })
+        }).message
       insertOutboxEvent(tx, {
         id: crypto.randomUUID(),
         type: CHAT_SESSION_CREATED,
@@ -203,7 +206,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
     // leave a message attached to a session with a stale lastMessageAt
     // (chat Gate 3 S4 2026-05-23).
     userMessage = withTransaction(db, (tx) => {
-      const inserted = chatRepository.insertChatMessage(tx, {
+      const { message: inserted, inserted: isNew } = chatRepository.insertChatMessageIfAbsent(tx, {
         id: userMessageInput.id,
         sessionId,
         role: 'user',
@@ -223,7 +226,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         completedAt: now,
         createdAt: now,
       })
-      chatRepository.updateChatSession(tx, sessionId, { lastMessageAt: now })
+      if (isNew) chatRepository.updateChatSession(tx, sessionId, { lastMessageAt: now })
       return inserted
     })
     events.push({ kind: 'user-message-persisted', message: userMessage })

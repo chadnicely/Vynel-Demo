@@ -23,6 +23,8 @@ import {
   type NewChatSession,
   type NewChatMessage,
 } from '@vynel/chat/repositories'
+import { updateChatSessionSettings } from '@vynel/chat'
+import { enqueueWorkspaceDelegation } from '@vynel/orchestration'
 import { TurnEventBroadcaster } from '@vynel/session/delegation'
 import { sessionChannelKey } from '@vynel/session/runtime'
 import { findSpawnedSessionBySegmentId } from '@vynel/session/spawned'
@@ -526,6 +528,84 @@ describe('POST /sessions/spawned (Slice ④ — create_session)', () => {
     })
   })
 
+  it('birth-stamps the AMBIENT creator settings onto the new session (D4)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-stamp-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const ws = seedWorkspace(db, user.id, 'Acme')
+        // The creating turn's own row already holds its resolved chips (the
+        // interactive streams' write-through).
+        const creator = insertChatSession(db, makeSession(user.id, ws.id))
+        updateChatSessionSettings(db, creator.id, {
+          sessionMode: 'bypass',
+          selectedModel: 'claude-opus-4-8',
+          thinkingEffort: 'high',
+          autoBuildout: true,
+        })
+        const app = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-child'))
+
+        const res = await app.request('/sessions/spawned', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [TURN_SESSION_HEADER]: creator.id,
+          },
+          body: JSON.stringify({ name: 'Child', purpose: 'Do the follow-up.' }),
+        })
+        expect(res.status).toBe(200)
+
+        const child = findChatSessionById(db, 'sdk-child')
+        expect(child?.sessionMode).toBe('bypass')
+        expect(child?.selectedModel).toBe('claude-opus-4-8')
+        expect(child?.thinkingEffort).toBe('high')
+        expect(child?.autoBuildout).toBe(true)
+      })
+    })
+  })
+
+  it('stays NULL with no ambient turn, and when the header names a foreign session', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-null-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        // The LOCAL user is whoever exists first — seed them before the stranger.
+        const user = seedUser(db)
+        const stranger = seedUser(db)
+        const strangerWs = seedWorkspace(db, stranger.id, 'Theirs')
+        const foreign = insertChatSession(db, makeSession(stranger.id, strangerWs.id))
+        updateChatSessionSettings(db, foreign.id, { sessionMode: 'bypass' })
+
+        // No header at all — the CLI / voice-call-leg path.
+        const bare = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-bare'))
+        expect(
+          (
+            await bare.request('/sessions/spawned', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name: 'Bare', purpose: 'p' }),
+            })
+          ).status,
+        ).toBe(200)
+        expect(findChatSessionById(db, 'sdk-bare')?.sessionMode).toBeNull()
+        expect(findChatSessionById(db, 'sdk-bare')?.userId).toBe(user.id)
+
+        // A header naming ANOTHER user's session is no creator either — never
+        // a cross-tenant read, and never a 404 (no-creator is a valid path).
+        const spoofed = makeHarness(db, new TurnEventBroadcaster(), makePrimingProvider('sdk-spoof'))
+        const res = await spoofed.request('/sessions/spawned', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [TURN_SESSION_HEADER]: foreign.id,
+          },
+          body: JSON.stringify({ name: 'Spoofed', purpose: 'p' }),
+        })
+        expect(res.status).toBe(200)
+        expect(findChatSessionById(db, 'sdk-spoof')?.sessionMode).toBeNull()
+      })
+    })
+  })
+
   it("404s a workspaceId that is unknown or another user's (no enumeration leak)", async () => {
     await withTestDatabase(async (db) => {
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-spawned-404-'))
@@ -639,6 +719,29 @@ describe('GET + PATCH /sessions/:sessionId/settings (per-session composer settin
       })
       expect(res.status).toBe(200)
       expect(((await res.json()) as { sessionMode: string }).sessionMode).toBe('bypass')
+    })
+  })
+
+  it('403s a VOICE-scope session — the spoken thread is pinned to its tier (D2)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const voiceSegment = insertChatSession(
+        db,
+        makeSession(user.id, '', { workspaceId: null, scope: 'voice', visibility: 'hidden' }),
+      )
+      const app = makeHarness(db)
+
+      // Reading is fine — the panel shows the tier.
+      expect((await app.request(`/sessions/${voiceSegment.id}/settings`)).status).toBe(200)
+
+      const res = await app.request(`/sessions/${voiceSegment.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'ask' }),
+      })
+      expect(res.status).toBe(403)
+      expect((await res.json()) as { code: string }).toMatchObject({ code: 'forbidden' })
+      expect(findChatSessionById(db, voiceSegment.id)?.sessionMode).toBeNull()
     })
   })
 
@@ -807,6 +910,76 @@ describe('the voice thread and the cross-session wall', () => {
         headers: { [TURN_SESSION_HEADER]: voiceThread.id },
       })
       expect(liftedDetail.status).toBe(200)
+    })
+  })
+})
+
+describe('GET /sessions/:sessionId/children', () => {
+  it('answers the conversation and the work it set going', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const now = new Date()
+      const workspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: user.id,
+        name: 'Acme',
+        kind: 'personal',
+        path: `/tmp/vynel/${randomUUID()}`,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const session = insertChatSession(db, makeSession(user.id, workspace.id))
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: session.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'Reconcile the July invoices',
+      })
+
+      const app = makeHarness(db)
+      const res = await app.request(`/sessions/${session.id}/children`)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        sessionId: string
+        children: Array<{ kind: string; title: string; status: string | null }>
+      }
+      expect(body.sessionId).toBe(session.id)
+      expect(body.children).toHaveLength(1)
+      expect(body.children[0]).toMatchObject({
+        kind: 'task',
+        title: 'Reconcile the July invoices',
+        status: 'queued',
+      })
+    })
+  })
+
+  it("404s on an unknown id and on another user's session alike (no enumeration leak)", async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const stranger = seedUser(db)
+      const now = new Date()
+      const theirWorkspace = insertWorkspace(db, {
+        id: randomUUID(),
+        userId: stranger.id,
+        name: 'Theirs',
+        kind: 'personal',
+        path: `/tmp/vynel/${randomUUID()}`,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const theirs = insertChatSession(db, makeSession(stranger.id, theirWorkspace.id))
+
+      // The harness's ambient user is the FIRST seeded one.
+      expect(user.id).not.toBe(stranger.id)
+      const app = makeHarness(db)
+      expect((await app.request('/sessions/no-such-session/children')).status).toBe(404)
+      expect((await app.request(`/sessions/${theirs.id}/children`)).status).toBe(404)
     })
   })
 })

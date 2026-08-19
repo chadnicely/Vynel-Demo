@@ -40,6 +40,10 @@ export type {
   ConsumeSessionEventStreamInput,
   TurnMessageAttribution,
 } from './turn-consumption/consume-session-event-stream.js'
+// The honest failure row for a turn that died with no assistant output — the
+// consumer's own rule for a provider error, shared with the interactive wall
+// clock (a turn cut off at its limit says so on the thread the same way).
+export { persistTurnFailureRow } from './turn-consumption/persist-turn-failure-row.js'
 // Boot recovery for orphaned tool-call rows — server.ts reaps `started` →
 // `cancelled` at boot (the consumer's teardown reap can't run on process death).
 export { reapAllStartedChatToolCalls } from './repositories/chat-tool-calls.js'
@@ -67,6 +71,8 @@ export { recordLeafSession } from './records/record-leaf-session.js'
 export type { RecordLeafSessionInput } from './records/record-leaf-session.js'
 export { recordPushedReportMessage } from './records/record-pushed-report-message.js'
 export { recordDirectReplyMessage } from './records/record-direct-reply-message.js'
+export { recordSystemNoteMessage } from './records/record-system-note-message.js'
+export type { RecordSystemNoteMessageInput } from './records/record-system-note-message.js'
 export type { RecordPushedReportMessageInput } from './records/record-pushed-report-message.js'
 export { composeManagerSourceLabel } from './records/compose-manager-source-label.js'
 
@@ -81,7 +87,6 @@ export type {
   ResolvedTurnSettings,
 } from './settings/resolve-turn-session-settings.js'
 export { persistTurnSessionSettings } from './settings/persist-turn-session-settings.js'
-export type { TurnSettingsWriteInput } from './settings/persist-turn-session-settings.js'
 
 // Status — the assistant-set session light (`set_session_status`).
 export { setSessionStatus } from './status/set-session-status.js'
