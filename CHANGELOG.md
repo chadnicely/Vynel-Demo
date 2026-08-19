@@ -9,6 +9,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **"Remind me for tea at 5" typed in chat now creates a real schedule.** Claude can
+  create, update, enable and disable schedules from the global chat, a workspace chat,
+  or a channel — they survive restarts and show up in the Schedules panel, instead of
+  Claude improvising a timer that dies with the app.
 - **When Claude's own safety check blocks a tool in auto mode, the card says so and lets you
   run it anyway.** The blocked call reads "Blocked by Claude's safety check" with the
   reason, and one button posts your go-ahead as a message in the same conversation so the
