@@ -36,6 +36,9 @@ const startChatSessionInputs: StartChatSessionInput[] = []
 let onStartChatSession: ((input: StartChatSessionInput, ordinal: number) => void) | null = null
 /** The next turn HANGS after its first chunk until interrupted (the wall-clock case). */
 let nextTurnHangs = false
+/** Content events the next turn yields after its text chunk (tool traffic a
+ *  case wants on the wire — the classifier-deny settle). */
+let extraEventsForTurn: NormalizedSessionEvent[] = []
 const {
   interruptChatSessionMock,
   hangResolvers,
@@ -64,6 +67,8 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
   const usageTokens = queuedUsageTokens.length > 0 ? queuedUsageTokens.shift()! : usageTokensForTurn
   const hangs = nextTurnHangs
   nextTurnHangs = false
+  const extraEvents = extraEventsForTurn
+  extraEventsForTurn = []
   async function* events(): AsyncIterable<NormalizedSessionEvent> {
     yield {
       kind: 'session-started',
@@ -78,6 +83,7 @@ function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<Norma
       textDelta: 'Hello from the fake provider.',
       isFinalChunk: true,
     }
+    for (const extra of extraEvents) yield { ...extra, sessionId }
     if (hangs) {
       await new Promise<void>((resolve) => hangResolvers.set(sessionId, resolve))
       yield { kind: 'session-interrupted', sessionId, interruptedAt: new Date() }
@@ -170,6 +176,7 @@ beforeEach(() => {
   startChatSessionInputs.length = 0
   onStartChatSession = null
   nextTurnHangs = false
+  extraEventsForTurn = []
   interruptChatSessionMock.mockClear()
   wrapAppRequestWithModeSpy.mockClear()
   buildAskFeatureDescriptorSpy.mockClear()
@@ -615,6 +622,66 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       nextSdkSessionId = `sdk-${randomUUID()}`
       await (await postTurn(app, workspace.id, { userMessageText: 'quick', continueRoot: true })).text()
       expect(interruptChatSessionMock).not.toHaveBeenCalled()
+    })
+  })
+
+  it("a call the provider's own safety check refused rides the wire as a BLOCKED tool-call-completed frame — the canned echo never flips it (classifier-deny card)", async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const app = createApp({ db, logger: silentLogger })
+      const canned =
+        "The user doesn't want to take this action right now. STOP what you are doing and wait for the user to tell you how to proceed."
+      extraEventsForTurn = [
+        {
+          kind: 'tool-use-started',
+          sessionId: '',
+          parentMessageId: 'assistant-m1',
+          toolUseId: 'tu_crontab',
+          toolName: 'Bash',
+          toolInput: { command: 'ssh ops@host "crontab -"' },
+          startedAt: new Date(),
+        },
+        {
+          kind: 'tool-use-blocked',
+          sessionId: '',
+          toolUseId: 'tu_crontab',
+          toolName: 'Bash',
+          reasonType: 'classifier',
+          reason: 'Writing a remote crontab is irreversible without clear user intent',
+          message: canned,
+          blockedAt: new Date(),
+        },
+        {
+          kind: 'tool-use-completed',
+          sessionId: '',
+          parentMessageId: 'assistant-m1',
+          toolUseId: 'tu_crontab',
+          output: canned,
+          isError: true,
+          completedAt: new Date(),
+        },
+      ]
+
+      const frames = await (await postTurn(app, workspace.id, { userMessageText: 'set the cron' })).text()
+
+      // The settle frame carries the row — status + the structured reason — on
+      // the SAME event kind every live viewer already folds; no new wire kind.
+      const settleFrames = frames
+        .split('\n\n')
+        .filter((frame) => frame.startsWith('event: tool-call-completed'))
+      expect(settleFrames).toHaveLength(1)
+      const settled = JSON.parse(settleFrames[0]!.split('\ndata: ')[1]!) as {
+        toolCall: { status: string; toolOutput: unknown; isErrorResult: boolean }
+      }
+      expect(settled.toolCall.status).toBe('blocked')
+      expect(settled.toolCall.isErrorResult).toBe(true)
+      expect(settled.toolCall.toolOutput).toEqual({
+        blockedBy: 'classifier',
+        reason: 'Writing a remote crontab is irreversible without clear user intent',
+        message: canned,
+      })
+      expect(frames).not.toContain('"status":"failed"')
+      expect(frames).toContain('event: turn-stream-ended')
     })
   })
 })

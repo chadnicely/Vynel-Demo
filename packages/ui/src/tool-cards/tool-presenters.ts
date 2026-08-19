@@ -1,4 +1,5 @@
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
+import { readBlockedToolOutput } from "@vynel/contracts/chat/blocked-tool-call";
 import { presentDesktopToolCall } from "./desktop-step-presenter.js";
 
 // Presentation logic for tool calls — turns a raw {toolName, toolInput,
@@ -79,6 +80,15 @@ function asDisplayString(payload: unknown): string {
   return JSON.stringify(payload, null, 2);
 }
 
+/** The output the panes render. A BLOCKED call's row output is the refusal
+ *  record; what came back to the model is its message — the card's blocked
+ *  line already names who refused and why. Gated on the STATUS (the row's
+ *  truth): an ordinary result that merely looks like the record stays as is. */
+function displayableToolOutput(toolCall: ChatToolCallResponse): unknown {
+  if (toolCall.status !== "blocked") return toolCall.toolOutput;
+  return readBlockedToolOutput(toolCall.toolOutput)?.message ?? toolCall.toolOutput;
+}
+
 function inputField(input: unknown, field: string): string | null {
   if (typeof input !== "object" || input === null) return null;
   const value = (input as Record<string, unknown>)[field];
@@ -98,7 +108,8 @@ function truncated(text: string, max: number): string {
 export function presentToolCall(
   toolCall: ChatToolCallResponse,
 ): ToolCallPresentation {
-  const { toolName, toolInput, toolOutput } = toolCall;
+  const { toolName, toolInput } = toolCall;
+  const toolOutput = displayableToolOutput(toolCall);
 
   // Desktop-control calls read as actions on the user's screen ("Pressed
   // 'Save' in Notepad"), never as raw payload panes — the same grammar the

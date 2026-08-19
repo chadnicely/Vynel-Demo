@@ -75,6 +75,35 @@ export type ToolUseCompletedEvent = {
   parentToolUseId?: string
 }
 
+/** The provider's OWN safety check refused a tool call before it ran — Claude's
+ *  auto-mode classifier, a deny rule, the mode itself. No approval card was ever
+ *  shown (the refusal short-circuits ahead of `canUseTool`); the model received
+ *  a canned rejection as the tool_result and stops. Distinct from an
+ *  `approval-resolved` denial, where the USER refused. The tool never ran; the
+ *  user may re-authorize by re-issuing the intent on the same session. */
+export type ToolUseBlockedEvent = {
+  kind: 'tool-use-blocked'
+  sessionId: string
+  toolUseId: string
+  toolName: string
+  /** The deciding component ('classifier' | 'rule' | 'mode' | …); null when
+   *  the provider did not say. An open string — the provider's vocabulary. */
+  reasonType: string | null
+  /** The component's human-readable reason, sanitized for display (no
+   *  terminal escapes); null when the provider gave none. */
+  reason: string | null
+  /** The rejection text the model received in place of a result. */
+  message: string
+  blockedAt: Date
+  /** Set when the refused call ran inside a SUBAGENT — the provider's own id
+   *  for that subagent (Claude's `agent_id`). Unlike the chunk/tool events,
+   *  this advisory names NO spawning tool call, so a consumer cannot settle it
+   *  onto an Agent card's entry (that entry settles off the error echo that
+   *  follows) — it can only tell the block apart from a main-thread one.
+   *  Absent = the main thread. */
+  agentId?: string
+}
+
 /** The agent is paused awaiting a tool-approval decision. */
 export type ApprovalRequestedEvent = {
   kind: 'approval-requested'
@@ -158,6 +187,7 @@ export type NormalizedSessionEvent =
   | ThinkingChunkEvent
   | ToolUseStartedEvent
   | ToolUseCompletedEvent
+  | ToolUseBlockedEvent
   | ApprovalRequestedEvent
   | ApprovalResolvedEvent
   | UsageReportedEvent

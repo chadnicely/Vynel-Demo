@@ -18,6 +18,10 @@
 //                                `tool_use` content blocks (full input,
 //                                no fragile `input_json_delta` reassembly)
 //   - tool-use-completed      <- the `user` message's `tool_result` blocks
+//   - tool-use-blocked        <- the `system`/`permission_denied` advisory: the
+//                                SDK's OWN safety check (auto-mode classifier,
+//                                deny rule, mode) refused a call ahead of
+//                                `canUseTool`, so no approval ever reached us
 //   - usage-reported          <- each `assistant` message's per-request
 //                                `message.usage` (the input side = real context
 //                                occupancy; the `result` message's usage is
@@ -33,6 +37,7 @@ import type {
   NormalizedSessionEvent,
   UsageReportedEvent,
 } from '../../shared/normalized-session-event.js'
+import { translateClaudeSystemMessage } from './translate-claude-system-message.js'
 
 export type TranslateClaudeSdkEventInput = {
   sdkEvent: unknown
@@ -85,6 +90,8 @@ export function translateClaudeSdkEvent(
       return translateAssistantMessage(sdkEvent, sessionId, streamedAssistantMessageIds)
     case 'user':
       return translateUserMessage(sdkEvent, sessionId, currentAssistantMessageId)
+    case 'system':
+      return translateClaudeSystemMessage(sdkEvent, sessionId)
     default:
       // `result` is handled by the runner (lifecycle) — its usage is cumulative,
       // so it is NOT the occupancy source (see the header note).

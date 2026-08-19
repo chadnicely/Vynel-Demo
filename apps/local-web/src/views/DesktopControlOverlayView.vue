@@ -443,6 +443,7 @@ onUnmounted(() => {
 
 .step-status.is-failed,
 .step-status.is-denied,
+.step-status.is-blocked,
 .step-status.is-cancelled {
   color: var(--danger, #e5484d);
 }

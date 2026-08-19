@@ -321,6 +321,116 @@ const testCases: TestCase[] = [
     },
     expected: [],
   },
+  // ── The SDK's own refusal (auto-mode classifier / deny rule / mode) ──────
+  {
+    name: 'system permission_denied -> ToolUseBlockedEvent (decision reason ANSI-stripped)',
+    sdkEvent: {
+      type: 'system',
+      subtype: 'permission_denied',
+      tool_name: 'Bash',
+      tool_use_id: 'tu_blocked',
+      decision_reason_type: 'classifier',
+      decision_reason:
+        '\u001b[33mWriting a crontab on a remote host is irreversible without clear user intent\u001b[0m ',
+      message:
+        "The user doesn't want to take this action right now. STOP what you are doing and wait for the user to tell you how to proceed.",
+      uuid: 'evt-pd',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'tool-use-blocked',
+        sessionId: SESSION_ID,
+        toolUseId: 'tu_blocked',
+        toolName: 'Bash',
+        reasonType: 'classifier',
+        reason: 'Writing a crontab on a remote host is irreversible without clear user intent',
+        message:
+          "The user doesn't want to take this action right now. STOP what you are doing and wait for the user to tell you how to proceed.",
+        blockedAt: expect.any(Date),
+      },
+    ],
+  },
+  {
+    name: 'system permission_denied without a reason -> ToolUseBlockedEvent with null reasonType/reason',
+    sdkEvent: {
+      type: 'system',
+      subtype: 'permission_denied',
+      tool_name: 'mcp__ssh__run_command',
+      tool_use_id: 'tu_blocked_bare',
+      decision_reason: '   ',
+      message: 'Permission denied.',
+      uuid: 'evt-pd-bare',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'tool-use-blocked',
+        sessionId: SESSION_ID,
+        toolUseId: 'tu_blocked_bare',
+        toolName: 'mcp__ssh__run_command',
+        reasonType: null,
+        reason: null,
+        message: 'Permission denied.',
+        blockedAt: expect.any(Date),
+      },
+    ],
+  },
+  {
+    // The SDK attributes a subagent's refusal with `agent_id` — never the
+    // `parent_tool_use_id` the other messages carry — so that is what rides.
+    name: 'system permission_denied inside a subagent -> ToolUseBlockedEvent carrying agentId',
+    sdkEvent: {
+      type: 'system',
+      subtype: 'permission_denied',
+      tool_name: 'Bash',
+      tool_use_id: 'tu_blocked_sub',
+      agent_id: 'agent_7',
+      decision_reason_type: 'classifier',
+      decision_reason: 'no clear user intent',
+      message: 'Permission denied.',
+      uuid: 'evt-pd-sub',
+      session_id: SESSION_ID,
+    },
+    expected: [
+      {
+        kind: 'tool-use-blocked',
+        sessionId: SESSION_ID,
+        toolUseId: 'tu_blocked_sub',
+        toolName: 'Bash',
+        reasonType: 'classifier',
+        reason: 'no clear user intent',
+        message: 'Permission denied.',
+        blockedAt: expect.any(Date),
+        agentId: 'agent_7',
+      },
+    ],
+  },
+  {
+    name: 'system permission_denied missing its tool_use_id -> [] (no throw)',
+    sdkEvent: {
+      type: 'system',
+      subtype: 'permission_denied',
+      tool_name: 'Bash',
+      message: 'Permission denied.',
+      uuid: 'evt-pd-broken',
+      session_id: SESSION_ID,
+    },
+    expected: [],
+  },
+  {
+    name: 'system init (any other subtype) -> [] (the runner owns the lifecycle)',
+    sdkEvent: {
+      type: 'system',
+      subtype: 'init',
+      cwd: '/tmp',
+      session_id: SESSION_ID,
+      tools: [],
+      model: 'claude-opus-5',
+      uuid: 'evt-init',
+    },
+    expected: [],
+  },
   {
     name: 'unknown SDK event type -> [] (no throw)',
     sdkEvent: { type: 'tool_progress', tool_use_id: 'tu_1', session_id: SESSION_ID },

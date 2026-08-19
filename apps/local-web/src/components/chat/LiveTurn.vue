@@ -8,10 +8,12 @@ import {
   ToolCallList,
   MarkdownText,
   deriveSettledAgentActivity,
+  type ReauthorizeState,
 } from "@vynel/ui";
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
 import { deriveActionKind } from "@vynel/approvals/action-kind";
+import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import {
   liveClockStartMs,
   type ActiveTurnContinuation,
@@ -34,6 +36,10 @@ const props = withDefaults(
     /** The persona's custom avatar; null = the Claude mark (MessageRow's
      *  settled rows render the same glyph). */
     authorIconUrl?: string | null;
+    /** The thread's word on a BLOCKED card's "Run it anyway" — ThreadStream
+     *  computes it ONCE for settled and live cards alike (this view's status
+     *  IS the thread's active turn). Absent = the button waits. */
+    reauthorizeState?: ReauthorizeState | undefined;
   }>(),
   { authorLabel: "Assistant", authorIconUrl: null },
 );
@@ -43,6 +49,9 @@ const emit = defineEmits<{
   /** An agent-run pointer's click — same contract as ThreadStream's settled
    *  pointers; the host routes it to the sidebar's activity pane. */
   openPointer: [pointer: ThreadPointerModel];
+  /** "Run it anyway" on a BLOCKED card in the live turn — same contract as
+   *  ThreadStream's settled cards; the host re-issues the intent. */
+  reauthorizeToolCall: [toolCall: ChatToolCallResponse];
 }>();
 
 // The live edge — only the LAST segment is still being written, so only it
@@ -181,6 +190,8 @@ const elapsedLabel = useTickingElapsed(
           v-if="row.segment.toolCalls.length > 0"
           :tool-calls="row.segment.toolCalls"
           :agent-activity="props.view.agentActivity"
+          :reauthorize-state="props.reauthorizeState"
+          @reauthorize="(call) => emit('reauthorizeToolCall', call)"
         />
         <PointerRow
           v-for="pointer in agentPointersFor(row.segment)"

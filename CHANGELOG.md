@@ -9,6 +9,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **When Claude's own safety check blocks a tool in auto mode, the card says so and lets you
+  run it anyway.** The blocked call reads "Blocked by Claude's safety check" with the
+  reason, and one button posts your go-ahead as a message in the same conversation so the
+  retry carries your intent. View-only threads show why the button is off.
 - **Voice talks as it thinks.** Vynel now speaks the first sentence of its answer
   the moment it is written — while it is still working out the rest — instead of
   waiting to call a speaking tool after its work, and it never opens with a stock

@@ -156,6 +156,44 @@ describe("presentToolCall", () => {
     expect(unknownTool.body.kind).toBe("payloads");
     expect(malformedRead.body.kind).toBe("payloads");
   });
+
+  it("shows a BLOCKED call's refusal message as the output — what the model got back, not the record", () => {
+    const presentation = presentToolCall({
+      ...makeToolCall(
+        "Bash",
+        { command: 'ssh ops@host "crontab -"' },
+        { blockedBy: "classifier", reason: "no clear intent", message: "STOP and wait." },
+      ),
+      status: "blocked",
+      isErrorResult: true,
+    });
+
+    expect(presentation.body).toEqual({
+      kind: "terminal",
+      command: 'ssh ops@host "crontab -"',
+      output: "STOP and wait.",
+    });
+  });
+
+  it("leaves an ordinary output that merely looks like the refusal record alone — the STATUS decides", () => {
+    const lookalike = { blockedBy: "classifier", reason: "x", message: "y" };
+    const completed = presentToolCall(
+      makeToolCall("Bash", { command: "cat policy.json" }, lookalike),
+    );
+    const failed = presentToolCall({
+      ...makeToolCall("Bash", { command: "cat policy.json" }, lookalike),
+      status: "failed",
+      isErrorResult: true,
+    });
+
+    for (const presentation of [completed, failed]) {
+      expect(presentation.body).toEqual({
+        kind: "terminal",
+        command: "cat policy.json",
+        output: JSON.stringify(lookalike, null, 2),
+      });
+    }
+  });
 });
 
 describe("languageForFilePath", () => {

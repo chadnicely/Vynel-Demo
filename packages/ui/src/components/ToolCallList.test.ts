@@ -51,3 +51,52 @@ describe("ToolCallList — no delegation chip (the pointer is the tracker)", () 
     expect(wrapper.text()).not.toContain("Summarize the pricing docs");
   });
 });
+
+// The classifier-deny card's re-authorize rides through the list: the host's
+// `reauthorizeState` reaches every card, and a card's click comes back WITH the
+// call (the host needs its tool name to phrase the re-issued message).
+describe("ToolCallList — re-authorizing a blocked call", () => {
+  const blockedCall = makeToolCall({
+    id: "tc-blocked",
+    toolUseId: "tu-blocked",
+    toolName: "Bash",
+    toolInput: { command: "crontab -" },
+    toolOutput: { blockedBy: "classifier", reason: "no clear intent", message: "STOP" },
+    status: "blocked",
+    isErrorResult: true,
+  });
+
+  it("re-emits the card's reauthorize with the blocked call when the host allows it", async () => {
+    const wrapper = mount(ToolCallList, {
+      props: { toolCalls: [blockedCall], reauthorizeState: "ready" },
+    });
+
+    await wrapper.get(".reauthorize-button").trigger("click");
+
+    expect(wrapper.emitted("reauthorize")).toEqual([[blockedCall]]);
+  });
+
+  it("keeps the button disabled when the host passes nothing (a turn may be streaming)", () => {
+    const wrapper = mount(ToolCallList, {
+      props: { toolCalls: [blockedCall] },
+    });
+
+    expect(wrapper.get(".reauthorize-button").attributes("disabled")).toBeDefined();
+  });
+
+  it("reaches a card inside a collapsed same-tool group too", async () => {
+    const wrapper = mount(ToolCallList, {
+      props: {
+        toolCalls: [
+          makeToolCall({ id: "tc-a", toolUseId: "tu-a", toolName: "Bash", toolInput: { command: "ls" } }),
+          blockedCall,
+        ],
+        reauthorizeState: "ready",
+      },
+    });
+
+    await wrapper.get(".reauthorize-button").trigger("click");
+
+    expect(wrapper.emitted("reauthorize")).toEqual([[blockedCall]]);
+  });
+});

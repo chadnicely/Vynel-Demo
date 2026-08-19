@@ -46,6 +46,7 @@ import { useWatchedTurn } from "../composables/chat/use-watched-turn.js";
 import { resolveVisibleActiveTurn } from "../composables/chat/visible-active-turn.js";
 import { useContextOccupancy } from "../composables/chat/use-context-occupancy.js";
 import { useQueuedSend } from "../composables/chat/use-queued-send.js";
+import { useReauthorizeToolCall } from "../composables/chat/use-reauthorize-tool-call.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { buildThreadPointers } from "../components/chat/thread-pointers.js";
@@ -231,6 +232,11 @@ const sessionModel = computed(
 const toolCallsByMessageId = computed(
   () => detailQuery.data.value?.toolCallsByMessageId ?? {},
 );
+
+// A BLOCKED tool card's "Run it anyway" (the provider's own safety check
+// refused the call): re-issue the intent through this thread's own
+// composer — same session, same settings, the same send queue.
+const { composer, reauthorizeToolCall } = useReauthorizeToolCall();
 
 const decideApproval = useDecideApproval();
 
@@ -467,6 +473,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
         :session-model="sessionModel"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
+        @reauthorize-tool-call="reauthorizeToolCall"
       />
 
       <footer class="composer-dock">
@@ -479,6 +486,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
           {{ turnErrorText }}
         </p>
         <AppComposer
+          ref="composer"
           :session-id="activeSessionId"
           :streaming="isTurnStreaming"
           :placeholder="`Ask ${ASSISTANT_NAME} for anything…`"

@@ -36,6 +36,7 @@ import {
 } from './ensure-assistant-message-row.js'
 import { handleSessionStarted } from './handle-session-started.js'
 import { handleApprovalRequested } from './handle-approval-requested.js'
+import { handleToolUseBlocked } from './handle-tool-use-blocked.js'
 import { handleUsageReported } from './handle-usage-reported.js'
 import { persistTurnFailureRow } from './persist-turn-failure-row.js'
 import { createSubagentActivityRecorder } from './record-subagent-activity.js'
@@ -194,6 +195,10 @@ export async function* consumeSessionEventStream(
   // and keeps a DENIED row from being overwritten 'failed' by the SDK's
   // error tool_result that follows every denial.
   const approvalStatusByToolUseId = new Map<string, ApprovalStatus>()
+  // Calls the provider's OWN safety check refused (`tool-use-blocked`) — keeps
+  // the SDK's error echo that follows from flipping a BLOCKED row to 'failed'
+  // (the approval map's twin for the no-card refusal).
+  const blockedToolUseIds = new Set<string>()
   // Subagent traffic persists onto its spawning Agent call's row (narrative +
   // lean tool list) while the same wire events keep streaming to live viewers.
   const subagentActivity = createSubagentActivityRecorder({
@@ -366,6 +371,11 @@ export async function* consumeSessionEventStream(
             isError: event.isError,
             completedAt: event.completedAt,
           })
+          // A BLOCKED tool's error tool_result is the provider refusal's echo
+          // (the canned "The user doesn't want to take this action…") — the row
+          // keeps 'blocked' + the structured reason it already carries; the
+          // settle frame went out when the block landed.
+          if (blockedToolUseIds.has(event.toolUseId)) break
           // A denied tool's error tool_result is the DENIAL's echo, not a
           // failure — the row keeps 'denied' (the trust card must say the user
           // refused it, not that it broke).
@@ -384,6 +394,21 @@ export async function* consumeSessionEventStream(
             completedAt: event.completedAt,
           })
           if (updated) yield { kind: 'tool-call-completed', toolCall: updated }
+          break
+        }
+
+        case 'tool-use-blocked': {
+          // Main thread AND subagent blocks go through the handler — it audits
+          // every one and settles only a top-level row (a subagent's block
+          // names no Agent card to land on; see the handler).
+          const settled = handleToolUseBlocked({
+            db,
+            event,
+            toolCallByToolUseId,
+            blockedToolUseIds,
+            logger,
+          })
+          if (settled !== null) yield settled
           break
         }
 

@@ -917,4 +917,115 @@ describe("ThreadStream", () => {
     const strip = wrapper.findAll(".message-row")[0]!;
     expect(strip.text()).not.toContain("[Report from");
   });
+
+  // The classifier-deny card through the thread: a settled BLOCKED call's
+  // "Run it anyway" surfaces as `reauthorizeToolCall` WITH the call (the
+  // owner sends); it waits while a turn streams on this thread.
+  describe("a BLOCKED tool call's re-authorize", () => {
+    const blockedCall: ChatToolCallResponse = {
+      id: "tc-blocked",
+      parentMessageId: "a1",
+      toolUseId: "tu-blocked",
+      toolName: "Bash",
+      toolInput: { command: 'ssh ops@host "crontab -"' },
+      toolOutput: {
+        blockedBy: "classifier",
+        reason: "Writing a remote crontab is irreversible without clear user intent",
+        message: "The user doesn't want to take this action right now.",
+      },
+      status: "blocked",
+      approvalStatus: null,
+      isErrorResult: true,
+      delegation: null,
+      startedAt: "2026-08-19T10:00:00.000Z",
+      completedAt: "2026-08-19T10:00:01.000Z",
+    };
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user", body: "set the cron on ops" },
+      { ...makeMessage(1), id: "a1", role: "assistant", body: "Setting it up." },
+    ];
+
+    it("renders the blocked line with the reason and emits reauthorizeToolCall with the call on click", async () => {
+      const wrapper = mount(ThreadStream, {
+        props: {
+          messages,
+          toolCallsByMessageId: { a1: [blockedCall] },
+          activeTurn: null,
+        },
+        global: { plugins: [createPinia()] },
+      });
+
+      const line = wrapper.get('[data-testid="tool-call-blocked"]');
+      expect(line.text()).toContain("Blocked by Claude's safety check");
+      expect(line.text()).toContain("irreversible without clear user intent");
+
+      await line.get(".reauthorize-button").trigger("click");
+
+      expect(wrapper.emitted("reauthorizeToolCall")).toEqual([[blockedCall]]);
+    });
+
+    it("keeps the button disabled while a turn streams on this thread", () => {
+      const activeTurn: ActiveTurnView = {
+        ...createActiveTurnView(),
+        status: "streaming",
+        segments: [{ messageId: "live-1", text: "on it…", thinking: "", toolCalls: [] }],
+      };
+      const wrapper = mount(ThreadStream, {
+        props: { messages, toolCallsByMessageId: { a1: [blockedCall] }, activeTurn },
+        global: { plugins: [createPinia()] },
+      });
+
+      expect(wrapper.get(".reauthorize-button").attributes("disabled")).toBeDefined();
+    });
+
+    it("a blocked card inside the LIVE turn relays the same emit once the turn settles", async () => {
+      const activeTurn: ActiveTurnView = {
+        ...createActiveTurnView(),
+        status: "completed",
+        segments: [
+          { messageId: "live-1", text: "Setting it up.", thinking: "", toolCalls: [blockedCall] },
+        ],
+      };
+      const wrapper = mount(ThreadStream, {
+        props: { messages: [], toolCallsByMessageId: {}, activeTurn },
+        global: { plugins: [createPinia()] },
+      });
+
+      await wrapper.get(".reauthorize-button").trigger("click");
+
+      expect(wrapper.emitted("reauthorizeToolCall")).toEqual([[blockedCall]]);
+    });
+
+    // A view-only thread (no composer under it) has nowhere to send a re-issue:
+    // the button is offered disabled and SAYS it is view-only — a settled card
+    // and a card in a lingering live turn alike — and a click emits nothing.
+    it("reauthorizable=false keeps every blocked card's button disabled with the view-only title, settled and live", async () => {
+      const liveBlockedCall = { ...blockedCall, id: "tc-blocked-live", toolUseId: "tu-blocked-live" };
+      const activeTurn: ActiveTurnView = {
+        ...createActiveTurnView(),
+        status: "completed",
+        segments: [
+          { messageId: "live-1", text: "Setting it up.", thinking: "", toolCalls: [liveBlockedCall] },
+        ],
+      };
+      const wrapper = mount(ThreadStream, {
+        props: {
+          messages,
+          toolCallsByMessageId: { a1: [blockedCall] },
+          activeTurn,
+          reauthorizable: false,
+        },
+        global: { plugins: [createPinia()] },
+      });
+
+      const buttons = wrapper.findAll(".reauthorize-button");
+      expect(buttons).toHaveLength(2);
+      for (const button of buttons) {
+        expect(button.attributes("disabled")).toBeDefined();
+        expect(button.attributes("title")).toContain("view-only");
+        await button.trigger("click");
+      }
+      expect(wrapper.emitted("reauthorizeToolCall")).toBeUndefined();
+    });
+  });
 });

@@ -85,6 +85,14 @@ describe('turnStepFromChatTurnEvent', () => {
     expect(step).toEqual({ kind: 'turn-tool-settled', toolUseId: 'toolu_1', status: 'denied' })
   })
 
+  it("carries a BLOCKED settle (the provider's own safety check refused the call) verbatim", () => {
+    const step = turnStepFromChatTurnEvent({
+      kind: 'tool-call-completed',
+      toolCall: toolCall({ status: 'blocked', isErrorResult: true }),
+    })
+    expect(step).toEqual({ kind: 'turn-tool-settled', toolUseId: 'toolu_1', status: 'blocked' })
+  })
+
   it('maps approval-requested/resolved/auto-resolved to bells (no state)', () => {
     expect(
       turnStepFromChatTurnEvent({

@@ -4,6 +4,7 @@ import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { groupConsecutiveToolCalls } from "../tool-cards/group-tool-calls.js";
 import { describeToolCallGroup } from "../tool-cards/tool-presenters.js";
 import ToolCallCard from "./ToolCallCard.vue";
+import type { ReauthorizeState } from "./ToolCallCard.vue";
 import type { AgentActivityLike } from "./AgentActivityPane.vue";
 import {
   describeAgentActivityCall,
@@ -24,10 +25,14 @@ const props = defineProps<{
   /** Put a "Watch" chip on Agent/Task cards — the host handles `watchAgent`
    *  (opens the focused agent view). */
   watchableAgents?: boolean | undefined;
+  /** The thread's word on a blocked card's "Run it anyway" (see
+   *  ToolCallCard); the host handles `reauthorize` (re-issues the intent). */
+  reauthorizeState?: ReauthorizeState | undefined;
 }>();
 
 const emit = defineEmits<{
   watchAgent: [toolCall: ChatToolCallResponse];
+  reauthorize: [toolCall: ChatToolCallResponse];
 }>();
 
 // NOTE: the dispatch card carries NO delegation chip of its own — the thread
@@ -86,7 +91,9 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
         <ToolCallCard
           :tool-call="group[0]!"
           :watchable="isWatchableAgent(group[0]!)"
+          :reauthorize-state="props.reauthorizeState"
           @watch="emit('watchAgent', group[0]!)"
+          @reauthorize="emit('reauthorize', group[0]!)"
         />
         <p v-if="agentTickerFor(group[0]!)" class="agent-ticker">
           <PresenceDot state="live" />
@@ -133,7 +140,9 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
             <ToolCallCard
               :tool-call="toolCall"
               :watchable="isWatchableAgent(toolCall)"
+              :reauthorize-state="props.reauthorizeState"
               @watch="emit('watchAgent', toolCall)"
+              @reauthorize="emit('reauthorize', toolCall)"
             />
             <p v-if="agentTickerFor(toolCall)" class="agent-ticker">
               <PresenceDot state="live" />

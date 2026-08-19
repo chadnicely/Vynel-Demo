@@ -23,6 +23,7 @@ export type ToolCallStatus =
   | 'completed' // tool-use-completed event received, success
   | 'failed' // tool-use-completed event received, isError: true
   | 'denied' // approval-resolved with kind 'denied' — the user refused, the tool never ran
+  | 'blocked' // tool-use-blocked — the provider's own safety classifier refused it; the tool never ran; the user may re-authorize
   | 'cancelled' // stream/session ended before completion (interrupt, disconnect, crash reap)
 
 export type ApprovalStatus = 'approved' | 'denied' | 'timed-out' | 'cancelled'

@@ -3,7 +3,23 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-20 (latest) VOICE ROUTING SLICE — `feature/voice-routing` (wake only to a capable client · speak relayed to the owner · overlay watchdog), FULL GATE GREEN
+## ✅ 2026-08-20 (latest) CLASSIFIER-DENY CARD + SDK 0.3.235 — `feature/classifier-card`, FULL GATE GREEN
+
+A teammate's auto-mode ssh `crontab` write came back "The user doesn't want to take this action right now. STOP…" —
+NOT a Vynel card (auto never cards at our layer) but the SDK's own auto-mode classifier (`soft_deny` = destructive
+without clear intent), which short-circuits before `canUseTool` and cannot be un-denied in flight. Kafi: keep the
+classifier, surface it with a card that RE-ISSUES. Shipped (plan `docs/module-notes/classifier-card.md`): SDK bumped
+0.3.231 → 0.3.235 (all 11 dependents, gate green); the SDK `system/permission_denied` message → `tool-use-blocked`
+normalized event (reason ANSI-stripped, `agentId` for subagent blocks); the chat row settles `status: blocked` +
+`{ blockedBy, reason, message }` and the canned tool_result echo never overwrites it (either order; the settle rides
+the generic `tool-call-completed` frame, no new wire kind; route/contract enums widened, OpenAPI + SDK regenerated);
+the tool card reads "Blocked by Claude's safety check: <reason>" + ONE "Run it anyway" button that posts
+"Approved — go ahead and run <tool> exactly as proposed." on the SAME session through the owner's composer (five
+owners wired; disabled while streaming; view-only threads say so); structured warn per block (tool + reason type,
+never input). **Owed by Kafi:** a live classifier deny in auto + click the button. Known: channels/voice surfaces
+have no card (the model's own words only); the ANSI-strip regex has three leaf copies (shared home later).
+
+## ✅ 2026-08-20 VOICE ROUTING SLICE — `feature/voice-routing` (wake only to a capable client · speak relayed to the owner · overlay watchdog), FULL GATE GREEN
 
 Closes round-2 R2-D/R2-G + the smoke bug of 2026-08-19 (window off + desktop app open → the wake died in the
 in-app overlay). Plan `docs/module-notes/voice-routing.md`. Shipped: the browser declares wake capability on its

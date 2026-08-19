@@ -17,6 +17,7 @@ import {
 import { useChatTurn } from "../../composables/chat/use-chat-turn.js";
 import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
+import { useReauthorizeToolCall } from "../../composables/chat/use-reauthorize-tool-call.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import { useActivityStore } from "../../stores/activity-store.js";
@@ -130,6 +131,11 @@ watch(
 // no back stack, hop pointer to pointer).
 const openPointerTarget = useOpenPointerTarget();
 
+// A BLOCKED tool card's "Run it anyway" (the provider's own safety check
+// refused the call): re-issue the intent through this thread's own
+// composer — same session, same settings, the same send queue.
+const { composer, reauthorizeToolCall } = useReauthorizeToolCall();
+
 const decideApproval = useDecideApproval();
 function onDecideApproval(
   approvalRequestId: string,
@@ -182,6 +188,7 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
         :scroll-to-trace-id="props.anchorTraceId"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
+        @reauthorize-tool-call="reauthorizeToolCall"
       />
     </div>
 
@@ -202,6 +209,7 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
         {{ turnErrorText }}
       </p>
       <AppComposer
+        ref="composer"
         :session-id="activeSessionId"
         :streaming="isTurnStreaming"
         :placeholder="`Message ${managerName}…`"

@@ -13,6 +13,7 @@ import { useSessionStatuses } from "../../composables/sessions/use-session-statu
 import { useSessionTurn } from "../../composables/sessions/use-session-turn.js";
 import { useWatchedTurn } from "../../composables/chat/use-watched-turn.js";
 import { useQueuedSend } from "../../composables/chat/use-queued-send.js";
+import { useReauthorizeToolCall } from "../../composables/chat/use-reauthorize-tool-call.js";
 import { useDecideApproval } from "../../composables/approvals/use-decide-approval.js";
 import { useActivityStore } from "../../stores/activity-store.js";
 import type { TurnAttachmentInput } from "../../composables/chat/turn-attachments.js";
@@ -174,6 +175,13 @@ const composerScope = computed(() => {
     : ({ kind: "workspace", workspaceId } as const);
 });
 
+// A BLOCKED tool card's "Run it anyway" (the provider's own safety check
+// refused the call): re-issue the intent through this thread's own
+// composer — same session, same settings, the same send queue. A view-only
+// open mounts no composer, so the thread is told (`reauthorizable`) and the
+// card says so instead of offering a click that lands nowhere.
+const { composer, reauthorizeToolCall } = useReauthorizeToolCall();
+
 const decideApproval = useDecideApproval();
 
 function onDecideApproval(
@@ -232,8 +240,10 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
         :session-model="sessionModel"
         :workspace-status="threadStatus"
         :scroll-to-trace-id="props.anchorTraceId"
+        :reauthorizable="props.chattable"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"
+        @reauthorize-tool-call="reauthorizeToolCall"
       />
     </div>
 
@@ -271,6 +281,7 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
         {{ turnErrorText }}
       </p>
       <AppComposer
+        ref="composer"
         :session-id="activeSessionId"
         :streaming="turn.isStreaming.value"
         :placeholder="`Message ${props.title}…`"
