@@ -3,7 +3,26 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-20 (latest) CLASSIFIER-DENY CARD + SDK 0.3.235 — `feature/classifier-card`, FULL GATE GREEN
+## ✅ 2026-08-20 (latest) BACKGROUND TURNS — `feature/background-turns` (global schedules run · schedule settings/lock/cap · channel wall clock · rail by identity), FULL GATE GREEN
+
+Kafi: "the schedule feature doesn't work now" + go on round-2 R2-A/B/C. Root cause found in the dev DB: every GLOBAL
+custom schedule failed "workspace not found." — `fire-schedule.ts` refused a non-verbatim turn without a workspace
+while the UI creates them. Plan `docs/module-notes/background-turns.md` (BT1–BT5), three agents + reviewer fold.
+Shipped: a global schedule fires through the injected global-root runner (`FireScheduleDeps.startGlobalRootTurn`,
+origin 'schedule', bounded by the delegated cap, run row bound to the produced session, ask-free/desktop-blind for
+now); workspace fires resolve settings from the primary row else defaults (auto; model UNclamped — a fire starts a
+fresh session) instead of hard-coded bypass-with-behavior-gate, take the workspace target lock (FIFO), run under the
+delegated cap with the streams' failure shape (`TurnWallClockExceededError`); the tick lists due slots and a
+process-wide `ScheduleFirePool` (bound = VYNEL_MAX_CONCURRENT_DELEGATIONS, per-schedule dedupe) claims each slot only
+in the worker about to fire it (a crash mid-batch loses nothing); `runGlobalRootTurn` takes an optional
+`wallClock { maxMs }` (streams' helper, suspended while a card/ask is parked, failure row + interrupt releasing the
+root lock) and channels pass the interactive knob; the web working rail routes chips through `matchTurnToIdentity`
+(brain / voice / named session) with a census over every `begin` producer. **Owed by Kafi:** create a custom schedule
+on the Global menu and let it fire; a workspace schedule while that workspace is busy (waits, then runs).
+**Still open from round 2:** R2-H restart-survivor checkpoint · R2-N/O · P2s. Follow-up: `.claude/docs/schedules/structure.md`
+still shows the old tick signature.
+
+## ✅ 2026-08-20 CLASSIFIER-DENY CARD + SDK 0.3.235 — `feature/classifier-card`, FULL GATE GREEN
 
 A teammate's auto-mode ssh `crontab` write came back "The user doesn't want to take this action right now. STOP…" —
 NOT a Vynel card (auto never cards at our layer) but the SDK's own auto-mode classifier (`soft_deny` = destructive

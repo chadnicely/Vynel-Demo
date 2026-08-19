@@ -95,6 +95,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Schedules on the Global menu now run.** A custom schedule created outside any
+  workspace used to fail every time with "workspace not found"; it now runs as a
+  regular Claude turn on your global conversation. Every scheduled run uses the same
+  settings as the conversation it belongs to, waits its turn instead of writing over a
+  running one, stops cleanly if it overruns, and several due schedules run at once.
+- **A stuck Telegram (or other channel) message can no longer freeze everything else** —
+  channel turns now end at the same time limit as typed ones.
+- **The working rail shows the right chip again:** your own global turn reads as Claude,
+  a Telegram turn keeps its chip, a voice turn opens the Voice chat, a spawned session
+  shows its name (never a nameless "Working…").
 - **"Hey Vynel" with the floating window turned off now answers out loud** instead of
   disappearing into the desktop app's main window. A spoken line from a schedule or
   another chat lands once, in the window you are talking to, and no longer vanishes or
