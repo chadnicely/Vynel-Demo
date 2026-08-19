@@ -29,6 +29,12 @@ describe('loadSessionInstruction', () => {
     expect(loadSessionInstruction('voice-turn')).toContain('speak')
   })
 
+  it('autopilot-marker tells the model it is on autopilot and names the needs_input exit', () => {
+    const body = loadSessionInstruction('autopilot-marker')
+    expect(body).toContain('AUTOPILOT')
+    expect(body).toContain('needs_input')
+  })
+
   it('voice-turn-marker re-states the speak directive for the per-message append', () => {
     expect(loadSessionInstruction('voice-turn-marker')).toContain('speak')
   })
