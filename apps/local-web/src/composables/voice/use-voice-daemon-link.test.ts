@@ -38,12 +38,19 @@ afterEach(() => {
   restoreSocket();
 });
 
-function mountLink(surface: "app" | "jarvis" = "app") {
+function mountLink(
+  surface: "app" | "jarvis" = "app",
+  isPlayingOwnTurn?: () => boolean,
+) {
   const onWake = vi.fn();
   let link!: ReturnType<typeof useVoiceDaemonLink>;
   const Host = defineComponent({
     setup() {
-      link = useVoiceDaemonLink({ onWake, surface });
+      link = useVoiceDaemonLink({
+        onWake,
+        surface,
+        ...(isPlayingOwnTurn !== undefined ? { isPlayingOwnTurn } : {}),
+      });
       return () => h("div");
     },
   });
@@ -80,6 +87,20 @@ describe("useVoiceDaemonLink (live channel)", () => {
     expect(link().isDaemonSpeaking.value).toBe(false);
     socket.serverSends({ kind: "event", channel: "voice:app", event: { kind: "speak", text: "good morning" } });
     expect(played).toEqual(["good morning"]);
+  });
+
+  it("skips relayed speech while this window's own overlay session is live", () => {
+    // The daemon publishes every speak during a handoff (it cannot tell the
+    // producers apart); the overlay already plays its own turn off its own
+    // stream, so the relayed copy must not double-play.
+    let ownTurnLive = true;
+    const { socket } = mountLink("app", () => ownTurnLive);
+    socket.serverAcks("voice:app");
+    socket.serverSends({ kind: "event", channel: "voice:app", event: { kind: "speak", text: "own turn line" } });
+    expect(played).toEqual([]);
+    ownTurnLive = false;
+    socket.serverSends({ kind: "event", channel: "voice:app", event: { kind: "speak", text: "scheduled line" } });
+    expect(played).toEqual(["scheduled line"]);
   });
 
   it("releases the channel on unmount", () => {

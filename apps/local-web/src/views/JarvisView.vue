@@ -24,7 +24,11 @@ const overlayWindow = createOverlayWindowControls();
 const isMuted = ref(false);
 
 const voice = useVoiceSession({ onEnded: handleSessionEnded });
-const daemon = useVoiceDaemonLink({ surface: "jarvis", onWake: handleWake });
+const daemon = useVoiceDaemonLink({
+  surface: "jarvis",
+  onWake: handleWake,
+  isPlayingOwnTurn: () => voice.isActive.value,
+});
 
 function handleSessionEnded(): void {
   daemon.notifySessionEnd();
