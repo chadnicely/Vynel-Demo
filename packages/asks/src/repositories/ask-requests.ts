@@ -2,7 +2,7 @@
 // argument; Phase 1 SYNC returns. No raw SQL or Drizzle queries outside this
 // repo.
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, lt } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import { askRequests, type AskRequest, type NewAskRequest } from '../schema/ask-requests.js'
 
@@ -36,6 +36,16 @@ export function listPendingAskRequestsForUser(db: Database, userId: string): Ask
 // Phase 1; the recovery pass is process-wide by design).
 export function listAllPendingAskRequests(db: Database): AskRequest[] {
   return db.select().from(askRequests).where(eq(askRequests.status, 'pending')).all()
+}
+
+// The pending rows older than the cutoff, process-wide — the running reaper's
+// read (an orphaned row is one nobody will ever answer, whoever owns it).
+export function listPendingAskRequestsCreatedBefore(db: Database, cutoff: Date): AskRequest[] {
+  return db
+    .select()
+    .from(askRequests)
+    .where(and(eq(askRequests.status, 'pending'), lt(askRequests.createdAt, cutoff)))
+    .all()
 }
 
 export function updateAskRequest(
