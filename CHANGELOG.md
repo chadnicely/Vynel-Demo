@@ -95,6 +95,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A fired schedule no longer looks like you typing.** The prompt arrives as a quiet
+  "Schedule · <name>" notice and Claude carries it out on the spot — a reminder is
+  said to you right then, instead of Claude setting itself a timer or asking what you
+  meant. Claude also no longer asks questions through a form that could never reach you.
 - **Schedules on the Global menu now run.** A custom schedule created outside any
   workspace used to fail every time with "workspace not found"; it now runs as a
   regular Claude turn on your global conversation. Every scheduled run uses the same
