@@ -52,14 +52,20 @@ export interface ScheduleFireFrame {
 // wraps each turn in its bound + lock (background-turns BT3).
 export interface FireScheduleDeps {
   logger?: StructuralLogger
-  // Run the headless WORKSPACE turn for a fired schedule. Injected + typed
-  // STRUCTURALLY here (the exact call shape fire-schedule invokes) so the
-  // schedules leaf never imports the chat leaf's `startChatTurn` — a leaf→leaf
-  // runtime import (invariant #2). The api-side binder wraps the real one in
-  // the workspace target lock + the delegated hard cap (a capped turn ends by
-  // THROWING the cap error after its stream settles). The stream yields the
-  // `ChatTurnEvent` wire union (contracts); the fired turn reads
-  // `session-created`/`text-chunk`/`session-errored` off it.
+  // Run the WORKSPACE turn for a fired schedule ON the workspace's continuing
+  // conversation (schedule-on-primary, Kafi 2026-08-20 — reversing blueprint
+  // D3's fresh-session rule). Injected + typed STRUCTURALLY here (the exact
+  // call shape fire-schedule invokes) so the schedules leaf never imports the
+  // chat leaf's `startChatTurn` — a leaf→leaf runtime import (invariant #2).
+  // The api-side binder wraps the real one in the workspace target lock + the
+  // delegated hard cap (a capped turn ends by THROWING the cap error after
+  // its stream settles), and — inside the lock — resolves the workspace
+  // primary and resumes its head (fresh on the first-ever fire, which then
+  // becomes the conversation); the leaf never names a resume target. The
+  // stream yields the `ChatTurnEvent` wire union (contracts); the fired turn
+  // reads `session-created`/`user-message-persisted`/`text-chunk`/
+  // `session-errored` off it (a resumed head announces only via
+  // `user-message-persisted`).
   startChatTurn: (
     db: Database,
     input: {

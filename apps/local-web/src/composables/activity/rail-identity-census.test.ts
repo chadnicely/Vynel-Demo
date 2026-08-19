@@ -229,16 +229,35 @@ const FRAMES_BY_PRODUCER: Record<string, ProducerFrame[]> = {
     },
   ],
   "apps/local-api/src/sessions/build-schedule-fire-deps.ts": [
+    // Schedule-on-primary (2026-08-20): a workspace fire runs ON the room's
+    // continuing conversation and its frame names that identity — the rail
+    // shows the NAMED conversation chip (label + segment resolved from the
+    // sessions overview by the primary id), and clicking it opens the live
+    // thread. Before this the frame named no primary and railed as the bare
+    // room chip while the fire ran in an invisible background session.
     {
-      label: "a workspace schedule fire",
+      label: "a workspace schedule fire on the continuing conversation (resumed head)",
       frame: published({
         scopeKind: "workspace",
         workspaceId: "ws-1",
         sessionId: "room-segment-1",
         origin: "schedule",
+        primarySessionId: "room-primary-1",
       }),
-      chip: room("ws-1"),
-      chipBeforeGlobalIdKnown: room("ws-1"),
+      chip: session("room-primary-1"),
+      chipBeforeGlobalIdKnown: session("room-primary-1"),
+    },
+    {
+      label:
+        "a workspace schedule fire, first-ever (primary registered db-first, segment resolves mid-turn)",
+      frame: published({
+        scopeKind: "workspace",
+        workspaceId: "ws-1",
+        origin: "schedule",
+        primarySessionId: "room-primary-1",
+      }),
+      chip: session("room-primary-1"),
+      chipBeforeGlobalIdKnown: session("room-primary-1"),
     },
   ],
   "packages/session/src/delegation/run-task-job.ts": [

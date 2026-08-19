@@ -10,13 +10,22 @@
 //
 // Background-turns BT2/BT3 live here too: a fired WORKSPACE turn holds the
 // workspace's single-writer key in the shared `SessionTargetLocks` (the SAME
-// key a delegated job to that workspace takes) and runs under the delegated
-// cap (`VYNEL_DELEGATED_TURN_MAX_MS`) on the streams' wall clock — suspended
+// key a delegated job to that workspace takes AND the chat stream's
+// continue-mode turn acquires) and runs under the delegated cap
+// (`VYNEL_DELEGATED_TURN_MAX_MS`) on the streams' wall clock — suspended
 // while a card is parked, interrupting the turn on expiry and failing the
 // fire with the typed wall-clock error; a GLOBAL fire passes the same cap to
 // the root runner, which arms it inside the root lock. The fire deps are built
 // once per consumer — the boot poll service (`services/schedules-service.ts`)
 // and the user-facing `fire-now` routes — so both drive the SAME machinery.
+//
+// Schedule-on-primary (Kafi, 2026-08-20 — deliberately reversing blueprint
+// D3): a fired WORKSPACE turn runs ON the workspace's continuing conversation,
+// like a delegated workspace turn and the user's own chat turn — the live
+// 2026-08-20 fire ran "totally in background" because the fresh-session rule
+// left the thread empty. The turn wrapper below resolves the primary inside
+// the workspace lock and resumes its head; a first fire registers the primary
+// and its fresh turn BECOMES the conversation, the way a first chat turn does.
 //
 // The MCP attachment comes from `buildWorkspaceBackgroundMcpComposer` — the ONE
 // home for background workspace turns (shared with the delegation service), so
@@ -29,6 +38,7 @@ import {
   startChatTurn,
   composeSessionCapabilities,
   publishTurnActivityStep,
+  resolvePrimaryConversationTarget,
   startTurnWallClock,
   trackApprovalParks,
   failTurnOnWallClock,
@@ -78,7 +88,12 @@ export async function buildScheduleFireDeps(
   options: BuildScheduleFireDepsOptions,
 ): Promise<FireScheduleDeps> {
   const { appRequest, logger, activityFeed, targetLocks, turnEvents, readEnabledFeatureKeys } = options
-  const hardCapMs = options.hardCapMs ?? loadEnv().VYNEL_DELEGATED_TURN_MAX_MS
+  const env = loadEnv()
+  const hardCapMs = options.hardCapMs ?? env.VYNEL_DELEGATED_TURN_MAX_MS
+  // The swap threshold every continuity consumer honors (the env smoke knob) —
+  // forwarded to BOTH the fit check and the boundary continuity step, so
+  // "fits" and "will swap" never disagree on a fired turn either.
+  const swapThreshold = env.VYNEL_CONTEXT_PRESSURE_THRESHOLD
 
   // The shared background composer closes over the in-process `appRequest`
   // dispatcher so each fired turn re-enters the api (dynamic MCP import inside).
@@ -93,11 +108,13 @@ export async function buildScheduleFireDeps(
 
   // BT2 — the settings a fired workspace turn runs under: what the user chose
   // for that workspace's continuing conversation (its primary's head row),
-  // else the one default. The head is read for the ROW only: a schedule fire
-  // starts a FRESH session (blueprint D3), so none of the head's occupancy
-  // rides it and the row's model pick needs no fit clamp — clamping would
-  // swap the user's small-model pick for the chain's big one over context the
-  // new session does not carry. No tool arg on a schedule, so `job` is empty.
+  // else the one default. Since schedule-on-primary the fire RESUMES that head
+  // (no more fresh session), so the head's occupancy rides the turn and the
+  // row's model pick is fit-clamped like every other background pick that
+  // resumes — a small-model pick over a fat chain would otherwise die with
+  // "Prompt is too long" with nobody watching. No tool arg on a schedule, so
+  // `job` is empty. (`startsFreshSession` stays available on the resolver for
+  // a path that genuinely starts fresh; no fire path does any more.)
   const resolveWorkspaceTurnSettings: FireScheduleDeps['resolveWorkspaceTurnSettings'] = (
     turnDb,
     input,
@@ -106,16 +123,19 @@ export async function buildScheduleFireDeps(
       headSdkSessionId:
         findPrimaryConversation(turnDb, { userId: input.userId, workspaceId: input.workspaceId })
           ?.currentSdkSessionId ?? null,
-      startsFreshSession: true,
       job: { permissionMode: null, model: null, thinkingEffort: null },
+      ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
       logger,
     })
 
   // BT3 — the fired WORKSPACE turn: the workspace lock, the delegated cap on
-  // the streams' wall clock, the activity announce, and the turn's stream.
-  // A fired turn mutates a workspace thread the user may have OPEN, with no
-  // other signal — it announces on the session-activity feed like every other
-  // turn producer, so the open thread goes live while the schedule runs.
+  // the streams' wall clock, the activity announce, and the turn's stream —
+  // resumed onto the workspace's continuing conversation (schedule-on-primary).
+  // The fire RUNS ON the thread the user may have OPEN: the feed frame names
+  // the continuing identity (the rail's named conversation chip) and the
+  // turn's events tee onto the head's `session:<id>` channel (the shared
+  // `turnEvents`) — the same live path a delegated workspace turn lights the
+  // open thread through.
   const startBoundWorkspaceTurn = async function* (
     turnDb: Database,
     input: FiredWorkspaceTurnInput,
@@ -125,81 +145,121 @@ export async function buildScheduleFireDeps(
     if (turnInput.workspaceId === null) {
       throw new Error('schedule fire: a fired workspace turn needs a workspace id')
     }
+    const workspaceId = turnInput.workspaceId
     // The workspace's single-writer key — the SAME key a delegated job to this
-    // workspace holds (`targetPrimarySessionId ?? workspaceId`). A busy key
-    // parks this fire FIFO behind the holder (the session-turn route's rule),
-    // never alongside it.
-    const releaseLock = await targetLocks.acquire(turnInput.workspaceId)
-    // The cap arms only now that the turn HOLDS its lock — queue time was the
-    // holder's budget, not this turn's (the interactive streams' rule). A
-    // parked card suspends it; on expiry the streams' helper interrupts the
-    // running session (the provider ends the stream) and the fire fails with
-    // the typed wall-clock error once the stream has settled.
-    const waitGate = new ApprovalWaitGate()
-    const approvalParks = trackApprovalParks(waitGate)
-    let runningSessionId: string | undefined
-    // A ref, not a `let`: the expiry lands inside the clock's callback, and
-    // the post-stream read below must see it.
-    const cap: { failure: Promise<TurnWallClockFailure> | null } = { failure: null }
-    const wallClock = startTurnWallClock({
-      maxMs: hardCapMs,
-      waitGate,
-      logger,
-      onExpire: async () => {
-        logger.warn(
-          { scheduleRunId, workspaceId: turnInput.workspaceId, hardCapMs },
-          'schedule fire: the fired turn exceeded its cap — interrupting it',
-        )
-        cap.failure = failTurnOnWallClock(
-          { db: turnDb, logger },
-          { sessionId: runningSessionId, maxMs: hardCapMs },
-        )
-        await cap.failure
-      },
-    })
-    const activity = activityFeed.begin({
-      userId: turnInput.userId,
-      scopeKind: 'workspace',
-      workspaceId: turnInput.workspaceId,
-      origin: 'schedule',
-    })
-    // 'failed' on a terminal session-errored, a thrown drain, or the cap —
-    // the status vocabulary's problem signal (a schedule fire has no other witness).
-    let turnOutcome: 'ended' | 'failed' = 'ended'
+    // workspace holds AND the chat stream's continue-mode turn acquires
+    // (`streams/chat-turn.ts`), so a fire can never interleave with a user
+    // turn on the same conversation. A busy key parks this fire FIFO behind
+    // the holder (the session-turn route's rule), never alongside it.
+    const releaseLock = await targetLocks.acquire(workspaceId)
     try {
-      for await (const event of startChatTurn(turnDb, turnInput, {
-        ...turnDeps,
-        ...(turnEvents !== undefined ? { turnEvents } : {}),
-      })) {
-        approvalParks.onTurnEvent(event)
-        if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
-        if (event.kind === 'session-created') {
-          runningSessionId = event.session.id
-          activity.sessionResolved(event.session.id)
-        } else if (event.kind === 'user-message-persisted') {
-          runningSessionId = event.message.sessionId
-          activity.sessionResolved(event.message.sessionId)
+      // The continuing conversation, resolved INSIDE the lock (the interactive
+      // stream's rule): the holder we queued behind can pressure-swap the
+      // primary onto a fresh segment — the fire must resume THAT head, never a
+      // pre-wait read. First fire on a workspace with no conversation yet:
+      // get-or-create registers the primary (db-first, the continuity arc) and
+      // the fresh turn becomes the conversation via the boundary link.
+      const target = await resolvePrimaryConversationTarget(turnDb, {
+        userId: turnInput.userId,
+        workspaceId,
+      })
+      // The cap arms only now that the turn HOLDS its lock — queue time was the
+      // holder's budget, not this turn's (the interactive streams' rule). A
+      // parked card suspends it; on expiry the streams' helper interrupts the
+      // running session (the provider ends the stream) and the fire fails with
+      // the typed wall-clock error once the stream has settled.
+      const waitGate = new ApprovalWaitGate()
+      const approvalParks = trackApprovalParks(waitGate)
+      let runningSessionId: string | undefined = target.resumeSdkSessionId ?? undefined
+      // A ref, not a `let`: the expiry lands inside the clock's callback, and
+      // the post-stream read below must see it.
+      const cap: { failure: Promise<TurnWallClockFailure> | null } = { failure: null }
+      const wallClock = startTurnWallClock({
+        maxMs: hardCapMs,
+        waitGate,
+        logger,
+        onExpire: async () => {
+          logger.warn(
+            { scheduleRunId, workspaceId, hardCapMs },
+            'schedule fire: the fired turn exceeded its cap — interrupting it',
+          )
+          cap.failure = failTurnOnWallClock(
+            { db: turnDb, logger },
+            { sessionId: runningSessionId, maxMs: hardCapMs },
+          )
+          await cap.failure
+        },
+      })
+      // The frame names the CONTINUING identity beside origin 'schedule' (the
+      // rail's named conversation chip, opening the live thread); the head
+      // rides along when known up front (a fresh one resolves mid-turn).
+      const activity = activityFeed.begin({
+        userId: turnInput.userId,
+        scopeKind: 'workspace',
+        workspaceId,
+        origin: 'schedule',
+        primarySessionId: target.primarySessionId,
+        ...(target.resumeSdkSessionId !== null ? { sessionId: target.resumeSdkSessionId } : {}),
+      })
+      // 'failed' on a terminal session-errored, a thrown drain, or the cap —
+      // the status vocabulary's problem signal (a schedule fire has no other witness).
+      let turnOutcome: 'ended' | 'failed' = 'ended'
+      try {
+        for await (const event of startChatTurn(
+          turnDb,
+          {
+            ...turnInput,
+            // Resume the continuing conversation's head; omitted on a first
+            // fire (fresh session, the first chat turn's path). The continuity
+            // input turns the boundary step on — link on a fresh segment,
+            // measure + seed-fresh swap at pressure — inside the lock hold.
+            ...(target.resumeSdkSessionId !== null
+              ? { resumeSessionId: target.resumeSdkSessionId }
+              : {}),
+            continuity: {
+              primarySessionId: target.primarySessionId,
+              ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
+            },
+          },
+          {
+            ...turnDeps,
+            ...(turnEvents !== undefined ? { turnEvents } : {}),
+          },
+        )) {
+          approvalParks.onTurnEvent(event)
+          if (event.kind === 'session-errored' && !event.isRecoverable) turnOutcome = 'failed'
+          if (event.kind === 'session-created') {
+            runningSessionId = event.session.id
+            activity.sessionResolved(event.session.id)
+          } else if (event.kind === 'user-message-persisted') {
+            runningSessionId = event.message.sessionId
+            activity.sessionResolved(event.message.sessionId)
+          }
+          // Narrate tool steps + approval bells on the feed, like every producer.
+          publishTurnActivityStep(activity, event)
+          yield event
         }
-        // Narrate tool steps + approval bells on the feed, like every producer.
-        publishTurnActivityStep(activity, event)
-        yield event
+        // A capped turn settled (interrupted, or it outran the interrupt) — the
+        // honest outcome is the cap, whatever the stream produced.
+        if (cap.failure !== null) throw new TurnWallClockExceededError(await cap.failure)
+      } catch (err) {
+        turnOutcome = 'failed'
+        // The interrupt ends the stream CLEANLY (`session-interrupted`, no
+        // throw) — the post-stream check above is the cap's normal exit. A throw
+        // that lands while the cap is firing is something else racing it (a
+        // provider error, a drain failure); the cap stays the honest outcome.
+        if (cap.failure !== null && !(err instanceof TurnWallClockExceededError)) {
+          throw new TurnWallClockExceededError(await cap.failure)
+        }
+        throw err
+      } finally {
+        wallClock.clear()
+        activity.end(turnOutcome)
       }
-      // A capped turn settled (interrupted, or it outran the interrupt) — the
-      // honest outcome is the cap, whatever the stream produced.
-      if (cap.failure !== null) throw new TurnWallClockExceededError(await cap.failure)
-    } catch (err) {
-      turnOutcome = 'failed'
-      // The interrupt ends the stream CLEANLY (`session-interrupted`, no
-      // throw) — the post-stream check above is the cap's normal exit. A throw
-      // that lands while the cap is firing is something else racing it (a
-      // provider error, a drain failure); the cap stays the honest outcome.
-      if (cap.failure !== null && !(err instanceof TurnWallClockExceededError)) {
-        throw new TurnWallClockExceededError(await cap.failure)
-      }
-      throw err
     } finally {
-      wallClock.clear()
-      activity.end(turnOutcome)
+      // Every exit — the resolve throwing, a clean drain, a cap failure — MUST
+      // pass through this release, or the workspace key leaks and the
+      // delegation pool + every continue-turn park on this workspace forever.
       releaseLock()
     }
   }
@@ -252,8 +312,8 @@ export async function buildScheduleFireDeps(
     // (Date timestamps, `ChatSession` rows) and takes the narrower provider
     // mode / provider id types; `FireScheduleDeps['startChatTurn']` is typed
     // against the contracts WIRE union with plain strings. The fire path reads
-    // only `session.id` / `textDelta` / `errorMessage` — present on both — so
-    // the single documented cast is runtime-safe.
+    // only `session.id` / `message.sessionId` / `textDelta` / `errorMessage`
+    // — present on both — so the single documented cast is runtime-safe.
     startChatTurn: startBoundWorkspaceTurn as unknown as FireScheduleDeps['startChatTurn'],
   }
 }
