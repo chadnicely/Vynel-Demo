@@ -158,9 +158,11 @@ describe('listSessionChildren', () => {
         ['session', 'Research: pricing'],
         ['agent-run', 'Rosa'],
       ])
-      // A conversation's light comes from the status pipeline, not from here.
+      // The child's HANDLE, not its primary id — the caller walks straight
+      // back down into `/sessions/:sessionId/children`. And a conversation's
+      // light comes from the status pipeline, never from here.
       const spawned = children!.children.find((row) => row.kind === 'session')
-      expect(spawned).toMatchObject({ id: child.primary.id, status: null })
+      expect(spawned).toMatchObject({ id: child.segment.id, status: null })
       expect(children!.children[0]).toMatchObject({
         status: 'queued',
         workspaceId: workspace.id,
@@ -334,6 +336,96 @@ describe('listSessionChildren', () => {
         sessionId: parent.id,
       })
       expect(children!.children).toEqual([])
+    })
+  })
+})
+
+describe('listSessionChildren — the shapes a cap or a fork could hide', () => {
+  it('keeps the NEWEST children when the read hits its cap', () => {
+    withTestDatabase((db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      const parent = insertChatSession(db, makeSession(user.id, workspace.id))
+      const now = clockFrom('2026-08-19T09:00:00Z')
+
+      // Past the repository's default page, a cap that truncated from the OLD
+      // end would drop exactly today's work — the bug class this slice is
+      // fixing elsewhere on the same screen.
+      for (let n = 0; n < 60; n += 1) {
+        enqueueWorkspaceDelegation(
+          db,
+          {
+            userId: user.id,
+            parentSessionId: parent.id,
+            workspaceId: workspace.id,
+            workspacePath: workspace.path,
+            workspaceName: workspace.name,
+            taskText: `Task ${String(n).padStart(2, '0')}`,
+          },
+          { now },
+        )
+      }
+
+      const children = listSessionChildren(db, {
+        userId: user.id,
+        sessionId: parent.id,
+      })
+      const titles = children!.children.map((row) => row.title)
+      expect(titles).toHaveLength(50)
+      // Oldest-first inside the page, and the page is the NEWEST 50.
+      expect(titles[0]).toBe('Task 10')
+      expect(titles[titles.length - 1]).toBe('Task 59')
+    })
+  })
+
+  it('answers for the segment it was ASKED about, even on a forked chain', () => {
+    withTestDatabase((db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      const head = insertChatSession(db, makeSession(user.id, workspace.id))
+      // A crashed double swap: one parent, two claimants. The fold keeps the
+      // newest, so the forward walk steps past the other one entirely.
+      const newer = insertChatSession(
+        db,
+        makeSession(user.id, workspace.id, {
+          title: 'Newer claimant',
+          continuedFromSessionId: head.id,
+        }),
+      )
+      const orphaned = insertChatSession(
+        db,
+        makeSession(user.id, workspace.id, {
+          title: 'Older claimant',
+          continuedFromSessionId: head.id,
+        }),
+      )
+      const now = clockFrom('2026-08-19T09:00:00Z')
+
+      for (const [segment, taskText] of [
+        [orphaned, 'Only the older claimant started this'],
+        [newer, 'Only the newer claimant started this'],
+      ] as const) {
+        enqueueWorkspaceDelegation(
+          db,
+          {
+            userId: user.id,
+            parentSessionId: segment.id,
+            workspaceId: workspace.id,
+            workspacePath: workspace.path,
+            workspaceName: workspace.name,
+            taskText,
+          },
+          { now },
+        )
+      }
+
+      const asked = listSessionChildren(db, {
+        userId: user.id,
+        sessionId: orphaned.id,
+      })
+      expect(asked!.children.map((row) => row.title)).toContain(
+        'Only the older claimant started this',
+      )
     })
   })
 })

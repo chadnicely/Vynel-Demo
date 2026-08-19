@@ -82,6 +82,10 @@ export function listSessionChildren(
       job.jobKind === 'agent-run'
         ? {
             kind: 'agent-run',
+            // `workspaceName` carries the AGENT's display name on an
+            // agent-run row (`enqueueAgentRun` writes it there — one column,
+            // "whose name is on this job"); the slug is the fallback for a
+            // colleague whose display name was never set.
             id: job.id,
             title: job.workspaceName ?? job.agentSlug ?? 'Colleague',
             workspaceId: job.workspaceId,
@@ -121,8 +125,10 @@ export function listSessionChildren(
 }
 
 /** The spawned conversation a job was addressed to, or null when it was
- *  addressed to a room, to an agent colleague (that IS the agent run), or to
- *  a session that has since been deleted. */
+ *  addressed to a room, to an agent colleague (that IS the agent run), to a
+ *  session that has since been deleted, or to one that has not been linked to
+ *  a segment yet — a conversation with no handle has no door to offer, and
+ *  the task row beside it already says the work was sent. */
 function spawnedChildOf(
   db: Database,
   userId: string,
@@ -131,15 +137,12 @@ function spawnedChildOf(
   if (job.targetPrimarySessionId === null) return null
   const primary = findPrimarySessionById(db, job.targetPrimarySessionId)
   if (primary === null || primary.userId !== userId || primary.scope !== 'spawned') return null
-  const segment =
-    primary.currentSdkSessionId === null
-      ? null
-      : findChatSessionById(db, primary.currentSdkSessionId)
-  return {
-    id: primary.id,
-    title: segment?.title ?? 'Session',
-    workspaceId: primary.workspaceId,
-  }
+  if (primary.currentSdkSessionId === null) return null
+  const segment = findChatSessionById(db, primary.currentSdkSessionId)
+  if (segment === null) return null
+  // The child's HANDLE, not its primary id: this is the id the caller walks
+  // back down into (`/sessions/:sessionId/children`, `/turn`, `/messages`).
+  return { id: segment.id, title: segment.title, workspaceId: primary.workspaceId }
 }
 
 /**
@@ -186,5 +189,10 @@ function chainSegmentIdsOf(db: Database, userId: string, session: ChatSession): 
     seen.add(id)
     ids.push(id)
   }
+  // A crashed double swap leaves one parent with two claimants and the fold
+  // above keeps only the newest — so the very segment we were asked about can
+  // be the one the forward walk steps past. Answering with a chain that
+  // excludes the asked-about session would be the worst possible shape.
+  if (!seen.has(session.id)) ids.push(session.id)
   return ids
 }

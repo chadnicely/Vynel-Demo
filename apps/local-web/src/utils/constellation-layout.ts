@@ -87,10 +87,13 @@ export function inheritedSlots(
 // today's picture is unchanged and a busy room stays on stage.
 
 /** Orbit gives every node its own lane at `0.3 + 0.115·i` of the stage's
- *  smaller half-axis, which passes 1.0 — the edge — at i = 6.08. Seven lanes
- *  is therefore everything that fits; past that they wrap, and the golden
- *  angle that spaces the nodes keeps two lane-mates apart. */
-export const ORBIT_LANE_CAP = 7;
+ *  smaller half-axis. The lane's VERTICAL reach is `lane · 0.82`, and a dot
+ *  needs its 26px radius plus a 37px status label below that — which on a
+ *  16:9 stage the NINTH lane (i = 8) exceeds, so the 9th node walks off the
+ *  bottom. That is the count the audit measured (A5-09), and eight lanes is
+ *  therefore what fits; past them they wrap, and the golden angle spacing the
+ *  nodes keeps two lane-mates apart. */
+export const ORBIT_LANE_CAP = 8;
 
 export function orbitLaneIndex(nodeIndex: number): number {
   return nodeIndex % ORBIT_LANE_CAP;

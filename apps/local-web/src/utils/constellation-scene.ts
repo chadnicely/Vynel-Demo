@@ -849,6 +849,11 @@ export function startConstellationScene(
           (slot === undefined ? undefined : orbiters[slot]) ?? freshOrbiters(),
       );
 
+      // The hover ring is scratch too — left slot-keyed, a re-sort would
+      // leave it lit on whichever dot inherited the slot until the pointer
+      // moved again.
+      hoverIndex = hoverIndex < 0 ? -1 : inherited.indexOf(hoverIndex);
+
       positions.length = 0;
       keptPositions.forEach((position, i) => {
         // A hole is deliberate: `layout` seeds an unplaced node at its target

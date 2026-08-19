@@ -29,8 +29,14 @@ export type SceneNodeKind = (typeof SCENE_NODE_KINDS)[number];
 
 export interface SceneNodeRef {
   kind: SceneNodeKind;
-  /** The domain id — a workspace id, a conversation's session id, a job id.
-   *  Opaque here: only the level that minted it knows how to open it. */
+  /** The domain id. ONE id space per kind, and for `session` that space is
+   *  the CHAT-SESSION id the rest of the app treats as a conversation's
+   *  handle — the overview entry's `sessionId`, and what every
+   *  `/sessions/:sessionId/...` door takes, `children` included. Never a
+   *  primary-session id: a ref that cannot open a door is not an identity.
+   *
+   *  Opaque otherwise: only the level that minted it knows what to do with
+   *  it. */
   id: string;
 }
 

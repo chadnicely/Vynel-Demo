@@ -103,8 +103,9 @@ describe("inheritedSlots", () => {
 
 describe("orbit lanes", () => {
   it("gives every node its own lane while they still fit the stage", () => {
-    // `0.3 + 0.115·i` reaches the stage edge at i = 6.08, so seven lanes is
-    // exactly what fits and the identity below IS today's picture.
+    // Eight lanes fit; the 9th walks off the bottom (the count the audit
+    // measured). The identity below IS today's picture, unchanged.
+    expect(ORBIT_LANE_CAP).toBe(8);
     for (let i = 0; i < ORBIT_LANE_CAP; i += 1) {
       expect(orbitLaneIndex(i)).toBe(i);
     }

@@ -22,7 +22,11 @@ export type SessionChildStatus = (typeof SESSION_CHILD_STATUSES)[number]
 
 export interface SessionChild {
   kind: SessionChildKind
-  /** A primary-session id for `session`; the delegation job's id otherwise. */
+  /** For `session`, the child conversation's own HANDLE — the chat-session id
+   *  every `/sessions/:sessionId/...` door takes, this one included, so a
+   *  caller can walk straight down. (Not the primary id: an id that opens no
+   *  door is not an identity, and the node screen's ref vocabulary keeps one
+   *  id space per kind.) The delegation job's id for the other two. */
   id: string
   /** The conversation's name, the colleague's name, or the task's label. */
   title: string
