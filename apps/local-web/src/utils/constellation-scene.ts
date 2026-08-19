@@ -795,7 +795,11 @@ export function startConstellationScene(
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     for (let i = 0; i < positions.length; i++) {
-      const p = positions[i]!;
+      // A node added by this update has no eased position until the next
+      // frame places it — it is not on screen, so it cannot be under the
+      // pointer either.
+      const p = positions[i];
+      if (p === undefined) continue;
       if (Math.hypot(x - p.x, y - p.y) <= 30) return i;
     }
     return -1;

@@ -31,7 +31,7 @@ const MODES: Array<{ id: NodesMode; label: string }> = [
   { id: "race", label: "Race" },
 ];
 
-const isInsideProject = computed(() => props.trail.length > 0);
+const isDrilled = computed(() => props.trail.length > 0);
 /** Where `back` lands — the level above, or the fleet at the first step in. */
 const backLabel = computed(
   () => props.trail[props.trail.length - 2] ?? "All projects",
@@ -54,14 +54,14 @@ const counts = computed(() => ({
   <header class="fleet-bar">
     <!-- Where you are standing: All projects, or one project's inside. -->
     <button
-      v-if="isInsideProject"
+      v-if="isDrilled"
       type="button"
       class="crumb"
       @click="emit('back')"
     >
       <ChevronLeft :size="13" /> {{ backLabel }}
     </button>
-    <span v-if="isInsideProject" class="crumb-here">{{ hereLabel }}</span>
+    <span v-if="isDrilled" class="crumb-here">{{ hereLabel }}</span>
     <nav class="modes" aria-label="Fleet view">
       <button
         v-for="option in MODES"
@@ -77,7 +77,7 @@ const counts = computed(() => ({
       <!-- Inside a project the chat is the fourth reading (Chad,
            2026-08-11): nodes ↔ chat, back and forth, same software. -->
       <button
-        v-if="isInsideProject"
+        v-if="isDrilled"
         type="button"
         class="mode-btn"
         @click="emit('open-chat')"
