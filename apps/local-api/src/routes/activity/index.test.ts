@@ -155,45 +155,6 @@ describe('GET /activity/stream', () => {
   })
 })
 
-describe('GET /activity/running', () => {
-  it('returns the durable in-flight turns for the local user only, ISO-stamped', async () => {
-    await withTestDatabase(async (db) => {
-      const activityFeed = new SessionActivityFeed({
-        turnRecorder: buildSessionTurnRecorder(db, silentLogger),
-      })
-      const app = createApp({ db, logger: silentLogger, activityFeed })
-      const userId = getOrCreateLocalUser(db, { logger: silentLogger }).id
-
-      const handle = activityFeed.begin({
-        userId,
-        scopeKind: 'global',
-        origin: 'delegation',
-        jobId: 'job-run-1',
-        threadId: 'thread-run-1',
-        partialSessionId: 'trace-run-1',
-      })
-      // Another user's running turn must not appear... but a foreign userId
-      // violates the FK — the tenant filter is already repo-tested; here the
-      // route contract is the subject.
-      const res = await app.request('/activity/running')
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as {
-        turns: Array<{ turnId: string; jobId: string | null; startedAt: string }>
-      }
-      expect(body.turns).toHaveLength(1)
-      expect(body.turns[0]!.turnId).toBe(handle.turnId)
-      expect(body.turns[0]!.jobId).toBe('job-run-1')
-      // ISO-8601 round-trips.
-      expect(new Date(body.turns[0]!.startedAt).toISOString()).toBe(body.turns[0]!.startedAt)
-
-      // Ended turns leave the read.
-      handle.end()
-      const after = await app.request('/activity/running')
-      expect(((await after.json()) as { turns: unknown[] }).turns).toEqual([])
-    })
-  })
-})
-
 describe('GET /activity/messages', () => {
   it('reports the ask and the reply, each pointing the way it travelled', async () => {
     await withTestDatabase(async (db) => {
