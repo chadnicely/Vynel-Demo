@@ -5190,6 +5190,13 @@
         ],
         "summary": "Create a schedule (from a template or custom).",
         "x-sdk-name": "schedules.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "description": "Create a scheduled routine in the active workspace. Use this whenever the user asks to be reminded, or wants something done on a schedule ('remind me…', 'every morning…', 'in 20 minutes…'). Creates a real schedule that fires even after restarts. NEVER simulate a reminder with sleep/timers/background processes. templateKind 'reminder' delivers promptTemplate VERBATIM at fire time (put the user's exact reminder text in it — no AI turn); use 'custom' with a promptTemplate when the fire should DO work (an AI turn runs it). Recurring: set cronExpression (5-field cron, evaluated in `timezone` — defaults to the user's profile timezone). One-time ('at 5pm', 'in 20 minutes'): set fireAt instead (ISO-8601 with offset, must be in the future; it wins over cron)."
+        },
         "requestBody": {
           "content": {
             "application/json": {
@@ -5513,6 +5520,13 @@
         ],
         "summary": "Update a schedule.",
         "x-sdk-name": "schedules.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "description": "Update a schedule in the active workspace — its displayName, promptTemplate (the reminder text or work prompt), cronExpression/timezone (the next fire recomputes), destination, or isEnabled. Only the fields you pass change."
+        },
         "requestBody": {
           "content": {
             "application/json": {
@@ -5758,7 +5772,14 @@
           }
         ],
         "summary": "Enable a schedule.",
-        "x-sdk-name": "schedules.enable"
+        "x-sdk-name": "schedules.enable",
+        "x-mcp": {
+          "exposed": true,
+          "name": "enable_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "description": "Turn a schedule in the active workspace back on so it fires again at its next scheduled time."
+        }
       }
     },
     "/workspaces/{workspaceId}/schedules/{scheduleId}/disable": {
@@ -5911,7 +5932,14 @@
           }
         ],
         "summary": "Disable a schedule.",
-        "x-sdk-name": "schedules.disable"
+        "x-sdk-name": "schedules.disable",
+        "x-mcp": {
+          "exposed": true,
+          "name": "disable_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "description": "Turn a schedule in the active workspace off — it stays listed but stops firing until re-enabled. Use this to pause a routine, never to delete it."
+        }
       }
     },
     "/workspaces/{workspaceId}/schedules/{scheduleId}/fire-now": {
@@ -17918,6 +17946,8 @@
         "x-mcp": {
           "exposed": true,
           "name": "list_my_schedules",
+          "rootSurface": true,
+          "workspaceSurface": true,
           "description": "List every scheduled routine the user owns — both global (no workspace) and workspace-scoped. Each has its cron expression (or one-time fire time), destination, enabled flag, and next fire time. Read-only."
         }
       },
@@ -18053,6 +18083,15 @@
         "parameters": [],
         "summary": "Create a global or workspace schedule (recurring cron OR one-time fireAt).",
         "x-sdk-name": "schedulesUser.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_my_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "rootSurface": true,
+          "ambientWorkspace": false,
+          "description": "Create a scheduled routine for the user — scope 'global' creates a global schedule (no workspace), scope 'workspace' plus that workspace's workspaceId creates one for a named workspace. Use this whenever the user asks to be reminded, or wants something done on a schedule ('remind me…', 'every morning…', 'in 20 minutes…'). Creates a real schedule that fires even after restarts. NEVER simulate a reminder with sleep/timers/background processes. templateKind 'reminder' delivers promptTemplate VERBATIM at fire time (put the user's exact reminder text in it — no AI turn); use 'custom' with a promptTemplate when the fire should DO work (an AI turn runs it). Recurring: set cronExpression (5-field cron, evaluated in `timezone` — defaults to the user's profile timezone). One-time ('at 5pm', 'in 20 minutes'): set fireAt instead (ISO-8601 with offset, must be in the future; it wins over cron)."
+        },
         "requestBody": {
           "content": {
             "application/json": {
@@ -18346,6 +18385,14 @@
         ],
         "summary": "Update a schedule the user owns.",
         "x-sdk-name": "schedulesUser.update",
+        "x-mcp": {
+          "exposed": true,
+          "name": "update_my_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "rootSurface": true,
+          "description": "Update any schedule the user owns (global or workspace; find ids via list_my_schedules) — its displayName, promptTemplate (the reminder text or work prompt), cronExpression/timezone (the next fire recomputes), destination, or isEnabled. Only the fields you pass change."
+        },
         "requestBody": {
           "content": {
             "application/json": {
@@ -18575,7 +18622,15 @@
           }
         ],
         "summary": "Enable a schedule the user owns.",
-        "x-sdk-name": "schedulesUser.enable"
+        "x-sdk-name": "schedulesUser.enable",
+        "x-mcp": {
+          "exposed": true,
+          "name": "enable_my_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "rootSurface": true,
+          "description": "Turn any schedule the user owns (global or workspace) back on so it fires again at its next scheduled time."
+        }
       }
     },
     "/schedules/{scheduleId}/disable": {
@@ -18720,7 +18775,15 @@
           }
         ],
         "summary": "Disable a schedule the user owns.",
-        "x-sdk-name": "schedulesUser.disable"
+        "x-sdk-name": "schedulesUser.disable",
+        "x-mcp": {
+          "exposed": true,
+          "name": "disable_my_schedule",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "rootSurface": true,
+          "description": "Turn any schedule the user owns (global or workspace) off — it stays listed but stops firing until re-enabled. Use this to pause a routine, never to delete it."
+        }
       }
     },
     "/schedules/{scheduleId}/fire-now": {

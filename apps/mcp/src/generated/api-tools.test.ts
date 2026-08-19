@@ -29,15 +29,20 @@ import {
 //     connect/disconnect/enable/disable/allowed-sender routes carry NO x-mcp
 //     (connect carries the bot token — never an MCP tool).
 //   - schedules (`apps/local-api/src/routes/schedules/index.ts`): 3 read-only
-//     GETs (list_schedules / list_schedule_templates / list_schedule_runs);
-//     the mutating create/update/enable/disable/delete routes carry NO x-mcp
-//     (and the fire-now route is deferred entirely).
+//     GETs (list_schedules / list_schedule_templates / list_schedule_runs) +
+//     create/update/enable/disable (Kafi 2026-08-20, revising D14: "remind me
+//     for tea at 5" typed in chat must create a real schedule row, not an
+//     improvised sleep timer; all four ride the ask-approval tier). DELETE and
+//     fire-now still carry NO x-mcp (fire-now DRIVES a turn — never a tool).
 //   - channels USER-scoped (`.../routes/channels/user-scoped.ts`): 1 read-only
 //     GET (list_my_channels — a user's global + workspace channels); every
 //     mutating route (incl. connect, which carries the bot token) carries NO x-mcp.
-//   - schedules USER-scoped (`.../routes/schedules/user-scoped.ts`): 1 read-only
-//     GET (list_my_schedules — a user's global + workspace schedules); the
-//     mutating create/update/enable/disable/delete routes carry NO x-mcp.
+//   - schedules USER-scoped (`.../routes/schedules/user-scoped.ts`):
+//     list_my_schedules (rootSurface + workspaceSurface — both worlds, the
+//     send_message shape) + the rootSurface create/update/enable/disable
+//     *_my_* mutations (Kafi 2026-08-20: the GLOBAL surfaces' schedule door —
+//     create_my_schedule takes scope 'global' | 'workspace'+workspaceId, its
+//     union body flattened by the generator). DELETE stays unexposed.
 //   - the 2026-07-05 API-completion waves: memory (2 reads + create_memory_entry
 //     mutatingApproved), chat (3 reads), workspaces (2 reads), users (2 reads),
 //     providers (3 reads; +list_available_chat_models 2026-07-31 — the
@@ -106,6 +111,12 @@ const EXPECTED_TOOL_NAMES = [
   'create_monitor',
   'create_phase',
   'create_plan',
+  // The schedule mutations (Kafi 2026-08-20, revising D14) — chat creates
+  // real schedule rows instead of improvising sleep timers; ask-tier carded.
+  'create_schedule',
+  'update_schedule',
+  'enable_schedule',
+  'disable_schedule',
   'create_task',
   'delete_agent',
   'delete_feature',
@@ -209,6 +220,14 @@ const EXPECTED_TOOL_NAMES = [
 // task/report aliases were removed 2026-08-04 (persona-sessions A9).
 const EXPECTED_ROUTING_TOOL_NAMES = [
   'create_global_monitor',
+  // The user-scoped schedule tools (Kafi 2026-08-20): the GLOBAL surfaces'
+  // schedule door — rootSurface mutations + the list (which ALSO keeps its
+  // workspace membership via workspaceSurface, so it appears in both arrays).
+  'create_my_schedule',
+  'update_my_schedule',
+  'enable_my_schedule',
+  'disable_my_schedule',
+  'list_my_schedules',
   'create_session',
   // Voice-in-calls (merged 2026-08-13): the call lifecycle rides the ROOT
   // surface — the brain joins, lists and leaves calls; speak predates them.
@@ -312,6 +331,37 @@ describe('generatedRoutingMcpTools', () => {
     expect(arrays[0]).toContain('sendMessage')
     expect(arrays[1]).toContain('sendMessage')
     expect(arrays[2]).not.toContain('sendMessage')
+  })
+})
+
+describe('create_my_schedule (the first union-body tool)', () => {
+  // The generator flattens a zod discriminatedUnion body (oneOf, no top-level
+  // properties) into one tool schema: union of branch fields, discriminator
+  // literals merged into an enum, branch-specific fields optional. Before the
+  // flatten landed this emitted a BODY-LESS mutating tool — pin the shape so
+  // a generator regression can't silently ship that again.
+  type ToolDefinition = {
+    name: string
+    inputSchema: Record<string, { safeParse: (v: unknown) => { success: boolean } }>
+  }
+  const factory = generatedRoutingMcpTools.find((f) => f.name === 'createMySchedule')!
+  const definition = factory(
+    { db: {} as never, userId: 'user-1' },
+    () => new Response('{}', { status: 200 }),
+  ) as ToolDefinition
+
+  it('advertises the flattened union body', () => {
+    const keys = Object.keys(definition.inputSchema)
+    expect(keys).toEqual(
+      expect.arrayContaining(['scope', 'workspaceId', 'templateKind', 'cronExpression', 'fireAt']),
+    )
+  })
+
+  it('merges the branch discriminator literals into one enum', () => {
+    const scope = definition.inputSchema['scope']!
+    expect(scope.safeParse('global').success).toBe(true)
+    expect(scope.safeParse('workspace').success).toBe(true)
+    expect(scope.safeParse('nonsense').success).toBe(false)
   })
 })
 

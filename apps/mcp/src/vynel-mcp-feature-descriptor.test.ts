@@ -47,10 +47,20 @@ describe('vynelWorkspaceDescriptor', () => {
     // test: correct expectation — the engineering-plan modules (2026-08-11)
     // added delete_feature + delete_phase (DELETE routes join the tier
     // automatically).
+    // The schedule mutations (Kafi 2026-08-20, revising D14): every
+    // create/update/enable/disable — workspace-scoped AND user-scoped *_my_*
+    // — rides the tier via x-mcp.askApproval (card in ask, run in auto);
+    // enable/disable are mutating too — they change what fires.
     expect(vynelWorkspaceDescriptor.askModeApprovalToolNames).toEqual([
+      'mcp__vynel__create_my_schedule',
+      'mcp__vynel__create_schedule',
       'mcp__vynel__delete_agent',
       'mcp__vynel__delete_feature',
       'mcp__vynel__delete_phase',
+      'mcp__vynel__disable_my_schedule',
+      'mcp__vynel__disable_schedule',
+      'mcp__vynel__enable_my_schedule',
+      'mcp__vynel__enable_schedule',
       // Voice-in-calls (merged 2026-08-13): joining and leaving a live call
       // are carded in ask mode — entering or hanging up on a meeting is not a
       // silent act.
@@ -63,6 +73,8 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__run_background_process',
       'mcp__vynel__start_call',
       'mcp__vynel__uninstall_marketplace_item',
+      'mcp__vynel__update_my_schedule',
+      'mcp__vynel__update_schedule',
     ])
     expect(vynelWorkspaceInteractiveDescriptor.askModeApprovalToolNames).toEqual(
       vynelWorkspaceDescriptor.askModeApprovalToolNames,
@@ -275,6 +287,10 @@ describe('featureGatedTools (the tier maps)', () => {
       'mcp__vynel__list_my_schedules',
       'mcp__vynel__list_schedule_runs',
       'mcp__vynel__list_schedule_templates',
+      'mcp__vynel__create_schedule',
+      'mcp__vynel__update_schedule',
+      'mcp__vynel__enable_schedule',
+      'mcp__vynel__disable_schedule',
     ])
     expect(map['marketplace']).toEqual([
       'mcp__vynel__list_marketplace_items',
@@ -292,17 +308,27 @@ describe('featureGatedTools (the tier maps)', () => {
     expect(map['memory']).toBe(capabilityMap['memory'])
   })
 
-  it('routing map: exactly the voice lifecycle, and every name is a real routing tool', () => {
+  it('routing map: the voice lifecycle + the user-scoped schedule door, every name a real routing tool', () => {
     const map = vynelRoutingDescriptor.featureGatedTools
     expect(map).toBeDefined()
-    expect(Object.keys(map!)).toEqual(['voice'])
+    expect(Object.keys(map!).sort()).toEqual(['schedules', 'voice'])
     expect(map!['voice']).toEqual([
       'mcp__vynel__speak',
       'mcp__vynel__start_call',
       'mcp__vynel__end_call',
       'mcp__vynel__list_calls',
     ])
-    for (const toolName of map!['voice']!) {
+    // The *_my_* schedule tools re-enter through the featureGate('schedules')
+    // mount — ungated here, an out-of-tier global turn would compose tools
+    // that only ever 403.
+    expect(map!['schedules']).toEqual([
+      'mcp__vynel__list_my_schedules',
+      'mcp__vynel__create_my_schedule',
+      'mcp__vynel__update_my_schedule',
+      'mcp__vynel__enable_my_schedule',
+      'mcp__vynel__disable_my_schedule',
+    ])
+    for (const toolName of Object.values(map!).flat()) {
       expect(routingToolNames, toolName).toContain(toolName)
     }
   })

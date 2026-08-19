@@ -552,6 +552,53 @@ export const createMonitor: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const createMySchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_my_schedule',
+    "Create a scheduled routine for the user — scope 'global' creates a global schedule (no workspace), scope 'workspace' plus that workspace's workspaceId creates one for a named workspace. Use this whenever the user asks to be reminded, or wants something done on a schedule ('remind me…', 'every morning…', 'in 20 minutes…'). Creates a real schedule that fires even after restarts. NEVER simulate a reminder with sleep/timers/background processes. templateKind 'reminder' delivers promptTemplate VERBATIM at fire time (put the user's exact reminder text in it — no AI turn); use 'custom' with a promptTemplate when the fire should DO work (an AI turn runs it). Recurring: set cronExpression (5-field cron, evaluated in `timezone` — defaults to the user's profile timezone). One-time ('at 5pm', 'in 20 minutes'): set fireAt instead (ISO-8601 with offset, must be in the future; it wins over cron).",
+    {
+    scope: z.enum(['global', 'workspace']),
+    templateKind: z.enum(['morning-briefing', 'weekly-summary', 'email-watch', 'custom', 'reminder']),
+    displayName: z.string().optional(),
+    cronExpression: z.string().optional(),
+    timezone: z.string().optional(),
+    promptTemplate: z.string().optional(),
+    destinationKind: z.enum(['chat-only', 'chat-and-channel']).optional(),
+    channelId: z.string().optional(),
+    catchUpOnMiss: z.boolean().optional(),
+    approvalTimeoutMsOverride: z.number().optional(),
+    fireAt: z.string().optional(),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/schedules'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope', 'templateKind', 'displayName', 'cronExpression', 'timezone', 'promptTemplate', 'destinationKind', 'channelId', 'catchUpOnMiss', 'approvalTimeoutMsOverride', 'fireAt', 'workspaceId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const createPhase: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_phase',
@@ -611,6 +658,53 @@ export const createPlan: McpToolFactory = (scope, app) =>
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
         for (const k of ['title', 'detail', 'planDate', 'sessionId', 'taskId']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const createSchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_schedule',
+    "Create a scheduled routine in the active workspace. Use this whenever the user asks to be reminded, or wants something done on a schedule ('remind me…', 'every morning…', 'in 20 minutes…'). Creates a real schedule that fires even after restarts. NEVER simulate a reminder with sleep/timers/background processes. templateKind 'reminder' delivers promptTemplate VERBATIM at fire time (put the user's exact reminder text in it — no AI turn); use 'custom' with a promptTemplate when the fire should DO work (an AI turn runs it). Recurring: set cronExpression (5-field cron, evaluated in `timezone` — defaults to the user's profile timezone). One-time ('at 5pm', 'in 20 minutes'): set fireAt instead (ISO-8601 with offset, must be in the future; it wins over cron).",
+    {
+    workspaceId: z.string(),
+    templateKind: z.enum(['morning-briefing', 'weekly-summary', 'email-watch', 'custom', 'reminder']),
+    displayName: z.string().optional(),
+    cronExpression: z.string().optional(),
+    timezone: z.string().optional(),
+    promptTemplate: z.string().optional(),
+    destinationKind: z.enum(['chat-only', 'chat-and-channel']).optional(),
+    channelId: z.string().optional(),
+    catchUpOnMiss: z.boolean().optional(),
+    approvalTimeoutMsOverride: z.number().optional(),
+    fireAt: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/schedules'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['templateKind', 'displayName', 'cronExpression', 'timezone', 'promptTemplate', 'destinationKind', 'channelId', 'catchUpOnMiss', 'approvalTimeoutMsOverride', 'fireAt']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -819,6 +913,74 @@ export const deletePhase: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const disableMySchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'disable_my_schedule',
+    "Turn any schedule the user owns (global or workspace) off — it stays listed but stops firing until re-enabled. Use this to pause a routine, never to delete it.",
+    {
+    scheduleId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/schedules/{scheduleId}/disable'
+        pathStr = pathStr.replace('{scheduleId}', encodeURIComponent(String(args['scheduleId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const disableSchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'disable_schedule',
+    "Turn a schedule in the active workspace off — it stays listed but stops firing until re-enabled. Use this to pause a routine, never to delete it.",
+    {
+    scheduleId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/schedules/{scheduleId}/disable'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{scheduleId}', encodeURIComponent(String(args['scheduleId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const discoverInstalledSkillsForProvider: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'discover_installed_skills_for_provider',
@@ -856,6 +1018,74 @@ export const discoverInstalledSkillsForProvider: McpToolFactory = (scope, app) =
       }
     },
     { annotations: { readOnlyHint: true } },
+  )
+
+export const enableMySchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'enable_my_schedule',
+    "Turn any schedule the user owns (global or workspace) back on so it fires again at its next scheduled time.",
+    {
+    scheduleId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/schedules/{scheduleId}/enable'
+        pathStr = pathStr.replace('{scheduleId}', encodeURIComponent(String(args['scheduleId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const enableSchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'enable_schedule',
+    "Turn a schedule in the active workspace back on so it fires again at its next scheduled time.",
+    {
+    scheduleId: z.string(),
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/schedules/{scheduleId}/enable'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{scheduleId}', encodeURIComponent(String(args['scheduleId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
 export const endCall: McpToolFactory = (scope, app) =>
@@ -3905,6 +4135,52 @@ export const updateMemoryEntry: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const updateMySchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_my_schedule',
+    "Update any schedule the user owns (global or workspace; find ids via list_my_schedules) — its displayName, promptTemplate (the reminder text or work prompt), cronExpression/timezone (the next fire recomputes), destination, or isEnabled. Only the fields you pass change.",
+    {
+    scheduleId: z.string(),
+    displayName: z.string().optional(),
+    cronExpression: z.string().optional(),
+    timezone: z.string().optional(),
+    promptTemplate: z.string().optional(),
+    destinationKind: z.enum(['chat-only', 'chat-and-channel']).optional(),
+    channelId: z.string().nullable().optional(),
+    catchUpOnMiss: z.boolean().optional(),
+    approvalTimeoutMsOverride: z.number().nullable().optional(),
+    isEnabled: z.boolean().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/schedules/{scheduleId}'
+        pathStr = pathStr.replace('{scheduleId}', encodeURIComponent(String(args['scheduleId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['displayName', 'cronExpression', 'timezone', 'promptTemplate', 'destinationKind', 'channelId', 'catchUpOnMiss', 'approvalTimeoutMsOverride', 'isEnabled']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const updatePhase: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_phase',
@@ -3992,6 +4268,54 @@ export const updatePlan: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const updateSchedule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'update_schedule',
+    "Update a schedule in the active workspace — its displayName, promptTemplate (the reminder text or work prompt), cronExpression/timezone (the next fire recomputes), destination, or isEnabled. Only the fields you pass change.",
+    {
+    scheduleId: z.string(),
+    workspaceId: z.string(),
+    displayName: z.string().optional(),
+    cronExpression: z.string().optional(),
+    timezone: z.string().optional(),
+    promptTemplate: z.string().optional(),
+    destinationKind: z.enum(['chat-only', 'chat-and-channel']).optional(),
+    channelId: z.string().nullable().optional(),
+    catchUpOnMiss: z.boolean().optional(),
+    approvalTimeoutMsOverride: z.number().nullable().optional(),
+    isEnabled: z.boolean().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/schedules/{scheduleId}'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        pathStr = pathStr.replace('{scheduleId}', encodeURIComponent(String(args['scheduleId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['displayName', 'cronExpression', 'timezone', 'promptTemplate', 'destinationKind', 'channelId', 'catchUpOnMiss', 'approvalTimeoutMsOverride', 'isEnabled']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const updateTask: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'update_task',
@@ -4051,11 +4375,14 @@ export const generatedMcpTools: McpToolFactory[] = [
   createMonitor,
   createPhase,
   createPlan,
+  createSchedule,
   createTask,
   deleteAgent,
   deleteFeature,
   deletePhase,
+  disableSchedule,
   discoverInstalledSkillsForProvider,
+  enableSchedule,
   getAgent,
   getAiAgentProviderAuthStatus,
   getAppLogs,
@@ -4127,6 +4454,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   updateMemoryEntry,
   updatePhase,
   updatePlan,
+  updateSchedule,
   updateTask,
 ]
 
@@ -4134,7 +4462,10 @@ export const generatedMcpTools: McpToolFactory[] = [
 // Kept OUT of generatedMcpTools so the normal chat turn stays byte-for-byte.
 export const generatedRoutingMcpTools: McpToolFactory[] = [
   createGlobalMonitor,
+  createMySchedule,
   createSession,
+  disableMySchedule,
+  enableMySchedule,
   endCall,
   getBackgroundProcess,
   getChatSession,
@@ -4144,6 +4475,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   listCalls,
   listDelegatedTasks,
   listGlobalMonitors,
+  listMySchedules,
   listRoutingChannels,
   listRoutingWorkspaces,
   listSessions,
@@ -4158,6 +4490,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   speak,
   startCall,
   stopGlobalMonitor,
+  updateMySchedule,
 ]
 
 // Session-library Slice ④b (widened 2026-07-21) — tools ALSO exposed on
@@ -4176,13 +4509,21 @@ export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
 // mode (auto/bypass run them uncarded). Full tool names under the 'vynel'
 // server prefix, matching the descriptor layer's hardcoded server name.
 export const generatedAskModeApprovalToolNames: string[] = [
+  'mcp__vynel__create_my_schedule',
+  'mcp__vynel__create_schedule',
   'mcp__vynel__delete_agent',
   'mcp__vynel__delete_feature',
   'mcp__vynel__delete_phase',
+  'mcp__vynel__disable_my_schedule',
+  'mcp__vynel__disable_schedule',
+  'mcp__vynel__enable_my_schedule',
+  'mcp__vynel__enable_schedule',
   'mcp__vynel__end_call',
   'mcp__vynel__register_workspace',
   'mcp__vynel__remove_knowledge_source',
   'mcp__vynel__run_background_process',
   'mcp__vynel__start_call',
   'mcp__vynel__uninstall_marketplace_item',
+  'mcp__vynel__update_my_schedule',
+  'mcp__vynel__update_schedule',
 ]
