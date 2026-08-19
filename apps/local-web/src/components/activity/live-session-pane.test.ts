@@ -23,6 +23,7 @@ function makeEntry(
 ): SessionsOverviewEntry {
   return {
     sessionId: "sdk-1",
+    primarySessionId: null,
     scope: "spawned",
     workspaceId: null,
     workspaceName: null,

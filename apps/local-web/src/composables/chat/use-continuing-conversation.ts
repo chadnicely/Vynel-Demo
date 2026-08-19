@@ -30,9 +30,16 @@ export function useContinuingConversation(
 
 /** The session the scope's CONTINUOUS thread displays: the primary's current
  *  head — or, before the primary's first turn lands (the head is bridged at
- *  turn end), the primary turn the activity feed reports running in the
- *  scope. Without the fallback a fresh workspace's very first turn is
- *  invisible from every window but the one that sent it, until it ends. */
+ *  turn end), the turn the activity feed reports running on THIS thread's
+ *  identity. Without the fallback a fresh workspace's very first turn is
+ *  invisible from every window but the one that sent it, until it ends.
+ *
+ *  Identity, never a family (session-hardening D1). The global thread matches
+ *  on the primary id the continuing read hands back (`rootSessionId`, the same
+ *  value the feed stamps as `primarySessionId`); until that id is known there
+ *  is NO fallback — a flash of the welcome hero is acceptable, binding to the
+ *  spoken thread is not. A workspace room matches on its own scope, since
+ *  its turns name no primary and sessions spawned inside it do. */
 export function useContinuingSessionId(
   scope: MaybeRefOrGetter<SessionScope>,
   continuingQuery: ReturnType<typeof useContinuingConversation>,
@@ -50,11 +57,16 @@ export function useContinuingSessionId(
   });
   const runningId = computed(() => {
     const s = toValue(scope);
-    return activity.runningPrimarySessionIdFor(
-      s.kind === "global"
-        ? { kind: "global" }
-        : { kind: "workspace", workspaceId: s.workspaceId },
-    );
+    if (s.kind === "workspace") {
+      return activity.runningPrimarySessionIdFor({
+        kind: "workspace",
+        workspaceId: s.workspaceId,
+      });
+    }
+    const primarySessionId = continuingQuery.data.value?.rootSessionId ?? null;
+    return primarySessionId === null
+      ? null
+      : activity.runningPrimarySessionIdFor({ kind: "primary", primarySessionId });
   });
   watch(
     runningId,

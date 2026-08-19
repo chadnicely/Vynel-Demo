@@ -14,6 +14,7 @@ function makeEntry(
 ): SessionsOverviewEntry {
   return {
     sessionId: "sdk-new",
+    primarySessionId: null,
     scope: "spawned",
     workspaceId: null,
     workspaceName: null,
@@ -102,23 +103,77 @@ describe("liveTurnStartedAtForEntry", () => {
     expect(liveTurnStartedAtForEntry(entry, turns)).toBe(STARTED_AT);
   });
 
-  // The Assistant entry's cold-start window: a global turn announces before
-  // its session id is known, and without this a retry after a failed turn
-  // shows red (problem outranks running) for the whole engine spawn.
-  it("the GLOBAL entry claims the brain's turn before its session resolves", () => {
-    const entry = makeEntry({ scope: "global", sessionId: "sdk-brain" });
+  // The cold-start window: a turn announces before its session id is known,
+  // and without this a retry after a failed turn shows red (problem outranks
+  // running) for the whole engine spawn. It is claimed by IDENTITY now — the
+  // entry's primary and the turn's primary are the same id.
+  it("an entry claims a turn that names its continuing identity, before the session resolves", () => {
+    const entry = makeEntry({
+      scope: "global",
+      sessionId: "sdk-brain",
+      primarySessionId: "global-primary-1",
+    });
     const turns = {
-      "turn-1": makeTurn({ scopeKind: "global", sessionId: null }),
+      "turn-1": makeTurn({
+        scopeKind: "global",
+        sessionId: null,
+        primarySessionId: "global-primary-1",
+      }),
     };
     expect(liveTurnStartedAtForEntry(entry, turns)).toBe(STARTED_AT);
   });
 
-  it("…but never a spawned session's turn, which carries its id from the start", () => {
-    const entry = makeEntry({ scope: "global", sessionId: "sdk-brain" });
+  // The bug this closes: a spoken turn used to announce as a global turn with
+  // no ids, so the Assistant row read `running` on a thread that was idle —
+  // hiding a standing problem and superseding a standing needs_input.
+  it("the GLOBAL entry never claims a VOICE turn", () => {
+    const entry = makeEntry({
+      scope: "global",
+      sessionId: "sdk-brain",
+      primarySessionId: "global-primary-1",
+    });
     const turns = {
-      "turn-1": makeTurn({ scopeKind: "global", sessionId: "sdk-spawned" }),
+      "turn-1": makeTurn({
+        scopeKind: "voice",
+        sessionId: null,
+        primarySessionId: "voice-primary-1",
+      }),
     };
     expect(liveTurnStartedAtForEntry(entry, turns)).toBeNull();
+  });
+
+  it("…nor a DELEGATED run's turn, which announces in the global scope on its own identity", () => {
+    const entry = makeEntry({
+      scope: "global",
+      sessionId: "sdk-brain",
+      primarySessionId: "global-primary-1",
+    });
+    const turns = {
+      "turn-1": makeTurn({
+        scopeKind: "global",
+        sessionId: null,
+        origin: "delegation",
+        primarySessionId: "spawned-primary-9",
+      }),
+    };
+    expect(liveTurnStartedAtForEntry(entry, turns)).toBeNull();
+  });
+
+  it("the VOICE entry claims its own turn", () => {
+    const entry = makeEntry({
+      scope: "voice",
+      sessionId: "sdk-voice",
+      primarySessionId: "voice-primary-1",
+      segments: [],
+    });
+    const turns = {
+      "turn-1": makeTurn({
+        scopeKind: "voice",
+        sessionId: null,
+        primarySessionId: "voice-primary-1",
+      }),
+    };
+    expect(liveTurnStartedAtForEntry(entry, turns)).toBe(STARTED_AT);
   });
 
   it("a spawned (workspace-less) entry never borrows a room's turn", () => {
@@ -130,5 +185,18 @@ describe("liveTurnStartedAtForEntry", () => {
       }),
     };
     expect(liveTurnStartedAtForEntry(makeEntry(), turns)).toBeNull();
+  });
+
+  it("a workspace entry does NOT borrow a session spawned inside its room", () => {
+    const entry = makeEntry({ scope: "workspace", workspaceId: "ws-1" });
+    const turns = {
+      "turn-1": makeTurn({
+        scopeKind: "workspace",
+        workspaceId: "ws-1",
+        sessionId: null,
+        primarySessionId: "spawned-primary-9",
+      }),
+    };
+    expect(liveTurnStartedAtForEntry(entry, turns)).toBeNull();
   });
 });
