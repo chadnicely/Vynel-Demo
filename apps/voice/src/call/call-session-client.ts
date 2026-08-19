@@ -9,9 +9,9 @@ import {
 // The daemon's client for the per-call spawned session: create it (global-
 // grounded — the `purpose` IS the priming payload: goal, mode, disclosure) and
 // run one turn per participant utterance. Rides the exact SSE wire the wake
-// line uses; the call loop owns turning the reply text into speech — unlike
-// the wake line, a call session's text IS its voice (no speak-tool round-trip
-// per utterance).
+// line uses; the call loop owns turning the reply text into speech — a call
+// session's text IS its voice, spoken whole once the reply lands (the wake
+// line streams its text as it arrives).
 
 export interface CallSessionClient {
   createCallSession(input: { name: string; purpose: string }): Promise<{ sessionId: string }>

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import pino from 'pino'
 import type { PcmAudio, SpeechRecognizer, VoiceActivityDetector, VoiceEngine } from '@vynel/voice-engine'
 import { FakeVoiceEngine } from '@vynel/voice-engine/test-support'
 import { VoiceSessionDriver } from './voice-session-driver.js'
 import type {
+  VoiceBrainClient,
   VoiceBrainEvent,
   VoiceSessionIo,
   VoiceSessionState,
@@ -37,7 +39,9 @@ class RecordingIo implements VoiceSessionIo {
   states: VoiceSessionState[] = []
   audio: PcmAudio[] = []
   endSpeechCount = 0
+  cutPlaybackCount = 0
   onEndSpeech: (() => void) | null = null
+  onCut: (() => void) | null = null
   setState(state: VoiceSessionState): void {
     this.states.push(state)
   }
@@ -48,9 +52,9 @@ class RecordingIo implements VoiceSessionIo {
     this.endSpeechCount += 1
     this.onEndSpeech?.()
   }
-  cutPlaybackCount = 0
   cutPlayback(): void {
     this.cutPlaybackCount += 1
+    this.onCut?.()
   }
 }
 
@@ -63,8 +67,66 @@ async function* brainFailing(): AsyncIterable<VoiceBrainEvent> {
   yield { kind: 'failed', message: 'boom' }
 }
 
+/** A brain whose runs the test drives by hand: emit events, end the stream,
+ *  observe the read's abort signal. */
+function controllableBrain() {
+  const runs: Array<{
+    utterance: string
+    signal: AbortSignal
+    emit: (event: VoiceBrainEvent) => void
+    end: () => void
+  }> = []
+  const runTurn = (utterance: string, signal: AbortSignal): AsyncIterable<VoiceBrainEvent> => ({
+    [Symbol.asyncIterator]() {
+      const queue: VoiceBrainEvent[] = []
+      let ended = false
+      let wake: (() => void) | null = null
+      const notify = (): void => {
+        const w = wake
+        wake = null
+        w?.()
+      }
+      signal.addEventListener('abort', notify, { once: true })
+      runs.push({
+        utterance,
+        signal,
+        emit: (event) => {
+          queue.push(event)
+          notify()
+        },
+        end: () => {
+          ended = true
+          notify()
+        },
+      })
+      return {
+        async next(): Promise<IteratorResult<VoiceBrainEvent>> {
+          for (;;) {
+            if (queue.length > 0) return { value: queue.shift()!, done: false }
+            // The real client yields nothing more once the read is aborted.
+            if (ended || signal.aborted) return { value: undefined, done: true }
+            await new Promise<void>((resolve) => {
+              wake = resolve
+            })
+          }
+        },
+        async return(): Promise<IteratorResult<VoiceBrainEvent>> {
+          ended = true
+          return { value: undefined, done: true }
+        },
+      }
+    },
+  })
+  return { runTurn, runs }
+}
+
 const chunk = (): PcmAudio => ({ samples: new Float32Array(160), sampleRate: 16000 })
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+// A detached turn settles over several microtask/macrotask hops (stream read →
+// lane → synth → emit → drain).
+const settle = async (): Promise<void> => {
+  for (let i = 0; i < 8; i += 1) await flush()
+}
 
 class RecordingWakeHandoff implements WakeHandoff {
   handOff = true
@@ -86,17 +148,24 @@ function buildDriver(
     autoDrain?: boolean
     wakeHandoff?: WakeHandoff
     onTurnWatchdog?: (utterance: string) => void
+    synthesizer?: VoiceEngine
   },
 ) {
   const io = new RecordingIo()
   const recognizer = new ScriptedRecognizer(transcripts)
   const synthesizer = new FakeVoiceEngine()
+  const interruptTurn = vi.fn(async (_sessionId: string) => true)
+  const brainClient: VoiceBrainClient = {
+    runTurn: (utterance, signal) => brain(utterance, signal ?? new AbortController().signal),
+    interruptTurn,
+  }
   const driver = new VoiceSessionDriver(
     {
+      logger: pino({ level: 'silent' }),
       vad: new PassThroughVad(),
       recognizer,
-      synthesizer,
-      runBrainTurn: brain,
+      synthesizer: options?.synthesizer ?? synthesizer,
+      brain: brainClient,
       io,
       ...(options?.wakeHandoff ? { wakeHandoff: options.wakeHandoff } : {}),
       ...(options?.onTurnWatchdog ? { onTurnWatchdog: options.onTurnWatchdog } : {}),
@@ -106,8 +175,13 @@ function buildDriver(
       ...(options?.turnWatchdogMs !== undefined ? { turnWatchdogMs: options.turnWatchdogMs } : {}),
     },
   )
-  if (options?.autoDrain !== false) io.onEndSpeech = () => driver.notifyPlaybackDrained()
-  return { driver, io, recognizer, synthesizer }
+  if (options?.autoDrain !== false) {
+    // Emulate the real sink: the device drains right after endSpeech, and a cut
+    // that interrupted playback fires drained too.
+    io.onEndSpeech = () => driver.notifyPlaybackDrained()
+    io.onCut = () => driver.notifyPlaybackDrained()
+  }
+  return { driver, io, recognizer, synthesizer, interruptTurn }
 }
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
@@ -118,62 +192,77 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve }
 }
 
-/** A turn the server never answers — it ends only when the watchdog aborts the
- *  read, having yielded nothing at all (exactly what the brain client does on
- *  an abort: the SERVER turn keeps running, this read simply stops). */
-function brainHangingUntilAbort(observed: { signal: AbortSignal | null }) {
-  return (_utterance: string, signal: AbortSignal): AsyncIterable<VoiceBrainEvent> => ({
-    [Symbol.asyncIterator]() {
-      observed.signal = signal
-      const aborted = new Promise<void>((resolve) => {
-        if (signal.aborted) resolve()
-        else signal.addEventListener('abort', () => resolve(), { once: true })
-      })
-      return {
-        async next(): Promise<IteratorResult<VoiceBrainEvent>> {
-          await aborted
-          return { done: true, value: undefined }
-        },
-      }
-    },
-  })
-}
-
 afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('VoiceSessionDriver', () => {
+describe('VoiceSessionDriver — wake + conversation', () => {
   it('stays asleep and ignores speech that is not the wake word', async () => {
     const { driver, io, synthesizer } = buildDriver(['what time is it'], () => brainSaying('never'))
     await driver.pushAudio(chunk())
+    await settle()
     expect(driver.isAwake).toBe(false)
     expect(synthesizer.spoken).toEqual([])
     expect(io.states).not.toContain('thinking')
   })
 
-  it('wakes on "hey vynel <command>", runs the turn (no local TTS), and stays in the conversation', async () => {
+  it('wakes on "hey vynel <command>", runs the turn, SPEAKS its streamed text, and stays in the conversation', async () => {
     let turns = 0
     const { driver, io, synthesizer } = buildDriver(['hey vynel what is the time'], () => {
       turns += 1
-      return brainSaying('ignored') // the daemon no longer speaks the reply
+      return brainSaying('It is ', 'ten past nine. ', 'Anything else?')
     })
     await driver.pushAudio(chunk())
+    await settle()
     expect(turns).toBe(1)
     expect(io.states).toContain('thinking')
-    expect(synthesizer.spoken).toEqual([]) // voice output is the `speak` tool, not the daemon
+    expect(io.states).toContain('speaking')
+    // The thread's text IS its voice — chunked at sentence boundaries.
+    expect(synthesizer.spoken).toEqual(['It is ten past nine.', 'Anything else?'])
+    expect(io.endSpeechCount).toBe(1)
     expect(io.states.at(-1)).toBe('listening') // active conversation, not asleep
     expect(driver.isAwake).toBe(true)
+  })
+
+  it('speaks the FIRST sentence the moment it closes — while the model is still writing', async () => {
+    const brain = controllableBrain()
+    const { driver, io, synthesizer } = buildDriver(['hey vynel tell me more'], brain.runTurn)
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+
+    run.emit({ kind: 'text', delta: 'Here is the first part. And the sec' })
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Here is the first part.']) // spoken mid-generation
+    expect(io.states.at(-1)).toBe('speaking')
+    expect(driver.isAwake).toBe(true)
+
+    run.emit({ kind: 'text', delta: 'ond part.' })
+    run.emit({ kind: 'completed' })
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Here is the first part.', 'And the second part.'])
+    expect(io.endSpeechCount).toBe(1) // one line, pipelined — not one drain per sentence
+    expect(io.states.at(-1)).toBe('listening')
+  })
+
+  it('strips markdown from what it speaks', async () => {
+    const { driver, synthesizer } = buildDriver(['hey vynel status'], () =>
+      brainSaying('**All green.** See `deploy.log` for details.'),
+    )
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(synthesizer.spoken).toEqual(['All green.', 'See deploy.log for details.'])
   })
 
   it('takes follow-up commands with no re-wake while active', async () => {
     let turns = 0
     const { driver } = buildDriver(['hey vynel first question', 'and a follow up'], () => {
       turns += 1
-      return brainSaying('ignored')
+      return brainSaying('Sure.')
     })
     await driver.pushAudio(chunk()) // wake + first command
+    await settle()
     await driver.pushAudio(chunk()) // follow-up, no wake word
+    await settle()
     expect(turns).toBe(2)
   })
 
@@ -181,13 +270,14 @@ describe('VoiceSessionDriver', () => {
     let turns = 0
     const { driver, io } = buildDriver(['hey vynel', 'what is the time'], () => {
       turns += 1
-      return brainSaying('ignored')
+      return brainSaying('Nine.')
     })
     await driver.pushAudio(chunk())
     expect(io.states.at(-1)).toBe('listening')
     expect(turns).toBe(0) // bare wake — no command ran yet
 
     await driver.pushAudio(chunk())
+    await settle()
     expect(turns).toBe(1)
   })
 
@@ -203,16 +293,180 @@ describe('VoiceSessionDriver', () => {
     expect(driver.isAwake).toBe(false)
 
     await driver.pushAudio(chunk()) // 'what is the time' — no wake, asleep → ignored
+    await vi.advanceTimersByTimeAsync(10)
     expect(synthesizer.spoken).toEqual([])
   })
 
-  it('speaks a failure line when the brain turn fails (the tool queue plays it)', async () => {
+  it('speaks a failure line when the brain turn fails', async () => {
     const { driver, synthesizer } = buildDriver(['hey vynel break it'], () => brainFailing())
     await driver.pushAudio(chunk())
-    await flush() // the queued failure line drains once the turn frees
+    await settle()
     expect(synthesizer.spoken).toEqual(['Sorry, I ran into a problem with that.'])
   })
 
+  it('a turn someone stopped server-side ends quietly — a stop is not a failure', async () => {
+    const { driver, io, synthesizer } = buildDriver(['hey vynel long task'], async function* () {
+      yield { kind: 'text', delta: 'Starting. ' }
+      yield { kind: 'interrupted' }
+    })
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Starting.'])
+    expect(io.states.at(-1)).toBe('listening')
+  })
+
+  it('stays SILENT when the server parks the turn, and keeps the mic open while it waits', async () => {
+    const brain = controllableBrain()
+    const { driver, io, recognizer, synthesizer } = buildDriver(
+      ['hey vynel do the thing', 'fine print'],
+      brain.runTurn,
+    )
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+    run.emit({ kind: 'queued' })
+    run.emit({ kind: 'queued' })
+    await settle()
+    expect(synthesizer.spoken).toEqual([]) // no "One moment." (VR3)
+    expect(io.states.at(-1)).toBe('thinking')
+
+    const callsBefore = recognizer.calls
+    await driver.pushAudio(chunk()) // a mic frame while the turn waits — HEARD (transcribed), not dropped
+    expect(recognizer.calls).toBe(callsBefore + 1)
+  })
+})
+
+describe('VoiceSessionDriver — barge-in + the echo filter (VR2)', () => {
+  it('ignores a transcript that is an echo of what it just said', async () => {
+    const brain = controllableBrain()
+    let turns = 0
+    const { driver, io } = buildDriver(
+      ['hey vynel deploy status', 'nothing to worry about'],
+      (utterance, signal) => {
+        turns += 1
+        return brain.runTurn(utterance, signal)
+      },
+    )
+    await driver.pushAudio(chunk())
+    brain.runs[0]!.emit({ kind: 'text', delta: 'All green, nothing to worry about. ' })
+    await settle()
+
+    await driver.pushAudio(chunk()) // the speaker's own words come back through the mic
+    await settle()
+    expect(turns).toBe(1) // not a command, not a barge-in
+    expect(io.cutPlaybackCount).toBe(0)
+  })
+
+  it('a REAL transcript while it speaks cuts playback, interrupts the server turn, and runs the new turn', async () => {
+    const brain = controllableBrain()
+    const { driver, io, synthesizer, interruptTurn } = buildDriver(
+      ['hey vynel first question', 'actually, a different question'],
+      brain.runTurn,
+    )
+    await driver.pushAudio(chunk())
+    const first = brain.runs[0]!
+    first.emit({ kind: 'session', sessionId: 'voice-session-1' })
+    first.emit({ kind: 'text', delta: 'Long first answer, part one. ' })
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Long first answer, part one.'])
+    expect(io.states.at(-1)).toBe('speaking')
+
+    await driver.pushAudio(chunk()) // the user talks over it
+    await settle()
+    expect(io.cutPlaybackCount).toBeGreaterThan(0)
+    expect(interruptTurn).toHaveBeenCalledWith('voice-session-1')
+    expect(first.signal.aborted).toBe(true) // stopped reading the old stream
+    expect(brain.runs).toHaveLength(2)
+    expect(brain.runs[1]!.utterance).toBe('actually, a different question')
+
+    first.emit({ kind: 'text', delta: 'Part two never heard. ' }) // the dead stream's tail — dropped
+    brain.runs[1]!.emit({ kind: 'text', delta: 'Second answer. ' })
+    brain.runs[1]!.emit({ kind: 'completed' })
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Long first answer, part one.', 'Second answer.'])
+    expect(io.states.at(-1)).toBe('listening')
+  })
+
+  it('a barge-in while the turn is still thinking interrupts it too — no speech to cut', async () => {
+    const brain = controllableBrain()
+    const { driver, interruptTurn } = buildDriver(['hey vynel slow one', 'never mind'], brain.runTurn)
+    await driver.pushAudio(chunk())
+    brain.runs[0]!.emit({ kind: 'session', sessionId: 's-think' })
+    await settle()
+
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(interruptTurn).toHaveBeenCalledWith('s-think')
+    expect(brain.runs[1]!.utterance).toBe('never mind')
+  })
+
+  it('a barge-in before the session id arrived stops the server turn as soon as it is known', async () => {
+    const brain = controllableBrain()
+    const { driver, interruptTurn } = buildDriver(['hey vynel slow one', 'new question'], brain.runTurn)
+    await driver.pushAudio(chunk())
+    brain.runs[0]!.emit({ kind: 'queued' })
+    await settle()
+
+    await driver.pushAudio(chunk()) // barge-in on a turn the server has not named yet
+    await settle()
+    expect(interruptTurn).not.toHaveBeenCalled()
+    expect(brain.runs).toHaveLength(2) // the new turn is already underway
+
+    brain.runs[0]!.emit({ kind: 'session', sessionId: 's-late' })
+    await settle()
+    expect(interruptTurn).toHaveBeenCalledWith('s-late')
+    expect(brain.runs[0]!.signal.aborted).toBe(true)
+  })
+
+  it('a barge-in on an answer whose stream already ended only cuts the speech — nothing to interrupt', async () => {
+    const brain = controllableBrain()
+    const synthGate = deferred()
+    let synthCalls = 0
+    const slowSynth: VoiceEngine = {
+      async synthesize() {
+        synthCalls += 1
+        if (synthCalls === 2) await synthGate.promise // the second sentence's synthesis hangs
+        return { samples: new Float32Array(8), sampleRate: 24000 }
+      },
+    }
+    const { driver, io, interruptTurn } = buildDriver(
+      ['hey vynel question', 'other question'],
+      brain.runTurn,
+      { synthesizer: slowSynth },
+    )
+    await driver.pushAudio(chunk())
+    const first = brain.runs[0]!
+    first.emit({ kind: 'session', sessionId: 's-done' })
+    first.emit({ kind: 'text', delta: 'One. Two. ' })
+    first.emit({ kind: 'completed' })
+    await settle() // the stream is over; the speech is still playing (stuck on sentence two)
+
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(io.cutPlaybackCount).toBeGreaterThan(0)
+    expect(interruptTurn).not.toHaveBeenCalled()
+    synthGate.resolve()
+    await settle()
+    expect(brain.runs[1]!.utterance).toBe('other question')
+  })
+
+  it("an echo of a relay line is ignored once the mic reopens", async () => {
+    let turns = 0
+    const { driver, synthesizer } = buildDriver(['hey vynel', 'your report is ready'], () => {
+      turns += 1
+      return brainSaying('never')
+    })
+    await driver.pushAudio(chunk()) // bare wake → active
+    driver.speak('Your report is ready.')
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Your report is ready.'])
+
+    await driver.pushAudio(chunk()) // the line's tail comes back through the mic
+    await settle()
+    expect(turns).toBe(0)
+  })
+})
+
+describe('VoiceSessionDriver — the overlay handoff', () => {
   it('hands the wake to a connected overlay instead of running the native turn', async () => {
     const wakeHandoff = new RecordingWakeHandoff()
     const { driver, io, synthesizer } = buildDriver(
@@ -257,66 +511,15 @@ describe('VoiceSessionDriver', () => {
       ['hey vynel what is the time'],
       () => {
         turns += 1
-        return brainSaying('ignored')
+        return brainSaying('Nine.')
       },
       { wakeHandoff },
     )
     await driver.pushAudio(chunk())
+    await settle()
     expect(wakeHandoff.published).toEqual([])
     expect(turns).toBe(1) // ran natively (no handoff)
     expect(io.states).toContain('thinking')
-  })
-
-  it('speaks external text (the speak tool) sentence-by-sentence and stays asleep', async () => {
-    const { driver, io, synthesizer } = buildDriver([], () => brainSaying('unused'))
-    driver.speak('Your report is ready. Two approvals are waiting.')
-    await flush()
-    expect(synthesizer.spoken).toEqual(['Your report is ready.', 'Two approvals are waiting.'])
-    expect(io.endSpeechCount).toBe(1)
-    expect(driver.isAwake).toBe(false) // a proactive line doesn't open a conversation
-  })
-
-  it('serializes queued speaks so proactive lines never overlap', async () => {
-    const { driver, synthesizer } = buildDriver([], () => brainSaying('unused'))
-    driver.speak('First.')
-    driver.speak('Second.')
-    await flush()
-    expect(synthesizer.spoken).toEqual(['First.', 'Second.'])
-  })
-
-  it('ignores an empty speak', async () => {
-    const { driver, io, synthesizer } = buildDriver([], () => brainSaying('unused'))
-    driver.speak('   ')
-    await flush()
-    expect(synthesizer.spoken).toEqual([])
-    expect(io.endSpeechCount).toBe(0)
-  })
-
-  it('recovers from a synth failure — one bad line never bricks the queue', async () => {
-    let calls = 0
-    const flakySynth: VoiceEngine = {
-      synthesize() {
-        calls += 1
-        if (calls === 1) return Promise.reject(new Error('model hiccup'))
-        return Promise.resolve({ samples: new Float32Array(8), sampleRate: 24000 })
-      },
-    }
-    const io = new RecordingIo()
-    const driver = new VoiceSessionDriver({
-      vad: new PassThroughVad(),
-      recognizer: new ScriptedRecognizer([]),
-      synthesizer: flakySynth,
-      runBrainTurn: () => brainSaying('unused'),
-      io,
-    })
-    io.onEndSpeech = () => driver.notifyPlaybackDrained()
-
-    driver.speak('This one fails.')
-    await flush()
-    driver.speak('This one works.')
-    await flush()
-    expect(calls).toBe(2) // the second speak still reached the synth
-    expect(driver.isAwake).toBe(false) // state restored, not stuck busy
   })
 
   it('speaks during a handoff (the tool plays while the browser owns the mic) and stays handed off', async () => {
@@ -327,7 +530,7 @@ describe('VoiceSessionDriver', () => {
     await driver.pushAudio(chunk()) // wake → handed-off (overlay owns the session)
     expect(driver.isHandedOff).toBe(true)
     driver.speak('The brain is answering.')
-    await flush()
+    await settle()
     // The daemon speaker is free during a handoff — the overlay's brain replies
     // via the `speak` tool, so it plays now (not deferred).
     expect(synthesizer.spoken).toEqual(['The brain is answering.'])
@@ -348,14 +551,14 @@ describe('VoiceSessionDriver', () => {
     expect(wakeHandoff.published).toEqual([''])
 
     driver.speak('A long answer is playing.')
-    await flush() // drain started, blocked awaiting playback (state forced busy)
-    // Mid-drain the state is forced 'busy', but the overlay still owns the
+    await settle() // drain started, blocked awaiting playback (state forced relaying)
+    // Mid-drain the state is forced 'relaying', but the overlay still owns the
     // session — isHandedOff must see through the drain (speak routing keys on it).
     expect(driver.isHandedOff).toBe(true)
 
     driver.endHandoff() // overlay closed mid-sentence — must not be swallowed
     driver.notifyPlaybackDrained()
-    await flush()
+    await settle()
     expect(driver.isHandedOff).toBe(false)
 
     // The daemon took the mic back (asleep), not stuck handed-off: a fresh wake
@@ -363,136 +566,165 @@ describe('VoiceSessionDriver', () => {
     await driver.pushAudio(chunk())
     expect(wakeHandoff.published).toEqual(['', 'again'])
   })
+})
 
-  it('hands the room back when a turn outstays the watchdog, and aborts only the READ', async () => {
+describe('VoiceSessionDriver — external speak (the relay queue)', () => {
+  it('speaks external text (the speak tool) sentence-by-sentence and stays asleep', async () => {
+    const { driver, io, synthesizer } = buildDriver([], () => brainSaying('unused'))
+    driver.speak('Your report is ready. Two approvals are waiting.')
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Your report is ready.', 'Two approvals are waiting.'])
+    expect(io.endSpeechCount).toBe(1)
+    expect(driver.isAwake).toBe(false) // a proactive line doesn't open a conversation
+  })
+
+  it('serializes queued speaks so proactive lines never overlap', async () => {
+    const { driver, synthesizer } = buildDriver([], () => brainSaying('unused'))
+    driver.speak('First.')
+    driver.speak('Second.')
+    await settle()
+    expect(synthesizer.spoken).toEqual(['First.', 'Second.'])
+  })
+
+  it('ignores an empty speak', async () => {
+    const { driver, io, synthesizer } = buildDriver([], () => brainSaying('unused'))
+    driver.speak('   ')
+    await settle()
+    expect(synthesizer.spoken).toEqual([])
+    expect(io.endSpeechCount).toBe(0)
+  })
+
+  it('recovers from a synth failure — one bad line never bricks the queue', async () => {
+    let calls = 0
+    const flakySynth: VoiceEngine = {
+      synthesize() {
+        calls += 1
+        if (calls === 1) return Promise.reject(new Error('model hiccup'))
+        return Promise.resolve({ samples: new Float32Array(8), sampleRate: 24000 })
+      },
+    }
+    const { driver } = buildDriver([], () => brainSaying('unused'), { synthesizer: flakySynth })
+
+    driver.speak('This one fails.')
+    await settle()
+    driver.speak('This one works.')
+    await settle()
+    expect(calls).toBe(2) // the second speak still reached the synth
+    expect(driver.isAwake).toBe(false) // state restored, not stuck
+  })
+
+  it('keeps the mic closed while an external speak plays, and restores the prior state after', async () => {
+    const { driver, io, recognizer } = buildDriver([], () => brainSaying('unused'), {
+      autoDrain: false,
+    })
+
+    driver.speak('Speaking a proactive line now.')
+    await settle()
+    expect(io.endSpeechCount).toBe(1)
+    expect(io.states.at(-1)).toBe('speaking')
+
+    const callsBefore = recognizer.calls
+    await driver.pushAudio(chunk()) // mic frame mid-line — dropped (relaying)
+    expect(recognizer.calls).toBe(callsBefore)
+
+    driver.notifyPlaybackDrained()
+    await settle()
+    expect(io.states.at(-1)).toBe('idle') // drained → back to the prior (asleep) state
+  })
+
+  it('a speak that arrives mid-turn plays after the turn, never over it', async () => {
+    const brain = controllableBrain()
+    const { driver, synthesizer } = buildDriver(['hey vynel question'], brain.runTurn)
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+    run.emit({ kind: 'text', delta: 'Answer part one. ' })
+    await settle()
+    driver.speak('Your deploy is green.')
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Answer part one.']) // queued, not spoken over the turn
+
+    run.emit({ kind: 'text', delta: 'Part two. ' })
+    run.emit({ kind: 'completed' })
+    await settle()
+    expect(synthesizer.spoken).toEqual(['Answer part one.', 'Part two.', 'Your deploy is green.'])
+  })
+})
+
+describe('VoiceSessionDriver — the watchdog', () => {
+  it('hands the room back when a turn stays silent past the watchdog, keeps reading, and speaks the late answer', async () => {
     vi.useFakeTimers()
-    const observed: { signal: AbortSignal | null } = { signal: null }
+    const brain = controllableBrain()
     const watchdogged: string[] = []
-    const { driver, io, synthesizer } = buildDriver(
-      ['hey vynel take forever'],
-      brainHangingUntilAbort(observed),
-      { turnWatchdogMs: 300_000, onTurnWatchdog: (utterance) => watchdogged.push(utterance) },
-    )
+    const { driver, io, synthesizer } = buildDriver(['hey vynel take forever'], brain.runTurn, {
+      turnWatchdogMs: 300_000,
+      onTurnWatchdog: (utterance) => watchdogged.push(utterance),
+    })
 
-    const pushed = driver.pushAudio(chunk())
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+    run.emit({ kind: 'session', sessionId: 's-slow' })
     await vi.advanceTimersByTimeAsync(299_000)
-    expect(io.states.at(-1)).toBe('thinking') // still waiting, still deaf
+    expect(io.states.at(-1)).toBe('thinking') // still waiting
     expect(synthesizer.spoken).toEqual([])
 
     await vi.advanceTimersByTimeAsync(2_000)
-    await pushed
-    await vi.advanceTimersByTimeAsync(1)
-
     expect(watchdogged).toEqual(['take forever'])
-    expect(observed.signal?.aborted).toBe(true) // the READ stopped; the server turn did not
     expect(synthesizer.spoken).toEqual(["Still working on that — I'll tell you when it's done."])
+    expect(run.signal.aborted).toBe(false) // the READ goes on — the answer is not abandoned
     expect(driver.isAwake).toBe(true)
     expect(io.states.at(-1)).toBe('listening') // the room is back
-  })
 
-  it("plays the abandoned turn's later speak calls normally — not dropped, not doubled", async () => {
-    vi.useFakeTimers()
-    const observed: { signal: AbortSignal | null } = { signal: null }
-    const { driver, synthesizer } = buildDriver(
-      ['hey vynel take forever'],
-      brainHangingUntilAbort(observed),
-      { turnWatchdogMs: 1_000 },
-    )
-
-    const pushed = driver.pushAudio(chunk())
-    await vi.advanceTimersByTimeAsync(1_001)
-    await pushed
-    await vi.advanceTimersByTimeAsync(1)
-
-    // The server turn finished minutes later and called the `speak` tool.
-    driver.speak('Your deploy is green.')
-    await vi.advanceTimersByTimeAsync(1)
+    // Minutes later the answer lands — spoken, not lost.
+    run.emit({ kind: 'text', delta: 'Your deploy is green. ' })
+    run.emit({ kind: 'completed' })
+    await vi.advanceTimersByTimeAsync(10)
     expect(synthesizer.spoken).toEqual([
       "Still working on that — I'll tell you when it's done.",
       'Your deploy is green.',
     ])
   })
 
+  it('the watchdog measures SILENCE — a turn that keeps talking never trips it, and its end is quiet', async () => {
+    vi.useFakeTimers()
+    const brain = controllableBrain()
+    const { driver, synthesizer } = buildDriver(['hey vynel narrate'], brain.runTurn, {
+      turnWatchdogMs: 1_000,
+    })
+    await driver.pushAudio(chunk())
+    const run = brain.runs[0]!
+    for (let i = 0; i < 5; i += 1) {
+      await vi.advanceTimersByTimeAsync(800)
+      run.emit({ kind: 'text', delta: `Step ${i}. ` })
+    }
+    run.emit({ kind: 'completed' })
+    await vi.advanceTimersByTimeAsync(10)
+    expect(synthesizer.spoken).toEqual(['Step 0.', 'Step 1.', 'Step 2.', 'Step 3.', 'Step 4.'])
+  })
+
+  it('a new utterance after the watchdog barges in on the background turn — it is never queued behind it', async () => {
+    vi.useFakeTimers()
+    const brain = controllableBrain()
+    const { driver, interruptTurn } = buildDriver(['hey vynel take forever', 'new question'], brain.runTurn, {
+      turnWatchdogMs: 1_000,
+    })
+    await driver.pushAudio(chunk())
+    brain.runs[0]!.emit({ kind: 'session', sessionId: 's-bg' })
+    await vi.advanceTimersByTimeAsync(1_001)
+
+    await driver.pushAudio(chunk())
+    await vi.advanceTimersByTimeAsync(10)
+    expect(interruptTurn).toHaveBeenCalledWith('s-bg')
+    expect(brain.runs[1]!.utterance).toBe('new question')
+  })
+
   it('never fires the watchdog on a turn that answers in time', async () => {
     vi.useFakeTimers()
-    const { driver, synthesizer } = buildDriver(['hey vynel quick one'], () => brainSaying('ignored'), {
+    const { driver, synthesizer } = buildDriver(['hey vynel quick one'], () => brainSaying('Done.'), {
       turnWatchdogMs: 1_000,
     })
 
     await driver.pushAudio(chunk())
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(synthesizer.spoken).toEqual([]) // no "still working" line
-  })
-
-  it('says one line when the server parks the turn, and stays BUSY until the answer lands', async () => {
-    const gate = deferred()
-    const { driver, io, recognizer, synthesizer } = buildDriver(
-      ['hey vynel do the thing'],
-      async function* () {
-        yield { kind: 'queued' }
-        yield { kind: 'queued' } // a second sentinel must not speak a second line
-        await gate.promise
-        yield { kind: 'completed' }
-      },
-    )
-
-    const pushed = driver.pushAudio(chunk())
-    await flush()
-    expect(synthesizer.spoken).toEqual(['One moment.'])
-    expect(io.states.at(-1)).toBe('thinking') // back to the turn, NOT to listening
-
-    const callsBefore = recognizer.calls
-    await driver.pushAudio(chunk()) // mic frame while the turn still runs — dropped
-    expect(recognizer.calls).toBe(callsBefore)
-
-    gate.resolve()
-    await pushed
-    await flush()
-    expect(io.states.at(-1)).toBe('listening')
-    expect(driver.isAwake).toBe(true)
-  })
-
-  it('a turn that ends WHILE its notice is playing hands the room back, not a stuck busy', async () => {
-    const gate = deferred()
-    const { driver, io } = buildDriver(
-      ['hey vynel do the thing'],
-      async function* () {
-        yield { kind: 'queued' }
-        await gate.promise
-        yield { kind: 'completed' }
-      },
-      { autoDrain: false },
-    )
-
-    const pushed = driver.pushAudio(chunk())
-    await flush() // the notice is mid-playback (blocked on the drain signal)
-    expect(io.states.at(-1)).toBe('speaking')
-
-    gate.resolve() // the answer lands before the notice finished playing
-    await pushed
-    driver.notifyPlaybackDrained()
-    await flush()
-
-    expect(driver.isAwake).toBe(true)
-    expect(io.states.at(-1)).toBe('listening')
-  })
-
-  it('keeps the mic closed while an external speak plays (echo defense)', async () => {
-    const { driver, io, recognizer } = buildDriver([], () => brainSaying('unused'), {
-      autoDrain: false,
-    })
-
-    driver.speak('Speaking a proactive line now.')
-    await flush()
-    expect(io.endSpeechCount).toBe(1)
-    expect(io.states.at(-1)).toBe('speaking')
-
-    const callsBefore = recognizer.calls
-    await driver.pushAudio(chunk()) // mic frame mid-speech — dropped (busy)
-    expect(recognizer.calls).toBe(callsBefore)
-
-    driver.notifyPlaybackDrained()
-    await flush()
-    expect(io.states.at(-1)).toBe('idle') // drained → back to the prior (asleep) state
+    expect(synthesizer.spoken).toEqual(['Done.']) // no "still working" line
   })
 })

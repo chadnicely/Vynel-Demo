@@ -33,7 +33,10 @@ function speakerHarness(options: { cutFiresDrained?: boolean } = {}) {
   return {
     speaker,
     events,
+    // A streamed line reaches its synth on a microtask after the push (the
+    // loop was parked on the queue), so let that land before resolving.
     resolveSynth: async () => {
+      await tick()
       pendingSynth.shift()?.()
       await tick()
     },
@@ -134,5 +137,87 @@ describe('LineSpeaker', () => {
     speaker.notifyPlaybackDrained()
     await outcome
     expect(speaker.isSpeaking).toBe(false)
+  })
+})
+
+describe('LineSpeaker — a streamed line (sentences arrive while it speaks)', () => {
+  it('speaks the first sentence as soon as it is pushed — long before the line ends', async () => {
+    const { speaker, events, resolveSynth } = speakerHarness()
+
+    const line = speaker.speakStreamed()
+    line.push('One.')
+    await resolveSynth()
+    expect(events).toEqual(['synth:One.', 'emit']) // heard while the model is still writing
+    expect(speaker.isSpeaking).toBe(true)
+
+    line.push('Two.')
+    await resolveSynth()
+    expect(events).toEqual(['synth:One.', 'emit', 'synth:Two.', 'emit'])
+    expect(events).not.toContain('endSpeech') // the line is still open
+
+    line.end()
+    await tick()
+    expect(events.at(-1)).toBe('endSpeech')
+    speaker.notifyPlaybackDrained()
+    expect(await line.outcome).toEqual({ spoke: true, cancelled: false })
+    expect(speaker.isSpeaking).toBe(false)
+  })
+
+  it('pipelines: the next sentence synthesizes while the previous one plays, in order', async () => {
+    const { speaker, events, resolveSynth } = speakerHarness()
+
+    const line = speaker.speakStreamed()
+    line.push('One.')
+    line.push('Two.')
+    line.push('Three.')
+    line.end()
+    await resolveSynth()
+    await resolveSynth()
+    await resolveSynth()
+    expect(events).toEqual(['synth:One.', 'emit', 'synth:Two.', 'emit', 'synth:Three.', 'emit', 'endSpeech'])
+  })
+
+  it('cancel mid-line cuts playback, drops what was still to come, and settles the outcome', async () => {
+    const { speaker, events, resolveSynth } = speakerHarness({ cutFiresDrained: true })
+
+    const line = speaker.speakStreamed()
+    line.push('One.')
+    await resolveSynth() // One is on the device; the loop waits for more
+    line.cancel()
+    line.push('Two.') // arrives after the cut — ignored
+    line.end()
+
+    expect(await line.outcome).toEqual({ spoke: true, cancelled: true })
+    expect(events).toEqual(['synth:One.', 'emit', 'cut'])
+    expect(speaker.isSpeaking).toBe(false)
+  })
+
+  it("a finished line's stale handle cannot cut the next line", async () => {
+    const { speaker, events, resolveSynth } = speakerHarness()
+
+    const first = speaker.speakStreamed()
+    first.end()
+    expect(await first.outcome).toEqual({ spoke: false, cancelled: false })
+
+    const second = speaker.speakStreamed()
+    second.push('Two.')
+    first.cancel() // stale
+    await resolveSynth()
+    expect(events).toEqual(['synth:Two.', 'emit'])
+    second.end()
+    await tick()
+    speaker.notifyPlaybackDrained()
+    expect(await second.outcome).toEqual({ spoke: true, cancelled: false })
+  })
+
+  it('refuses to open while a line is in flight, and an empty line never touches the device', async () => {
+    const { speaker, events } = speakerHarness()
+
+    const line = speaker.speakStreamed()
+    expect(() => speaker.speakStreamed()).toThrow('serialize')
+    await expect(speaker.speakLine('Two.')).rejects.toThrow('serialize')
+    line.end()
+    expect(await line.outcome).toEqual({ spoke: false, cancelled: false })
+    expect(events).toEqual([])
   })
 })

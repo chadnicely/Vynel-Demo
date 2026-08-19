@@ -212,10 +212,11 @@ async function main(): Promise<void> {
   }
   driver = new VoiceSessionDriver(
     {
+      logger,
       vad: traceVad(vad, logger),
       recognizer: traceRecognizer(serializedRecognizer, logger),
       synthesizer: serializedSynthesizer,
-      runBrainTurn: createBrainClient(env.VYNEL_API_URL),
+      brain: createBrainClient(env.VYNEL_API_URL),
       io,
       onSpeakError: (error, text) =>
         logger.error(
@@ -225,7 +226,7 @@ async function main(): Promise<void> {
       onTurnWatchdog: (utterance) =>
         logger.warn(
           { utterance: utterance.slice(0, 80), watchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS },
-          'turn watchdog fired — the room is back, the server turn is still running',
+          'turn watchdog fired — the room is back; the turn streams on and its answer is spoken when it lands',
         ),
       // The browser owns the command session (Web Speech STT + spoken reply
       // run there). Jarvis mode: every wake hands off — the floating window is

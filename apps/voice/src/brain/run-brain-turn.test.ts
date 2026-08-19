@@ -46,6 +46,33 @@ describe('mapFrameToBrainEvent', () => {
     ).toBeNull()
   })
 
+  it('maps the session id off session-created and user-message-persisted — the barge-in interrupt target', () => {
+    expect(
+      mapFrameToBrainEvent({
+        event: 'session-created',
+        data: '{"kind":"session-created","session":{"id":"sess-new","title":"Voice conversation"}}',
+      }),
+    ).toEqual({ kind: 'session', sessionId: 'sess-new' })
+    expect(
+      mapFrameToBrainEvent({
+        event: 'user-message-persisted',
+        data: '{"kind":"user-message-persisted","message":{"id":"m1","sessionId":"sess-resumed"}}',
+      }),
+    ).toEqual({ kind: 'session', sessionId: 'sess-resumed' })
+    expect(
+      mapFrameToBrainEvent({ event: 'session-created', data: '{"kind":"session-created"}' }),
+    ).toBeNull()
+  })
+
+  it('maps session-interrupted to interrupted — a stop is not a failure to apologise for', () => {
+    expect(
+      mapFrameToBrainEvent({
+        event: 'session-interrupted',
+        data: '{"kind":"session-interrupted","sessionId":"s"}',
+      }),
+    ).toEqual({ kind: 'interrupted' })
+  })
+
   it('maps an UNrecoverable session-errored to a failure with the message', () => {
     expect(
       mapFrameToBrainEvent({
@@ -148,7 +175,7 @@ describe('streamTurnEvents', () => {
     ])
   })
 
-  it('passes the caller signal to fetch and yields NOTHING when the watchdog aborts it', async () => {
+  it('passes the caller signal to fetch and yields NOTHING when a barge-in aborts it', async () => {
     const controller = new AbortController()
     const fetchSpy = vi.fn(async (_url: string, init: RequestInit) => {
       controller.abort()
@@ -159,8 +186,8 @@ describe('streamTurnEvents', () => {
     })
     vi.stubGlobal('fetch', fetchSpy)
 
-    // A watchdog abort is not a failure to announce — the driver already told
-    // the room, and the server turn keeps running.
+    // A barge-in abort is not a failure to announce — the user moved on, and
+    // the server turn is stopped through the interrupt door.
     expect(await collect(streamTurnEvents(URL, {}, { signal: controller.signal }))).toEqual([])
   })
 
@@ -193,7 +220,7 @@ describe('createBrainClient', () => {
   it('sends the whole voice tier — model, effort, MODE and the voice flag', async () => {
     const fetchSpy = stubFetch(new Response('event: turn-stream-ended\ndata: {}\n\n'))
 
-    await collect(createBrainClient('http://127.0.0.1:18892')('what time is it'))
+    await collect(createBrainClient('http://127.0.0.1:18892').runTurn('what time is it'))
 
     const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('http://127.0.0.1:18892/root/turn')
@@ -204,5 +231,50 @@ describe('createBrainClient', () => {
       mode: VOICE_TIER_MODE,
       voice: true,
     })
+  })
+
+  it('streams the session id, then the text, then the end — the shape the driver barges in on', async () => {
+    stubFetch(
+      new Response(
+        'event: user-message-persisted\ndata: {"kind":"user-message-persisted","message":{"id":"m","sessionId":"s-1"}}\n\n' +
+          'event: text-chunk\ndata: {"kind":"text-chunk","textDelta":"Hi."}\n\n' +
+          'event: session-completed\ndata: {"kind":"session-completed","sessionId":"s-1"}\n\n',
+      ),
+    )
+    expect(await collect(createBrainClient('http://127.0.0.1:18892').runTurn('hello'))).toEqual([
+      { kind: 'session', sessionId: 's-1' },
+      { kind: 'text', delta: 'Hi.' },
+      { kind: 'completed' },
+    ])
+  })
+
+  it('a stop mid-stream ends the turn as interrupted, not failed', async () => {
+    stubFetch(
+      new Response(
+        'event: text-chunk\ndata: {"kind":"text-chunk","textDelta":"Start"}\n\n' +
+          'event: session-interrupted\ndata: {"kind":"session-interrupted","sessionId":"s-1"}\n\n' +
+          'event: turn-stream-ended\ndata: {}\n\n',
+      ),
+    )
+    expect(await collect(createBrainClient('http://127.0.0.1:18892').runTurn('hello'))).toEqual([
+      { kind: 'text', delta: 'Start' },
+      { kind: 'interrupted' },
+    ])
+  })
+
+  it('interruptTurn POSTs the identity-shaped stop and reports whether a turn was found', async () => {
+    const fetchSpy = stubFetch(new Response('{"interrupted":true}', { status: 200 }))
+
+    expect(await createBrainClient('http://127.0.0.1:18892').interruptTurn('s-1')).toBe(true)
+
+    const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('http://127.0.0.1:18892/root/turn/interrupt')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({ sessionId: 's-1' })
+  })
+
+  it('interruptTurn rejects on a non-2xx so the caller can log it — never silently', async () => {
+    stubFetch(new Response('not found', { status: 404 }))
+    await expect(createBrainClient('http://127.0.0.1:18892').interruptTurn('gone')).rejects.toThrow('404')
   })
 })
