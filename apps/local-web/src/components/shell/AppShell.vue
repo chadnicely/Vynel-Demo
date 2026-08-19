@@ -630,17 +630,28 @@ function onGlobalKeydown(event: KeyboardEvent) {
 onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 
-// Customization lives in the DB: pull it once at boot (the server's rows win;
-// anything only this browser knew is pushed up), and push what's still
-// unsaved when the window goes.
+// Customization lives in the DB: pull it at boot and every time the window
+// comes back (another window may have changed it — the server's rows win over
+// anything not still unsaved here); push what's unsaved when the window goes.
+// hydrate() never rejects — a boot with the engine down keeps the cache.
 onMounted(() => {
   void customize.hydrate(vynel);
 });
-function flushCustomizeOnHide() {
+function syncCustomizeOnVisibility() {
   if (document.visibilityState === "hidden") void customize.flush();
+  else void customize.hydrate(vynel);
 }
-onMounted(() => document.addEventListener("visibilitychange", flushCustomizeOnHide));
-onBeforeUnmount(() => document.removeEventListener("visibilitychange", flushCustomizeOnHide));
+function flushCustomizeOnPageHide() {
+  void customize.flush();
+}
+onMounted(() => {
+  document.addEventListener("visibilitychange", syncCustomizeOnVisibility);
+  window.addEventListener("pagehide", flushCustomizeOnPageHide);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", syncCustomizeOnVisibility);
+  window.removeEventListener("pagehide", flushCustomizeOnPageHide);
+});
 </script>
 
 <template>

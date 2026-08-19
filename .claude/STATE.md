@@ -18,7 +18,17 @@ Verified live: Kafi's Seo icons uploaded in his browser rendered in a fresh play
 from the DB; the tree layout carried up on the first hydrate. `isCustomized` = differs from default
 (a default server row is not a customization). NOT done: the tab strip still colours from its per-tab
 slot; the Global Customize section shows the persona colour swatch too (shared PersonaIconPicker) —
-fine, but Global has no workspace-accent row.
+fine, but Global has no workspace-accent row. REVIEW PASS (post full gate, 3 must-fixes applied): `hydrate`
+never rejects (engine down → cache stays, saveState=error); per-scope GENERATION counters so an edit
+during an in-flight PUT is still pushed; `flush()` serialized (one in flight, run-again flag);
+per-scope try/catch — a failing scope never blocks the others; a 4xx drops the mark (no eternal
+retry) while 5xx retries; a dirty mark with no local row is dropped; menu group labels capped at 60
+(store + inputs) mirroring the API; local tree layout element-validated; re-hydrate on visibility→
+visible (two windows) + `pagehide` flush; Customize drafts reseed only while unedited and a trailing
+edit is re-saved after a SUCCESSFUL PATCH only. Store split: `customize-store-codec.ts` (shape +
+localStorage codec) / `customize-store.ts` (pinia + sync). Full gate 2026-08-19: 5538 pass, the one
+failure (SDK namespace census) fixed. Deferred: reset = default ROW (a DELETE-on-reset later);
+tab strip still slot-coloured.
 
 ## (plan) 2026-08-19 — CUSTOMIZATION TO THE DB (icons · colours · menu layout · tree positions · autosave)
 

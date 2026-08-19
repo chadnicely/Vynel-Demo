@@ -57,6 +57,12 @@ function makeFakeVynelClient(
     // forever (no frames, no reconnect churn) so shell tests stay quiet.
     GET: () => new Promise(() => {}),
     approvals: { listPending: async () => pendingApprovals },
+    // Customization lives in the DB — the shell hydrates it at boot.
+    customizations: {
+      list: async () => ({ scopes: [], treeLayout: null }),
+      saveScope: async (scopeKey: string, body: unknown) => ({ scopeKey, ...(body as object) }),
+      saveTreeLayout: async (layout: unknown) => layout,
+    },
     // The ask notifier polls alongside approvals from the shell.
     asks: { listPending: async () => [] },
     workspaces: {

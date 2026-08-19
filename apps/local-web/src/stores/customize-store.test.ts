@@ -327,3 +327,95 @@ describe("customize-store server sync", () => {
     expect(store.isCustomized("w1")).toBe(false);
   });
 });
+
+describe("customize-store sync — resilience", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it("an edit made while a scope's save is in flight is still pushed afterwards", async () => {
+    const store = useCustomizeStore();
+    const saved: Array<{ scopeKey: string; colorSlot: number | null }> = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let first = true;
+    const client = {
+      customizations: {
+        list: async () => ({ scopes: [], treeLayout: null }),
+        saveScope: async (scopeKey: string, body: { colorSlot: number | null }) => {
+          saved.push({ scopeKey, colorSlot: body.colorSlot });
+          if (first) {
+            first = false;
+            await gate;
+          }
+          return { scopeKey, ...body };
+        },
+        saveTreeLayout: async (layout: unknown) => layout,
+      },
+    } as never;
+    await store.hydrate(client);
+
+    store.setColorSlot("w1", 1);
+    const inFlight = store.flush(); // PUT #1 leaves with colorSlot 1 and hangs
+    store.setColorSlot("w1", 2); // edited while it's in flight
+    release();
+    await inFlight;
+    await store.flush(); // the newer value must go out too
+    expect(saved.map((s) => s.colorSlot)).toEqual([1, 2]);
+    expect(store.saveState).toBe("saved");
+  });
+
+  it("a rejected (4xx) scope drops its mark and never blocks the others; a 5xx keeps retrying", async () => {
+    const store = useCustomizeStore();
+    const { SdkError } = await import("@vynel/sdk");
+    const attempts: string[] = [];
+    const client = {
+      customizations: {
+        list: async () => ({ scopes: [], treeLayout: null }),
+        saveScope: async (scopeKey: string, body: unknown) => {
+          attempts.push(scopeKey);
+          if (scopeKey === "bad") {
+            throw new SdkError(new Response("nope", { status: 400 }), { message: "bad row" });
+          }
+          if (scopeKey === "flaky" && attempts.filter((k) => k === "flaky").length === 1) {
+            throw new SdkError(new Response("boom", { status: 503 }), { message: "down" });
+          }
+          return { scopeKey, ...(body as object) };
+        },
+        saveTreeLayout: async (layout: unknown) => layout,
+      },
+    } as never;
+    await store.hydrate(client);
+
+    store.setColorSlot("bad", 1);
+    store.setColorSlot("flaky", 2);
+    store.setColorSlot("good", 3);
+    await store.flush();
+    expect(attempts.sort()).toEqual(["bad", "flaky", "good"]);
+    expect(store.saveState).toBe("error");
+
+    // Next flush: bad is gone for good (rejected), flaky retries and lands.
+    await store.flush();
+    expect(attempts.filter((k) => k === "bad")).toHaveLength(1);
+    expect(attempts.filter((k) => k === "flaky")).toHaveLength(2);
+    expect(store.saveState).toBe("saved");
+  });
+
+  it("hydrate never rejects — an engine that's down leaves the cache in force and says so", async () => {
+    const local = useCustomizeStore();
+    local.setColorSlot("w1", 4);
+    setActivePinia(createPinia());
+    const store = useCustomizeStore();
+    const client = {
+      customizations: {
+        list: async () => {
+          throw new Error("ECONNREFUSED");
+        },
+      },
+    } as never;
+    await expect(store.hydrate(client)).resolves.toBeUndefined();
+    expect(store.customizationFor("w1").colorSlot).toBe(4);
+    expect(store.saveState).toBe("error");
+  });
+});

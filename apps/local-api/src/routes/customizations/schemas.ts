@@ -27,8 +27,9 @@ export const SaveScopeCustomizationRequestSchema = z.object({
   customColor: z.string().max(7).nullable(),
   personaColorSlot: ColorSlotSchema,
   personaCustomColor: z.string().max(7).nullable(),
-  personaImage: z.string().nullable(),
-  workspaceImage: z.string().nullable(),
+  // The core caps at 512 KB after the prefix check; this just bounds the parse.
+  personaImage: z.string().max(600 * 1024).nullable(),
+  workspaceImage: z.string().max(600 * 1024).nullable(),
   groups: z.array(MenuGroupLayoutSchema).max(64),
   entries: z.array(MenuEntryLayoutSchema).max(128),
 })
@@ -37,9 +38,10 @@ export const ScopeCustomizationResponseSchema = SaveScopeCustomizationRequestSch
   scopeKey: z.string(),
 })
 
+const TreeIdSchema = z.string().min(1).max(128)
 export const TreeLayoutSchema = z.object({
-  groups: z.array(z.string().min(1)).max(256),
-  workspaces: z.record(z.string().min(1), z.array(z.string().min(1)).max(512)),
+  groups: z.array(TreeIdSchema).max(256),
+  workspaces: z.record(TreeIdSchema, z.array(TreeIdSchema).max(512)),
 })
 
 export const CustomizationsResponseSchema = z.object({

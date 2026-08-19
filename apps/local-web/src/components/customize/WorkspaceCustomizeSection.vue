@@ -32,13 +32,16 @@ const nameDraft = ref("");
 const personaDraft = ref("");
 
 // Drafts follow the loaded row (and reloads after a save) — but never
-// mid-edit: only reseed when the source row actually changes.
+// mid-edit: a draft reseeds only while it still matches the row it was seeded
+// from, so keystrokes typed during a save's refetch survive.
 watch(
   workspace,
-  (row) => {
+  (row, previous) => {
     if (row === undefined) return;
-    nameDraft.value = row.name;
-    personaDraft.value = row.managerName ?? "";
+    if (previous === undefined || nameDraft.value === previous.name) nameDraft.value = row.name;
+    if (previous === undefined || personaDraft.value === (previous.managerName ?? "")) {
+      personaDraft.value = row.managerName ?? "";
+    }
   },
   { immediate: true },
 );
@@ -57,13 +60,18 @@ function save() {
   if (row === undefined || name.length === 0 || updateWorkspace.isPending.value)
     return;
   if (!isDirty.value) return;
-  updateWorkspace.mutate({
-    workspaceId: props.workspaceId,
-    ...(name !== row.name ? { name } : {}),
-    ...(persona.length > 0 && persona !== (row.managerName ?? "")
-      ? { managerName: persona }
-      : {}),
-  });
+  updateWorkspace.mutate(
+    {
+      workspaceId: props.workspaceId,
+      ...(name !== row.name ? { name } : {}),
+      ...(persona.length > 0 && persona !== (row.managerName ?? "")
+        ? { managerName: persona }
+        : {}),
+    },
+    // An edit that landed while this save was in flight goes out right after a
+    // SUCCESS (never after a failure — that would retry a bad name forever).
+    { onSuccess: () => scheduleNameSave() },
+  );
 }
 
 // Autosave the names: a pause in typing, or leaving the field.

@@ -161,6 +161,7 @@ const iconButtonClass =
       >
         <input
           type="text"
+          maxlength="60"
           :value="group.label"
           :aria-label="`Rename group ${group.label}`"
           class="h-7 min-w-0 flex-1 rounded-sm border border-hair bg-raised px-2 text-sm text-ink-1 transition focus:border-hair-strong focus:outline-none"
@@ -179,6 +180,7 @@ const iconButtonClass =
         <input
           v-model="newGroupLabel"
           type="text"
+          maxlength="60"
           placeholder="New group name"
           aria-label="New group name"
           class="h-7 min-w-0 flex-1 rounded-sm border border-hair bg-raised px-2 text-sm text-ink-1 placeholder:text-ink-3 transition focus:border-hair-strong focus:outline-none"
