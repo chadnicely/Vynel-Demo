@@ -109,7 +109,38 @@ there); comments explain WHY; files ≤ ~300 lines (split when a change would cr
 
 ## 6. Cross-slice asks (append here instead of editing another owner's file)
 
-_(empty)_
+### E → B (or the lead): the overlay must ignore relayed `speak` while its OWN turn is live
+
+**Ships with E3, or E3 must be reverted.** E3's brief says "the overlay's OWN turn already
+de-duplicates client-side (`voice-turn-adapter`)". It does not — I checked the code:
+
+- `use-voice-daemon-link.ts:70-73` plays EVERY relayed `speak` event through its own
+  `createSpokenAudioPlayer()`, unconditionally. Its own header (`:21-26`) states the contract it was
+  built to: "a `speak` tool call with **no live overlay session** … is sent to exactly one client".
+- `use-voice-session.ts:96` plays the overlay's own turn's `speak` calls through a SECOND, separate
+  player (the adapter's `spoke` events). `voice-turn-adapter`'s `spoke` flag de-dupes its own gist
+  fallback against its own `speak` calls — it never sees daemon-relayed ones.
+- Both composables are mounted together (`JarvisView.vue:26-27`, `VoiceOverlay.vue:20-21`).
+
+So the daemon publishing during a handoff double-plays the overlay's own turn — which is exactly what
+the old no-op branch was defending against (native `driver.speak` double-plays too: browser speaker +
+daemon speaker on one machine). The daemon cannot route by producer on its own: `/speak` carries only
+`{ text, callId? }`, and a server-side discriminator can't help either — the overlay leg, the daemon
+wake leg and the Voice-chat panel leg are all `voice`-scope global turns.
+
+E ships the daemon half (`main.ts` `onSpeak` publishes to the overlay when handed off, native
+fallback when the client is gone, honest logs). **The web guard is the other half:**
+`useVoiceDaemonLink` takes a predicate (e.g. `isOwnTurnLive`) and drops relayed `speak` events while
+the overlay's own command session has a turn in flight; the Jarvis/overlay views pass
+`voice.isActive`. Net effect vs today: a schedule / panel / delivery `speak` during an overlay
+conversation is *played* instead of silently dropped; only one landing inside the overlay's own live
+turn is still dropped (today ALL are).
+
+### E → C (informational, no action): `mode` on the call leg
+
+`runCallTurn` now sends `mode: VOICE_TIER_MODE` + `voice: true`. Both `StartSessionTurnRequestSchema`
+and `StartChatTurnRequestSchema` already accept `mode`, so C's `input.voice` gate simply overrides it
+— the daemon sends it as belt-and-braces, not as the enforcement.
 
 ## 7. Results
 

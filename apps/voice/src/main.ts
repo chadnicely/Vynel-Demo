@@ -134,25 +134,36 @@ async function main(): Promise<void> {
       // The overlay speaks with the daemon's own voice — one voice everywhere.
       onSynthesize: async (text) =>
         encodeWav(await sharedSynthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
-      // The `speak` MCP tool — any global session's voice output. Route it to
-      // whoever can actually play it:
-      //   - a LIVE overlay command session (handed-off) plays its own turn's
-      //     speak calls from its stream — re-routing would double-play;
+      // The `speak` MCP tool — any session's voice output. Route it to whoever
+      // can actually play it:
+      //   - while an overlay owns the command session (handed-off) the daemon's
+      //     own speaker is idle but the room belongs to the browser, so the
+      //     overlay plays it. This branch used to be a no-op that LOGGED the
+      //     line as played: a Voice-chat typed reply, a schedule or a delivery
+      //     turn that spoke during an overlay conversation was silently dropped
+      //     (session audit A4). Never a no-op again — if the client is gone by
+      //     the time we publish, the native speaker takes it;
       //   - otherwise a connected-but-idle client is ASKED to play it (typed
       //     chat, scheduled tasks — the browser owns reliable playback while
       //     an overlay window holds the audio device);
       //   - no client at all → the daemon's native speaker queue.
       // Accept + hand off → resolves immediately.
       onSpeak: (text) => {
+        const preview = text.slice(0, 80)
         if (driver.isHandedOff) {
-          logger.info({ text: text.slice(0, 80) }, 'speak — the live overlay session plays it')
+          if (overlay.publishSpeak(text)) {
+            logger.info({ text: preview }, 'speak — handed to the overlay that owns the session')
+          } else {
+            logger.info({ text: preview }, 'speak — overlay client gone mid-handoff, speaking natively')
+            driver.speak(text)
+          }
         } else if (!driver.isAwake && overlay.publishSpeak(text)) {
           // Delegate only while the native loop is IDLE: a client playing audio
           // mid native conversation would be heard by the open daemon mic (the
           // echo defense only guards the daemon's own speaker path).
-          logger.info({ text: text.slice(0, 80) }, 'speak — delivered to a connected overlay client')
+          logger.info({ text: preview }, 'speak — delivered to a connected overlay client')
         } else {
-          logger.info({ text: text.slice(0, 80) }, 'speak requested (native)')
+          logger.info({ text: preview }, 'speak requested (native)')
           driver.speak(text)
         }
         return Promise.resolve()
