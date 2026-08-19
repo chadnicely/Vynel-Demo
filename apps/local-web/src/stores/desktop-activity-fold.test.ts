@@ -126,6 +126,7 @@ describe("applyDesktopActivityEvent", () => {
       origin: null,
       partialSessionId: null,
       primarySessionId: null,
+      sessionId: null,
     });
     expect(tracked.steps).toHaveLength(1);
     expect(tracked.steps[0]).toMatchObject({ toolUseId: "a", status: "running" });
@@ -386,9 +387,30 @@ describe("following the right turn (the live overlay bugs)", () => {
     });
   });
 
-  it("a genuine global-root turn carries no primarySessionId", () => {
-    const state = fold([turnStarted({ turnId: "root", origin: "web" }), stepOn("root", "a")]);
-    expect(state.trackedTurn?.primarySessionId).toBeNull();
+  it("carries the turn's session id and learns it late from turn-updated", () => {
+    // Stop on a VOICE turn needs the session id (the global head is the other
+    // thread); a fresh conversation resolves it mid-turn.
+    const state = fold([
+      turnStarted({ turnId: "v1", origin: "voice", scopeKind: "voice", primarySessionId: "vp-1" }),
+      stepOn("v1", "a"),
+      { kind: "turn-updated", turnId: "v1", sessionId: "sdk-voice-1" },
+    ]);
+    expect(state.trackedTurn).toMatchObject({
+      scopeKind: "voice",
+      primarySessionId: "vp-1",
+      sessionId: "sdk-voice-1",
+    });
+    expect(state.knownTurns["v1"]?.sessionId).toBe("sdk-voice-1");
+  });
+
+  it("turn-updated for an unknown turn leaves the state untouched (same reference)", () => {
+    const before = fold([turnStarted({ turnId: "root", origin: "web" }), stepOn("root", "a")]);
+    const after = applyDesktopActivityEvent(
+      before,
+      { kind: "turn-updated", turnId: "elsewhere", sessionId: "sdk-x" },
+      T0,
+    );
+    expect(after).toBe(before);
   });
 
   // An approval bell can be the FIRST frame of a new turn (an approval often

@@ -8,6 +8,7 @@ import {
   DESKTOP_TOOL_PREFIX,
 } from "@vynel/ui";
 import { useVynel } from "../composables/use-vynel.js";
+import { useContinuingConversation } from "../composables/chat/use-continuing-conversation.js";
 import { useSessionActivityFeed } from "../composables/activity/use-session-activity-feed.js";
 import { useDesktopActivityStore } from "../stores/desktop-activity-store.js";
 import {
@@ -106,35 +107,56 @@ const isStopping = ref(false);
 // `{ interrupted: true }` either way, so it would read as success.
 const trackedTurn = computed(() => desktopActivity.state.trackedTurn);
 // Stop is offered ONLY when the turn maps to a route that actually stops IT.
-// There are two, and everything else must refuse rather than fire the nearest
+// There are three, and everything else must refuse rather than fire the nearest
 // one and report success:
-//   • a delegated turn  -> root.stopDelegation(partialSessionId)
-//   • the global root   -> root.interruptTurn()
-// A turn running on its own continuing session (the UI's spawned-session
-// surface) announces `origin: 'web'` exactly like a root turn, so origin alone
-// cannot tell them apart — but it carries a primarySessionId, and the root
-// interrupt would resolve the GLOBAL primary and stop a different session
-// entirely while the mouse kept moving. That surface has no server-side
-// interrupt yet, so the honest answer there is a disabled button.
-const canStop = computed(() => {
+//   • a delegated turn      -> root.stopDelegation(partialSessionId)
+//   • the global root's own -> root.interruptTurn({})   (the global head)
+//   • the voice thread's    -> root.interruptTurn({ sessionId })
+// Identity, never absence (session-hardening D1/D3): every global/voice turn
+// now carries its primarySessionId, so "the root's own turn" is the one whose
+// primary IS the global primary (`rootSessionId` from the continuing read); a
+// spawned session's turn under the global scope names its own primary and has
+// no root-side interrupt yet — the honest answer there is a disabled button. A
+// voice turn stops through ITS session id only: the empty body would resolve
+// the global head, the OTHER thread the lock split lets run concurrently.
+const globalContinuing = useContinuingConversation(() => ({ kind: "global" }));
+const globalPrimaryId = computed(() => globalContinuing.data.value?.rootSessionId ?? null);
+const stopRoute = computed<
+  | { kind: "delegation"; partialSessionId: string }
+  | { kind: "global-root" }
+  | { kind: "voice"; sessionId: string }
+  | null
+>(() => {
   const turn = trackedTurn.value;
   // origin null = we attached mid-turn and never saw turn-started, so we do not
   // know who is driving. Refusing beats stopping the wrong turn.
-  if (turn === null || turn.origin === null) return false;
-  if (turn.origin === "delegation") return turn.partialSessionId !== null;
-  return turn.primarySessionId === null;
+  if (turn === null || turn.origin === null) return null;
+  if (turn.origin === "delegation") {
+    return turn.partialSessionId !== null
+      ? { kind: "delegation", partialSessionId: turn.partialSessionId }
+      : null;
+  }
+  if (turn.scopeKind === "voice") {
+    return turn.sessionId !== null ? { kind: "voice", sessionId: turn.sessionId } : null;
+  }
+  if (turn.scopeKind === "global") {
+    const rootId = globalPrimaryId.value;
+    return rootId !== null && turn.primarySessionId === rootId ? { kind: "global-root" } : null;
+  }
+  return null;
 });
+const canStop = computed(() => stopRoute.value !== null);
 
 async function stopTurn() {
-  const turn = trackedTurn.value;
-  if (turn === null || !canStop.value) return;
+  const route = stopRoute.value;
+  if (route === null) return;
   isStopping.value = true;
   try {
-    if (turn.origin === "delegation" && turn.partialSessionId !== null) {
-      await vynel.root.stopDelegation(turn.partialSessionId);
+    if (route.kind === "delegation") {
+      await vynel.root.stopDelegation(route.partialSessionId);
+    } else if (route.kind === "voice") {
+      await vynel.root.interruptTurn({ sessionId: route.sessionId });
     } else {
-      // No session id on the overlay's tracked turn — the empty body keeps
-      // the pre-D3 behaviour (the global root's head).
       await vynel.root.interruptTurn({});
     }
   } catch {
