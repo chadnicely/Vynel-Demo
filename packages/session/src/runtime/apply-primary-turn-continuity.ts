@@ -26,11 +26,14 @@
 // bug class (a workspace-grounded spawned session filed as the brain's) — the
 // op reads the truth instead of trusting an argument.
 //
-// Occupancy + model come from the ONE home that measures them — the shared
-// consumer's `handle-usage-reported` writes the effective segment's
+// Occupancy + model + denominator come from the ONE home that measures them —
+// the shared consumer's `handle-usage-reported` writes the effective segment's
 // `lastContextTokens` (the LAST usage report of a turn IS the current
-// occupancy) and `model` (what actually ran) — so no runner re-derives the
-// number from its own event loop.
+// occupancy), `model` (what actually ran) and `lastContextWindow` (the window
+// of the model the chain is DRIVEN on — chosen first, so a small-model visitor
+// never lowers it) — so no runner re-derives the number from its own event
+// loop. The denominator is read through `resolveSegmentContextWindow` (legacy
+// rows fall back to the model that ran; a fresh swap segment to its chain).
 //
 // Best-effort by contract: the user's turn already streamed and persisted. A
 // failure here (link or bridge) is logged and swallowed by the caller — the
@@ -41,6 +44,7 @@ import { NotFoundError } from '@vynel/errors'
 import {
   detectContextPressure,
   linkPrimarySessionToSdkSession,
+  resolveSegmentContextWindow,
   type BridgePrimarySessionResult,
   type ContextMeasurement,
   type ContextPressure,
@@ -48,7 +52,6 @@ import {
 import * as primarySessionsRepository from '../repositories/index.js'
 import type { PrimarySessionScope } from '../repositories/index.js'
 import { findChatSessionById, updateChatSession } from '@vynel/chat/repositories'
-import { resolveContextWindow } from '@vynel/contracts/chat/model-context-window'
 import type { AiAgentProviderId } from '@vynel/providers'
 import {
   bridgePrimarySessionAfterTurn,
@@ -118,13 +121,19 @@ export function prepareTurnContinuity(
     }
   }
 
-  // 2. Measure from the effective segment's persisted occupancy. No row / no
-  //    usage yet → nothing measured → nothing to bridge (a fresh identity's very
-  //    first turn, or a turn that failed before its first assistant message).
+  // 2. Measure from the effective segment's persisted occupancy against the
+  //    chain's denominator. No row / no usage yet → nothing measured → nothing
+  //    to bridge (a fresh identity's very first turn, or a turn that failed
+  //    before its first assistant message). The distill model stays the
+  //    segment's OWN last-ran model (its window provably covers what it just
+  //    ran) — never a chain fallback.
   const segment = findChatSessionById(db, input.effectiveSdkSessionId)
   const usedTokens = segment?.lastContextTokens ?? 0
   const model = segment?.model ?? null
-  const measurement: ContextMeasurement = { usedTokens, contextWindow: resolveContextWindow(model) }
+  const measurement: ContextMeasurement = {
+    usedTokens,
+    contextWindow: resolveSegmentContextWindow(db, input.effectiveSdkSessionId).contextWindow,
+  }
   const pressure = detectContextPressure(
     measurement,
     input.threshold !== undefined ? { threshold: input.threshold } : {},

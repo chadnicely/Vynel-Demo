@@ -24,6 +24,7 @@ export function buildSessionMcpServer(
     makeWhoamiTool(db, scope) as SdkMcpToolDefinition<any>,
     // The checkpoint keys on the same identity whoami describes.
     makeCheckpointTool(
+      db,
       scope.primarySessionId !== undefined ? { primarySessionId: scope.primarySessionId } : {},
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same widening.
     ) as SdkMcpToolDefinition<any>,

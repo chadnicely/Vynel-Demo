@@ -143,7 +143,9 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
         // or drop a standing "problem/needs_input" light — back to "never
         // set"; the fresh segment inherits its predecessor's values (settings
         // stay overridable by the streams' write-through, the status by the
-        // read-time supersession rule).
+        // read-time supersession rule). The context-window denominator rides
+        // along (the recordSwapSegmentSession rule — one copy-forward shape
+        // for both swap writers).
         ...(predecessor !== null
           ? {
               sessionMode: predecessor.sessionMode,
@@ -153,6 +155,7 @@ export function handleSessionStarted(input: HandleSessionStartedInput): HandleSe
               status: predecessor.status,
               statusNote: predecessor.statusNote,
               statusSetAt: predecessor.statusSetAt,
+              lastContextWindow: predecessor.lastContextWindow,
             }
           : {}),
       })

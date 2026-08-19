@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import type { Database } from '@vynel/db'
-import { findChatSessionById, insertChatSession } from '../repositories/index.js'
+import { findChatSessionById, insertChatSession, updateChatSession } from '../repositories/index.js'
 import { buildNewChatSessionRow } from './build-new-chat-session-row.js'
 import { handleSessionStarted } from './handle-session-started.js'
 import { updateChatSessionSettings } from '../settings/update-chat-session-settings.js'
@@ -138,6 +138,8 @@ describe('handleSessionStarted — mid-turn swap (B4)', () => {
         thinkingEffort: 'medium',
         autoBuildout: true,
       })
+      // The chain's denominator rides the same copy-forward (the swap-record rule).
+      updateChatSession(db, 'sdk-old', { lastContextTokens: 180_000, lastContextWindow: 1_000_000 })
 
       handleSessionStarted(swapInput(db, user.id))
 
@@ -146,6 +148,8 @@ describe('handleSessionStarted — mid-turn swap (B4)', () => {
       expect(row.selectedModel).toBe('claude-sonnet-5')
       expect(row.thinkingEffort).toBe('medium')
       expect(row.autoBuildout).toBe(true)
+      expect(row.lastContextWindow).toBe(1_000_000)
+      expect(row.lastContextTokens).toBeNull()
     })
   })
 

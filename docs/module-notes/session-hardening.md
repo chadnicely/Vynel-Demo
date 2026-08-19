@@ -375,6 +375,77 @@ defers to Kafi — so the hint now reads "click a node to open it", and the deta
 show (`note`, `tasksDone`/`tasksTotal`, and room for elapsed + child count) rides every `SceneNode`
 as `detail`, carried and unrendered. Rendering it is one component away.
 
+### From G (continuity durability + denominators)
+
+**G-1 · MERGE FIX-UPS in A/C-owned files (required — the register is DB-backed, every call takes `db`
+first; sync, everything else identical).** The lead applies these at G's merge (13 one-token edits):
+
+| File (owner) | Line (at 25e86499) | Change |
+|---|---|---|
+| `packages/session/src/runtime/run-global-root-turn-core.ts` (A) | 103 `runTurnWithContinuations({` | add `db: deps.db,` as the first field |
+| `packages/session/src/delegation/run-report-delivery-tick.ts` (A) | 404 | `takePendingCheckpoint(primary.id)` → `takePendingCheckpoint(db, primary.id)` — better: the G-3 shape. Until fixed, `run-report-delivery-tick.{direct,system}.test.ts` are collateral red too (the notify path throws inside `withTransaction("<id>")`) — expect 7 red test files pre-fix-up, not 5. |
+| `apps/local-api/src/streams/chat-turn.ts` (C) | 360 `runContinuingTurn({` | add `db: c.var.db,` |
+| `apps/local-api/src/streams/session-turn.ts` (C) | 369 `runContinuingTurn({` | add `db,` |
+| `packages/session/src/runtime/run-global-root-turn-core.test.ts` (A) | 216, 263, 277, 290 | `markPendingCheckpoint(primary.id, …)` → `markPendingCheckpoint(db, primary.id, …)`; `peekPendingCheckpoint(primary.id)` → `peekPendingCheckpoint(db, primary.id)` |
+| `packages/session/src/delegation/run-delegation-claim-and-run-tick.test.ts` (A) | 627, 702 | same (`db,` first) |
+| `packages/session/src/delegation/run-agent-run-job.test.ts` (A) | 192 | same |
+| `packages/session/src/delegation/run-report-delivery-tick.update.test.ts` (A) | 164, 171 | same |
+| `apps/local-api/src/streams/chat-turn.test.ts` (C) | 252 | same |
+
+Verified in G's worktree with exactly these edits applied temporarily (then reverted): core 7/7,
+tick 34/34, agent-run 5/5, report-update 5/5, chat-turn 10/10, session-turn 11/11 green (the
+reviewer re-verified the report-tick direct/system suites 3/3 with the `:404` fix alone).
+
+**G-2 · `EnqueueAgentRunInput.origin` (A, `packages/orchestration/src/routing/enqueue-agent-run.ts`).**
+An agent-run row never carries a channel origin (the input has no field; the insert hard-codes nulls),
+so the checkpoint follow-up's shared spread cannot carry `origin` for the agent-run kind (it carries
+mode/model/effort/requester/chain for all three; origin for session + workspace). If a colleague
+mentioned from Telegram should keep its address, add `origin?: DelegationOrigin` there (+ the three
+insert columns) — the follow-up then spreads `...origin` on all three kinds with no further change.
+
+**G-3 · `run-report-delivery-tick.ts:398-408` (A) — the stray-checkpoint drop (should-fix at merge).**
+The report tick's workspace notify turn takes a pending checkpoint unconditionally after the turn.
+With the durable register a checkpoint pending BEFORE that delivery may be a restart survivor of
+the user's own turn; the interactive loop leaves such a survivor alone for `autoContinue: false`
+turns (drops only a checkpoint whose `checkpointedAt ≥ turn start`). A silent one-token `db,` there
+would eat the survivor and Kafi's "restart mid-checkpoint" smoke can fail whenever a report lands on
+that workspace before the user's next message. Recipe: capture `const startedAt = new Date()` before
+the notify turn; after it, `const stray = primary !== null ? peekPendingCheckpoint(db, primary.id) :
+null; if (stray !== null && stray.checkpointedAt >= startedAt) dropPendingCheckpoint(db, primary.id,
+{ reason: 'never-continues', logger: deps.logger })` — a visible note instead of a bare take.
+
+**G-4 · `packages/session/src/runtime/resolve-whoami-report.ts` (unowned).** whoami's context state
+computes the window from `segment.model`; the swap decision now reads
+`resolveSegmentContextWindow(db, segmentId).contextWindow` (chosen-model-first denominator, chain
+fallback). One-line swap so the model's "where am I" and the swap agree — the nudge deliberately keeps
+the RUNNING model's window (its own ceiling).
+
+**G-5 · `packages/chat/src/schema/chat-sessions.ts` comment on `lastContextWindow` (unowned, doc-only).**
+It reads "the window of the model that produced lastContextTokens"; the shipped rule is "the window of
+the model the conversation is DRIVEN on — `selectedModel` when set, else the model that produced the
+report" (WHY in `handle-usage-reported.ts`). Reword when the file is next touched.
+
+**G-6 · The meter's denominator (D, `packages/session/src/overview/get-sessions-overview.ts:156`) —
+optional.** The overview computes `contextWindow` as `resolveContextWindow(model)` from the fold's
+chain model; with the persisted denominator the honest read is `tail.lastContextWindow ??
+resolveContextWindow(model)` (one line), so the meter stops disagreeing with the swap decision after
+a small-model visitor. (The row itself is not on the sessions-overview wire; only the computed number is.)
+
+**G-8 · One home for system-authored chat rows (chat, unowned `packages/chat/src/records/*` + the
+index).** `continuity/drop-pending-checkpoint.ts` inserts its note row from `packages/session` — the
+first system-authored `chat_messages` writer outside `packages/chat/src/records/*` (the siblings:
+`record-direct-reply-message.ts`, `record-pushed-report-message.ts`). The one-home move is a
+`records/record-dropped-checkpoint-note.ts` (or a small `recordSystemNoteRow`) exported through
+chat's index — not done under G's ownership because the index is a shared file (B adds settings
+exports there); a two-file move for whoever touches `records/` next.
+
+**G-7 · Dropped-checkpoint note is a persisted row only (no live frame).** `dropPendingCheckpoint`
+writes the anchor-shaped row (`role: user`, `sourceKind: 'global-root'`, no label — "Not continued —
+the next step was: … (why). Ask to continue when you want it picked up.") on the identity's head; a
+live client sees it on the next refetch (turn-stream-ended already invalidates). A `ChatTurnEvent`
+kind for it (contracts + web pill) is a follow-up if Kafi wants it live; wording is his to polish.
+
+
 ## 7. Results
 
 _(filled at integration)_

@@ -64,7 +64,10 @@ function seedPrimary(db: Database, userId: string, workspaceId: string, currentS
 }
 
 // A persisted segment the way the consumer leaves it after a turn.
-function seedSegment(db: Database, row: { sessionId: string; userId: string; workspaceId: string; lastContextTokens: number; model: string }) {
+function seedSegment(
+  db: Database,
+  row: { sessionId: string; userId: string; workspaceId: string; lastContextTokens: number; model: string; lastContextWindow?: number },
+) {
   const now = new Date()
   return insertChatSession(db, {
     id: row.sessionId,
@@ -75,6 +78,7 @@ function seedSegment(db: Database, row: { sessionId: string; userId: string; wor
     visibility: 'hidden',
     lastContextTokens: row.lastContextTokens,
     model: row.model,
+    lastContextWindow: row.lastContextWindow ?? null,
     isArchived: false,
     deletedAt: null,
     totalMessageCount: 1,
@@ -148,6 +152,35 @@ describe('withBoundaryContinuity', () => {
       const workspace = insertWorkspace(db, makeWorkspace(user.id))
       const primary = seedPrimary(db, user.id, workspace.id, 'seg-a')
       seedSegment(db, { sessionId: 'seg-a', userId: user.id, workspaceId: workspace.id, lastContextTokens: 10_000, model: 'claude-haiku-4-5' })
+      const provider = new FakeAiAgentProvider({ seededSessionId: 'seg-b', summary: USABLE_CARRY })
+
+      const events = await collect(
+        withBoundaryContinuity(
+          turnEvents('seg-a'),
+          { primarySessionId: primary.id, priorSdkSessionId: 'seg-a', userId: user.id, workspacePath: workspace.path, providerId: 'claude' },
+          { db, provider },
+        ),
+      )
+      expect(events.map((e) => e.kind)).toEqual(['text-chunk', 'session-completed'])
+      expect(findPrimarySessionById(db, primary.id)?.currentSdkSessionId).toBe('seg-a')
+    })
+  })
+
+  it('a small-model turn on a big-window chain does not swap — the persisted denominator, not the last-ran model, is measured against', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const primary = seedPrimary(db, user.id, workspace.id, 'seg-a')
+      // 190k would be 0.95 of Haiku's window — but the chain is DRIVEN on a 1M
+      // model (the consumer wrote that denominator); the visitor changes nothing.
+      seedSegment(db, {
+        sessionId: 'seg-a',
+        userId: user.id,
+        workspaceId: workspace.id,
+        lastContextTokens: 190_000,
+        model: 'claude-haiku-4-5',
+        lastContextWindow: 1_000_000,
+      })
       const provider = new FakeAiAgentProvider({ seededSessionId: 'seg-b', summary: USABLE_CARRY })
 
       const events = await collect(
