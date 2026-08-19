@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
+import type { SessionStatusView } from "@vynel/contracts/chat/session-status";
 import AppSidebar, { type SidebarItem } from "./AppSidebar.vue";
 
 const STORAGE_KEY = "vynel.sidebar.collapsed-groups";
@@ -221,6 +222,51 @@ describe("AppSidebar", () => {
       });
 
       expect(rowLabels(wrapper)).toContain("Plans");
+    });
+  });
+
+  // A row with a CONVERSATION behind it (Voice chat) wears the Sessions row's
+  // mark. The spoken thread had no status anywhere before session-hardening D2:
+  // a voice turn that failed lit nothing in the whole app.
+  describe("a conversation row's status mark", () => {
+    function voiceRow(status: SessionStatusView): SidebarItem[] {
+      return [
+        { id: "chat", label: "Chat" },
+        { id: "voice-chat", label: "Voice chat", status },
+      ];
+    }
+
+    it("shows nothing for a plain section row", () => {
+      const wrapper = mountSidebar();
+      expect(wrapper.find(".sidebar-mark").exists()).toBe(false);
+    });
+
+    it("wears the state's mark and carries the assistant's why", () => {
+      const wrapper = mountSidebar({
+        sectionItems: voiceRow({
+          status: "problem",
+          note: "You've hit your session limit",
+        }),
+      });
+      const mark = wrapper.find(".sidebar-mark");
+      expect(mark.attributes("data-status")).toBe("problem");
+      expect(mark.attributes("title")).toBe("You've hit your session limit");
+      expect(mark.attributes("aria-label")).toBe("Voice chat hit a problem");
+    });
+
+    it("shows the live dot while a turn runs, not a mark", () => {
+      const wrapper = mountSidebar({
+        sectionItems: voiceRow({ status: "running", note: null }),
+      });
+      expect(wrapper.find(".sidebar-mark").exists()).toBe(false);
+      expect(wrapper.find('[aria-label="Voice chat is working"]').exists()).toBe(true);
+    });
+
+    it("shows nothing while the thread is idle", () => {
+      const wrapper = mountSidebar({
+        sectionItems: voiceRow({ status: "idle", note: null }),
+      });
+      expect(wrapper.find(".sidebar-mark").exists()).toBe(false);
     });
   });
 });

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Component } from "vue";
 import { PhArrowLeft as ArrowLeft, PhCaretRight as ChevronRight } from "@phosphor-icons/vue";
+import { PresenceDot } from "@vynel/ui";
+import type { SessionStatusView } from "@vynel/contracts/chat/session-status";
 import SidebarAccountRow from "./SidebarAccountRow.vue";
 
 export interface SidebarItem {
@@ -14,6 +16,10 @@ export interface SidebarItem {
   /** How much is in this section (the canvas's right-hand number). Absent =
    *  no honest count for it — the row shows nothing rather than a bare 0. */
   count?: number;
+  /** A CONVERSATION lives behind this row (today: Voice chat) — its derived
+   *  status wears the same mark the Sessions rows wear. Absent/null = the row
+   *  is a plain section and shows nothing. */
+  status?: SessionStatusView | null;
 }
 
 // The left navigation: plain rows at the top, then the feature sections
@@ -45,6 +51,23 @@ const emit = defineEmits<{
   "open-account": [];
   back: [];
 }>();
+
+// The row's status vocabulary — the Sessions row's marks, on a menu row.
+const MARK_LABELS = {
+  needs_input: "is waiting on you",
+  problem: "hit a problem",
+  completed: "is completed",
+} as const;
+type MarkStatus = keyof typeof MARK_LABELS;
+
+function markStatusOf(item: SidebarItem): MarkStatus | null {
+  const current = item.status?.status;
+  return current === "needs_input" ||
+    current === "problem" ||
+    current === "completed"
+    ? current
+    : null;
+}
 
 type SidebarBlock =
   | { kind: "plain"; items: SidebarItem[] }
@@ -208,6 +231,23 @@ watch(
                 "
               />
               <span class="flex-1 truncate">{{ item.label }}</span>
+              <!-- One status, one colour: the conversation behind this row
+                   (Voice chat) wears the Sessions row's mark, and the
+                   assistant's one-line why rides the tooltip. -->
+              <span
+                v-if="item.status?.status === 'running'"
+                class="inline-flex shrink-0 items-center"
+                :aria-label="`${item.label} is working`"
+              >
+                <PresenceDot state="live" />
+              </span>
+              <span
+                v-else-if="markStatusOf(item)"
+                class="sidebar-mark size-2 shrink-0 rounded-full"
+                :data-status="markStatusOf(item)"
+                :title="item.status?.note ?? undefined"
+                :aria-label="`${item.label} ${MARK_LABELS[markStatusOf(item)!]}`"
+              />
               <span
                 v-if="item.count !== undefined"
                 class="shrink-0 text-[10.5px] tabular-nums text-[var(--color-neutral-600)]"
@@ -228,6 +268,43 @@ watch(
 </template>
 
 <style scoped>
+/* One status, one colour — the same marks the tree row and the Sessions row
+   wear (tokens, pulse and reduced-motion rule included), so the Voice chat
+   row reads the same as the conversation behind it. */
+.sidebar-mark {
+  animation: sidebar-mark-pulse 1.4s ease-in-out infinite;
+}
+
+.sidebar-mark[data-status="needs_input"] {
+  background: var(--needs-input);
+}
+
+.sidebar-mark[data-status="problem"] {
+  background: var(--danger);
+}
+
+.sidebar-mark[data-status="completed"] {
+  background: var(--ok);
+}
+
+@keyframes sidebar-mark-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-mark {
+    animation: none;
+  }
+}
+
 /* One status, one colour — the header card's meta line. */
 .workspace-card-meta {
   color: var(--color-accent-300);

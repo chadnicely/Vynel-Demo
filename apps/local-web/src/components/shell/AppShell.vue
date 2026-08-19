@@ -76,6 +76,8 @@ import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace
 import { useSectionCounts } from "../../composables/workspaces/use-section-counts.js";
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
+import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-status.js";
+import { foldGlobalAreaStatus } from "./global-area-status.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 // The reinvented desktop shell — mounted only for real surfaces (App.vue keeps
@@ -272,6 +274,14 @@ const GLOBAL_MENU_ITEMS: SidebarItem[] = [
 const { countBySectionId } = useSectionCounts(
   computed(() => ui.activeTab.workspaceId),
 );
+// The spoken thread's own status (session-hardening D2). It reads its own
+// door, not the shared overview — that answer is also `list_sessions`, and
+// the voice conversation stays behind the cross-session wall.
+const voiceChat = useVoiceChatStatus();
+const voiceChatItem = computed<SidebarItem>(() => ({
+  ...VOICE_CHAT_ITEM,
+  status: voiceChat.status.value,
+}));
 const sectionItems = computed<SidebarItem[]>(() => {
   const workspaceId = ui.activeTab.workspaceId;
   const counts = countBySectionId.value;
@@ -280,7 +290,7 @@ const sectionItems = computed<SidebarItem[]>(() => {
   const surfaceItems =
     workspaceId === null
       ? SURFACE_ITEMS.flatMap((item) =>
-          item.id === "chat" ? [item, VOICE_CHAT_ITEM] : [item],
+          item.id === "chat" ? [item, voiceChatItem.value] : [item],
         )
       : SURFACE_ITEMS;
   return [
@@ -296,6 +306,12 @@ const sectionItems = computed<SidebarItem[]>(() => {
 // chips/dots, the workspace tree, and the title-bar presence all read the
 // same derivation.
 const { statusByWorkspaceId, globalStatus } = useWorkspaceStatuses();
+// The shell's GLOBAL light covers the whole area: the assistant thread OR the
+// spoken thread under it (D7). The Tasks panel keeps the plain `globalStatus`
+// on purpose — that one is a per-scope task rollup, not the shell's light.
+const globalAreaStatus = computed(() =>
+  foldGlobalAreaStatus(globalStatus.value, voiceChat.status.value?.status ?? null),
+);
 
 // The strip needs every workspace's customized accent, not just the active
 // tab's — each tab colors itself.
@@ -696,7 +712,7 @@ onBeforeUnmount(() => {
           :groups="workspaceGroupOptions"
           :active-workspace-id="ui.activeWorkspaceId"
           :status-by-workspace-id="statusByWorkspaceId"
-          :global-status="globalStatus"
+          :global-status="globalAreaStatus"
           :account-name="accountName"
           :rename-group-id="renameGroupId"
           :tree-order="customize.treeLayout"
@@ -738,7 +754,7 @@ onBeforeUnmount(() => {
           :workspaces="workspaceOptions"
           :workspace-color-slots="workspaceColorSlots"
           :status-by-workspace-id="statusByWorkspaceId"
-          :global-status="globalStatus"
+          :global-status="globalAreaStatus"
           @select-tab="selectTab"
           @close-tab="closeTab"
           @add-tab="addTab"
