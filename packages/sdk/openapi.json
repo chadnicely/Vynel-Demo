@@ -32447,6 +32447,511 @@
         }
       }
     },
+    "/root/trace/{partialSessionId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ partialSessionId, entries } — the attributed chain; empty entries when unknown/not-owned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "partialSessionId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "pending",
+                        "claimed",
+                        "completed",
+                        "failed",
+                        null
+                      ]
+                    },
+                    "spawnedTargetSession": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "sessionId",
+                        "name"
+                      ]
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "assistant",
+                              "system"
+                            ]
+                          },
+                          "sourceKind": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "user",
+                              "global-root",
+                              "workspace-manager",
+                              "agent",
+                              "system",
+                              null
+                            ]
+                          },
+                          "sourceLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "sessionId": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ]
+                          },
+                          "toolCalls": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "parentMessageId": {
+                                  "type": "string"
+                                },
+                                "toolUseId": {
+                                  "type": "string"
+                                },
+                                "toolName": {
+                                  "type": "string"
+                                },
+                                "toolInput": {},
+                                "toolOutput": {},
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "started",
+                                    "completed",
+                                    "failed",
+                                    "denied",
+                                    "cancelled"
+                                  ]
+                                },
+                                "approvalStatus": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "enum": [
+                                    "approved",
+                                    "denied",
+                                    "timed-out",
+                                    "cancelled",
+                                    null
+                                  ]
+                                },
+                                "isErrorResult": {
+                                  "type": "boolean"
+                                },
+                                "subagentNarrative": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "subagentToolCalls": {
+                                  "type": [
+                                    "array",
+                                    "null"
+                                  ],
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "toolUseId": {
+                                        "type": "string"
+                                      },
+                                      "toolName": {
+                                        "type": "string"
+                                      },
+                                      "toolInput": {},
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "started",
+                                          "completed",
+                                          "failed"
+                                        ]
+                                      },
+                                      "startedAt": {
+                                        "type": "string"
+                                      },
+                                      "completedAt": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "toolUseId",
+                                      "toolName",
+                                      "status",
+                                      "startedAt",
+                                      "completedAt"
+                                    ]
+                                  }
+                                },
+                                "delegation": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "properties": {
+                                    "jobId": {
+                                      "type": "string"
+                                    },
+                                    "partialSessionId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "pending",
+                                        "claimed",
+                                        "completed",
+                                        "failed"
+                                      ]
+                                    },
+                                    "deliveredTo": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "taskLabel": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "reportedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "completedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "workspaceId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "targetSessionId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "jobId",
+                                    "partialSessionId",
+                                    "status",
+                                    "deliveredTo",
+                                    "taskLabel",
+                                    "reportedAt",
+                                    "completedAt",
+                                    "workspaceId",
+                                    "targetSessionId"
+                                  ]
+                                },
+                                "startedAt": {
+                                  "type": "string"
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "parentMessageId",
+                                "toolUseId",
+                                "toolName",
+                                "status",
+                                "approvalStatus",
+                                "isErrorResult",
+                                "startedAt",
+                                "completedAt"
+                              ]
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "role",
+                          "sourceKind",
+                          "sourceLabel",
+                          "body",
+                          "sessionId",
+                          "scope",
+                          "toolCalls",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "partialSessionId",
+                    "status",
+                    "spawnedTargetSession",
+                    "entries"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getRootTraceByPartialSessionId",
+        "tags": [
+          "root"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partialSessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Get the condensed delegation trace for one request (by partialSessionId).",
+        "x-sdk-name": "root.getTrace"
+      }
+    },
+    "/root/trace/{partialSessionId}/stream": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "SSE stream of the routed turn’s events; ends with turn-stream-ended."
+          },
+          "404": {
+            "description": "Unknown trace key, or not owned."
+          }
+        },
+        "operationId": "getRootTraceByPartialSessionIdStream",
+        "tags": [
+          "root"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partialSessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Observe a live delegation's turn — streams its ChatTurnEvents via SSE.",
+        "x-sdk-name": "root.streamTrace"
+      }
+    },
+    "/root/delegations": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ delegations: [{ partialSessionId, workspaceName, sessionName, taskLabel, status }] } — empty when idle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "delegations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "partialSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "workspaceId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "workspaceName": {
+                            "type": "string"
+                          },
+                          "targetPrimarySessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sessionName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "targetSessionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "taskLabel": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "claimed"
+                            ]
+                          },
+                          "jobKind": {
+                            "type": "string",
+                            "enum": [
+                              "task",
+                              "agent-run"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "partialSessionId",
+                          "workspaceId",
+                          "workspaceName",
+                          "targetPrimarySessionId",
+                          "sessionName",
+                          "targetSessionId",
+                          "taskLabel",
+                          "status",
+                          "jobKind"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "delegations"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getRootDelegations",
+        "tags": [
+          "root"
+        ],
+        "parameters": [],
+        "summary": "List the user's in-flight delegations (pending + claimed) for the processing indicator.",
+        "x-sdk-name": "root.listDelegations"
+      }
+    },
+    "/root/delegations/{partialSessionId}/stop": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ result: 'stopped' | 'stopping' | 'already-finished' }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "stopped",
+                        "stopping",
+                        "already-finished"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "result"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown delegation, or not owned."
+          }
+        },
+        "operationId": "postRootDelegationsByPartialSessionIdStop",
+        "tags": [
+          "root"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partialSessionId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Stop a delegation — fail it before claim, or cancel + interrupt its running turn.",
+        "x-sdk-name": "root.stopDelegation"
+      }
+    },
     "/root/continuing": {
       "get": {
         "responses": {
@@ -33062,365 +33567,6 @@
         "parameters": [],
         "summary": "Get the global root conversation history (messages across swap segments).",
         "x-sdk-name": "root.getTranscript"
-      }
-    },
-    "/root/trace/{partialSessionId}": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "{ partialSessionId, entries } — the attributed chain; empty entries when unknown/not-owned.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "partialSessionId": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "enum": [
-                        "pending",
-                        "claimed",
-                        "completed",
-                        "failed",
-                        null
-                      ]
-                    },
-                    "spawnedTargetSession": {
-                      "type": [
-                        "object",
-                        "null"
-                      ],
-                      "properties": {
-                        "sessionId": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "sessionId",
-                        "name"
-                      ]
-                    },
-                    "entries": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "role": {
-                            "type": "string",
-                            "enum": [
-                              "user",
-                              "assistant",
-                              "system"
-                            ]
-                          },
-                          "sourceKind": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "enum": [
-                              "user",
-                              "global-root",
-                              "workspace-manager",
-                              "agent",
-                              "system",
-                              null
-                            ]
-                          },
-                          "sourceLabel": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "body": {
-                            "type": "string"
-                          },
-                          "sessionId": {
-                            "type": "string"
-                          },
-                          "scope": {
-                            "type": "string",
-                            "enum": [
-                              "global",
-                              "workspace"
-                            ]
-                          },
-                          "toolCalls": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "parentMessageId": {
-                                  "type": "string"
-                                },
-                                "toolUseId": {
-                                  "type": "string"
-                                },
-                                "toolName": {
-                                  "type": "string"
-                                },
-                                "toolInput": {},
-                                "toolOutput": {},
-                                "status": {
-                                  "type": "string",
-                                  "enum": [
-                                    "started",
-                                    "completed",
-                                    "failed",
-                                    "denied",
-                                    "cancelled"
-                                  ]
-                                },
-                                "approvalStatus": {
-                                  "type": [
-                                    "string",
-                                    "null"
-                                  ],
-                                  "enum": [
-                                    "approved",
-                                    "denied",
-                                    "timed-out",
-                                    "cancelled",
-                                    null
-                                  ]
-                                },
-                                "isErrorResult": {
-                                  "type": "boolean"
-                                },
-                                "subagentNarrative": {
-                                  "type": [
-                                    "string",
-                                    "null"
-                                  ]
-                                },
-                                "subagentToolCalls": {
-                                  "type": [
-                                    "array",
-                                    "null"
-                                  ],
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "toolUseId": {
-                                        "type": "string"
-                                      },
-                                      "toolName": {
-                                        "type": "string"
-                                      },
-                                      "toolInput": {},
-                                      "status": {
-                                        "type": "string",
-                                        "enum": [
-                                          "started",
-                                          "completed",
-                                          "failed"
-                                        ]
-                                      },
-                                      "startedAt": {
-                                        "type": "string"
-                                      },
-                                      "completedAt": {
-                                        "type": [
-                                          "string",
-                                          "null"
-                                        ]
-                                      }
-                                    },
-                                    "required": [
-                                      "toolUseId",
-                                      "toolName",
-                                      "status",
-                                      "startedAt",
-                                      "completedAt"
-                                    ]
-                                  }
-                                },
-                                "delegation": {
-                                  "type": [
-                                    "object",
-                                    "null"
-                                  ],
-                                  "properties": {
-                                    "jobId": {
-                                      "type": "string"
-                                    },
-                                    "partialSessionId": {
-                                      "type": [
-                                        "string",
-                                        "null"
-                                      ]
-                                    },
-                                    "status": {
-                                      "type": "string",
-                                      "enum": [
-                                        "pending",
-                                        "claimed",
-                                        "completed",
-                                        "failed"
-                                      ]
-                                    },
-                                    "deliveredTo": {
-                                      "type": [
-                                        "string",
-                                        "null"
-                                      ]
-                                    },
-                                    "taskLabel": {
-                                      "type": [
-                                        "string",
-                                        "null"
-                                      ]
-                                    },
-                                    "reportedAt": {
-                                      "type": [
-                                        "string",
-                                        "null"
-                                      ]
-                                    },
-                                    "completedAt": {
-                                      "type": [
-                                        "string",
-                                        "null"
-                                      ]
-                                    },
-                                    "workspaceId": {
-                                      "type": [
-                                        "string",
-                                        "null"
-                                      ]
-                                    },
-                                    "targetSessionId": {
-                                      "type": [
-                                        "string",
-                                        "null"
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "jobId",
-                                    "partialSessionId",
-                                    "status",
-                                    "deliveredTo",
-                                    "taskLabel",
-                                    "reportedAt",
-                                    "completedAt",
-                                    "workspaceId",
-                                    "targetSessionId"
-                                  ]
-                                },
-                                "startedAt": {
-                                  "type": "string"
-                                },
-                                "completedAt": {
-                                  "type": [
-                                    "string",
-                                    "null"
-                                  ]
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "parentMessageId",
-                                "toolUseId",
-                                "toolName",
-                                "status",
-                                "approvalStatus",
-                                "isErrorResult",
-                                "startedAt",
-                                "completedAt"
-                              ]
-                            }
-                          },
-                          "createdAt": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "role",
-                          "sourceKind",
-                          "sourceLabel",
-                          "body",
-                          "sessionId",
-                          "scope",
-                          "toolCalls",
-                          "createdAt"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "partialSessionId",
-                    "status",
-                    "spawnedTargetSession",
-                    "entries"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "operationId": "getRootTraceByPartialSessionId",
-        "tags": [
-          "root"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "partialSessionId",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true
-          }
-        ],
-        "summary": "Get the condensed delegation trace for one request (by partialSessionId).",
-        "x-sdk-name": "root.getTrace"
-      }
-    },
-    "/root/trace/{partialSessionId}/stream": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "SSE stream of the routed turn’s events; ends with turn-stream-ended."
-          },
-          "404": {
-            "description": "Unknown trace key, or not owned."
-          }
-        },
-        "operationId": "getRootTraceByPartialSessionIdStream",
-        "tags": [
-          "root"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "partialSessionId",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true
-          }
-        ],
-        "summary": "Observe a live delegation's turn — streams its ChatTurnEvents via SSE.",
-        "x-sdk-name": "root.streamTrace"
       }
     },
     "/root/sessions/{sessionId}": {
@@ -34579,152 +34725,6 @@
         ],
         "summary": "Get one owned session's chain-spanning history (messages across swap segments).",
         "x-sdk-name": "root.getSessionTranscript"
-      }
-    },
-    "/root/delegations": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "{ delegations: [{ partialSessionId, workspaceName, sessionName, taskLabel, status }] } — empty when idle.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "delegations": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "partialSessionId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "workspaceId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "workspaceName": {
-                            "type": "string"
-                          },
-                          "targetPrimarySessionId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "sessionName": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "targetSessionId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "taskLabel": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "pending",
-                              "claimed"
-                            ]
-                          },
-                          "jobKind": {
-                            "type": "string",
-                            "enum": [
-                              "task",
-                              "agent-run"
-                            ]
-                          }
-                        },
-                        "required": [
-                          "partialSessionId",
-                          "workspaceId",
-                          "workspaceName",
-                          "targetPrimarySessionId",
-                          "sessionName",
-                          "targetSessionId",
-                          "taskLabel",
-                          "status",
-                          "jobKind"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "delegations"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "operationId": "getRootDelegations",
-        "tags": [
-          "root"
-        ],
-        "parameters": [],
-        "summary": "List the user's in-flight delegations (pending + claimed) for the processing indicator.",
-        "x-sdk-name": "root.listDelegations"
-      }
-    },
-    "/root/delegations/{partialSessionId}/stop": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "{ result: 'stopped' | 'stopping' | 'already-finished' }",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "result": {
-                      "type": "string",
-                      "enum": [
-                        "stopped",
-                        "stopping",
-                        "already-finished"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "result"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown delegation, or not owned."
-          }
-        },
-        "operationId": "postRootDelegationsByPartialSessionIdStop",
-        "tags": [
-          "root"
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "partialSessionId",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true
-          }
-        ],
-        "summary": "Stop a delegation — fail it before claim, or cancel + interrupt its running turn.",
-        "x-sdk-name": "root.stopDelegation"
       }
     },
     "/root/turn": {
