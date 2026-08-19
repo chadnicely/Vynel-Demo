@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isSceneNodeRefEqual,
+  parentSceneNodeKind,
   parseSceneNodeId,
   sceneNodeId,
   SCENE_NODE_KINDS,
@@ -43,5 +44,18 @@ describe("isSceneNodeRefEqual", () => {
     expect(
       isSceneNodeRefEqual({ kind: "session", id: "x" }, { kind: "session", id: "x" }),
     ).toBe(true);
+  });
+});
+
+describe("parentSceneNodeKind", () => {
+  it("voice hangs under global — one assistant, two ways of reaching it", () => {
+    expect(parentSceneNodeKind("voice")).toBe("global");
+  });
+
+  it("every other kind's parent is a property of the row, not of the kind", () => {
+    for (const kind of SCENE_NODE_KINDS) {
+      if (kind === "voice") continue;
+      expect(parentSceneNodeKind(kind)).toBeNull();
+    }
   });
 });

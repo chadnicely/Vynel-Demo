@@ -59,3 +59,19 @@ export function parseSceneNodeId(nodeId: string): SceneNodeRef | null {
 export function isSceneNodeRefEqual(a: SceneNodeRef, b: SceneNodeRef): boolean {
   return a.kind === b.kind && a.id === b.id;
 }
+
+/** What a dot of this KIND hangs under, when its kind alone decides.
+ *
+ *  Only `voice` does: it is a CHILD of global (Kafi, 2026-08-19, D7) — one
+ *  assistant, two ways of reaching it — so whichever level draws the global
+ *  assistant is the level that draws the voice thread beside it, and the
+ *  shell's global light already aggregates the pair. No level draws either
+ *  yet; this is the relation the visual pass builds on, recorded here so it
+ *  is a fact rather than a comment.
+ *
+ *  Every other kind's parent is a property of the ROW — which room a session
+ *  is grounded in, which conversation set a task going — and is answered by
+ *  `GET /sessions/:id/children`, never by the kind. */
+export function parentSceneNodeKind(kind: SceneNodeKind): SceneNodeKind | null {
+  return kind === "voice" ? "global" : null;
+}
