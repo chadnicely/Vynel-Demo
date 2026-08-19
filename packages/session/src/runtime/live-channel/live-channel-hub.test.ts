@@ -326,17 +326,25 @@ describe('LiveChannelHub', () => {
     hub.dispose()
   })
 
-  it('voice channels ride the relay source: ack, then the replay, then live frames; released on unsubscribe', () => {
+  /** A fake relay keyed the way the real one is — by (surface, wake-capable). */
+  function fakeVoiceSource() {
     const listeners = new Map<string, Set<(event: VoiceRelayEvent) => void>>()
+    const keyOf = (subscriber: { surface: string; wake: boolean }) =>
+      `${subscriber.surface}/${subscriber.wake ? 'wake' : 'listen'}`
     const voice: LiveChannelVoiceSource = {
-      subscribe: (surface, listener) => {
-        const set = listeners.get(surface) ?? new Set()
+      subscribe: (subscriber, listener) => {
+        const set = listeners.get(keyOf(subscriber)) ?? new Set()
         set.add(listener)
-        listeners.set(surface, set)
+        listeners.set(keyOf(subscriber), set)
         listener({ kind: 'daemon-link', connected: true }) // synchronous replay
         return () => set.delete(listener)
       },
     }
+    return { voice, listeners, keyOf }
+  }
+
+  it('voice channels ride the relay source: ack, then the replay, then live frames; released on unsubscribe', () => {
+    const { voice, listeners, keyOf } = fakeVoiceSource()
     const { hub } = buildHub({ voice })
     const socket = fakeSocket()
     const connection = hub.connect({ userId: USER, transport: socket.transport })
@@ -346,12 +354,39 @@ describe('LiveChannelHub', () => {
       { kind: 'subscribed', channel: 'voice:app' },
       { kind: 'event', channel: 'voice:app', event: { kind: 'daemon-link', connected: true } },
     ])
-    for (const listener of listeners.get('app') ?? []) listener({ kind: 'speak', text: 'hi' })
+    const appListeners = listeners.get(keyOf({ surface: 'app', wake: false })) ?? []
+    for (const listener of appListeners) listener({ kind: 'speak', text: 'hi', sessionId: null })
     expect(socket.take()).toEqual([
-      { kind: 'event', channel: 'voice:app', event: { kind: 'speak', text: 'hi' } },
+      { kind: 'event', channel: 'voice:app', event: { kind: 'speak', text: 'hi', sessionId: null } },
     ])
     connection.handleMessage(unsubscribeMessage('voice:app'))
-    expect(listeners.get('app')?.size).toBe(0)
+    expect(listeners.get(keyOf({ surface: 'app', wake: false }))?.size).toBe(0)
+    hub.dispose()
+  })
+
+  it('a wake-capable voice key reaches the source as its own subscriber kind, and its frames come back on that key', () => {
+    const { voice, listeners, keyOf } = fakeVoiceSource()
+    const { hub } = buildHub({ voice })
+    const socket = fakeSocket()
+    const connection = hub.connect({ userId: USER, transport: socket.transport })
+    socket.take()
+    connection.handleMessage(subscribeMessage('voice:jarvis:wake'))
+    expect(socket.take()).toEqual([
+      { kind: 'subscribed', channel: 'voice:jarvis:wake' },
+      { kind: 'event', channel: 'voice:jarvis:wake', event: { kind: 'daemon-link', connected: true } },
+    ])
+    // The capability is a distinct subscriber kind at the source — never folded into plain jarvis.
+    expect(listeners.get(keyOf({ surface: 'jarvis', wake: true }))?.size).toBe(1)
+    expect(listeners.get(keyOf({ surface: 'jarvis', wake: false }))).toBeUndefined()
+    const wakeListeners = listeners.get(keyOf({ surface: 'jarvis', wake: true })) ?? []
+    for (const listener of wakeListeners) listener({ kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 })
+    expect(socket.take()).toEqual([
+      {
+        kind: 'event',
+        channel: 'voice:jarvis:wake',
+        event: { kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 },
+      },
+    ])
     hub.dispose()
   })
 

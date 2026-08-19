@@ -3,7 +3,25 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-19 (latest) VOICE REALTIME ARC — `feature/voice-realtime` (heard as it writes · barge-in · no canned acks), FULL GATE GREEN
+## ✅ 2026-08-20 (latest) VOICE ROUTING SLICE — `feature/voice-routing` (wake only to a capable client · speak relayed to the owner · overlay watchdog), FULL GATE GREEN
+
+Closes round-2 R2-D/R2-G + the smoke bug of 2026-08-19 (window off + desktop app open → the wake died in the
+in-app overlay). Plan `docs/module-notes/voice-routing.md`. Shipped: the browser declares wake capability on its
+live-channel key (`voice:<surface>[:wake]` — jarvis always; a BROWSER app tab only with Web Speech; the desktop
+shell's app window never — WebView2 has Web Speech, so a feature-detect would keep the bug); the api relay holds one
+daemon upstream per (surface, wake) and asks `?surface=&wake=`; the daemon's wake target and `shouldHandOff`
+require a capable client, and with `VYNEL_VOICE_JARVIS_WINDOW=0` only a capable browser tab may take a wake
+(else the native leg answers); a relayed `speak` carries the PRODUCING chat session id (the route forwards the
+ambient turn-session header) and reaches ONE window — daemon: handoff owner else newest upstream; relay: the last
+wake-target window while subscribed else newest; the window drops a line only when it is its own live session's
+(the drop-all guard that swallowed schedule lines is gone), mid-conversation relayed lines speak through the live
+session (echo-remembered); the owner leaving cycles the relay upstream so the daemon never stays handed-off; the
+`wake` carries `turnWatchdogMs` (one default in @vynel/contracts) and the browser leg says one honesty line when a
+turn stays silent (caption shows it). **Owed by Kafi:** window `0` + desktop app open → native answers; a schedule's
+spoken line during a Jarvis conversation plays once in that window; the pending classifier-deny CARD slice (SDK bump
+0.3.231→0.3.235 first) is next.
+
+## ✅ 2026-08-19 VOICE REALTIME ARC — `feature/voice-realtime` (heard as it writes · barge-in · no canned acks), FULL GATE GREEN
 
 Kafi's brief after round-2 of the audit (`docs/audits/session-2026-08-19-r2/`, 8/10): *"user speaks →
 it stops speaking → listens → responds → speaks as fast as possible; it always says 'let me check' /

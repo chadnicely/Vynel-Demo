@@ -25,7 +25,12 @@
 
 import type { ChatTurnEvent } from './chat-http.js'
 import type { SessionActivityEvent } from './session-activity.js'
-import { isVoiceSurface, type VoiceRelayEvent, type VoiceSurface } from '../voice/daemon-events.js'
+import {
+  isVoiceSurface,
+  type VoiceRelayEvent,
+  type VoiceSubscriber,
+  type VoiceSurface,
+} from '../voice/daemon-events.js'
 
 export const LIVE_CHANNEL_PROTOCOL_VERSION = 1
 
@@ -34,19 +39,27 @@ export const LIVE_CHANNEL_PATH = '/api/live'
 
 export type LiveChannelKey = string
 
+/** A voice channel key: `voice:<surface>` for a window that only listens (state
+ *  + delegated speech), `voice:<surface>:wake` for one that can also RUN a wake
+ *  session — the capability rides the key because it is the only thing a
+ *  subscriber sends, and the relay/daemon must never hand a wake to a window
+ *  that can't hear (the Tauri main window has no Web Speech). */
+export type VoiceChannelKey = `voice:${VoiceSurface}` | `voice:${VoiceSurface}:wake`
+
 /** Build channel keys — the ONE home for the key grammar (server + client). */
 export const liveChannelKeys = {
   activity: 'activity' as const,
   session: (sessionId: string): LiveChannelKey => `session:${sessionId}`,
   trace: (partialSessionId: string): LiveChannelKey => `trace:${partialSessionId}`,
-  voice: (surface: VoiceSurface): LiveChannelKey => `voice:${surface}`,
+  voice: ({ surface, wake }: VoiceSubscriber): VoiceChannelKey =>
+    wake ? `voice:${surface}:wake` : `voice:${surface}`,
 }
 
 export type ParsedLiveChannelKey =
   | { kind: 'activity' }
   | { kind: 'session'; sessionId: string }
   | { kind: 'trace'; partialSessionId: string }
-  | { kind: 'voice'; surface: VoiceSurface }
+  | { kind: 'voice'; surface: VoiceSurface; wake: boolean }
 
 /** Parse a channel key; null = not a channel this protocol knows. */
 export function parseLiveChannelKey(key: string): ParsedLiveChannelKey | null {
@@ -60,8 +73,10 @@ export function parseLiveChannelKey(key: string): ParsedLiveChannelKey | null {
     return partialSessionId === '' ? null : { kind: 'trace', partialSessionId }
   }
   if (key.startsWith('voice:')) {
-    const surface = key.slice('voice:'.length)
-    return isVoiceSurface(surface) ? { kind: 'voice', surface } : null
+    const [surface, capability, ...rest] = key.slice('voice:'.length).split(':')
+    if (!isVoiceSurface(surface) || rest.length > 0) return null
+    if (capability === undefined) return { kind: 'voice', surface, wake: false }
+    return capability === 'wake' ? { kind: 'voice', surface, wake: true } : null
   }
   return null
 }
@@ -84,7 +99,7 @@ export type LiveChannelServerFrame =
   | { kind: 'subscribed'; channel: LiveChannelKey }
   | { kind: 'unsubscribed'; channel: LiveChannelKey }
   | { kind: 'event'; channel: 'activity'; event: SessionActivityEvent }
-  | { kind: 'event'; channel: `voice:${VoiceSurface}`; event: VoiceRelayEvent }
+  | { kind: 'event'; channel: VoiceChannelKey; event: VoiceRelayEvent }
   | { kind: 'event'; channel: LiveChannelKey; event: ChatTurnEvent }
   | { kind: 'channel-ended'; channel: LiveChannelKey }
   | { kind: 'error'; channel: LiveChannelKey | null; code: LiveChannelErrorCode; message: string }

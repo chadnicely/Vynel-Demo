@@ -27,7 +27,8 @@ const isMuted = ref(false);
 const voice = useVoiceSession({ onEnded: handleSessionEnded });
 const daemon = useVoiceDaemonLink({
   onWake: handleWake,
-  isPlayingOwnTurn: () => voice.isActive.value,
+  ownLiveSessionId: voice.currentSessionId,
+  speakThroughSession: voice.speakExternal,
 });
 
 // The session settled (idle silence, close, or a start that couldn't begin):
@@ -38,10 +39,10 @@ function handleSessionEnded(): void {
   if (!isMuted.value && !voice.failure.value) ui.isVoiceOverlayOpen = false;
 }
 
-function handleWake(command: string): void {
+function handleWake(command: string, turnWatchdogMs?: number): void {
   isMuted.value = false;
   ui.isVoiceOverlayOpen = true;
-  if (!voice.isActive.value) voice.start(command || undefined);
+  if (!voice.isActive.value) voice.start(command || undefined, turnWatchdogMs);
 }
 
 // The manual path: mic button opens the overlay → start listening; closing it

@@ -1,4 +1,11 @@
 import { SpokenEchoFilter, stripSpokenMarkup, type SpokenLine } from "@vynel/voice";
+import { DEFAULT_VOICE_TURN_WATCHDOG_MS } from "@vynel/contracts/voice/turn-watchdog";
+import { createTurnWatchdog, type TurnWatchdog } from "./turn-watchdog.js";
+import type {
+  VoiceCommandSession,
+  VoiceCommandSessionDeps,
+  VoiceCommandSessionOptions,
+} from "./voice-command-session-types.js";
 
 // The browser half of the hybrid voice loop — the command session the daemon
 // hands off to on wake. Web Speech STT captures what the user says (with a live
@@ -25,82 +32,30 @@ import { SpokenEchoFilter, stripSpokenMarkup, type SpokenLine } from "@vynel/voi
 // Everything is injected so the whole flow is unit-tested with fakes — no Web
 // Speech, no network.
 
-export type VoiceTurnEvent =
-  // The turn's session identity — the interrupt target for a barge-in.
-  | { readonly kind: "session"; readonly sessionId: string }
-  // One spoken sentence of the reply (streamed text, or a speak-tool relay).
-  | { readonly kind: "spoke"; readonly text: string }
-  | { readonly kind: "completed" }
-  // Stopped from elsewhere mid-reply — a quiet end, not a failure.
-  | { readonly kind: "interrupted" }
-  | { readonly kind: "failed"; readonly message: string };
-
-export type VoiceCommandSessionState =
-  | "listening"
-  | "thinking"
-  | "speaking"
-  | "ended";
-
-export interface VoiceCommandSessionView {
-  /** The phase — the mic is open in every one but `ended`. */
-  readonly state: VoiceCommandSessionState;
-  /** The live interim transcript while the user talks; the command while answering. */
-  readonly transcript: string;
-  /** The reply spoken so far this turn, growing a sentence at a time. */
-  readonly spokenText: string;
-}
-
-export interface VoiceCommandSessionDeps {
-  /** One capture — the final transcript, or null on silence/abort. */
-  captureCommand(onInterim: (transcript: string) => void): Promise<string | null>;
-  /** Cancel an in-flight capture (its promise resolves null). */
-  abortCapture(): void;
-  /** Run the brain turn; yields the session id, each sentence, and a terminal. */
-  runBrainTurn(
-    utterance: string,
-    signal: AbortSignal,
-  ): AsyncIterable<VoiceTurnEvent>;
-  /** Queue one sentence on the browser player (pipelined behind what plays);
-   *  resolves when it finished playing — or was cancelled. */
-  playSpoken(text: string): Promise<void>;
-  /** Cut playback and drop every queued sentence (barge-in, end). */
-  cancelSpoken(): void;
-  /** Stop the running server turn BY IDENTITY (best-effort). */
-  interruptTurn(sessionId: string): Promise<void>;
-  onView(view: VoiceCommandSessionView): void;
-  /** The reason a turn's stream broke. The session already apologises out loud;
-   *  this is the CAUSE, which would otherwise be swallowed. The owner logs it. */
-  onTurnError?(error: unknown): void;
-}
-
-export interface VoiceCommandSessionOptions {
-  /** A command captured in the same breath as the wake phrase — run it first. */
-  readonly initialCommand?: string;
-  /** Silence (ms) between turns before the session ends. */
-  readonly idleTimeoutMs?: number;
-}
-
-export interface VoiceCommandSession {
-  /** Resolves once the session ended (idle silence, `end()`, or a mic failure). */
-  readonly done: Promise<void>;
-  end(): void;
-}
-
 /** One brain turn in flight, with what the barge-in needs to stop it. */
 interface RunningTurn {
   readonly command: string;
   sessionId: string | null;
   spokenText: string;
+  /** The honesty line once the watchdog fired ("" before). */
+  notice: string;
   /** The reply as ONE remembered line in the echo filter (from its first sentence). */
   echoLine: SpokenLine | null;
   /** A barge-in (or end) landed — drop whatever it still produces. */
   isCut: boolean;
+  /** Every line queued on the player this turn — it settles after the last. */
+  readonly playbacks: Promise<void>[];
+  readonly watchdog: TurnWatchdog;
   readonly abort: AbortController;
   settled: Promise<void>;
 }
 
 const DEFAULT_IDLE_TIMEOUT_MS = 15_000;
 const FAILED_TURN_LINE = "Sorry, I ran into a problem with that.";
+// Spoken once when a turn has produced nothing for the whole watchdog window
+// (round-2 R2-G): a person at a microphone needs to hear the turn is alive.
+// The turn keeps streaming and its answer is spoken when it lands.
+const STILL_WORKING_LINE = "Still working on it — I'll say the answer when it lands.";
 // A silent capture normally burns a few seconds before the recognizer gives
 // up — but a fast-failing one (offline Chrome errors instantly) would spin
 // new recognitions back-to-back for the whole idle window without this floor.
@@ -120,6 +75,7 @@ export function startVoiceCommandSession(
   options: VoiceCommandSessionOptions = {},
 ): VoiceCommandSession {
   const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const turnWatchdogMs = options.turnWatchdogMs ?? DEFAULT_VOICE_TURN_WATCHDOG_MS;
   const echoFilter = new SpokenEchoFilter();
   let ended = false;
   let turn: RunningTurn | null = null;
@@ -130,11 +86,13 @@ export function startVoiceCommandSession(
     if (ended) return;
     const run = turn;
     if (run === null || run.isCut) {
-      deps.onView({ state: "listening", transcript: interim, spokenText: "" });
+      deps.onView({ state: "listening", transcript: interim, spokenText: "", notice: "" });
     } else if (run.spokenText === "") {
-      deps.onView({ state: "thinking", transcript: run.command, spokenText: "" });
+      const { command: transcript, notice } = run;
+      deps.onView({ state: "thinking", transcript, spokenText: "", notice });
     } else {
-      deps.onView({ state: "speaking", transcript: run.command, spokenText: run.spokenText });
+      const { command: transcript, spokenText } = run;
+      deps.onView({ state: "speaking", transcript, spokenText, notice: "" });
     }
   }
 
@@ -150,6 +108,7 @@ export function startVoiceCommandSession(
   function cutTurn(run: RunningTurn): void {
     if (run.isCut) return;
     run.isCut = true;
+    run.watchdog.disarm();
     deps.cancelSpoken();
     run.abort.abort();
     if (run.sessionId !== null) void deps.interruptTurn(run.sessionId).catch(() => undefined);
@@ -170,22 +129,40 @@ export function startVoiceCommandSession(
     publish();
   }
 
-  function speakSentence(run: RunningTurn, sentence: string): Promise<void> {
-    // Remembered from the first sample, as one growing line per reply.
-    if (run.echoLine === null) run.echoLine = echoFilter.remember(sentence);
-    else run.echoLine.append(sentence);
-    return deps.playSpoken(sentence);
+  /** Queue one line of OUR voice on the player — not awaited, the player
+   *  pipelines it behind what plays — remembered from the first sample as one
+   *  growing line per turn; the turn settles only after it played. */
+  function voiceLine(run: RunningTurn, text: string): void {
+    if (run.echoLine === null) run.echoLine = echoFilter.remember(text);
+    else run.echoLine.append(text);
+    run.playbacks.push(deps.playSpoken(text));
   }
 
-  function sayFailure(run: RunningTurn): Promise<void> {
+  /** A sentence of the reply: the first one is the acknowledgment, so the
+   *  watchdog stands down. */
+  function speakSentence(run: RunningTurn, sentence: string): void {
+    run.watchdog.disarm();
+    voiceLine(run, sentence);
+  }
+
+  /** The watchdog fired — said once, like a reply sentence (on the player,
+   *  echo-remembered) and shown as the caption; the orb stays thinking because
+   *  it is a status, not the reply, which is still spoken when it lands. */
+  function sayStillWorking(run: RunningTurn): void {
+    run.notice = STILL_WORKING_LINE;
+    publish();
+    voiceLine(run, STILL_WORKING_LINE);
+  }
+
+  function sayFailure(run: RunningTurn): void {
     run.spokenText = FAILED_TURN_LINE;
     publish();
-    return speakSentence(run, FAILED_TURN_LINE);
+    speakSentence(run, FAILED_TURN_LINE);
   }
 
   async function driveTurn(run: RunningTurn): Promise<void> {
-    const playbacks: Promise<void>[] = [];
     publish();
+    run.watchdog.arm();
     try {
       for await (const event of deps.runBrainTurn(run.command, run.abort.signal)) {
         if (ended || run.isCut) break;
@@ -196,11 +173,9 @@ export function startVoiceCommandSession(
           if (sentence === "") continue;
           run.spokenText = run.spokenText === "" ? sentence : `${run.spokenText} ${sentence}`;
           publish();
-          // Not awaited: the player pipelines it behind the sentence playing,
-          // so the read keeps pace with generation.
-          playbacks.push(speakSentence(run, sentence));
+          speakSentence(run, sentence);
         } else {
-          if (event.kind === "failed") playbacks.push(sayFailure(run));
+          if (event.kind === "failed") sayFailure(run);
           break;
         }
       }
@@ -209,13 +184,19 @@ export function startVoiceCommandSession(
       // nothing; anything else is a real break the owner has to be able to see.
       if (!ended && !run.isCut) {
         deps.onTurnError?.(error);
-        playbacks.push(sayFailure(run));
+        sayFailure(run);
       }
     } finally {
-      // The turn settles once its last sentence played (or was cut) — the idle
+      run.watchdog.disarm();
+      // The turn settles once its last line played (or was cut) — the idle
       // window counts from the end of speech, not the end of the stream, and
-      // the reply stays an echo candidate for the return window past it.
-      await Promise.all(playbacks);
+      // the reply stays an echo candidate for the return window past it. A
+      // line can still join while the last one plays (an external line handed
+      // over mid-settle), so wait until nothing new was queued.
+      for (let settled = 0; settled < run.playbacks.length; ) {
+        settled = run.playbacks.length;
+        await Promise.all(run.playbacks);
+      }
       run.echoLine?.end();
       if (turn === run) turn = null;
       idleDeadline = Date.now() + idleTimeoutMs;
@@ -228,8 +209,11 @@ export function startVoiceCommandSession(
       command,
       sessionId: null,
       spokenText: "",
+      notice: "",
       echoLine: null,
       isCut: false,
+      playbacks: [],
+      watchdog: createTurnWatchdog({ ms: turnWatchdogMs, onFire: () => sayStillWorking(run) }),
       abort: new AbortController(),
       settled: Promise.resolve(),
     };
@@ -274,7 +258,7 @@ export function startVoiceCommandSession(
       if (run !== null) cutTurn(run);
       deps.cancelSpoken();
       await run?.settled;
-      deps.onView({ state: "ended", transcript: "", spokenText: "" });
+      deps.onView({ state: "ended", transcript: "", spokenText: "", notice: "" });
     }
   }
 
@@ -282,6 +266,15 @@ export function startVoiceCommandSession(
 
   return {
     done,
+    get currentSessionId() {
+      return turn?.sessionId ?? null;
+    },
+    speakExternal(text: string): boolean {
+      const run = turn;
+      if (ended || run === null || run.isCut) return false;
+      voiceLine(run, text);
+      return true;
+    },
     end(): void {
       if (ended) return;
       ended = true;

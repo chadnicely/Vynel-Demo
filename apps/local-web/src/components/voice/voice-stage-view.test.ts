@@ -4,10 +4,10 @@ import {
   voiceStageIsListening,
   voiceStageOrbState,
 } from "./voice-stage-view.js";
-import type { VoiceCommandSessionView } from "../../composables/voice/voice-command-session.js";
+import type { VoiceCommandSessionView } from "../../composables/voice/voice-command-session-types.js";
 
 function view(partial: Partial<VoiceCommandSessionView>): VoiceCommandSessionView {
-  return { state: "ended", transcript: "", spokenText: "", ...partial };
+  return { state: "ended", transcript: "", spokenText: "", notice: "", ...partial };
 }
 
 describe("voiceStageCaption", () => {
@@ -22,6 +22,13 @@ describe("voiceStageCaption", () => {
     expect(
       voiceStageCaption(view({ state: "thinking", transcript: "what time is it" }), false, null),
     ).toBe("Thinking…");
+  });
+
+  it("shows the honesty line the silent turn spoke, while the orb stays thinking", () => {
+    const notice = "Still working on it — I'll say the answer when it lands.";
+    const stillThinking = view({ state: "thinking", transcript: "do a long thing", notice });
+    expect(voiceStageCaption(stillThinking, false, null)).toBe(notice);
+    expect(voiceStageOrbState(stillThinking, false)).toBe("thinking");
   });
 
   it("shows the spoken reply so far while speaking", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
-import type { VoiceTurnEvent } from "./voice-command-session.js";
+import type { VoiceTurnEvent } from "./voice-command-session-types.js";
 import {
   adaptChatTurnStreamToVoice,
   SPEAK_TOOL_NAME,

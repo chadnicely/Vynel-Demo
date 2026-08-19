@@ -90,6 +90,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **"Hey Vynel" with the floating window turned off now answers out loud** instead of
+  disappearing into the desktop app's main window. A spoken line from a schedule or
+  another chat lands once, in the window you are talking to, and no longer vanishes or
+  plays twice; on the browser side a turn that stays silent for five minutes says so
+  once and still speaks its answer when it lands.
 - **Saying "stop" while Vynel reads a long answer now stops it** — a one- or two-word
   interruption is no longer mistaken for an echo of its own speech. On a call, a reply
   that arrives while Vynel is saying it needs more time is spoken right after that

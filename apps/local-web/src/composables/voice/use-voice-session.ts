@@ -14,12 +14,12 @@ import {
 } from "./speech-recognition.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 import { adaptChatTurnStreamToVoice } from "./voice-turn-adapter.js";
-import {
-  startVoiceCommandSession,
-  type VoiceCommandSession,
-  type VoiceCommandSessionView,
-  type VoiceTurnEvent,
-} from "./voice-command-session.js";
+import { startVoiceCommandSession } from "./voice-command-session.js";
+import type {
+  VoiceCommandSession,
+  VoiceCommandSessionView,
+  VoiceTurnEvent,
+} from "./voice-command-session-types.js";
 
 // Binds one browser voice-command session to Vue state for the Jarvis overlay:
 // Web Speech STT in, a voice-thread `/root/turn` per utterance on the voice
@@ -30,6 +30,7 @@ const IDLE_VIEW: VoiceCommandSessionView = {
   state: "ended",
   transcript: "",
   spokenText: "",
+  notice: "",
 };
 
 /** Run one voice turn against the spoken thread; yields the adapter's events
@@ -78,7 +79,9 @@ export function useVoiceSession(options: {
 
   let session: VoiceCommandSession | null = null;
 
-  function start(initialCommand?: string): void {
+  /** `turnWatchdogMs` is the daemon's silence bound carried on a wake; a
+   *  manual (mic-button) start has none and the session uses its default. */
+  function start(initialCommand?: string, turnWatchdogMs?: number): void {
     if (session !== null) return;
     failure.value = null;
     if (!canListen) {
@@ -114,7 +117,10 @@ export function useVoiceSession(options: {
           failure.value = `The voice turn broke: ${error instanceof Error ? error.message : String(error)}`;
         },
       },
-      initialCommand ? { initialCommand } : {},
+      {
+        ...(initialCommand ? { initialCommand } : {}),
+        ...(turnWatchdogMs !== undefined ? { turnWatchdogMs } : {}),
+      },
     );
     session = started;
     started.done
@@ -133,9 +139,23 @@ export function useVoiceSession(options: {
     session?.end();
   }
 
+  /** The chat session our turn in flight runs on — null between turns and
+   *  when no session is live. The daemon link uses it to tell a relayed copy
+   *  of OUR OWN voice from another producer's line. */
+  function currentSessionId(): string | null {
+    return session?.currentSessionId ?? null;
+  }
+
+  /** Play another producer's line (a relayed `speak`) through the live
+   *  session's own player + echo filter while a turn is in flight — false when
+   *  there is none to take it, and the caller plays it on its own player. */
+  function speakExternal(text: string): boolean {
+    return session?.speakExternal(text) ?? false;
+  }
+
   onUnmounted(() => {
     session?.end();
   });
 
-  return { view, failure, isActive, canListen, start, end };
+  return { view, failure, isActive, canListen, start, end, currentSessionId, speakExternal };
 }

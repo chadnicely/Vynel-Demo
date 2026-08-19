@@ -166,3 +166,60 @@ describe("useVoiceSession — the overlay's turn request", () => {
     expect(interruptTurn).not.toHaveBeenCalledWith({});
   });
 });
+
+describe("useVoiceSession — what the daemon link reads off it", () => {
+  it("exposes the live turn's chat session id, and null around it", async () => {
+    const { session, POST, stream } = mountWithStream();
+    expect(session.currentSessionId()).toBeNull();
+    session.start("read me the news");
+    await vi.waitFor(() => expect(POST).toHaveBeenCalled());
+    stream().push("user-message-persisted", {
+      kind: "user-message-persisted",
+      message: { id: "u-1", sessionId: "voice-seg-7", role: "user", body: "read me the news" },
+    });
+    await vi.waitFor(() => expect(session.currentSessionId()).toBe("voice-seg-7"));
+    session.end();
+    // The cut turn settles → no turn in flight → nothing is "ours" any more.
+    await vi.waitFor(() => expect(session.currentSessionId()).toBeNull());
+  });
+
+  it("takes a relayed line onto the live turn's own player; declines with no session or no turn", async () => {
+    const { session, POST, stream } = mountWithStream();
+    expect(session.speakExternal("nobody home")).toBe(false);
+    session.start("read me the news");
+    await vi.waitFor(() => expect(POST).toHaveBeenCalled());
+    stream().push("user-message-persisted", {
+      kind: "user-message-persisted",
+      message: { id: "u-1", sessionId: "voice-seg-7", role: "user", body: "read me the news" },
+    });
+    stream().push("text-chunk", { kind: "text-chunk", messageId: "m-1", textDelta: "First headline. " });
+    await vi.waitFor(() => expect(session.view.value.state).toBe("speaking"));
+    // A turn is in flight → the session queues it (synthesized through the same player).
+    expect(session.speakExternal("Your build is green.")).toBe(true);
+    const synthesize = fetch as unknown as ReturnType<typeof vi.fn>;
+    await vi.waitFor(() => {
+      const texts = synthesize.mock.calls.map(
+        ([, init]) => JSON.parse((init as { body: string }).body).text as string,
+      );
+      expect(texts).toEqual(["First headline.", "Your build is green."]);
+    });
+    session.end();
+    await vi.waitFor(() => expect(session.currentSessionId()).toBeNull());
+    expect(session.speakExternal("too late")).toBe(false);
+  });
+
+  it("arms the wake's watchdog bound on the session — a silent turn says the honesty line through the player", async () => {
+    const { session, POST } = mountWithStream();
+    // A real (short) bound: the stream stays silent, so the line must be synthesized.
+    session.start("do a long thing", 30);
+    await vi.waitFor(() => expect(POST).toHaveBeenCalled());
+    const synthesize = fetch as unknown as ReturnType<typeof vi.fn>;
+    await vi.waitFor(() => {
+      const texts = synthesize.mock.calls.map(
+        ([, init]) => JSON.parse((init as { body: string }).body).text as string,
+      );
+      expect(texts).toContain("Still working on it — I'll say the answer when it lands.");
+    });
+    session.end();
+  });
+});

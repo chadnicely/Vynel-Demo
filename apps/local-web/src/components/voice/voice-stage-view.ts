@@ -1,5 +1,5 @@
 import type { VoiceOrbState } from "@vynel/ui";
-import type { VoiceCommandSessionView } from "../../composables/voice/voice-command-session.js";
+import type { VoiceCommandSessionView } from "../../composables/voice/voice-command-session-types.js";
 
 // The one mapping from a voice session's view to what the stage shows — shared
 // by the in-app overlay and the floating Jarvis window so their orb and caption
@@ -32,8 +32,10 @@ export function voiceStageCaption(
   if (isMuted) return "Muted — Vynel isn't listening";
   if (view.state === "listening") return view.transcript || "Listening…";
   // The command was on screen while it was spoken; once it's sent the user
-  // needs to see the turn is IN FLIGHT, not a frozen echo of their own words.
-  if (view.state === "thinking") return "Thinking…";
+  // needs to see the turn is IN FLIGHT, not a frozen echo of their own words —
+  // and when the turn has stayed silent long enough to SAY so (the watchdog's
+  // honesty line), the caption carries that line like a reply sentence.
+  if (view.state === "thinking") return view.notice || "Thinking…";
   // The reply so far — it grows a sentence at a time as the speech does.
   if (view.state === "speaking") return view.spokenText;
   return "Say “Hey Vynel” — or tap the mic to talk";

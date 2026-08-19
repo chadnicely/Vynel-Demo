@@ -5,13 +5,14 @@
 // The daemon-relay mechanics themselves are covered in
 // calls-through-daemon.test.ts with a stubbed fetch.
 
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { listAllChatSessionsForUser } from '@vynel/chat/repositories'
 import { createApp } from '../../app.js'
+import { TURN_SESSION_HEADER } from '../../sessions/turn-session-header.js'
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -29,15 +30,32 @@ function seedUser(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
   })
 }
 
-async function postSpeak(app: ReturnType<typeof createApp>): Promise<{ spoken: boolean; reason?: string }> {
+async function postSpeak(
+  app: ReturnType<typeof createApp>,
+  headers: Record<string, string> = {},
+): Promise<{ spoken: boolean; reason?: string }> {
   const response = await app.request('/voice/speak', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify({ text: 'hello' }),
   })
   expect(response.status).toBe(200)
   return (await response.json()) as { spoken: boolean; reason?: string }
 }
+
+/** Stand in for the daemon's /speak and record what the api forwarded. */
+function stubDaemonSpeak(): Array<{ url: string; body: unknown }> {
+  const calls: Array<{ url: string; body: unknown }> = []
+  vi.stubGlobal('fetch', (url: string | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+    return Promise.resolve(new Response('{"ok":true}', { status: 200 }))
+  })
+  return calls
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('the call tools on a remote engine', () => {
   it('start_call refuses without spawning a session or touching the daemon', async () => {
@@ -116,6 +134,31 @@ describe('POST /voice/speak', () => {
       const body = await postSpeak(app)
       expect(body.spoken).toBe(false)
       expect(body.reason).toContain('remote server')
+    })
+  })
+
+  it('forwards the ambient turn session to the daemon as the producing session', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger })
+      const calls = stubDaemonSpeak()
+      // The header is server-stamped per turn (never model input) — the daemon
+      // routes the relayed line by it.
+      const body = await postSpeak(app, { [TURN_SESSION_HEADER]: 'chat-7' })
+      expect(body).toEqual({ spoken: true })
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.url).toMatch(/\/speak$/)
+      expect(calls[0]?.body).toEqual({ text: 'hello', sessionId: 'chat-7' })
+    })
+  })
+
+  it('forwards sessionId: null when the caller has no turn session (a schedule fire)', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger })
+      const calls = stubDaemonSpeak()
+      await postSpeak(app)
+      expect(calls[0]?.body).toEqual({ text: 'hello', sessionId: null })
     })
   })
 
