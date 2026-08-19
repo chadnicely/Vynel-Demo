@@ -136,13 +136,17 @@ async function main(): Promise<void> {
         encodeWav(await sharedSynthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
       // The `speak` MCP tool — any session's voice output. Route it to whoever
       // can actually play it:
-      //   - while an overlay owns the command session (handed-off) the daemon's
-      //     own speaker is idle but the room belongs to the browser, so the
-      //     overlay plays it. This branch used to be a no-op that LOGGED the
-      //     line as played: a Voice-chat typed reply, a schedule or a delivery
-      //     turn that spoke during an overlay conversation was silently dropped
-      //     (session audit A4). Never a no-op again — if the client is gone by
-      //     the time we publish, the native speaker takes it;
+      //   - while an overlay owns the command session (handed-off) it is
+      //     DROPPED, because every route out of here double-plays the overlay's
+      //     own turn: publishing hits `use-voice-daemon-link`, which plays every
+      //     relayed speak through its own player while the overlay is already
+      //     playing that same turn off its own stream; speaking natively puts
+      //     the browser speaker and the daemon speaker on one machine. The
+      //     daemon cannot tell the producers apart — `/speak` carries only
+      //     `{ text, callId? }` and all three voice legs are `voice`-scope
+      //     global turns. So it is dropped LOUDLY (the audit's complaint was a
+      //     no-op logging the line as played) until the web-side guard lands —
+      //     docs/module-notes/session-hardening.md §6 has the coupled fix;
       //   - otherwise a connected-but-idle client is ASKED to play it (typed
       //     chat, scheduled tasks — the browser owns reliable playback while
       //     an overlay window holds the audio device);
@@ -151,12 +155,10 @@ async function main(): Promise<void> {
       onSpeak: (text) => {
         const preview = text.slice(0, 80)
         if (driver.isHandedOff) {
-          if (overlay.publishSpeak(text)) {
-            logger.info({ text: preview }, 'speak — handed to the overlay that owns the session')
-          } else {
-            logger.info({ text: preview }, 'speak — overlay client gone mid-handoff, speaking natively')
-            driver.speak(text)
-          }
+          logger.warn(
+            { text: preview },
+            'speak dropped — the overlay owns the room (session-hardening.md §6)',
+          )
         } else if (!driver.isAwake && overlay.publishSpeak(text)) {
           // Delegate only while the native loop is IDLE: a client playing audio
           // mid native conversation would be heard by the open daemon mic (the

@@ -128,13 +128,30 @@ daemon speaker on one machine). The daemon cannot route by producer on its own: 
 `{ text, callId? }`, and a server-side discriminator can't help either — the overlay leg, the daemon
 wake leg and the Voice-chat panel leg are all `voice`-scope global turns.
 
-E ships the daemon half (`main.ts` `onSpeak` publishes to the overlay when handed off, native
-fallback when the client is gone, honest logs). **The web guard is the other half:**
-`useVoiceDaemonLink` takes a predicate (e.g. `isOwnTurnLive`) and drops relayed `speak` events while
-the overlay's own command session has a turn in flight; the Jarvis/overlay views pass
-`voice.isActive`. Net effect vs today: a schedule / panel / delivery `speak` during an overlay
-conversation is *played* instead of silently dropped; only one landing inside the overlay's own live
-turn is still dropped (today ALL are).
+**E deliberately did NOT ship the daemon half alone.** `VYNEL_VOICE_JARVIS_WINDOW` defaults to `'1'`
+and `shouldHandOff: () => jarvisEnabled || overlay.hasClient` (`main.ts:232`), so handed-off is the
+DEFAULT path for every wake — publishing there would double-play *every spoken reply* in the shipped
+config, and no daemon-side test can catch it (the loop is daemon → api relay → browser). E ships the
+honest drop instead: a `warn` naming the drop and pointing here, replacing the no-op that logged the
+line as played. **Apply these two together, as one commit:**
+
+1. **web** (`apps/local-web/src/composables/voice/use-voice-daemon-link.ts`): take an optional
+   `isPlayingOwnTurn: () => boolean` and skip the `event.kind === "speak"` branch when it is true;
+   `JarvisView.vue:26-27` / `VoiceOverlay.vue:20-21` pass `() => voice.isActive`.
+2. **daemon** (`apps/voice/src/main.ts`, the `driver.isHandedOff` branch of `onSpeak`):
+
+   ```ts
+   if (overlay.publishSpeak(text)) {
+     logger.info({ text: preview }, 'speak — handed to the overlay that owns the session')
+   } else {
+     logger.info({ text: preview }, 'speak — overlay client gone mid-handoff, speaking natively')
+     driver.speak(text)
+   }
+   ```
+
+Net effect once both land: a schedule / panel / delivery `speak` during an overlay conversation is
+*played* instead of silently dropped; only one landing inside the overlay's own live turn is still
+dropped (today ALL are).
 
 ### E → C (informational, no action): `mode` on the call leg
 
