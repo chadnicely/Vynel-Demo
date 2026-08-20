@@ -308,6 +308,10 @@ export async function streamChatTurn(
             ? {
                 continuity: {
                   primarySessionId: primaryTarget.primarySessionId,
+                  // This turn runs inside `runContinuingTurn` — the runner
+                  // continues a pending checkpoint after it, so the turn may
+                  // carry the restart-survivor marker (audit r2 R2-H).
+                  autoContinues: true,
                   ...(pressureThreshold !== undefined ? { threshold: pressureThreshold } : {}),
                 },
               }

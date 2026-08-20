@@ -17,9 +17,12 @@
 import type { Database } from '@vynel/db'
 import { withTransaction } from '@vynel/db'
 import type { StructuralLogger } from '@vynel/logger'
-import { recordSystemNoteMessage } from '@vynel/chat'
-import * as primarySessionsRepository from '../repositories/index.js'
-import { takePendingCheckpoint, type PendingCheckpoint } from './pending-checkpoints.js'
+import { recordNoteOnPrimaryHead } from './primary-head-note.js'
+import {
+  releaseContinuationJob,
+  takePendingCheckpoint,
+  type PendingCheckpoint,
+} from './pending-checkpoints.js'
 
 export type DropPendingCheckpointReason =
   /** The user stopped the turn — Stop always wins at terminal time. */
@@ -35,8 +38,17 @@ export type DropPendingCheckpointReason =
   | 'never-continues'
   /** An earlier turn left it pending without its continuation — a delegated
    *  run that ended before enqueuing its follow-up, a survivor another origin
-   *  found first. */
+   *  found first, a follow-up job that settled without ever claiming it. */
   | 'left-behind'
+  /** A RESTART SURVIVOR on a conversation that never continues work by itself
+   *  (the spoken thread): nothing would ever pick it up, so it is given up at
+   *  boot rather than left waiting invisibly (audit r2 R2-H(c)). */
+  | 'restarted'
+  /** The model checkpointed again over a step left by an EARLIER TURN — a
+   *  restart survivor, or a leftover from another turn of this same process
+   *  (a schedule fire, a turn that never continues). It never saw that step,
+   *  so the newer intent wins but the older one is given up out loud (R2-H(b)). */
+  | 'superseded'
 
 const REASON_TEXT: Record<DropPendingCheckpointReason, string> = {
   'turn-stopped': 'the turn was stopped',
@@ -45,6 +57,8 @@ const REASON_TEXT: Record<DropPendingCheckpointReason, string> = {
   'cap-reached': 'the automatic continuation limit was reached',
   'never-continues': 'this kind of turn never continues work automatically',
   'left-behind': 'an earlier turn ended without continuing it',
+  restarted: 'Vynel restarted before it could continue',
+  superseded: 'a newer checkpoint replaced it',
 }
 
 /** The visible row's text — the sibling of the anchor "Continuing after
@@ -81,21 +95,34 @@ export function dropPendingCheckpoint(
   return dropped
 }
 
-// The head may not exist yet (an identity that never linked a segment) or may
-// be gone (a purged segment) — then there is no thread to write on and the log
-// line is the trace. The row shape lives with the other system-authored writers
-// in packages/chat/src/records (one home); this composes the words.
+/** The same drop for a slot HANDED OVER to a follow-up job that settled by
+ *  anything but its own claim (the sweeper, the user's Stop, a run that died
+ *  before claiming it — audit r2 R2-H(d)): the slot is released back to the
+ *  identity and given up visibly, never left dangling where peek/take can no
+ *  longer see it. Null when no identity's slot names that job. */
+export function dropContinuationJobCheckpoint(
+  db: Database,
+  jobId: string,
+  input: DropPendingCheckpointInput,
+): PendingCheckpoint | null {
+  return withTransaction(db, (tx) => {
+    const released = releaseContinuationJob(tx, jobId)
+    if (released === null) return null
+    return dropPendingCheckpoint(tx, released.primarySessionId, input)
+  })
+}
+
+// The row shape lives with the other system-authored writers in
+// packages/chat/src/records (one home) and `recordNoteOnPrimaryHead` resolves
+// the thread; this composes the words.
 function recordDroppedCheckpointNote(
   db: Database,
   primarySessionId: string,
   checkpoint: PendingCheckpoint,
   input: DropPendingCheckpointInput,
 ): void {
-  const primary = primarySessionsRepository.findPrimarySessionById(db, primarySessionId)
-  const headSessionId = primary?.currentSdkSessionId ?? null
-  if (headSessionId === null) return
-  recordSystemNoteMessage(db, {
-    sessionId: headSessionId,
+  recordNoteOnPrimaryHead(db, {
+    primarySessionId,
     body: composeDroppedCheckpointNote(checkpoint.nextStep, input.reason),
     now: (input.now ?? (() => new Date()))(),
   })

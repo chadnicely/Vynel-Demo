@@ -15,6 +15,7 @@ import { NotFoundError } from '@vynel/errors'
 import { insertChatSession } from '@vynel/chat/repositories'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { insertPrimarySession, type PrimarySessionScope } from '../repositories/index.js'
+import { markPendingCheckpoint, takePendingCheckpoint } from '../continuity/index.js'
 import { resolveWhoamiReport } from './resolve-whoami-report.js'
 import { DUTY_BOOK_SLUGS, resolveDutyBook } from './duty-book.js'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
@@ -273,6 +274,38 @@ describe('the duty-book binding', () => {
     expect(resolveDutyBook('spawned', { bookExists: (slug) => slug === 'duty-spawned-session' })).toEqual({
       slug: 'duty-spawned-session',
       exists: true,
+    })
+  })
+})
+
+// Audit r2 R2-H: a session must be able to LEARN it owes a step — the pull half
+// of the survivor surfacing (the push half is the next turn's provider marker).
+describe('the pending checkpoint', () => {
+  it('rides the report while it is owed, and is null once consumed', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const primary = seedPrimary(db, user.id, null, null, { scope: 'global' })
+      const at = new Date('2026-08-19T10:00:00Z')
+
+      const before = resolveWhoamiReport(db, { userId: user.id, primarySessionId: primary.id })
+      expect(before.pendingCheckpoint).toBeNull()
+
+      markPendingCheckpoint(db, primary.id, 'ship the release notes', { now: () => at })
+      expect(
+        resolveWhoamiReport(db, { userId: user.id, primarySessionId: primary.id }).pendingCheckpoint,
+      ).toEqual({ nextStep: 'ship the release notes', checkpointedAt: at })
+
+      takePendingCheckpoint(db, primary.id)
+      expect(
+        resolveWhoamiReport(db, { userId: user.id, primarySessionId: primary.id }).pendingCheckpoint,
+      ).toBeNull()
+    })
+  })
+
+  it('is null for a plain conversation — it has no identity to owe anything', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      expect(resolveWhoamiReport(db, { userId: user.id }).pendingCheckpoint).toBeNull()
     })
   })
 })

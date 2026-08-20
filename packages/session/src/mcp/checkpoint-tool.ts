@@ -15,22 +15,33 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { Database } from '@vynel/db'
-import { markPendingCheckpoint } from '../continuity/pending-checkpoints.js'
+import { recordCheckpointSupersedingSurvivor } from '../continuity/checkpoint-survivors.js'
 import type { McpToolFn } from '@vynel/mcp-contract'
 
+// HONEST ON EVERY SURFACE (audit r2 R2-N): the description used to promise
+// every turn "Vynel continues you automatically" — true on a conversation that
+// auto-continues, false on the spoken thread and on delivery / note turns,
+// where the user heard the promise and then silence. Both halves are stated.
 const TOOL_DESCRIPTION =
   'Checkpoint your work because your context is nearly full (a CONTEXT CHECK told you so): pass ' +
   'the SINGLE next step to take, in one line — not a summary of what was done (Vynel distills ' +
   'that itself). Then END this turn with one line telling the user you will continue after ' +
-  'patching context. Vynel swaps you onto a fresh context and continues you with that next ' +
-  'step automatically; the user does not need to say anything. Call it only when a context ' +
-  'check asked you to, or whoami shows you are past the swap threshold with more work to do.'
+  'patching context. Vynel swaps you onto a fresh context; on a conversation that auto-continues ' +
+  'it then resumes you with that step automatically, and everywhere else (the spoken thread, a ' +
+  'delivery or note turn) the checkpoint is surfaced on the conversation and picked up on its next ' +
+  'turn. Call it only when a context check asked you to, or whoami shows you are past the swap ' +
+  'threshold with more work to do.'
 
 const NEXT_STEP_MAX_CHARS = 600
 
 export interface CheckpointToolScope {
   /** The turn's own continuing identity — absent for a plain conversation. */
   primarySessionId?: string
+  /** When THIS turn began. The supersession line (`checkpoint-survivors.ts`):
+   *  a checkpoint older than this was left by an earlier turn, which this turn
+   *  never saw, so replacing it is a loss and is said out loud. Required — the
+   *  tool cannot judge supersession without knowing which turn it is. */
+  turnStartedAt: Date
 }
 
 export function buildCheckpointResponse(
@@ -59,15 +70,18 @@ export function buildCheckpointResponse(
       isError: true,
     }
   }
-  markPendingCheckpoint(db, scope.primarySessionId, nextStep)
+  recordCheckpointSupersedingSurvivor(db, scope.primarySessionId, nextStep, {
+    survivorBefore: scope.turnStartedAt,
+  })
   return {
     content: [
       {
         type: 'text',
         text:
           `Checkpoint noted: "${nextStep}". Now END this turn with one line telling the user you will ` +
-          'continue after patching context — do not start the next step here. Vynel will continue you on ' +
-          'a fresh context with that step automatically.',
+          'continue after patching context — do not start the next step here. Vynel swaps you onto a ' +
+          'fresh context: on a conversation that auto-continues it resumes you with that step by itself, ' +
+          'and elsewhere the step is surfaced on the conversation for its next turn.',
       },
     ],
   }

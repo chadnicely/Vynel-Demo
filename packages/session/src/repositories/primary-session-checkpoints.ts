@@ -8,7 +8,7 @@
 // reset) lives in `continuity/pending-checkpoints.ts`; this layer only offers
 // the typed patch + the one finder it needs — live rows only, `db` first, sync.
 
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import { primarySessions, type PrimarySessionRow } from '../schema/primary-sessions.js'
 
@@ -36,6 +36,38 @@ export function patchPendingCheckpoint(
     .returning()
     .all()
   return updated ?? null
+}
+
+// Every live identity holding a PENDING (unassigned) checkpoint — the boot
+// survivor pass reads it: at startup nothing is running, so every such slot is
+// a restart survivor. User-agnostic like the other boot sweeps.
+export function listPrimarySessionsWithPendingCheckpoint(db: Database): PrimarySessionRow[] {
+  return db
+    .select()
+    .from(primarySessions)
+    .where(
+      and(
+        isNotNull(primarySessions.pendingCheckpointNextStep),
+        isNull(primarySessions.pendingCheckpointJobId),
+        isNull(primarySessions.deletedAt),
+      ),
+    )
+    .all()
+}
+
+// Every live identity whose slot is HANDED OVER to a follow-up job — the
+// reconcile pass reads it to find slots whose job settled without claiming.
+export function listPrimarySessionsWithHandedOverCheckpoint(db: Database): PrimarySessionRow[] {
+  return db
+    .select()
+    .from(primarySessions)
+    .where(
+      and(
+        isNotNull(primarySessions.pendingCheckpointJobId),
+        isNull(primarySessions.deletedAt),
+      ),
+    )
+    .all()
 }
 
 // The live primary whose pending checkpoint was handed to `jobId` (a follow-up

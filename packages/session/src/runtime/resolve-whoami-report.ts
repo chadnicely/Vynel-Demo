@@ -21,6 +21,7 @@ import { findWorkspaceById } from '@vynel/workspaces'
 import * as primarySessionsRepository from '../repositories/index.js'
 import {
   DEFAULT_CONTEXT_PRESSURE_THRESHOLD,
+  peekPendingCheckpoint,
   resolveSegmentContextWindow,
 } from '../continuity/index.js'
 import { describeContinuingIdentity } from './describe-continuing-identity.js'
@@ -57,6 +58,11 @@ export type WhoamiReport = {
   dutyBook: DutyBook
   /** The tags to stamp on memories this session saves — its identity, findable later. */
   memoryTags: string[]
+  /** A checkpoint this identity left and never continued — a restart survivor
+   *  (audit r2 R2-H). Null when nothing is owed. The next genuine turn also
+   *  carries it as a provider-input marker; this is the pull half, so a session
+   *  orienting itself mid-turn learns it too. */
+  pendingCheckpoint: { nextStep: string; checkpointedAt: Date } | null
 }
 
 export type ResolveWhoamiReportDeps = {
@@ -145,7 +151,19 @@ export function resolveWhoamiReport(
     context,
     dutyBook: resolveDutyBook(kind, deps.bookExists !== undefined ? { bookExists: deps.bookExists } : {}),
     memoryTags: memoryTagsFor(kind, primary?.id ?? null, described?.name ?? null),
+    pendingCheckpoint: pendingCheckpointOf(db, primary?.id ?? null),
   }
+}
+
+function pendingCheckpointOf(
+  db: Database,
+  primarySessionId: string | null,
+): { nextStep: string; checkpointedAt: Date } | null {
+  if (primarySessionId === null) return null
+  const checkpoint = peekPendingCheckpoint(db, primarySessionId)
+  return checkpoint === null
+    ? null
+    : { nextStep: checkpoint.nextStep, checkpointedAt: checkpoint.checkpointedAt }
 }
 
 function contextStateOf(

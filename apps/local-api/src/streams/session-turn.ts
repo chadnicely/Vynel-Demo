@@ -356,6 +356,10 @@ export async function streamSpawnedSessionTurn(
             // — the same one every delegated turn into this session runs.
             continuity: {
               primarySessionId: spawned.id,
+              // Inside `runContinuingTurn` — the runner picks a pending
+              // checkpoint up after this turn, so the restart-survivor marker
+              // may promise it (audit r2 R2-H).
+              autoContinues: true,
               ...(swapThreshold !== undefined ? { threshold: swapThreshold } : {}),
             },
             userMessageText: continuation?.persistedBody ?? input.userMessageText,

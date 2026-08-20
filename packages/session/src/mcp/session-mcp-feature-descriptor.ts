@@ -30,8 +30,9 @@ export const SESSION_PROMPT_INSTRUCTIONS =
   'continues on a fresh one, which duty book teaches your kind, and the memory tags that mark ' +
   'what you save as yours — use those tags whenever you save a memory. If a CONTEXT CHECK tells ' +
   'you your context is nearly full while you still have work to do, finish the slice you are on, ' +
-  'call checkpoint with the single next step, and end the turn with one line — Vynel continues ' +
-  'you on a fresh context automatically.'
+  'call checkpoint with the single next step, and end the turn with one line — Vynel swaps you ' +
+  'onto a fresh context and, on a conversation that auto-continues, resumes you with that step; ' +
+  'elsewhere the step is surfaced on the conversation and picked up on its next turn.'
 
 export type SessionFeatureDescriptorDeps = {
   /** The swap threshold in force (the env override the runners honor); omit for the default. */

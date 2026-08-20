@@ -83,16 +83,37 @@ export {
   beginGenuineTurn,
   markContinuationJob,
   takeContinuationJob,
+  releaseContinuationJob,
   clearPendingCheckpoint,
   MAX_CONSECUTIVE_CONTINUATIONS,
   type PendingCheckpoint,
 } from './pending-checkpoints.js'
 export {
   dropPendingCheckpoint,
+  dropContinuationJobCheckpoint,
   composeDroppedCheckpointNote,
   type DropPendingCheckpointInput,
   type DropPendingCheckpointReason,
 } from './drop-pending-checkpoint.js'
+export {
+  recordNoteOnPrimaryHead,
+  type RecordNoteOnPrimaryHeadInput,
+  type RecordNoteOnPrimaryHeadOutcome,
+} from './primary-head-note.js'
+// The RESTART SURVIVOR (audit r2 R2-H): boot surfacing, the next turn's
+// provider-input marker, and the out-loud supersession the `checkpoint` tool
+// writes through.
+export {
+  surfaceCheckpointSurvivors,
+  recordCheckpointSupersedingSurvivor,
+  resolveSurvivorCheckpointMarker,
+  composeSurvivorCheckpointMarker,
+  composeSurvivedCheckpointNote,
+  isSurvivorCheckpoint,
+  type RecordCheckpointDeps,
+  type SurfaceCheckpointSurvivorsDeps,
+  type SurfaceCheckpointSurvivorsResult,
+} from './checkpoint-survivors.js'
 
 // The process-wide "swapping right now" register — the streams read it when
 // a turn parks behind an identity's lock (say "patching context", not "busy").

@@ -22,11 +22,18 @@
 import type { Database } from '@vynel/db'
 import { collectDelegationReportsForRoot } from '@vynel/orchestration'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
+import { resolveSurvivorCheckpointMarker } from '../continuity/index.js'
 
 export type ComposeGlobalRootProviderMessageInput = {
   userId: string
   /** The clean inbound text — what the transcript persists. */
   userMessageText: string
+  /** The turn's continuing identity — the restart-survivor marker reads its
+   *  slot. Omit and no survivor marker is composed. */
+  primarySessionId?: string
+  /** False for a delivery / notify turn: it never continues work, so the
+   *  survivor marker (which promises a pick-up) must not ride it. */
+  autoContinue?: boolean
   /** This turn arrived by voice — append the per-message speak marker. */
   voice?: boolean
   /** The conversation runs on autopilot — append the per-message marker. */
@@ -63,6 +70,20 @@ export function composeGlobalRootProviderMessage(
     reports.contextBlock !== null
       ? `${reports.contextBlock}\n\n${input.userMessageText}`
       : input.userMessageText
+  // The RESTART-SURVIVOR marker (audit r2 R2-H): a checkpoint still pending as
+  // a GENUINE turn is composed was left by an earlier turn — the model must
+  // learn it owes that step rather than overwrite it blind. Never on a
+  // continuation (its own checkpoint is already consumed) and never on a
+  // delivery turn, which would promise a pick-up it never makes.
+  const survivorMarker =
+    input.primarySessionId !== undefined &&
+    input.continuation !== true &&
+    input.autoContinue !== false
+      ? resolveSurvivorCheckpointMarker(db, input.primarySessionId)
+      : null
+  if (survivorMarker !== null) {
+    providerUserMessageText = `${providerUserMessageText}\n\n${survivorMarker}`
+  }
   if (input.voice === true) {
     providerUserMessageText = `${providerUserMessageText}\n\n${loadSessionInstruction('voice-turn-marker')}`
   }

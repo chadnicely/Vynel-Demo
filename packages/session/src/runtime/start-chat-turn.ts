@@ -37,7 +37,11 @@ import {
   type StructuralLogger,
   type TurnMessageAttribution,
 } from '@vynel/chat'
-import { buildCompactionCapture, buildContextNudge } from '../continuity/index.js'
+import {
+  buildCompactionCapture,
+  buildContextNudge,
+  resolveSurvivorCheckpointMarker,
+} from '../continuity/index.js'
 import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 import { withBoundaryContinuity } from './with-boundary-continuity.js'
@@ -150,6 +154,14 @@ export type StartChatTurnInput = {
     primarySessionId: string
     /** Pressure threshold override (the env smoke knob); omit for 0.85. */
     threshold?: number
+    /**
+     * True when this turn runs INSIDE `runTurnWithContinuations` — the runner
+     * continues a pending checkpoint after it. Only such a turn may carry the
+     * restart-survivor marker, because the marker promises exactly that
+     * (audit r2 R2-H). A schedule fire passes `continuity` for the boundary
+     * swap but runs its turn on its own, so it must not promise it.
+     */
+    autoContinues?: boolean
   }
 }
 
@@ -183,10 +195,21 @@ export async function* startChatTurn(
   //    for optional fields per `exactOptionalPropertyTypes` (MEMORY foot-gun).
   //    The autopilot marker rides the PROVIDER text — after any continuation
   //    instruction, so the last thing the model reads is "keep going".
-  const providerUserMessageText =
-    input.autoBuildout === true
-      ? `${input.providerUserMessageText ?? input.userMessageText}\n\n${loadSessionInstruction('autopilot-marker')}`
-      : (input.providerUserMessageText ?? input.userMessageText)
+  //    The RESTART-SURVIVOR marker (audit r2 R2-H) rides it too: a checkpoint
+  //    still pending as this turn is composed was left by an EARLIER turn (a
+  //    continuation's own checkpoint is consumed before its turn is composed),
+  //    so the model learns it owes a step instead of overwriting it blind.
+  //    Gated on `autoContinues` — the marker promises the runner will pick the
+  //    step up, so only a turn the runner actually continues may carry it.
+  const survivorMarker =
+    input.continuity?.autoContinues === true
+      ? resolveSurvivorCheckpointMarker(db, input.continuity.primarySessionId)
+      : null
+  const providerUserMessageText = [
+    input.providerUserMessageText ?? input.userMessageText,
+    ...(survivorMarker !== null ? [survivorMarker] : []),
+    ...(input.autoBuildout === true ? [loadSessionInstruction('autopilot-marker')] : []),
+  ].join('\n\n')
   const provider = resolveAiAgentProvider(input.providerId)
   const sessionEventStream = provider.startChatSession({
     workspacePath: input.workspacePath,
