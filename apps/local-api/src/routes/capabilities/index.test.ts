@@ -54,6 +54,9 @@ describe('capabilities routes', () => {
         // joined as defaultEnabled first-party capabilities (engineering-plan
         // modules, 2026-08-11; 'plans'/'journal'/'tasks' before them).
         expect(body.capabilities.map((c) => c.id).sort()).toEqual([
+          // test: correct expectation — 'display' joined the catalog 2026-08-21 (the
+          // glanceable board), defaultEnabled like every core capability.
+          'display',
           'features',
           'journal',
           'knowledge',

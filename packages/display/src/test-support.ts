@@ -43,13 +43,17 @@ function isInTransaction(db: Database): boolean {
  *  so `sawOpenTransaction` fails the moment a publish moves inside a tx. */
 export function createRecordingSink(db: Database): DisplayLiveSink & {
   frames: DisplayLiveFrame[]
+  /** Who each frame was addressed to, positionally aligned with `frames`. */
+  userIds: string[]
   sawOpenTransaction: boolean
 } {
   const sink = {
     frames: [] as DisplayLiveFrame[],
+    userIds: [] as string[],
     sawOpenTransaction: false,
-    publish(frame: DisplayLiveFrame) {
+    publish(userId: string, frame: DisplayLiveFrame) {
       if (isInTransaction(db)) sink.sawOpenTransaction = true
+      sink.userIds.push(userId)
       sink.frames.push(frame)
     },
   }

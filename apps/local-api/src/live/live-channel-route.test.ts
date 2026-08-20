@@ -16,10 +16,28 @@ import type { Database } from '@vynel/db'
 import { TurnEventBroadcaster, traceChannelKey } from '@vynel/session/delegation'
 import { LiveChannelHub, SessionActivityFeed, sessionChannelKey } from '@vynel/session/runtime'
 import type { LiveChannelServerFrame } from '@vynel/contracts/chat/live-channel'
+import type { DisplayWidgetView } from '@vynel/contracts/display/display-widget'
 import { createGatewayApp } from '../gateway.js'
+import { createHubDisplayLiveSink } from './display-live-sink.js'
 import { buildLiveChannelAuthorizer, createLiveChannelUpgradeHandler } from './live-channel-route.js'
 
 const silentLogger = pino({ level: 'silent' })
+
+/** One card, in the shape an `upserted` frame carries it (ISO strings, no userId). */
+const widget: DisplayWidgetView = {
+  id: 'w-1',
+  scopeKey: 'global',
+  title: 'This week',
+  kind: 'table',
+  content: { kind: 'table', columns: ['Day', 'Runs'], rows: [['Mon', '3']] },
+  slot: 'stage',
+  size: 'md',
+  sortOrder: 1,
+  createdBySessionId: null,
+  expiresAt: null,
+  createdAt: '2026-08-21T09:00:00.000Z',
+  updatedAt: '2026-08-21T09:00:00.000Z',
+}
 
 function seedUser(db: Database, displayName = 'Dana') {
   const now = new Date()
@@ -266,6 +284,9 @@ describe('GET /api/live (WebSocket)', () => {
       expect(authorize(owner.id, { kind: 'session', sessionId: 'nope' })).toBe(false)
       expect(authorize(owner.id, { kind: 'trace', partialSessionId: 'nope' })).toBe(false)
       expect(authorize(intruder.id, { kind: 'activity' })).toBe(true)
+      // Per-user like the feed — every frame on it was published for the
+      // subscriber's own board, so there is no row to own.
+      expect(authorize(intruder.id, { kind: 'display' })).toBe(true)
 
       const hub = new LiveChannelHub({
         turnEvents: new TurnEventBroadcaster(),
@@ -292,6 +313,63 @@ describe('GET /api/live (WebSocket)', () => {
           kind: 'error',
           code: 'not_found',
           channel: `session:${theirs.id}`,
+        })
+        await frames.expectSilence()
+      } finally {
+        socket.close()
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        hub.dispose()
+        await server.close()
+      }
+    })
+  })
+
+  it('carries a Display frame from the sink to the window, JSON-encoded, on the display channel', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db, 'Dana')
+      const hub = new LiveChannelHub({
+        turnEvents: new TurnEventBroadcaster(),
+        activityFeed: new SessionActivityFeed(),
+        authorizeChannel: buildLiveChannelAuthorizer(db),
+      })
+      const gateway = createGatewayApp({
+        apiApp: { fetch: () => new Response('api') },
+        voiceDaemonUrl: 'http://127.0.0.1:1',
+        appVersion: 'test',
+        logger: silentLogger,
+        liveChannelUpgrade: createLiveChannelUpgradeHandler({
+          hub,
+          resolveUserId: () => user.id,
+          logger: silentLogger,
+        }),
+      })
+      const server = await startGateway(gateway)
+      const { socket, frames } = await openSocket(server.port)
+      try {
+        await frames.next() // hello
+        socket.send(JSON.stringify({ op: 'subscribe', channels: ['display'] }))
+        expect(await frames.next()).toEqual({ kind: 'subscribed', channel: 'display' })
+
+        // The route's push path, exactly as a widget op runs it after commit.
+        createHubDisplayLiveSink(hub).publish(user.id, { kind: 'upserted', widget })
+        expect(await frames.next()).toEqual({
+          kind: 'event',
+          channel: 'display',
+          event: { kind: 'upserted', widget },
+        })
+
+        createHubDisplayLiveSink(hub).publish(user.id, { kind: 'cleared', scopeKey: 'global' })
+        expect(await frames.next()).toEqual({
+          kind: 'event',
+          channel: 'display',
+          event: { kind: 'cleared', scopeKey: 'global' },
+        })
+
+        // Another user's board never lands here.
+        createHubDisplayLiveSink(hub).publish('someone-else', {
+          kind: 'removed',
+          widgetId: widget.id,
+          scopeKey: 'global',
         })
         await frames.expectSilence()
       } finally {

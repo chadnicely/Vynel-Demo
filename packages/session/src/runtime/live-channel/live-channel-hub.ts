@@ -8,6 +8,11 @@
 // frames, and re-attaches a session/trace listener after every turn end so a
 // subscription is STANDING (`channel-ended`, then the next turn just arrives).
 //
+// The `display` channel has no source object: its only producer is a route in
+// THIS process, and the hub already owns the per-user connection registry a
+// fan-out needs — so `publishDisplayFrame` is the whole channel, and the api's
+// `DisplayLiveSink` is a thin adapter onto it.
+//
 // Ownership stays with the api: `authorizeChannel` answers "may this user watch
 // this session/trace" from the DB; the hub never sees a row.
 
@@ -23,6 +28,11 @@ import {
   type VoiceChannelKey,
 } from '@vynel/contracts/chat/live-channel'
 import type { SessionActivityEvent } from '@vynel/contracts/chat/session-activity'
+import {
+  DISPLAY_LIVE_CHANNEL_KEY,
+  type DisplayLiveChannelKey,
+  type DisplayLiveFrame,
+} from '@vynel/contracts/display/display-live'
 import type { VoiceRelayEvent, VoiceSubscriber } from '@vynel/contracts/voice/daemon-events'
 import type { StructuralLogger } from '@vynel/logger'
 import type { TurnEventBroadcaster } from '../../delegation/turn-event-broadcaster.js'
@@ -36,6 +46,7 @@ import { sessionChannelKey } from '../session-turn-channel.js'
 export type LiveChannelOutboundFrame =
   | Exclude<LiveChannelServerFrame, { kind: 'event' }>
   | { kind: 'event'; channel: 'activity'; event: SessionActivityEvent }
+  | { kind: 'event'; channel: DisplayLiveChannelKey; event: DisplayLiveFrame }
   | { kind: 'event'; channel: VoiceChannelKey; event: VoiceRelayEvent }
   | { kind: 'event'; channel: LiveChannelKey; event: ChatTurnEvent }
 
@@ -166,6 +177,22 @@ export class LiveChannelHub {
     this.stopHeartbeat()
   }
 
+  /** Fan one Display frame to every socket of ONE user that holds the
+   *  `display` channel — the in-process push behind `DisplayLiveSink`, called
+   *  by the routes right after their transaction commits (the outbox relay's
+   *  tick is far too slow for "appears as Claude says it").
+   *
+   *  Never throws: `send` already turns a dead socket into a close, so a
+   *  broken window can never fail the write that is already durable. */
+  publishDisplayFrame(userId: string, frame: DisplayLiveFrame): void {
+    // A copy: a failing send closes its connection, mutating the registry.
+    for (const state of [...this.connections.values()]) {
+      if (state.userId !== userId) continue
+      if (!state.subscriptions.has(DISPLAY_LIVE_CHANNEL_KEY)) continue
+      this.send(state, { kind: 'event', channel: DISPLAY_LIVE_CHANNEL_KEY, event: frame })
+    }
+  }
+
   /** Diagnostics: open sockets / total subscriptions across them. */
   connectionCount(): number {
     return this.connections.size
@@ -207,7 +234,7 @@ export class LiveChannelHub {
         kind: 'error',
         channel,
         code: 'unknown_channel',
-        message: `Unknown channel "${channel}" — use activity, session:<id>, trace:<id>, voice:<surface> or voice:<surface>:wake.`,
+        message: `Unknown channel "${channel}" — use activity, display, session:<id>, trace:<id>, voice:<surface> or voice:<surface>:wake.`,
       })
       return
     }
@@ -246,6 +273,15 @@ export class LiveChannelHub {
       state.subscriptions.set(channel, activity.detach)
       this.send(state, { kind: 'subscribed', channel })
       activity.replay()
+      return
+    }
+    if (parsed.kind === 'display') {
+      // Nothing to attach to: `publishDisplayFrame` fans out over the
+      // connection registry this hub already owns, so holding the key IS the
+      // subscription. No replay either — the board is loaded over HTTP, and a
+      // replay would fight that read for which state is current.
+      state.subscriptions.set(channel, () => {})
+      this.send(state, { kind: 'subscribed', channel })
       return
     }
     if (parsed.kind === 'voice') {
@@ -422,6 +458,7 @@ function broadcasterKeyFor(parsed: ParsedLiveChannelKey): string {
     case 'trace':
       return traceChannelKey(parsed.partialSessionId)
     case 'activity':
+    case 'display':
     case 'voice':
       throw new Error(`the ${parsed.kind} channel is not a broadcaster channel`)
   }

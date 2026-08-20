@@ -38,8 +38,8 @@ describe('sweepExpiredDisplayWidgets', () => {
       const events = listOutboxEventsByType(db, DISPLAY_WIDGET_REMOVED)
       expect(events).toHaveLength(2)
       expect(events.every((event) => (event.payload as { reason: string }).reason === 'expired')).toBe(true)
-      // A process-wide pass spans users, and a frame carries no userId — there
-      // is no sink it could be addressed to, so it stays silent.
+      // The process-wide pass is the BOOT pass — nothing is connected yet, so
+      // it stays silent rather than addressing windows that do not exist.
       expect(sink.frames).toEqual([])
     })
   })
@@ -58,6 +58,7 @@ describe('sweepExpiredDisplayWidgets', () => {
       expect(listDisplayWidgetsForScope(db, { userId, scopeKey: 'ws-1' })).toEqual([])
       // A userId is present, so the removal has a window to reach.
       expect(sink.frames).toEqual([{ kind: 'removed', widgetId: stale.id, scopeKey: 'ws-1' }])
+      expect(sink.userIds).toEqual([userId])
     })
   })
 

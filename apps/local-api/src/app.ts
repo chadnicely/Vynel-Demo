@@ -19,6 +19,7 @@ import type { HubSession } from '@vynel/hub-account'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import { ScheduleFirePool } from '@vynel/schedules'
 import type { DesktopNotificationReader } from '@vynel/desktop-control'
+import type { DisplayLiveSink } from '@vynel/display'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
@@ -58,6 +59,7 @@ import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
 import { BackgroundProcessRunner, settleBackgroundProcess } from '@vynel/processes'
 import { processesApp } from './routes/processes/index.js'
 import { customizationsApp } from './routes/customizations/index.js'
+import { displayApp } from './routes/display/index.js'
 import { approvalsApp, approvalRulesApp } from './routes/approvals/index.js'
 import { approvalsUserApp } from './routes/approvals/user-scoped.js'
 import { chatApp } from './routes/chat/index.js'
@@ -201,6 +203,11 @@ export interface CreateAppOptions {
   // resolved at boot (dev: VYNEL_SERVER_PAYLOAD_ARCHIVE + its .sha256
   // sidecar); absent = the routes answer that no payload is available.
   readonly serverPayloadArchive?: ServerPayloadArchive
+  // The Display's in-process live push — `boot.ts` constructs the hub-backed
+  // sink and hands it in. Omitted (tests, the SDK/MCP generators) → the
+  // display routes call the leaf ops with no sink and nothing is published;
+  // the outbox row is still written, so no state change is lost.
+  readonly displayLiveSink?: DisplayLiveSink
 }
 
 // Hono's HTTPException statuses, spoken in the VynelError code vocabulary.
@@ -288,6 +295,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     if (options.desktopNotifications !== undefined)
       c.set('desktopNotifications', options.desktopNotifications)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
+    if (options.displayLiveSink !== undefined) c.set('displayLiveSink', options.displayLiveSink)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     c.set('marketplacePluginDelegate', options.marketplacePluginDelegate ?? claudePluginDelegate)
     c.set(
@@ -395,6 +403,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/monitors', monitorsUserApp)
   app.route('/processes', processesApp)
   app.route('/customizations', customizationsApp)
+  // `/display` — the glanceable board beside the conversation (user-scoped;
+  // `scope` picks the global board or one workspace's).
+  app.route('/display', displayApp)
   app.route('/journal', journalUserApp)
   // `/asks` — the ask_user answering surface (always the user; the agent's
   // surface is the `vynel-ask` descriptor tool). Core plumbing, not gated.

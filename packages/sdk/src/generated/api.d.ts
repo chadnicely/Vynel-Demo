@@ -2248,6 +2248,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/display/widgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List one scope's Display widgets, in presentation order. */
+        get: operations["getDisplayWidgets"];
+        put?: never;
+        /** Add a widget to a scope’s Display (the 13th evicts the oldest). */
+        post: operations["postDisplayWidgets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/display/widgets/{widgetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a Display widget in place (only the fields you pass change). */
+        patch: operations["patchDisplayWidgetsByWidgetId"];
+        trace?: never;
+    };
+    "/display/widgets/{widgetId}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove one widget from the Display. */
+        post: operations["postDisplayWidgetsByWidgetIdRemove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/display/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear every widget from one scope’s Display. */
+        post: operations["postDisplayClear"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/journal": {
         parameters: {
             query?: never;
@@ -10016,7 +10085,7 @@ export interface operations {
                     "application/json": {
                         capabilities: {
                             /** @enum {string} */
-                            id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal";
+                            id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal" | "display";
                             displayName: string;
                             description: string;
                             /** @enum {string} */
@@ -10041,7 +10110,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                capabilityId: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal";
+                capabilityId: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal" | "display";
                 workspaceId: string;
             };
             cookie?: never;
@@ -10062,7 +10131,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal";
+                        id: "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal" | "display";
                         displayName: string;
                         description: string;
                         /** @enum {string} */
@@ -12657,6 +12726,436 @@ export interface operations {
             };
         };
     };
+    getDisplayWidgets: {
+        parameters: {
+            query: {
+                scope: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of DisplayWidget. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        scopeKey: string;
+                        title: string;
+                        /** @enum {string} */
+                        kind: "markdown" | "table" | "metric" | "chart";
+                        content: {
+                            /** @constant */
+                            kind: "markdown";
+                            body: string;
+                        } | {
+                            /** @constant */
+                            kind: "table";
+                            columns: string[];
+                            rows: string[][];
+                            caption?: string;
+                        } | {
+                            /** @constant */
+                            kind: "metric";
+                            value: string;
+                            label: string;
+                            delta?: string;
+                            /** @enum {string} */
+                            tone?: "default" | "attention" | "live" | "muted";
+                        } | {
+                            /** @constant */
+                            kind: "chart";
+                            /** @enum {string} */
+                            type: "bar" | "line" | "donut";
+                            series: {
+                                name: string;
+                                points: {
+                                    label: string;
+                                    value: number;
+                                }[];
+                            }[];
+                        };
+                        /** @enum {string} */
+                        slot: "left" | "stage" | "right" | "dock";
+                        /** @enum {string} */
+                        size: "sm" | "md" | "lg";
+                        sortOrder: number;
+                        createdBySessionId: string | null;
+                        expiresAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    }[];
+                };
+            };
+            /** @description No such workspace owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDisplayWidgets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    scope: string;
+                    title: string;
+                    content: {
+                        /** @constant */
+                        kind: "markdown";
+                        body: string;
+                    } | {
+                        /** @constant */
+                        kind: "table";
+                        columns: string[];
+                        rows: string[][];
+                        caption?: string;
+                    } | {
+                        /** @constant */
+                        kind: "metric";
+                        value: string;
+                        label: string;
+                        delta?: string;
+                        /** @enum {string} */
+                        tone?: "default" | "attention" | "live" | "muted";
+                    } | {
+                        /** @constant */
+                        kind: "chart";
+                        /** @enum {string} */
+                        type: "bar" | "line" | "donut";
+                        series: {
+                            name: string;
+                            points: {
+                                label: string;
+                                value: number;
+                            }[];
+                        }[];
+                    };
+                    /** @enum {string} */
+                    slot?: "left" | "stage" | "right" | "dock";
+                    /** @enum {string} */
+                    size?: "sm" | "md" | "lg";
+                };
+            };
+        };
+        responses: {
+            /** @description The widget as it now sits on the board. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        scopeKey: string;
+                        title: string;
+                        /** @enum {string} */
+                        kind: "markdown" | "table" | "metric" | "chart";
+                        content: {
+                            /** @constant */
+                            kind: "markdown";
+                            body: string;
+                        } | {
+                            /** @constant */
+                            kind: "table";
+                            columns: string[];
+                            rows: string[][];
+                            caption?: string;
+                        } | {
+                            /** @constant */
+                            kind: "metric";
+                            value: string;
+                            label: string;
+                            delta?: string;
+                            /** @enum {string} */
+                            tone?: "default" | "attention" | "live" | "muted";
+                        } | {
+                            /** @constant */
+                            kind: "chart";
+                            /** @enum {string} */
+                            type: "bar" | "line" | "donut";
+                            series: {
+                                name: string;
+                                points: {
+                                    label: string;
+                                    value: number;
+                                }[];
+                            }[];
+                        };
+                        /** @enum {string} */
+                        slot: "left" | "stage" | "right" | "dock";
+                        /** @enum {string} */
+                        size: "sm" | "md" | "lg";
+                        sortOrder: number;
+                        createdBySessionId: string | null;
+                        expiresAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Invalid title, slot, size, or content. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such workspace owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patchDisplayWidgetsByWidgetId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                widgetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    content?: {
+                        /** @constant */
+                        kind: "markdown";
+                        body: string;
+                    } | {
+                        /** @constant */
+                        kind: "table";
+                        columns: string[];
+                        rows: string[][];
+                        caption?: string;
+                    } | {
+                        /** @constant */
+                        kind: "metric";
+                        value: string;
+                        label: string;
+                        delta?: string;
+                        /** @enum {string} */
+                        tone?: "default" | "attention" | "live" | "muted";
+                    } | {
+                        /** @constant */
+                        kind: "chart";
+                        /** @enum {string} */
+                        type: "bar" | "line" | "donut";
+                        series: {
+                            name: string;
+                            points: {
+                                label: string;
+                                value: number;
+                            }[];
+                        }[];
+                    };
+                    /** @enum {string} */
+                    slot?: "left" | "stage" | "right" | "dock";
+                    /** @enum {string} */
+                    size?: "sm" | "md" | "lg";
+                };
+            };
+        };
+        responses: {
+            /** @description The updated widget. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        scopeKey: string;
+                        title: string;
+                        /** @enum {string} */
+                        kind: "markdown" | "table" | "metric" | "chart";
+                        content: {
+                            /** @constant */
+                            kind: "markdown";
+                            body: string;
+                        } | {
+                            /** @constant */
+                            kind: "table";
+                            columns: string[];
+                            rows: string[][];
+                            caption?: string;
+                        } | {
+                            /** @constant */
+                            kind: "metric";
+                            value: string;
+                            label: string;
+                            delta?: string;
+                            /** @enum {string} */
+                            tone?: "default" | "attention" | "live" | "muted";
+                        } | {
+                            /** @constant */
+                            kind: "chart";
+                            /** @enum {string} */
+                            type: "bar" | "line" | "donut";
+                            series: {
+                                name: string;
+                                points: {
+                                    label: string;
+                                    value: number;
+                                }[];
+                            }[];
+                        };
+                        /** @enum {string} */
+                        slot: "left" | "stage" | "right" | "dock";
+                        /** @enum {string} */
+                        size: "sm" | "md" | "lg";
+                        sortOrder: number;
+                        createdBySessionId: string | null;
+                        expiresAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Invalid title, slot, size, or content. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such widget owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDisplayWidgetsByWidgetIdRemove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                widgetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The widget as it was when removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        scopeKey: string;
+                        title: string;
+                        /** @enum {string} */
+                        kind: "markdown" | "table" | "metric" | "chart";
+                        content: {
+                            /** @constant */
+                            kind: "markdown";
+                            body: string;
+                        } | {
+                            /** @constant */
+                            kind: "table";
+                            columns: string[];
+                            rows: string[][];
+                            caption?: string;
+                        } | {
+                            /** @constant */
+                            kind: "metric";
+                            value: string;
+                            label: string;
+                            delta?: string;
+                            /** @enum {string} */
+                            tone?: "default" | "attention" | "live" | "muted";
+                        } | {
+                            /** @constant */
+                            kind: "chart";
+                            /** @enum {string} */
+                            type: "bar" | "line" | "donut";
+                            series: {
+                                name: string;
+                                points: {
+                                    label: string;
+                                    value: number;
+                                }[];
+                            }[];
+                        };
+                        /** @enum {string} */
+                        slot: "left" | "stage" | "right" | "dock";
+                        /** @enum {string} */
+                        size: "sm" | "md" | "lg";
+                        sortOrder: number;
+                        createdBySessionId: string | null;
+                        expiresAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description No such widget owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDisplayClear: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    scope: string;
+                };
+            };
+        };
+        responses: {
+            /** @description How many widgets were removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        clearedCount: number;
+                    };
+                };
+            };
+            /** @description No such workspace owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getJournal: {
         parameters: {
             query?: {
@@ -14891,7 +15390,7 @@ export interface operations {
                     /** @enum {string|null} */
                     featureKey: "none" | "channels" | "voice" | "schedules" | "knowledge" | "memory" | "marketplace" | "apps" | "ssh" | null;
                     /** @enum {string|null} */
-                    capabilityId: "none" | "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal" | null;
+                    capabilityId: "none" | "memory" | "knowledge" | "notebook" | "tasks" | "plans" | "phases" | "features" | "journal" | "display" | null;
                 };
             };
         };

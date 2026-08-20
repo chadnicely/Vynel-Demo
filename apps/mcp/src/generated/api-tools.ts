@@ -1020,6 +1020,193 @@ export const discoverInstalledSkillsForProvider: McpToolFactory = (scope, app) =
     { annotations: { readOnlyHint: true } },
   )
 
+export const displayAddWidget: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'display_add_widget',
+    "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Call display_list_widgets first and prefer display_update_widget on a matching card over adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. slot is 'left' | 'stage' | 'right' | 'dock' (default 'stage', the widest region) and size is 'sm' | 'md' | 'lg' (default 'md'). The board holds 12 per scope: a 13th quietly evicts the oldest, so this never fails for being full.",
+    {
+    scope: z.string(),
+    title: z.string(),
+    content: z.any(),
+    slot: z.enum(['left', 'stage', 'right', 'dock']).optional(),
+    size: z.enum(['sm', 'md', 'lg']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/display/widgets'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope', 'title', 'content', 'slot', 'size']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const displayClear: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'display_clear',
+    "Clear a whole Display board at once — the user said \"clear the display\", or the subject changed entirely. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). To take a single card off, use display_remove_widget instead. This only clears cards off a screen; nothing they described is deleted.",
+    {
+    scope: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/display/clear'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const displayListWidgets: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'display_list_widgets',
+    "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. This lists what is ALREADY on the board — call it before adding, and update the matching widget rather than adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). Read-only.",
+    {
+    scope: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/display/widgets'
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const displayRemoveWidget: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'display_remove_widget',
+    "Take one widget off the Display — the user said \"remove it\", or the thing it showed is finished. Find widgetId via display_list_widgets. This only clears a card off a screen; nothing the widget described is deleted.",
+    {
+    widgetId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/display/widgets/{widgetId}/remove'
+        pathStr = pathStr.replace('{widgetId}', encodeURIComponent(String(args['widgetId'] ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const displayUpdateWidget: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'display_update_widget',
+    "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Update the card already showing this thing instead of adding another one — a live number, a table gaining rows, a status changing. Find widgetId via display_list_widgets. Only the fields you pass change. content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. A widget cannot move between boards; to put it elsewhere, remove it and add it there.",
+    {
+    widgetId: z.string(),
+    title: z.string().optional(),
+    content: z.any().optional(),
+    slot: z.enum(['left', 'stage', 'right', 'dock']).optional(),
+    size: z.enum(['sm', 'md', 'lg']).optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/display/widgets/{widgetId}'
+        pathStr = pathStr.replace('{widgetId}', encodeURIComponent(String(args['widgetId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['title', 'content', 'slot', 'size']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const enableMySchedule: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'enable_my_schedule',
@@ -4465,6 +4652,11 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   createMySchedule,
   createSession,
   disableMySchedule,
+  displayAddWidget,
+  displayClear,
+  displayListWidgets,
+  displayRemoveWidget,
+  displayUpdateWidget,
   enableMySchedule,
   endCall,
   getBackgroundProcess,
@@ -4499,6 +4691,11 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
 // fires and spawned-session targets never see it.
 export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   createSession,
+  displayAddWidget,
+  displayClear,
+  displayListWidgets,
+  displayRemoveWidget,
+  displayUpdateWidget,
   getDelegatedTask,
   listDelegatedTasks,
   listSessions,

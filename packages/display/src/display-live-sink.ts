@@ -11,10 +11,15 @@
 //     and the outbox row is its record; a failing socket must not turn a
 //     successful add into an error the caller sees.
 
+// `userId` is a SEPARATE argument, not a frame field: the channel is per user
+// and the frame is what crosses the wire, where the owner is already implied
+// (`DisplayWidgetView` carries no `userId` for the same reason). Addressing
+// belongs to the caller's side of the seam.
+
 import type { DisplayLiveFrame } from '@vynel/contracts/display/display-live'
 
 export interface DisplayLiveSink {
-  publish(frame: DisplayLiveFrame): void
+  publish(userId: string, frame: DisplayLiveFrame): void
 }
 
 /** The optional dependency every display op accepts. */

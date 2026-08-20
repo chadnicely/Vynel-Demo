@@ -101,16 +101,20 @@ export function addDisplayWidget(
 
   // Every removal first, so a watching window never holds thirteen cards.
   for (const row of written.expired) {
-    deps.liveSink?.publish({ kind: 'removed', widgetId: row.id, scopeKey: row.scopeKey })
+    deps.liveSink?.publish(input.userId, {
+      kind: 'removed',
+      widgetId: row.id,
+      scopeKey: row.scopeKey,
+    })
   }
   if (written.evicted) {
-    deps.liveSink?.publish({
+    deps.liveSink?.publish(input.userId, {
       kind: 'removed',
       widgetId: written.evicted.id,
       scopeKey: written.evicted.scopeKey,
     })
   }
   const view = toDisplayWidgetView(written.widget)
-  deps.liveSink?.publish({ kind: 'upserted', widget: view })
+  deps.liveSink?.publish(input.userId, { kind: 'upserted', widget: view })
   return view
 }

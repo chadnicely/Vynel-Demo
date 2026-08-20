@@ -531,6 +531,44 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  display: {
+  addWidget: async (input: NonNullable<paths["/display/widgets"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/display/widgets", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  clear: async (input: NonNullable<paths["/display/clear"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/display/clear", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listWidgets: async (options: NonNullable<paths["/display/widgets"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/display/widgets", {
+      params: { query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  removeWidget: async (widgetId: NonNullable<paths["/display/widgets/{widgetId}/remove"]["post"]['parameters']>['path']["widgetId"]) => {
+    const { data, error, response } = await client["POST"]("/display/widgets/{widgetId}/remove", {
+      params: { path: { widgetId: widgetId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  updateWidget: async (widgetId: NonNullable<paths["/display/widgets/{widgetId}"]["patch"]['parameters']>['path']["widgetId"], input: NonNullable<paths["/display/widgets/{widgetId}"]["patch"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PATCH"]("/display/widgets/{widgetId}", {
+      params: { path: { widgetId: widgetId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   features: {
   complete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/features/{featureId}/complete"]["post"]['parameters']>['path']["workspaceId"], featureId: NonNullable<paths["/workspaces/{workspaceId}/features/{featureId}/complete"]["post"]['parameters']>['path']["featureId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/features/{featureId}/complete", {

@@ -161,6 +161,8 @@ describe('addDisplayWidget', () => {
         { kind: 'removed', widgetId: oldest.id, scopeKey: 'global' },
         { kind: 'upserted', widget: thirteenth },
       ])
+      // Both frames are addressed to the owner — the channel is per user.
+      expect(sink.userIds).toEqual([userId, userId])
       expect(sink.sawOpenTransaction).toBe(false)
     })
   })

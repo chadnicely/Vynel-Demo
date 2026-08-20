@@ -33,6 +33,10 @@ export function removeDisplayWidget(
     return row
   })
 
-  deps.liveSink?.publish({ kind: 'removed', widgetId: removed.id, scopeKey: removed.scopeKey })
+  deps.liveSink?.publish(input.userId, {
+    kind: 'removed',
+    widgetId: removed.id,
+    scopeKey: removed.scopeKey,
+  })
   return toDisplayWidgetView(removed)
 }

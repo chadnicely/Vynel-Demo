@@ -5,7 +5,7 @@
 import type { ToolCatalogEntry } from '../tool-policy/catalog.js'
 
 /** Every tool the product composes, with its declared defaults — sorted by
- *  (serverName, toolName). 144 entries. */
+ *  (serverName, toolName). 149 entries. */
 export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__desktop__act_on_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__act_on_desktop","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
@@ -54,6 +54,11 @@ export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__vynel__disable_my_schedule","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__disable_schedule","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__discover_installed_skills_for_provider","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
+  {"toolName":"mcp__vynel__display_add_widget","serverName":"vynel","surfaces":["workspace-interactive","delegated-workspace","spawned","agent","global-interactive","global-channel","delegated-global"],"cardClass":"never","capabilityId":"display"},
+  {"toolName":"mcp__vynel__display_clear","serverName":"vynel","surfaces":["workspace-interactive","delegated-workspace","spawned","agent","global-interactive","global-channel","delegated-global"],"cardClass":"never","capabilityId":"display"},
+  {"toolName":"mcp__vynel__display_list_widgets","serverName":"vynel","surfaces":["workspace-interactive","delegated-workspace","spawned","agent","global-interactive","global-channel","delegated-global"],"cardClass":"never","capabilityId":"display"},
+  {"toolName":"mcp__vynel__display_remove_widget","serverName":"vynel","surfaces":["workspace-interactive","delegated-workspace","spawned","agent","global-interactive","global-channel","delegated-global"],"cardClass":"never","capabilityId":"display"},
+  {"toolName":"mcp__vynel__display_update_widget","serverName":"vynel","surfaces":["workspace-interactive","delegated-workspace","spawned","agent","global-interactive","global-channel","delegated-global"],"cardClass":"never","capabilityId":"display"},
   {"toolName":"mcp__vynel__enable_my_schedule","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__enable_schedule","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","featureKey":"schedules"},
   {"toolName":"mcp__vynel__end_call","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"voice"},

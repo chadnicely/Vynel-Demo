@@ -93,6 +93,19 @@ export const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly stri
     'mcp__vynel__add_journal_entry',
     'mcp__vynel__list_my_journal_entries',
   ],
+  // The Display board (P2b). All five gate together — the read is only useful
+  // to decide what to write, so a half-open Display would just let the model
+  // look at a board it cannot touch. `defaultEnabled: true` in the capability
+  // catalog; the ROOT surface is ungated by construction
+  // (`vynelRoutingDescriptor` declares no `capabilityGatedTools`), so this map
+  // is the WORKSPACE toggle only.
+  display: [
+    'mcp__vynel__display_list_widgets',
+    'mcp__vynel__display_add_widget',
+    'mcp__vynel__display_update_widget',
+    'mcp__vynel__display_remove_widget',
+    'mcp__vynel__display_clear',
+  ],
 }
 
 // The TIER map for the workspace registries — `HubFeatureKey` → the tools

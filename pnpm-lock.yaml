@@ -218,6 +218,9 @@ importers:
       '@vynel/desktop-control':
         specifier: workspace:*
         version: link:../../packages/desktop-control
+      '@vynel/display':
+        specifier: workspace:*
+        version: link:../../packages/display
       '@vynel/embeddings':
         specifier: workspace:*
         version: link:../../packages/embeddings

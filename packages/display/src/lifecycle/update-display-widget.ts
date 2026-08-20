@@ -81,6 +81,6 @@ export function updateDisplayWidget(
   })
 
   const view = toDisplayWidgetView(updated)
-  deps.liveSink?.publish({ kind: 'upserted', widget: view })
+  deps.liveSink?.publish(input.userId, { kind: 'upserted', widget: view })
   return view
 }

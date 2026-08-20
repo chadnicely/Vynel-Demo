@@ -38,6 +38,16 @@ describe('live-channel keys', () => {
     expect(parseLiveChannelKey('voice:')).toBeNull()
   })
 
+  it('parses the per-user display channel, and nothing scoped under it', () => {
+    expect(liveChannelKeys.display).toBe('display')
+    expect(parseLiveChannelKey(liveChannelKeys.display)).toEqual({ kind: 'display' })
+    // The channel is per USER — a client trying to subscribe per scope is a
+    // client that would miss every other scope's frames. Refuse it.
+    expect(parseLiveChannelKey('display:foo')).toBeNull()
+    expect(parseLiveChannelKey('display:')).toBeNull()
+    expect(parseLiveChannelKey('display:global')).toBeNull()
+  })
+
   it('rejects unknown and empty keys', () => {
     expect(parseLiveChannelKey('turn:x')).toBeNull()
     expect(parseLiveChannelKey('session:')).toBeNull()

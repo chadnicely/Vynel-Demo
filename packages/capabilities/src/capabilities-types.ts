@@ -13,6 +13,7 @@ export type CapabilityId =
   | 'phases'
   | 'features'
   | 'journal'
+  | 'display'
 
 // Phase 1: every capability is workspace-scoped (memory/knowledge are per
 // workspace — "don't use global memory", user directive 2026-06-20). Knowledge

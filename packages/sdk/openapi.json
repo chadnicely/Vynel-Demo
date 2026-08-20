@@ -15219,7 +15219,8 @@
                               "plans",
                               "phases",
                               "features",
-                              "journal"
+                              "journal",
+                              "display"
                             ]
                           },
                           "displayName": {
@@ -15306,7 +15307,8 @@
                         "plans",
                         "phases",
                         "features",
-                        "journal"
+                        "journal",
+                        "display"
                       ]
                     },
                     "displayName": {
@@ -15365,7 +15367,8 @@
                 "plans",
                 "phases",
                 "features",
-                "journal"
+                "journal",
+                "display"
               ]
             },
             "required": true
@@ -22130,6 +22133,1584 @@
         }
       }
     },
+    "/display/widgets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Array of DisplayWidget.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "scopeKey": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "markdown",
+                          "table",
+                          "metric",
+                          "chart"
+                        ]
+                      },
+                      "content": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "markdown"
+                              },
+                              "body": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 32768
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "body"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "table"
+                              },
+                              "columns": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 120
+                                },
+                                "minItems": 1,
+                                "maxItems": 12
+                              },
+                              "rows": {
+                                "type": "array",
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "maxLength": 2000
+                                  }
+                                },
+                                "maxItems": 200
+                              },
+                              "caption": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "columns",
+                              "rows"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "metric"
+                              },
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                              },
+                              "delta": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "attention",
+                                  "live",
+                                  "muted"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "value",
+                              "label"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "chart"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "bar",
+                                  "line",
+                                  "donut"
+                                ]
+                              },
+                              "series": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 60
+                                    },
+                                    "points": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "label": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 60
+                                          },
+                                          "value": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "label",
+                                          "value"
+                                        ]
+                                      },
+                                      "minItems": 1,
+                                      "maxItems": 60
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "points"
+                                  ]
+                                },
+                                "minItems": 1,
+                                "maxItems": 4
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "type",
+                              "series"
+                            ]
+                          }
+                        ]
+                      },
+                      "slot": {
+                        "type": "string",
+                        "enum": [
+                          "left",
+                          "stage",
+                          "right",
+                          "dock"
+                        ]
+                      },
+                      "size": {
+                        "type": "string",
+                        "enum": [
+                          "sm",
+                          "md",
+                          "lg"
+                        ]
+                      },
+                      "sortOrder": {
+                        "type": "number"
+                      },
+                      "createdBySessionId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "expiresAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "scopeKey",
+                      "title",
+                      "kind",
+                      "content",
+                      "slot",
+                      "size",
+                      "sortOrder",
+                      "createdBySessionId",
+                      "expiresAt",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such workspace owned by this user."
+          }
+        },
+        "operationId": "getDisplayWidgets",
+        "tags": [
+          "display"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "List one scope's Display widgets, in presentation order.",
+        "x-sdk-name": "display.listWidgets",
+        "x-mcp": {
+          "exposed": true,
+          "name": "display_list_widgets",
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true,
+          "description": "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. This lists what is ALREADY on the board — call it before adding, and update the matching widget rather than adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). Read-only."
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The widget as it now sits on the board.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "scopeKey": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "markdown",
+                        "table",
+                        "metric",
+                        "chart"
+                      ]
+                    },
+                    "content": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "markdown"
+                            },
+                            "body": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 32768
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "body"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "table"
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              "minItems": 1,
+                              "maxItems": 12
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 2000
+                                }
+                              },
+                              "maxItems": 200
+                            },
+                            "caption": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "columns",
+                            "rows"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "metric"
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "delta": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "tone": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "attention",
+                                "live",
+                                "muted"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "value",
+                            "label"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "chart"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "bar",
+                                "line",
+                                "donut"
+                              ]
+                            },
+                            "series": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 60
+                                  },
+                                  "points": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "label": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 60
+                                        },
+                                        "value": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "value"
+                                      ]
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 60
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "points"
+                                ]
+                              },
+                              "minItems": 1,
+                              "maxItems": 4
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "type",
+                            "series"
+                          ]
+                        }
+                      ]
+                    },
+                    "slot": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "stage",
+                        "right",
+                        "dock"
+                      ]
+                    },
+                    "size": {
+                      "type": "string",
+                      "enum": [
+                        "sm",
+                        "md",
+                        "lg"
+                      ]
+                    },
+                    "sortOrder": {
+                      "type": "number"
+                    },
+                    "createdBySessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "scopeKey",
+                    "title",
+                    "kind",
+                    "content",
+                    "slot",
+                    "size",
+                    "sortOrder",
+                    "createdBySessionId",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid title, slot, size, or content."
+          },
+          "404": {
+            "description": "No such workspace owned by this user."
+          }
+        },
+        "operationId": "postDisplayWidgets",
+        "tags": [
+          "display"
+        ],
+        "parameters": [],
+        "summary": "Add a widget to a scope’s Display (the 13th evicts the oldest).",
+        "x-sdk-name": "display.addWidget",
+        "x-mcp": {
+          "exposed": true,
+          "name": "display_add_widget",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true,
+          "description": "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Call display_list_widgets first and prefer display_update_widget on a matching card over adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. slot is 'left' | 'stage' | 'right' | 'dock' (default 'stage', the widest region) and size is 'sm' | 'md' | 'lg' (default 'md'). The board holds 12 per scope: a 13th quietly evicts the oldest, so this never fails for being full."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "content": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "markdown"
+                          },
+                          "body": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 32768
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "body"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "table"
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "minItems": 1,
+                            "maxItems": 12
+                          },
+                          "rows": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 2000
+                              }
+                            },
+                            "maxItems": 200
+                          },
+                          "caption": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "columns",
+                          "rows"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "metric"
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "delta": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          },
+                          "tone": {
+                            "type": "string",
+                            "enum": [
+                              "default",
+                              "attention",
+                              "live",
+                              "muted"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "chart"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "bar",
+                              "line",
+                              "donut"
+                            ]
+                          },
+                          "series": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 60
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 60
+                                      },
+                                      "value": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "value"
+                                    ]
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 60
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "points"
+                              ]
+                            },
+                            "minItems": 1,
+                            "maxItems": 4
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "type",
+                          "series"
+                        ]
+                      }
+                    ]
+                  },
+                  "slot": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "stage",
+                      "right",
+                      "dock"
+                    ]
+                  },
+                  "size": {
+                    "type": "string",
+                    "enum": [
+                      "sm",
+                      "md",
+                      "lg"
+                    ]
+                  }
+                },
+                "required": [
+                  "scope",
+                  "title",
+                  "content"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/display/widgets/{widgetId}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "The updated widget.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "scopeKey": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "markdown",
+                        "table",
+                        "metric",
+                        "chart"
+                      ]
+                    },
+                    "content": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "markdown"
+                            },
+                            "body": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 32768
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "body"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "table"
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              "minItems": 1,
+                              "maxItems": 12
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 2000
+                                }
+                              },
+                              "maxItems": 200
+                            },
+                            "caption": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "columns",
+                            "rows"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "metric"
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "delta": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "tone": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "attention",
+                                "live",
+                                "muted"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "value",
+                            "label"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "chart"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "bar",
+                                "line",
+                                "donut"
+                              ]
+                            },
+                            "series": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 60
+                                  },
+                                  "points": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "label": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 60
+                                        },
+                                        "value": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "value"
+                                      ]
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 60
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "points"
+                                ]
+                              },
+                              "minItems": 1,
+                              "maxItems": 4
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "type",
+                            "series"
+                          ]
+                        }
+                      ]
+                    },
+                    "slot": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "stage",
+                        "right",
+                        "dock"
+                      ]
+                    },
+                    "size": {
+                      "type": "string",
+                      "enum": [
+                        "sm",
+                        "md",
+                        "lg"
+                      ]
+                    },
+                    "sortOrder": {
+                      "type": "number"
+                    },
+                    "createdBySessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "scopeKey",
+                    "title",
+                    "kind",
+                    "content",
+                    "slot",
+                    "size",
+                    "sortOrder",
+                    "createdBySessionId",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid title, slot, size, or content."
+          },
+          "404": {
+            "description": "No such widget owned by this user."
+          }
+        },
+        "operationId": "patchDisplayWidgetsByWidgetId",
+        "tags": [
+          "display"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "widgetId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "Update a Display widget in place (only the fields you pass change).",
+        "x-sdk-name": "display.updateWidget",
+        "x-mcp": {
+          "exposed": true,
+          "name": "display_update_widget",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true,
+          "description": "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Update the card already showing this thing instead of adding another one — a live number, a table gaining rows, a status changing. Find widgetId via display_list_widgets. Only the fields you pass change. content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. A widget cannot move between boards; to put it elsewhere, remove it and add it there."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "content": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "markdown"
+                          },
+                          "body": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 32768
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "body"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "table"
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "minItems": 1,
+                            "maxItems": 12
+                          },
+                          "rows": {
+                            "type": "array",
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 2000
+                              }
+                            },
+                            "maxItems": 200
+                          },
+                          "caption": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "columns",
+                          "rows"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "metric"
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "delta": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          },
+                          "tone": {
+                            "type": "string",
+                            "enum": [
+                              "default",
+                              "attention",
+                              "live",
+                              "muted"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "chart"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "bar",
+                              "line",
+                              "donut"
+                            ]
+                          },
+                          "series": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 60
+                                },
+                                "points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 60
+                                      },
+                                      "value": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "value"
+                                    ]
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 60
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "points"
+                              ]
+                            },
+                            "minItems": 1,
+                            "maxItems": 4
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "type",
+                          "series"
+                        ]
+                      }
+                    ]
+                  },
+                  "slot": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "stage",
+                      "right",
+                      "dock"
+                    ]
+                  },
+                  "size": {
+                    "type": "string",
+                    "enum": [
+                      "sm",
+                      "md",
+                      "lg"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/display/widgets/{widgetId}/remove": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The widget as it was when removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "scopeKey": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "markdown",
+                        "table",
+                        "metric",
+                        "chart"
+                      ]
+                    },
+                    "content": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "markdown"
+                            },
+                            "body": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 32768
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "body"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "table"
+                            },
+                            "columns": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 120
+                              },
+                              "minItems": 1,
+                              "maxItems": 12
+                            },
+                            "rows": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 2000
+                                }
+                              },
+                              "maxItems": 200
+                            },
+                            "caption": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "columns",
+                            "rows"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "metric"
+                            },
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "delta": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "tone": {
+                              "type": "string",
+                              "enum": [
+                                "default",
+                                "attention",
+                                "live",
+                                "muted"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "value",
+                            "label"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "chart"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "bar",
+                                "line",
+                                "donut"
+                              ]
+                            },
+                            "series": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 60
+                                  },
+                                  "points": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "label": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 60
+                                        },
+                                        "value": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "value"
+                                      ]
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 60
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "points"
+                                ]
+                              },
+                              "minItems": 1,
+                              "maxItems": 4
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "type",
+                            "series"
+                          ]
+                        }
+                      ]
+                    },
+                    "slot": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "stage",
+                        "right",
+                        "dock"
+                      ]
+                    },
+                    "size": {
+                      "type": "string",
+                      "enum": [
+                        "sm",
+                        "md",
+                        "lg"
+                      ]
+                    },
+                    "sortOrder": {
+                      "type": "number"
+                    },
+                    "createdBySessionId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "scopeKey",
+                    "title",
+                    "kind",
+                    "content",
+                    "slot",
+                    "size",
+                    "sortOrder",
+                    "createdBySessionId",
+                    "expiresAt",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such widget owned by this user."
+          }
+        },
+        "operationId": "postDisplayWidgetsByWidgetIdRemove",
+        "tags": [
+          "display"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "widgetId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "Remove one widget from the Display.",
+        "x-sdk-name": "display.removeWidget",
+        "x-mcp": {
+          "exposed": true,
+          "name": "display_remove_widget",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true,
+          "description": "Take one widget off the Display — the user said \"remove it\", or the thing it showed is finished. Find widgetId via display_list_widgets. This only clears a card off a screen; nothing the widget described is deleted."
+        }
+      }
+    },
+    "/display/clear": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "How many widgets were removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clearedCount": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "clearedCount"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such workspace owned by this user."
+          }
+        },
+        "operationId": "postDisplayClear",
+        "tags": [
+          "display"
+        ],
+        "parameters": [],
+        "summary": "Clear every widget from one scope’s Display.",
+        "x-sdk-name": "display.clear",
+        "x-mcp": {
+          "exposed": true,
+          "name": "display_clear",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true,
+          "description": "Clear a whole Display board at once — the user said \"clear the display\", or the subject changed entirely. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). To take a single card off, use display_remove_widget instead. This only clears cards off a screen; nothing they described is deleted."
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "scope"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/journal": {
       "get": {
         "responses": {
@@ -27863,6 +29444,7 @@
                       "phases",
                       "features",
                       "journal",
+                      "display",
                       null
                     ]
                   }

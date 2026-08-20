@@ -43,6 +43,11 @@ import {
 //     *_my_* mutations (Kafi 2026-08-20: the GLOBAL surfaces' schedule door —
 //     create_my_schedule takes scope 'global' | 'workspace'+workspaceId, its
 //     union body flattened by the generator). DELETE stays unexposed.
+//   - display (`.../routes/display/index.ts`, P2b 2026-08-21): the five board
+//     tools — list/add/update/remove/clear, all rootSurface +
+//     workspaceInteractiveSurface, all card class `never` (remove/clear are
+//     POSTs precisely so they do NOT auto-join the ask tier). Gated by the
+//     `display` capability, which defaults ON.
 //   - the 2026-07-05 API-completion waves: memory (2 reads + create_memory_entry
 //     mutatingApproved), chat (3 reads), workspaces (2 reads), users (2 reads),
 //     providers (3 reads; +list_available_chat_models 2026-07-31 — the
@@ -229,6 +234,17 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'disable_my_schedule',
   'list_my_schedules',
   'create_session',
+  // The Display board (P2b, 2026-08-21): rootSurface + workspaceInteractiveSurface
+  // — the global chat (and voice, which rides root) and a workspace conversation
+  // both put things on screen; a schedule fire or a spawned leaf has nobody
+  // watching, so they stay out of the plain workspace array. remove/clear are
+  // POSTs, never DELETEs, so all five stay card class `never`: a card asking
+  // permission to tidy a card off a screen costs more attention than it saves.
+  'display_list_widgets',
+  'display_add_widget',
+  'display_update_widget',
+  'display_remove_widget',
+  'display_clear',
   // Voice-in-calls (merged 2026-08-13): the call lifecycle rides the ROOT
   // surface — the brain joins, lists and leaves calls; speak predates them.
   'end_call',
@@ -281,6 +297,14 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
 // workspaceSurface, not workspaceInteractiveSurface.
 const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
   'create_session',
+  // The Display board (P2b) — the same five names the root surface gets: a
+  // workspace conversation writes to ITS own board (scope = that workspace id),
+  // and one name everywhere keeps the toolset from flipping per turn origin.
+  'display_list_widgets',
+  'display_add_widget',
+  'display_update_widget',
+  'display_remove_widget',
+  'display_clear',
   // The agent that can hand work off must be the agent that can read it back —
   // a workspace root delegates via send_message, so it needs these too.
   'get_delegated_task',

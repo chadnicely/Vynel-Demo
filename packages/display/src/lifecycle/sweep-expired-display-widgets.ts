@@ -49,14 +49,16 @@ export function sweepExpiredDisplayWidgets(
 
   const swept = withTransaction(db, (tx) => sweepExpiredWithinTransaction(tx, { ...input, now }))
 
-  // Only a user-scoped sweep publishes. A frame carries `scopeKey` but no
-  // `userId` and the channel is per-user, so a process-wide pass has no one to
-  // address — it would hand one user's sink another user's removals. The boot
-  // pass therefore stays silent (nothing is connected yet) and the lazy
-  // per-user sweep on every list is what reaches live windows.
+  // Only a user-scoped sweep publishes. The process-wide pass is the BOOT pass
+  // and nothing is connected yet, so its frames would address windows that do
+  // not exist; the lazy per-user sweep on every list is what reaches live ones.
   if (input.userId !== undefined) {
     for (const row of swept) {
-      deps.liveSink?.publish({ kind: 'removed', widgetId: row.id, scopeKey: row.scopeKey })
+      deps.liveSink?.publish(input.userId, {
+        kind: 'removed',
+        widgetId: row.id,
+        scopeKey: row.scopeKey,
+      })
     }
   }
   return { sweptCount: swept.length }

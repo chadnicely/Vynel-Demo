@@ -46,6 +46,9 @@ describe('listEnabledCapabilities', () => {
       // joined as defaultEnabled first-party capabilities (engineering-plan
       // modules, 2026-08-11; 'plans'/'journal'/'tasks' before them).
       expect(enabled.map((c) => c.id).sort()).toEqual([
+        // test: correct expectation — 'display' joined the catalog 2026-08-21 (the
+        // glanceable board), defaultEnabled like every core capability.
+        'display',
         'features',
         'journal',
         'knowledge',
@@ -68,6 +71,7 @@ describe('listEnabledCapabilities', () => {
         isEnabled: false,
       })
       expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
+        'display',
         'features',
         'journal',
         'memory',
@@ -96,6 +100,7 @@ describe('listEnabledCapabilities', () => {
       })
       const enabled = listEnabledCapabilities(db, workspace.id)
       expect(enabled.map((c) => c.id).sort()).toEqual([
+        'display',
         'features',
         'journal',
         'knowledge',
@@ -120,6 +125,7 @@ describe('listEnabledCapabilities', () => {
       })
       // Catalog capabilities resolve by default; the unknown plugin id is skipped.
       expect(listEnabledCapabilities(db, workspace.id).map((c) => c.id).sort()).toEqual([
+        'display',
         'features',
         'journal',
         'knowledge',

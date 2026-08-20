@@ -31,6 +31,8 @@ export function clearDisplayWidgets(
     return removed.length
   })
 
-  if (clearedCount > 0) deps.liveSink?.publish({ kind: 'cleared', scopeKey: input.scopeKey })
+  if (clearedCount > 0) {
+    deps.liveSink?.publish(input.userId, { kind: 'cleared', scopeKey: input.scopeKey })
+  }
   return { clearedCount }
 }
