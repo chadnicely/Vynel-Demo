@@ -99,6 +99,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Work interrupted by a restart is no longer forgotten.** When Claude had saved a
+  checkpoint before the app restarted, the conversation now shows it at startup, Claude
+  picks it up on your next message, and a newer checkpoint never silently erases it.
+  The checkpoint tool also tells Claude honestly which conversations resume on their own.
+- **A voice answer that produced nothing now says so** instead of leaving dead air.
 - **A workspace schedule now runs in the workspace's own conversation** — you watch it
   work in the thread like any other turn, instead of it running invisibly in the
   background.
