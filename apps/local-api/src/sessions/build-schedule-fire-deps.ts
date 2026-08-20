@@ -72,7 +72,6 @@ export interface BuildScheduleFireDepsOptions {
   hardCapMs?: number
 }
 
-
 export async function buildScheduleFireDeps(
   options: BuildScheduleFireDepsOptions,
 ): Promise<FireScheduleDeps> {

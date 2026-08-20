@@ -100,13 +100,35 @@ describe('manualFireSchedule (guard paths — never reach fireSchedule)', () => 
       const deps = stubFireDeps()
       await expect(
         manualFireSchedule(db, { scheduleId: schedule.id, userId: user.id }, deps, pool),
-      ).rejects.toThrow(/already running/i)
+      ).rejects.toThrow(/already queued or running/i)
       // Declined BEFORE any turn machinery — no second live fire.
       expect(deps.state.builtMcpServer).toBe(false)
       releaseFirstFire()
       await firstFire
       // Once the holder is done the same schedule is admittable again.
       expect(pool.holds(schedule.id)).toBe(false)
+    })
+  })
+
+  it("declines (409) when every slot is busy with OTHER schedules — Run now never queues a person", async () => {
+    await withTestDatabase(async (db) => {
+      const { user, schedule } = seed(db)
+      const pool = new ScheduleFirePool(1)
+      let releaseOther: () => void = () => {}
+      const otherFire = pool.admit(
+        "some-other-schedule",
+        () => new Promise<void>((resolve) => (releaseOther = resolve)),
+      )
+      const deps = stubFireDeps()
+      await expect(
+        manualFireSchedule(db, { scheduleId: schedule.id, userId: user.id }, deps, pool),
+      ).rejects.toThrow(/busy running other schedules/i)
+      // Declined at the door: nothing queued for this schedule, no turn machinery.
+      expect(pool.holds(schedule.id)).toBe(false)
+      expect(deps.state.builtMcpServer).toBe(false)
+      releaseOther()
+      await otherFire
+      expect(pool.hasFreeSlot).toBe(true)
     })
   })
 })

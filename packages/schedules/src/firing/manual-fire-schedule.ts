@@ -41,7 +41,19 @@ export async function manualFireSchedule(
     throw new ConflictError('This schedule is paused. Resume it before running it manually.')
   }
   // Admitted only AFTER the guards: a missing or paused schedule must answer
-  // immediately, never hold a slot for a fire that can't happen.
+  // immediately, never hold a slot for a fire that can't happen. And a person
+  // clicking Run now is never parked behind the poll's fires — no free slot
+  // answers 409 at once instead of an open-ended wait on the request.
+  if (pool.holds(schedule.id)) {
+    throw new ConflictError(
+      'This schedule is already queued or running. Wait for it to finish, then run it again.',
+    )
+  }
+  if (!pool.hasFreeSlot) {
+    throw new ConflictError(
+      'Vynel is busy running other schedules right now. Try again in a moment.',
+    )
+  }
   const queued = pool.admit(schedule.id, () =>
     fireSchedule(
       db,
@@ -49,8 +61,11 @@ export async function manualFireSchedule(
       deps,
     ),
   )
+  // Unreachable after the `holds` guard above — kept as the typed backstop.
   if (queued === null) {
-    throw new ConflictError('This schedule is already running. Wait for it to finish, then run it again.')
+    throw new ConflictError(
+      'This schedule is already queued or running. Wait for it to finish, then run it again.',
+    )
   }
   return queued
 }

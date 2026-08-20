@@ -38,6 +38,12 @@ export class ScheduleFirePool {
     return this.scheduleIdsInPool.has(scheduleId)
   }
 
+  /** Whether a fire admitted right now would run at once instead of queueing —
+   *  the interactive door (Run now) declines rather than parks a person. */
+  get hasFreeSlot(): boolean {
+    return this.activeCount < this.maxConcurrentFires
+  }
+
   /** How many fires hold a slot right now (queued ones are not counted). */
   get activeFireCount(): number {
     return this.activeCount
