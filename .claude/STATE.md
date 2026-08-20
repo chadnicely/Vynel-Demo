@@ -3,7 +3,25 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-21 (latest) LOOSE ENDS + SCHEDULE GAPS — main 8958bbfb, FULL GATE GREEN (917 files / 6155 tests)
+## ✅ 2026-08-21 (latest) THE DISPLAY — P1 MERGED (main a98db50c), P2 WIDGETS IN FLIGHT
+
+Kafi's new arc: the mission-control demo's HUD tab becomes **the Display** (never "HUD"/"Jarvis" — no borrowed hero
+names; package `@vynel/display`, tools `display_*`, the mini one = the display dock). Research
+`docs/module-notes/display-research.md` (demo internals · app seams · widget design); all six recommendations accepted
++ **the in-app web speech leg is the PRIMARY voice path** (daemon = wake). **P1 shipped:** `packages/ui/src/display/`
+(the demo's canvas-2D orb ported as a stoppable `createOrbRenderer` — ResizeObserver, DPR cap + re-measure, one
+batched shadow pass per ring, injectable palette; `DisplayOrb`/`DisplayPanel`/`DisplayStrip`, dark-only
+`.display-root` with seven `--display-*` vars) + `apps/local-web` (the room as a global canvas view
+`mainView: display`; `use-display-status` = ONE derivation over the existing composables, pure rows split out;
+`display-orb-state` = listening/speaking/energy + a spike per spoken clause via the player's sentence-start observer;
+the room OWNS its voice session — starts on mount, ends on unmount — and mounts the daemon link so relayed lines
+play through it; top-bar toggle via `use-display-toggle` remembers/restores the view; `VoiceOverlay` unmounted while
+the Display is up; `start-voice` routes to the room; mic pill Muted/Listening/Resume). **P2 plan:**
+`docs/module-notes/display-p2.md` — P2a leaf + contracts (running, worktree display-p2 band 18950) → P2b routes/tools
++ P2c live channel (parallel) → P2d renderers. **Owed by Kafi:** open the Display from the top bar, talk, watch the
+orb; leave and come back (mic handed back / re-opened).
+
+## ✅ 2026-08-21 LOOSE ENDS + SCHEDULE GAPS — main 8958bbfb, FULL GATE GREEN (917 files / 6155 tests)
 
 **chore/loose-ends** (55332aed): `stripAnsi` has ONE home (`@vynel/contracts/text/strip-ansi`; server-install's
 differently-shaped regex left for its own fix); every interactive turn's provider input carries the current local
