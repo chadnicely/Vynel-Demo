@@ -141,3 +141,9 @@ export {
   consumeAskCreatedEvent,
   type AskCreatedPayload,
 } from './delivery/consume-ask-created-event.js'
+// The channel leg of `schedule.run-missed` — the chat leg lives in
+// orchestration, and core's one composite registry entry drives both.
+export {
+  enqueueMissedScheduleChannelNotice,
+  type MissedScheduleChannelNoticeInput,
+} from './delivery/enqueue-missed-schedule-channel-notice.js'

@@ -17,12 +17,15 @@ import { OUTBOX_CONSUMERS } from './outbox-consumer-registry.js'
 describe('OUTBOX_CONSUMERS (real registry)', () => {
   // test: correct expectation — `schedule.run-failed` joined the registry
   // (a failed schedule run now routes into a global-root report delivery),
-  // then `task.created` (the pickup nudge, task-execution arc 2026-08-18).
-  it('registers the four live consumers', () => {
+  // then `task.created` (the pickup nudge, task-execution arc 2026-08-18),
+  // then `schedule.run-missed` (schedule-gaps G1 — a slot nobody was told
+  // about; the one entry that drives TWO reactions).
+  it('registers the five live consumers', () => {
     expect(Object.keys(OUTBOX_CONSUMERS).sort()).toEqual([
       'ask.created',
       'schedule.run-completed',
       'schedule.run-failed',
+      'schedule.run-missed',
       'task.created',
     ])
   })
@@ -50,6 +53,45 @@ describe('OUTBOX_CONSUMERS (real registry)', () => {
       expect(result).toEqual({ dispatched: 1, failed: 0 })
       expect(
         listUnprocessedOutboxEvents(db, { types: ['schedule.run-failed'], limit: 10 }),
+      ).toHaveLength(0)
+    })
+  })
+
+  it('dispatch relays a published schedule.run-missed into BOTH legs, exactly once', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      const publish = () =>
+        insertOutboxEvent(db, {
+          id: randomUUID(),
+          type: 'schedule.run-missed',
+          payload: {
+            scheduleId: 'sched-1',
+            runId: 'run-1',
+            userId: channel.userId,
+            workspaceId: null,
+            channelId: channel.id,
+            scheduleDisplayName: 'Tea',
+            missedAtLocal: 'Aug 21, 2026, 5:00 PM',
+            nextFireAtLocal: 'Aug 22, 2026, 5:00 PM',
+            missedAt: new Date().toISOString(),
+          },
+          createdAt: new Date(),
+          processedAt: null,
+        })
+
+      publish()
+      expect(dispatchOutboxEvents(db)).toEqual({ dispatched: 1, failed: 0 })
+
+      // The channel leg fired beside the chat one (the composite entry).
+      const queued = listOutboundMessagesForChannel(db, channel.id)
+      expect(queued).toHaveLength(1)
+      expect(queued[0]?.messageBody).toContain('missed its Aug 21, 2026, 5:00 PM run')
+
+      // Processed exactly once — a second tick finds nothing to redeliver.
+      expect(dispatchOutboxEvents(db)).toEqual({ dispatched: 0, failed: 0 })
+      expect(listOutboundMessagesForChannel(db, channel.id)).toHaveLength(1)
+      expect(
+        listUnprocessedOutboxEvents(db, { types: ['schedule.run-missed'], limit: 10 }),
       ).toHaveLength(0)
     })
   })

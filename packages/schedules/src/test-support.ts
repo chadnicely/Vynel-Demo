@@ -84,8 +84,12 @@ export function seedChatOnlySchedule(db: Database): Schedule {
 }
 
 // A verbatim reminder bound to a channel — fires WITHOUT an LLM turn; the
-// promptTemplate is delivered as-is.
-export function seedReminderSchedule(db: Database): Schedule {
+// promptTemplate is delivered as-is. Override the destination for the
+// chat-only shape (whose only delivery is the chat notice).
+export function seedReminderSchedule(
+  db: Database,
+  overrides: Partial<NewSchedule> = {},
+): Schedule {
   const { userId, workspaceId } = seedUserWorkspace(db)
   return insertSchedule(
     db,
@@ -94,6 +98,7 @@ export function seedReminderSchedule(db: Database): Schedule {
       destinationKind: 'chat-and-channel',
       channelId: 'channel-1',
       promptTemplate: 'Attend your 2pm meeting.',
+      ...overrides,
     }),
   )
 }
@@ -115,7 +120,10 @@ function seedGlobalUser(db: Database): string {
 // A GLOBAL verbatim reminder (null workspaceId) bound to a channel — fires
 // WITHOUT an LLM turn, so it never reaches the workspace lookup. Proves a
 // global schedule fires with no workspace.
-export function seedGlobalReminderSchedule(db: Database): Schedule {
+export function seedGlobalReminderSchedule(
+  db: Database,
+  overrides: Partial<NewSchedule> = {},
+): Schedule {
   return insertSchedule(
     db,
     makeSchedule(seedGlobalUser(db), null, {
@@ -123,6 +131,7 @@ export function seedGlobalReminderSchedule(db: Database): Schedule {
       destinationKind: 'chat-and-channel',
       channelId: 'channel-1',
       promptTemplate: 'Attend your 2pm meeting.',
+      ...overrides,
     }),
   )
 }
@@ -174,7 +183,18 @@ export interface StubFireDeps extends FireScheduleDeps {
     /** What the fire path asked the marker renderer for — the framing
      *  assertions read the schedule name + the tz-rendered fire time here. */
     renderedMarkers: Array<{ scheduleDisplayName: string; firedAtLocal: string }>
+    /** The quiet chat notices a VERBATIM fire wrote (schedule-gaps G2) —
+     *  scope, author line and the word-for-word body. */
+    chatNotices: Array<{
+      userId: string
+      workspaceId: string | null
+      sourceLabel: string
+      body: string
+    }>
   }
+  /** What the stubbed notice writer answers next — flip it to 'no-thread' to
+   *  exercise a scope that has no conversation yet. */
+  chatNoticeOutcome: { value: 'written' | 'no-thread' }
 }
 
 // The fire-path dep stub: a composeWorkspaceMcpServers that records it was
@@ -192,7 +212,9 @@ export function stubFireDeps(): StubFireDeps {
     buildCount: 0,
     globalTurns: [],
     renderedMarkers: [],
+    chatNotices: [],
   }
+  const chatNoticeOutcome: StubFireDeps['chatNoticeOutcome'] = { value: 'written' }
   return {
     // A no-op async generator — yields nothing (inferred AsyncGenerator<never>
     // satisfies the required AsyncIterable<ChatTurnEvent> field).
@@ -237,6 +259,13 @@ export function stubFireDeps(): StubFireDeps {
       state.renderedMarkers.push(input)
       return `(SCHEDULE-FIRE ${input.scheduleDisplayName} @ ${input.firedAtLocal})`
     },
+    // The real writer resolves the scope's primary head (@vynel/session, a
+    // package this leaf must not import); here it just records the ask.
+    recordScheduleChatNotice: (_db, input) => {
+      state.chatNotices.push(input)
+      return chatNoticeOutcome.value
+    },
+    chatNoticeOutcome,
     state,
   }
 }

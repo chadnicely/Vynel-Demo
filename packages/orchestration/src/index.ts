@@ -89,6 +89,10 @@ export {
   type ScheduleRunFailedPayload,
 } from './routing/consume-schedule-run-failed-event.js'
 export {
+  consumeScheduleRunMissedEvent,
+  type ScheduleRunMissedPayload,
+} from './routing/consume-schedule-run-missed-event.js'
+export {
   consumeTaskCreatedEvent,
   type TaskCreatedPayload,
 } from './routing/consume-task-created-event.js'

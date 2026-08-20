@@ -5,7 +5,9 @@ import {
   listScheduleRunsForSchedule,
   updateSchedule,
 } from '../repositories/index.js'
+import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { seedDueSchedule, stubFireDeps } from '../test-support.js'
+import { formatScheduledTime } from '../rendering/render-schedule-channel-message.js'
 import { runScheduleClaimAndFireTick } from './run-schedule-claim-and-fire-tick.js'
 import { ScheduleFirePool } from './schedule-fire-pool.js'
 import type { FireScheduleDeps } from '../schedules-types.js'
@@ -82,6 +84,63 @@ describe('runScheduleClaimAndFireTick', () => {
       // The claim advanced nextScheduledFireAt past the overdue window.
       const after = findScheduleById(db, schedule.id)
       expect(after!.nextScheduledFireAt!.getTime()).toBeGreaterThan(TWO_DAYS_AGO.getTime())
+
+      // schedule-gaps G1: the row and its announcement co-commit (invariant #5)
+      // — a missed slot used to be written and told to nobody.
+      const events = listOutboxEventsByType(db, 'schedule.run-missed')
+      expect(events).toHaveLength(1)
+      const payload = events[0]!.payload as {
+        runId: string
+        userId: string
+        workspaceId: string | null
+        channelId: string | null
+        scheduleDisplayName: string
+        missedAtLocal: string
+        nextFireAtLocal: string | null
+      }
+      expect(payload.runId).toBe(runs[0]!.id)
+      expect(payload.userId).toBe(schedule.userId)
+      expect(payload.workspaceId).toBe(schedule.workspaceId)
+      expect(payload.channelId).toBeNull() // chat-only seed
+      expect(payload.scheduleDisplayName).toBe(schedule.displayName)
+      expect(payload.missedAtLocal).toBe(formatScheduledTime(TWO_DAYS_AGO, schedule.timezone))
+      // The NEXT run is the slot the claim just armed — never the one just missed.
+      expect(payload.nextFireAtLocal).toBe(
+        formatScheduledTime(after!.nextScheduledFireAt!, schedule.timezone),
+      )
+    })
+  })
+
+  it('carries the channel on a chat-and-channel schedule, and none on a one-time that disarmed', async () => {
+    await withTestDatabase(async (db) => {
+      const channelBound = seedDueSchedule(db, {
+        nextScheduledFireAt: TWO_DAYS_AGO,
+        catchUpOnMiss: false,
+        destinationKind: 'chat-and-channel',
+        channelId: 'channel-1',
+      })
+      const oneTime = seedDueSchedule(db, {
+        nextScheduledFireAt: TWO_DAYS_AGO,
+        catchUpOnMiss: false,
+        scheduleKind: 'one-time',
+        cronExpression: null,
+      })
+
+      await tick(db, stubFireDeps())
+
+      const byScheduleId = new Map(
+        listOutboxEventsByType(db, 'schedule.run-missed').map((event) => {
+          const payload = event.payload as {
+            scheduleId: string
+            channelId: string | null
+            nextFireAtLocal: string | null
+          }
+          return [payload.scheduleId, payload]
+        }),
+      )
+      expect(byScheduleId.get(channelBound.id)?.channelId).toBe('channel-1')
+      // A disarmed one-time schedule has no next run to name.
+      expect(byScheduleId.get(oneTime.id)?.nextFireAtLocal).toBeNull()
     })
   })
 

@@ -104,6 +104,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A missed schedule now tells you.** If Vynel was not running when a schedule was due
+  (and catch-up is off), the conversation gets a quiet "Schedule · <name> missed its run"
+  notice with the next run time — and the channel message too when one is configured.
+- **A plain reminder set to chat now shows up in the chat** as a "Schedule · <name>"
+  notice instead of vanishing; chat-and-channel reminders land in both places.
 - **Work interrupted by a restart is no longer forgotten.** When Claude had saved a
   checkpoint before the app restarted, the conversation now shows it at startup, Claude
   picks it up on your next message, and a newer checkpoint never silently erases it.

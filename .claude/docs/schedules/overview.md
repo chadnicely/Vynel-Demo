@@ -29,11 +29,11 @@ What makes this a product surface rather than plumbing is that the user owns eac
 - **Run now** — fire immediately, without disturbing the next scheduled run. Deliberately *not* a chat tool (it drives a whole turn rather than editing a row); it lives only on Vynel's own app surface, and today's panel does not yet show a button for it.
 - **Delete a schedule** — a hard delete that takes its whole run history with it. Also never a chat tool, and likewise unbuttoned in today's panel.
 - **Read the run history** — every firing recorded as a run, newest first, with its outcome and any error; the assistant can read it from a workspace conversation (a global one has no tool for it), and the panel does not display it yet.
-- *(background)* **Fire on the clock** — a once-a-minute sweep lists what is due, claims each slot, and runs several firings at once; it records every run, hands a channel-bound result to the channel, and makes sure a failure is told to the user rather than left on a row nobody reads.
+- *(background)* **Fire on the clock** — a once-a-minute sweep lists what is due, claims each slot, and runs several firings at once; it records every run, hands a channel-bound result to the channel, and makes sure a failure — or a slot missed while Vynel was off — is told to the user rather than left on a row nobody reads.
 
 ## Responsibilities
 
-**Owns** — the schedule itself and its firing: the schedule record (its clock or single moment, prompt, timezone, destination, scope and on/off flag, plus the cached next-fire time) and a run record for every firing; the create / list / edit / pause / delete / run-now surface; the placeholder rendering in a prompt and the formatting of a channel message; the **fire frame** a firing is presented under (the scheduler-is-firing framing for the model and the "Schedule · \<name\>" author line for the transcript); the once-a-minute sweep with its atomic claim, its catch-up-versus-missed decision and its bound on how many firings run at once; and the two outbox events it publishes — one when a channel-bound firing succeeds, one when any firing fails.
+**Owns** — the schedule itself and its firing: the schedule record (its clock or single moment, prompt, timezone, destination, scope and on/off flag, plus the cached next-fire time) and a run record for every firing; the create / list / edit / pause / delete / run-now surface; the placeholder rendering in a prompt and the formatting of a channel message; the **fire frame** a firing is presented under (the scheduler-is-firing framing for the model and the "Schedule · \<name\>" author line for the transcript); the once-a-minute sweep with its atomic claim, its catch-up-versus-missed decision and its bound on how many firings run at once; and the three outbox events it publishes — one when a channel-bound firing succeeds, one when any firing fails, one when an overdue slot is recorded as missed.
 
 **Does not own** —
 - **the assistant turn a firing runs** — that belongs to [chat](../chat/overview.md) and [session](../session/overview.md); schedules never calls them, the app wiring injects a ready-made turn;
@@ -41,7 +41,7 @@ What makes this a product surface rather than plumbing is that the user owns eac
 - **the wording of the fire framing** — the instruction text lives in [instructions](../instructions/overview.md) and is handed in;
 - **the tool surface and capability prompt** a fired turn is equipped with — composed by [mcp](../_apps/mcp/overview.md) and [capabilities](../capabilities/overview.md) and likewise injected;
 - **delivering a result to Telegram or another channel** — [channels](../channels/overview.md) consumes the success event and sends the message;
-- **telling the user about a failed firing** — [orchestration](../orchestration/overview.md) turns the failure event into a report on the user's global conversation;
+- **telling the user about a failed or missed firing** — [orchestration](../orchestration/overview.md) turns the failure event into a report on the user's global conversation, and the missed event into one on that schedule's own conversation;
 - **the once-a-minute timer and all of the injection above** — the [local-api](../_apps/local-api/overview.md) app owns it (the desktop runs no separate worker);
 - **the underlying AI runtime** — reached only through [providers](../providers/overview.md);
 - **the user and workspace rows** a firing reads for its prompt — the [db](../_platform/database/overview.md) kernel;
@@ -61,7 +61,7 @@ What makes this a product surface rather than plumbing is that the user owns eac
 | **Scope** | A schedule belongs to a user and optionally a workspace; with no workspace it is a **global** schedule. |
 | **Run** | One recorded firing. Its outcome is *pending*, *running*, *completed*, *failed* or *missed*. |
 | **Trigger kind** | Why a run happened: *poll* (fired on time), *catchup* (an overdue slot fired late), or *manual* ("Run now"). |
-| **Catch-up** | Whether an overdue slot (Vynel was offline) is fired late or instead recorded as a single missed run. |
+| **Catch-up** | Whether an overdue slot (Vynel was offline) is fired late or instead recorded as a single missed run — which is then announced, not left silent. |
 | **Next-fire time** | The cached instant a schedule is next due — advanced only by the sweep's claim, so a manual run never eats the next scheduled one. |
 | **Placeholders** | Markers in a prompt (the user's display name, the workspace, the current day or date) resolved against live rows at fire time; unknown ones pass through untouched. |
 
@@ -79,12 +79,12 @@ What makes this a product surface rather than plumbing is that the user owns eac
 - **A slot is claimed before it runs, by the worker about to run it.** The claim advances the next-fire time only if it still matches what the sweep observed, so overlapping sweeps can never fire one slot twice — and a crash mid-batch loses nothing that was still waiting.
 - **An overdue slot fires once or is recorded once — never both, never a flood.** If Vynel was offline through several missed slots, catch-up either fires the observed slot a single time or records a single missed run, and the clock jumps past the whole overdue window in one step.
 - **Every firing's terminal writes co-commit with its event.** The finished run, the updated last-fired stamp and the outbox event land in one transaction, or none of them do. The assistant turn itself runs outside that transaction.
-- **A firing that fails is reported; a slot recorded as missed is not.** Every failure — including one that ran out of time — publishes an event that becomes a spoken report on the user's global conversation, because a run record has no screen of its own. An overdue slot with catch-up switched off is the exception: it is written as a single missed run and nothing announces it, so nobody is told the moment passed.
+- **A firing that fails is reported, and so is a slot that was missed.** Every failure — including one that ran out of time — publishes an event that becomes a spoken report on the user's global conversation, because a run record has no screen of its own. An overdue slot with catch-up switched off publishes its own event alongside the missed run: the user hears about it on that schedule's own conversation (its workspace's, or the global one), and on its channel too when it has one.
 - **The channel delivery event publishes only on a clean, channel-bound firing.** It needs success, a chat-and-channel destination, a channel, and either a conversation the turn ran on or a verbatim reminder to deliver.
 - **A paused schedule does nothing.** The sweep skips it, and "Run now" is refused until it is resumed.
 - **Deleting a schedule deletes its history.** There is no soft delete; the hard delete cascades to every run.
 - **A one-time schedule has no clock.** It fires at its fixed moment and disarms; trying to give it a repeating clock is rejected rather than quietly accepted.
-- **A verbatim reminder aimed only at chat has nowhere to land.** The reminder template defaults to chat-and-channel (which requires a channel), but one explicitly set to chat-only fires with no turn and no channel push, so only the run record shows it happened.
+- **A verbatim reminder lands in the conversation, whether or not it has a channel.** It runs no turn, so its words are written straight onto its destination conversation as a quiet notice authored "Schedule · \<name\>" — the reminder text word for word — and pushed to the channel as well when it has one. The one moment it still lands nowhere is a scope that has never held a conversation at all; that is logged rather than announced.
 
 ## Lifecycle
 
@@ -108,4 +108,4 @@ stateDiagram-v2
 Schedules is Vynel's initiative engine, and it leans on nearly every conversational part of the system without importing any of them. The [local-api](../_apps/local-api/overview.md) app owns the once-a-minute timer and hands the module everything a firing needs: a turn from [chat](../chat/overview.md) wrapped in [session](../session/overview.md)'s continuing-conversation resume, single-writer lock and time cap; a tool surface from [mcp](../_apps/mcp/overview.md) and a capability prompt from [capabilities](../capabilities/overview.md); the framing words from [instructions](../instructions/overview.md). The turn reaches the model only through [providers](../providers/overview.md). When a result is bound for a channel, schedules announces it and [channels](../channels/overview.md) sends it to Telegram or wherever the user pointed it; when a firing fails, [orchestration](../orchestration/overview.md) turns that announcement into a report the user actually hears on their global conversation. The template catalogue lives in [contracts](../_platform/contracts-and-sdk/overview.md) so the [local-web](../_apps/local-web/overview.md) panel and the api describe schedules identically. In short: schedules decides *when*, *what to say* and *who is speaking*; the rest of Vynel decides *how the turn runs* and *where the answer lands*.
 
 ---
-*Mapped from the code on disk, 2026-08-20. If you change this module, update this file and [structure.md](./structure.md).*
+*Mapped from the code on disk, 2026-08-20 (schedule-gaps G1/G2 folded in 2026-08-21). If you change this module, update this file and [structure.md](./structure.md).*

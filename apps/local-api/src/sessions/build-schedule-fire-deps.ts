@@ -37,7 +37,7 @@ import {
   composeSessionCapabilities,
   type SessionActivityFeed,
 } from '@vynel/session/runtime'
-import { findPrimaryConversation } from '@vynel/session/continuity'
+import { findPrimaryConversation, recordNoteOnPrimaryHead } from '@vynel/session/continuity'
 import {
   resolveBackgroundTurnSettings,
   type SessionTargetLocks,
@@ -127,6 +127,37 @@ export async function buildScheduleFireDeps(
     ...(swapThreshold !== undefined ? { swapThreshold } : {}),
   })
 
+  // G2 — the CHAT leg of a verbatim reminder: the destination conversation's
+  // head, written through the ONE system-note home. A verbatim fire runs no
+  // turn, so nothing else would ever put those words in the chat. Sync — the
+  // leaf calls it inside its terminal transaction, so the notice and the
+  // completed run co-commit. No primary yet (a scope that has never held a
+  // conversation) answers 'no-thread'; the leaf logs it.
+  const recordScheduleChatNotice: FireScheduleDeps['recordScheduleChatNotice'] = (
+    noticeDb,
+    input,
+  ) => {
+    const primary = findPrimaryConversation(noticeDb, {
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+    })
+    if (primary === null) return 'no-thread'
+    const outcome = recordNoteOnPrimaryHead(noticeDb, {
+      primarySessionId: primary.id,
+      sourceLabel: input.sourceLabel,
+      body: input.body,
+    })
+    // The note home's third outcome needs `onlyIfNotLatest`, which this binder
+    // deliberately never passes: a daily reminder saying the same words every
+    // day must land every day, so a schedule notice must NEVER dedupe against
+    // the head's latest row. It maps to 'written' rather than to 'no-thread'
+    // because the words ARE on the thread either way — and the fire reads this
+    // answer to decide whether the run row admits it delivered nothing, so
+    // "deduped" must never be reported as "lost". Mapping instead of casting
+    // also makes a future FOURTH outcome a compile error right here.
+    return outcome === 'already-latest' ? 'written' : outcome
+  }
+
   // BT1 — a GLOBAL schedule fires a GLOBAL-ROOT turn: the rendered prompt is
   // the user message on the user's global conversation, through the same
   // runner channels use. The runner holds the per-user root lock itself and
@@ -171,6 +202,7 @@ export async function buildScheduleFireDeps(
     // (@vynel/instructions) — the leaf composes the frame but must not import
     // a sibling leaf, so the renderer is handed in here.
     renderScheduleFireMarker,
+    recordScheduleChatNotice,
     // The session runtime's `startChatTurn` yields the RUNTIME `ChatTurnEvent`
     // (Date timestamps, `ChatSession` rows) and takes the narrower provider
     // mode / provider id types; `FireScheduleDeps['startChatTurn']` is typed

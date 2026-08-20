@@ -27,6 +27,10 @@ export type RecordNoteOnPrimaryHeadInput = {
   primarySessionId: string
   /** The finished note text — composed by the caller. */
   body: string
+  /** Sign the note ("Schedule · Tea") — the row then wears sourceKind 'system'
+   *  + this label instead of continuity's anonymous shape. The body stays
+   *  exactly what the caller composed. */
+  sourceLabel?: string
   /** Skip the write when the head's newest row already says exactly this. */
   onlyIfNotLatest?: boolean
   now?: Date
@@ -57,6 +61,7 @@ export function recordNoteOnPrimaryHead(
   return recordSystemNoteMessage(db, {
     sessionId: headSessionId,
     body: input.body,
+    ...(input.sourceLabel !== undefined ? { sourceLabel: input.sourceLabel } : {}),
     now: input.now ?? new Date(),
   })
     ? 'written'

@@ -57,6 +57,12 @@ export const WATCHABLE_EVENT_TYPES: readonly WatchableEventType[] = [
     filterableFields: ['scheduleId', 'workspaceId'],
   },
   {
+    type: 'schedule.run-missed',
+    description:
+      'A scheduled task’s slot passed while Vynel was not running — the run never happened.',
+    filterableFields: ['scheduleId', 'workspaceId'],
+  },
+  {
     type: 'agent.run-completed',
     description: 'A configured agent finished a run.',
     filterableFields: ['agentId', 'workspaceId'],

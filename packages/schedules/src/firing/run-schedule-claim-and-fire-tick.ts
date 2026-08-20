@@ -5,8 +5,9 @@
 // place nextScheduledFireAt advances — to the next croner slot, past the whole
 // overdue window in one step. Catch-up folds in here: an overdue slot fires
 // once for the observed slot (if catchUpOnMiss) or records a single 'missed'
-// run; never both, never a flood. async (each fire drives the provider
-// stream).
+// run — co-committed with the `schedule.run-missed` event that announces it
+// (schedule-gaps G1); never both, never a flood. async (each fire drives the
+// provider stream).
 //
 // Background-turns BT3: the due set fires CONCURRENTLY through the pool the
 // poll service owns (`ScheduleFirePool` — one per process, the delegation
@@ -28,8 +29,12 @@
 
 import { randomUUID } from 'node:crypto'
 import { Cron } from 'croner'
+import { withTransaction } from '@vynel/db'
+import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
 import { isOneTimeSchedule } from '@vynel/contracts/schedules/one-time'
 import * as schedulesRepository from '../repositories/index.js'
+import { formatScheduledTime } from '../rendering/render-schedule-channel-message.js'
+import { SCHEDULE_RUN_MISSED_EVENT_TYPE } from '../schedules-events.js'
 import { fireSchedule } from './fire-schedule.js'
 import type { ScheduleFirePool } from './schedule-fire-pool.js'
 import type { Database } from '@vynel/db'
@@ -97,10 +102,14 @@ async function claimAndFireDueSlot(
   const observed = schedule.nextScheduledFireAt
   if (observed === null) return 'claim-lost'
   try {
+    // Held for the missed notice below: the claim ADVANCES the row past this
+    // slot, so re-reading `nextScheduledFireAt` afterwards would name the very
+    // slot being missed as the "next run".
+    const nextFireAt = computeNextFireAt(schedule, tickStartedAt)
     const claimed = schedulesRepository.claimDueSchedule(db, {
       id: schedule.id,
       observedNextFireAt: observed,
-      nextFireAt: computeNextFireAt(schedule, tickStartedAt),
+      nextFireAt,
     })
     if (!claimed) return 'claim-lost'
 
@@ -111,17 +120,7 @@ async function claimAndFireDueSlot(
     // 'missed' run — never both.
     const overdue = isOverdue(observed, tickStartedAt)
     if (overdue && !schedule.catchUpOnMiss) {
-      schedulesRepository.insertScheduleRun(db, {
-        id: randomUUID(),
-        scheduleId: schedule.id,
-        scheduledFireAt: observed,
-        startedAt: tickStartedAt,
-        completedAt: tickStartedAt,
-        chatSessionId: null,
-        status: 'missed',
-        statusMessage: 'Vynel was offline at the scheduled time.',
-        triggerKind: 'poll',
-      })
+      recordMissedSlot(db, schedule, { observed, nextFireAt, tickStartedAt })
       return 'missed'
     }
     await fireSchedule(
@@ -134,6 +133,51 @@ async function claimAndFireDueSlot(
     deps.logger?.error({ err, scheduleId: schedule.id }, 'schedule fire threw unexpectedly')
     return 'failed'
   }
+}
+
+/** The missed slot's terminal write (schedule-gaps G1): the `missed` run row
+ *  and its announcement co-commit in ONE transaction (invariant #5) — a row on
+ *  a table with no UI, published to nobody, is how "the moment simply passed
+ *  in silence" survived this long. The consumers cannot import this leaf, so
+ *  both local times are rendered HERE, in the schedule's own timezone. */
+function recordMissedSlot(
+  db: Database,
+  schedule: Schedule,
+  slot: { observed: Date; nextFireAt: Date | null; tickStartedAt: Date },
+): void {
+  const runId = randomUUID()
+  withTransaction(db, (tx) => {
+    schedulesRepository.insertScheduleRun(tx, {
+      id: runId,
+      scheduleId: schedule.id,
+      scheduledFireAt: slot.observed,
+      startedAt: slot.tickStartedAt,
+      completedAt: slot.tickStartedAt,
+      chatSessionId: null,
+      status: 'missed',
+      statusMessage: 'Vynel was offline at the scheduled time.',
+      triggerKind: 'poll',
+    })
+    insertOutboxEvent(tx, {
+      id: randomUUID(),
+      type: SCHEDULE_RUN_MISSED_EVENT_TYPE, // 'schedule.run-missed'
+      payload: {
+        scheduleId: schedule.id,
+        runId,
+        userId: schedule.userId,
+        workspaceId: schedule.workspaceId,
+        // Only a chat-and-channel destination has a channel leg at all.
+        channelId: schedule.destinationKind === 'chat-and-channel' ? schedule.channelId : null,
+        scheduleDisplayName: schedule.displayName,
+        missedAtLocal: formatScheduledTime(slot.observed, schedule.timezone),
+        nextFireAtLocal:
+          slot.nextFireAt === null ? null : formatScheduledTime(slot.nextFireAt, schedule.timezone),
+        missedAt: slot.observed.toISOString(),
+      },
+      createdAt: slot.tickStartedAt,
+      processedAt: null,
+    })
+  })
 }
 
 function computeNextFireAt(schedule: Schedule, from: Date): Date | null {

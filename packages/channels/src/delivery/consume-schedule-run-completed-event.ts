@@ -12,12 +12,14 @@
 // infra exists on disk yet; inventing it would trip the "don't invent
 // cross-cutting infra" Gate-1).
 //
+// The outbound row shape is the shared `enqueueSchedulePushToChannel` home,
+// alongside the missed-slot notice; this consumer owns only the payload it
+// reads and the text it pushes.
+//
 // Spec: `docs/blueprints/channels/blueprint.md §9`.
 
-import { randomUUID } from 'node:crypto'
-import * as channelsRepository from '../repositories/index.js'
+import { enqueueSchedulePushToChannel } from './enqueue-schedule-push-to-channel.js'
 import type { Database } from '@vynel/db'
-import type { Channel, ChannelUserLink } from '../repositories/index.js'
 
 // Field-for-field the payload `schedules` publishes (the 📅 header is baked
 // into `renderedOutput`; channels enqueues it verbatim).
@@ -36,39 +38,12 @@ export interface ScheduleRunCompletedPayload {
   firedAt: string // ISO
 }
 
-// A fired schedule is a push TO the user, so the recipient is the channel's
-// first allowed sender (the owner).
-function resolveScheduleRecipient(db: Database, channel: Channel): ChannelUserLink | null {
-  const senders = channelsRepository.listAllowedSenders(db, channel.id)
-  return senders[0] ?? null
-}
-
 export function consumeScheduleRunCompletedEvent(
   db: Database,
   payload: ScheduleRunCompletedPayload,
 ): void {
-  const channel = channelsRepository.findChannelById(db, payload.channelId)
-  if (!channel || !channel.isEnabled) return // schedule targets a removed/paused channel — drop quietly
-
-  const recipient = resolveScheduleRecipient(db, channel)
-  if (!recipient) return
-
-  const now = new Date()
-  channelsRepository.insertOutboundMessage(db, {
-    id: randomUUID(),
-    channelId: channel.id,
-    externalRecipientId: recipient.externalSenderId,
-    externalChatContextId: recipient.scopeContextId ?? recipient.externalSenderId,
+  enqueueSchedulePushToChannel(db, {
+    channelId: payload.channelId,
     messageBody: payload.renderedOutput,
-    messageStructure: JSON.stringify({ parseMode: 'plain' }),
-    payloadKind: 'scheduled-message',
-    status: 'pending',
-    statusMessage: null,
-    attemptCount: 0,
-    lastAttemptedAt: null,
-    nextAttemptAt: now,
-    externalSentMessageId: null,
-    enqueuedAt: now,
-    sentAt: null,
   })
 }

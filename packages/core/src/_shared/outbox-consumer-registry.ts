@@ -10,10 +10,22 @@
 //
 // Spec: `docs/blueprints/schedules/blueprint.md §8` + decisions D15.
 
-import { consumeAskCreatedEvent, consumeScheduleRunCompletedEvent } from '@vynel/channels'
+import {
+  consumeAskCreatedEvent,
+  consumeScheduleRunCompletedEvent,
+  enqueueMissedScheduleChannelNotice,
+} from '@vynel/channels'
 import type { AskCreatedPayload, ScheduleRunCompletedPayload } from '@vynel/channels'
-import { consumeScheduleRunFailedEvent, consumeTaskCreatedEvent } from '@vynel/orchestration'
-import type { ScheduleRunFailedPayload, TaskCreatedPayload } from '@vynel/orchestration'
+import {
+  consumeScheduleRunFailedEvent,
+  consumeScheduleRunMissedEvent,
+  consumeTaskCreatedEvent,
+} from '@vynel/orchestration'
+import type {
+  ScheduleRunFailedPayload,
+  ScheduleRunMissedPayload,
+  TaskCreatedPayload,
+} from '@vynel/orchestration'
 import type { Database } from '@vynel/db'
 import type { OutboxEventRow } from '@vynel/db/repositories/_shared'
 
@@ -36,6 +48,23 @@ export const OUTBOX_CONSUMERS: Record<string, OutboxConsumer> = {
   // reaches the user's chat instead of dying on a run row with no UI.
   'schedule.run-failed': (db, payload) =>
     consumeScheduleRunFailedEvent(db, payload as unknown as ScheduleRunFailedPayload),
+  // A MISSED schedule slot (overdue, catch-up off) → the notice on the
+  // schedule's own conversation, PLUS the channel push when its destination
+  // has one. The registry's only entry with two reactions: a missed slot is
+  // one fact the user must hear wherever that schedule normally speaks, and
+  // splitting it into two events would let the legs diverge.
+  'schedule.run-missed': (db, payload) => {
+    const missed = payload as unknown as ScheduleRunMissedPayload
+    consumeScheduleRunMissedEvent(db, missed)
+    if (missed.channelId !== null) {
+      enqueueMissedScheduleChannelNotice(db, {
+        channelId: missed.channelId,
+        scheduleDisplayName: missed.scheduleDisplayName,
+        missedAtLocal: missed.missedAtLocal,
+        nextFireAtLocal: missed.nextFireAtLocal,
+      })
+    }
+  },
   // A USER-created task → the pickup nudge on the scope's primary
   // conversation (assistant-created tasks return without enqueueing).
   'task.created': (db, payload) =>

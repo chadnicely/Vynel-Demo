@@ -115,6 +115,31 @@ export interface FireScheduleDeps {
       onSessionResolved?: (chatSessionId: string) => void
     },
   ) => Promise<{ sessionId: string; resultText: string }>
+  // Write a quiet system notice on the schedule's DESTINATION conversation —
+  // the workspace's continuing conversation, or the user's global one when
+  // `workspaceId` is null (schedule-gaps G2). Injected because the note's one
+  // home (`recordNoteOnPrimaryHead`) lives in a package this leaf must not
+  // import; the binder resolves the primary and signs the row with
+  // `sourceLabel`. SYNC on purpose: the fire calls it INSIDE the terminal
+  // transaction, so the notice and the completed run co-commit. Answers what
+  // the shared home answers — `'no-thread'` when the scope has no conversation
+  // yet (a first-ever fire), which the caller logs rather than swallows. TWO
+  // outcomes, not the note home's three: the binder never asks for the
+  // latest-row dedupe, and must not — a daily reminder whose text is identical
+  // every day has to land every day, so 'already-latest' stays unreachable
+  // here by design.
+  recordScheduleChatNotice: (
+    db: Database,
+    input: {
+      userId: string
+      /** null = the user's GLOBAL conversation. */
+      workspaceId: string | null
+      /** The row's author line — `scheduleSourceLabel(displayName)`. */
+      sourceLabel: string
+      /** The note body, verbatim — never prefixed with the label. */
+      body: string
+    },
+  ) => 'written' | 'no-thread'
   // Render the model-facing fire marker from the schedule's facts. Injected
   // (api-side: `@vynel/instructions`' `renderScheduleFireMarker`) because the
   // instruction files live in a sibling leaf this one must not import
