@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
+  PhBroadcast as Broadcast,
   PhBrowsers as Browsers,
   PhCommand as Command,
   PhDiamondsFour as DiamondsFour,
@@ -40,10 +41,12 @@ const props = withDefaults(
    *  workspace puts the rail toggle beside its files toggle, so the bar must
    *  not carry a second one. */
   showsTasksToggle?: boolean;
+  /** The Display room is on screen right now — the switch lights with it. */
+  displayOn?: boolean;
   }>(),
   // Explicit, not merely absent: Vue casts an unpassed boolean prop to false,
   // which would silently strip the toggle from a bar that never opted out.
-  { showsTasksToggle: true },
+  { showsTasksToggle: true, displayOn: false },
 );
 
 const emit = defineEmits<{
@@ -207,6 +210,24 @@ function onMenuCommand(id: string) {
          rail toggle only appears where the scope has no pane tools of its own
          — a workspace keeps it beside its files toggle instead. -->
     <div class="flex shrink-0 items-center gap-[18px] pl-1.5 pr-3 text-[13px]">
+      <!-- The Display switch: the orb room, and with it the microphone. It
+           sits on every scope (the room is global) and leads the row — the
+           window controls stay rightmost. -->
+      <button
+        type="button"
+        aria-label="Toggle Display"
+        :title="props.displayOn ? 'Close Display' : 'Open Display'"
+        :aria-pressed="props.displayOn"
+        class="grid place-items-center transition"
+        :class="
+          props.displayOn
+            ? 'text-[var(--color-accent-200)]'
+            : 'text-ink-3 hover:text-ink-1'
+        "
+        @click="emit('command', 'toggle-display')"
+      >
+        <Broadcast :size="13" />
+      </button>
       <button
         v-if="props.showsTasksToggle"
         type="button"

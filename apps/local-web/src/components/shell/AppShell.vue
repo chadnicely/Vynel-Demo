@@ -77,6 +77,7 @@ import { useSectionCounts } from "../../composables/workspaces/use-section-count
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
 import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-status.js";
+import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { foldGlobalAreaStatus } from "./global-area-status.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
@@ -534,6 +535,11 @@ watch(
   { immediate: true },
 );
 
+// The Display switch + the ONE reading of whether its room is on screen —
+// the title-bar glyph, the voice overlay's suppression and the command all
+// take their answer from here.
+const { isDisplayActive, toggleDisplay } = useDisplayToggle();
+
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
   isCreateWorkspaceOpen.value = false;
   addTab(workspace.id);
@@ -588,8 +594,17 @@ function runCommand(id: string) {
     case "claude-account":
       isClaudeAccountOpen.value = true;
       break;
+    // The room owns the microphone while it holds the canvas — raising the
+    // overlay behind it would start a second session with no orb to show it,
+    // and leave the page dimmed for an overlay that isn't mounted.
     case "start-voice":
-      ui.isVoiceOverlayOpen = true;
+      if (isDisplayActive.value) ui.requestDisplayVoice();
+      else ui.isVoiceOverlayOpen = true;
+      break;
+    // The Display owns its own session — never the overlay's (two live
+    // sessions would mean two orbs and two microphones).
+    case "toggle-display":
+      toggleDisplay();
       break;
     case "settings":
       selectSection("application");
@@ -603,6 +618,12 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "new-chat", label: "New chat", group: "Assistant", shortcut: shortcutHint("N") },
   { id: "new-workspace", label: "New workspace", group: "Assistant" },
   { id: "start-voice", label: "Start voice", group: "Assistant" },
+  {
+    id: "toggle-display",
+    label: "Display",
+    group: "Assistant",
+    keywords: "orb room voice console status",
+  },
   { id: "go-home", label: "Go to Home", group: "Go" },
   { id: "go-chat", label: "Go to Chat", group: "Go" },
   { id: "go-sessions", label: "Go to Sessions", group: "Go" },
@@ -693,6 +714,7 @@ onBeforeUnmount(() => {
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
       :shows-tasks-toggle="!inWorkspaceScope"
+      :display-on="isDisplayActive"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
     />
@@ -783,7 +805,11 @@ onBeforeUnmount(() => {
     <ConversationSidebar />
     <ApprovalNotifier />
     <AskNotifier />
-    <VoiceOverlay />
+    <!-- Unmounted, not merely hidden, while the Display holds the canvas: the
+         overlay's session and wake link are created in ITS setup, so a wake
+         would otherwise open a second orb and a second microphone behind the
+         room. -->
+    <VoiceOverlay v-if="!isDisplayActive" />
     <UpdatePill />
     <!-- The SHARED plan review dialog — chat vynel://plan links, list View
          actions, and task plan chips all open this one instance. -->

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createSentencePipeline,
   createSpokenAudioPlayer,
+  observeSpokenSentenceStart,
   toSpokenSentences,
   type SentencePipelineIo,
 } from "./spoken-audio-player.js";
@@ -212,5 +213,50 @@ describe("createSpokenAudioPlayer", () => {
       "First one.",
       "Second one.",
     ]);
+  });
+});
+
+// The Display's orb mouths the reply clause by clause, so the signal has to be
+// the START OF AUDIO, not the queue: the pipeline prefetches one sentence
+// ahead, so a queue-time signal runs ahead of the speakers on a fast reply.
+describe("spoken sentence starts", () => {
+  it("fires as each sentence starts playing — after its fetch, never for a silent one", async () => {
+    const started: string[] = [];
+    const io: SentencePipelineIo<string> = {
+      fetchWav: (text) => Promise.resolve(text === "Silent." ? null : text),
+      playWav: () => Promise.resolve(),
+      stopPlayback: () => {},
+      onSentenceStart: (text) => started.push(text),
+    };
+    await createSentencePipeline(io).enqueue(["First.", "Silent.", "Third."]);
+    expect(started).toEqual(["First.", "Third."]);
+  });
+
+  it("the player notifies its observers, and unsubscribing really detaches", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(["wav"])) }),
+    );
+    class InstantAudio {
+      onended: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public src: string) {}
+      play(): Promise<void> {
+        setTimeout(() => this.onended?.(), 0);
+        return Promise.resolve();
+      }
+      pause(): void {}
+    }
+    vi.stubGlobal("Audio", InstantAudio);
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:test", revokeObjectURL: () => {} });
+
+    const heard: string[] = [];
+    const stopWatching = observeSpokenSentenceStart((text) => heard.push(text));
+    const player = createSpokenAudioPlayer();
+    await player.play("One sentence.");
+    stopWatching();
+    await player.play("Two sentence.");
+
+    expect(heard).toEqual(["One sentence."]);
   });
 });

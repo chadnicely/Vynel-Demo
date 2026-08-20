@@ -88,6 +88,30 @@ describe("AppTitleBar", () => {
     expect(wrapper.emitted("command")).toEqual([["toggle-tasks"]]);
   });
 
+  // The Display switch (2026-08-21): the orb room, and with it the microphone.
+  // Icon-only on purpose — the bar's only words are still its menus.
+  it("the Display glyph commands toggle-display and lights with the room", async () => {
+    const wrapper = mountTitleBar();
+    const glyph = wrapper.get('[aria-label="Toggle Display"]');
+    expect(glyph.attributes("aria-pressed")).toBe("false");
+
+    await glyph.trigger("click");
+    expect(wrapper.emitted("command")).toEqual([["toggle-display"]]);
+
+    const lit = mountTitleBar({ displayOn: true }).get('[aria-label="Toggle Display"]');
+    expect(lit.attributes("aria-pressed")).toBe("true");
+    expect(lit.attributes("title")).toBe("Close Display");
+  });
+
+  // The room is global — a workspace scope drops the rail toggle, never this.
+  it("rides every scope", () => {
+    expect(
+      mountTitleBar({ showsTasksToggle: false })
+        .find('[aria-label="Toggle Display"]')
+        .exists(),
+    ).toBe(true);
+  });
+
   // The provider mark (Kafi, 2026-08-18): the Claude account popup's door,
   // first of the bar's right cluster.
   it("the provider mark commands claude-account", async () => {

@@ -9,6 +9,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The Display.** A new full-screen view, one click in the top bar: Vynel's orb in the
+  middle — breathing while idle, lit while listening, pulsing with every spoken phrase —
+  with live status panels around it (what's running, what needs you, account, telemetry)
+  and the microphone open the moment it opens. Closing it hands the mic back. Widgets that
+  Claude can place on it come next.
 - **"Remind me for tea at 5" typed in chat now creates a real schedule.** Claude can
   create, update, enable and disable schedules from the global chat, a workspace chat,
   or a channel — they survive restarts and show up in the Schedules panel, instead of

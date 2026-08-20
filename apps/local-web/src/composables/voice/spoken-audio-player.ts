@@ -38,6 +38,9 @@ export interface SentencePipelineIo<Wav> {
   playWav(wav: Wav): Promise<void>;
   /** Cut the in-flight playback (its `playWav` must resolve). */
   stopPlayback(): void;
+  /** One sentence is STARTING to play — not to synthesize. The Display's orb
+   *  spikes on it, so it has to ride the audio, never the queue. */
+  onSentenceStart?(text: string): void;
 }
 
 export interface SentencePipeline {
@@ -87,7 +90,10 @@ export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): Senten
         // is a promise someone awaits (the voice session's turn ends on them),
         // so a throw here would strand the whole reply unsettled. One silent
         // sentence is the cost — the caption already showed the words.
-        if (wav !== null) await io.playWav(wav).catch(() => undefined);
+        if (wav !== null) {
+          io.onSentenceStart?.(current.text);
+          await io.playWav(wav).catch(() => undefined);
+        }
         if (queue[0] === current) {
           queue.shift();
           current.settle();
@@ -130,6 +136,23 @@ export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): Senten
       queue = [];
       for (const item of dropped) item.settle();
     },
+  };
+}
+
+// Watchers of "the browser is speaking this sentence now". Module-level
+// because the player is created deep inside the voice session while the
+// surface that reacts to it (the Display's orb) lives somewhere else
+// entirely — and one machine has one pair of speakers either way.
+const sentenceStartObservers = new Set<(text: string) => void>();
+
+/** Watch each spoken sentence as it STARTS playing. Returns the unsubscribe —
+ *  a caller that drops it keeps bumping a surface that is already gone. */
+export function observeSpokenSentenceStart(
+  observe: (text: string) => void,
+): () => void {
+  sentenceStartObservers.add(observe);
+  return () => {
+    sentenceStartObservers.delete(observe);
   };
 }
 
@@ -181,7 +204,14 @@ export function createSpokenAudioPlayer(): SpokenAudioPlayer {
     resolvePlaying = null;
   }
 
-  const pipeline = createSentencePipeline<Blob>({ fetchWav, playWav, stopPlayback });
+  const pipeline = createSentencePipeline<Blob>({
+    fetchWav,
+    playWav,
+    stopPlayback,
+    onSentenceStart: (text) => {
+      for (const observe of [...sentenceStartObservers]) observe(text);
+    },
+  });
 
   return {
     play: (text) => pipeline.enqueue(toSpokenSentences(text)),

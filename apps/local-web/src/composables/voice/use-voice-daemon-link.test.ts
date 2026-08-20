@@ -206,6 +206,20 @@ describe("useVoiceDaemonLink (live channel)", () => {
     expect(takenBySession).toEqual(["your build is green"]);
   });
 
+  // The Display's orb glows off this: a schedule's line played here is the
+  // assistant talking, even though no turn of ours is running.
+  it("reports while it is speaking a relayed line on its own player", async () => {
+    const { link, socket } = mountLink("app");
+    socket.serverAcks("voice:app");
+    expect(link().isPlayingRelayedLine.value).toBe(false);
+
+    socket.serverSends(speak("voice:app", "your build is green", "sched-1"));
+    expect(link().isPlayingRelayedLine.value).toBe(true);
+
+    await vi.waitFor(() => expect(link().isPlayingRelayedLine.value).toBe(false));
+    expect(played).toEqual(["your build is green"]);
+  });
+
   it("releases the channel on unmount", () => {
     const { socket } = mountLink();
     socket.serverAcks("voice:app");

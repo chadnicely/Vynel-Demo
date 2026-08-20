@@ -73,3 +73,6 @@ export type { SegmentedTab } from "./components/SegmentedTabs.vue";
 export type { SelectChipOption } from "./components/SelectChip.vue";
 export type { ReauthorizeState } from "./components/ToolCallBlockedLine.vue";
 export type { VoiceOrbState } from "./components/VoiceOrb.vue";
+
+// The Display group — the orb + the room chrome (see ./display/index.ts).
+export * from "./display/index.js";

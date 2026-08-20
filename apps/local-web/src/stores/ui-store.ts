@@ -34,6 +34,10 @@ export type ChatMainView =
   // The spoken thread's window (voice-session arc) — global-only, sits right
   // under Chat in the menu.
   | "voice-chat"
+  // The Display — the orb room the title-bar switch opens (global-only): live
+  // status around a voice session you talk to. A canvas view, never a route,
+  // so the tab model still holds.
+  | "display"
   | "application"
   | "account"
   // Machine-level, global-only (like account/application): WHERE the engine
@@ -397,6 +401,15 @@ export const useUiStore = defineStore("ui", () => {
   // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);
 
+  // The same bell for the Display's own microphone. "Start voice" belongs to
+  // whoever owns the mic: while the room holds the canvas that is the room,
+  // whose session lives inside DisplayView and can't be reached from the shell
+  // — so the shell rings, and the room answers by starting its session.
+  const displayVoiceRequestCount = ref(0);
+  function requestDisplayVoice() {
+    displayVoiceRequestCount.value += 1;
+  }
+
   // A ring-the-bell counter for the create-workspace dialog. The dialog is
   // mounted once in AppShell; routed views (the Nodes screen's empty state)
   // can't reach its local ref, so they bump this and the shell watches it.
@@ -437,6 +450,8 @@ export const useUiStore = defineStore("ui", () => {
     composerAutoBuildout,
     composerSeed,
     isVoiceOverlayOpen,
+    displayVoiceRequestCount,
+    requestDisplayVoice,
     createWorkspaceRequestCount,
     requestCreateWorkspace,
     nodesMode,

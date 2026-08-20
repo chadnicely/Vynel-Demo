@@ -8,6 +8,7 @@ import AppComposer from "../components/chat/AppComposer.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import TodoDock from "../components/chat/TodoDock.vue";
 import VoiceChatPanel from "../components/chat/VoiceChatPanel.vue";
+import DisplayView from "./display/DisplayView.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
 import GlobalCustomizeSection from "../components/customize/GlobalCustomizeSection.vue";
 import {
@@ -348,6 +349,12 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
       <VoiceChatPanel />
     </div>
 
+    <!-- The Display — the orb room the title-bar switch opens. It paints its
+         own dark ground, so it takes the area whole. -->
+    <div v-else-if="shell.mainView === 'display'" class="canvas display-canvas">
+      <DisplayView />
+    </div>
+
     <div v-else-if="shell.mainView === 'customize'" class="canvas section-view">
       <div class="section-column">
         <GlobalCustomizeSection />
@@ -498,8 +505,11 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
       </footer>
     </section>
 
+    <!-- Not beside the Display: the room paints its own dark ground whatever
+         the app theme is, and a lit rail glued to its edge reads as breakage.
+         Every other canvas here is app-themed, so the rail belongs there. -->
     <TasksPanel
-      v-if="ui.isTasksPanelOpen"
+      v-if="ui.isTasksPanelOpen && shell.mainView !== 'display'"
       :scope="{ kind: 'global' }"
       :assistant-name="ASSISTANT_NAME"
     />
@@ -520,6 +530,12 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
 .canvas {
   flex: 1;
   min-width: 0;
+}
+
+/* The Display owns the whole area — its own ground, its own palette. */
+.display-canvas {
+  display: flex;
+  min-height: 0;
 }
 
 /* The spoken thread's canvas is a full-height column like the chat itself. */
