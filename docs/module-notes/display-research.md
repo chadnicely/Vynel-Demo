@@ -1,4 +1,8 @@
-# Jarvis HUD — research (2026-08-21)
+# Display — research (2026-08-21)
+
+> Naming (Kafi 2026-08-21): the view is **Display** (menu may say "Display Console"), package `@vynel/display`,
+> tools `display_*`, the mini one is the **display dock**. "HUD" below refers to the demo's tab only; "Jarvis" is not
+> used anywhere in the product.
 
 Kafi's brief: bring the mission-control demo's **HUD tab** (`.tmp/vynel-mission-control`, `index.html` → `js/hud.js`)
 into the app. A **top-bar toggle** enables voice and shows the HUD; a **wake word** should open the app and switch to
@@ -102,7 +106,10 @@ while a voice session is live → the Jarvis window shows mini, bottom-right. No
 | **P3 — presence** | Jarvis-window mini mode (bottom-right, stacked above desktop-control) · wake opens the app (argless spawn → single-instance handler) + a switch-to-HUD frame · orb reactivity from `voice:<surface>` listen-only | ~2 days |
 | **Later / gated** | `kind: 'html'` behind the CSP prerequisites · user rearrangement · light theme (needs a different orb) | — |
 
-## 5. Decisions for Kafi
+## 5. Decisions — ALL SIX RECOMMENDATIONS ACCEPTED (Kafi 2026-08-21)
+
+Plus: **the in-app web speech leg is the PRIMARY voice path** (recognition accuracy — "we will use the web synthesis
+maximum time"); the native daemon leg is the wake path only. Original questions, kept for the record:
 
 1. Mini dock = Jarvis window mini mode (recommended) vs a new third OS window vs an in-window card.
 2. Widgets: persist + 12/scope cap + named slots; ship four safe kinds now, raw `html` later behind CSP work — OK?
