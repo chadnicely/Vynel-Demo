@@ -60,6 +60,7 @@ export default defineConfig({
     '../processes/src/schema/background-processes.ts',
     '../customization/src/schema/scope-customizations.ts',
     '../customization/src/schema/tree-layouts.ts',
+    '../display/src/schema/display-widgets.ts',
     '../ssh-servers/src/schema/ssh-servers.ts',
     '../server-install/src/schema/server-installs.ts',
     './src/schema/onboarding/onboarding-runs.ts',
