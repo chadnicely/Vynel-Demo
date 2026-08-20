@@ -3,7 +3,27 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-20 (latest) SCHEDULES VISIBLE + CREATABLE FROM CHAT — `feature/schedule-on-primary` + `feature/schedule-tools` (main 5221f1cc), FULL GATE GREEN ×2
+## ✅ 2026-08-20 (latest) ROUND-2 CLOSED — checkpoint survivors (R2-H/N/O) + locks/identity/suspend (R2-J/K/L), main 3f852193, FULL GATE GREEN ×2
+
+Kafi: "complete the opens" → surface-only on boot (never auto-run work at startup), P2s J/K/L yes, R2-M skipped.
+**checkpoint-survivor** (`packages/session/src/continuity/checkpoint-survivors.ts`): a survivor checkpoint is surfaced at
+boot (note row via the shared `primary-head-note.ts` + whoami), carried into the NEXT turn's provider input as a marker
+on conversations that auto-continue (global/workspace streams + the global schedule fire; the workspace fire and voice do
+not opt in), superseded LOUDLY (boundary = the composing turn's start, stamped at compose; same-turn re-checkpoint silent),
+voice survivors dropped at boot with the note, handed-over slots reconciled whenever the follow-up job is terminal-or-gone
+(boot + sweep + Stop); checkpoint tool + whoami descriptions honest (R2-N); native voice leg speaks when a turn ends
+silent (R2-O — the overlay twin is a recorded follow-up). **locks-identity-suspend**: lock waits bounded
+(`VYNEL_LOCK_WAIT_MAX_MS`, default the interactive cap; typed expired/abandoned errors; a disconnected client's waiter
+leaves the queue — DELIBERATE reversal of the old "queued means delivered" pin; `turn-queued` re-announces; one home
+`streams/turn-queue-wait.ts`), an agent-run announces the colleague (api-side `session-activity-census.test.ts` pins every
+`begin` producer from source), the lease sweeper skips one beat after a clock jump (`suspend-aware-lease-sweep.ts`).
+Note: every Fable subagent was killed at launch today by a safeguard false positive (`reasoning_extraction`) — the slices
+ran on Opus. **Remaining round-2:** R2-M (skipped by decision). **Open (from the docs refresh):** a missed schedule is
+silent (catch-up off → `missed` row, nobody told); a verbatim reminder with a chat-only destination lands nowhere — both
+await Kafi's call. **Housekeeping next:** ANSI-strip shared home, current-time line in the turn marker, splits near the
+300-line cap, overlay silent-success net, `fire-now` not pool-bounded (flagged by the structure doc).
+
+## ✅ 2026-08-20 SCHEDULES VISIBLE + CREATABLE FROM CHAT — `feature/schedule-on-primary` + `feature/schedule-tools` (main 5221f1cc), FULL GATE GREEN ×2
 
 Kafi's letterman smoke: a workspace fire ran "totally in background, not in the primary session". Two slices:
 **(1) on-primary** — reverses blueprint D3: a workspace fire resolves the continuing conversation IN-LOCK
