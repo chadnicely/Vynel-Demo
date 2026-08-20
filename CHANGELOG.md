@@ -69,6 +69,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Claude knows what time it is.** Every typed or spoken turn now carries the current
+  local time in your timezone, so "in 15 minutes" is computed from the right clock.
+- **Run-now on a schedule waits its turn** behind other running schedules instead of
+  bypassing the limit; a schedule already queued or running answers "already running".
+- A spoken turn in the browser that ends with nothing to say now says so, like the native voice.
 - Claude engine SDK updated to 0.3.235 (auto-mode permission classifier changes upstream).
 - **Auto is the default mode everywhere.** A conversation nobody configured
   runs in Auto (Claude's own safety check still applies) — global, workspace,
