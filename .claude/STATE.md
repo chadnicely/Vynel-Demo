@@ -3,7 +3,24 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-20 (latest) ROUND-2 CLOSED — checkpoint survivors (R2-H/N/O) + locks/identity/suspend (R2-J/K/L), main 3f852193, FULL GATE GREEN ×2
+## ✅ 2026-08-21 (latest) LOOSE ENDS + SCHEDULE GAPS — main 8958bbfb, FULL GATE GREEN (917 files / 6155 tests)
+
+**chore/loose-ends** (55332aed): `stripAnsi` has ONE home (`@vynel/contracts/text/strip-ansi`; server-install's
+differently-shaped regex left for its own fix); every interactive turn's provider input carries the current local
+time in `users.timezone` (`turn-time-marker`, one resolver, both composition homes; routed delegation turns
+deliberately not); the browser voice leg speaks an honest line when a turn completes silent (twin of the native net);
+Run-now rides the boot-owned `ScheduleFirePool` and DECLINES at the door (409) when the schedule is queued/running or
+no slot is free — a person is never parked behind the poll; `ToolCallCard` → `ToolCallBlockedLine` split,
+`build-schedule-fire-deps` → `start-fired-workspace-turn` split (census rosters updated); `start-chat-turn.ts` left at
+~308 (no clean cut). **feature/schedule-gaps** (8958bbfb): a slot missed with catch-up off co-commits
+`schedule.run-missed` with its run row → a report-delivery notice on the schedule's conversation (+ the channel push
+when configured; ONE push home `enqueueSchedulePushToChannel`), now watchable by monitors; a verbatim reminder's chat
+leg writes a "Schedule · <name>" system notice inside the terminal tx (no conversation yet → run row says so).
+Known: N catch-up-off schedules overdue after a long absence → N notify turns on the first tick (same shape as
+run-failed; coalescing is a separate decision). **All worktrees removed, all feature branches deleted.** Owed by
+Kafi: the live smokes (voice legs, classifier card, schedules end-to-end, rail chips, a missed run).
+
+## ✅ 2026-08-20 ROUND-2 CLOSED — checkpoint survivors (R2-H/N/O) + locks/identity/suspend (R2-J/K/L), main 3f852193, FULL GATE GREEN ×2
 
 Kafi: "complete the opens" → surface-only on boot (never auto-run work at startup), P2s J/K/L yes, R2-M skipped.
 **checkpoint-survivor** (`packages/session/src/continuity/checkpoint-survivors.ts`): a survivor checkpoint is surfaced at
