@@ -460,6 +460,17 @@ describe("app shell", () => {
     expect(treeLabels).toContain("Marketing");
   });
 
+  // The migration path for anyone already on tabs: the pick must survive a
+  // restart in BOTH directions (the other is pinned by the flip-to-tabs test).
+  it("a tabs user's switch to menu is remembered", async () => {
+    const { wrapper } = await mountShell("/", [DEMO_WORKSPACE], { navMode: "tabs" });
+
+    await pickNavView(wrapper, "nav-menu");
+
+    expect(wrapper.findAll('.app-tab [role="tab"]')).toHaveLength(0);
+    expect(localStorage.getItem("vynel.nav-mode")).toBe("menu");
+  });
+
   it("tree drill opens the scope's menu with a back row; back returns to the tree", async () => {
     const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE]);
 
