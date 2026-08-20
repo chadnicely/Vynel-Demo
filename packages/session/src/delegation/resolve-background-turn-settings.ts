@@ -12,8 +12,9 @@
 // (`fitPinnedModelToSession` — the voice incident's guard, now on every
 // background pick that RESUMES the head): a small model resumed onto a fat
 // history dies with "Prompt is too long" on a surface with nobody watching.
-// A turn that starts a fresh session on the target (a schedule fire) reads
-// the row's picks and skips the fit (`startsFreshSession`). Never persisted.
+// A caller that starts a fresh session on the target may read the row's picks
+// and skip the fit (`startsFreshSession`) — no current caller does: schedule
+// fires resume the head since blueprint D3 was reversed (2026-08-20).
 //
 // AUTOPILOT (D8): the target row's `autoBuildout` says whether the per-message
 // marker rides the provider input — the runner appends it, the caller reads it
@@ -33,9 +34,9 @@ export type BackgroundTurnSettingsInput = {
    *  resume) — null on a first-ever turn (nothing chosen yet, nothing to fit). */
   headSdkSessionId: string | null
   /** Set when the turn starts a FRESH session on the target instead of
-   *  resuming the head (a schedule fire — blueprint D3): the head is read for
-   *  the user's picks only, and the model is not fit-checked against an
-   *  occupancy the new session will not carry. */
+   *  resuming the head: the head is read for the user's picks only, and the
+   *  model is not fit-checked against an occupancy the new session will not
+   *  carry. No current caller — schedule fires resume the head (2026-08-20). */
   startsFreshSession?: boolean
   /** The stamped picks of whoever asked — the job row's columns. */
   job: {

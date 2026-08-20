@@ -2,9 +2,9 @@
 
 > The code map and connections for the schedules module. For the concepts behind it, see [overview.md](./overview.md).
 >
-> Folders touched: `packages/schedules/src/` · `apps/local-api/src/routes/schedules/` · `apps/local-api/src/services/` · `apps/local-api/src/sessions/` · `packages/contracts/src/schedules/` · `apps/local-web/src/{components,composables/schedules,utils}/`
+> Folders touched: `packages/schedules/src/` · `apps/local-api/src/routes/schedules/` · `apps/local-api/src/services/` · `apps/local-api/src/sessions/` · `packages/contracts/src/schedules/` · `packages/instructions/session-instructions/` · `apps/local-web/src/{components,composables/schedules,utils}/`
 
-Schedules is a vertical-slice leaf: the package owns its own `schema/`, `repositories/`, and operations (`lifecycle/` · `queries/` · `firing/` · `rendering/`) over the shared `@vynel/db` kernel. The chat turn a fired schedule runs, plus its MCP + capability composition, are **injected** as `FireScheduleDeps` — the leaf never imports the chat/session leaves or `@vynel/mcp` (invariant #2). Deps: `@vynel/contracts`, `@vynel/db`, `@vynel/errors`, `@vynel/providers`, `croner`, `drizzle-orm` (`packages/schedules/package.json`).
+Schedules is a vertical-slice leaf: the package owns its own `schema/`, `repositories/`, and operations (`lifecycle/` · `queries/` · `firing/` · `rendering/`) over the shared `@vynel/db` kernel. Every turn the fire path runs — the workspace turn, the global-root turn, the settings resolution, the MCP + capability composition, and the fire-marker renderer — is **injected** as `FireScheduleDeps`; the leaf never imports the session/chat/mcp/instructions siblings (invariant #2). Deps: `@vynel/contracts`, `@vynel/db`, `@vynel/errors`, `@vynel/providers`, `croner`, `drizzle-orm` (`packages/schedules/package.json`).
 
 ## File map
 
@@ -12,44 +12,51 @@ Schedules is a vertical-slice leaf: the package owns its own `schema/`, `reposit
 
 | Path | Role |
 |---|---|
-| ► `packages/schedules/src/index.ts` | public barrel — the only production export (`.`); surfaces `Schedule`/`ScheduleRun` row types, the CRUD/render/query ops, the fire path, and the `schedule.run-completed` event constant. Repositories stay internal |
-| `packages/schedules/src/schedules-types.ts` | `StructuralLogger` + the `FireScheduleDeps` contract — `startChatTurn`, `composeWorkspaceMcpServers`, `composeSessionCapabilities` declared *structurally* so the leaf imports no chat/mcp code |
-| `packages/schedules/src/schedules-events.ts` | the one published event: `SCHEDULE_RUN_COMPLETED_EVENT_TYPE` (`'schedule.run-completed'`) + `ScheduleRunCompletedPayload` |
-| `packages/schedules/src/extract-error-message.ts` | pull a message off an unknown throw — used on the run row + the poll log (errors never swallowed) |
+| ► `packages/schedules/src/index.ts` | public barrel — the only production export (`.`); surfaces `Schedule`/`ScheduleRun` row types, the CRUD/render/query ops, the fire path, `ScheduleFirePool`, and the `schedule.run-completed` event constant. Repositories stay internal |
+| `packages/schedules/src/schedules-types.ts` | `StructuralLogger` · `FiredTurnSettings` · `ScheduleFireFrame` · the `FireScheduleDeps` contract — `startChatTurn`, `startGlobalRootTurn`, `renderScheduleFireMarker`, `resolveWorkspaceTurnSettings`, `composeWorkspaceMcpServers`, `composeSessionCapabilities`, all declared *structurally* |
+| `packages/schedules/src/schedules-events.ts` | the two published events: `SCHEDULE_RUN_COMPLETED_EVENT_TYPE` + `SCHEDULE_RUN_FAILED_EVENT_TYPE`, with their payload interfaces |
+| `packages/schedules/src/extract-error-message.ts` | pull a message off an unknown throw — used on the run row, the failed event, and the poll log (errors never swallowed) |
 | `packages/schedules/src/schema/schedules.ts` | `schedules` table + `ScheduleTemplateKind` / `ScheduleDestinationKind` / `ScheduleKind` types; NO `deletedAt` (hard-delete, D11) |
 | `packages/schedules/src/schema/schedule-runs.ts` | `schedule_runs` table + `ScheduleRunStatus` / `ScheduleRunTriggerKind` types |
 | `packages/schedules/src/schema/index.ts` | schema barrel — re-exports both tables for the drizzle config glob + parity guard |
 | `packages/schedules/src/repositories/schedules.ts` | schedules repo — due-list / list-per-workspace / list-per-user / the atomic `claimDueSchedule` CAS / find / insert / update / hard-delete |
 | `packages/schedules/src/repositories/schedule-runs.ts` | runs repo — insert / update / get-or-throw / keyset history list |
-| `packages/schedules/src/repositories/index.ts` | repo barrel + row/union type re-exports (barrel and per-file subpath both allowed) |
-| `packages/schedules/src/lifecycle/create-schedule.ts` | create from a template (or custom); computes first `nextScheduledFireAt` via croner; one-time (`fireAt`) vs recurring (cron); throws `ValidationError` on bad cron / missing channel / past fireAt |
+| `packages/schedules/src/repositories/index.ts` | repo barrel + row/union type re-exports |
+| `packages/schedules/src/lifecycle/create-schedule.ts` | create from a template (or custom); timezone from input → user profile → `UTC`; computes the first `nextScheduledFireAt` via croner; one-time (`fireAt`) vs recurring (cron); throws `ValidationError` on bad cron / missing channel / past `fireAt` |
 | `packages/schedules/src/lifecycle/update-schedule.ts` | owner-scoped patch; recomputes next-fire on cron/tz change (recurring only); re-validates the channel requirement; rejects a cron on a one-time row |
 | `packages/schedules/src/lifecycle/set-schedule-enabled.ts` | owner-scoped `isEnabled` toggle (pause/resume) |
 | `packages/schedules/src/lifecycle/delete-schedule.ts` | owner-scoped hard-delete (cascades to `schedule_runs`; no soft-delete) |
-| `packages/schedules/src/firing/fire-schedule.ts` | *(async)* ► the executor — renders the prompt, runs the LLM turn (or delivers a verbatim template), co-commits the terminal writes + optional outbox event in one tx |
-| `packages/schedules/src/firing/manual-fire-schedule.ts` | *(async)* "Run now" — owner check, 409 if paused, fires with `triggerKind: 'manual'` |
-| `packages/schedules/src/firing/run-schedule-claim-and-fire-tick.ts` | *(async)* ► the per-minute poll body — atomic claim per due schedule, then fire (poll / catchup) or record one `missed` run |
+| `packages/schedules/src/firing/fire-schedule.ts` | *(async)* ► the executor — renders the prompt, composes the **fire frame**, routes to one of three delivery paths, co-commits the terminal writes + the outbox event in one tx; on throw co-commits the `failed` run + `schedule.run-failed` |
+| `packages/schedules/src/firing/run-fired-workspace-turn.ts` | *(async)* the WORKSPACE branch — resolves settings, composes MCP + capabilities, drives the injected `startChatTurn` stream, binds the session from `session-created` **or** `user-message-persisted` |
+| `packages/schedules/src/firing/schedule-fire-pool.ts` | `ScheduleFirePool` — the process-wide concurrency bound + the one-fire-per-schedule rule (`admit` answers `null` when the schedule is already in the pool) |
+| `packages/schedules/src/firing/manual-fire-schedule.ts` | *(async)* "Run now" — owner check (404), paused check (409), fires with `triggerKind: 'manual'` |
+| `packages/schedules/src/firing/run-schedule-claim-and-fire-tick.ts` | *(async)* ► the per-minute poll body — list due, `firePool.admit` each, CAS-claim **inside** the worker, then fire (poll/catchup) or record one `missed` run; returns a `ScheduleTickSummary` |
 | `packages/schedules/src/queries/list-schedules.ts` | workspace-scoped list |
 | `packages/schedules/src/queries/list-schedules-for-user.ts` | user-scoped list — every schedule the user owns, global + workspace |
 | `packages/schedules/src/queries/list-schedule-runs.ts` | owner-scoped run history; assembles the keyset cursor from flat query params |
 | `packages/schedules/src/queries/list-schedule-templates.ts` | returns the built-in template catalog (pure) |
 | `packages/schedules/src/rendering/render-schedule-prompt.ts` | resolve `{{user.*}}` / `{{workspace.*}}` / `{{now.*}}` placeholders against the live rows; unknowns pass through |
-| `packages/schedules/src/rendering/render-schedule-channel-message.ts` | build the channel body — `📅 <name> • <time>\n\n<text>` (header baked in; channels enqueues verbatim) |
-| `packages/schedules/src/test-support.ts` | exported `./test-support` subpath — seed helpers + `stubFireDeps` (no-op `startChatTurn`, sentinel MCP/capability composition) for route/integration tests |
-| ► `apps/local-api/src/routes/schedules/index.ts` | workspace-scoped HTTP entry — 9 routes under `/workspaces/:workspaceId/schedules`, 3 exposed as MCP tools |
-| `apps/local-api/src/routes/schedules/user-scoped.ts` | user-scoped HTTP entry — the `/schedules` twin (global + workspace), 8 routes, 1 MCP tool |
+| `packages/schedules/src/rendering/render-schedule-channel-message.ts` | `renderScheduleChannelMessage` (`📅 <name> • <time>\n\n<text>`) + `formatScheduledTime` — the one home for schedule-time text (also feeds the fire marker) |
+| `packages/schedules/src/test-support.ts` | exported `./test-support` subpath — seed helpers (workspace / chat-only / chat-and-channel / reminder / **global reminder** / **global custom**) + the fire-dep stub |
+| ► `apps/local-api/src/routes/schedules/index.ts` | workspace-scoped HTTP entry — 9 routes under `/workspaces/:workspaceId/schedules`, **7** exposed as MCP tools |
+| `apps/local-api/src/routes/schedules/user-scoped.ts` | user-scoped HTTP entry — the `/schedules` twin (global + workspace), 8 routes, **5** MCP tools |
 | `apps/local-api/src/routes/schedules/{schemas,serializers}.ts` | Zod request/response schemas (incl. the discriminated `scope` create) · row→ISO serializers |
-| `apps/local-api/src/services/schedules-service.ts` | the in-process per-minute poll service — started at boot, stopped on shutdown |
-| `apps/local-api/src/sessions/build-schedule-fire-deps.ts` | the api-edge composition point — binds `startChatTurn` + the MCP/capability composition into `FireScheduleDeps` (dynamic `@vynel/mcp` import) |
+| `apps/local-api/src/services/schedules-service.ts` | the in-process per-minute poll service — owns the ONE `ScheduleFirePool`; started from `boot.ts`, stopped on shutdown |
+| ► `apps/local-api/src/sessions/build-schedule-fire-deps.ts` | the api-edge composition point — binds both turn runners, the settings resolver, the MCP/capability composition and the marker renderer; wraps the workspace turn in the target lock + the delegated wall-clock cap |
+| `apps/local-api/src/sessions/build-workspace-background-mcp.ts` | *(shared with the delegation service)* the ONE background-workspace MCP attachment; the schedule binding stamps `surfaceKind: 'schedule'` |
+| `apps/local-api/src/sessions/run-global-root-turn.ts` | *(shared with channels)* the global-root runner a GLOBAL fire drives — holds the per-user root lock, arms the cap inside it |
+| `packages/instructions/session-instructions/schedule-fire-marker.md` | the marker's **words** — `{{scheduleName}}` / `{{firedAtLocal}}` placeholders |
+| `packages/instructions/src/session-instructions/render-schedule-fire-marker.ts` | fills those placeholders; injected into the leaf as `deps.renderScheduleFireMarker` |
+| `packages/contracts/src/schedules/schedule-source-label.ts` | `scheduleSourceLabel(name)` → `"Schedule · <name>"` — the one reading of how a schedule presents as a message source |
 | `apps/local-web/src/components/sections/SchedulesSection.vue` | the panel — schedule list, driven by a `scope` prop (global / workspace) |
-| `apps/local-web/src/components/sections/CreateScheduleDialog.vue` | create form — cadence → cron or one-time preset → fireAt |
+| `apps/local-web/src/components/sections/CreateScheduleDialog.vue` | create form — cadence → cron or one-time preset → `fireAt` |
 | `apps/local-web/src/components/onboarding/steps/ScheduleStep.vue` | optional onboarding step — offer a first schedule |
 | `apps/local-web/src/composables/schedules/*.ts` | 3 vue-query composables — list / create / toggle |
 | `apps/local-web/src/utils/schedule-cadence.ts` | pure cron↔human helpers — build a cron from a cadence, presets → fire instants, describe a row in words |
 
 ## Data & persistence
 
-Both tables live in `packages/schedules/src/schema/` and are registered in the kernel's `drizzle.sqlite.config.ts` (repo root, lines 46–47) — the schema-parity check enforces exactly-one-config registration. **No per-feature migration file:** the DDL is folded into the single baseline `packages/db/src/migrations-sqlite/0000_baseline.sql` (`schedules` L392–416, `schedule_runs` L417–431). Loose cross-domain refs are called out below — schedules holds **no** FK into channels or chat.
+Both tables live in `packages/schedules/src/schema/` and are registered in the kernel's `drizzle.sqlite.config.ts` (repo root) — the schema-parity check enforces exactly-one-config registration. **No per-feature migration file:** the DDL is folded into the single baseline `packages/db/src/migrations-sqlite/0000_baseline.sql` (`schedules` L392–416, `schedule_runs` L417–431), and **no later migration (through `0050`) touches either table**. Loose cross-domain refs are called out below — schedules holds **no** FK into channels or chat.
 
 **`schedules`** — one row per scheduled trigger. **No `deletedAt`** — `deleteSchedule` hard-deletes and cascades (D11).
 
@@ -57,12 +64,12 @@ Both tables live in `packages/schedules/src/schema/` and are registered in the k
 |---|---|---|
 | `id` | id (PK) | UUID supplied by the core op |
 | `userId` | id (FK, cascade) | → `users` — the tenant boundary |
-| `workspaceId` | text (FK, cascade, null) | → `workspaces`; **NULL = GLOBAL scope** (no workspace). `text().references` since `id()` is NOT NULL by contract |
+| `workspaceId` | text (FK, cascade, null) | → `workspaces`; **NULL = GLOBAL scope**. `text().references` since `id()` is NOT NULL by contract |
 | `templateKind` | text | `morning-briefing` / `weekly-summary` / `email-watch` / `custom` / `reminder` |
 | `scheduleKind` | text | `recurring` / `one-time` — the explicit discriminator (replaced the old `@once` sentinel) |
-| `displayName` | text | user-editable; defaults to the template label |
+| `displayName` | text | user-editable; defaults to the template label. Also the fire's message-source label and the marker's `{{scheduleName}}` |
 | `cronExpression` | text (null) | 5-field cron; **NULL for a one-time** schedule |
-| `timezone` | text | IANA tz (e.g. `America/Los_Angeles`) |
+| `timezone` | text | IANA tz; on create, input → the user profile's tz → `UTC` |
 | `promptTemplate` | text | `{{placeholders}}` resolved at fire time |
 | `destinationKind` | text | `chat-only` / `chat-and-channel` |
 | `channelId` | text (null) | **loose ref** into channels — NO FK, schema not imported; a dangling id is dropped quietly (D7) |
@@ -75,7 +82,7 @@ Both tables live in `packages/schedules/src/schema/` and are registered in the k
 
 Indexes: `idx_schedules_user_workspace` `(userId, workspaceId)` · `idx_schedules_enabled_next_fire` `(isEnabled, nextScheduledFireAt)` (the poll's due-query).
 
-**`schedule_runs`** — one row per firing (poll / catchup / manual / missed). Child table: **no `userId`** — scopes through `scheduleId → schedules.userId` (the channels child-table precedent). Cascade-deleted with its parent.
+**`schedule_runs`** — one row per firing (poll / catchup / manual / missed). Child table: **no `userId`** — scopes through `scheduleId → schedules.userId`. Cascade-deleted with its parent.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -84,7 +91,7 @@ Indexes: `idx_schedules_user_workspace` `(userId, workspaceId)` · `idx_schedule
 | `scheduledFireAt` | timestamp | when it was supposed to fire |
 | `startedAt` | timestamp | when it actually started |
 | `completedAt` | timestamp (null) | |
-| `chatSessionId` | text (null) | **loose ref** into chat — NO FK, schema not imported; null for a verbatim reminder (no session) |
+| `chatSessionId` | text (null) | **loose ref** into chat — NO FK. Since schedule-on-primary this is a segment of the workspace's (or the global root's) **continuing chain**, not a throwaway session; null for a verbatim reminder |
 | `status` | text | `pending` / `running` / `completed` / `failed` / `missed` |
 | `statusMessage` | text (null) | error / miss reason |
 | `triggerKind` | text | `poll` / `catchup` / `manual` |
@@ -117,135 +124,186 @@ Indexes: `idx_schedule_runs_schedule_started` `(scheduleId, startedAt, id)` (the
 | `listScheduleRuns` | owner check → keyset history | `findScheduleById`, `listScheduleRunsForSchedule` |
 | `listScheduleTemplates` | return the built-in catalog (pure) | `SCHEDULE_TEMPLATE_CATALOG` |
 | `renderSchedulePrompt` | resolve `{{user.*}}`/`{{workspace.*}}`/`{{now.*}}`; unknowns pass through; null workspace → `''` | `findUserById`, `findWorkspaceById` |
-| `renderScheduleChannelMessage` | `📅 <name> • <time>\n\n<text>` (header baked in; tz-safe fallback to ISO) | `Intl.DateTimeFormat` |
-| `fireSchedule` *(async)* | insert `pending` run → `running`; render prompt; **verbatim** template delivers as-is (no session) **else** compose MCP + capability + run `startChatTurn`, accumulate text, capture session id / error; **terminal tx**: run→`completed` + `lastFiredAt` + conditional `schedule.run-completed` outbox; on throw → run→`failed` | `renderSchedulePrompt`, `findWorkspaceById`, `deps.*`, `withTransaction`, `insertOutboxEvent` |
+| `renderScheduleChannelMessage` / `formatScheduledTime` | `📅 <name> • <time>\n\n<text>` (header baked in) · the tz-rendered fire time | `Intl.DateTimeFormat` |
+| `fireSchedule` *(async)* | insert `pending` run → `running`; render prompt; compose the **fire frame** (`marker` + `sourceLabel`); pick one of three paths (verbatim / workspace turn / global-root turn); **terminal tx**: run→`completed` + `lastFiredAt` + conditional `schedule.run-completed`; on throw **failure tx**: run→`failed` + `schedule.run-failed` | `renderSchedulePrompt`, `deps.renderScheduleFireMarker`, `scheduleSourceLabel`, `deps.startGlobalRootTurn`, `runFiredWorkspaceTurn`, `withTransaction`, `insertOutboxEvent` |
+| `runFiredWorkspaceTurn` *(async)* | workspace owner check → `resolveWorkspaceTurnSettings` → `composeWorkspaceMcpServers` + `composeSessionCapabilities` → drive `deps.startChatTurn`; binds the session from `session-created` **or** `user-message-persisted` | `findWorkspaceById`, `deps.*` |
 | `manualFireSchedule` *(async)* | owner→404, paused→409, fire `manual` | `findScheduleById`, `fireSchedule` |
-| `runScheduleClaimAndFireTick` *(async)* | for each due schedule: compute next slot, `claimDueSchedule` (skip if lost), then fire `poll` (on time) / `catchup` (overdue + catchUp) / record one `missed` run | `listDueSchedules`, `claimDueSchedule`, `Cron`, `isOneTimeSchedule`, `fireSchedule` |
+| `runScheduleClaimAndFireTick` *(async)* | list due → `firePool.admit` each → inside the worker: CAS-claim, then fire `poll`/`catchup` or record one `missed`; returns `{firedCount, missedCount, failedCount, skippedCount}` | `listDueSchedules`, `ScheduleFirePool.admit`, `claimDueSchedule`, `Cron`, `fireSchedule` |
+| `ScheduleFirePool.admit` | queue a fire behind the process-wide bound; answers `null` when that schedule already has a fire queued/running | — |
 
 ## HTTP surface
 
-Two sibling surfaces, both mounted from `apps/local-api/src/app.ts` and both under `featureGate('schedules')` (the hub **entitlement** tier — 403 `feature_locked` when a live entitlement lacks the feature, permissive with no entitlement to read). No error mapping in the routes — typed `VynelError`s hit the global `onError`. `fire-now` builds its `FireScheduleDeps` via `buildScheduleFireDeps(c.var.appRequest, …)`, overridable by an injected `c.var.scheduleFireDeps` for tests.
+Two sibling surfaces, both mounted from `apps/local-api/src/app.ts` and both under `featureGate('schedules')` (`app.ts:306–307` — the hub **entitlement** tier; 403 `feature_locked` when a live entitlement lacks the feature, permissive with no entitlement to read). No error mapping in the routes — typed `VynelError`s hit the global `onError`. `fire-now` builds its `FireScheduleDeps` via `buildScheduleFireDeps({ appRequest, logger, activityFeed, targetLocks, turnEvents, … })`, overridable by an injected `c.var.scheduleFireDeps` for tests.
 
-**Workspace-scoped** — `/workspaces/:workspaceId/schedules` (`app.ts:140`), `...workspaceScoped` bundle:
+**Workspace-scoped** — `/workspaces/:workspaceId/schedules` (`app.ts:349`), `...workspaceScoped` bundle:
 
 | Method | Path | Purpose | MCP tool |
 |---|---|---|---|
 | GET | `/` | list the workspace's schedules | `list_schedules` (read) |
 | GET | `/templates` | the built-in template catalog | `list_schedule_templates` (read) |
-| POST | `/` | create (cron OR one-time `fireAt`) | — |
-| PATCH | `/:scheduleId` | update (recomputes next-fire on cron change) | — |
-| POST | `/:scheduleId/enable` | resume | — |
-| POST | `/:scheduleId/disable` | pause | — |
-| POST | `/:scheduleId/fire-now` | manual run (202; drives a headless turn) — **never** MCP-exposed | — |
-| DELETE | `/:scheduleId` | hard-delete (204, cascades) | — |
+| POST | `/` | create (cron OR one-time `fireAt`) | `create_schedule` (ask-tier) |
+| PATCH | `/:scheduleId` | update (recomputes next-fire on cron change) | `update_schedule` (ask-tier) |
+| POST | `/:scheduleId/enable` | resume | `enable_schedule` (ask-tier) |
+| POST | `/:scheduleId/disable` | pause | `disable_schedule` (ask-tier) |
+| POST | `/:scheduleId/fire-now` | manual run (202; drives a real turn) — **never** MCP-exposed | — |
+| DELETE | `/:scheduleId` | hard-delete (204, cascades) — **never** MCP-exposed | — |
 | GET | `/:scheduleId/runs` | run history (keyset) | `list_schedule_runs` (read) |
 
-**User-scoped** — `/schedules` (`app.ts:153`), `...userScoped` bundle. Spans both scopes (global + every workspace the user owns); id-ops authorize by `userId`, so a global (null-workspace) row is served directly. Same route set **minus `/templates`**; `POST /` takes a discriminated `scope` (`global` | `workspace` + required `workspaceId`). Only `GET /` is MCP-exposed (`list_my_schedules`); its `/:scheduleId/runs` carries no `x-mcp`.
+**User-scoped** — `/schedules` (`app.ts:378`), `...userScoped` bundle. Spans both scopes (global + every workspace the user owns); id-ops authorize by `userId`, so a global (null-workspace) row is served directly. Same route set **minus `/templates`**; `POST /` takes a discriminated `scope` (`global` | `workspace` + required `workspaceId`).
+
+| Method | Path | MCP tool |
+|---|---|---|
+| GET | `/` | `list_my_schedules` (read; **root + workspace** surface) |
+| POST | `/` | `create_my_schedule` (ask-tier, root surface, `ambientWorkspace: false`) |
+| PATCH | `/:scheduleId` | `update_my_schedule` (ask-tier, root surface) |
+| POST | `/:scheduleId/enable` | `enable_my_schedule` (ask-tier, root surface) |
+| POST | `/:scheduleId/disable` | `disable_my_schedule` (ask-tier, root surface) |
+| POST | `/:scheduleId/fire-now` · DELETE `/:scheduleId` · GET `/:scheduleId/runs` | — (no `x-mcp`) |
 
 ## MCP surface
 
 Schedules ships no descriptor of its own — its tools ride the route-derived `vynel` server: each route's `x-mcp` block is compiled by `scripts/src/generators/generate-mcp-tools.ts` into `apps/mcp/src/generated/api-tools.ts` (tool calls re-enter through the same HTTP routes, so agent and UI see one rulebook).
 
-- **4 tools, all reads** — `list_schedules`, `list_schedule_templates`, `list_schedule_runs` (workspace surface) + `list_my_schedules` (user surface). **No mutating route is exposed — especially not `fire-now`** (it *drives* a turn, it is never an agent tool).
-- **No per-workspace capability gate.** Unlike memory, schedules has **no** `capabilityGatedTools.schedules` in `apps/mcp/src/vynel-mcp-feature-descriptor.ts` (only a passing comment). The 4 reads are gated solely by the hub `featureGate('schedules')` entitlement, hit at HTTP re-entry.
+**12 distinct tools across two surfaces** (2026-08-20, Kafi revising D14 — "remind me for tea at 5" typed in chat must create a real schedule row, never an improvised `sleep`/timer):
+
+| Surface | Array | Schedule tools |
+|---|---|---|
+| Workspace turn (incl. schedule fires + delegated runs) | `generatedMcpTools` → `WORKSPACE_TOOL_NAMES` | `list_schedules`, `list_schedule_templates`, `list_schedule_runs`, `list_my_schedules`, `create_schedule`, `update_schedule`, `enable_schedule`, `disable_schedule` |
+| Global-root turn | `generatedRoutingMcpTools` → `ROUTING_TOOL_NAMES` | `list_my_schedules`, `create_my_schedule`, `update_my_schedule`, `enable_my_schedule`, `disable_my_schedule` |
+
+- **Approval tier:** all 8 mutations carry `mutatingApproved: true` + `askApproval: true`, so they land in `generatedAskModeApprovalToolNames` (`generatedAskModeApprovalToolNames` in the generated registry — line numbers shift on every `api:generate`, cite the symbol) — **carded in ask mode only**, run uncarded in auto/bypass. `mutatingToolNames` stays `[]` on every descriptor in `apps/mcp/src/vynel-mcp-feature-descriptor.ts` (no vynel tool cards in *every* mode).
+- **Never exposed:** `fire-now` (it *drives* a turn, never an agent tool) and `DELETE` (destruction stays the user's).
+- **Gates:** schedules is deliberately **absent** from `VYNEL_CAPABILITY_GATED_TOOLS` (no per-workspace capability toggle). It *is* tier-filtered at composition — `VYNEL_FEATURE_GATED_TOOLS.schedules` (the 8 workspace names) and `ROUTING_FEATURE_GATED_TOOLS.schedules` (the 5 `*_my_*` names) in `apps/mcp/src/vynel-tool-gates.ts` — which makes an out-of-tier tool **invisible** rather than a 403 at call time. The HTTP `featureGate` remains the backstop at re-entry.
 
 ## Background jobs
 
-The desktop app runs no `apps/worker` — the poll runs **in-process in the API**: `startSchedulesService` (`apps/local-api/src/services/schedules-service.ts`), started at `server.ts:110` after `createApp(...)`, stopped on shutdown. It lives here (not a worker) because the fired turn is **MCP-intrinsic** — it needs the in-process Vynel MCP server built from the api's own `app.request`, which only exists in the api process (cadence alone is within a worker cron's reach; the MCP-intrinsic turn is what pins it here).
+The desktop app runs no `apps/worker` — the poll runs **in-process in the API**: `startSchedulesService` (`apps/local-api/src/services/schedules-service.ts`), started from `apps/local-api/src/boot.ts:338`, stopped on shutdown. It lives here (not a worker) because the fired turn is **MCP-intrinsic** — it needs the in-process Vynel MCP server built from the api's own `app.request`, which only exists in the api process.
 
 | Tick | Interval | Runs |
 |---|---|---|
-| schedule poll | every 60 s | `runScheduleClaimAndFireTick(db, fireDeps)` (errors caught + logged, never throw out of the timer) |
+| schedule poll | every 60 s | `runScheduleClaimAndFireTick(db, fireDeps, firePool)`; the promise's rejection handler logs, so nothing throws out of the timer. `logTickSummary` logs **only** when `failedCount > 0` |
+| outbox relay | every 5 s | `dispatchOutboxEvents` over `OUTBOX_CONSUMERS` (`apps/local-api/src/services/outbox-relay-service.ts`) — this is what actually drains `schedule.run-completed` / `schedule.run-failed` |
+
+The service owns **one `ScheduleFirePool` per process** (`new ScheduleFirePool(maxConcurrentFires)`), handed to every tick so the bound holds *across* ticks. `maxConcurrentFires` defaults to `VYNEL_MAX_CONCURRENT_DELEGATIONS` (default 3).
 
 ## Web surface
 
-Everything speaks the generated SDK (`vynel.schedulesUser.*`) through vue-query; no Pinia store — cache keys under `["schedules", …]`, mutations invalidate the whole `["schedules"]` family.
+Everything speaks the generated SDK (`vynel.schedules.*` / `vynel.schedulesUser.*`) through vue-query; no Pinia store — cache keys under `["schedules", …]`, mutations invalidate the whole `["schedules"]` family.
 
-- **Composables** (`apps/local-web/src/composables/schedules/`) — `use-schedules.ts` (the user-scoped list), `use-create-schedule.ts`, `use-toggle-schedule.ts` (pause/resume via the user-level PATCH, which covers both scopes).
+- **Composables** (`apps/local-web/src/composables/schedules/`) — `use-schedules.ts` (per-surface: a workspace menu hits the server-filtered workspace route, the global menu hits the user route and narrows to `workspaceId === null` client-side), `use-create-schedule.ts` (always `schedulesUser.create`, scope in the body), `use-toggle-schedule.ts` (pause/resume via the user-level PATCH, which covers both scopes).
 - **Components** — `SchedulesSection.vue` (the list; a `scope` prop selects global vs. workspace), `CreateScheduleDialog.vue` (cadence → cron or one-time preset → `fireAt`, built on `schedule-cadence.ts`), the onboarding `ScheduleStep.vue`.
-- **`schedule-cadence.ts`** — pure cron↔human vocabulary: `buildCronExpression`, `fireAtFromPreset`, `describeScheduleCadence` ("Daily at 9:00 AM" / "Once" / raw-cron fallback).
-- **Mounting** — global surface: `GlobalChatView.vue` (section `schedules`, `<SchedulesSection :scope="{ kind: 'global' }" />`, locked card when the entitlement lacks it); workspace surface: `WorkspaceSectionPanel.vue` via `workspace-sections.ts`.
+- **`schedule-cadence.ts`** — pure cron↔human vocabulary: `buildCronExpression`, `fireAtFromPreset`, `describeScheduleCadence`.
+- **Mounting** — global surface: `views/GlobalChatView.vue`; workspace surface: `components/workspace/WorkspaceSectionPanel.vue`.
 
-## Pipeline — "a due schedule fires a turn, and (would) reach a channel"
+## Pipeline — "a due schedule fires a visible turn on the continuing conversation"
 
 ```mermaid
 flowchart TD
-    A[poll timer ≤ 60s] --> B[runScheduleClaimAndFireTick]
+    A[poll timer 60s] --> B[runScheduleClaimAndFireTick]
     B --> C[listDueSchedules]
-    C --> D{claimDueSchedule CAS}
-    D -->|lost| C
-    D -->|won| E{overdue?}
-    E -->|on time| F[fireSchedule 'poll']
-    E -->|overdue + catchUp| F2[fireSchedule 'catchup']
-    E -->|overdue, no catchUp| G[insert 'missed' run]
-    F --> H[render prompt]
-    H --> I{verbatim template?}
-    I -->|yes| J[deliver rendered text as-is]
-    I -->|no| K[compose MCP + capability → startChatTurn]
-    K --> L[drive ChatTurnEvent stream: text + session id]
-    J --> M[("one tx: run→completed + lastFiredAt + schedule.run-completed outbox")]
-    L --> M
-    M -.not-yet-wired relay.-> N[consumeScheduleRunCompletedEvent → channel outbound]
+    C --> D{firePool.admit}
+    D -->|already in pool| S[skippedCount++]
+    D -->|slot| E{claimDueSchedule CAS}
+    E -->|lost| X[claim-lost]
+    E -->|won| F{overdue at tick clock?}
+    F -->|on time| G[fireSchedule 'poll']
+    F -->|overdue + catchUp| G2[fireSchedule 'catchup']
+    F -->|overdue, no catchUp| M[insert 'missed' run]
+    G --> H[render prompt + compose fire frame]
+    G2 --> H
+    H --> I{path?}
+    I -->|verbatim reminder| J[deliver rendered text as-is, no session]
+    I -->|workspaceId null| K[startGlobalRootTurn - origin 'schedule']
+    I -->|workspace| L[runFiredWorkspaceTurn - lock, resume primary head]
+    J --> T[("tx: run→completed + lastFiredAt + schedule.run-completed")]
+    K --> T
+    L --> T
+    T --> R[outbox relay 5s] --> CH[channels: enqueue outbound]
+    G -.throws.-> FT[("tx: run→failed + schedule.run-failed")]
+    FT --> R2[outbox relay] --> RP[orchestration: global-root report delivery]
 ```
 
-1. `apps/local-api/src/services/schedules-service.ts` fires the 60 s timer → `runScheduleClaimAndFireTick(db, fireDeps)` (`firing/run-schedule-claim-and-fire-tick.ts`).
-2. `listDueSchedules` returns `isEnabled AND nextScheduledFireAt <= now`. For each, `claimDueSchedule` does the atomic CAS on `nextScheduledFireAt` — the loser skips (no double-fire). This is the **only** place next-fire advances (`run-schedule-claim-and-fire-tick.ts:45`).
-3. Overdue (> 90 s past) with no catch-up → one `missed` run and move on; otherwise `fireSchedule` runs (`triggerKind` `poll` / `catchup` / `manual`).
-4. `fireSchedule` (`firing/fire-schedule.ts`) inserts a `pending`→`running` run, renders the prompt (`render-schedule-prompt.ts`). A **verbatim** template delivers the rendered text as-is with no session; otherwise it composes the workspace MCP (`deps.composeWorkspaceMcpServers`) + capability prompt (`deps.composeSessionCapabilities`) and drives `deps.startChatTurn` — a fresh session, `permissionMode: 'bypass-with-behavior-gate'` (D10) — reading `session-created` / `text-chunk` / `session-errored` off the stream.
-5. Terminal writes co-commit in **one** `withTransaction` (`fire-schedule.ts:184`): run→`completed`, `lastFiredAt`, and — only on success + `chat-and-channel` + a set `channelId` + (a known `chatSessionId` OR a verbatim template) — an `insertOutboxEvent('schedule.run-completed')`. `nextScheduledFireAt` is never touched here.
-6. **Would-be delivery (not wired):** `packages/channels/src/delivery/consume-schedule-run-completed-event.ts` enqueues a `scheduled-message` outbound row to the channel's owner — but nothing invokes it in a running process (see Connections / Gotchas).
+1. `services/schedules-service.ts` fires the 60 s timer → `runScheduleClaimAndFireTick(db, fireDeps, firePool)`.
+2. `listDueSchedules` returns `isEnabled AND nextScheduledFireAt <= now`. Each due row is handed to `firePool.admit` (`run-schedule-claim-and-fire-tick.ts:68`); a schedule already queued or running in the pool is **not** admitted (`skippedCount`), so an every-minute schedule with a slow turn can't fill the pool with copies of itself.
+3. Inside the admitted worker, `claimAndFireDueSlot` does the atomic CAS (`claimDueSchedule`, `:100`) — the only place `nextScheduledFireAt` advances, straight past the whole overdue window. A concurrent tick (or a prior process's abandoned batch) that already advanced it loses and skips.
+4. Overdue is judged at the **tick's** clock, not the worker's (`isOverdue`, `:112` / `:156` — > 90 s). Overdue with no catch-up → one `missed` run; otherwise `fireSchedule` runs as `catchup` (overdue) or `poll`.
+5. `fireSchedule` (`firing/fire-schedule.ts`) inserts a `pending`→`running` run, renders the prompt, and composes the **fire frame** (`:200–204`): `marker` from the injected `renderScheduleFireMarker` (backed by `packages/instructions/session-instructions/schedule-fire-marker.md`, filled with the display name + `formatScheduledTime`) and `sourceLabel` from `scheduleSourceLabel(displayName)` → `"Schedule · <name>"`.
+6. **Three delivery paths.** *Verbatim* (`templateKind: 'reminder'`, `deliversVerbatim`) — the rendered text ships as-is, no session. *Global* (`workspaceId === null`) — `deps.startGlobalRootTurn`, bound to `runGlobalRootTurn` with `channelReplyMarker: frame.marker`, `inboundAttribution: { sourceKind: 'system', sourceLabel }`, `activityOrigin: 'schedule'`, `autoContinue: true`, `wallClock: { maxMs: hardCapMs }` (`build-schedule-fire-deps.ts:277–299`). *Workspace* — `runFiredWorkspaceTurn`.
+7. The workspace turn's binder (`build-schedule-fire-deps.ts:139–265`): acquire the workspace key in the shared `SessionTargetLocks` (`:154`) → **inside the lock** `resolvePrimaryConversationTarget` (`:162`, get-or-create) → arm the wall clock → `activityFeed.begin({ origin: 'schedule', primarySessionId, sessionId })` → `startChatTurn` with `resumeSessionId: target.resumeSdkSessionId` (`:217`) and `continuity: { primarySessionId, threshold }`. Settings come from `resolveWorkspaceTurnSettings` → `resolveBackgroundTurnSettings` (`:122`) = the primary head's `chat_sessions` row (mode / model / effort / autopilot) else the defaults, with the model fit-clamped against that head.
+8. `run-fired-workspace-turn.ts` sends the plain prompt as `userMessageText` and `prompt + "\n\n" + marker` as `providerUserMessageText` (`:102`), attributed `{ userSourceKind: 'system', userSourceLabel }` (`:103`). It binds the run's session from `session-created` **or** `user-message-persisted` (`:150`) — a resumed head announces only through the latter.
+9. Terminal writes co-commit in **one** `withTransaction` (`fire-schedule.ts:115`): run→`completed`, `lastFiredAt`, and — only on success + `chat-and-channel` + a set `channelId` + (a known `chatSessionId` OR verbatim, `:128`) — `insertOutboxEvent('schedule.run-completed')`.
+10. Any throw lands in the failure tx (`:157`): run→`failed` + `insertOutboxEvent('schedule.run-failed')`.
+11. The 5 s outbox relay drains both: `schedule.run-completed` → `consumeScheduleRunCompletedEvent` (channels enqueues the rendered output verbatim); `schedule.run-failed` → `consumeScheduleRunFailedEvent` (orchestration enqueues a global-root **report delivery**, so the failure reaches the user's chat).
 
 ## Connections
 
-**Summary:** schedules is a **read-side + injected-dep leaf** — its ops are called by the api routes, the boot poll service, onboarding (injected), and the dashboard; its fire path depends on the chat turn + MCP/capability composition only through the injected `FireScheduleDeps`, never a direct leaf import. It publishes one lifecycle event; its consumer lives in channels but is **not registered**.
+**Summary:** schedules is a **read-side + injected-dep leaf** — its ops are called by the api routes, the boot poll service, onboarding (injected), and the dashboard; every turn it fires reaches the session/mcp/instructions leaves only through `FireScheduleDeps`. It publishes two lifecycle events, both registered and drained.
 
 | Unit | Direction | Mechanism | What crosses |
 |---|---|---|---|
 | db kernel (`@vynel/db`) | out | import | `Database`, `withTransaction`, `users`/`workspaces` FKs, `findUserById`/`findWorkspaceById`, `insertOutboxEvent` |
-| [contracts](../_platform/contracts-and-sdk/overview.md) | out | import | the template catalog, `isOneTimeSchedule`, the wire types (`schedule-http`), `ChatTurnEvent` |
+| [contracts](../_platform/contracts-and-sdk/overview.md) | out | import | template catalog, `isOneTimeSchedule`, `scheduleSourceLabel`, the wire types (`schedule-http`), `ChatTurnEvent`, `ThinkingEffortLevel` |
 | providers (`@vynel/providers`) | out | import | `DEFAULT_PROVIDER_ID` |
 | errors | out | import | `NotFoundError`, `ValidationError`, `ConflictError` |
-| [chat / session](../session/overview.md) | out (loose) | **injected dep + loose ids** | `startChatTurn` supplied via `FireScheduleDeps`; `chatSessionId` stored as loose `text()` — no import |
-| [mcp](../_apps/mcp/overview.md) | out (loose) | **injected dep** | `composeWorkspaceMcpServers` / capability composition supplied via `FireScheduleDeps` (bound in `build-schedule-fire-deps.ts`, dynamic `@vynel/mcp` import) |
+| [session](../session/overview.md) | out (loose) | **injected dep + loose ids** | `startChatTurn` (lock-wrapped, primary-resuming), `resolveBackgroundTurnSettings`, `resolvePrimaryConversationTarget` — all via `FireScheduleDeps`; `chatSessionId` stored as loose `text()` |
+| [instructions](../instructions/overview.md) | out (loose) | **injected dep** | `renderScheduleFireMarker` — the marker's words live in the sibling leaf's `.md`, injected by the binder |
+| [mcp](../_apps/mcp/overview.md) | out (loose) | **injected dep** | `composeWorkspaceMcpServers` / `composeSessionCapabilities` (bound through `buildWorkspaceBackgroundMcpComposer`, dynamic `@vynel/mcp` import) |
 | local-api routes | in | import | the CRUD/list/fire ops; `workspaceScoped`/`userScoped` + `featureGate` enforce access |
-| local-api poll service | in | import | `runScheduleClaimAndFireTick` on the 60 s tick |
-| [onboarding](../onboarding/overview.md) | in | **injected dep** | `createSchedule` bound into `OnboardingDeps` (`routes/onboarding/build-onboarding-deps.ts`) — the leaf never imports `@vynel/schedules` |
-| [dashboard](../dashboard/overview.md) | in | import | `listSchedulesForUser` for the home summary |
-| [channels](../channels/overview.md) | both (loose) | outbox event + loose `channelId` | schedules publishes `schedule.run-completed`; channels' consumer reacts (see below); `channelId` is a loose ref |
+| local-api poll service | in | import | `runScheduleClaimAndFireTick` + `ScheduleFirePool` on the 60 s tick |
+| [onboarding](../onboarding/overview.md) | in | **injected dep** | `createSchedule` bound into `OnboardingDeps` |
+| dashboard route (`apps/local-api/src/routes/dashboard/index.ts`) | in | import | `listSchedulesForUser` for the home summary |
+| [channels](../channels/overview.md) | both (loose) | outbox event + loose `channelId` | `schedule.run-completed` → `consumeScheduleRunCompletedEvent`; `channelId` is a loose ref |
+| [orchestration](../orchestration/overview.md) | out (loose) | outbox event | `schedule.run-failed` → `consumeScheduleRunFailedEvent` → global-root report delivery |
+| [monitors](../monitors/overview.md) | out (loose) | outbox event | both event types are watchable (`routes/monitors/watchable-events.ts:50,55`), filterable on `scheduleId` / `workspaceId` |
 | local-web | in | SDK | the panel calls list / create / toggle |
 
-**Events published:** `schedule.run-completed` — co-committed in `fireSchedule`'s terminal tx, conditionally (success + `chat-and-channel` + `channelId` + (`chatSessionId` OR verbatim)). Payload matches channels' `ScheduleRunCompletedPayload` field-for-field; `renderedOutput` carries the baked-in `📅` header.
+**Events published**
+
+| Event | When | Tx guarantee |
+|---|---|---|
+| `schedule.run-completed` | success **and** `chat-and-channel` **and** `channelId` set **and** (`chatSessionId` OR verbatim) | co-committed with run→`completed` + `lastFiredAt` in one `withTransaction` |
+| `schedule.run-failed` | any throw out of the delivery path | co-committed with run→`failed` in one `withTransaction`; `ScheduleRunFailedPayload` is declared in `schedules-events.ts` but NOT barrel-exported — orchestration re-declares it field-for-field (the loose contract), unlike `ScheduleRunCompletedPayload`, which the barrel does export |
 
 **Events consumed by schedules:** none.
-
-> **Consumer wiring drift (as-built):** `consumeScheduleRunCompletedEvent` is exported from `@vynel/channels` and covered by `apps/local-api/src/services/schedule-channel-delivery.integration.test.ts` (which calls it directly), but the generic relay is **not running**: `OUTBOX_CONSUMERS` (`packages/core/src/_shared/outbox-consumer-registry.ts`) is `{}`, and no app calls `dispatchOutboxEvents`. So a fired `chat-and-channel` schedule writes the outbox event but nothing yet drains it to the channel. Registering the consumer + starting the dispatch loop is the remaining wire-up.
 
 ```mermaid
 flowchart LR
     db[(db kernel)] --> S[schedules]
     ct[contracts] --> S
-    S --> obx[(schedule.run-completed)]
     api[local-api routes + poll] --> S
     onb[onboarding] -. injected dep .-> S
     dash[dashboard] --> S
-    chat[chat/session] -. injected startChatTurn .-> S
+    sess[session runtime] -. injected turns/settings .-> S
     mcp[mcp] -. injected composer .-> S
-    obx -. unwired relay .-> chn[channels consumer]
+    ins[instructions] -. injected marker .-> S
+    S --> ok[(schedule.run-completed)]
+    S --> bad[(schedule.run-failed)]
+    ok --> relay[outbox relay 5s]
+    bad --> relay
+    relay --> chn[channels consumer]
+    relay --> orch[orchestration report delivery]
     web[local-web panel] -. SDK .-> api
 ```
 
 ## Config & gotchas
 
-- **The claim is the sole `nextScheduledFireAt` writer.** `fireSchedule` never advances it (D12); only `claimDueSchedule` does — atomically, past the whole overdue window in one step. A manual fire therefore never skips the next scheduled run.
-- **Overdue = > 90 s past** (`run-schedule-claim-and-fire-tick.ts:106`, ~1.5 poll intervals). An overdue slot fires **once** as `catchup` (if `catchUpOnMiss`) or records **one** `missed` run — never both, never a flood. The discriminator is overdue-ness, not fire history.
-- **One-time schedules disarm to null.** `isOneTimeSchedule` → the next-fire computation returns `null`; the row then fails the `nextScheduledFireAt <= now` filter and is never re-listed. An invalid cron also claims to null (stops firing until edited).
-- **The verbatim gate is `(chatSessionId || deliversVerbatim)`** — do NOT tighten it back to `&& chatSessionId`, or every verbatim reminder (which has no session) silently stops delivering to its channel (`fire-schedule.ts:190`).
-- **A global (null-workspace) non-verbatim turn fails cleanly.** A workspace-scoped turn needs a workspace; a null one surfaces the same `NotFoundError` as a missing one → the run is marked `failed`. The natural global case is a verbatim reminder, which needs no workspace.
-- **`fireSchedule` never throws to its caller** — a failure marks the run `failed`, logs a warn, and returns the row. The poll and `fire-now` both get a run row back, not an exception. (`manualFireSchedule`'s 404/409 are thrown *before* `fireSchedule`.)
-- **Fired turns run under `permissionMode: 'bypass-with-behavior-gate'`** (D10) with a fresh session (`resumeSessionId` omitted, D3); a feature's declared `mutatingToolNames` still card even under bypass.
-- **The runtime↔wire cast is deliberate.** `build-schedule-fire-deps.ts:56` casts the session runtime's `startChatTurn` (Date timestamps, `ChatSession` rows) to `FireScheduleDeps['startChatTurn']` (the contracts wire union); the fire path reads only `session.id` / `textDelta` / `errorMessage`, present on both — documented as runtime-safe.
-- **`featureGate` covers HTTP only** (`middleware/feature-gate.ts`, known limitation): a pro→basic downgrade does **not** stop the boot poll's already-scheduled fires (they run via direct package calls outside HTTP), and it 403s the whole subtree including disable/delete. Pausing background execution per-entitlement is a deliberate follow-on.
+- **Pool admission and the CAS claim are two different mechanisms.** `ScheduleFirePool.admit` bounds *concurrency* and enforces one live fire per schedule (`null` → `skippedCount`, re-listed next tick). `claimDueSchedule` prevents *double-firing the same slot* across overlapping ticks — and it runs **inside** the admitted worker, right before the fire, so a kill mid-batch loses nothing that was still waiting for a slot.
+- **The claim is the only writer that advances `nextScheduledFireAt` PAST a fired slot** (D12) — `fireSchedule` never touches it, so a manual fire never skips the next scheduled run. It is not the only writer at all: `createSchedule` sets the first value and `updateSchedule` recomputes it on a cron/timezone change (D9). Neither is a bug.
+- **Overdue is judged at the tick's clock** (`tickStartedAt`), not the worker's — a slot that waited for a pool slot was not "missed offline". Overdue = > 90 s (~1.5 poll intervals); an overdue slot fires **once** as `catchup` or records **one** `missed` run, never both.
+- **`fire-now` is NOT pool-bounded.** The pool belongs to the poll service; the `fire-now` routes build their own `FireScheduleDeps` per request. A manual fire still takes the workspace target lock and the delegated cap, but nothing caps how many manual fires run at once.
+- **Schedule-on-primary reverses blueprint D3.** A workspace fire resumes the workspace's continuing conversation (get-or-create primary, resolved *inside* the lock — a pre-lock read could resume a head the queued holder has since pressure-swapped). A first-ever fire starts fresh and *becomes* the conversation. Consequence: the run's `chatSessionId` is a segment of the visible chain, and the turn appears in a thread the user may have open.
+- **Two session-announce doors.** A resumed head emits **only** `user-message-persisted`; `session-created` covers the first fire and a mid-turn swap. `bindSession` dedupes both — dropping either door silently leaves the run row unbound.
+- **The fire frame is model-facing only.** `marker` rides `providerUserMessageText`; the persisted row keeps the plain prompt under `sourceLabel` = `"Schedule · <name>"`. Without the frame a fired "remind me for tea" read as the *user asking* and the model set a `sleep` timer (the 2026-08-20 bug). Change the words in `packages/instructions/session-instructions/schedule-fire-marker.md`, not in code.
+- **`autoContinue: true` is load-bearing on the global path.** An attributed inbound is otherwise treated as a *delivery* turn the root absorbs (no context nudge, no continuation). A fire is real work.
+- **Settings = primary row else defaults, fit-clamped.** `resolveBackgroundTurnSettings` reads the head segment's row (mode / model / effort / autopilot) and clamps the model against that head's occupancy. **Drift:** that resolver's header comment still describes a schedule fire as "starting a fresh session" and skipping the fit; `startsFreshSession` is no longer passed by any fire path (see `build-schedule-fire-deps.ts:109–129`).
+- **`ambientWorkspace: false` on `create_my_schedule`** — omitting `workspaceId` means scope `global`, never "my current workspace"; the ambient stamp would silently rescope the create.
+- **The verbatim gate is `(chatSessionId || deliversVerbatim)`** (`fire-schedule.ts:128`) — do NOT tighten it back to `&& chatSessionId`, or every verbatim reminder (which has no session) silently stops delivering to its channel.
+- **`fireSchedule` never throws to its caller** — a failure marks the run `failed`, publishes `schedule.run-failed`, and returns the row. `manualFireSchedule`'s 404/409 are thrown *before* `fireSchedule`. A `failedCount` in the tick summary means something threw *around* the executor (a row write, a schedule disabled between claim and fire).
+- **`SCHEDULE_RUN_FAILED_EVENT_TYPE` is not on the package barrel** — only the completed constant is exported from `index.ts`. That's by design (the outbox registry keys on literal strings, so core stays off the producer's dependency list), but the next editor will look for it in the barrel and not find it.
+- **Env knobs** (`apps/local-api/src/env.ts`): `VYNEL_MAX_CONCURRENT_DELEGATIONS` (default 3 — the fire pool's size), `VYNEL_DELEGATED_TURN_MAX_MS` (default 3 600 000 — the per-fire wall-clock cap), `VYNEL_CONTEXT_PRESSURE_THRESHOLD` (optional — forwarded to both the fit check and the continuity boundary so "fits" and "will swap" never disagree).
+- **The runtime↔wire cast is deliberate.** `build-schedule-fire-deps.ts:317` casts the session runtime's `startChatTurn` to `FireScheduleDeps['startChatTurn']` (the contracts wire union); the fire path reads only `session.id` / `message.sessionId` / `textDelta` / `errorMessage`, present on both.
+- **`featureGate` covers HTTP only** (known limitation): a pro→basic downgrade does not stop the boot poll's already-scheduled fires (they run via direct package calls), and it 403s the whole subtree including disable/delete.
 - **No soft-delete.** `deleteSchedule` hard-deletes and cascades to `schedule_runs` (D11); there is no `deletedAt` and no purge job — the run history is bounded by keyset pagination instead.
 
 ---
-*Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [overview.md](./overview.md).*
+*Mapped from the code on disk, 2026-08-20. If you change this module, update this file and [overview.md](./overview.md).*
