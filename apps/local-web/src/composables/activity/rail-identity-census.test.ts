@@ -305,6 +305,12 @@ const FRAMES_BY_PRODUCER: Record<string, ProducerFrame[]> = {
   ],
   "packages/session/src/delegation/run-agent-run-job.ts": [
     {
+      // Audit R2-K: the announce moved AFTER the resolution phase, so the
+      // colleague identity is always on the frame — an unstamped (legacy /
+      // failed-resolve) row can no longer rail as the grounding ROOM. The one
+      // frame left without an identity is the resolution FAILURE below, which
+      // opens and ends in the same breath: the room's problem signal, with no
+      // live thread for any view to bind to.
       label: "a colleague run under its grounding room",
       frame: published({
         scopeKind: "workspace",
@@ -330,6 +336,19 @@ const FRAMES_BY_PRODUCER: Record<string, ProducerFrame[]> = {
       }),
       chip: session("agent-1"),
       chipBeforeGlobalIdKnown: null,
+    },
+    {
+      label: "a colleague run whose resolution failed (begin + end, the room's problem signal)",
+      frame: published({
+        scopeKind: "workspace",
+        workspaceId: "ws-1",
+        origin: "delegation",
+        jobId: "job-5b",
+        taskLabel: "Review the PR",
+        personaName: "Noah",
+      }),
+      chip: room("ws-1"),
+      chipBeforeGlobalIdKnown: room("ws-1"),
     },
   ],
   "packages/session/src/delegation/run-report-delivery-tick.ts": [

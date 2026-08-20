@@ -15,6 +15,13 @@
 // Phase 1 runs every producer in the ONE api process, so a Map is the whole
 // transport — the DelegationCancelRegistry precedent. Genuinely stateful — the
 // registry class exception.
+//
+// The QUEUE has a bound + a cancel since audit R2-J: an interactive caller
+// passes `LockWaitOptions` and gives up (typed) when its budget is spent or
+// its client disconnects. Background callers pass nothing and keep the
+// unbounded FIFO wait the pool's yield/requeue policy is built on.
+
+import { waitInLockQueue, type LockWaitOptions } from '../runtime/lock-wait.js'
 
 export class SessionTargetLocks {
   // Key present = held. The array is the FIFO of waiters parked behind the
@@ -24,14 +31,36 @@ export class SessionTargetLocks {
   /** Acquire the target's writer lock. Resolves immediately when the key is
    *  free (registered synchronously — see the header contract), else parks
    *  FIFO behind the current holder. Resolves to the release fn (idempotent —
-   *  a double release never frees a successor's hold). */
-  acquire(targetKey: string): Promise<() => void> {
+   *  a double release never frees a successor's hold).
+   *
+   *  `wait` bounds and cancels the PARKING path only: a free key always
+   *  acquires, because the sync registration already happened and a give-up
+   *  there would leave the key held by nobody. */
+  acquire(targetKey: string, wait?: LockWaitOptions): Promise<() => void> {
     const waiters = this.waitersByKey.get(targetKey)
     if (waiters === undefined) {
       this.waitersByKey.set(targetKey, [])
       return Promise.resolve(this.buildRelease(targetKey))
     }
-    return new Promise((resolve) => waiters.push(resolve))
+    let handOver: (release: () => void) => void = () => {}
+    const parked = new Promise<() => void>((resolve) => {
+      handOver = resolve
+    })
+    waiters.push(handOver)
+    if (wait === undefined) return parked
+    return waitInLockQueue(
+      {
+        parked,
+        leaveQueue: () => {
+          const queued = waiters.indexOf(handOver)
+          if (queued >= 0) waiters.splice(queued, 1)
+        },
+        // The holder released into this waiter as its bound fired — it owns a
+        // lock nobody is waiting on any more, so give it straight back.
+        handBack: (release) => release(),
+      },
+      wait,
+    )
   }
 
   /** Whether the target currently has a holder (queued waiters imply one). */

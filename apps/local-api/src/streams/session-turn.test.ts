@@ -474,7 +474,13 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
     })
   })
 
-  it('a client DISCONNECT while parked never leaks the lock — the abandoned queued turn still runs to completion', async () => {
+  // test: correct expectation — audit R2-J reversed the pinned semantics. It
+  // used to read "the abandoned queued turn still runs to completion" (the
+  // client saw `turn-queued`, i.e. "will be delivered", so the message must not
+  // vanish). A turn run for nobody still holds the single-writer key for its
+  // whole run and burns a provider session, so a disconnected waiter now LEAVES
+  // the queue. The lock-leak pin this test exists for is unchanged.
+  it('a client DISCONNECT while parked drops the queued waiter — it never takes the lock', async () => {
     await withTestDatabase(async (db) => {
       const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-abort-'))
       await withVynelUserDataDir(dataDir, async () => {
@@ -492,27 +498,22 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
 
         // The client walks away WHILE PARKED. Cancelling the response body is
         // how a dead socket reaches hono's stream (the runtime cancels
-        // responseReadable → stream.abort() → writes become silent no-ops) —
-        // a bare AbortController signal reaches nothing on the node path.
+        // responseReadable → stream.abort() → the waiter's give-up signal) —
+        // a bare AbortController signal reaches nothing on the node path,
+        // which is exactly why the stream's own abort feeds the signal too.
         await res.body!.cancel()
-        // THEN the held run finishes — the abandoned waiter is next in line.
+        await sleep(50)
+        // THEN the held run finishes — and finds no waiter behind it.
         releaseDelegatedRun()
-        // Wait for the detached callback to drain (nobody is reading it).
-        for (let i = 0; i < 40 && locks.isBusy(spawned.primarySessionId); i += 1) {
-          await sleep(25)
-        }
+        await sleep(100)
 
-        // Pinned semantics (intentional): the abandoned waiter still RUNS TO
-        // COMPLETION — the client saw `turn-queued` ("will be delivered"), so
-        // the message must not silently vanish; the reply persists onto the
-        // session transcript while the dead stream's writes no-op. And THE
-        // pin this test exists for: the outer finally released the lock even
-        // though nobody was reading — a hostile refactor of that finally
-        // would leak the key and leave the session unwritable forever.
-        expect(startChatSessionInputs).toHaveLength(1)
+        // Pinned semantics (audit R2-J): the abandoned waiter LEFT the queue —
+        // no provider session, no rows, nothing run for a client that is gone.
+        // And THE pin this test exists for: the key is free — a leak here would
+        // leave the session unwritable forever.
+        expect(startChatSessionInputs).toHaveLength(0)
         const messages = listChatMessagesForSession(db, 'sdk-sp-abort')
-        expect(messages.find((m) => m.body === 'abandoned turn')).toBeDefined()
-        expect(messages.some((m) => m.role === 'assistant')).toBe(true)
+        expect(messages.find((m) => m.body === 'abandoned turn')).toBeUndefined()
         expect(locks.isBusy(spawned.primarySessionId)).toBe(false)
 
         // The freed key is genuinely usable: a fresh turn runs unqueued.
@@ -775,6 +776,69 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         interruptChatSessionMock.mockClear()
         await (await postTurn(app, spawned.sessionId, { userMessageText: 'quick' })).text()
         expect(interruptChatSessionMock).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  it('the lock-queue bound: a turn queued past VYNEL_LOCK_WAIT_MAX_MS gives up cleanly and never takes the key (R2-J)', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-queue-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-queue')
+        const locks = new SessionTargetLocks()
+        const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+        // The QUEUE's budget, not the turn's — the wall clock only starts once
+        // the turn holds its key, so before this a turn behind a wedged holder
+        // waited with no bound at all.
+        envOverrides.current = { VYNEL_LOCK_WAIT_MAX_MS: 60 }
+
+        const releaseDelegatedRun = await locks.acquire(spawned.primarySessionId)
+        const frames = await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'queued too long' })
+        ).text()
+
+        // It said it was waiting, then said honestly that it gave up.
+        expect(frames).toContain('event: turn-queued')
+        expect(frames).toContain('"errorCode":"lock-wait-exceeded"')
+        expect(frames).toContain('the conversation stayed busy')
+        expect(frames).toContain('event: turn-stream-ended')
+        // The turn never started: no provider session, no rows.
+        expect(startChatSessionInputs).toHaveLength(0)
+        expect(listChatMessagesForSession(db, 'sdk-sp-queue')).toHaveLength(0)
+        // And the give-up freed its queue slot — the holder's release finds
+        // nobody behind it.
+        releaseDelegatedRun()
+        expect(locks.isBusy(spawned.primarySessionId)).toBe(false)
+      })
+    })
+  })
+})
+
+describe('POST /sessions/:sessionId/turn — a non-lock failure before the acquire (review fold)', () => {
+  it('surfaces as the typed frame, never a silent turn-stream-ended', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-acquire-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-acquire')
+        const locks = new SessionTargetLocks()
+        // Anything that is NOT a queue give-up: the acquire itself blowing up.
+        // `writeLockWaitGiveUp` returns false for it, and the catch used to
+        // return on that false with no log and no frame — the composer folded a
+        // clean ending over an error nobody ever saw.
+        vi.spyOn(locks, 'acquire').mockRejectedValue(new Error('the lock registry blew up'))
+        const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+
+        const frames = await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'boom' })
+        ).text()
+
+        expect(frames).toContain('"errorCode":"turn-stream-failed"')
+        expect(frames).toContain('the lock registry blew up')
+        expect(frames).toContain('event: turn-stream-ended')
+        // It really never started — the frame is the failure, not a turn's own.
+        expect(startChatSessionInputs).toHaveLength(0)
       })
     })
   })

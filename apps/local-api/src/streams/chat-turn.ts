@@ -21,6 +21,7 @@ import {
   startTurnWallClock,
   trackApprovalParks,
   failTurnOnWallClock,
+  LockWaitAbandonedError,
   type ContinuationTurn,
 } from '@vynel/session/runtime'
 import {
@@ -34,7 +35,7 @@ import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { persistTurnSessionSettings, type ChatTurnEvent } from '@vynel/chat'
 import type { AppEnv } from '../factory.js'
-import { loadEnv } from '../env.js'
+import { loadEnv, resolveLockWaitMaxMs } from '../env.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
 import { composeSessionMcpServers } from '../sessions/compose-session-mcp-servers.js'
 import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
@@ -45,6 +46,11 @@ import { buildRecordRateLimitSnapshot } from '../sessions/build-record-rate-limi
 import { resolveEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import { resolveSessionToolPolicies } from '../sessions/session-tool-catalog.js'
 import { writeSseSafely } from './write-sse-safely.js'
+import {
+  buildTurnLockWait,
+  requestAbortSignal,
+  writeLockWaitGiveUp,
+} from './turn-queue-wait.js'
 import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
 import type { z } from 'zod'
 import type { StartChatTurnRequestSchema } from '../routes/chat/schemas.js'
@@ -539,19 +545,60 @@ export async function streamChatTurn(
       await runTurn(stream)
       return
     }
-    // The queued sentinel goes out BEFORE parking (the session-turn.ts shape)
-    // so the composer can tell waiting from frozen.
-    if (locks.isBusy(workspaceId)) {
-      // WHY it waits: behind this workspace's own context swap (the composer
-      // says "patching context") or behind a running task ("working on a task").
-      const swappingPrimaryId = continuingPrimaryId ?? workspacePrimary?.id ?? null
-      const reason =
-        swappingPrimaryId !== null && isPrimarySwapping(swappingPrimaryId)
-          ? 'context-patching'
-          : 'busy'
-      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason }) })
+    // The queued sentinel + the queue's bound and cancel, one home (R2-J): the
+    // lock fires the announce the moment this turn parks and keeps re-firing
+    // while it waits, gives up past the budget, and drops the waiter if the
+    // client goes away. WHY it waits is resolved per frame — behind this
+    // workspace's own context swap ("patching context") or behind a running
+    // task ("working on a task").
+    let releaseTargetLock: () => void
+    try {
+      releaseTargetLock = await locks.acquire(
+        workspaceId,
+        buildTurnLockWait({
+          stream,
+          requestSignal: requestAbortSignal(c),
+          maxWaitMs: resolveLockWaitMaxMs(env),
+          resolveReason: () => {
+            const swappingPrimaryId = continuingPrimaryId ?? workspacePrimary?.id ?? null
+            return swappingPrimaryId !== null && isPrimarySwapping(swappingPrimaryId)
+              ? 'context-patching'
+              : 'busy'
+          },
+          logger: c.var.logger,
+        }),
+      )
+    } catch (err) {
+      // The turn never started, so nothing to end on the feed or the wall
+      // clock — only the client needs its honest ending.
+      const gaveUpQueued = await writeLockWaitGiveUp(stream, err, {
+        sessionId: null,
+        logger: c.var.logger,
+      })
+      // Anything that is NOT a queue give-up is the acquire itself failing, and
+      // it gets the SAME ending a mid-flight throw gets (the catch below the
+      // drain): logged + a typed frame. Without this the error vanished — no
+      // log, no frame, just a `turn-stream-ended` that reads as a clean turn.
+      // The two give-up paths are untouched: expiry wrote its own frame above,
+      // and a disconnected client has nobody left to read one.
+      if (!gaveUpQueued && !(err instanceof LockWaitAbandonedError)) {
+        c.var.logger.error({ err }, 'chat turn stream failed before the lock was acquired')
+        await writeSseSafely(
+          stream,
+          'session-errored',
+          JSON.stringify({
+            kind: 'session-errored',
+            sessionId: '',
+            errorCode: 'turn-stream-failed',
+            errorMessage: err instanceof Error ? err.message : String(err),
+            isRecoverable: false,
+          }),
+          c.var.logger,
+        )
+      }
+      await writeSseSafely(stream, 'turn-stream-ended', '{}', c.var.logger)
+      return
     }
-    const releaseTargetLock = await locks.acquire(workspaceId)
     try {
       await runTurn(stream)
     } finally {

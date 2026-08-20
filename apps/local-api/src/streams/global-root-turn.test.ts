@@ -439,3 +439,67 @@ describe('streamGlobalRootTurn — the interactive wall clock (D5)', () => {
     })
   })
 })
+
+describe('streamGlobalRootTurn — a give-up in the lock QUEUE is not a failed turn (review fold)', () => {
+  it('an abandoned waiter — and a spent queue bound — end the feed without a failure row', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const activityFeed = new SessionActivityFeed()
+      const endedOutcomes: string[] = []
+      const unsubscribe = activityFeed.subscribe(user.id, (event) => {
+        if (event.kind === 'turn-ended') endedOutcomes.push(event.outcome)
+      })
+      const app = makeHarness(db, activityFeed)
+      try {
+        await withDataDir(async () => {
+          // Turn 1 hangs holding the identity's root lock. Its body must be
+          // READ or hono's writer backpressures before the hang point (the
+          // queued-sentinel test's note).
+          nextTurnHangs = true
+          const heldSessionId = nextSdkSessionId
+          const heldFrames = postTurn(app, { userMessageText: 'long one' }).then((res) => res.text())
+          for (let i = 0; i < 80 && !hangResolvers.has(heldSessionId); i += 1) await sleep(25)
+          expect(hangResolvers.has(heldSessionId)).toBe(true)
+
+          // Turn 2 parks behind it, then its client closes the tab. Cancelling
+          // the response body is how a dead socket reaches hono's stream on the
+          // node path (the workspace streams' pin).
+          nextSdkSessionId = `sdk-${randomUUID()}`
+          const abandoned = await postTurn(app, { userMessageText: 'abandoned turn' })
+          expect(abandoned.status).toBe(200)
+          await sleep(50)
+          expect(startChatSessionInputs).toHaveLength(1) // parked, nothing started
+          await abandoned.body!.cancel()
+          for (let i = 0; i < 40 && endedOutcomes.length === 0; i += 1) await sleep(25)
+
+          // THE pin: the waiter left the queue and its feed envelope closed
+          // WITHOUT a failure. The sink used to mark 'failed' above the give-up
+          // branch, so closing a tab while queued left a durable problem signal
+          // on a turn that never ran a single token. (The global root announces
+          // before the park — the workspace streams begin after the acquire, so
+          // only this stream could misrecord it.)
+          expect(endedOutcomes).toEqual(['ended'])
+          expect(startChatSessionInputs).toHaveLength(1)
+
+          // The other give-up — the queue budget spent — reads the same on the
+          // feed, and the client still gets its honest typed frame.
+          envOverrides.current = { VYNEL_LOCK_WAIT_MAX_MS: 60 }
+          nextSdkSessionId = `sdk-${randomUUID()}`
+          const expired = await (await postTurn(app, { userMessageText: 'queued too long' })).text()
+          expect(expired).toContain('"errorCode":"lock-wait-exceeded"')
+          expect(expired).toContain('event: turn-stream-ended')
+          expect(endedOutcomes).toEqual(['ended', 'ended'])
+          expect(startChatSessionInputs).toHaveLength(1)
+
+          // The holder finishes normally — its own outcome is unaffected.
+          envOverrides.current = {}
+          await interruptChatSessionMock(heldSessionId)
+          await heldFrames
+          expect(endedOutcomes).toEqual(['ended', 'ended', 'ended'])
+        })
+      } finally {
+        unsubscribe()
+      }
+    })
+  })
+})

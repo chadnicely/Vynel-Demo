@@ -104,6 +104,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   picks it up on your next message, and a newer checkpoint never silently erases it.
   The checkpoint tool also tells Claude honestly which conversations resume on their own.
 - **A voice answer that produced nothing now says so** instead of leaving dead air.
+- **Waiting behind a busy conversation is bounded and honest.** A message queued behind
+  a running turn keeps saying it's queued, gives up cleanly after the time limit instead
+  of piling up, and a message you abandon by closing the tab no longer runs for nobody.
+- **Closing the laptop no longer breaks running tasks** — after a suspend, the cleanup
+  pass waits one beat for live tasks to report in before declaring anything interrupted.
+- **A colleague's run is labeled as the colleague** on the activity rail, never mistaken
+  for the workspace's own conversation.
 - **A workspace schedule now runs in the workspace's own conversation** — you watch it
   work in the thread like any other turn, instead of it running invisibly in the
   background.

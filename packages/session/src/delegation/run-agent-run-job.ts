@@ -46,7 +46,11 @@ import {
 } from './build-routed-approval-handler.js'
 import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
-import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
+import type {
+  BeginTurnActivityInput,
+  SessionActivityFeed,
+  SessionTurnActivityHandle,
+} from '../runtime/session-activity-feed.js'
 import {
   CONTINUATION_TASK_INSTRUCTIONS,
   type RoutedTurnMcpAttachment,
@@ -111,11 +115,13 @@ export async function runAgentRunJob(
     'agent-run: claimed — running the mentioned colleague turn',
   )
 
-  // A colleague run announces on the liveness feed under its GROUNDING (the
-  // session-target shape when global). Begun immediately before try
-  // (zombie-turn doctrine); enrichment is pure/enqueue-time only.
+  // The frame a colleague run announces under: its GROUNDING scope (the
+  // session-target shape when global) plus the enrichment the row already
+  // carries — everything pure / enqueue-time, never a DB read that could
+  // throw. What it still lacks is the IDENTITY, which the resolution phase
+  // below produces.
   const feedThreadId = resolveThreadIdOf(claimed)
-  const activityHandle = deps.activityFeed.begin({
+  const groundedFrame: BeginTurnActivityInput = {
     userId: claimed.userId,
     ...(claimed.workspaceId === null
       ? { scopeKind: 'global' as const }
@@ -124,15 +130,18 @@ export async function runAgentRunJob(
     jobId: claimed.id,
     ...(feedThreadId !== null ? { threadId: feedThreadId } : {}),
     ...(partialSessionId !== undefined ? { partialSessionId } : {}),
-    ...(claimed.targetPrimarySessionId !== null
-      ? { primarySessionId: claimed.targetPrimarySessionId }
-      : {}),
     taskLabel: deriveDelegationTaskLabel(claimed.taskText),
     ...(claimed.workspaceName !== null ? { personaName: claimed.workspaceName } : {}),
-  })
+  }
   // Hoisted so the failure paths can abandon any still-parked approval —
   // fail-closed, never a hanging SDK agent (the tick's shape).
   let approvalHandler: RoutedApprovalHandler | null = null
+  // Hoisted so the catch/finally can end a turn the try announced: the
+  // announce sits INSIDE the try now because it must carry the colleague
+  // identity, and only the resolution phase knows it (audit R2-K). The
+  // zombie-turn doctrine still holds — nothing throwable sits between the
+  // begin and the finally that ends it.
+  let announcedTurn: SessionTurnActivityHandle | null = null
   try {
     // ── Resolution phase — a failure here (deleted agent, corrupt row) is a
     // FAILED ATTEMPT, not bookkeeping: it settles through the give-up push so
@@ -183,9 +192,10 @@ export async function runAgentRunJob(
             })
       resolved = { agentSlug, runCwdPath, agent, colleague }
     } catch (resolutionErr) {
-      // The workspace status vocabulary's problem signal — first call wins,
-      // the finally's clean end() no-ops after this.
-      activityHandle.end('failed')
+      // The grounding's problem signal (the workspace status vocabulary) still
+      // has to fire — as a frame that opens and ENDS in the same breath, so no
+      // view can ever bind to a room-scoped frame that names no identity.
+      deps.activityFeed.begin(groundedFrame).end('failed')
       settleFailedDelegationAttempt(
         db,
         claimed,
@@ -199,6 +209,19 @@ export async function runAgentRunJob(
       return true
     }
     const { agentSlug, runCwdPath, agent, colleague } = resolved
+
+    // NOW the run announces itself honestly (audit R2-K). A colleague run is
+    // grounded in a room but is NOT the room's own thread, and by
+    // `matchTurnToIdentity`'s contract a workspace-scoped frame carrying no
+    // `primarySessionId` IS the room's own turn — a workspace chat binds to it
+    // (round-1's V2 class, through a new producer). The enqueue's stamp is
+    // absent on a legacy row and on a mention whose colleague resolve failed,
+    // so the identity comes from the colleague this run actually resumes.
+    const activityHandle = deps.activityFeed.begin({
+      ...groundedFrame,
+      primarySessionId: colleague.id,
+    })
+    announcedTurn = activityHandle
 
     // The turn's settings — `job ?? agent.model ?? colleague row ?? DEFAULT`
     // (A5): the mention's stamped picks win, the agent's own configured model
@@ -400,13 +423,13 @@ export async function runAgentRunJob(
     return true
   } catch (err) {
     // An unexpected throw must never leave the job stuck `claimed`.
-    activityHandle.end('failed')
+    announcedTurn?.end('failed')
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'agent-run job run threw unexpectedly')
     return true
   } finally {
     cancelHandle?.end()
-    activityHandle.end()
+    announcedTurn?.end()
   }
 }

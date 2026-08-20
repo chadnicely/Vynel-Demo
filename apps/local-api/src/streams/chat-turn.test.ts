@@ -465,7 +465,11 @@ describe('POST /chat/sessions/turn (SSE)', () => {
     })
   })
 
-  it('a client DISCONNECT while parked never leaks the workspace key', async () => {
+  // test: correct expectation — audit R2-J reversed the pinned semantics (see
+  // the twin in session-turn.test.ts): a waiter whose client is gone leaves the
+  // queue instead of acquiring and running a turn for nobody. The key-leak pin
+  // this test exists for is unchanged.
+  it('a client DISCONNECT while parked drops the waiter and never leaks the workspace key', async () => {
     await withTestDatabase(async (db) => {
       const { user, workspace } = seedWorld(db)
       const locks = new SessionTargetLocks()
@@ -489,18 +493,17 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       // The client walks away WHILE PARKED (cancelling the body is how a dead
       // socket reaches hono's stream on the node path — the session-turn pin).
       await res.body!.cancel()
+      await sleep(50)
       releaseDelegatedRun()
-      // The abandoned waiter still runs to completion detached; wait it out.
-      for (let i = 0; i < 40 && locks.isBusy(workspace.id); i += 1) {
-        await sleep(25)
-      }
+      await sleep(100)
 
-      // THE pin: the finally released the key even with nobody reading — a
-      // leak here would park every future continue-turn AND the delegation
-      // pool on this workspace forever.
+      // THE pin: the key is free — a leak here would park every future
+      // continue-turn AND the delegation pool on this workspace forever. And
+      // (R2-J) the abandoned waiter never ran: no provider session for a
+      // client that had already gone.
       expect(locks.isBusy(workspace.id)).toBe(false)
       expect(startChatSessionInputs.some((i) => i.userMessageText === 'abandoned turn')).toBe(
-        true,
+        false,
       )
       const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
       expect(primary).not.toBeNull()
@@ -682,6 +685,31 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       })
       expect(frames).not.toContain('"status":"failed"')
       expect(frames).toContain('event: turn-stream-ended')
+    })
+  })
+})
+
+describe('POST /chat/sessions/turn — a non-lock failure before the acquire (review fold)', () => {
+  it('surfaces as the typed frame, never a silent turn-stream-ended', async () => {
+    await withTestDatabase(async (db) => {
+      const { workspace } = seedWorld(db)
+      const locks = new SessionTargetLocks()
+      // Anything that is NOT a queue give-up: the acquire itself blowing up.
+      // `writeLockWaitGiveUp` returns false for it, and the catch used to
+      // return on that false with no log and no frame — the composer folded a
+      // clean ending over an error nobody ever saw.
+      vi.spyOn(locks, 'acquire').mockRejectedValue(new Error('the lock registry blew up'))
+      const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+
+      const frames = await (
+        await postTurn(app, workspace.id, { userMessageText: 'boom', continueRoot: true })
+      ).text()
+
+      expect(frames).toContain('"errorCode":"turn-stream-failed"')
+      expect(frames).toContain('the lock registry blew up')
+      expect(frames).toContain('event: turn-stream-ended')
+      // It really never started — the frame is the failure, not a turn's own.
+      expect(startChatSessionInputs).toHaveLength(0)
     })
   })
 })

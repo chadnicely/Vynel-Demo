@@ -4,8 +4,9 @@
 // waiters, idempotent release (a double release never frees a successor's
 // hold), and `busyKeys`/`isBusy` mirroring the holders.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { SessionTargetLocks } from './session-target-locks.js'
+import { LockWaitAbandonedError, LockWaitExpiredError } from '../runtime/lock-wait.js'
 
 /** Flush pending microtasks so settled acquires observably resolve. */
 const flushMicrotasks = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -99,5 +100,153 @@ describe('SessionTargetLocks', () => {
 
     releaseB()
     expect(locks.busyKeys().size).toBe(0)
+  })
+})
+
+// ── The QUEUE's bound + cancel (audit R2-J) ──────────────────────────────────
+// The arc bounded the turn that HOLDS a key; the waiters behind it were
+// unbounded and uncancellable, so N queued turns behind one wedged holder
+// waited N x the cap and a waiter whose client had gone still acquired.
+
+describe('SessionTargetLocks — a bounded, cancellable wait', () => {
+  it('a free key ignores the bound entirely — the sync registration must never be undone', async () => {
+    const locks = new SessionTargetLocks()
+    const alreadyGone = new AbortController()
+    alreadyGone.abort()
+
+    const release = await locks.acquire('target-a', { maxWaitMs: 1, signal: alreadyGone.signal })
+
+    expect(locks.isBusy('target-a')).toBe(true)
+    release()
+    expect(locks.isBusy('target-a')).toBe(false)
+  })
+
+  it('gives up with a typed error past the bound and frees its queue slot', async () => {
+    vi.useFakeTimers()
+    try {
+      const locks = new SessionTargetLocks()
+      const releaseHolder = await locks.acquire('target-a')
+      // The handler is attached BEFORE the clock moves — a rejection with no
+      // reader yet is an unhandled rejection, the flake class the audit named.
+      const bounded = locks.acquire('target-a', { maxWaitMs: 60_000 }).catch((err: unknown) => err)
+      const patient = locks.acquire('target-a')
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      await expect(bounded).resolves.toBeInstanceOf(LockWaitExpiredError)
+
+      // The give-up left the FIFO: the holder's release reaches the NEXT
+      // waiter, not a waiter nobody is behind any more.
+      releaseHolder()
+      const release = await patient
+      expect(locks.isBusy('target-a')).toBe(true)
+      release()
+      expect(locks.isBusy('target-a')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('an aborted waiter never acquires — the key passes to the next in line', async () => {
+    const locks = new SessionTargetLocks()
+    const releaseHolder = await locks.acquire('target-a')
+    const clientGone = new AbortController()
+    let abandonedAcquired = false
+    const abandoned = locks
+      .acquire('target-a', { signal: clientGone.signal })
+      .then(() => {
+        abandonedAcquired = true
+      })
+      .catch((err: unknown) => err)
+
+    clientGone.abort()
+    await expect(abandoned).resolves.toBeInstanceOf(LockWaitAbandonedError)
+
+    const next = locks.acquire('target-a')
+    releaseHolder()
+    const release = await next
+    expect(abandonedAcquired).toBe(false)
+    release()
+    expect(locks.isBusy('target-a')).toBe(false)
+  })
+
+  it('a hand-over that races the bound is handed straight back — the key never strands', async () => {
+    vi.useFakeTimers()
+    try {
+      const locks = new SessionTargetLocks()
+      const releaseHolder = await locks.acquire('target-a')
+      const bounded = locks.acquire('target-a', { maxWaitMs: 60_000 }).catch((err: unknown) => err)
+
+      // The bound fires and the holder releases into the abandoned waiter in
+      // the same beat: it owns a lock nobody is waiting on.
+      vi.advanceTimersByTime(60_000)
+      releaseHolder()
+      await expect(bounded).resolves.toBeInstanceOf(LockWaitExpiredError)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(locks.isBusy('target-a')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounded waiters still hand over FIFO while nobody gives up', async () => {
+    vi.useFakeTimers()
+    try {
+      const locks = new SessionTargetLocks()
+      const releaseHolder = await locks.acquire('target-a')
+      const order: number[] = []
+      const releases: Array<() => void> = []
+      const waiters = [1, 2, 3].map((n) =>
+        locks.acquire('target-a', { maxWaitMs: 60_000 }).then((release) => {
+          order.push(n)
+          releases.push(release)
+        }),
+      )
+
+      releaseHolder()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(order).toEqual([1])
+      releases[0]!()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(order).toEqual([1, 2])
+      releases[1]!()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(order).toEqual([1, 2, 3])
+      releases[2]!()
+      await Promise.all(waiters)
+      expect(locks.isBusy('target-a')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('re-announces while parked and stops the beat the moment it acquires', async () => {
+    vi.useFakeTimers()
+    try {
+      const locks = new SessionTargetLocks()
+      const releaseHolder = await locks.acquire('target-a')
+      let announced = 0
+      const waiting = locks.acquire('target-a', {
+        maxWaitMs: 600_000,
+        onStillWaiting: () => {
+          announced += 1
+        },
+        stillWaitingIntervalMs: 1_000,
+      })
+
+      // The first frame goes out the moment the turn parks — the composer
+      // reads "waiting", not "frozen".
+      expect(announced).toBe(1)
+      await vi.advanceTimersByTimeAsync(2_500)
+      expect(announced).toBe(3)
+
+      releaseHolder()
+      const release = await waiting
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(announced).toBe(3)
+      release()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

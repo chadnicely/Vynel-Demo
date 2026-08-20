@@ -43,6 +43,7 @@ import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { DelegatedTurnMcpComposer } from '../sessions/build-workspace-background-mcp.js'
 import { loadEnv } from '../env.js'
 import { settleOrphanedDelegationClaims } from './delegation-orphan-settlement.js'
+import { createSuspendAwareSweep } from './suspend-aware-lease-sweep.js'
 
 const DELEGATION_POLL_INTERVAL_MS = 1_000
 // The lease sweeper's cadence — the approvals reaper's 60 s, the app's
@@ -130,9 +131,18 @@ export function startDelegationService(options: DelegationServiceOptions): { sto
   // The LEASE sweeper: the same policy for a claim whose lease lapsed at
   // runtime — a run this process lost track of, or a crash the next boot pass
   // has not seen yet. Live runs heartbeat their lease well inside it.
+  // Fronted by the suspend guard (audit R2-L): the first tick after the machine
+  // slept longer than the lease would otherwise reap every LIVE run at once.
+  // The BOOT pass above stays ungated — at boot nothing is running, so a stale
+  // heartbeat there really is an orphan.
+  const leaseSweep = createSuspendAwareSweep({
+    intervalMs: LEASE_SWEEP_INTERVAL_MS,
+    sweep: () => settleOrphanedDelegationClaims(db, logger, { onlyExpiredLeases: true }),
+    logger,
+  })
   const sweepTimer = setInterval(() => {
     try {
-      settleOrphanedDelegationClaims(db, logger, { onlyExpiredLeases: true })
+      leaseSweep.tick()
     } catch (err) {
       logger.error({ err }, 'delegation lease sweep failed')
     }
