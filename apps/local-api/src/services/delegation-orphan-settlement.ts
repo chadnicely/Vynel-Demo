@@ -9,7 +9,10 @@
 // Delivery orphans stay silent (anti-cascade: a delivery must never spawn one)
 // and an orphaned NOTE is communication nobody awaits — pushing "your note
 // failed" would manufacture the tracking the kind refuses. A push failure
-// never blocks the pass.
+// never blocks the pass. Last, both readers reconcile the CHECKPOINT hand-over
+// slots (`reconcileContinuationJobs`): a follow-up job that settled without
+// ever claiming its checkpoint would otherwise hold the identity's slot
+// forever — invisible to peek/take, never continued, never dropped.
 
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
@@ -19,13 +22,18 @@ import {
   requeueOrphanedClaimedDeliveries,
   type OrphanedClaimScope,
 } from '@vynel/orchestration'
-import { enqueueJobFailureDelivery, previewTaskText, jobRetryHint } from '@vynel/session/delegation'
+import {
+  enqueueJobFailureDelivery,
+  previewTaskText,
+  jobRetryHint,
+  reconcileContinuationJobs,
+} from '@vynel/session/delegation'
 
 export function settleOrphanedDelegationClaims(
   db: Database,
   logger: Logger,
   scope: OrphanedClaimScope,
-): { requeued: number; failed: number } {
+): { requeued: number; failed: number; releasedCheckpoints: number } {
   const cause = scope.onlyExpiredLeases === true ? 'lease-expired' : 'boot'
   const now = new Date()
   const requeued = requeueOrphanedClaimedDeliveries(db, now, scope)
@@ -59,5 +67,9 @@ export function settleOrphanedDelegationClaims(
       )
     }
   }
-  return { requeued: requeued.length, failed: failed.length }
+  // A settled job may have been holding an identity's checkpoint slot (a
+  // follow-up that never reached its own claim) — release it visibly, here,
+  // where both readers pass (audit r2 R2-H(d)).
+  const releasedCheckpoints = reconcileContinuationJobs(db, { logger })
+  return { requeued: requeued.length, failed: failed.length, releasedCheckpoints }
 }

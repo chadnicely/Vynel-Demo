@@ -50,6 +50,10 @@ describe('checkpoint tool', () => {
       expect(response.isError).toBeUndefined()
       expect(response.content[0]!.text).toContain('Checkpoint noted: "wire the DM stream, then run the gate"')
       expect(response.content[0]!.text).toContain('END this turn')
+      // Audit r2 R2-N: the answer used to promise an automatic continuation on
+      // every surface — it now says what each one actually does.
+      expect(response.content[0]!.text).toContain('auto-continues')
+      expect(response.content[0]!.text).toContain('elsewhere')
       // Recorded under exactly this identity, trimmed.
       expect(peekPendingCheckpoint(db, primary)?.nextStep).toBe('wire the DM stream, then run the gate')
     })

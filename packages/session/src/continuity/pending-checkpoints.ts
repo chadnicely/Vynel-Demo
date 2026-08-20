@@ -162,6 +162,23 @@ export function markContinuationJob(db: Database, jobId: string, checkpoint: Pen
   })
 }
 
+/** The follow-up job settled WITHOUT claiming its checkpoint (the sweeper, a
+ *  Stop, a run that died before `beginDelegatedTurn`): hand the slot back to
+ *  the identity — pending again, so peek/take see it and the caller can give
+ *  it up visibly. Null when no identity's slot names that job. */
+export function releaseContinuationJob(db: Database, jobId: string): PendingCheckpoint | null {
+  return withTransaction(db, (tx) => {
+    const row = primarySessionsRepository.findPrimarySessionByPendingCheckpointJobId(tx, jobId)
+    if (row === null) return null
+    primarySessionsRepository.patchPendingCheckpoint(tx, row.id, { pendingCheckpointJobId: null })
+    // A hand-over always writes the step beside the job id; an id with no step
+    // is not a checkpoint anyone can continue — the id is cleared either way.
+    return row.pendingCheckpointNextStep === null
+      ? null
+      : checkpointOf(row, row.pendingCheckpointNextStep)
+  })
+}
+
 /** The checkpoint a claimed job continues — consumed once; null for a genuine job. */
 export function takeContinuationJob(db: Database, jobId: string): PendingCheckpoint | null {
   return withTransaction(db, (tx) => {

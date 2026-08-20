@@ -82,3 +82,9 @@ export {
   type BackgroundTurnSettings,
   type BackgroundTurnSettingsInput,
 } from './resolve-background-turn-settings.js'
+// The hand-over slot's safety net (audit r2 R2-H(d)) — the api's boot pass and
+// its lease sweep both run it through `settleOrphanedDelegationClaims`.
+export {
+  reconcileContinuationJobs,
+  type ReconcileContinuationJobsDeps,
+} from './reconcile-continuation-jobs.js'

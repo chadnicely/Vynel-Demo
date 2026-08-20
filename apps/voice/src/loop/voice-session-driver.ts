@@ -38,6 +38,11 @@ import type { VoiceSessionDriverDeps, VoiceSessionDriverOptions } from './voice-
 const DEFAULT_IDLE_TIMEOUT_MS = 15_000
 const FAILED_TURN_LINE = 'Sorry, I ran into a problem with that.'
 const STILL_WORKING_LINE = "Still working on that — I'll tell you when it's done."
+// A turn can SUCCEED having produced no text at all (it only ran tools, or a
+// decayed spoken directive left it silent). The thread's streamed text is its
+// voice (voice-realtime VR1), so no text means the room hears nothing and the
+// user cannot tell "done" from "hung" — audit r2 R2-O.
+const NOTHING_SAID_LINE = "That's done — I didn't have anything to say about it."
 
 type DriverState = 'asleep' | 'active' | 'in-turn' | 'relaying' | 'handed-off'
 
@@ -287,7 +292,15 @@ export class VoiceSessionDriver {
     }
     this.#runningTurn = null
     this.#leaveTurn()
-    if (first.outcome === 'failed') this.speak(FAILED_TURN_LINE)
+    this.#sayTurnEnded(turn, first.outcome)
+  }
+
+  /** The room must never be left guessing: a failed turn says so, and a turn
+   *  that ENDED having said nothing says that too (R2-O). An interrupted turn
+   *  is the user's own barge-in — they are already talking. */
+  #sayTurnEnded(turn: SpokenBrainTurn, outcome: SpokenTurnOutcome): void {
+    if (outcome === 'failed') this.speak(FAILED_TURN_LINE)
+    else if (outcome === 'completed' && !turn.hasSpoken) this.speak(NOTHING_SAID_LINE)
   }
 
   // A turn the watchdog released ended in the background: its late answer just
@@ -298,7 +311,9 @@ export class VoiceSessionDriver {
     if (this.#runningTurn !== turn) return
     this.#runningTurn = null
     this.#leaveTurn()
-    if (outcome === 'failed') this.speak(FAILED_TURN_LINE)
+    // The watchdog already promised "I'll tell you when it's done" — a silent
+    // finish here would break exactly that promise.
+    this.#sayTurnEnded(turn, outcome)
   }
 
   #abandonRunningTurn(): Promise<void> {

@@ -11,12 +11,14 @@ import type { Logger } from 'pino'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 
-const { tickMock, reclaimMock, requeueDeliveriesMock, failureDeliveryMock } = vi.hoisted(() => ({
-  tickMock: vi.fn(),
-  reclaimMock: vi.fn(),
-  requeueDeliveriesMock: vi.fn(),
-  failureDeliveryMock: vi.fn(),
-}))
+const { tickMock, reclaimMock, requeueDeliveriesMock, failureDeliveryMock, reconcileMock } =
+  vi.hoisted(() => ({
+    tickMock: vi.fn(),
+    reclaimMock: vi.fn(),
+    requeueDeliveriesMock: vi.fn(),
+    failureDeliveryMock: vi.fn(),
+    reconcileMock: vi.fn(() => 0),
+  }))
 
 // Spread the real barrel so a future VALUE import from it inside this test's
 // module graph never silently resolves to undefined.
@@ -26,6 +28,9 @@ vi.mock('@vynel/session/delegation', async (importOriginal) => ({
   // The startup restart-parity push writes through the shared composer — pin it
   // so the unit stays DB-free (the composer's own behavior is repo-tested).
   enqueueJobFailureDelivery: failureDeliveryMock,
+  // The checkpoint hand-over reconcile reads real rows (audit r2 R2-H(d)) —
+  // pinned for the same DB-free reason; its behavior is repo-tested next door.
+  reconcileContinuationJobs: reconcileMock,
 }))
 vi.mock('@vynel/orchestration', async (importOriginal) => ({
   ...(await importOriginal<object>()),

@@ -311,6 +311,18 @@ describe('VoiceSessionDriver — wake + conversation', () => {
     expect(synthesizer.spoken).toEqual(['Sorry, I ran into a problem with that.'])
   })
 
+  // Audit r2 R2-O: the thread's streamed text IS its voice, so a turn that
+  // succeeds having produced none leaves the room in silence — the user cannot
+  // tell "done" from "hung".
+  it('speaks an honest line when a turn ENDS having said nothing', async () => {
+    const { driver, synthesizer } = buildDriver(['hey vynel file that'], async function* () {
+      yield { kind: 'completed' }
+    })
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(synthesizer.spoken).toEqual(["That's done — I didn't have anything to say about it."])
+  })
+
   it('a turn someone stopped server-side ends quietly — a stop is not a failure', async () => {
     const { driver, io, synthesizer } = buildDriver(['hey vynel long task'], async function* () {
       yield { kind: 'text', delta: 'Starting. ' }

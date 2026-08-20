@@ -46,6 +46,11 @@ describe('vynel-session descriptor', () => {
     expect(WHOAMI_TOOL_NAME).toBe('mcp__vynel-session__whoami')
     expect(CHECKPOINT_TOOL_NAME).toBe('mcp__vynel-session__checkpoint')
     expect(SESSION_PROMPT_INSTRUCTIONS).toContain('checkpoint')
+    // Audit r2 R2-N: the standing line used to promise EVERY turn an automatic
+    // continuation — false on the spoken thread and on delivery / note turns,
+    // where the user heard the promise and then silence. Both halves are said.
+    expect(SESSION_PROMPT_INSTRUCTIONS).toContain('auto-continues')
+    expect(SESSION_PROMPT_INSTRUCTIONS).toContain('elsewhere')
     expect(descriptor.mutatingToolNames).toEqual([])
     expect(descriptor.askModeApprovalToolNames).toBeUndefined()
     expect(descriptor.contributePrompt?.({} as never)).toBe(SESSION_PROMPT_INSTRUCTIONS)

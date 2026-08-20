@@ -185,6 +185,8 @@ async function* runOneGlobalTurn(
   const { providerUserMessageText, catchUpJobIds } = composeGlobalRootProviderMessage(deps.db, {
     userId: input.userId,
     userMessageText: continuation?.providerText ?? input.userMessageText,
+    primarySessionId: target.primarySessionId,
+    ...(input.autoContinue !== undefined ? { autoContinue: input.autoContinue } : {}),
     ...(input.voice === true ? { voice: true } : {}),
     ...(input.autoBuildout === true ? { autoBuildout: true } : {}),
     ...(input.channelReplyMarker !== undefined

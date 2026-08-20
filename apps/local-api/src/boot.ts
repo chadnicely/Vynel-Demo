@@ -81,6 +81,7 @@ import {
   buildSessionTurnRecorder,
   reapOrphanedSessionTurns,
 } from '@vynel/session/runtime'
+import { surfaceCheckpointSurvivors } from '@vynel/session/continuity'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import { refreshDiscoveredModels } from './sessions/refresh-discovered-models.js'
 import { ensureGlobalRootWorkspaceDir } from './sessions/global-root-workspace.js'
@@ -308,6 +309,18 @@ export async function boot(): Promise<void> {
     }
   } catch (err) {
     logger.error({ err }, 'boot session-turn reap failed')
+  }
+  // Boot recovery for the durable CHECKPOINT slot (audit r2 R2-H): nothing is
+  // running yet, so every pending slot outlived a restart. Vynel never starts
+  // work at boot (Kafi 2026-08-20) — each survivor becomes a NOTE on its own
+  // thread and rides the next turn's provider input, while the spoken thread's
+  // (which never continues work by itself) is dropped with the same note. Must
+  // precede the services below: a turn that consumed the survivor first would
+  // make the note a lie.
+  try {
+    surfaceCheckpointSurvivors(db, { logger })
+  } catch (err) {
+    logger.error({ err }, 'boot checkpoint-survivor pass failed')
   }
 
   // Warm the model roster from the ENGINE (2026-08-17). Fire-and-forget: the

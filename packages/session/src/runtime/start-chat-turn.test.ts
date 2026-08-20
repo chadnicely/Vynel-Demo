@@ -32,7 +32,7 @@ import { insertPrimarySession } from '../repositories/index.js'
 import { insertChatSession } from '@vynel/chat/repositories'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
-import { SESSION_COMPACTED_EVENT_TYPE } from '../continuity/index.js'
+import { SESSION_COMPACTED_EVENT_TYPE, markPendingCheckpoint } from '../continuity/index.js'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { startChatTurn } from './start-chat-turn.js'
 
@@ -307,6 +307,115 @@ describe('startChatTurn — the autopilot marker (session-hardening D8/B1)', () 
         void _event
       }
       expect(capturedInputs.at(-1)?.userMessageText).toBe('just this')
+    })
+  })
+})
+
+// The RESTART SURVIVOR marker (audit r2 R2-H): every caller that passes
+// `continuity` runs a turn that auto-continues, so a checkpoint still pending
+// as the turn composes is one an earlier turn left — the model is told it owes
+// that step instead of overwriting it blind. The persisted row is untouched.
+describe('startChatTurn — the survivor checkpoint marker', () => {
+  it('appends the marker (provider input only) when the identity owes a step', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const now = new Date()
+      const primary = insertPrimarySession(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        scope: 'workspace',
+        currentSdkSessionId: null,
+        supersededFromSdkSessionId: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      })
+      markPendingCheckpoint(db, primary.id, 'reconcile the invoices')
+
+      for await (const _event of startChatTurn(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        providerId: 'claude',
+        userMessageText: 'what about tuesday?',
+        permissionMode: 'auto',
+        continuity: { primarySessionId: primary.id, autoContinues: true },
+      })) {
+        void _event
+      }
+
+      const providerText = capturedInputs.at(-1)?.userMessageText as string
+      expect(providerText).toContain('what about tuesday?')
+      expect(providerText).toContain('reconcile the invoices')
+      expect(providerText.match(/CHECKPOINT PENDING/g)).toHaveLength(1)
+    })
+  })
+
+  it('stays SILENT on a turn the runner will not continue (the schedule fire passes continuity, not autoContinues)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const now = new Date()
+      const primary = insertPrimarySession(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        scope: 'workspace',
+        currentSdkSessionId: null,
+        supersededFromSdkSessionId: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      })
+      markPendingCheckpoint(db, primary.id, 'reconcile the invoices')
+
+      for await (const _event of startChatTurn(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        providerId: 'claude',
+        userMessageText: 'the 9am schedule fired',
+        permissionMode: 'auto',
+        continuity: { primarySessionId: primary.id },
+      })) {
+        void _event
+      }
+      // Promising a pick-up nothing performs would be R2-N's lie, reissued.
+      expect(capturedInputs.at(-1)?.userMessageText).toBe('the 9am schedule fired')
+    })
+  })
+
+  it('adds nothing when nothing is pending, or when the turn has no continuing identity', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const now = new Date()
+      const primary = insertPrimarySession(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        scope: 'workspace',
+        currentSdkSessionId: null,
+        supersededFromSdkSessionId: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      })
+
+      for await (const _event of startChatTurn(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        providerId: 'claude',
+        userMessageText: 'plain',
+        permissionMode: 'auto',
+        continuity: { primarySessionId: primary.id },
+      })) {
+        void _event
+      }
+      expect(capturedInputs.at(-1)?.userMessageText).toBe('plain')
     })
   })
 })

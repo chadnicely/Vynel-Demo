@@ -25,6 +25,7 @@ import {
   traceChannelKey,
   attachSpawnedSessionNames,
 } from '@vynel/session/delegation'
+import { dropContinuationJobCheckpoint } from '@vynel/session/continuity'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
@@ -209,6 +210,14 @@ export const delegationRoutes = factory
         job.status === 'pending' &&
         failPendingDelegationJob(c.var.db, job.id, 'stopped by the user', new Date())
       ) {
+        // A follow-up job holds the identity's checkpoint slot until its own
+        // claim (audit r2 R2-H(d)) — a Stop is a settle by another route, so
+        // the slot is given up here rather than waiting for the lease sweep:
+        // this user is watching the thread right now.
+        dropContinuationJobCheckpoint(c.var.db, job.id, {
+          reason: 'turn-stopped',
+          logger: c.var.logger,
+        })
         return c.json({ result: 'stopped' as const })
       }
       // Claimed — or a pending row the tick claimed under us (the CAS bit):
