@@ -1,0 +1,98 @@
+/* The Display surface: its ground, its palette, and the two effects that sell
+ * the look — a masked grid underneath and scanlines with a slow sweep on top.
+ * Ported from the mission-control demo (js/hud.js:37-64).
+ *
+ * Global rather than scoped on purpose: the variables have to reach the view
+ * root that the host app puts `.display-root` on, and Vue's scoped CSS only
+ * ever reaches DOWN. Everything here is namespaced under `.display-root`, so
+ * nothing outside the Display is touched.
+ *
+ * Dark-only by decision (docs/module-notes/display-p1.md): the orb's additive
+ * `lighter` compositing has no light-theme equivalent, so the Display paints
+ * its own ground regardless of the app theme. */
+
+.display-root {
+  --display-accent: #4fd8ff;
+  --display-accent-dim: rgba(79, 216, 255, 0.45);
+  --display-accent-faint: rgba(79, 216, 255, 0.16);
+  --display-text: #cdf3ff;
+  /* A cyan HUD still needs one alert colour — "needs you" cannot read as just
+   * another shade of the accent. */
+  --display-attention: #ffc46b;
+  /* The ground is part of the palette too — re-tokening the Display means
+   * these seven values and `DEFAULT_ORB_PALETTE`, nothing else. */
+  --display-ground-top: #02132b;
+  --display-ground-bottom: #010a1c;
+
+  position: relative;
+  overflow: hidden;
+  color: var(--display-accent);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  letter-spacing: 0.06em;
+  background:
+    radial-gradient(
+      ellipse at 50% 45%,
+      rgba(30, 120, 210, 0.62),
+      transparent 66%
+    ),
+    radial-gradient(
+      ellipse at 50% 45%,
+      rgba(20, 80, 170, 0.35),
+      transparent 80%
+    ),
+    linear-gradient(
+      180deg,
+      var(--display-ground-top),
+      var(--display-ground-bottom)
+    );
+}
+
+/* Children sit between the grid and the scanlines, exactly as the demo's
+ * canvas and readout layer did. */
+.display-root > * {
+  position: relative;
+  z-index: 1;
+}
+
+.display-root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--display-accent-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--display-accent-faint) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse at 50% 50%, #000 20%, transparent 78%);
+  opacity: 0.5;
+}
+
+.display-root::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(79, 216, 255, 0.05) 0 1px,
+    transparent 1px 3px
+  );
+  animation: display-sweep 7s linear infinite;
+}
+
+@keyframes display-sweep {
+  0% {
+    background-position-y: 0;
+  }
+  100% {
+    background-position-y: 240px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .display-root::after {
+    animation: none;
+  }
+}
