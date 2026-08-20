@@ -6,6 +6,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertSchedule, type NewSchedule } from '../repositories/index.js'
 import type { Database } from '@vynel/db'
 import { manualFireSchedule } from './manual-fire-schedule.js'
+import { ScheduleFirePool } from './schedule-fire-pool.js'
 import { stubFireDeps } from '../test-support.js'
 
 function seed(db: Database, overrides: Partial<NewSchedule> = {}) {
@@ -60,7 +61,12 @@ describe('manualFireSchedule (guard paths — never reach fireSchedule)', () => 
     await withTestDatabase(async (db) => {
       const { schedule } = seed(db)
       await expect(
-        manualFireSchedule(db, { scheduleId: schedule.id, userId: randomUUID() }, stubFireDeps()),
+        manualFireSchedule(
+          db,
+          { scheduleId: schedule.id, userId: randomUUID() },
+          stubFireDeps(),
+          new ScheduleFirePool(),
+        ),
       ).rejects.toThrow(/not found/i)
     })
   })
@@ -69,11 +75,38 @@ describe('manualFireSchedule (guard paths — never reach fireSchedule)', () => 
     await withTestDatabase(async (db) => {
       const { user, schedule } = seed(db, { isEnabled: false })
       const deps = stubFireDeps()
+      const pool = new ScheduleFirePool()
       await expect(
-        manualFireSchedule(db, { scheduleId: schedule.id, userId: user.id }, deps),
+        manualFireSchedule(db, { scheduleId: schedule.id, userId: user.id }, deps, pool),
       ).rejects.toThrow(/paused/i)
       // The plain-Error guard in fireSchedule is never reached — no MCP build.
       expect(deps.state.builtMcpServer).toBe(false)
+      // A guard that answered early must not have taken a slot for a fire that
+      // cannot happen — the schedule is still admittable.
+      expect(pool.holds(schedule.id)).toBe(false)
+    })
+  })
+
+  it('declines a fire the shared pool already holds (409) instead of firing twice', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, schedule } = seed(db)
+      const pool = new ScheduleFirePool()
+      // The poll tick (or a first click) is mid-fire on this schedule.
+      let releaseFirstFire: () => void = () => {}
+      const firstFire = pool.admit(
+        schedule.id,
+        () => new Promise<void>((resolve) => (releaseFirstFire = resolve)),
+      )
+      const deps = stubFireDeps()
+      await expect(
+        manualFireSchedule(db, { scheduleId: schedule.id, userId: user.id }, deps, pool),
+      ).rejects.toThrow(/already running/i)
+      // Declined BEFORE any turn machinery — no second live fire.
+      expect(deps.state.builtMcpServer).toBe(false)
+      releaseFirstFire()
+      await firstFire
+      // Once the holder is done the same schedule is admittable again.
+      expect(pool.holds(schedule.id)).toBe(false)
     })
   })
 })

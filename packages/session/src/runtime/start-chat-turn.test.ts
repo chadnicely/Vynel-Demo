@@ -36,6 +36,16 @@ import { SESSION_COMPACTED_EVENT_TYPE, markPendingCheckpoint } from '../continui
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { startChatTurn } from './start-chat-turn.js'
 
+/** The turn-time marker rides EVERY turn (`resolve-turn-time-marker.ts`, proven
+ *  there and in the composer's own tests). These assertions are about the OTHER
+ *  markers, so the clock line is stripped rather than pinned to a moving now. */
+const withoutTurnTime = (text: unknown): string =>
+  (typeof text === 'string' ? text : '')
+    .split('\n\n')
+    .filter((part) => !part.startsWith('(Right now it is'))
+    .join('\n\n')
+
+
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
   return {
@@ -219,7 +229,7 @@ describe('startChatTurn — checkpoint + auto-continue wiring (session-continuit
         }
       }
       // The provider read the instruction; the row kept the anchor.
-      expect(capturedInputs.at(-1)?.userMessageText).toBe(
+      expect(withoutTurnTime(capturedInputs.at(-1)?.userMessageText)).toBe(
         'This message is from Vynel, not the user. NEXT STEP: sum the receipts',
       )
       expect(persistedBody).toBe('Continuing after patching context — next: sum the receipts')
@@ -301,12 +311,43 @@ describe('startChatTurn — the autopilot marker (session-hardening D8/B1)', () 
         permissionMode: 'auto' as const,
       }
       for await (const _event of startChatTurn(db, baseInput)) void _event
-      expect(capturedInputs.at(-1)?.userMessageText).toBe('just this')
+      expect(withoutTurnTime(capturedInputs.at(-1)?.userMessageText)).toBe('just this')
 
       for await (const _event of startChatTurn(db, { ...baseInput, autoBuildout: false })) {
         void _event
       }
-      expect(capturedInputs.at(-1)?.userMessageText).toBe('just this')
+      expect(withoutTurnTime(capturedInputs.at(-1)?.userMessageText)).toBe('just this')
+    })
+  })
+})
+
+// The TURN-TIME marker: a model reads no clock, so a relative question was
+// answered off a guessed hour ("02:51 + 15 min = 2:07"). Every turn through
+// this path carries the user's own wall clock, exactly once.
+describe('startChatTurn — the turn-time marker', () => {
+  it("states the USER's wall clock once, whatever else rides the turn", async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, { ...makeUser(), timezone: 'Asia/Tokyo' })
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+
+      for await (const _event of startChatTurn(db, {
+        userId: user.id,
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        providerId: 'claude',
+        userMessageText: 'remind me in 15 minutes',
+        permissionMode: 'auto',
+        autoBuildout: true,
+      })) {
+        void _event
+      }
+
+      const providerText = String(capturedInputs.at(-1)?.userMessageText ?? '')
+      expect(providerText).toContain('Asia/Tokyo')
+      expect(providerText.match(/Right now it is/g)).toHaveLength(1)
+      // It never crowds out what else the turn owes the model.
+      expect(providerText).toContain('AUTOPILOT')
+      expect(providerText).toContain('remind me in 15 minutes')
     })
   })
 })
@@ -383,7 +424,9 @@ describe('startChatTurn — the survivor checkpoint marker', () => {
         void _event
       }
       // Promising a pick-up nothing performs would be R2-N's lie, reissued.
-      expect(capturedInputs.at(-1)?.userMessageText).toBe('the 9am schedule fired')
+      expect(withoutTurnTime(capturedInputs.at(-1)?.userMessageText)).toBe(
+        'the 9am schedule fired',
+      )
     })
   })
 
@@ -415,7 +458,7 @@ describe('startChatTurn — the survivor checkpoint marker', () => {
       })) {
         void _event
       }
-      expect(capturedInputs.at(-1)?.userMessageText).toBe('plain')
+      expect(withoutTurnTime(capturedInputs.at(-1)?.userMessageText)).toBe('plain')
     })
   })
 })

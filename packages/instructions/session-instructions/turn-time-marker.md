@@ -1,0 +1,1 @@
+(Right now it is {{nowLocal}} where the user is ({{timezone}}). Work every relative time from THIS clock — "in 15 minutes", "later today", "tomorrow morning", "how long until…" — and never guess the current date or time.)

@@ -6463,7 +6463,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The schedule is paused. */
+            /** @description The schedule is paused, or a fire of it is already queued or running. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11445,7 +11445,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The schedule is paused. */
+            /** @description The schedule is paused, or a fire of it is already queued or running. */
             409: {
                 headers: {
                     [name: string]: unknown;

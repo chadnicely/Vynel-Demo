@@ -4,7 +4,7 @@ import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { groupConsecutiveToolCalls } from "../tool-cards/group-tool-calls.js";
 import { describeToolCallGroup } from "../tool-cards/tool-presenters.js";
 import ToolCallCard from "./ToolCallCard.vue";
-import type { ReauthorizeState } from "./ToolCallCard.vue";
+import type { ReauthorizeState } from "./ToolCallBlockedLine.vue";
 import type { AgentActivityLike } from "./AgentActivityPane.vue";
 import {
   describeAgentActivityCall,

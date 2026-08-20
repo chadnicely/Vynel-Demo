@@ -19,7 +19,7 @@ import type { User } from '@vynel/core/users'
 import type { Workspace } from '@vynel/workspaces'
 import type { FileWatcherService } from '@vynel/knowledge'
 import type { PayloadArchive as ServerPayloadArchive } from '@vynel/server-install'
-import type { FireScheduleDeps } from '@vynel/schedules'
+import type { FireScheduleDeps, ScheduleFirePool } from '@vynel/schedules'
 import type { PendingAskRegistry } from '@vynel/asks'
 import type { AppProcessSupervisor } from '@vynel/apps'
 import type { BackgroundProcessRunner } from '@vynel/processes'
@@ -69,6 +69,11 @@ export interface AppEnv {
     // route test can fire with a FAKE turn (no live AI). Absent in production;
     // the routes lazily build the real deps via `buildScheduleFireDeps`.
     scheduleFireDeps?: FireScheduleDeps
+    // The process-wide bound on concurrent schedule fires (background-turns
+    // BT3) — SHARED with the poll service via `server.ts`, so a "Run now"
+    // queues behind the same slots the tick uses and a schedule already
+    // queued/running is declined instead of fired twice.
+    scheduleFirePool: ScheduleFirePool
     // The in-process turn-event pub/sub — a BACKGROUND turn (the delegation
     // tick) publishes; the SSE observe routes subscribe. One instance per
     // process, shared with the delegation service via `server.ts`.

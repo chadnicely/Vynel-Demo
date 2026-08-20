@@ -18,7 +18,11 @@ import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
-import { manualFireSchedule, SCHEDULE_RUN_COMPLETED_EVENT_TYPE } from '@vynel/schedules'
+import {
+  manualFireSchedule,
+  ScheduleFirePool,
+  SCHEDULE_RUN_COMPLETED_EVENT_TYPE,
+} from '@vynel/schedules'
 import { insertSchedule, stubFireDeps } from '@vynel/schedules/test-support'
 import {
   consumeScheduleRunCompletedEvent,
@@ -65,6 +69,7 @@ describe('scheduled reminder → channel DM (schedules ↔ channels delivery con
         db,
         { scheduleId: schedule.id, userId: user.id },
         stubFireDeps(),
+        new ScheduleFirePool(),
       )
       expect(run.status).toBe('completed')
 

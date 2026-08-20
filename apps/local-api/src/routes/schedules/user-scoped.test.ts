@@ -15,6 +15,7 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertSchedule, stubFireDeps, type NewSchedule } from '@vynel/schedules/test-support'
+import { ScheduleFirePool } from '@vynel/schedules'
 import { createApp } from '../../app.js'
 import type { Database } from '@vynel/db'
 
@@ -222,6 +223,32 @@ describe('user-scoped schedules routes', () => {
 
       const runs = (await (await app.request(`/schedules/${schedule.id}/runs`)).json()) as unknown[]
       expect(runs).toHaveLength(1)
+    })
+  })
+
+  it('POST /:scheduleId/fire-now returns 409 when a fire of it is already queued or running', async () => {
+    await withTestDatabase(async (db) => {
+      const localUser = insertUser(db, makeUser())
+      const schedule = seedScheduleRow(db, localUser.id, null)
+      // The poll tick already holds this schedule in the PROCESS-WIDE pool —
+      // this door shares it too, so "Run now" is declined, not fired twice.
+      const scheduleFirePool = new ScheduleFirePool()
+      let releaseHolder: () => void = () => {}
+      const held = scheduleFirePool.admit(
+        schedule.id,
+        () => new Promise<void>((resolve) => (releaseHolder = resolve)),
+      )
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        scheduleFireDeps: stubFireDeps(),
+        scheduleFirePool,
+      })
+
+      const res = await app.request(`/schedules/${schedule.id}/fire-now`, { method: 'POST' })
+      expect(res.status).toBe(409)
+      releaseHolder()
+      await held
     })
   })
 

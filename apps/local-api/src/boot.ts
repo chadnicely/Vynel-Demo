@@ -57,6 +57,7 @@ import {
 import { createVoiceDaemonRelay } from './live/voice-daemon-relay.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
+import { ScheduleFirePool } from '@vynel/schedules'
 import { startSchedulesService } from './services/schedules-service.js'
 import { startKnowledgeIndexingService } from './services/knowledge-indexing-service.js'
 import { startMemoryMaintenanceService } from './services/memory-maintenance-service.js'
@@ -257,6 +258,11 @@ export async function boot(): Promise<void> {
   const serverPayloadArchive = resolveServerPayloadArchive(env.VYNEL_SERVER_PAYLOAD_ARCHIVE, logger)
 
   const askWaiters = new PendingAskRegistry()
+  // ONE schedule fire pool per process, owned here like `sessionTargetLocks`:
+  // the poll tick AND the user-facing `fire-now` routes admit through it, so
+  // "Run now" is bounded by the same knob and a schedule the tick already
+  // claimed is declined instead of fired a second time (background-turns BT3).
+  const scheduleFirePool = new ScheduleFirePool(env.VYNEL_MAX_CONCURRENT_DELEGATIONS)
   const app = createApp({
     db,
     logger,
@@ -265,6 +271,7 @@ export async function boot(): Promise<void> {
     activityFeed,
     delegationCancels,
     sessionTargetLocks,
+    scheduleFirePool,
     appSupervisor,
     processRunner,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
@@ -358,6 +365,7 @@ export async function boot(): Promise<void> {
     targetLocks: sessionTargetLocks,
     turnEvents,
     readEnabledFeatureKeys,
+    firePool: scheduleFirePool,
   })
   // Watcher restore + catch-up scan for every registered knowledge source, plus
   // the in-process embeddings tick (the desktop app runs no apps/worker).

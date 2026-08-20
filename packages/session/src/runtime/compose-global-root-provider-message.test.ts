@@ -183,3 +183,36 @@ describe('composeGlobalRootProviderMessage — the survivor marker', () => {
     })
   })
 })
+
+describe('composeGlobalRootProviderMessage — the turn-time marker', () => {
+  it("states the user's wall clock ONCE, in their own zone, on a plain turn", async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, { ...makeUser(), timezone: 'America/Los_Angeles' })
+
+      const message = composeGlobalRootProviderMessage(db, {
+        userId: user.id,
+        userMessageText: 'remind me in 15 minutes',
+      })
+
+      // The model reads no clock — without this line "02:51 + 15 min" was guessed.
+      expect(message.providerUserMessageText).toContain('America/Los_Angeles')
+      expect(message.providerUserMessageText.match(/Right now it is/g)).toHaveLength(1)
+    })
+  })
+
+  it('rides every kind of root turn — voice, autopilot, a channel reply — still ONCE', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+
+      const message = composeGlobalRootProviderMessage(db, {
+        userId: user.id,
+        userMessageText: 'what time is my next thing',
+        voice: true,
+        autoBuildout: true,
+        channelReplyMarker: '(reply on telegram)',
+      })
+
+      expect(message.providerUserMessageText.match(/Right now it is/g)).toHaveLength(1)
+    })
+  })
+})

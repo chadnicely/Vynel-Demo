@@ -44,6 +44,7 @@ import {
 } from '../continuity/index.js'
 import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
+import { resolveTurnTimeMarker } from './resolve-turn-time-marker.js'
 import { withBoundaryContinuity } from './with-boundary-continuity.js'
 
 export type StartChatTurnInput = {
@@ -199,6 +200,8 @@ export async function* startChatTurn(
   //    still pending as this turn is composed was left by an EARLIER turn (a
   //    continuation's own checkpoint is consumed before its turn is composed),
   //    so the model learns it owes a step instead of overwriting it blind.
+  //    The TURN-TIME marker rides every turn: the model reads no clock, so
+  //    "in 15 minutes" was being answered off a guessed hour.
   //    Gated on `autoContinues` — the marker promises the runner will pick the
   //    step up, so only a turn the runner actually continues may carry it.
   const survivorMarker =
@@ -207,6 +210,8 @@ export async function* startChatTurn(
       : null
   const providerUserMessageText = [
     input.providerUserMessageText ?? input.userMessageText,
+    // What time it is where the user is — a fact, so it leads the markers.
+    resolveTurnTimeMarker(db, input.userId),
     ...(survivorMarker !== null ? [survivorMarker] : []),
     ...(input.autoBuildout === true ? [loadSessionInstruction('autopilot-marker')] : []),
   ].join('\n\n')

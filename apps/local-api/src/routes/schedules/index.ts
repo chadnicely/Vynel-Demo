@@ -27,9 +27,12 @@
 //
 // `fire-now` builds the fire path's `FireScheduleDeps` from `c.var.appRequest`
 // via `buildScheduleFireDeps` (the ③ agent-turn MCP binding) and calls
-// `manualFireSchedule`. To stay testable WITHOUT a live AI turn, an injected
-// `c.var.scheduleFireDeps` (set via `createApp` options) overrides the real
-// build — a route test fires with a FAKE `startChatTurn`.
+// `manualFireSchedule`, through the process-wide `c.var.scheduleFirePool` the
+// poll service fires with — so a manual run is bounded by the same knob and a
+// schedule already queued/running is declined (409), never fired twice. To stay
+// testable WITHOUT a live AI turn, an injected `c.var.scheduleFireDeps` (set via
+// `createApp` options) overrides the real build — a route test fires with a
+// FAKE `startChatTurn`.
 //
 // Spec: `docs/blueprints/schedules/blueprint.md §6` + coding.md §6.
 
@@ -317,7 +320,7 @@ export const schedulesApp = factory
           content: { 'application/json': { schema: resolver(ScheduleRunResponseSchema) } },
         },
         404: { description: 'No such schedule in this workspace.' },
-        409: { description: 'The schedule is paused.' },
+        409: { description: 'The schedule is paused, or a fire of it is already queued or running.' },
       },
     }),
     validator('param', ScheduleParamSchema),
@@ -340,6 +343,10 @@ export const schedulesApp = factory
         c.var.db,
         { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },
         fireDeps,
+        // The PROCESS-WIDE pool the poll tick fires through (server.ts owns it):
+        // a manual run waits for a slot like any fire, and one already queued or
+        // running is declined instead of started twice.
+        c.var.scheduleFirePool,
       )
       return c.json(serializeScheduleRunForResponse(run), 202)
     },

@@ -1,6 +1,7 @@
 // Unit test for the api-side schedules service. The core poll op + @vynel/mcp
 // are mocked; we assert the per-minute interval wiring with injected fire deps
-// and ONE fire pool shared by every tick, the tick-summary logging, and that
+// and the CALLER'S fire pool (boot owns it; fire-now shares it) reaching every
+// tick, the tick-summary logging, and that
 // stop() halts the poll. Fake timers drive the cadence. The REAL
 // `buildScheduleFireDeps` import chain is proven separately by
 // `../sessions/build-schedule-fire-deps.test.ts`.
@@ -12,8 +13,8 @@ import type { HonoAppRequestFn } from '../factory.js'
 
 const { tickMock } = vi.hoisted(() => ({ tickMock: vi.fn() }))
 
-// Only the tick is faked — the real `ScheduleFirePool` is what the service
-// builds and shares, so the pool assertions below are against the real class.
+// Only the tick is faked — the real `ScheduleFirePool` is what the caller hands
+// in, so the pool assertions below are against the real class.
 vi.mock('@vynel/schedules', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   runScheduleClaimAndFireTick: tickMock,
@@ -39,6 +40,7 @@ function fakeOptions() {
     appRequest: vi.fn() as unknown as HonoAppRequestFn,
     activityFeed: new SessionActivityFeed(),
     targetLocks: new SessionTargetLocks(),
+    firePool: new ScheduleFirePool(),
   }
 }
 
@@ -73,22 +75,15 @@ describe('startSchedulesService', () => {
     service.stop()
   })
 
-  it('hands every tick the SAME fire pool, bounded by the delegation knob (one pool per process)', async () => {
-    const service = await startSchedulesService({ ...fakeOptions(), maxConcurrentFires: 2 })
+  it('hands every tick the CALLER\x27S fire pool — one per process, shared with fire-now', async () => {
+    const firePool = new ScheduleFirePool(2)
+    const service = await startSchedulesService({ ...fakeOptions(), firePool })
     await vi.advanceTimersByTimeAsync(120_000)
     expect(tickMock).toHaveBeenCalledTimes(2)
-    const firstPool = tickMock.mock.calls[0]?.[2] as ScheduleFirePool
-    expect(firstPool).toBeInstanceOf(ScheduleFirePool)
-    expect(firstPool.maxConcurrentFires).toBe(2)
-    expect(tickMock.mock.calls[1]?.[2]).toBe(firstPool)
-    service.stop()
-  })
-
-  it('defaults the pool bound to VYNEL_MAX_CONCURRENT_DELEGATIONS when the caller names none', async () => {
-    const service = await startSchedulesService(fakeOptions())
-    await vi.advanceTimersByTimeAsync(60_000)
-    const pool = tickMock.mock.calls[0]?.[2] as ScheduleFirePool
-    expect(pool.maxConcurrentFires).toBeGreaterThanOrEqual(1)
+    // The very instance the owner passed — not a private copy, or the routes
+    // firing through the shared one would be unbounded against the poll.
+    expect(tickMock.mock.calls[0]?.[2]).toBe(firePool)
+    expect(tickMock.mock.calls[1]?.[2]).toBe(firePool)
     service.stop()
   })
 

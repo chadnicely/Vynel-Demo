@@ -14,16 +14,17 @@
 // over appRequest; the shared target locks; the delegated cap from env) are
 // built once via the shared `buildScheduleFireDeps` helper so the poll service
 // and the `fire-now` routes drive the SAME turn machinery (background-turns
-// BT1–BT3). The fire POOL is this service's own: ONE per process, shared by
-// every tick, so at most `maxConcurrentFires` fires run at once however the
-// ticks overlap (a wedged batch and the next minute's due set never stack past
-// the knob — the delegation service's process-wide run count, same idea).
+// BT1–BT3). The fire POOL is handed IN, not built here: it is process-wide
+// (`boot.ts` owns it, like `sessionTargetLocks`) and shared with the `fire-now`
+// routes, so at most `maxConcurrentFires` fires run at once however the ticks
+// and manual runs overlap — and a schedule already queued or running is never
+// admitted twice, whichever door asks.
 //
 // Spec: `docs/blueprints/schedules/blueprint.md §5.6` + coding.md §1.1.
 
 import {
   runScheduleClaimAndFireTick,
-  ScheduleFirePool,
+  type ScheduleFirePool,
   type ScheduleTickSummary,
 } from '@vynel/schedules'
 import type { Database } from '@vynel/db'
@@ -31,7 +32,6 @@ import type { Logger } from 'pino'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { SessionTargetLocks, TurnEventBroadcaster } from '@vynel/session/delegation'
 import type { HonoAppRequestFn } from '../factory.js'
-import { loadEnv } from '../env.js'
 import { buildScheduleFireDeps } from '../sessions/build-schedule-fire-deps.js'
 import type { ReadEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 
@@ -50,18 +50,26 @@ export interface SchedulesServiceOptions {
   turnEvents?: TurnEventBroadcaster // shared live-turn pub/sub (Watch everywhere, Slice ③)
   /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
-  /** How many schedule fires may run at once, process-wide (BT3). Omit =
-   *  `VYNEL_MAX_CONCURRENT_DELEGATIONS` — the delegation pool's knob, so one
-   *  parked card never blocks the batch. */
-  maxConcurrentFires?: number
+  /** The process-wide bound on concurrent fires (BT3), SHARED with the
+   *  `fire-now` routes via `createApp` — both doors admit through this ONE
+   *  pool. REQUIRED so a forgotten wiring fails typecheck instead of silently
+   *  bounding the poll in private while manual runs fire unbounded. */
+  firePool: ScheduleFirePool
 }
 
 export async function startSchedulesService(
   options: SchedulesServiceOptions,
 ): Promise<{ stop: () => void }> {
-  const { db, logger, appRequest, activityFeed, targetLocks, turnEvents, readEnabledFeatureKeys } =
-    options
-  const maxConcurrentFires = options.maxConcurrentFires ?? loadEnv().VYNEL_MAX_CONCURRENT_DELEGATIONS
+  const {
+    db,
+    logger,
+    appRequest,
+    activityFeed,
+    targetLocks,
+    turnEvents,
+    readEnabledFeatureKeys,
+    firePool,
+  } = options
 
   const fireDeps = await buildScheduleFireDeps({
     appRequest,
@@ -71,8 +79,6 @@ export async function startSchedulesService(
     ...(turnEvents !== undefined ? { turnEvents } : {}),
     ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
   })
-  const firePool = new ScheduleFirePool(maxConcurrentFires)
-
   const pollTimer = setInterval(() => {
     runScheduleClaimAndFireTick(db, fireDeps, firePool).then(
       (summary) => logTickSummary(logger, summary),
@@ -81,7 +87,7 @@ export async function startSchedulesService(
   }, SCHEDULE_POLL_INTERVAL_MS)
 
   logger.info(
-    { maxConcurrentFires },
+    { maxConcurrentFires: firePool.maxConcurrentFires },
     'schedules service started (poll 60s, one bounded fire pool per process)',
   )
 

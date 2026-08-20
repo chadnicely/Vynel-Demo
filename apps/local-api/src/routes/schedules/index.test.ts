@@ -11,6 +11,8 @@
 // `POST /:scheduleId/fire-now` DRIVES a headless turn. The test injects a FAKE
 // fire path (`stubFireDeps`, a no-op `startChatTurn`) via `createApp`'s
 // `scheduleFireDeps` seam, so it asserts a run is RECORDED without a live AI turn.
+// The fire also rides the PROCESS-WIDE `ScheduleFirePool` (shared with the poll
+// service via `createApp`), so a schedule already queued/running is declined.
 
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -24,6 +26,7 @@ import {
   stubFireDeps,
   type NewSchedule,
 } from '@vynel/schedules/test-support'
+import { ScheduleFirePool } from '@vynel/schedules'
 import { createApp } from '../../app.js'
 import type { Database } from '@vynel/db'
 
@@ -338,6 +341,34 @@ describe('schedules routes', () => {
         { method: 'POST' },
       )
       expect(res.status).toBe(409)
+    })
+  })
+
+  it('POST /:scheduleId/fire-now returns 409 when a fire of it is already queued or running', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const schedule = seedSchedule(db, user.id, workspace.id)
+      // The poll tick already holds this schedule in the PROCESS-WIDE pool —
+      // the route must share it, so "Run now" is declined, not fired twice.
+      const scheduleFirePool = new ScheduleFirePool()
+      let releaseHolder: () => void = () => {}
+      const held = scheduleFirePool.admit(
+        schedule.id,
+        () => new Promise<void>((resolve) => (releaseHolder = resolve)),
+      )
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        scheduleFireDeps: stubFireDeps(),
+        scheduleFirePool,
+      })
+      const res = await app.request(
+        `/workspaces/${workspace.id}/schedules/${schedule.id}/fire-now`,
+        { method: 'POST' },
+      )
+      expect(res.status).toBe(409)
+      releaseHolder()
+      await held
     })
   })
 })
