@@ -44,8 +44,10 @@ export type DropPendingCheckpointReason =
    *  (the spoken thread): nothing would ever pick it up, so it is given up at
    *  boot rather than left waiting invisibly (audit r2 R2-H(c)). */
   | 'restarted'
-  /** The model checkpointed again over a survivor it never saw — the newer
-   *  intent wins, but the older one is given up out loud (R2-H(b)). */
+  /** The model checkpointed again over a step left by an EARLIER TURN — a
+   *  restart survivor, or a leftover from another turn of this same process
+   *  (a schedule fire, a turn that never continues). It never saw that step,
+   *  so the newer intent wins but the older one is given up out loud (R2-H(b)). */
   | 'superseded'
 
 const REASON_TEXT: Record<DropPendingCheckpointReason, string> = {

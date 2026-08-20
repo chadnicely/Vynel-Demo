@@ -21,13 +21,19 @@
 //               model learns it owes a step and that Vynel picks it up right
 //               after this turn, so it neither redoes the step nor drops it on
 //               the floor. The persisted row keeps the clean user text.
-//   SUPERSEDE — a `checkpoint()` landing on a survivor gives the old one up
-//               OUT LOUD first. A same-life re-checkpoint (the model refining
-//               its own next step mid-turn) stays silent — that is ordinary
-//               supersession, and a note per call would be spam.
+//   SUPERSEDE — a `checkpoint()` landing on a checkpoint from an EARLIER TURN
+//               gives the old one up OUT LOUD first. A same-turn re-checkpoint
+//               (the model refining its own next step mid-turn) stays silent —
+//               that is ordinary supersession, and a note per call would be spam.
 //
-// The survivor boundary is this process's start, injectable (`survivorBefore`)
-// so tests state it instead of racing the clock.
+// THE BOUNDARY IS THE TURN'S START — the same line the two per-turn homes
+// already draw (`runTurnWithContinuations`'s `startedAt`, the delivery tick's
+// `notifyTurnStartedAt`), never this process's start. A process-start boundary
+// left a hole exactly where R2-H(b) hurts: on a turn that carries no survivor
+// marker (a workspace schedule fire, any `autoContinue: false` turn) a leftover
+// written EARLIER IN THIS SAME PROCESS is invisible to the turn overwriting it,
+// and was replaced without a word. So `survivorBefore` is required — every
+// caller states which turn it is.
 
 import type { Database } from '@vynel/db'
 import type { StructuralLogger } from '@vynel/logger'
@@ -40,12 +46,11 @@ import {
   type PendingCheckpoint,
 } from './pending-checkpoints.js'
 
-/** When this process came up — anything checkpointed before it outlived a
- *  restart, so the turn running now has never seen it. */
-const PROCESS_STARTED_AT = new Date()
-
-export function isSurvivorCheckpoint(checkpoint: PendingCheckpoint, before?: Date): boolean {
-  return checkpoint.checkpointedAt < (before ?? PROCESS_STARTED_AT)
+/** True when `checkpoint` was written before `before` — the start of the turn
+ *  asking. Such a checkpoint belongs to an earlier turn (or an earlier
+ *  process), so the turn running now has never seen it. */
+export function isSurvivorCheckpoint(checkpoint: PendingCheckpoint, before: Date): boolean {
+  return checkpoint.checkpointedAt < before
 }
 
 /** The visible row's text — the sibling of the dropped-checkpoint note, so the
@@ -86,18 +91,19 @@ export function resolveSurvivorCheckpointMarker(
 export type RecordCheckpointDeps = {
   logger?: StructuralLogger
   now?: () => Date
-  /** The survivor boundary — default: this process's start. */
-  survivorBefore?: Date
+  /** The start of the turn doing the checkpointing — REQUIRED, so the caller
+   *  states which turn it is instead of inheriting a process-wide guess. */
+  survivorBefore: Date
 }
 
-/** The `checkpoint` tool's write: a SURVIVOR under the slot is given up out
- *  loud before the new intent lands (never a silent loss); a same-life
- *  checkpoint is replaced quietly, as it always was. */
+/** The `checkpoint` tool's write: a checkpoint left by an EARLIER turn is given
+ *  up out loud before the new intent lands (never a silent loss); a same-turn
+ *  re-checkpoint is replaced quietly, as it always was. */
 export function recordCheckpointSupersedingSurvivor(
   db: Database,
   primarySessionId: string,
   nextStep: string,
-  deps: RecordCheckpointDeps = {},
+  deps: RecordCheckpointDeps,
 ): PendingCheckpoint {
   const existing = peekPendingCheckpoint(db, primarySessionId)
   if (existing !== null && isSurvivorCheckpoint(existing, deps.survivorBefore)) {
@@ -145,15 +151,24 @@ export function surfaceCheckpointSurvivors(
       result.dropped += 1
       continue
     }
-    // An identity with no linked head has no thread to say it on — the log
-    // line is the trace, and the count stays honest.
-    const written = recordNoteOnPrimaryHead(db, {
+    const outcome = recordNoteOnPrimaryHead(db, {
       primarySessionId: row.id,
       body: composeSurvivedCheckpointNote(nextStep),
       onlyIfNotLatest: true,
       now,
     })
-    if (written) result.surfaced += 1
+    if (outcome === 'written') result.surfaced += 1
+    // An identity with no thread to say it on: the log line is the only trace,
+    // and the count stays honest. It may be the ONLY line this pass emits (the
+    // aggregate below counts rows written), so it carries its own context. The
+    // dedupe outcome stays silent on purpose — the note is already there, and
+    // warning on it would cry "no thread" on every idempotent restart.
+    if (outcome === 'no-thread') {
+      deps.logger?.warn(
+        { primarySessionId: row.id, nextStep },
+        'boot: a checkpoint survived a restart on an identity with no thread to surface it on',
+      )
+    }
   }
   if (result.surfaced > 0 || result.dropped > 0) {
     deps.logger?.warn(

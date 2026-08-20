@@ -95,7 +95,11 @@ export {
   type DropPendingCheckpointInput,
   type DropPendingCheckpointReason,
 } from './drop-pending-checkpoint.js'
-export { recordNoteOnPrimaryHead, type RecordNoteOnPrimaryHeadInput } from './primary-head-note.js'
+export {
+  recordNoteOnPrimaryHead,
+  type RecordNoteOnPrimaryHeadInput,
+  type RecordNoteOnPrimaryHeadOutcome,
+} from './primary-head-note.js'
 // The RESTART SURVIVOR (audit r2 R2-H): boot surfacing, the next turn's
 // provider-input marker, and the out-loud supersession the `checkpoint` tool
 // writes through.

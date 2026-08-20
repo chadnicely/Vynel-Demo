@@ -14,14 +14,20 @@ job settles by anything but its own claim. Kafi (2026-08-20): **surface on boot,
 2. **`whoami`** — `WhoamiReport.pendingCheckpoint`, so a session learns it still owes a step.
 3. **Next-turn marker** — provider-input only (voice-turn-marker precedent) at the two compose homes
    that own a continuing identity's genuine turn: `startChatTurn`, gated on the new
-   `continuity.autoContinues` (set by the workspace + spawned streams — a schedule fire passes
-   `continuity` for the swap but runs its own turn, so it must NOT promise a pick-up), and
-   `composeGlobalRootProviderMessage`, gated on `autoContinue !== false` && not a continuation.
+   `continuity.autoContinues` (set by the workspace + spawned streams — the WORKSPACE schedule fire
+   passes `continuity` for the swap but runs its own turn, so it must NOT promise a pick-up), and
+   `composeGlobalRootProviderMessage`, gated on `autoContinue !== false` && not a continuation — the
+   GLOBAL fire passes `autoContinue: true` (it is a work turn), so it does carry the marker.
    Injected once by construction — a continuation's slot is already taken. It says what actually
    happens: Vynel picks that step up right after this turn, so do not redo it here.
-4. **Overwrite = supersession** — the `checkpoint` tool drops a SURVIVOR first (`superseded` + its
-   note); a same-life re-checkpoint stays silent (boundary: injected `survivorBefore`, default the
-   process start).
+4. **Overwrite = supersession** — the `checkpoint` tool drops a step left by an EARLIER TURN first
+   (`superseded` + its note); a same-turn re-checkpoint stays silent. The boundary is the TURN's
+   start (`survivorBefore`, required; the tool reads it from `CheckpointToolScope.turnStartedAt`,
+   stamped where the turn's MCP attachment is composed) — the same line
+   `runTurnWithContinuations` and the delivery tick already draw, never the process start, which
+   left a marker-less turn (a workspace fire, any `autoContinue: false` turn) overwriting an
+   in-process leftover in silence. Residual: the stamp is COMPOSE time, so a turn that then waits
+   on a session target lock reads a step another turn left during that wait as its own.
 5. **The leak** — `reconcileContinuationJobs` drops any handed-over slot whose follow-up job is
    TERMINAL or gone; it rides `settleOrphanedDelegationClaims` (boot + the 60 s lease sweep), and
    the delegation Stop route drops its slot immediately.

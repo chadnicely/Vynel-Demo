@@ -37,6 +37,11 @@ const NEXT_STEP_MAX_CHARS = 600
 export interface CheckpointToolScope {
   /** The turn's own continuing identity — absent for a plain conversation. */
   primarySessionId?: string
+  /** When THIS turn began. The supersession line (`checkpoint-survivors.ts`):
+   *  a checkpoint older than this was left by an earlier turn, which this turn
+   *  never saw, so replacing it is a loss and is said out loud. Required — the
+   *  tool cannot judge supersession without knowing which turn it is. */
+  turnStartedAt: Date
 }
 
 export function buildCheckpointResponse(
@@ -65,7 +70,9 @@ export function buildCheckpointResponse(
       isError: true,
     }
   }
-  recordCheckpointSupersedingSurvivor(db, scope.primarySessionId, nextStep)
+  recordCheckpointSupersedingSurvivor(db, scope.primarySessionId, nextStep, {
+    survivorBefore: scope.turnStartedAt,
+  })
   return {
     content: [
       {

@@ -4,7 +4,7 @@
 // overwritten in silence. The spoken thread never continues work by itself, so
 // its survivor is given up instead of promised.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
@@ -24,10 +24,14 @@ import {
 const BEFORE_THIS_LIFE = new Date('2026-08-19T10:00:00Z')
 const THIS_LIFE = new Date('2026-08-20T10:00:00Z')
 
+/** `head`: the identity's thread — linked (the normal case), never linked, or
+ *  linked to a segment that is GONE (a purge; no cross-feature FK holds it). */
 function seedIdentity(
   db: Database,
   scope: PrimarySessionScope = 'global',
+  options: { head?: 'linked' | 'none' | 'purged' } = {},
 ): { primaryId: string; headId: string } {
+  const head = options.head ?? 'linked'
   const now = new Date()
   const user = insertUser(db, {
     id: randomUUID(),
@@ -40,25 +44,27 @@ function seedIdentity(
     updatedAt: now,
   })
   const headId = `sdk-${randomUUID()}`
-  insertChatSession(
-    db,
-    buildNewChatSessionRow({
-      sessionId: headId,
-      userId: user.id,
-      workspaceId: null,
-      providerId: 'claude',
-      startedAt: now,
-      title: scope === 'voice' ? 'Voice' : 'Global brain',
-      scope: 'global',
-      visibility: 'hidden',
-    }),
-  )
+  if (head === 'linked') {
+    insertChatSession(
+      db,
+      buildNewChatSessionRow({
+        sessionId: headId,
+        userId: user.id,
+        workspaceId: null,
+        providerId: 'claude',
+        startedAt: now,
+        title: scope === 'voice' ? 'Voice' : 'Global brain',
+        scope: 'global',
+        visibility: 'hidden',
+      }),
+    )
+  }
   const primary = insertPrimarySession(db, {
     id: randomUUID(),
     userId: user.id,
     workspaceId: null,
     scope,
-    currentSdkSessionId: headId,
+    currentSdkSessionId: head === 'none' ? null : headId,
     supersededFromSdkSessionId: null,
     createdAt: now,
     updatedAt: now,
@@ -120,6 +126,56 @@ describe('surfaceCheckpointSurvivors — the boot pass', () => {
       expect(bodiesOn(db, headId)).toEqual([])
     })
   })
+
+  it('an identity with NO thread to say it on is logged — the line is the only trace', async () => {
+    await withTestDatabase((db) => {
+      const { primaryId } = seedIdentity(db, 'global', { head: 'none' })
+      markPendingCheckpoint(db, primaryId, 'ship the invoice', { now: () => BEFORE_THIS_LIFE })
+      const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn() }
+
+      expect(surfaceCheckpointSurvivors(db, { logger })).toEqual({ surfaced: 0, dropped: 0 })
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        { primarySessionId: primaryId, nextStep: 'ship the invoice' },
+        expect.stringContaining('no thread'),
+      )
+      // Still owed — a missing thread is not a reason to give the step up.
+      expect(peekPendingCheckpoint(db, primaryId)?.nextStep).toBe('ship the invoice')
+    })
+  })
+
+  it('an identity whose head was PURGED is logged too — no thread is no thread, one level down', async () => {
+    await withTestDatabase((db) => {
+      // The head id points at a segment that no longer exists, so the note
+      // write fails INSIDE the chat record rather than on the primary row —
+      // the outcome must still reach the log.
+      const { primaryId } = seedIdentity(db, 'global', { head: 'purged' })
+      markPendingCheckpoint(db, primaryId, 'file the receipts', { now: () => BEFORE_THIS_LIFE })
+      const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn() }
+
+      expect(surfaceCheckpointSurvivors(db, { logger })).toEqual({ surfaced: 0, dropped: 0 })
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        { primarySessionId: primaryId, nextStep: 'file the receipts' },
+        expect.stringContaining('no thread'),
+      )
+    })
+  })
+
+  it('a second boot over an already-announced survivor says nothing at all — the dedupe is not a failure', async () => {
+    await withTestDatabase((db) => {
+      const { primaryId } = seedIdentity(db)
+      markPendingCheckpoint(db, primaryId, 'finish the migration', { now: () => BEFORE_THIS_LIFE })
+      surfaceCheckpointSurvivors(db)
+      const logger = { warn: vi.fn(), info: vi.fn(), error: vi.fn() }
+
+      expect(surfaceCheckpointSurvivors(db, { logger })).toEqual({ surfaced: 0, dropped: 0 })
+
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe('resolveSurvivorCheckpointMarker — the next turn’s provider input', () => {
@@ -137,7 +193,7 @@ describe('resolveSurvivorCheckpointMarker — the next turn’s provider input',
 })
 
 describe('recordCheckpointSupersedingSurvivor — overwrite is never silent', () => {
-  it('gives a SURVIVOR up out loud before the new intent lands', async () => {
+  it('gives a step from an EARLIER TURN up out loud before the new intent lands', async () => {
     await withTestDatabase((db) => {
       const { primaryId, headId } = seedIdentity(db)
       markPendingCheckpoint(db, primaryId, 'the old step', { now: () => BEFORE_THIS_LIFE })
@@ -154,7 +210,7 @@ describe('recordCheckpointSupersedingSurvivor — overwrite is never silent', ()
     })
   })
 
-  it('replaces a SAME-LIFE checkpoint quietly — a model refining its own next step is not news', async () => {
+  it('replaces a SAME-TURN checkpoint quietly — a model refining its own next step is not news', async () => {
     await withTestDatabase((db) => {
       const { primaryId, headId } = seedIdentity(db)
       recordCheckpointSupersedingSurvivor(db, primaryId, 'first take', {

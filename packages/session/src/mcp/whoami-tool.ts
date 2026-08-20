@@ -2,8 +2,9 @@
 // conversation it is (the global assistant, a workspace's main conversation, a
 // spawned session, an agent colleague — or a plain conversation), how full its
 // context is against the swap threshold, which segment it continues from,
-// which duty book teaches its kind (and whether it exists yet), and the memory
-// tags that mark what it saves as its own. READ-ONLY, no arguments; the answer
+// which duty book teaches its kind (and whether it exists yet), whether it
+// still owes a checkpointed next step, and the memory tags that mark what it
+// saves as its own. READ-ONLY, no arguments; the answer
 // is computed at CALL time from the turn's own context, never from model input
 // — a model-visible id could name another session.
 
@@ -17,10 +18,12 @@ const TOOL_DESCRIPTION =
   'workspace’s main conversation, a spawned session, an agent colleague, or a plain conversation), ' +
   'your primary/segment ids and the segment you continue from, how full your context is (used ' +
   'tokens, the window, the swap threshold and the tokens left before it), your duty book (its id ' +
-  'and whether it is published yet — read it with read_playbook when it is), and the memory tags ' +
-  'to stamp on anything you save to memory so it stays findable as YOURS. READ-ONLY, no ' +
-  'arguments. Call it when you need to orient yourself — before saving memories, when planning ' +
-  'a long task against your remaining context, or after continuing on a fresh context.'
+  'and whether it is published yet — read it with read_playbook when it is), whether you still owe ' +
+  'a checkpointed next step that was never continued (pendingCheckpoint: the step and when it was ' +
+  'set, else null), and the memory tags to stamp on anything you save to memory so it stays ' +
+  'findable as YOURS. READ-ONLY, no arguments. Call it when you need to orient yourself — before ' +
+  'saving memories, when planning a long task against your remaining context, or after continuing ' +
+  'on a fresh context.'
 
 /** The turn's own identity facts, read at CALL time (the chat id is a getter —
  *  a fresh conversation learns it mid-stream, after its tools are composed). */
