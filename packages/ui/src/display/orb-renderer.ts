@@ -73,10 +73,14 @@ export function createOrbRenderer(
   let animationFrame = 0;
   let stopped = false;
 
+  function deviceScale(): number {
+    return Math.min(globalThis.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+  }
+
   // The demo read `clientWidth` inside the frame loop, forcing a layout every
   // tick; the observer gives us the same number for free when it changes.
   function measure(): void {
-    scale = Math.min(globalThis.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+    scale = deviceScale();
     const nextWidth = Math.max(1, Math.round(canvas.clientWidth * scale));
     const nextHeight = Math.max(1, Math.round(canvas.clientHeight * scale));
     if (canvas.width !== nextWidth) canvas.width = nextWidth;
@@ -203,6 +207,11 @@ export function createOrbRenderer(
 
   function frame(now: number): void {
     if (stopped) return;
+    // Dragging the window to a monitor of a different density changes the
+    // pixel ratio without changing the BOX, so the observer never fires — the
+    // orb would keep drawing at the old density until something else resized
+    // it. Reading the ratio is a property read, not a layout.
+    if (deviceScale() !== scale) measure();
     energy += (energyTarget - energy) * 0.04;
     listening += (listenTarget - listening) * 0.08;
     speaking += (speakTarget - speaking) * 0.2;

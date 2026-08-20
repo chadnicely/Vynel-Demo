@@ -178,6 +178,24 @@ describe("createOrbRenderer", () => {
     renderer.stop();
   });
 
+  // Dragging the window to a monitor of a different density changes the ratio
+  // without changing the box, so the observer never fires — the orb would keep
+  // drawing at the old density until something else resized it.
+  it("follows the pixel ratio when the window moves to another monitor", () => {
+    const renderer = createOrbRenderer(canvas, { moteCount: 4 });
+    expect(canvas.width).toBe(400);
+
+    vi.stubGlobal("devicePixelRatio", 2);
+    runFrames(1);
+    expect(canvas.width).toBe(800);
+    expect(canvas.height).toBe(600);
+
+    vi.stubGlobal("devicePixelRatio", 1);
+    runFrames(1);
+    expect(canvas.width).toBe(400);
+    renderer.stop();
+  });
+
   it("draws each dial as one batched path — 87 segments, three strokes", () => {
     const renderer = createOrbRenderer(canvas, { moteCount: 4 });
 

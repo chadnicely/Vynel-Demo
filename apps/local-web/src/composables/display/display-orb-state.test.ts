@@ -70,6 +70,23 @@ describe("displayOrbState", () => {
       speaking: false,
     });
   });
+
+  // A schedule's line relayed to this window, or the daemon's own speaker: the
+  // assistant IS talking, with no turn of ours behind it.
+  it("speaks for another producer's line with no session of its own", () => {
+    const relayed = displayOrbState(view(), activityEnergy("idle"), false, true);
+    expect(relayed.speaking).toBe(true);
+    expect(relayed.energy).toBeGreaterThan(activityEnergy("idle"));
+  });
+
+  // Mute closes the MICROPHONE — it does not stop the assistant from talking.
+  it("still speaks another producer's line while the mic is muted", () => {
+    expect(displayOrbState(view(), activityEnergy("idle"), true, true)).toEqual({
+      energy: displayOrbState(view({ state: "speaking" }), 0, false).energy,
+      listening: false,
+      speaking: true,
+    });
+  });
 });
 
 /** Mount a throwaway owner so `onUnmounted` is real. */

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { DisplayOrb, DisplayPanel, DisplayStrip } from "@vynel/ui";
 import type { DisplayPanelRow } from "@vynel/ui";
+import { useUiStore } from "../../stores/ui-store.js";
 import { useVoiceSession } from "../../composables/voice/use-voice-session.js";
+import { useVoiceDaemonLink } from "../../composables/voice/use-voice-daemon-link.js";
 import {
   voiceStageCaption,
   voiceStageIsListening,
@@ -22,34 +24,87 @@ import {
 // route — the switch, a menu row, Home — hands the microphone back. That is
 // also why the shell hides `VoiceOverlay` while this view is up: two live
 // sessions would mean two orbs and two microphones.
+//
+// Taking the overlay's session means taking its DAEMON LINK too — the overlay
+// is the window's only `voice:app` subscriber, so without this the wake word
+// would have nowhere to land and a relayed `speak` (a schedule, the typed
+// chat, another producer) would be dropped for as long as the room is up.
 
+const ui = useUiStore();
 const isMuted = ref(false);
 
-// Idle silence ends the session and the room stays open — it is a place, not a
-// modal. The pills flip to "Voice on" and invite you back in; nothing else to
-// do here. (The daemon hand-back belongs to VoiceOverlay, which owns the wake
-// link and is not mounted while this room is.)
-//
-// The emptiness is load-bearing: this also fires when the user MUTES, which
-// ends the session on purpose — resetting `isMuted` here would immediately
-// undo the mute the user just asked for.
-function handleSessionEnded(): void {}
-
+// Hoisted handlers so the two composables can reference each other's owners —
+// both callbacks only ever fire after setup completes.
 const voice = useVoiceSession({ onEnded: handleSessionEnded });
+const daemon = useVoiceDaemonLink({
+  onWake: handleWake,
+  ownLiveSessionId: voice.currentSessionId,
+  speakThroughSession: voice.speakExternal,
+});
+
+// Idle silence ends the session and the room stays open — it is a place, not a
+// modal. The pills invite you back in; the daemon takes the microphone back so
+// the wake word works again from here. (This also fires when the user MUTES,
+// which ends the session on purpose — resetting `isMuted` here would undo the
+// mute they just asked for.)
+function handleSessionEnded(): void {
+  daemon.notifySessionEnd();
+}
+
+function handleWake(command: string, turnWatchdogMs?: number): void {
+  isMuted.value = false;
+  if (!voice.isActive.value) voice.start(command || undefined, turnWatchdogMs);
+}
+
 const { status, telemetry, clock } = useDisplayStatus();
 const spikeKey = useSpokenClauseSpike();
 
 onMounted(() => {
+  // The overlay's switch can be left ON behind the room — "Start voice" from
+  // the palette, then the Display — and the overlay is unmounted here, so
+  // nothing would ever turn it off again: the shell would keep dimming the
+  // page for an overlay that isn't there.
+  ui.isVoiceOverlayOpen = false;
   voice.start();
 });
 
+// "Start voice" while the room holds the canvas: the microphone is the room's,
+// so the shell rings this counter instead of raising a second session behind
+// the orb.
+watch(
+  () => ui.displayVoiceRequestCount,
+  () => {
+    if (voice.isActive.value) return;
+    isMuted.value = false;
+    voice.start();
+  },
+);
+
+// The assistant talking without a turn of ours — a schedule's line relayed to
+// this window, or the daemon's own speaker. The orb glows for it either way.
+const isProducerSpeaking = computed(
+  () => daemon.isPlayingRelayedLine.value || daemon.isDaemonSpeaking.value,
+);
+
 const orb = computed(() =>
-  displayOrbState(voice.view.value, status.value.orbEnergy, isMuted.value),
+  displayOrbState(
+    voice.view.value,
+    status.value.orbEnergy,
+    isMuted.value,
+    isProducerSpeaking.value,
+  ),
 );
 const caption = computed(() =>
   voiceStageCaption(voice.view.value, isMuted.value, voice.failure.value),
 );
 const isListening = computed(() => voiceStageIsListening(voice.view.value, isMuted.value));
+
+// Three honest states, not two: a session the idle timer ended is not "Muted"
+// — nobody muted it — and the click that follows restarts it.
+const micPillLabel = computed(() => {
+  if (isMuted.value) return "Muted";
+  return voice.isActive.value ? "Listening" : "Resume";
+});
 
 // What the strip says under the wordmark — the room's own one-liner, not the
 // caption (that one belongs under the orb, where the conversation is).
@@ -59,7 +114,16 @@ const subtitle = computed(() => {
   return status.value.building > 0 ? "Working" : "Standing by";
 });
 
+/** The microphone switch. Idle silence ends the session while the room stays
+ *  open, so on a dead session the first click must bring the mic BACK — muting
+ *  what is already silent would leave the two pills contradicting each other
+ *  ("Muted" beside "Voice on") and cost the user a second click. */
 function toggleMute(): void {
+  if (!voice.isActive.value) {
+    isMuted.value = false;
+    voice.start();
+    return;
+  }
   isMuted.value = !isMuted.value;
   if (isMuted.value) voice.end();
   else voice.start();
@@ -115,7 +179,7 @@ const WIDGET_HINT = "Claude can put reports here";
         data-testid="display-listening-pill"
         @click="toggleMute"
       >
-        {{ isListening ? "Listening" : "Muted" }}
+        {{ micPillLabel }}
       </button>
       <button
         type="button"

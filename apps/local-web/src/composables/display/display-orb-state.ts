@@ -44,18 +44,28 @@ function voiceEnergy(view: VoiceCommandSessionView): number {
 
 /** The orb's dials. `restingEnergy` is the fleet's (`activityEnergy`); the
  *  voice session only ever lifts it, never dims it — a quiet mic must not
- *  hide that six sessions are running. */
+ *  hide that six sessions are running.
+ *
+ *  `isProducerSpeaking` is the assistant talking OUTSIDE this room's own turn
+ *  — a schedule's line, the typed chat's, the daemon's native speaker. It is
+ *  deliberately not gated on `isMuted`: muting closes the microphone, and a
+ *  closed microphone does not stop the assistant from talking. */
 export function displayOrbState(
   view: VoiceCommandSessionView,
   restingEnergy: number,
   isMuted: boolean,
+  isProducerSpeaking = false,
 ): DisplayOrbState {
   return {
-    energy: Math.max(restingEnergy, isMuted ? 0 : voiceEnergy(view)),
+    energy: Math.max(
+      restingEnergy,
+      isMuted ? 0 : voiceEnergy(view),
+      isProducerSpeaking ? SPEAKING_ENERGY : 0,
+    ),
     // The one rule for "the mic is open" — shared with the voice stage rather
     // than restated here, so the orb and the overlay can never disagree.
     listening: voiceStageIsListening(view, isMuted),
-    speaking: !isMuted && view.state === "speaking",
+    speaking: isProducerSpeaking || (!isMuted && view.state === "speaking"),
   };
 }
 

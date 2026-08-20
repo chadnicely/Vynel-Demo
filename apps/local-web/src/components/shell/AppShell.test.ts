@@ -110,4 +110,25 @@ describe("AppShell — the Display", () => {
     await wrapper.vm.$nextTick();
     expect(ui.isVoiceOverlayOpen).toBe(false);
   });
+
+  // "Start voice" (the palette entry, the menu row) belongs to whoever owns
+  // the microphone. With the room up that is the room — raising the overlay
+  // behind it would start a second session with no orb to show it, and dim
+  // the page for an overlay that isn't mounted.
+  it("routes 'Start voice' to the room's own microphone while it holds the canvas", async () => {
+    const { wrapper, ui } = await mountShell();
+    const startVoice = () =>
+      wrapper.getComponent(AppTitleBar).vm.$emit("command", "start-voice");
+
+    startVoice();
+    expect(ui.isVoiceOverlayOpen).toBe(true);
+    ui.isVoiceOverlayOpen = false;
+
+    pressDisplaySwitch(wrapper);
+    await wrapper.vm.$nextTick();
+
+    startVoice();
+    expect(ui.isVoiceOverlayOpen).toBe(false);
+    expect(ui.displayVoiceRequestCount).toBe(1);
+  });
 });

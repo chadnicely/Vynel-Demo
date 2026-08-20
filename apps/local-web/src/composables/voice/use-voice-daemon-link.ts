@@ -77,18 +77,22 @@ export function useVoiceDaemonLink(options: {
   // Daemon-delegated playback ('speak' events): one player, drained in order.
   const player = createSpokenAudioPlayer();
   const speakQueue: string[] = [];
-  let drainingSpeakQueue = false;
+  // The drain's re-entrancy guard, and the ONE reading of "this window is
+  // speaking another producer's line" — a surface with an orb (the Display)
+  // shows the assistant talking off it. `isDaemonSpeaking` is a different
+  // speaker: the daemon's own, on the machine's speakers.
+  const isPlayingRelayedLine = ref(false);
 
   async function drainSpeakQueue(): Promise<void> {
-    if (drainingSpeakQueue) return;
-    drainingSpeakQueue = true;
+    if (isPlayingRelayedLine.value) return;
+    isPlayingRelayedLine.value = true;
     try {
       for (let text = speakQueue.shift(); text !== undefined; text = speakQueue.shift()) {
         // play() resolves on cancel/unreachable too — a bad line never wedges the queue.
         await player.play(text);
       }
     } finally {
-      drainingSpeakQueue = false;
+      isPlayingRelayedLine.value = false;
     }
   }
 
@@ -132,6 +136,9 @@ export function useVoiceDaemonLink(options: {
     release?.();
     release = null;
     isDaemonConnected.value = false;
+    // The drain's own `finally` clears `isPlayingRelayedLine` — cancel() makes
+    // the line in flight resolve and the emptied queue ends the loop. Clearing
+    // it here instead would open the re-entrancy guard while it still runs.
     speakQueue.length = 0;
     player.cancel();
   });
@@ -142,5 +149,5 @@ export function useVoiceDaemonLink(options: {
     void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
   }
 
-  return { isDaemonConnected, isDaemonSpeaking, notifySessionEnd };
+  return { isDaemonConnected, isDaemonSpeaking, isPlayingRelayedLine, notifySessionEnd };
 }

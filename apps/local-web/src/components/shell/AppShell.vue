@@ -594,8 +594,12 @@ function runCommand(id: string) {
     case "claude-account":
       isClaudeAccountOpen.value = true;
       break;
+    // The room owns the microphone while it holds the canvas — raising the
+    // overlay behind it would start a second session with no orb to show it,
+    // and leave the page dimmed for an overlay that isn't mounted.
     case "start-voice":
-      ui.isVoiceOverlayOpen = true;
+      if (isDisplayActive.value) ui.requestDisplayVoice();
+      else ui.isVoiceOverlayOpen = true;
       break;
     // The Display owns its own session — never the overlay's (two live
     // sessions would mean two orbs and two microphones).

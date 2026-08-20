@@ -73,9 +73,11 @@ export function ringGeometry(
  * The demo stroked (and shadow-blurred) every segment separately — 87 blurred
  * strokes a frame across the three dials, by far the loop's hot spot. Batching
  * all segments of one dial into a single path collapses that to three blur
- * passes a frame for a pixel-identical result: an explicit `moveTo` at each
- * segment's start angle keeps `arc` from line-to-ing the previous segment,
- * which would close the gaps and turn the dial into a polygon.
+ * passes a frame for a near-identical result — the segments' glows no longer
+ * accumulate onto each other, so the dial reads a touch cleaner rather than
+ * different. An explicit `moveTo` at each segment's start angle keeps `arc`
+ * from line-to-ing the previous segment, which would close the gaps and turn
+ * the dial into a polygon.
  */
 export function strokeSegmentedRing(
   context: CanvasRenderingContext2D,
