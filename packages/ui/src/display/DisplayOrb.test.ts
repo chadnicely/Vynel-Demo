@@ -68,7 +68,6 @@ describe("DisplayOrb", () => {
   });
 
   it("survives a renderer that cannot start", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     createOrbRenderer.mockImplementation(() => {
       throw new Error("canvas 2D context unavailable");
     });
@@ -78,7 +77,8 @@ describe("DisplayOrb", () => {
     });
 
     expect(wrapper.find("canvas").exists()).toBe(true);
-    expect(warn).toHaveBeenCalled();
+    // The owner hears about the blank stage; the primitive itself stays quiet.
+    expect(wrapper.emitted("renderer-failed")).toHaveLength(1);
     expect(() => wrapper.unmount()).not.toThrow();
     expect(orb.stop).not.toHaveBeenCalled();
   });

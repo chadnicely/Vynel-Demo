@@ -16,6 +16,11 @@ const props = defineProps<{
   spikeKey?: number | undefined;
 }>();
 
+// A canvas-less environment must not take the whole Display down: the orb is
+// presence, the panels carry the actual status. The owner decides whether a
+// blank stage is worth telling the user about — this primitive has no logger.
+const emit = defineEmits<{ (event: "renderer-failed", error: unknown): void }>();
+
 const canvas = ref<HTMLCanvasElement | null>(null);
 let renderer: OrbRenderer | null = null;
 
@@ -25,12 +30,7 @@ onMounted(() => {
   try {
     renderer = createOrbRenderer(element);
   } catch (error) {
-    // A canvas-less environment must not take the whole Display down with it:
-    // the orb is presence, the panels carry the actual status.
-    console.warn(
-      "DisplayOrb: renderer unavailable, showing a blank stage",
-      error,
-    );
+    emit("renderer-failed", error);
     return;
   }
   renderer.setEnergy(props.energy);
