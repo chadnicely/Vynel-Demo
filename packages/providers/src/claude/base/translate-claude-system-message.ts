@@ -9,19 +9,14 @@
 // translated as an event of its own rather than folded into the error
 // tool_result that always follows. PURE: unknown shapes -> `[]`, never throws.
 
+import { stripAnsi } from '@vynel/contracts/text/strip-ansi'
 import type { NormalizedSessionEvent } from '../../shared/normalized-session-event.js'
 
-// Terminal escape sequences the CLI may leave in a decision reason (the SDK
-// says so outright: "may carry ANSI escapes; sanitize before rendering").
-// The same pattern the process runners strip at capture — duplicated here
-// rather than imported: providers is a leaf, and the other copies live in
-// sibling leaves (`@vynel/processes`, `@vynel/apps`).
-// eslint-disable-next-line no-control-regex -- the escape byte IS what is matched
-const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b/g
-
+// The SDK says so outright about its decision reasons: "may carry ANSI
+// escapes; sanitize before rendering" — this one is rendered in the thread.
 function sanitizeDecisionReason(value: unknown): string | null {
   if (typeof value !== 'string') return null
-  const cleaned = value.replace(ANSI_ESCAPE_PATTERN, '').trim()
+  const cleaned = stripAnsi(value).trim()
   return cleaned === '' ? null : cleaned
 }
 

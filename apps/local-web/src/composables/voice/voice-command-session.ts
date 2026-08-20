@@ -56,6 +56,11 @@ const FAILED_TURN_LINE = "Sorry, I ran into a problem with that.";
 // (round-2 R2-G): a person at a microphone needs to hear the turn is alive.
 // The turn keeps streaming and its answer is spoken when it lands.
 const STILL_WORKING_LINE = "Still working on it — I'll say the answer when it lands.";
+// A turn that COMPLETED having said nothing still owes the room an answer
+// (round-2 R2-O, the daemon leg's twin in voice-session-driver.ts): at a
+// microphone, silence is indistinguishable from a session that died. An
+// interrupted turn is the user's own barge-in — they are already talking.
+const NOTHING_SAID_LINE = "That's done — I didn't have anything to say about it.";
 // A silent capture normally burns a few seconds before the recognizer gives
 // up — but a fast-failing one (offline Chrome errors instantly) would spin
 // new recognitions back-to-back for the whole idle window without this floor.
@@ -160,6 +165,15 @@ export function startVoiceCommandSession(
     speakSentence(run, FAILED_TURN_LINE);
   }
 
+  /** The turn ended cleanly with nothing to say — say THAT, once. Through
+   *  `speakSentence` like any reply sentence, so the echo filter owns it and
+   *  our own line coming back never reads as the user. */
+  function sayNothingWasSaid(run: RunningTurn): void {
+    run.spokenText = NOTHING_SAID_LINE;
+    publish();
+    speakSentence(run, NOTHING_SAID_LINE);
+  }
+
   async function driveTurn(run: RunningTurn): Promise<void> {
     publish();
     run.watchdog.arm();
@@ -175,7 +189,11 @@ export function startVoiceCommandSession(
           publish();
           speakSentence(run, sentence);
         } else {
+          // The loop's own guard above proves this turn was neither cut nor
+          // ended, so a completed turn with no reply text is a genuine silent
+          // success — never a barge-in that swallowed the answer.
           if (event.kind === "failed") sayFailure(run);
+          else if (event.kind === "completed" && run.spokenText === "") sayNothingWasSaid(run);
           break;
         }
       }

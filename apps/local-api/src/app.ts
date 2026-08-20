@@ -17,6 +17,7 @@ import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AiAgentProvider } from '@vynel/providers'
 import type { HubSession } from '@vynel/hub-account'
 import type { FireScheduleDeps } from '@vynel/schedules'
+import { ScheduleFirePool } from '@vynel/schedules'
 import type { DesktopNotificationReader } from '@vynel/desktop-control'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
@@ -115,6 +116,10 @@ export interface CreateAppOptions {
   // the real turn machinery — so a route test records a run with no live AI.
   // Production omits it; the routes lazily build the real deps.
   readonly scheduleFireDeps?: FireScheduleDeps
+  // The schedule fire pool shared with the poll service (`server.ts` creates
+  // ONE and hands it to both). Same wiring shape as `turnEvents`; omitted
+  // (tests / generators) -> createApp makes its own, bounded by the leaf default.
+  readonly scheduleFirePool?: ScheduleFirePool
   // Override the AI-agent provider. Omitted in production (createApp resolves
   // the real `claude` provider); a test injects a FAKE so provider-reaching
   // routes (skills `/synchronize`) run through the HTTP stack without the live
@@ -228,6 +233,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   const delegationCancels = options.delegationCancels ?? new DelegationCancelRegistry()
   // The per-target single-writer locks — one per process (see CreateAppOptions).
   const sessionTargetLocks = options.sessionTargetLocks ?? new SessionTargetLocks()
+  const scheduleFirePool = options.scheduleFirePool ?? new ScheduleFirePool()
   // The ask blocking bridge's in-memory half — one per process, like fileWatcher.
   const askWaiters = options.askWaiters ?? new PendingAskRegistry()
   // The app supervisor — one per process; a SELF-exit publishes its runtime
@@ -270,6 +276,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('activityFeed', activityFeed)
     c.set('delegationCancels', delegationCancels)
     c.set('sessionTargetLocks', sessionTargetLocks)
+    c.set('scheduleFirePool', scheduleFirePool)
     c.set('askWaiters', askWaiters)
     c.set('appSupervisor', appSupervisor)
     c.set('processRunner', processRunner)

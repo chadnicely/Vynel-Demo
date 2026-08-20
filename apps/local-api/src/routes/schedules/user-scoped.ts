@@ -31,7 +31,8 @@
 // fire-now (it DRIVES a turn, never an agent tool) and DELETE (destruction
 // stays the user's). `fire-now` authorizes by userId (the tenant boundary) via
 // `manualFireSchedule` — a global (null-workspace) schedule is authorized the
-// same way. Serializers + the param/update/runs schemas are REUSED from the
+// same way — and fires through the shared `c.var.scheduleFirePool` like the
+// workspace surface, so both doors and the poll share one bound. Serializers + the param/update/runs schemas are REUSED from the
 // workspace-scoped surface.
 
 import { resolver, validator } from 'hono-openapi/zod'
@@ -298,7 +299,7 @@ export const schedulesUserApp = factory
           content: { 'application/json': { schema: resolver(ScheduleRunResponseSchema) } },
         },
         404: { description: 'No such schedule owned by this user.' },
-        409: { description: 'The schedule is paused.' },
+        409: { description: 'The schedule is paused, or a fire of it is already queued or running.' },
       },
     }),
     validator('param', ScheduleParamSchema),
@@ -318,6 +319,10 @@ export const schedulesUserApp = factory
         c.var.db,
         { scheduleId: c.req.valid('param').scheduleId, userId: c.var.user.id },
         fireDeps,
+        // The PROCESS-WIDE pool the poll tick fires through (server.ts owns it):
+        // a manual run waits for a slot like any fire, and one already queued or
+        // running is declined instead of started twice.
+        c.var.scheduleFirePool,
       )
       return c.json(serializeScheduleRunForResponse(run), 202)
     },

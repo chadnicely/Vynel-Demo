@@ -32,6 +32,9 @@ import { resolveInstructionsContentDirectory } from '../content-root.js'
 // speaking (2026-08-20: an unframed fire read as the user asking, so the model
 // asked back and set a sleep timer) — it carries `{{scheduleName}}` /
 // `{{firedAtLocal}}` placeholders, filled by `renderScheduleFireMarker`.
+// `turn-time-marker` states the user's current wall clock on every interactive
+// turn (a model reads no clock) — `{{nowLocal}}` / `{{timezone}}`, filled by
+// `renderTurnTimeMarker`.
 export type SessionInstructionId =
   | 'global-root'
   | 'workspace-agent'
@@ -39,6 +42,7 @@ export type SessionInstructionId =
   | 'voice-turn-marker'
   | 'autopilot-marker'
   | 'schedule-fire-marker'
+  | 'turn-time-marker'
 
 const cache = new Map<SessionInstructionId, string>()
 

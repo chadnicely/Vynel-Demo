@@ -13,6 +13,7 @@
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { resolve, sep } from 'node:path'
+import { stripAnsi } from '@vynel/contracts/text/strip-ansi'
 import type { AppRunSnapshot, AppRunStatus, StructuralLogger } from '../apps-types.js'
 
 const RING_BUFFER_MAX_LINES = 2000
@@ -195,6 +196,7 @@ export class AppProcessSupervisor {
     await Promise.all(running.map((entry) => this.stop(entry.appId)))
   }
 
+  // Stripped at CAPTURE: `get_app_logs` was serving raw colour runs as garbage.
   private appendLogChunk(entry: SupervisedApp, chunk: string): void {
     for (const line of stripAnsi(chunk).split(/\r?\n/)) {
       if (line === '') continue
@@ -204,13 +206,4 @@ export class AppProcessSupervisor {
       entry.logLines.splice(0, entry.logLines.length - RING_BUFFER_MAX_LINES)
     }
   }
-}
-
-// Terminal escape sequences stripped at CAPTURE (the processes runner's
-// 2026-08-17 fix, swept here per the twin cross-reference rule):
-// `get_app_logs` was serving raw ESC[36m color runs as garbage.
-const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]|\u001b/g
-
-function stripAnsi(chunk: string): string {
-  return chunk.replace(ANSI_ESCAPE_PATTERN, '')
 }

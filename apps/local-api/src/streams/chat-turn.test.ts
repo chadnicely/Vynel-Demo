@@ -260,7 +260,9 @@ describe('POST /chat/sessions/turn (SSE)', () => {
 
       expect(startChatSessionInputs).toHaveLength(1)
       const input = startChatSessionInputs[0]!
-      expect(input.userMessageText).toBe('hi')
+      // The turn-time marker rides every turn (resolve-turn-time-marker.ts) —
+      // this test is about the MCP/mode composition, so match the user text only.
+      expect(input.userMessageText.startsWith('hi')).toBe(true)
       expect(input.workspacePath).toBe(workspace.path)
       // test: correct expectation — the user's bypass maps to the truly-silent
       // provider mode since 2026-07-30 (bypass-with-behavior-gate stays the
@@ -419,7 +421,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       await sleep(50)
       // Parked: no provider call for the queued turn yet (B3 — two writers
       // used to interleave on the primary's SDK session right here).
-      expect(startChatSessionInputs.some((i) => i.userMessageText === 'queued turn')).toBe(false)
+      expect(startChatSessionInputs.some((i) => i.userMessageText.startsWith('queued turn'))).toBe(false)
 
       // While parked, the held run compaction-swaps the primary onto a fresh
       // segment — the queued turn must resume THAT head, not a pre-wait read.
@@ -438,7 +440,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       )
       expect(frames).toContain('event: turn-stream-ended')
 
-      const queuedInput = startChatSessionInputs.find((i) => i.userMessageText === 'queued turn')
+      const queuedInput = startChatSessionInputs.find((i) => i.userMessageText.startsWith('queued turn'))
       expect(queuedInput).toBeDefined()
       expect(queuedInput!.resumeSessionId).toBe('sdk-swapped-head')
       expect(queuedInput!.resumeSessionId).not.toBe(seededHead)
@@ -486,7 +488,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       })
       expect(res.status).toBe(200)
       await sleep(50)
-      expect(startChatSessionInputs.some((i) => i.userMessageText === 'abandoned turn')).toBe(
+      expect(startChatSessionInputs.some((i) => i.userMessageText.startsWith('abandoned turn'))).toBe(
         false,
       )
 
@@ -502,7 +504,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       // (R2-J) the abandoned waiter never ran: no provider session for a
       // client that had already gone.
       expect(locks.isBusy(workspace.id)).toBe(false)
-      expect(startChatSessionInputs.some((i) => i.userMessageText === 'abandoned turn')).toBe(
+      expect(startChatSessionInputs.some((i) => i.userMessageText.startsWith('abandoned turn'))).toBe(
         false,
       )
       const primary = findPrimaryConversation(db, { userId: user.id, workspaceId: workspace.id })
@@ -570,7 +572,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
         resumeSessionId: head,
       })
       await sleep(50)
-      expect(startChatSessionInputs.some((i) => i.userMessageText === 'onto the head')).toBe(false)
+      expect(startChatSessionInputs.some((i) => i.userMessageText.startsWith('onto the head'))).toBe(false)
 
       // By-id onto a session the pool never writes: no lock, runs straight through.
       const plainFrames = await (
@@ -587,7 +589,7 @@ describe('POST /chat/sessions/turn (SSE)', () => {
       expect(headFrames).toContain('event: turn-queued')
       expect(headFrames).toContain('"reason":"busy"')
       expect(headFrames).toContain('event: turn-stream-ended')
-      const headInput = startChatSessionInputs.find((i) => i.userMessageText === 'onto the head')
+      const headInput = startChatSessionInputs.find((i) => i.userMessageText.startsWith('onto the head'))
       expect(headInput?.resumeSessionId).toBe(head)
       expect(locks.isBusy(workspace.id)).toBe(false)
     })

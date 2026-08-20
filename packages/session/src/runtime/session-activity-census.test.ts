@@ -37,8 +37,8 @@ const BEGIN_CALL = /activityFeed\s*\.\s*begin\(/
 
 /** The producers today — 8 files. Bump deliberately, with frames below. */
 const KNOWN_PRODUCERS = [
-  'apps/local-api/src/sessions/build-schedule-fire-deps.ts',
   'apps/local-api/src/sessions/run-global-root-turn.ts',
+  'apps/local-api/src/sessions/start-fired-workspace-turn.ts',
   'apps/local-api/src/streams/chat-turn.ts',
   'apps/local-api/src/streams/global-root-turn.ts',
   'apps/local-api/src/streams/session-turn.ts',
@@ -175,7 +175,7 @@ const FRAMES_BY_PRODUCER: Record<string, ProducerFrame[]> = {
       },
     },
   ],
-  'apps/local-api/src/sessions/build-schedule-fire-deps.ts': [
+  'apps/local-api/src/sessions/start-fired-workspace-turn.ts': [
     {
       // Schedule-on-primary: a workspace fire runs ON the room's continuing
       // conversation and its frame NAMES that identity (verified for R2-K).

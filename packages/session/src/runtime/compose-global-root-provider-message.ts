@@ -11,6 +11,9 @@
 //     `startChatSession`, lost every failure notice and `direct_to_user`
 //     answer to a startup failure — the collector is the ONLY channel by which
 //     the root learns those, and `surfacedToRootAt` is a one-way latch.
+//   - The turn-time marker: what time it is where the user is. The model reads
+//     no clock, so a relative question ("in 15 minutes") was answered off a
+//     guessed hour; it rides every turn, like its twin in `start-chat-turn.ts`.
 //   - The voice-turn marker: re-states the spoken directive AT THE MESSAGE (heard
 //     as you write — short spoken sentences) — the system-prompt block alone decays
 //     on a long root session and the model slips back to prose-shaped replies.
@@ -22,6 +25,7 @@
 import type { Database } from '@vynel/db'
 import { collectDelegationReportsForRoot } from '@vynel/orchestration'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
+import { resolveTurnTimeMarker } from './resolve-turn-time-marker.js'
 import { resolveSurvivorCheckpointMarker } from '../continuity/index.js'
 
 export type ComposeGlobalRootProviderMessageInput = {
@@ -70,6 +74,9 @@ export function composeGlobalRootProviderMessage(
     reports.contextBlock !== null
       ? `${reports.contextBlock}\n\n${input.userMessageText}`
       : input.userMessageText
+  providerUserMessageText = `${providerUserMessageText}
+
+${resolveTurnTimeMarker(db, input.userId)}`
   // The RESTART-SURVIVOR marker (audit r2 R2-H): a checkpoint still pending as
   // a GENUINE turn is composed was left by an earlier turn — the model must
   // learn it owes that step rather than overwrite it blind. Never on a

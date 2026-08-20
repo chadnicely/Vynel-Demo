@@ -6020,7 +6020,7 @@
             "description": "No such schedule in this workspace."
           },
           "409": {
-            "description": "The schedule is paused."
+            "description": "The schedule is paused, or a fire of it is already queued or running."
           }
         },
         "operationId": "postWorkspacesByWorkspaceIdSchedulesByScheduleIdFire-now",
@@ -18864,7 +18864,7 @@
             "description": "No such schedule owned by this user."
           },
           "409": {
-            "description": "The schedule is paused."
+            "description": "The schedule is paused, or a fire of it is already queued or running."
           }
         },
         "operationId": "postSchedulesByScheduleIdFire-now",

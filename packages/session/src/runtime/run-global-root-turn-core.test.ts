@@ -36,6 +36,16 @@ import { runGlobalRootTurnCore } from './run-global-root-turn-core.js'
 import { resolvePrimaryTranscript } from './resolve-primary-transcript.js'
 import type { GlobalRootTarget, SessionSink } from './session-types.js'
 
+/** The turn-time marker rides EVERY turn (`resolve-turn-time-marker.ts`, proven
+ *  there and in the composer's own tests). These assertions are about the OTHER
+ *  markers, so the clock line is stripped rather than pinned to a moving now. */
+const withoutTurnTime = (text: string | undefined): string =>
+  (text ?? '')
+    .split('\n\n')
+    .filter((part) => !part.startsWith('(Right now it is'))
+    .join('\n\n')
+
+
 const GLOBAL_ROOT_CWD = '/tmp/vynel/global-root'
 
 // A carry that clears the swap's fidelity floor.
@@ -547,7 +557,7 @@ describe('runGlobalRootTurnCore — settings defaults (D3) + the autopilot marke
         new CollectingSink(),
       )
       expect(startInputs[0]?.permissionMode).toBe('auto')
-      expect(startInputs[0]?.userMessageText).toBe('hi')
+      expect(withoutTurnTime(startInputs[0]?.userMessageText)).toBe('hi')
     })
   })
 
@@ -565,7 +575,7 @@ describe('runGlobalRootTurnCore — settings defaults (D3) + the autopilot marke
         { ...bareTurnInput(user.id, 'carry on'), autoBuildout: true },
         new CollectingSink(),
       )
-      expect(startInputs[0]?.userMessageText).toBe(
+      expect(withoutTurnTime(startInputs[0]?.userMessageText)).toBe(
         `carry on\n\n${loadSessionInstruction('autopilot-marker')}`,
       )
       const transcript = resolvePrimaryTranscript(db, { userId: user.id })

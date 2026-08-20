@@ -18,6 +18,7 @@
 // tool-hang audit banned unbounded.
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { stripAnsi } from '@vynel/contracts/text/strip-ansi'
 import type {
   ProcessExitOutcome,
   ProcessFailureReason,
@@ -202,6 +203,8 @@ export class BackgroundProcessRunner {
     }
   }
 
+  // Stripped at CAPTURE (live smoke, 2026-08-17): the tail travels into outbox
+  // payloads and monitor wake messages, where raw colour runs read as garbage.
   private appendLogChunk(entry: RunningProcess, chunk: string): void {
     for (const line of stripAnsi(chunk).split(/\r?\n/)) {
       if (line === '') continue
@@ -218,13 +221,4 @@ function boundedTail(logLines: readonly string[]): string {
   return joined.length > PROCESS_OUTPUT_TAIL_MAX_CHARS
     ? joined.slice(-PROCESS_OUTPUT_TAIL_MAX_CHARS)
     : joined
-}
-
-// Terminal escape sequences stripped at CAPTURE (live smoke, 2026-08-17): the
-// tail travels into outbox payloads and monitor wake messages, where raw
-// ESC[36m color runs read as garbage. CSI sequences + any stray lone ESC.
-const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]|\u001b/g
-
-function stripAnsi(chunk: string): string {
-  return chunk.replace(ANSI_ESCAPE_PATTERN, '')
 }

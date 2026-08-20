@@ -92,6 +92,9 @@ function buildDeps(
   };
 }
 
+/** The honest line a turn speaks when it completed having said nothing (R2-O). */
+const NOTHING_SAID = "That's done — I didn't have anything to say about it.";
+
 /** The captions shown while 'speaking' — the reply so far, per the view. */
 const captions = (views: VoiceCommandSessionView[]): string[] =>
   views.filter((view) => view.state === "speaking").map((view) => view.spokenText);
@@ -467,14 +470,31 @@ describe("startVoiceCommandSession", () => {
     await session.done;
   });
 
-  it("a silent turn ends in silence — nothing canned is played", async () => {
+  it("a turn that completes having said nothing says THAT — once, as the reply (R2-O)", async () => {
     async function* silentBrain(): AsyncIterable<VoiceTurnEvent> {
       yield { kind: "completed" };
     }
-    const { deps, played } = buildDeps(["weather"], () => silentBrain());
-    const session = startVoiceCommandSession(deps, { idleTimeoutMs: 60_000 });
-    await settle();
-    expect(played).toEqual([]);
+    // The second capture is our own honest line returning through the speaker,
+    // and it must not arrive before the turn ends — that would be a barge-in.
+    const harness = buildDeps(
+      [
+        "weather",
+        async () => {
+          await settle();
+          return NOTHING_SAID;
+        },
+      ],
+      () => silentBrain(),
+    );
+    const session = startVoiceCommandSession(harness.deps, { idleTimeoutMs: 60_000 });
+    await settle(20);
+    // At a microphone, silence is indistinguishable from a dead session.
+    expect(harness.played).toEqual([NOTHING_SAID]);
+    // Spoken as the reply (not a status), so the caption carries it too.
+    expect(captions(harness.views)).toEqual([NOTHING_SAID]);
+    // Spoken through `speakSentence`, so the echo filter owns it: hearing it
+    // back is our own voice, never a new command.
+    expect(harness.brainCalls).toEqual(["weather"]);
     session.end();
     await session.done;
   });
@@ -576,7 +596,7 @@ describe("startVoiceCommandSession — the turn watchdog", () => {
     }
   });
 
-  it("is cleared when the turn ends — a silent turn that completes, or is interrupted, says nothing later", async () => {
+  it("is cleared when the turn ends — neither a completed nor an interrupted turn says it later", async () => {
     vi.useFakeTimers();
     try {
       async function* silentThenDone(): AsyncIterable<VoiceTurnEvent> {
@@ -595,6 +615,10 @@ describe("startVoiceCommandSession — the turn watchdog", () => {
         turnWatchdogMs: 1_000,
       });
       await vi.advanceTimersByTimeAsync(5_000);
+      // Nothing is spoken later: the second utterance CUT the first turn before
+      // its `completed` landed (so not even the R2-O honest line is owed), the
+      // interrupted turn is the user's own barge-in, and the watchdog never
+      // fires on a turn that already ended.
       expect(played).toEqual([]);
       session.end();
       await vi.runOnlyPendingTimersAsync();
