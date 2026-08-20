@@ -134,12 +134,20 @@ describe("WorkspaceTree", () => {
     wrapper.unmount();
   });
 
-  it("group members sit a step in; ungrouped rows stay flush left", () => {
+  it("group members hang off a guide line; ungrouped rows stay flush left", () => {
     const wrapper = mountTree();
     const memberList = wrapper.findAll("ul").find((list) => list.text().includes("Acme"))!;
-    expect(memberList.classes()).toContain("pl-3");
+    expect(memberList.classes()).toContain("tree-members");
+    expect(memberList.classes()).toContain("border-l");
     const rootList = wrapper.findAll("ul").find((list) => list.text().includes("Blog"))!;
-    expect(rootList.classes()).not.toContain("pl-3");
+    expect(rootList.classes()).not.toContain("border-l");
+    wrapper.unmount();
+  });
+
+  it("a group header carries no rule under it — the members' spine replaces it", () => {
+    const wrapper = mountTree();
+    const header = wrapper.findAll(".tree-group-header").find((node) => node.text().includes("Clients"))!;
+    expect(header.classes()).not.toContain("border-b");
     wrapper.unmount();
   });
 

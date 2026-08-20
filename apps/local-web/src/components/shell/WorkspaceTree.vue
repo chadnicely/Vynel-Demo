@@ -291,7 +291,7 @@ function onGroupMenu(group: { id: string; name: string }, itemId: string) {
         >
           <ContextMenu :items="GROUP_MENU" @select="(id) => onGroupMenu(group, id)">
             <div
-              class="tree-group-header mb-1 flex w-full items-center border-b border-hair-strong pl-[7px] pr-[5px] text-ink-1"
+              class="tree-group-header mb-1 flex w-full items-center pl-[7px] pr-[5px] text-ink-1"
               draggable="true"
               @dragstart="dnd.startGroupDrag(group.id)"
               @dragend="dnd.endDrag()"
@@ -345,11 +345,13 @@ function onGroupMenu(group: { id: string; name: string }, itemId: string) {
               </button>
             </div>
           </ContextMenu>
-          <!-- Members sit a step in from the header, so an ungrouped row
-               below (flush left) never reads as one of them. -->
+          <!-- Members hang off a guide line dropped from the header's own
+               left edge, so an ungrouped row below (flush left, no spine)
+               never reads as one of them. The 7px + 1px rule + 4px pad keeps
+               each row at the same 12px indent the tree has always used. -->
           <ul
             v-if="!collapsedFolderIds.has(group.id)"
-            class="my-0 grid list-none gap-0.5 pl-3"
+            class="tree-members my-0 ml-[7px] grid list-none gap-0.5 border-l border-hair-strong pl-1"
           >
             <li
               v-for="workspace in membersOf(group.id)"
