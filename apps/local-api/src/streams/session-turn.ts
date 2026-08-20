@@ -57,6 +57,7 @@ import {
   startTurnWallClock,
   trackApprovalParks,
   failTurnOnWallClock,
+  LockWaitAbandonedError,
   type ContinuationTurn,
 } from '@vynel/session/runtime'
 import { ApprovalWaitGate } from '@vynel/orchestration'
@@ -318,7 +319,28 @@ export async function streamSpawnedSessionTurn(
     } catch (err) {
       // The turn never started — no feed handle, no wall clock, nothing to
       // release. Only the client needs its honest ending.
-      await writeLockWaitGiveUp(stream, err, { sessionId: null, logger })
+      const gaveUpQueued = await writeLockWaitGiveUp(stream, err, { sessionId: null, logger })
+      // Anything that is NOT a queue give-up is the acquire itself failing, and
+      // it gets the SAME ending a mid-flight throw gets (the catch below the
+      // drain): logged + a typed frame. Without this the error vanished — no
+      // log, no frame, just a `turn-stream-ended` that reads as a clean turn.
+      // The two give-up paths are untouched: expiry wrote its own frame above,
+      // and a disconnected client has nobody left to read one.
+      if (!gaveUpQueued && !(err instanceof LockWaitAbandonedError)) {
+        logger.error({ err }, 'session turn stream failed before the lock was acquired')
+        await writeSseSafely(
+          stream,
+          'session-errored',
+          JSON.stringify({
+            kind: 'session-errored',
+            sessionId: '',
+            errorCode: 'turn-stream-failed',
+            errorMessage: err instanceof Error ? err.message : String(err),
+            isRecoverable: false,
+          }),
+          logger,
+        )
+      }
       await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
       return
     }

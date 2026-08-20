@@ -814,3 +814,32 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
     })
   })
 })
+
+describe('POST /sessions/:sessionId/turn — a non-lock failure before the acquire (review fold)', () => {
+  it('surfaces as the typed frame, never a silent turn-stream-ended', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-acquire-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-acquire')
+        const locks = new SessionTargetLocks()
+        // Anything that is NOT a queue give-up: the acquire itself blowing up.
+        // `writeLockWaitGiveUp` returns false for it, and the catch used to
+        // return on that false with no log and no frame — the composer folded a
+        // clean ending over an error nobody ever saw.
+        vi.spyOn(locks, 'acquire').mockRejectedValue(new Error('the lock registry blew up'))
+        const app = createApp({ db, logger: silentLogger, sessionTargetLocks: locks })
+
+        const frames = await (
+          await postTurn(app, spawned.sessionId, { userMessageText: 'boom' })
+        ).text()
+
+        expect(frames).toContain('"errorCode":"turn-stream-failed"')
+        expect(frames).toContain('the lock registry blew up')
+        expect(frames).toContain('event: turn-stream-ended')
+        // It really never started — the frame is the failure, not a turn's own.
+        expect(startChatSessionInputs).toHaveLength(0)
+      })
+    })
+  })
+})

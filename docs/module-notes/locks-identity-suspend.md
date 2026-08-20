@@ -32,3 +32,10 @@ the workspace-with-no-primary allowlist); the web census gains the failure frame
 New `apps/local-api/src/services/suspend-aware-lease-sweep.ts`: the 60 s sweeper compares its own
 last-tick wall clock to now; past 2x the interval the machine slept, so that ONE tick skips reaping and
 re-arms. The BOOT pass stays ungated. No schema change; `delegation-orphan-settlement.ts` not modified.
+
+## Review fold (2026-08-20)
+
+A queue give-up is no longer a FAILED turn on the feed (`global-root-turn.ts` marked the outcome
+above its own give-up branch), the `turn-queued` announce and an already-aborted stream can no longer
+leak a lock key (`turn-queue-wait.ts`), and a non-give-up throw from `locks.acquire` now reaches the
+client as the typed `turn-stream-failed` frame in both workspace streams instead of a silent ending.

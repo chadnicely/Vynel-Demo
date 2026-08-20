@@ -48,17 +48,31 @@ export function buildTurnLockWait(input: TurnLockWaitInput): LockWaitOptions {
   const giveUp = (): void => clientGone.abort()
   if (input.requestSignal.aborted) giveUp()
   else input.requestSignal.addEventListener('abort', giveUp, { once: true })
-  input.stream.onAbort(giveUp)
+  // Both halves, for the stream too: `onAbort` only appends a subscriber, so a
+  // stream already aborted when the turn reaches its lock would never fire it
+  // and the waiter would park for a client that is provably gone.
+  if (input.stream.aborted) giveUp()
+  else input.stream.onAbort(giveUp)
   return {
     maxWaitMs: input.maxWaitMs,
     signal: clientGone.signal,
     onStillWaiting: () => {
-      void writeSseSafely(
-        input.stream,
-        'turn-queued',
-        JSON.stringify({ reason: input.resolveReason() }),
-        input.logger,
-      )
+      // The announce MUST NOT throw (`LockWaitOptions`) and nothing upstream
+      // enforces it: the first announce runs OUTSIDE `waitInLockQueue`'s try,
+      // so a throw here — `resolveReason` reading a swap registry, a
+      // circular payload — would skip `leaveQueue` and leak the lock key for
+      // the process lifetime. A missing "still waiting" frame is a cosmetic
+      // loss; a leaked key silently wedges the conversation forever.
+      try {
+        void writeSseSafely(
+          input.stream,
+          'turn-queued',
+          JSON.stringify({ reason: input.resolveReason() }),
+          input.logger,
+        )
+      } catch (err) {
+        input.logger.warn({ err }, 'the turn-queued announce threw — the turn keeps waiting')
+      }
     },
   }
 }

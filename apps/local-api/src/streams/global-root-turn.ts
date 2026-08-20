@@ -140,7 +140,6 @@ class GlobalRootSseSink implements SessionSink {
   }
 
   async onError(err: unknown): Promise<void> {
-    this.turnOutcome = 'failed'
     // A turn that gave up in the LOCK QUEUE never started — it is not a stream
     // failure, and the client gets the honest "the conversation stayed busy"
     // frame instead of a raw crash message (audit R2-J). A waiter dropped
@@ -149,7 +148,14 @@ class GlobalRootSseSink implements SessionSink {
       sessionId: null,
       logger: this.logger,
     })
+    // The outcome is set INSIDE the branch, not above it: a give-up is not a
+    // failed turn, it is a turn that never ran. Marked before the branch, a
+    // user closing a tab while queued left a durable `turn-ended failed` on the
+    // feed — a problem signal for a turn nobody ever started. The workspace
+    // streams cannot hit this at all (they begin their handle AFTER the
+    // acquire, so a give-up records nothing there either).
     if (!gaveUpQueued && !(err instanceof LockWaitAbandonedError)) {
+      this.turnOutcome = 'failed'
       this.logger.error({ err }, 'global-root turn stream failed')
       await writeSseSafely(
         this.stream,
