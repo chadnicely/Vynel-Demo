@@ -285,8 +285,10 @@ const occupancy = useContextOccupancy(
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
-  // Global-only like account/application: the spoken thread has no workspace.
+  // Global-only like account/application: the spoken thread has no workspace,
+  // and neither does the Display room.
   shell.mainView !== "voice-chat" &&
+  shell.mainView !== "display" &&
   shell.mainView !== "application" &&
   shell.mainView !== "account" &&
   shell.mainView !== "engine" &&

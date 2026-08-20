@@ -34,6 +34,10 @@ export type ChatMainView =
   // The spoken thread's window (voice-session arc) — global-only, sits right
   // under Chat in the menu.
   | "voice-chat"
+  // The Display — the orb room the title-bar switch opens (global-only): live
+  // status around a voice session you talk to. A canvas view, never a route,
+  // so the tab model still holds.
+  | "display"
   | "application"
   | "account"
   // Machine-level, global-only (like account/application): WHERE the engine
