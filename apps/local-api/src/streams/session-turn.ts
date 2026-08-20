@@ -81,8 +81,9 @@ import { createTurnSessionCarrier } from '../sessions/turn-session-header.js'
 import { wrapAppRequestWithMode } from '../sessions/delegation-mode-header.js'
 import { resolveSpawnedSessionRunCwd } from '../sessions/spawned-session-ground.js'
 import { writeSseSafely } from './write-sse-safely.js'
+import { buildTurnLockWait, requestAbortSignal, writeLockWaitGiveUp } from './turn-queue-wait.js'
 import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
-import { loadEnv } from '../env.js'
+import { loadEnv, resolveLockWaitMaxMs } from '../env.js'
 import type { StartSessionTurnRequestSchema } from '../routes/sessions/schemas.js'
 
 type StartSessionTurnInput = z.infer<typeof StartSessionTurnRequestSchema>
@@ -297,15 +298,30 @@ export async function streamSpawnedSessionTurn(
   return streamSSE(c, async (stream) => {
     // Single-writer per target (locked decision 3): FIFO-queue behind a
     // running delegated task (or another user turn) on this session. The
-    // queued sentinel goes out BEFORE parking so the composer can say
-    // "working on a task — queued" instead of looking frozen.
-    if (locks.isBusy(spawned.id)) {
-      // WHY it waits: this session's own context swap ("patching context") or
-      // a running delegated task ("working on a task").
-      const reason = isPrimarySwapping(spawned.id) ? 'context-patching' : 'busy'
-      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason }) })
+    // queued sentinel, the queue's bound and its cancel are one home (R2-J):
+    // the lock announces the moment this turn parks and keeps re-announcing
+    // while it waits, gives up past the budget, and drops the waiter when the
+    // client goes away. WHY it waits is resolved per frame: this session's own
+    // context swap ("patching context") or a running task ("working on a task").
+    let releaseTargetLock: () => void
+    try {
+      releaseTargetLock = await locks.acquire(
+        spawned.id,
+        buildTurnLockWait({
+          stream,
+          requestSignal: requestAbortSignal(c),
+          maxWaitMs: resolveLockWaitMaxMs(env),
+          resolveReason: () => (isPrimarySwapping(spawned.id) ? 'context-patching' : 'busy'),
+          logger,
+        }),
+      )
+    } catch (err) {
+      // The turn never started — no feed handle, no wall clock, nothing to
+      // release. Only the client needs its honest ending.
+      await writeLockWaitGiveUp(stream, err, { sessionId: null, logger })
+      await writeSseSafely(stream, 'turn-stream-ended', '{}', logger)
+      return
     }
-    const releaseTargetLock = await locks.acquire(spawned.id)
     try {
       // Re-read the chain head AFTER the wait (locked decision 2): the run we
       // queued behind may have compaction-swapped the primary onto a fresh
@@ -536,16 +552,17 @@ export async function streamSpawnedSessionTurn(
       }
     } finally {
       // The single-writer hand-over: a queued delegated job (or user turn) on
-      // this session may claim the moment this releases. Idempotent. WHY here,
-      // unconditionally: a client that DISCONNECTS while parked does not
-      // cancel the waiter — on release it still resumes and runs the turn TO
-      // COMPLETION (intentional: the client saw `turn-queued`, i.e. "will be
-      // delivered", so the message and its reply persist onto the session
-      // while the dead stream's writes silently no-op — hono's abort flips
-      // write into a no-op, it never throws). Every exit — clean drain, a
-      // teardown throw, the vanished-target return — MUST pass through this
-      // release, or the target key leaks and the session is silently
-      // unwritable forever. Pinned in session-turn.test.ts.
+      // this session may claim the moment this releases. Idempotent. Every exit
+      // — clean drain, a teardown throw, the vanished-target return — MUST pass
+      // through this release, or the target key leaks and the session is
+      // silently unwritable forever. Pinned in session-turn.test.ts.
+      //
+      // A client that disconnects while PARKED no longer reaches here at all:
+      // its waiter leaves the queue and the turn never starts (audit R2-J,
+      // reversing the earlier "the client saw `turn-queued`, so deliver it
+      // anyway" rule — a turn run for nobody still holds the single-writer key
+      // and burns a provider session). Once the turn IS running, a disconnect
+      // still lets it finish: its writes no-op, its rows persist.
       releaseTargetLock()
     }
   })

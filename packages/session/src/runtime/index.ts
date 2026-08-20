@@ -184,6 +184,16 @@ export {
 // from. `runUnderRootTurnLock` itself stays the core's private acquire.
 export { isRootTurnLockBusy, rootTurnLockKey } from './root-turn-lock.js'
 
+// The lock QUEUE's bound + cancel (audit R2-J) — the interactive streams build
+// the options, the two locks consume them, the streams read the typed give-up.
+export {
+  LOCK_WAIT_EXPIRED_ERROR_CODE,
+  LOCK_WAIT_STILL_WAITING_INTERVAL_MS,
+  LockWaitAbandonedError,
+  LockWaitExpiredError,
+  type LockWaitOptions,
+} from './lock-wait.js'
+
 // The interactive turn's wall clock — the one bound every user-facing stream
 // puts on a turn it holds a lock for; suspended while parked on a human.
 export {

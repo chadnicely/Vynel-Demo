@@ -93,6 +93,8 @@ export async function runGlobalRootTurnCore(
     // global turn no longer blocks speech, and vice versa. The channel runner
     // never sets voice, so channel/web global turns still fully serialize.
     const turnLockKey = rootTurnLockKey(input.userId, input.voice === true)
+    // `lockWait` is the interactive stream's queue bound + cancel (R2-J);
+    // omitted by every background caller, which keeps the unbounded chain.
     await runUnderRootTurnLock(turnLockKey, async () => {
       // Resolve (or create) the global root + the SDK session to resume + its hidden
       // SDK cwd (and ensure the dir exists). INSIDE the lock — it reads
@@ -140,7 +142,7 @@ export async function runGlobalRootTurnCore(
         await sink.onEvent(event)
       }
       await sink.onEnd?.()
-    })
+    }, input.lockWait)
   } catch (err) {
     if (sink.onError !== undefined) {
       await sink.onError(err)

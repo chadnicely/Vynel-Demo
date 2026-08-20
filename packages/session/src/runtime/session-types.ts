@@ -24,6 +24,7 @@ import type {
 } from '@vynel/providers'
 import type { SessionPermissionMode } from '../session-mode.js'
 import type { TurnEventBroadcaster } from '../delegation/turn-event-broadcaster.js'
+import type { LockWaitOptions } from './lock-wait.js'
 
 /**
  * The single per-path divergence axis of a session turn. The runner drives the
@@ -175,4 +176,10 @@ export interface RunGlobalRootTurnCoreInput {
    *  leaves is dropped instead of continued (session-continuity §4.6). Omit
    *  (true) for every genuine turn — the user's, a channel's. */
   autoContinue?: boolean
+  /** The QUEUE bound + cancel for this turn's wait on the root lock (audit
+   *  R2-J): the interactive stream passes its budget, the SSE request's abort
+   *  signal and its `turn-queued` re-announce. Omit (every background caller —
+   *  channels, a global schedule fire, a delivery notify turn) to keep the
+   *  unbounded FIFO wait their yield/requeue policy is built on. */
+  lockWait?: LockWaitOptions
 }

@@ -74,6 +74,12 @@ function buildEnvSchema(portBase: number) {
   // this wall clock and records a failure row — the root lock and the target
   // locks can no longer be held forever by one hung provider await.
   VYNEL_INTERACTIVE_TURN_MAX_MS: z.coerce.number().int().positive().default(3_600_000),
+  // How long an interactive turn may sit in a LOCK QUEUE before it gives up
+  // (audit R2-J): the wall clock above bounds the turn that HOLDS the lock,
+  // this bounds the waiters behind it — without it N queued turns behind one
+  // wedged holder wait N x the cap. Unset = the interactive cap, so lowering
+  // that lowers the queue with it (`resolveLockWaitMaxMs`, the one home).
+  VYNEL_LOCK_WAIT_MAX_MS: z.coerce.number().int().positive().optional(),
   // How long an interactive `ask_user` form may stay unanswered before it
   // expires with a note (the 60 s asks reaper enforces it for rows whose waiter
   // died). Channels keep their own 10 min bound; voice never attaches ask_user.
@@ -216,4 +222,10 @@ export function loadEnv(): Env {
   const portBase = parseVynelPortBase(process.env['VYNEL_PORT_BASE'])
   cachedEnv = buildEnvSchema(portBase).parse(process.env)
   return cachedEnv
+}
+
+/** How long an interactive turn may wait in a lock queue — ONE home for the
+ *  "unset = the interactive cap" derivation the streams all read (R2-J). */
+export function resolveLockWaitMaxMs(env: Env): number {
+  return env.VYNEL_LOCK_WAIT_MAX_MS ?? env.VYNEL_INTERACTIVE_TURN_MAX_MS
 }

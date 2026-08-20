@@ -38,8 +38,9 @@
 // session id (the segment), NOT the primary — then run the new utterance as a
 // new turn. NEVER send the id-less form of that route from a voice client: it
 // falls back to the GLOBAL primary's head and would stop the wrong thread. The
-// `turn-queued` sentinel below is emitted BEFORE the lock is taken and carries
-// no id — a barge-in in that window aborts the local stream only.
+// `turn-queued` sentinel below is emitted while the turn waits for the lock and
+// carries no id — a barge-in in that window aborts the local stream only (which
+// now also drops the queued waiter, audit R2-J).
 
 import type { Context } from 'hono'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
@@ -56,11 +57,10 @@ import { defaultEnabledCapabilityIds } from '@vynel/capabilities'
 import {
   runGlobalRootTurnCore,
   publishTurnActivityStep,
-  isRootTurnLockBusy,
-  rootTurnLockKey,
   startTurnWallClock,
   trackApprovalParks,
   failTurnOnWallClock,
+  LockWaitAbandonedError,
   type SessionSink,
   type SessionTurnActivityHandle,
   type TurnWallClock,
@@ -74,8 +74,9 @@ import { prepareComposerMentionTurn } from '../sessions/composer-mention-turn.js
 import { buildRecordDiscoveredModels } from '../sessions/build-record-discovered-models.js'
 import { buildRecordRateLimitSnapshot } from '../sessions/build-record-rate-limit-snapshot.js'
 import { writeSseSafely } from './write-sse-safely.js'
+import { buildTurnLockWait, requestAbortSignal, writeLockWaitGiveUp } from './turn-queue-wait.js'
 import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
-import { loadEnv } from '../env.js'
+import { loadEnv, resolveLockWaitMaxMs } from '../env.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
 import {
   resolveGlobalRootConversationTarget,
@@ -140,19 +141,29 @@ class GlobalRootSseSink implements SessionSink {
 
   async onError(err: unknown): Promise<void> {
     this.turnOutcome = 'failed'
-    this.logger.error({ err }, 'global-root turn stream failed')
-    await writeSseSafely(
-      this.stream,
-      'session-errored',
-      JSON.stringify({
-        kind: 'session-errored',
-        sessionId: '',
-        errorCode: 'turn-stream-failed',
-        errorMessage: err instanceof Error ? err.message : String(err),
-        isRecoverable: false,
-      }),
-      this.logger,
-    )
+    // A turn that gave up in the LOCK QUEUE never started — it is not a stream
+    // failure, and the client gets the honest "the conversation stayed busy"
+    // frame instead of a raw crash message (audit R2-J). A waiter dropped
+    // because its client disconnected writes nothing: nobody is reading.
+    const gaveUpQueued = await writeLockWaitGiveUp(this.stream, err, {
+      sessionId: null,
+      logger: this.logger,
+    })
+    if (!gaveUpQueued && !(err instanceof LockWaitAbandonedError)) {
+      this.logger.error({ err }, 'global-root turn stream failed')
+      await writeSseSafely(
+        this.stream,
+        'session-errored',
+        JSON.stringify({
+          kind: 'session-errored',
+          sessionId: '',
+          errorCode: 'turn-stream-failed',
+          errorMessage: err instanceof Error ? err.message : String(err),
+          isRecoverable: false,
+        }),
+        this.logger,
+      )
+    }
     // The error path must still end the stream with the terminal frame, or the
     // client folds the error and then waits on a close that reads as clean.
     await writeSseSafely(this.stream, 'turn-stream-ended', '{}', this.logger)
@@ -426,14 +437,20 @@ export async function streamGlobalRootTurn(
     }
     // A turn arriving while another turn holds this identity's root lock (a
     // second window, a channel turn, the thread's own context swap) parks
-    // inside the core — tell the composer WHY before it waits (the
-    // workspace/DM streams' queued sentinel, both reasons; audit S2).
-    if (isRootTurnLockBusy(rootTurnLockKey(c.var.user.id, isVoiceTurn))) {
-      const reason = isPrimarySwapping(conversationTarget.primarySessionId)
-        ? 'context-patching'
-        : 'busy'
-      await stream.writeSSE({ event: 'turn-queued', data: JSON.stringify({ reason }) })
-    }
+    // inside the core. The queued sentinel, the queue's bound and its cancel
+    // are ONE home now (audit R2-J): the lock announces WHY the moment this
+    // turn parks, keeps re-announcing while it waits, gives up past the budget
+    // and drops the waiter when the client goes away. Background callers of
+    // the same core (channels, a global schedule fire, a delivery notify turn)
+    // pass no `lockWait` and keep their unbounded FIFO wait.
+    const lockWait = buildTurnLockWait({
+      stream,
+      requestSignal: requestAbortSignal(c),
+      maxWaitMs: resolveLockWaitMaxMs(env),
+      resolveReason: () =>
+        isPrimarySwapping(conversationTarget.primarySessionId) ? 'context-patching' : 'busy',
+      logger: c.var.logger,
+    })
     try {
       await runGlobalRootTurnCore(
         {
@@ -490,6 +507,7 @@ export async function streamGlobalRootTurn(
           onRateLimitReported: buildRecordRateLimitSnapshot(c.var.db, c.var.user.id, c.var.logger),
           // Dev/test swap-trigger override (the live smoke's knob); unset → 0.85.
           ...(pressureThreshold !== undefined ? { pressureThreshold } : {}),
+          lockWait,
         },
         sink,
       )
