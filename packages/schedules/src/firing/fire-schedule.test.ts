@@ -530,3 +530,117 @@ describe('fireSchedule — the fire frame (schedule-fire framing: the scheduler 
     })
   })
 })
+
+// schedule-gaps G2 — before this, a verbatim reminder produced text for the
+// CHANNEL leg only: a chat-only reminder fired, completed, and the words
+// reached nobody.
+describe('fireSchedule — a verbatim reminder lands in the chat too (schedule-gaps G2)', () => {
+  it('a CHAT-ONLY reminder writes the notice on the workspace conversation and completes', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedReminderSchedule(db, {
+        displayName: 'Meeting',
+        destinationKind: 'chat-only',
+        channelId: null,
+      })
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      const run = await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        deps,
+      )
+
+      expect(deps.state.chatNotices).toEqual([
+        {
+          userId: schedule.userId,
+          workspaceId: schedule.workspaceId,
+          sourceLabel: 'Schedule · Meeting',
+          // Verbatim: the body is the user's own words, never label-prefixed.
+          body: 'Attend your 2pm meeting.',
+        },
+      ])
+      expect(run.status).toBe('completed')
+      expect(run.chatSessionId).toBeNull()
+      // chat-only still publishes nothing to a channel.
+      expect(listOutboxEventsByType(db, 'schedule.run-completed')).toHaveLength(0)
+    })
+  })
+
+  it('a GLOBAL chat-only reminder lands on the global conversation (null workspace)', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedGlobalReminderSchedule(db, {
+        displayName: 'Meeting',
+        destinationKind: 'chat-only',
+        channelId: null,
+      })
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        deps,
+      )
+
+      expect(deps.state.chatNotices[0]?.workspaceId).toBeNull()
+      expect(deps.state.chatNotices[0]?.sourceLabel).toBe('Schedule · Meeting')
+    })
+  })
+
+  it('a CHAT-AND-CHANNEL reminder writes the notice AND publishes the channel event', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedReminderSchedule(db)
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        deps,
+      )
+
+      expect(deps.state.chatNotices).toHaveLength(1)
+      const events = listOutboxEventsByType(db, 'schedule.run-completed')
+      expect(events).toHaveLength(1)
+      expect((events[0]!.payload as { renderedOutput: string }).renderedOutput).toContain(
+        'Attend your 2pm meeting.',
+      )
+    })
+  })
+
+  it('a NON-verbatim fire writes no notice — its turn persists its own row', async () => {
+    startChatTurn.mockImplementation(() => fakeChatTurn('sess-g2', 'Good morning.'))
+    await withTestDatabase(async (db) => {
+      const schedule = seedChatOnlySchedule(db)
+      const deps = { ...stubFireDeps(), startChatTurn }
+
+      await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        deps,
+      )
+
+      expect(deps.state.chatNotices).toEqual([])
+    })
+  })
+
+  it('still completes the run when the scope has no conversation yet (the known no-thread limit)', async () => {
+    await withTestDatabase(async (db) => {
+      const schedule = seedReminderSchedule(db, {
+        displayName: 'Meeting',
+        destinationKind: 'chat-only',
+        channelId: null,
+      })
+      const deps = { ...stubFireDeps(), startChatTurn }
+      deps.chatNoticeOutcome.value = 'no-thread'
+
+      const run = await fireSchedule(
+        db,
+        { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
+        deps,
+      )
+
+      // The reminder is lost, but the fire is not a failure — the warn line is
+      // its only trace.
+      expect(run.status).toBe('completed')
+    })
+  })
+})

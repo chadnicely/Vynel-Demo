@@ -1,7 +1,10 @@
 // `recordSystemNoteMessage` — persists a SYSTEM-authored note onto a session's
 // transcript: the anchor-shaped row (role 'user', sourceKind 'global-root', no
 // label) that continuity writes when a pending checkpoint is dropped ("Not
-// continued — the next step was: …"). Lives beside the other system-authored
+// continued — the next step was: …"), or — with a `sourceLabel` — the
+// ATTRIBUTED quiet notice a producer signs (sourceKind 'system' +
+// "Schedule · Tea"), which is how a fired schedule already presents itself.
+// Lives beside the other system-authored
 // row writers (`record-direct-reply-message`, `record-pushed-report-message`)
 // so `packages/chat/src/records/` stays the ONE home for rows no human typed
 // (session-hardening G-8) — the session package composes the wording and
@@ -15,6 +18,11 @@ export type RecordSystemNoteMessageInput = {
   sessionId: string
   /** The finished note text — composed by the caller. */
   body: string
+  /** An ATTRIBUTED note ("Schedule · Tea"): the row wears sourceKind 'system'
+   *  + this label, the same shape a fired global schedule's inbound row wears,
+   *  so the transcript names who spoke without touching the body. Omitted =
+   *  continuity's anonymous note (sourceKind 'global-root', no label). */
+  sourceLabel?: string
   /** The row's clock — injectable for deterministic tests. */
   now?: Date
 }
@@ -30,8 +38,8 @@ export function recordSystemNoteMessage(db: Database, input: RecordSystemNoteMes
     sessionId: input.sessionId,
     role: 'user',
     body: input.body,
-    sourceKind: 'global-root',
-    sourceLabel: null,
+    sourceKind: input.sourceLabel === undefined ? 'global-root' : 'system',
+    sourceLabel: input.sourceLabel ?? null,
     partialSessionId: null,
     threadId: null,
     originChannel: null,

@@ -37,7 +37,7 @@ import {
   composeSessionCapabilities,
   type SessionActivityFeed,
 } from '@vynel/session/runtime'
-import { findPrimaryConversation } from '@vynel/session/continuity'
+import { findPrimaryConversation, recordNoteOnPrimaryHead } from '@vynel/session/continuity'
 import {
   resolveBackgroundTurnSettings,
   type SessionTargetLocks,
@@ -127,6 +127,28 @@ export async function buildScheduleFireDeps(
     ...(swapThreshold !== undefined ? { swapThreshold } : {}),
   })
 
+  // G2 — the CHAT leg of a verbatim reminder: the destination conversation's
+  // head, written through the ONE system-note home. A verbatim fire runs no
+  // turn, so nothing else would ever put those words in the chat. Sync — the
+  // leaf calls it inside its terminal transaction, so the notice and the
+  // completed run co-commit. No primary yet (a scope that has never held a
+  // conversation) answers 'no-thread'; the leaf logs it.
+  const recordScheduleChatNotice: FireScheduleDeps['recordScheduleChatNotice'] = (
+    noticeDb,
+    input,
+  ) => {
+    const primary = findPrimaryConversation(noticeDb, {
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+    })
+    if (primary === null) return 'no-thread'
+    return recordNoteOnPrimaryHead(noticeDb, {
+      primarySessionId: primary.id,
+      sourceLabel: input.sourceLabel,
+      body: input.body,
+    })
+  }
+
   // BT1 — a GLOBAL schedule fires a GLOBAL-ROOT turn: the rendered prompt is
   // the user message on the user's global conversation, through the same
   // runner channels use. The runner holds the per-user root lock itself and
@@ -171,6 +193,7 @@ export async function buildScheduleFireDeps(
     // (@vynel/instructions) — the leaf composes the frame but must not import
     // a sibling leaf, so the renderer is handed in here.
     renderScheduleFireMarker,
+    recordScheduleChatNotice,
     // The session runtime's `startChatTurn` yields the RUNTIME `ChatTurnEvent`
     // (Date timestamps, `ChatSession` rows) and takes the narrower provider
     // mode / provider id types; `FireScheduleDeps['startChatTurn']` is typed

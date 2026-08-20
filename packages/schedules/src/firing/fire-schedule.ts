@@ -1,7 +1,9 @@
 // The executor — fires a schedule and co-commits the terminal writes (+ the
 // optional channel outbox event) in one sync transaction. THREE delivery paths:
 // a VERBATIM template (a plain reminder) skips the turn entirely and delivers
-// the rendered prompt as-is, with no chat session; a WORKSPACE schedule runs an
+// the rendered prompt as-is — as a quiet signed notice on the destination
+// conversation (schedule-gaps G2) and, when the destination has one, to the
+// channel — with no chat session; a WORKSPACE schedule runs an
 // MCP-equipped headless `startChatTurn` on its workspace
 // (`run-fired-workspace-turn.ts`); a GLOBAL schedule (null workspaceId) runs a
 // GLOBAL-ROOT turn on the user's global conversation (background-turns BT1 —
@@ -112,7 +114,25 @@ export async function fireSchedule(
     // atomic with the state change — data-standard "Cross-domain
     // communication"). insertOutboxEvent is sync.
     const completedAt = new Date()
+    // A ref, not a `let`: the write happens inside the transaction callback and
+    // the log line below must see what it answered.
+    const chatNotice: { outcome: 'written' | 'no-thread' | 'already-latest' | null } = {
+      outcome: null,
+    }
     withTransaction(db, (tx) => {
+      // The verbatim path's CHAT leg (schedule-gaps G2). The LLM paths write
+      // their own row through the turn; verbatim runs no turn, so its reminder
+      // reached the channel and nothing else — a chat-only reminder landed
+      // NOWHERE. The body stays the rendered prompt word for word (that is the
+      // whole point of the template); the schedule signs it as the author.
+      if (deliversVerbatim) {
+        chatNotice.outcome = deps.recordScheduleChatNotice(tx, {
+          userId: schedule.userId,
+          workspaceId: schedule.workspaceId,
+          sourceLabel: scheduleSourceLabel(schedule.displayName),
+          body: renderedPrompt,
+        })
+      }
       schedulesRepository.updateScheduleRun(tx, runId, {
         status: 'completed',
         completedAt,
@@ -145,6 +165,15 @@ export async function fireSchedule(
       }
     })
 
+    // A scope with no conversation yet has no head to write on — the reminder
+    // is lost and this line is its only trace (the shared note home's contract;
+    // minting a session here is not this path's job).
+    if (chatNotice.outcome === 'no-thread') {
+      deps.logger?.warn(
+        { scheduleId: schedule.id, runId, workspaceId: schedule.workspaceId },
+        'schedule reminder: no conversation to land the chat notice on',
+      )
+    }
     deps.logger?.info({ scheduleId: schedule.id, runId, chatSessionId }, 'schedule fired')
     return schedulesRepository.getScheduleRunByIdOrThrow(db, runId)
   } catch (err) {
