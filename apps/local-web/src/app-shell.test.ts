@@ -3,6 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import App from "./App.vue";
+import AppTitleBar from "./components/shell/AppTitleBar.vue";
 import { createAppRouter } from "./router.js";
 import { vynelClientKey } from "./plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
@@ -123,8 +124,13 @@ async function mountShell(
     settleRouterBeforeMount = true,
     pendingApprovals = [] as ReturnType<typeof makePendingApproval>[],
     workspaceGroups = [] as DemoGroup[],
+    // Menu is the shell's default view (2026-08-21), so a test about the tab
+    // strip — or about the section menu at the root, which the tree replaces
+    // in menu mode — states its view here.
+    navMode = null as "tabs" | "menu" | null,
   } = {},
 ) {
+  if (navMode !== null) localStorage.setItem("vynel.nav-mode", navMode);
   window.history.replaceState(null, "", initialPath);
   const router = createAppRouter();
   if (settleRouterBeforeMount) {
@@ -180,6 +186,17 @@ function currentMenuItems(
   );
 }
 
+/** Flip the navigation view the way the View menu's rows do — the pick left
+ *  the title bar for that menu, and reka's portalled rows are out of reach
+ *  under jsdom, so the test drives the command the rows emit. */
+async function pickNavView(
+  wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"],
+  id: "nav-tabs" | "nav-menu",
+) {
+  wrapper.findComponent(AppTitleBar).vm.$emit("command", id);
+  await flushPromises();
+}
+
 /** The strip's visible tab names — the label spans, without the monograms.
  *  Scoped to `.app-tab`: the work rail opens by default now (task-execution
  *  arc) and carries its own queue/done `role="tab"` pair. */
@@ -204,7 +221,7 @@ describe("app shell", () => {
   // correct expectation — the strip is a real tablist now; the dead assertion
   // pinned the old segmented pill's absence, which the menu items still cover).
   it("redirects / to Home; the strip leads with Global; the menu leads with the surface rows", async () => {
-    const { wrapper, router } = await mountShell();
+    const { wrapper, router } = await mountShell("/", [], { navMode: "tabs" });
 
     expect(router.currentRoute.value.name).toBe("home");
     expect(stripTabNames(wrapper)).toEqual(["Global"]);
@@ -221,7 +238,7 @@ describe("app shell", () => {
   });
 
   it("clicking the Chat menu item swaps the routed view", async () => {
-    const { wrapper, router } = await mountShell();
+    const { wrapper, router } = await mountShell("/", [], { navMode: "tabs" });
 
     await menuItem(wrapper, "Chat")!.trigger("click");
     // The navigation lazy-loads the view chunk — settle the dynamic import first.
@@ -239,7 +256,7 @@ describe("app shell", () => {
   });
 
   it("clicking the Sessions menu item routes to the session library", async () => {
-    const { wrapper, router } = await mountShell();
+    const { wrapper, router } = await mountShell("/", [], { navMode: "tabs" });
 
     await menuItem(wrapper, "Sessions")!.trigger("click");
     await vi.dynamicImportSettled();
@@ -252,17 +269,17 @@ describe("app shell", () => {
   });
 
   it("marks the menu row for the current surface — Home, Chat, Sessions", async () => {
-    const home = await mountShell("/home");
+    const home = await mountShell("/home", [], { navMode: "tabs" });
     expect(currentMenuItems(home.wrapper).map((b) => b.text())).toEqual([
       "Home",
     ]);
 
-    const chat = await mountShell("/chat");
+    const chat = await mountShell("/chat", [], { navMode: "tabs" });
     expect(currentMenuItems(chat.wrapper).map((b) => b.text())).toEqual([
       "Chat",
     ]);
 
-    const sessions = await mountShell("/sessions");
+    const sessions = await mountShell("/sessions", [], { navMode: "tabs" });
     expect(currentMenuItems(sessions.wrapper).map((b) => b.text())).toEqual([
       "Sessions",
     ]);
@@ -276,6 +293,7 @@ describe("app shell", () => {
   it("deep-linking /workspace with no workspace tab falls back to the global chat", async () => {
     const { wrapper, router } = await mountShell("/workspace", [], {
       settleRouterBeforeMount: false,
+      navMode: "tabs",
     });
     await vi.dynamicImportSettled();
     await flushPromises();
@@ -302,6 +320,7 @@ describe("app shell", () => {
     );
     const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE], {
       settleRouterBeforeMount: false,
+      navMode: "tabs",
     });
     await vi.dynamicImportSettled();
     await flushPromises();
@@ -324,9 +343,9 @@ describe("app shell", () => {
         activeTabId: "tab-1",
       }),
     );
-    const { wrapper, router } = await mountShell("/workspace", [
-      DEMO_WORKSPACE,
-    ]);
+    const { wrapper, router } = await mountShell("/workspace", [DEMO_WORKSPACE], {
+      navMode: "tabs",
+    });
     await vi.dynamicImportSettled();
     await flushPromises();
 
@@ -363,9 +382,9 @@ describe("app shell", () => {
         activeTabId: "tab-1",
       }),
     );
-    const { wrapper, router } = await mountShell("/workspace", [
-      DEMO_WORKSPACE,
-    ]);
+    const { wrapper, router } = await mountShell("/workspace", [DEMO_WORKSPACE], {
+      navMode: "tabs",
+    });
     await vi.dynamicImportSettled();
     await flushPromises();
 
@@ -391,7 +410,7 @@ describe("app shell", () => {
   // what's pinned now is that the view is unreachable and the shell keeps its
   // full chrome. (The panel/store implementation stays tested on its own.)
   it("the parked browser view has no door in the shell", async () => {
-    const { wrapper } = await mountShell();
+    const { wrapper } = await mountShell("/", [], { navMode: "tabs" });
 
     expect(wrapper.find('[aria-label="Toggle browser view"]').exists()).toBe(false);
     expect(wrapper.find('[aria-label="Browser view"]').exists()).toBe(false);
@@ -410,9 +429,9 @@ describe("app shell", () => {
         activeTabId: "tab-1",
       }),
     );
-    const { wrapper, router } = await mountShell("/workspace", [
-      DEMO_WORKSPACE,
-    ]);
+    const { wrapper, router } = await mountShell("/workspace", [DEMO_WORKSPACE], {
+      navMode: "tabs",
+    });
     await vi.dynamicImportSettled();
     await flushPromises();
 
@@ -426,13 +445,12 @@ describe("app shell", () => {
 
   // ── The tabs/menu navigation modes (workspace redesign Arc 2a): one tab
   // state, two presentations. Menu mode collapses the strip and roots the
-  // sidebar at the workspace tree; drilling opens the scope's section menu. ──
+  // sidebar at the workspace tree; drilling opens the scope's section menu.
+  // Menu is the DEFAULT view (Kafi, 2026-08-21) — a fresh install lands on
+  // the tree, so these mount without seeding a mode. ──
 
-  it("switching to menu mode hides the strip and shows the workspace tree", async () => {
+  it("menu is the default view — no strip, the workspace tree in the sidebar", async () => {
     const { wrapper } = await mountShell("/", [DEMO_WORKSPACE]);
-
-    await wrapper.find('[title="Menu navigation"]').trigger("click");
-    await flushPromises();
 
     expect(wrapper.findAll('.app-tab [role="tab"]')).toHaveLength(0);
     const treeLabels = wrapper
@@ -440,15 +458,10 @@ describe("app shell", () => {
       .map((node) => node.text());
     expect(treeLabels).toContain("Global");
     expect(treeLabels).toContain("Marketing");
-    // The pick persists like the theme does.
-    expect(localStorage.getItem("vynel.nav-mode")).toBe("menu");
   });
 
   it("tree drill opens the scope's menu with a back row; back returns to the tree", async () => {
     const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE]);
-
-    await wrapper.find('[title="Menu navigation"]').trigger("click");
-    await flushPromises();
 
     await wrapper
       .find('[aria-label="Open the Marketing menu"]')
@@ -476,11 +489,9 @@ describe("app shell", () => {
     expect(activeRow.text()).toContain("Marketing");
   });
 
-  it("flipping back to tabs keeps the tree-opened room's tab and place", async () => {
+  it("flipping to tabs keeps the tree-opened room's tab and place", async () => {
     const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE]);
 
-    await wrapper.find('[title="Menu navigation"]').trigger("click");
-    await flushPromises();
     const marketingRow = wrapper
       .findAll("nav ul button")
       .find((button) => button.text().includes("Marketing"));
@@ -488,8 +499,7 @@ describe("app shell", () => {
     await vi.dynamicImportSettled();
     await flushPromises();
 
-    await wrapper.find('[title="Tabs navigation"]').trigger("click");
-    await flushPromises();
+    await pickNavView(wrapper, "nav-tabs");
 
     // The room opened from the tree IS a strip tab — one state, two views.
     expect(stripTabNames(wrapper)).toEqual(["Global", "Marketing"]);
@@ -497,6 +507,8 @@ describe("app shell", () => {
       wrapper.find('.app-tab [role="tab"][aria-selected="true"] .truncate').text(),
     ).toBe("Marketing");
     expect(router.currentRoute.value.name).toBe("workspace");
+    // The pick persists like the theme does.
+    expect(localStorage.getItem("vynel.nav-mode")).toBe("tabs");
   });
 
   it("pending approvals light the needs-input dot on their scope only", async () => {
@@ -505,6 +517,7 @@ describe("app shell", () => {
         makePendingApproval("ws-marketing"),
         makePendingApproval(null),
       ],
+      navMode: "tabs",
     });
 
     // Tabs mode: only the Global tab exists on the strip at boot — the
@@ -516,8 +529,7 @@ describe("app shell", () => {
       wrapper.find('[aria-label="Marketing is waiting on you"]').exists(),
     ).toBe(false);
 
-    await wrapper.find('[title="Menu navigation"]').trigger("click");
-    await flushPromises();
+    await pickNavView(wrapper, "nav-menu");
 
     // The tree shows the same presence: room dot + the Global row's dot.
     expect(
@@ -538,9 +550,6 @@ describe("app shell", () => {
       workspaceGroups: [{ id: "grp-clients", name: "Clients" }],
     });
 
-    await wrapper.find('[title="Menu navigation"]').trigger("click");
-    await flushPromises();
-
     // The folder header renders with its member count; the member row sits
     // under it while the ungrouped row stays at the root.
     const folderHeader = wrapper
@@ -558,9 +567,6 @@ describe("app shell", () => {
 
   it("selecting a tree row switches scope and stays on the tree", async () => {
     const { wrapper, router } = await mountShell("/", [DEMO_WORKSPACE]);
-
-    await wrapper.find('[title="Menu navigation"]').trigger("click");
-    await flushPromises();
 
     const marketingRow = wrapper
       .findAll("nav ul button")

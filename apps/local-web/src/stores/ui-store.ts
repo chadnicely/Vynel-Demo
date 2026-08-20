@@ -86,10 +86,12 @@ function readStoredTheme(): Theme {
   return stored === "light" ? "light" : "dark";
 }
 
-// Tabs is the default — it's the shell's long-standing behavior; menu is the
-// opt-in view. Junk storage falls back to tabs like every stored value.
+// Menu is the default (Kafi, 2026-08-21) — the workspace tree is the shell's
+// primary way in; tabs is now the opt-in. Only an explicit stored "tabs"
+// wins, so junk storage falls back to menu like every stored value. Anyone
+// who never touched the pick moves to menu; anyone who chose tabs keeps it.
 function readStoredNavMode(): NavMode {
-  return localStorage.getItem(NAV_MODE_STORAGE_KEY) === "menu" ? "menu" : "tabs";
+  return localStorage.getItem(NAV_MODE_STORAGE_KEY) === "tabs" ? "tabs" : "menu";
 }
 
 // Fail-closed restores: an unknown stored value (a renamed mode, a retired

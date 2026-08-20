@@ -23,12 +23,13 @@ import { useWindowControls } from "../../composables/shell/use-window-controls.j
 import { shortcutHint } from "../../utils/shortcut-label.js";
 
 // The desktop title bar with an integrated menu (the Windows 11 / VS Code
-// pattern — one bar carries identity, menus, window title, presence, the
-// Tabs|Menu navigation-mode segment, and the window controls). Workspace
-// navigation itself lives on the strip (tabs mode) or the sidebar tree (menu
-// mode). Data-blind: it renders menus + emits `command`; the shell decides
-// what each id does. Window controls drive the frameless Tauri window (no-op
-// in the browser).
+// pattern — one bar carries identity, menus, presence, and the window
+// controls). Workspace navigation itself lives on the strip (tabs mode) or
+// the sidebar tree (menu mode), and the pick between the two is a View-menu
+// row (Kafi, 2026-08-21 — the standing Tabs|Menu segment left the bar).
+// Data-blind: it renders menus + emits `command`; the shell decides what each
+// id does. Window controls drive the frameless Tauri window (no-op in the
+// browser).
 const props = withDefaults(
   defineProps<{
   theme: "dark" | "light";
@@ -44,13 +45,6 @@ const props = withDefaults(
   // which would silently strip the toggle from a bar that never opted out.
   { showsTasksToggle: true },
 );
-
-// The workspace-navigation views — a labeled segment, not a blind toggle, so
-// the off mode stays discoverable (the design's Tabs | Menu pair).
-const NAV_MODES = [
-  { id: "nav-tabs", mode: "tabs", label: "Tabs", icon: Browsers },
-  { id: "nav-menu", mode: "menu", label: "Menu", icon: List },
-] as const;
 
 const emit = defineEmits<{
   command: [id: string];
@@ -98,6 +92,24 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
   {
     label: "View",
     items: [
+      // The workspace-navigation views, both named so the off mode stays
+      // discoverable — the segment's whole point, now the menu's top pair.
+      // Ticking the live one is a no-op; the shell early-returns.
+      {
+        id: "nav-tabs",
+        kind: "checkbox",
+        label: "Tabs",
+        checked: props.navMode === "tabs",
+        icon: Browsers,
+      },
+      {
+        id: "nav-menu",
+        kind: "checkbox",
+        label: "Menu",
+        checked: props.navMode === "menu",
+        icon: List,
+      },
+      { id: "sep-3", kind: "separator" },
       {
         id: "toggle-sidebar",
         kind: "checkbox",
@@ -105,13 +117,13 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
         checked: props.sidebarOpen,
         icon: PanelLeft,
       },
-      { id: "sep-3", kind: "separator" },
+      { id: "sep-4", kind: "separator" },
       {
         id: "toggle-theme",
         label: props.theme === "dark" ? "Light theme" : "Dark theme",
         icon: props.theme === "dark" ? Sun : Moon,
       },
-      { id: "sep-4", kind: "separator" },
+      { id: "sep-5", kind: "separator" },
       {
         id: "command-palette",
         label: "Command palette",
@@ -178,35 +190,8 @@ function onMenuCommand(id: string) {
          you are and what's live). -->
     <div class="flex-1" data-tauri-drag-region />
 
-    <!-- Workspace navigation mode (Tabs | Menu) — the canvas's segment: the
-         active mode wears the accent border + tinted ground. Presentation
-         only; the scope-tab state underneath is shared. -->
-    <div
-      class="mr-2 flex shrink-0 items-center gap-[5px] self-center"
-      role="group"
-      aria-label="Navigation mode"
-    >
-      <button
-        v-for="entry in NAV_MODES"
-        :key="entry.id"
-        type="button"
-        :aria-pressed="props.navMode === entry.mode"
-        :title="`${entry.label} navigation`"
-        class="flex items-center gap-1.5 rounded-sm border px-2 py-[3px] text-[11px] transition"
-        :class="
-          props.navMode === entry.mode
-            ? 'border-[var(--color-accent)] bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
-            : 'border-transparent text-[var(--color-neutral-500)] hover:text-[var(--color-accent-200)]'
-        "
-        @click="emit('command', entry.id)"
-      >
-        <component :is="entry.icon" :size="12" />
-        {{ entry.label }}
-      </button>
-    </div>
-
     <!-- The provider mark (Kafi, 2026-08-18): whose engine this machine runs
-         on — the Claude account popup's door, right after the nav segment.
+         on — the Claude account popup's door, first of the right cluster.
          Identity coral, never gold (presence). -->
     <button
       type="button"

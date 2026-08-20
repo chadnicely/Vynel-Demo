@@ -69,6 +69,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **The workspace tree is what you open into.** The app now starts in Menu view —
+  the sidebar's workspace tree — instead of the tab strip. If you had already
+  picked Tabs, you keep Tabs.
+- **The Tabs/Menu switch moved into the View menu**, above "Show navigation", and
+  off the title bar's right side. Both views stay named, with a tick on the live one.
+- **The workspace tree reads as a tree.** A group's members now hang off a vertical
+  guide line instead of sitting under a rule drawn across the group's name.
 - **Claude knows what time it is.** Every typed or spoken turn now carries the current
   local time in your timezone, so "in 15 minutes" is computed from the right clock.
 - **Run-now on a schedule waits its turn** behind other running schedules instead of

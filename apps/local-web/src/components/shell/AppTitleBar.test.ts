@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
+import { DropdownMenu } from "@vynel/ui";
+import type { MenuItemModel } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
 
 function mountTitleBar(overrides: Record<string, unknown> = {}) {
@@ -12,6 +14,19 @@ function mountTitleBar(overrides: Record<string, unknown> = {}) {
       ...overrides,
     },
   });
+}
+
+// The dropdowns portal their rows out of the wrapper and reka's trigger
+// ignores jsdom's synthetic pointer events, so the bar's menus are pinned
+// through the model it hands DropdownMenu — the rendering of a checkbox row
+// is DropdownMenu's own test.
+function viewMenu(wrapper: ReturnType<typeof mountTitleBar>) {
+  return wrapper
+    .findAllComponents(DropdownMenu)
+    .find((menu) => menu.text().includes("View"))!;
+}
+function viewMenuItems(wrapper: ReturnType<typeof mountTitleBar>): MenuItemModel[] {
+  return viewMenu(wrapper).props("items");
 }
 
 // test: the workspace switcher moved off the title bar onto the tab strip
@@ -41,9 +56,11 @@ describe("AppTitleBar", () => {
   it("carries no title and no presence pair — the center is empty", () => {
     const wrapper = mountTitleBar();
     expect(wrapper.find('[data-testid="titlebar-presence"]').exists()).toBe(false);
-    // Only the menus + the nav segment carry text — nothing else. The bar
-    // names no scope: the chat header and the tree already say where you are.
-    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelViewNodesTabsMenu");
+    // Only the menu row carries text — nothing else. The bar names no scope:
+    // the chat header and the tree already say where you are.
+    // test: correct expectation — the Tabs|Menu segment moved into the View
+    // menu (Kafi, 2026-08-21); was "VynelViewNodesTabsMenu".
+    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelViewNodes");
   });
 
   it("the Nodes word commands open-nodes", async () => {
@@ -72,10 +89,38 @@ describe("AppTitleBar", () => {
   });
 
   // The provider mark (Kafi, 2026-08-18): the Claude account popup's door,
-  // right after the Tabs|Menu segment.
+  // first of the bar's right cluster.
   it("the provider mark commands claude-account", async () => {
     const wrapper = mountTitleBar();
     await wrapper.get('[aria-label="Claude account"]').trigger("click");
     expect(wrapper.emitted("command")).toEqual([["claude-account"]]);
+  });
+
+  // The navigation pick lives in the View menu now (Kafi, 2026-08-21) — both
+  // views named, the live one ticked, above "Show navigation".
+  it("the View menu leads with the Tabs/Menu pick, ticked on the live view", () => {
+    const items = viewMenuItems(mountTitleBar({ navMode: "menu" }));
+
+    expect(items.slice(0, 3).map((item) => [item.id, item.label, item.checked])).toEqual([
+      ["nav-tabs", "Tabs", false],
+      ["nav-menu", "Menu", true],
+      ["sep-3", undefined, undefined],
+    ]);
+    // The pick sits directly above the navigation toggle it belongs beside.
+    expect(items[3]!.id).toBe("toggle-sidebar");
+  });
+
+  it("the tick follows the live view", () => {
+    const items = viewMenuItems(mountTitleBar({ navMode: "tabs" }));
+    expect(items.slice(0, 2).map((item) => item.checked)).toEqual([true, false]);
+  });
+
+  it("picking a navigation view commands its mode", async () => {
+    const wrapper = mountTitleBar({ navMode: "menu" });
+
+    viewMenu(wrapper).vm.$emit("toggle", "nav-tabs", true);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted("command")).toEqual([["nav-tabs"]]);
   });
 });
