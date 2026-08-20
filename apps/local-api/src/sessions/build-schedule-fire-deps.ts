@@ -142,11 +142,20 @@ export async function buildScheduleFireDeps(
       workspaceId: input.workspaceId,
     })
     if (primary === null) return 'no-thread'
-    return recordNoteOnPrimaryHead(noticeDb, {
+    const outcome = recordNoteOnPrimaryHead(noticeDb, {
       primarySessionId: primary.id,
       sourceLabel: input.sourceLabel,
       body: input.body,
     })
+    // The note home's third outcome needs `onlyIfNotLatest`, which this binder
+    // deliberately never passes: a daily reminder saying the same words every
+    // day must land every day, so a schedule notice must NEVER dedupe against
+    // the head's latest row. It maps to 'written' rather than to 'no-thread'
+    // because the words ARE on the thread either way — and the fire reads this
+    // answer to decide whether the run row admits it delivered nothing, so
+    // "deduped" must never be reported as "lost". Mapping instead of casting
+    // also makes a future FOURTH outcome a compile error right here.
+    return outcome === 'already-latest' ? 'written' : outcome
   }
 
   // BT1 — a GLOBAL schedule fires a GLOBAL-ROOT turn: the rendered prompt is

@@ -194,7 +194,7 @@ export interface StubFireDeps extends FireScheduleDeps {
   }
   /** What the stubbed notice writer answers next — flip it to 'no-thread' to
    *  exercise a scope that has no conversation yet. */
-  chatNoticeOutcome: { value: 'written' | 'no-thread' | 'already-latest' }
+  chatNoticeOutcome: { value: 'written' | 'no-thread' }
 }
 
 // The fire-path dep stub: a composeWorkspaceMcpServers that records it was

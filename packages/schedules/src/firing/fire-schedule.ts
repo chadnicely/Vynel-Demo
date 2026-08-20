@@ -116,9 +116,7 @@ export async function fireSchedule(
     const completedAt = new Date()
     // A ref, not a `let`: the write happens inside the transaction callback and
     // the log line below must see what it answered.
-    const chatNotice: { outcome: 'written' | 'no-thread' | 'already-latest' | null } = {
-      outcome: null,
-    }
+    const chatNotice: { outcome: 'written' | 'no-thread' | null } = { outcome: null }
     withTransaction(db, (tx) => {
       // The verbatim path's CHAT leg (schedule-gaps G2). The LLM paths write
       // their own row through the turn; verbatim runs no turn, so its reminder
@@ -137,6 +135,12 @@ export async function fireSchedule(
         status: 'completed',
         completedAt,
         chatSessionId,
+        // A completed run with no message reads as "it delivered". A verbatim
+        // reminder that found no conversation delivered NOTHING — the outcome
+        // is known one statement up, so the run row carries it rather than
+        // letting the history claim a delivery that never happened.
+        statusMessage:
+          chatNotice.outcome === 'no-thread' ? 'No conversation to deliver the reminder to.' : null,
       })
       schedulesRepository.updateSchedule(tx, schedule.id, { lastFiredAt: input.scheduledFireAt })
       // chat-and-channel delivers the result to the channel. The LLM paths need

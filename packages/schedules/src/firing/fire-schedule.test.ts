@@ -591,13 +591,14 @@ describe('fireSchedule — a verbatim reminder lands in the chat too (schedule-g
       const schedule = seedReminderSchedule(db)
       const deps = { ...stubFireDeps(), startChatTurn }
 
-      await fireSchedule(
+      const run = await fireSchedule(
         db,
         { scheduleId: schedule.id, scheduledFireAt: new Date(), triggerKind: 'poll' },
         deps,
       )
 
       expect(deps.state.chatNotices).toHaveLength(1)
+      expect(run.statusMessage).toBeNull()
       const events = listOutboxEventsByType(db, 'schedule.run-completed')
       expect(events).toHaveLength(1)
       expect((events[0]!.payload as { renderedOutput: string }).renderedOutput).toContain(
@@ -638,9 +639,10 @@ describe('fireSchedule — a verbatim reminder lands in the chat too (schedule-g
         deps,
       )
 
-      // The reminder is lost, but the fire is not a failure — the warn line is
-      // its only trace.
+      // The reminder is lost, but the fire is not a failure. The run row says
+      // so — a completed run with no message reads as a delivery.
       expect(run.status).toBe('completed')
+      expect(run.statusMessage).toBe('No conversation to deliver the reminder to.')
     })
   })
 })

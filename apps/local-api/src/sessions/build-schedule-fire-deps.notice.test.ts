@@ -136,6 +136,28 @@ describe('buildScheduleFireDeps — the verbatim reminder chat notice (schedule-
     })
   })
 
+  it('lands the SAME reminder text every time — a daily reminder must never dedupe', async () => {
+    await withTestDatabase(async (db) => {
+      const userId = seedUser(db)
+      const workspaceId = seedWorkspace(db, userId)
+      const head = await seedContinuingConversation(db, userId, workspaceId)
+      const deps = await buildDeps()
+      const notice = {
+        userId,
+        workspaceId,
+        sourceLabel: 'Schedule · Meeting',
+        body: 'Attend your 2pm meeting.',
+      }
+
+      expect(deps.recordScheduleChatNotice(db, notice)).toBe('written')
+      expect(deps.recordScheduleChatNotice(db, notice)).toBe('written')
+
+      // Two rows, not one: the note home's latest-row dedupe is deliberately
+      // never asked for here, which is what keeps 'already-latest' unreachable.
+      expect(listChatMessagesForSession(db, head)).toHaveLength(2)
+    })
+  })
+
   it('answers no-thread for a scope that has never held a conversation', async () => {
     await withTestDatabase(async (db) => {
       const userId = seedUser(db)

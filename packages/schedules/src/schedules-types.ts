@@ -123,7 +123,11 @@ export interface FireScheduleDeps {
   // `sourceLabel`. SYNC on purpose: the fire calls it INSIDE the terminal
   // transaction, so the notice and the completed run co-commit. Answers what
   // the shared home answers — `'no-thread'` when the scope has no conversation
-  // yet (a first-ever fire), which the caller logs rather than swallows.
+  // yet (a first-ever fire), which the caller logs rather than swallows. TWO
+  // outcomes, not the note home's three: the binder never asks for the
+  // latest-row dedupe, and must not — a daily reminder whose text is identical
+  // every day has to land every day, so 'already-latest' stays unreachable
+  // here by design.
   recordScheduleChatNotice: (
     db: Database,
     input: {
@@ -135,7 +139,7 @@ export interface FireScheduleDeps {
       /** The note body, verbatim — never prefixed with the label. */
       body: string
     },
-  ) => 'written' | 'no-thread' | 'already-latest'
+  ) => 'written' | 'no-thread'
   // Render the model-facing fire marker from the schedule's facts. Injected
   // (api-side: `@vynel/instructions`' `renderScheduleFireMarker`) because the
   // instruction files live in a sibling leaf this one must not import
