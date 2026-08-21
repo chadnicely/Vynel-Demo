@@ -295,6 +295,9 @@ const activeSection = computed<WorkspaceSectionId | null>(() =>
   shell.mainView !== "application" &&
   shell.mainView !== "account" &&
   shell.mainView !== "engine" &&
+  // The local-model screens (Settings) are this computer's, never a room's.
+  shell.mainView !== "embedding" &&
+  shell.mainView !== "voice-settings" &&
   shell.mainView !== "customize"
     ? shell.mainView
     : null,

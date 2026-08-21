@@ -43,6 +43,11 @@ export type ChatMainView =
   // Machine-level, global-only (like account/application): WHERE the engine
   // runs is a property of this computer, never of a workspace.
   | "engine"
+  // Machine-level, global-only (Settings, 2026-08-22): the local models on
+  // this computer — the embedding model behind search, and the voice models.
+  // `voice-settings`, not `voice`: `voice-chat` is the spoken thread's window.
+  | "embedding"
+  | "voice-settings"
   // Machine-level, global-only: which desktop apps Claude may see/control
   // (the per-app access grants) is a property of this computer.
   // Workspace-only: the Customize canvas (persona, color, menu layout). Not a

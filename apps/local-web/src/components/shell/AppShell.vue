@@ -10,6 +10,7 @@ import {
   PhCalendarBlank as CalendarRange,
   PhCpu as Cpu,
   PhTreeView as FolderTree,
+  PhGraph as Graph,
   PhClockCounterClockwise as History,
   PhHouse as House,
   PhListChecks as ListChecks,
@@ -22,6 +23,7 @@ import {
   PhGearFine as Settings2,
   PhShieldCheck as ShieldCheck,
   PhSlidersHorizontal as SlidersHorizontal,
+  PhSpeakerHigh as SpeakerHigh,
   PhPlayCircle as SquarePlay,
   PhTerminalWindow as SquareSlash,
   PhStorefront as Store,
@@ -192,11 +194,17 @@ const SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
 // Apps needs a running project — it has no global surface.
 const GLOBAL_HIDDEN_SECTION_IDS = new Set<string>(["apps"]);
 // The system rows that aren't features at all — global menu only, after the
-// catalog, outside every group.
+// catalog. The machine-level screens sit under one Settings group (Kafi,
+// 2026-08-22: Embedding · Voice · Where Vynel runs · Application); Account is
+// the person, not a setting, so it stays a row of its own. Pinned, never
+// customizable — exactly as these rows always were.
+const SETTINGS_GROUP = { id: "settings", label: "Settings" };
 const GLOBAL_SYSTEM_ITEMS: SidebarItem[] = [
-  { id: "engine", label: "Where Vynel runs", icon: Cpu },
+  { id: "embedding", label: "Embedding", icon: Graph, group: SETTINGS_GROUP },
+  { id: "voice-settings", label: "Voice", icon: SpeakerHigh, group: SETTINGS_GROUP },
+  { id: "engine", label: "Where Vynel runs", icon: Cpu, group: SETTINGS_GROUP },
+  { id: "application", label: "Application", icon: Settings2, group: SETTINGS_GROUP },
   { id: "account", label: "Account", icon: UserRound },
-  { id: "application", label: "Application", icon: Settings2 },
 ];
 const WORKSPACE_SECTION_IDS = new Set<string>(
   WORKSPACE_SECTIONS.map((s) => s.id),
