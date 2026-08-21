@@ -748,6 +748,36 @@ describe("ThreadStream", () => {
     });
   });
 
+  // The workspace chip beside a named manager ("Adam · Seo") wears the logo
+  // as-is too — the accent tint is the MONOGRAM's ground, never a logo's.
+  it("a workspace chip with a logo carries no tint behind it", () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useCustomizeStore().setWorkspaceImage("ws-seo", "data:image/png;base64,SEO");
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [
+          {
+            ...makeMessage(1),
+            id: "a1",
+            role: "assistant",
+            sourceKind: "workspace-manager",
+            sourceLabel: "Adam · Seo",
+            body: "Status.",
+          },
+        ],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        workspacesByName: { Seo: "ws-seo" },
+      },
+      global: { plugins: [pinia] },
+    });
+    const chip = wrapper.get(".workspace-badge");
+    expect(chip.classes()).toContain("has-image");
+    expect(chip.attributes("style")).toBeUndefined();
+    expect(chip.find("img").attributes("src")).toBe("data:image/png;base64,SEO");
+  });
+
   // 2026-08-09 parity pass: the workspace chat renders exactly like Global —
   // a persona's OWN reply rows wear the same author treatment as its
   // delivered rows (persona name + workspace chip), and the persona monogram

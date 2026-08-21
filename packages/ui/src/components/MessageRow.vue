@@ -480,7 +480,7 @@ const collapsedPreview = computed(() => {
                 class="hover-card-chip"
                 :class="{ 'is-global': props.workspaceBadge.isGlobal }"
                 :style="
-                  props.workspaceBadge.isGlobal
+                  props.workspaceBadge.isGlobal || props.workspaceBadge.imageUrl
                     ? undefined
                     : {
                         background: `color-mix(in srgb, ${props.workspaceBadge.accent} 30%, transparent)`,
@@ -517,11 +517,16 @@ const collapsedPreview = computed(() => {
               }}</span>
             </span>
           </template>
+          <!-- The tint is the MONOGRAM's ground; an uploaded logo sits on
+               nothing, whole — the tree's treatment, everywhere. -->
           <span
             class="workspace-badge"
-            :class="{ 'is-global': props.workspaceBadge.isGlobal }"
+            :class="{
+              'is-global': props.workspaceBadge.isGlobal,
+              'has-image': !props.workspaceBadge.isGlobal && props.workspaceBadge.imageUrl,
+            }"
             :style="
-              props.workspaceBadge.isGlobal
+              props.workspaceBadge.isGlobal || props.workspaceBadge.imageUrl
                 ? undefined
                 : {
                     background: `color-mix(in srgb, ${props.workspaceBadge.accent} 30%, transparent)`,
@@ -1250,10 +1255,13 @@ const collapsedPreview = computed(() => {
   color: var(--ink-2);
 }
 
+.workspace-badge.has-image {
+  border-radius: 5px;
+}
 .workspace-badge img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .badge-monogram {
@@ -1285,7 +1293,7 @@ const collapsedPreview = computed(() => {
 .hover-card-chip img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .hover-card-title {
