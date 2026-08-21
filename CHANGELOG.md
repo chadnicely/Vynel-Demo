@@ -128,6 +128,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Adding a Display widget no longer fails on the first try** — Claude now sees the real
+  shape of a widget's content (and a pasted JSON string is accepted too).
 - **A missed schedule now tells you.** If Vynel was not running when a schedule was due
   (and catch-up is off), the conversation gets a quiet "Schedule · <name> missed its run"
   notice with the next run time — and the channel message too when one is configured.
