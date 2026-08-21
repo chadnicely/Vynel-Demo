@@ -223,6 +223,76 @@ describe('display routes', () => {
     })
   })
 
+  // The belt for a model that serialized the object it meant to send. The tool
+  // schema now renders the union (`generate-mcp-tools.ts`), so this should stop
+  // happening — but an untyped surface or a guess must not cost a round-trip
+  // for a widget the caller already described correctly.
+  it('takes content as a JSON string on both writes, and stores the object', async () => {
+    await withTestDatabase(async (db) => {
+      const app = createApp({ db, logger: silentLogger })
+
+      const created = await addWidget(app, {
+        scope: 'global',
+        title: 'This week',
+        content: JSON.stringify(markdown('test')),
+      })
+      expect(created.status).toBe(201)
+      const widget = (await created.json()) as DisplayWidgetView
+      // Stored as the OBJECT — a string reaching the column would come back
+      // out as one and the renderer would have nothing to draw.
+      expect(widget.kind).toBe('markdown')
+      expect(widget.content).toEqual({ kind: 'markdown', body: 'test' })
+
+      const patched = await app.request(
+        `/display/widgets/${widget.id}`,
+        jsonBody('PATCH', {
+          content: JSON.stringify({ kind: 'metric', value: '3', label: 'Runs' }),
+        }),
+      )
+      expect(patched.status).toBe(200)
+      expect((await patched.json()) as DisplayWidgetView).toMatchObject({
+        kind: 'metric',
+        content: { kind: 'metric', value: '3', label: 'Runs' },
+      })
+    })
+  })
+
+  it('answers unparseable content-as-string with the zod issue, never a silent no-op', async () => {
+    await withTestDatabase(async (db) => {
+      const app = createApp({ db, logger: silentLogger })
+
+      const broken = await addWidget(app, {
+        scope: 'global',
+        title: 'Runs',
+        content: '{"kind": "markdown", "body":',
+      })
+      expect(broken.status).toBe(400)
+      // The whole body is what a tool call reads back, so it has to NAME the
+      // field — the string is handed on unchanged precisely so it can.
+      expect(await broken.text()).toContain('content')
+
+      const created = await addWidget(app, {
+        scope: 'global',
+        title: 'This week',
+        content: markdown(),
+      })
+      const widget = (await created.json()) as DisplayWidgetView
+
+      // The PATCH leg is the one that matters: `content` is optional there, so
+      // collapsing unparseable text to `undefined` would answer 200 to a write
+      // that changed nothing. It stays a string and the union reports on it.
+      const badPatch = await app.request(
+        `/display/widgets/${widget.id}`,
+        jsonBody('PATCH', { content: 'not json at all' }),
+      )
+      expect(badPatch.status).toBe(400)
+      expect(await badPatch.text()).toContain('content')
+
+      const unchanged = await app.request(`/display/widgets?scope=global`)
+      expect(((await unchanged.json()) as DisplayWidgetView[])[0]?.content).toEqual(markdown())
+    })
+  })
+
   // A self-cleaning card: the tool says WHEN it should go, and the sweep (on
   // every read, and once at boot) is what makes that happen.
   it('takes an expiry on both writes, and only one that is still ahead', async () => {

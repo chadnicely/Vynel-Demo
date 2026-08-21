@@ -8,6 +8,7 @@
 // canary for "did the tool list itself change?".
 
 import { describe, expect, it } from 'vitest'
+import type { ZodTypeAny } from 'zod'
 import {
   generatedMcpTools,
   generatedRoutingMcpTools,
@@ -417,6 +418,38 @@ describe('the Display write tools', () => {
     )
     expect(add.description).toContain('single number or one line')
     expect(update.description).not.toContain('dock')
+  })
+
+  // The generator used to emit `z.any()` for a union nested as a body property
+  // (it only flattened a TOP-LEVEL union body), so `content` reached the model
+  // opaque — and a model with nothing to build against sent the object as a
+  // JSON string, which the route answered 400. This pins the real shape: the
+  // four kinds, their fields, and a discriminator that rejects a fifth.
+  it('advertises content as the four-kind union, not an opaque arg', () => {
+    for (const definition of [add, update]) {
+      const content = definition.inputSchema['content'] as ZodTypeAny
+
+      expect(content.safeParse({ kind: 'markdown', body: 'x' }).success).toBe(true)
+      expect(
+        content.safeParse({ kind: 'table', columns: ['Day'], rows: [['Mon']] }).success,
+      ).toBe(true)
+      expect(content.safeParse({ kind: 'metric', value: '3', label: 'Runs' }).success).toBe(true)
+      expect(
+        content.safeParse({
+          kind: 'chart',
+          type: 'bar',
+          series: [{ name: 'Runs', points: [{ label: 'Mon', value: 3 }] }],
+        }).success,
+      ).toBe(true)
+
+      // A fifth kind and a serialized object are the two ways this went wrong.
+      expect(content.safeParse({ kind: 'nope' }).success).toBe(false)
+      expect(content.safeParse(JSON.stringify({ kind: 'markdown', body: 'x' })).success).toBe(
+        false,
+      )
+      // z.any() accepted every one of the above — proof the arg is no longer it.
+      expect(content.safeParse({ kind: 'markdown' }).success).toBe(false)
+    }
   })
 
   it('offers the self-cleaning expiry on both writes, schema and words in step', () => {

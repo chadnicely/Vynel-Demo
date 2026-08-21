@@ -32,13 +32,24 @@ type OpenApiParameter = {
   schema?: OpenApiSchema
 }
 
+// ONE schema type for every position — a request body, a param, a nested
+// property, an array's item. They are the same OpenAPI node and the emitter
+// walks them the same way; two types only invited the nested positions to be
+// read as less than they are (which is how a nested union became `z.any()`).
 type OpenApiSchema = {
   type?: string | string[]
   // A nullable zod enum reaches the spec as an enum WITH a null member.
   enum?: readonly (string | number | boolean | null)[]
   // A zod literal (e.g. a discriminated union's discriminator) emits `const`.
   const?: string | number | boolean | null
+  description?: string
   items?: OpenApiSchema
+  properties?: Record<string, OpenApiSchema>
+  required?: string[]
+  // A zod (discriminated) union reaches the spec as oneOf/anyOf branches with
+  // NO sibling `properties`.
+  oneOf?: OpenApiSchema[]
+  anyOf?: OpenApiSchema[]
 }
 
 type XMcp = {
@@ -105,22 +116,10 @@ type XMcp = {
   ambientWorkspace?: boolean
 }
 
-type OpenApiObjectSchema = {
-  type?: 'object'
-  properties?: Record<string, OpenApiSchema>
-  required?: string[]
-  // A zod (discriminated) union body reaches the spec as oneOf/anyOf object
-  // branches with NO top-level properties — flattened for the tool schema by
-  // `flattenUnionBodySchema` (the route's validator still enforces the real
-  // branch rules at the boundary).
-  oneOf?: OpenApiObjectSchema[]
-  anyOf?: OpenApiObjectSchema[]
-}
-
 type OpenApiRequestBody = {
   content?: {
     'application/json'?: {
-      schema?: OpenApiObjectSchema
+      schema?: OpenApiSchema
     }
   }
 }
@@ -264,6 +263,31 @@ function snakeToCamel(snake: string): string {
   return snake.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
 }
 
+// The ONE reader of "is this a union, and what are its branches". Both union
+// consumers start here: the body FLATTENER (a whole-body union becomes sibling
+// tool args) and the property EMITTER (a nested union stays one value). The
+// two outputs differ on purpose; the walk must not.
+function unionBranchesOf(schema: OpenApiSchema): readonly OpenApiSchema[] | undefined {
+  const branches = schema.oneOf ?? schema.anyOf
+  if (branches === undefined || branches.length === 0) return undefined
+  return branches
+}
+
+// The key every branch pins to its own string literal — what makes a union
+// DISCRIMINATED, and what lets the emitted zod tell the model "pick a kind,
+// then these fields". Undefined when the branches don't agree on one: that
+// union is still real, it just emits as a plain `z.union`.
+function discriminatorKeyOf(branches: readonly OpenApiSchema[]): string | undefined {
+  for (const [key, propertySchema] of Object.entries(branches[0]?.properties ?? {})) {
+    if (typeof propertySchema.const !== 'string') continue
+    const everyBranchPins = branches.every(
+      (branch) => typeof branch.properties?.[key]?.const === 'string',
+    )
+    if (everyBranchPins) return key
+  }
+  return undefined
+}
+
 // A union body (zod discriminatedUnion → oneOf, plain union → anyOf) carries
 // no top-level properties, which would silently emit a body-less mutating tool
 // (create_my_schedule was the first). Flatten for the TOOL SCHEMA only: union
@@ -273,12 +297,10 @@ function snakeToCamel(snake: string): string {
 // real branch rules with an actionable 400. Same-named fields whose branch
 // values are literals (`const`) merge into one enum so the model sees every
 // legal discriminator value.
-function flattenUnionBodySchema(
-  schema: OpenApiObjectSchema | undefined,
-): OpenApiObjectSchema | undefined {
+function flattenUnionBodySchema(schema: OpenApiSchema | undefined): OpenApiSchema | undefined {
   if (schema === undefined || schema.properties !== undefined) return schema
-  const branches = schema.oneOf ?? schema.anyOf
-  if (branches === undefined || branches.length === 0) return schema
+  const branches = unionBranchesOf(schema)
+  if (branches === undefined) return schema
   const properties: Record<string, OpenApiSchema> = {}
   for (const branch of branches) {
     for (const [name, propertySchema] of Object.entries(branch.properties ?? {})) {
@@ -313,8 +335,17 @@ function enumMembersOf(
   return undefined
 }
 
-function openApiToZodSource(schema: OpenApiSchema | undefined): string {
+// `indent` is the column the emitted expression STARTS at, so a nested object
+// or union lays out readably instead of arriving as one 800-character line.
+function openApiToZodSource(schema: OpenApiSchema | undefined, indent = '    '): string {
   if (!schema) return 'z.any()'
+  // A union nested as a PROPERTY keeps its shape. Falling through to `z.any()`
+  // here was the bug: an opaque arg gives the model nothing to build against,
+  // so it serializes the object it meant to send as a JSON string and the route
+  // answers 400. Flattening — right for a whole body — is wrong here: these
+  // branches are one value, not sibling args.
+  const branches = unionBranchesOf(schema)
+  if (branches !== undefined) return unionZodSource(branches, indent)
   // A zod STRING literal emits `const` — a one-member enum for tool purposes.
   // Non-string literals (z.literal(true)) keep the primitive path: z.enum
   // only accepts strings.
@@ -328,23 +359,70 @@ function openApiToZodSource(schema: OpenApiSchema | undefined): string {
     const nullable = schema.enum.includes(null)
     const values = schema.enum.filter((v): v is string | number | boolean => v !== null)
     if (values.length === 0) return 'z.null()'
-    const opts = values
-      .map((v) => (typeof v === 'string' ? `'${v.replace(/'/g, "\\'")}'` : String(v)))
-      .join(', ')
+    const opts = values.map((v) => (typeof v === 'string' ? quote(v) : String(v))).join(', ')
     return `z.enum([${opts}])${nullable ? '.nullable()' : ''}`
   }
   // Nullable shape: `type: ['string', 'null']`.
   if (Array.isArray(schema.type)) {
     if (schema.type.includes('null')) {
       const otherType = schema.type.find((t) => t !== 'null') ?? 'unknown'
-      return `${zodFromPrimitive(otherType, schema)}.nullable()`
+      return `${zodFromPrimitive(otherType, schema, indent)}.nullable()`
     }
     return 'z.any()'
   }
-  return zodFromPrimitive(schema.type ?? 'unknown', schema)
+  return zodFromPrimitive(schema.type ?? 'unknown', schema, indent)
 }
 
-function zodFromPrimitive(t: string, schema: OpenApiSchema): string {
+// A union whose branches all pin one key to a string literal emits as a
+// DISCRIMINATED union: zod then reports "invalid kind" instead of four
+// unrelated branch failures, and the tool schema reads as a choice rather than
+// four look-alikes. Anything else is still a union and emits as one.
+function unionZodSource(branches: readonly OpenApiSchema[], indent: string): string {
+  const inner = `${indent}  `
+  const rendered = branches.map((b) => `${inner}${openApiToZodSource(b, inner)},`).join('\n')
+  const discriminator = discriminatorKeyOf(branches)
+  const open =
+    discriminator === undefined ? 'z.union([' : `z.discriminatedUnion(${quote(discriminator)}, [`
+  return `${open}\n${rendered}\n${indent}])`
+}
+
+// An object that DECLARES its fields emits them. `z.record(z.unknown())` says
+// only "some object" — enough for the model to guess, and a guess costs a
+// round-trip. A genuinely free-form object (no `properties`) stays a record.
+function objectZodSource(schema: OpenApiSchema, indent: string): string {
+  const properties = Object.entries(schema.properties ?? {})
+  if (properties.length === 0) return 'z.record(z.unknown())'
+  const requiredNames = new Set(schema.required ?? [])
+  const inner = `${indent}  `
+  const lines = properties.map(([name, propertySchema]) => {
+    const optional = requiredNames.has(name) ? '' : '.optional()'
+    return `${inner}${propertyKey(name)}: ${describedZodSource(propertySchema, inner)}${optional},`
+  })
+  return `z.object({\n${lines.join('\n')}\n${indent}})`
+}
+
+// A route that documents a field (zod `.describe()`) reaches the spec with a
+// `description`; carry it so the model reads the words the route author wrote.
+// No exposed route carries one today — silently dropping it the day one does
+// is the same class of failure this fix is about.
+function describedZodSource(schema: OpenApiSchema, indent: string): string {
+  const base = openApiToZodSource(schema, indent)
+  const { description } = schema
+  return description === undefined || description === ''
+    ? base
+    : `${base}.describe(${JSON.stringify(description)})`
+}
+
+function quote(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+}
+
+// Only a plain identifier can sit bare as an object-literal key.
+function propertyKey(name: string): string {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) ? name : quote(name)
+}
+
+function zodFromPrimitive(t: string, schema: OpenApiSchema, indent: string): string {
   switch (t) {
     case 'string':
       return 'z.string()'
@@ -354,9 +432,9 @@ function zodFromPrimitive(t: string, schema: OpenApiSchema): string {
     case 'boolean':
       return 'z.boolean()'
     case 'array':
-      return `z.array(${openApiToZodSource(schema.items)})`
+      return `z.array(${openApiToZodSource(schema.items, indent)})`
     case 'object':
-      return 'z.record(z.unknown())'
+      return objectZodSource(schema, indent)
     default:
       return 'z.any()'
   }

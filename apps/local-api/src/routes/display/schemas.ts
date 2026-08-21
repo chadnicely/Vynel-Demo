@@ -37,10 +37,32 @@ export const DisplayExpiresAtSchema = z
     message: 'expiresAt must be in the future.',
   })
 
+/** `content` as the object, or as a JSON string that parses to it.
+ *
+ *  A model that cannot see the shape of a nested argument serializes it —
+ *  `"{\"kind\":\"markdown\",...}"` instead of the object. The tool schema now
+ *  renders the union properly (`generate-mcp-tools.ts`), so this is the belt,
+ *  not the fix: a surface we don't generate (the external stdio server passes
+ *  `content` through untyped) or a model that guesses anyway must not cost the
+ *  user a wasted turn for a widget it described correctly.
+ *
+ *  Only for the two REQUEST bodies. Unparseable text is handed on UNCHANGED so
+ *  the object schema reports the real issue — collapsing it to `undefined`
+ *  would read as "leave content alone" on the optional PATCH field and answer
+ *  200 to a write that never happened. */
+const TolerantDisplayWidgetContentSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}, DisplayWidgetContentSchema)
+
 export const AddDisplayWidgetRequestSchema = z.object({
   scope: DisplayScopeSchema,
   title: DisplayWidgetTitleSchema,
-  content: DisplayWidgetContentSchema,
+  content: TolerantDisplayWidgetContentSchema,
   slot: DisplayWidgetSlotSchema.optional(),
   size: DisplayWidgetSizeSchema.optional(),
   expiresAt: DisplayExpiresAtSchema.optional(),
@@ -52,7 +74,7 @@ export const AddDisplayWidgetRequestSchema = z.object({
 // but "this card stays forever after all" has no caller yet.
 export const UpdateDisplayWidgetRequestSchema = z.object({
   title: DisplayWidgetTitleSchema.optional(),
-  content: DisplayWidgetContentSchema.optional(),
+  content: TolerantDisplayWidgetContentSchema.optional(),
   slot: DisplayWidgetSlotSchema.optional(),
   size: DisplayWidgetSizeSchema.optional(),
   expiresAt: DisplayExpiresAtSchema.optional(),
