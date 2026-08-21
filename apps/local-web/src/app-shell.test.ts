@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
+import {
+  installFakeLiveSocket,
+  latestFakeLiveSocket,
+} from "./stores/live-channel-test-support.js";
 import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import App from "./App.vue";
@@ -100,6 +104,9 @@ function makeFakeVynelClient(
         updatedAt: "2026-07-05T10:00:00.000Z",
       }),
     },
+    // The shell announces whether its Display is on screen so the display dock
+    // (another window) knows to get out of the way — every mount does it once.
+    voice: { setDisplayActive: async () => ({ published: false }) },
     dashboard: {
       getOverview: async () => ({
         workspaces: [],
@@ -592,5 +599,45 @@ describe("app shell", () => {
       .findAll("nav ul button .truncate")
       .map((node) => node.text());
     expect(treeLabels).toContain("Global");
+  });
+});
+
+// A wake landed in the display dock; the daemon relaunched this app and asked
+// it to come forward on the Display. The shell owns the switch, so the event
+// travels: live channel → the voice overlay's daemon link → the shell.
+describe("the shell answers show-display", () => {
+  let restoreSocket: () => void;
+  beforeEach(() => {
+    localStorage.clear();
+    restoreSocket = installFakeLiveSocket();
+  });
+  afterEach(() => {
+    restoreSocket();
+  });
+
+  async function sendShowDisplay(): Promise<void> {
+    const socket = latestFakeLiveSocket();
+    socket.serverOpens();
+    socket.serverAcks("voice:app");
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:app",
+      event: { kind: "show-display" },
+    });
+    await flushPromises();
+  }
+
+  it("opens the Display of the tab you are on, and a repeat never closes it", async () => {
+    const { wrapper, router } = await mountShell("/chat", [], { navMode: "tabs" });
+    expect(wrapper.findComponent(AppTitleBar).props("displayOn")).toBe(false);
+
+    await sendShowDisplay();
+    expect(wrapper.findComponent(AppTitleBar).props("displayOn")).toBe(true);
+    // The switch never changes tabs — the room is this tab's own.
+    expect(router.currentRoute.value.name).toBe("chat");
+
+    // A second wake while the room is already up must not toggle it shut.
+    await sendShowDisplay();
+    expect(wrapper.findComponent(AppTitleBar).props("displayOn")).toBe(true);
   });
 });

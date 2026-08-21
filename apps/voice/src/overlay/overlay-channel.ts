@@ -11,7 +11,10 @@ import type { VoiceSessionState } from '../loop/voice-session-types.js'
 // loopback HTTP surface:
 //
 //   GET  /events?surface=app|dock&wake=1|0 — SSE: state replay on connect,
-//        then {kind:'state'|'wake'|'speak', ...}. `wake` declares whether the
+//        then {kind:'state'|'wake'|'speak'|'show-display', ...}. `show-display`
+//        is the only one addressed by SURFACE (app windows only): it asks the
+//        desktop app to come forward on the Display while the dock holds the
+//        conversation. `wake` declares whether the
 //        client can RUN a command session (the display dock always can; an app
 //        tab only with Web Speech). Wake and speak events go to ONE client
 //        (never all — two sessions would answer twice, two speakers would
@@ -32,14 +35,24 @@ import type { VoiceSessionState } from '../loop/voice-session-types.js'
 // CORS is open because the server binds loopback only — the browser may connect
 // directly or through the local-web Vite `/voice` proxy.
 
+/** The conversation phase as the WIRE carries it: the driver's own states plus
+ *  this channel's own word. `handed-off` is not a driver state — the driver
+ *  publishes `wake` and then goes silent for the whole handoff, so without it a
+ *  dock conversation parks at `wake` for its entire life and no surface can
+ *  tell "a wake just fired" from "the dock is holding the room". Only this
+ *  channel knows the difference: it is the one that delivered the wake. */
+export type OverlayPhase = VoiceSessionState | 'handed-off'
+
 export type OverlayEvent =
-  | { readonly kind: 'state'; readonly state: VoiceSessionState }
+  | { readonly kind: 'state'; readonly state: OverlayPhase }
   // `turnWatchdogMs` mirrors the daemon's per-turn watchdog knob so the browser
   // leg bounds its turns from the same single home (env) as the native leg.
   | { readonly kind: 'wake'; readonly command: string; readonly turnWatchdogMs: number }
   // The daemon asks ONE connected client to play a spoken line. `sessionId` is
   // null when the producer is unknown (a caller without a turn session).
   | { readonly kind: 'speak'; readonly text: string; readonly sessionId: string | null }
+  // Bring the desktop app forward on the Display. App surfaces only.
+  | { readonly kind: 'show-display' }
 
 export type OverlaySurface = 'app' | 'dock'
 
@@ -86,6 +99,9 @@ export interface OverlayChannel {
    *  native speaker. Best-effort beyond that: a socket dying mid-write drops
    *  the line (like any spoken audio). */
   publishSpeak(text: string, sessionId: string | null): boolean
+  /** Ask the DESKTOP APP to come forward on the Display (a wake landed). App
+   *  surfaces only — the dock is the wake window and already has the room. */
+  publishShowDisplay(): void
   stop(): void
 }
 
@@ -111,7 +127,7 @@ export function startOverlayChannel(
 ): OverlayChannel {
   // Insertion order = connect order; the wake target is the newest eligible.
   const subscribers = new Map<SSEStreamingApi, Subscriber>()
-  let lastState: VoiceSessionState = 'idle'
+  let lastState: OverlayPhase = 'idle'
   // A wake no eligible client has confirmed yet — replayed on the next connect,
   // dropped once the daemon leaves the wake state.
   let pendingWake: string | null = null
@@ -140,6 +156,22 @@ export function startOverlayChannel(
     return target
   }
 
+  const broadcast = (event: OverlayEvent, where: (subscriber: Subscriber) => boolean = () => true): void => {
+    for (const [stream, subscriber] of subscribers) {
+      if (!where(subscriber)) continue
+      void stream.writeSSE({ data: JSON.stringify(event) }).catch(() => {
+        // A dead socket surfaces on write — onAbort handles the removal.
+      })
+    }
+  }
+
+  /** Remember the phase (a late connect replays it) and tell everyone. Split
+   *  from `publishState` because `handed-off` must NOT clear a pending wake. */
+  const broadcastState = (state: OverlayPhase): void => {
+    lastState = state
+    broadcast({ kind: 'state', state })
+  }
+
   const deliverWake = (stream: SSEStreamingApi, command: string): void => {
     handoffOwner = stream
     const event: OverlayEvent = { kind: 'wake', command, turnWatchdogMs: options.turnWatchdogMs }
@@ -147,18 +179,16 @@ export function startOverlayChannel(
       .writeSSE({ data: JSON.stringify(event) })
       .then(() => {
         if (pendingWake === command) pendingWake = null
+        // A CONFIRMED write is the moment the room changed hands — and the one
+        // place that knows it. Publishing it from the driver instead would run
+        // while the wake is still pending and, worse, `publishState` would null
+        // that pending wake: the dock would connect to a session nobody handed
+        // it and the daemon would sit handed-off to no one.
+        broadcastState('handed-off')
       })
       .catch(() => {
         // Dead socket — keep the wake pending so the next connect replays it.
       })
-  }
-
-  const broadcast = (event: OverlayEvent): void => {
-    for (const stream of subscribers.keys()) {
-      void stream.writeSSE({ data: JSON.stringify(event) }).catch(() => {
-        // A dead socket surfaces on write — onAbort handles the removal.
-      })
-    }
   }
 
   const app = new Hono()
@@ -270,9 +300,8 @@ export function startOverlayChannel(
     },
     whenListening,
     publishState(state: VoiceSessionState): void {
-      lastState = state
       if (state !== 'wake') pendingWake = null
-      broadcast({ kind: 'state', state })
+      broadcastState(state)
     },
     publishWake(command: string): void {
       pendingWake = command
@@ -287,6 +316,12 @@ export function startOverlayChannel(
         // Dead socket — the line is lost, like audio to an unplugged speaker.
       })
       return true
+    },
+    publishShowDisplay(): void {
+      // Surface, not wake-capability: an app tab that CAN run a wake is still
+      // the app, and the dock — the only other surface — is the window the
+      // conversation is landing in.
+      broadcast({ kind: 'show-display' }, (subscriber) => subscriber.surface === 'app')
     },
     stop(): void {
       for (const stream of subscribers.keys()) void stream.close()

@@ -24,6 +24,19 @@ export const SpeakResponseSchema = z.object({
 
 export type SpeakResponse = z.infer<typeof SpeakResponseSchema>
 
+// The app window's report of whether the in-app Display is on screen right
+// now. Not a tool and not a preference — a presence fact one window publishes
+// so the display dock (which cannot see the app's screen) knows whether the
+// room already owns the orb.
+export const DisplayActiveRequestSchema = z.object({
+  active: z.boolean(),
+})
+
+export const DisplayActiveResponseSchema = z.object({
+  /** `false` = no live channel on this engine, so no window heard it. */
+  published: z.boolean(),
+})
+
 // ── The call tools' wire contracts (voice-in-calls Part C) ──────────────────
 
 export const CallModeSchema = z.enum(['notetaker', 'participant'])

@@ -410,6 +410,102 @@ describe('LiveChannelHub', () => {
     hub.dispose()
   })
 
+  it('fans a voice-control frame to every voice key of that user, and nobody else', () => {
+    const { voice } = fakeVoiceSource()
+    const { hub } = buildHub({ voice })
+    const app = fakeSocket()
+    const dock = fakeSocket()
+    const stranger = fakeSocket()
+    const appConnection = hub.connect({ userId: USER, transport: app.transport })
+    const dockConnection = hub.connect({ userId: USER, transport: dock.transport })
+    const strangerConnection = hub.connect({ userId: OTHER_USER, transport: stranger.transport })
+    // The app window holds BOTH a voice key and an unrelated one — only the
+    // voice key carries the frame.
+    appConnection.handleMessage(subscribeMessage('voice:app', 'session:s1'))
+    dockConnection.handleMessage(subscribeMessage('voice:dock'))
+    strangerConnection.handleMessage(subscribeMessage('voice:dock'))
+    app.take()
+    dock.take()
+    stranger.take()
+
+    hub.publishVoiceControl(USER, { kind: 'display-active', active: true })
+    expect(app.take()).toEqual([
+      { kind: 'event', channel: 'voice:app', event: { kind: 'display-active', active: true } },
+    ])
+    expect(dock.take()).toEqual([
+      { kind: 'event', channel: 'voice:dock', event: { kind: 'display-active', active: true } },
+    ])
+    expect(stranger.take()).toEqual([])
+    hub.dispose()
+  })
+
+  it('replays the last voice-control frame to a window that subscribes after it', () => {
+    const { voice } = fakeVoiceSource()
+    const { hub } = buildHub({ voice })
+    const app = fakeSocket()
+    const appConnection = hub.connect({ userId: USER, transport: app.transport })
+    appConnection.handleMessage(subscribeMessage('voice:app'))
+    app.take()
+    hub.publishVoiceControl(USER, { kind: 'display-active', active: true })
+    app.take()
+
+    // The dock opens (or reconnects) into a room that is already on screen —
+    // the two windows connect independently, so without the replay it would
+    // never hear a fact that was announced before it arrived.
+    const dock = fakeSocket()
+    const dockConnection = hub.connect({ userId: USER, transport: dock.transport })
+    dock.take()
+    dockConnection.handleMessage(subscribeMessage('voice:dock:wake'))
+    expect(dock.take()).toEqual([
+      { kind: 'subscribed', channel: 'voice:dock:wake' },
+      { kind: 'event', channel: 'voice:dock:wake', event: { kind: 'daemon-link', connected: true } },
+      // After the daemon's own replay: the two facts in the order they were established.
+      {
+        kind: 'event',
+        channel: 'voice:dock:wake',
+        event: { kind: 'display-active', active: true },
+      },
+    ])
+    hub.dispose()
+  })
+
+  it('retracts display-active when the last app window closes, but not when its link moves inside it', () => {
+    const { voice } = fakeVoiceSource()
+    const { hub } = buildHub({ voice })
+    const app = fakeSocket()
+    const dock = fakeSocket()
+    const appConnection = hub.connect({ userId: USER, transport: app.transport })
+    const dockConnection = hub.connect({ userId: USER, transport: dock.transport })
+    appConnection.handleMessage(subscribeMessage('voice:app'))
+    dockConnection.handleMessage(subscribeMessage('voice:dock'))
+    hub.publishVoiceControl(USER, { kind: 'display-active', active: true })
+    app.take()
+    dock.take()
+
+    // Inside the app window the voice link moves between the overlay and the
+    // room as the Display opens — a subscription churn, not a window closing.
+    appConnection.handleMessage(unsubscribeMessage('voice:app'))
+    appConnection.handleMessage(subscribeMessage('voice:app'))
+    expect(dock.take()).toEqual([])
+
+    // The window itself goes away: nobody is left who could ever say `false`,
+    // so the dock must not stay hidden behind a fact frozen at `true`.
+    appConnection.close()
+    expect(dock.take()).toEqual([
+      { kind: 'event', channel: 'voice:dock', event: { kind: 'display-active', active: false } },
+    ])
+    // Retracted, not merely broadcast — a window opening later starts clean.
+    const late = fakeSocket()
+    const lateConnection = hub.connect({ userId: USER, transport: late.transport })
+    late.take()
+    lateConnection.handleMessage(subscribeMessage('voice:dock'))
+    expect(late.take()).toEqual([
+      { kind: 'subscribed', channel: 'voice:dock' },
+      { kind: 'event', channel: 'voice:dock', event: { kind: 'daemon-link', connected: true } },
+    ])
+    hub.dispose()
+  })
+
   it('without a voice source a voice subscribe answers not_found', () => {
     const { hub } = buildHub()
     const socket = fakeSocket()

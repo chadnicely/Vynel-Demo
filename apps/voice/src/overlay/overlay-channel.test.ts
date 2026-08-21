@@ -96,6 +96,10 @@ const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve,
 
 const speakEvents = (events: OverlayEvent[]): OverlayEvent[] => events.filter((event) => event.kind === 'speak')
 const wakeEvents = (events: OverlayEvent[]): OverlayEvent[] => events.filter((event) => event.kind === 'wake')
+const stateEvents = (events: OverlayEvent[]): OverlayEvent[] =>
+  events.filter((event) => event.kind === 'state')
+const showDisplayEvents = (events: OverlayEvent[]): OverlayEvent[] =>
+  events.filter((event) => event.kind === 'show-display')
 
 async function postJson(port: number, path: string, body: unknown): Promise<Response> {
   return fetch(`http://127.0.0.1:${port}${path}`, {
@@ -492,5 +496,67 @@ describe('overlay channel — speak routing by handoff owner', () => {
     expect(channel.publishSpeak('still here', null)).toBe(true)
     await waitFor(() => speakEvents(bystander.events).length === 1)
     bystander.close()
+  })
+})
+
+describe('the wake window handover, as the wire tells it', () => {
+  it('publishes handed-off only once a client has CONFIRMED the wake', async () => {
+    const { channel } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    // Cold path: the wake lands before the dock window exists. The held wake is
+    // the only thing that survives its launch time — publishing a phase here
+    // must not destroy it.
+    channel.publishState('wake')
+    channel.publishWake('what is the time')
+    await settle()
+
+    const dock = await subscribe(port, 'dock')
+    await waitFor(() => stateEvents(dock.events).length >= 2)
+    expect(dock.events[0]).toEqual({ kind: 'state', state: 'wake' })
+    expect(wakeEvents(dock.events)).toHaveLength(1)
+    // Confirmed delivery IS the hand-over — the room changed windows.
+    expect(dock.events.at(-1)).toEqual({ kind: 'state', state: 'handed-off' })
+
+    // A window opening mid-conversation reads the same truth, not a stale wake.
+    const late = await subscribe(port, 'app', '0')
+    await waitFor(() => late.events.length >= 1)
+    expect(late.events).toEqual([{ kind: 'state', state: 'handed-off' }])
+
+    // And the session ending puts everyone back to idle (the driver's own
+    // `endHandoff` → `setState('idle')`).
+    channel.publishState('idle')
+    await waitFor(() => stateEvents(late.events).length === 2)
+    expect(late.events.at(-1)).toEqual({ kind: 'state', state: 'idle' })
+    dock.close()
+    late.close()
+  })
+
+  it('sends show-display to app surfaces only — never the dock, wake-capable or not', async () => {
+    const { channel } = buildChannel({ wakeSurface: 'dock', turnWatchdogMs: TURN_WATCHDOG_MS })
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const dock = await subscribe(port, 'dock')
+    const appTab = await subscribe(port, 'app', '0')
+    const capableTab = await subscribe(port, 'app', '1')
+    await waitFor(
+      () => dock.events.length >= 1 && appTab.events.length >= 1 && capableTab.events.length >= 1,
+    )
+
+    channel.publishShowDisplay()
+    await waitFor(
+      () =>
+        showDisplayEvents(appTab.events).length === 1 &&
+        showDisplayEvents(capableTab.events).length === 1,
+    )
+    await settle()
+    // The dock IS the wake window — asking it to show the Display would be
+    // asking it to get out of its own way.
+    expect(showDisplayEvents(dock.events)).toEqual([])
+    dock.close()
+    appTab.close()
+    capableTab.close()
   })
 })

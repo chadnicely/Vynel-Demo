@@ -29,13 +29,30 @@ import { isTauriShell } from "./tauri-overlay-window.js";
 // never talk over each other. Single delivery survives the relay: the daemon
 // picks its owner (else newest) upstream, the api picks the window that took
 // the wake (else the surface's newest).
+//
+// Two frames on this channel are about WINDOWS rather than speech, and both
+// exist because the app window and the display dock cannot see each other:
+// 'show-display' is the daemon asking the app to come forward on the Display
+// (a wake landed, the dock is taking it), and 'display-active' is the app
+// answering whether the room is on screen — which is how the dock knows to get
+// out of its way.
 
 /** The daemon's own conversation phase, as its `state` frames publish it. The
  *  wire carries a bare string, so an unknown phase from a newer daemon reads as
  *  `idle` rather than parking a surface in something it cannot interpret.
- *  `wake` is where a HANDED-OFF conversation sits: the daemon publishes it as
- *  the wake lands and says nothing more until the handoff ends. */
-const VOICE_DAEMON_STATES = ["idle", "wake", "listening", "thinking", "speaking"] as const;
+ *  `wake` is the moment the phrase landed; `handed-off` is where the
+ *  conversation then SITS for its whole life when another window runs it — the
+ *  daemon says nothing more until the handoff ends and it returns to `idle`.
+ *  Both mean "someone is in the room": neither carries energy of its own, and
+ *  both keep a mirroring orb listening. */
+const VOICE_DAEMON_STATES = [
+  "idle",
+  "wake",
+  "handed-off",
+  "listening",
+  "thinking",
+  "speaking",
+] as const;
 
 export type VoiceDaemonState = (typeof VOICE_DAEMON_STATES)[number];
 
@@ -78,6 +95,10 @@ export function useVoiceDaemonLink(options: {
    *  order and remembers it; false = no turn in flight, the line plays on this
    *  link's own player (a proactive line in an idle window). */
   speakThroughSession?: (text: string) => boolean;
+  /** The daemon asks the DESKTOP APP to come forward on the Display — a wake
+   *  landed and the display dock is taking the conversation, so the room should
+   *  be the thing the user is looking at. Only app surfaces are ever sent it. */
+  onShowDisplay?: () => void;
 }) {
   const live = useLiveChannelStore();
   const isDaemonConnected = ref(false);
@@ -89,6 +110,17 @@ export function useVoiceDaemonLink(options: {
   // busy, so a Web Speech mic opened here would hear it (cross-process, no echo
   // cancellation). Derived, never stored twice.
   const isDaemonSpeaking = computed(() => daemonState.value === "speaking");
+  // Is the APP window's Display on screen right now? Published by that window
+  // (`voice.setDisplayActive`) and fanned by the api to every voice window of
+  // the user — the display dock cannot see the app's screen, and this is the
+  // whole basis of its hide/reveal rule (two orbs for one conversation would be
+  // two assistants). False until a frame says otherwise.
+  //
+  // Deliberately NOT reset when the socket drops, unlike `daemonState`: a stale
+  // PHASE gates a microphone, while this only decides which window draws the
+  // orb — and the api replays the last value on re-subscribe, so a blip that
+  // reset it would flash the dock open and shut for nothing.
+  const isAppDisplayActive = ref(false);
   let release: (() => void) | null = null;
 
   // Daemon-delegated playback ('speak' events): one player, drained in order.
@@ -128,6 +160,10 @@ export function useVoiceDaemonLink(options: {
       options.onWake(event.command ?? "", event.turnWatchdogMs);
     } else if (event.kind === "state") {
       daemonState.value = toVoiceDaemonState(event.state);
+    } else if (event.kind === "display-active") {
+      isAppDisplayActive.value = event.active;
+    } else if (event.kind === "show-display") {
+      options.onShowDisplay?.();
     } else if (event.kind === "speak" && event.text) {
       // An older relay omits the producer: unknown is never "ours".
       if (isOwnVoice(event.sessionId ?? null)) return;
@@ -171,6 +207,7 @@ export function useVoiceDaemonLink(options: {
     isDaemonConnected,
     daemonState,
     isDaemonSpeaking,
+    isAppDisplayActive,
     isPlayingRelayedLine,
     notifySessionEnd,
   };

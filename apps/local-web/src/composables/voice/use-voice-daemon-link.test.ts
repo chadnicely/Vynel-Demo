@@ -58,11 +58,13 @@ function mountLink(
   speakThroughSession?: (text: string) => boolean,
 ) {
   const onWake = vi.fn();
+  const onShowDisplay = vi.fn();
   let link!: ReturnType<typeof useVoiceDaemonLink>;
   const Host = defineComponent({
     setup() {
       link = useVoiceDaemonLink({
         onWake,
+        onShowDisplay,
         surface,
         ...(ownLiveSessionId !== undefined ? { ownLiveSessionId } : {}),
         ...(speakThroughSession !== undefined ? { speakThroughSession } : {}),
@@ -73,7 +75,7 @@ function mountLink(
   wrapper = mount(Host, { global: { plugins: [createPinia()] } });
   const socket = latestFakeLiveSocket();
   socket.serverOpens();
-  return { link: () => link, onWake, socket };
+  return { link: () => link, onWake, onShowDisplay, socket };
 }
 
 /** A relayed speak frame; `sessionId` omitted = what an older relay sends. */
@@ -266,5 +268,57 @@ describe("useVoiceDaemonLink (live channel)", () => {
     wrapper = null;
     expect(live.channelCount()).toBe(0);
     expect(socket.takeSent()).toEqual([{ op: "unsubscribe", channels: ["voice:app"] }]);
+  });
+});
+
+describe("what the two windows tell each other", () => {
+  it("reads the app window's Display state, and keeps it across a socket drop", () => {
+    const { link, socket } = mountLink("dock");
+    socket.serverAcks("voice:dock:wake");
+    expect(link().isAppDisplayActive.value).toBe(false);
+
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:dock:wake",
+      event: { kind: "display-active", active: true },
+    });
+    expect(link().isAppDisplayActive.value).toBe(true);
+
+    // A blip must not flash the dock open and shut: the phase is reset (it
+    // gates a microphone), this is not — the api replays it on re-subscribe.
+    socket.serverDrops();
+    expect(link().daemonState.value).toBe("idle");
+    expect(link().isAppDisplayActive.value).toBe(true);
+  });
+
+  it("hands show-display to the surface that can act on it", () => {
+    const { onShowDisplay, socket } = mountLink("app");
+    socket.serverAcks("voice:app");
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:app",
+      event: { kind: "show-display" },
+    });
+    expect(onShowDisplay).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the handed-off phase — where a dock conversation sits for its whole life", () => {
+    const { link, socket } = mountLink("app");
+    socket.serverAcks("voice:app");
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:app",
+      event: { kind: "state", state: "handed-off" },
+    });
+    expect(link().daemonState.value).toBe("handed-off");
+    // Not speaking: the wake window has the room, not the daemon's speaker.
+    expect(link().isDaemonSpeaking.value).toBe(false);
+
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:app",
+      event: { kind: "state", state: "idle" },
+    });
+    expect(link().daemonState.value).toBe("idle");
   });
 });

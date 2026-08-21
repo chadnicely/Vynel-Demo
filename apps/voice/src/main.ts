@@ -38,6 +38,7 @@ import { createCallSessionClient } from './call/call-session-client.js'
 import { serializeAsync } from './call/serialize-async.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
 import { createDisplayDockWindow } from './overlay/display-dock-window.js'
+import { createWakeHandoff } from './overlay/wake-handoff.js'
 import { VoiceSessionDriver } from './loop/voice-session-driver.js'
 import type { VoiceSessionIo } from './loop/voice-session-types.js'
 
@@ -204,7 +205,14 @@ async function main(): Promise<void> {
     },
     logger,
   )
-  let dockConnectWatchdog: ReturnType<typeof setTimeout> | null = null
+  const wakeHandoff = createWakeHandoff({
+    overlay,
+    dockWindow,
+    dockEnabled,
+    logger,
+    connectTimeoutMs: DOCK_CONNECT_TIMEOUT_MS,
+    abandonHandoff: () => driver.endHandoff(),
+  })
   // Mirror every state change to the browser voice view alongside the log line.
   const io: VoiceSessionIo = {
     setState: (state) => {
@@ -234,33 +242,13 @@ async function main(): Promise<void> {
           'turn watchdog fired — the room is back; the turn streams on and its answer is spoken when it lands',
         ),
       // The browser owns the command session (Web Speech STT + spoken reply
-      // run there). Dock mode: every wake hands off — the dock window is
-      // opened/focused, and the held wake replays once it connects. Otherwise:
-      // hand off only to a connected client that declared it can RUN a
-      // session — the desktop shell's windows never do (its main window is
-      // connected for state events + the mic button, and must not swallow
-      // the wake), a browser tab does only with Web Speech; with no capable
-      // client the native leg answers.
-      wakeHandoff: {
-        shouldHandOff: () => dockEnabled || overlay.hasWakeTarget,
-        publishWake: (command) => {
-          overlay.publishWake(command)
-          if (!dockEnabled) return
-          if (overlay.hasWakeTarget) {
-            dockWindow.focus()
-            return
-          }
-          dockWindow.open()
-          if (dockConnectWatchdog !== null) clearTimeout(dockConnectWatchdog)
-          dockConnectWatchdog = setTimeout(() => {
-            dockConnectWatchdog = null
-            if (!overlay.hasWakeTarget) {
-              logger.warn('the display dock never connected — resuming wake listening')
-              driver.endHandoff()
-            }
-          }, DOCK_CONNECT_TIMEOUT_MS)
-        },
-      },
+      // run there). What a wake does to the screen lives in `wake-handoff.ts`;
+      // without the dock feature it is simply "hand off to a connected client
+      // that declared it can RUN a session" — the desktop shell's windows never
+      // do (its main window is connected for state events + the mic button, and
+      // must not swallow the wake), a browser tab does only with Web Speech;
+      // with no capable client the native leg answers.
+      wakeHandoff: wakeHandoff.handoff,
     },
     {
       idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS,
@@ -276,7 +264,7 @@ async function main(): Promise<void> {
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'voice daemon shutting down')
-    if (dockConnectWatchdog !== null) clearTimeout(dockConnectWatchdog)
+    wakeHandoff.stop()
     callRegistry.stopAll()
     audioShell.stop()
     overlay.stop()

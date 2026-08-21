@@ -11,6 +11,7 @@ import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { listAllChatSessionsForUser } from '@vynel/chat/repositories'
+import type { VoiceControlEvent } from '@vynel/contracts/voice/daemon-events'
 import { createApp } from '../../app.js'
 import { TURN_SESSION_HEADER } from '../../sessions/turn-session-header.js'
 
@@ -172,6 +173,53 @@ describe('POST /voice/speak', () => {
       // failed that way once). The invariant is that the REMOTE short-circuit
       // stayed out of the way, so the relay is what answered.
       expect(body.reason ?? '').not.toContain('remote server')
+    })
+  })
+})
+
+describe('POST /voice/display-active', () => {
+  it('hands the app window’s Display state to the live channel, scoped to that user', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const published: Array<{ userId: string; frame: VoiceControlEvent }> = []
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        voiceControlSink: { publish: (userId, frame) => published.push({ userId, frame }) },
+      })
+
+      const response = await app.request('/voice/display-active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ active: true }),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ published: true })
+      expect(published).toEqual([
+        { userId: user.id, frame: { kind: 'display-active', active: true } },
+      ])
+    })
+  })
+
+  it('answers published: false without a live channel, and refuses a non-boolean', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger })
+
+      const noSink = await app.request('/voice/display-active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ active: false }),
+      })
+      expect(noSink.status).toBe(200)
+      expect(await noSink.json()).toEqual({ published: false })
+
+      const bad = await app.request('/voice/display-active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ active: 'yes' }),
+      })
+      expect(bad.status).toBe(400)
     })
   })
 })

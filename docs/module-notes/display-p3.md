@@ -62,6 +62,58 @@ with it.
 | **P3b wake opens the app** | `apps/voice/src/overlay/display-dock-window.ts`, `apps/voice/src/main.ts` wake policy, `packages/contracts/src/voice/daemon-events.ts`, `use-voice-daemon-link.ts`, `AppShell.vue` | the daemon, on wake with `VYNEL_VOICE_DOCK_WINDOW=1`: opens/focuses the dock as today AND spawns the exe argless → the single-instance handler surfaces the main window; a new daemon event `{ kind: 'show-display' }` rides `voice:app` (app surfaces only, never a wake target) → `AppShell` opens the Display via `use-display-toggle`; the dock then hides (rule above) and the in-app room takes the conversation over — define the hand-over honestly: the wake session stays in the dock window's leg until it ends (no mid-turn migration of a Web Speech session across windows); the room shows the orb reacting to the daemon leg (`isDaemonSpeaking`) and its own mic stays muted until the dock session ends, then resumes. |
 | **P3c orb from the daemon leg** | `display-orb-state.ts`, `DisplayView.vue`, the dock view | listening/speaking from `voice:<surface>` state frames when the conversation runs on the daemon leg; spike per relayed clause; energy from status as today. |
 
+## P3b — the wire, as built
+
+Two new frames on the voice channel, one route, one daemon phase. Both frames are about WINDOWS
+rather than speech, and both exist because the app window and the display dock cannot see each other.
+
+| frame | direction | carried on |
+|---|---|---|
+| `{ kind: 'show-display' }` | daemon → **app surfaces only** | a `VoiceDaemonEvent` (parsed by `parseVoiceDaemonEvent`, relayed like `state`) |
+| `{ kind: 'display-active', active }` | app window → every `voice:*` of that user | a `VoiceControlEvent` — the API's own word, a sibling of `daemon-link`, never parsed as a daemon event |
+
+- **`POST /voice/display-active { active }`** → `{ published }` — user-scoped, `x-sdk-name:
+  voice.setDisplayActive`, **no `x-mcp`** (a window talking to the user's other windows is not a
+  capability the model may reach for). The route hands it to `voiceControlSink` (`apps/local-api/
+  src/live/voice-control-sink.ts`, the `display-live-sink` shape) → `hub.publishVoiceControl`.
+  `published: false` = no live channel on this engine.
+- **Surviving a reconnect — BOTH halves, deliberately.** The hub MEMOISES the last control frame per
+  user and replays it inside `attachVoice`'s `replay()` (after the relay's own), because the two
+  windows connect independently: without it a dock that reconnects — or opens while the room is
+  already up — would never hear a fact announced before it arrived. And the app window re-announces
+  on every change (`use-display-toggle`, `immediate`) plus `onScopeDispose`. The memo is RETRACTED
+  (and `active: false` broadcast) when a connection closes and the user holds no `voice:app*`
+  subscription any more — never on unsubscribe, because inside the app window the voice link moves
+  between `VoiceOverlay` and `DisplayView` as the Display opens, and that swap must stay invisible.
+  `isAppDisplayActive` is deliberately NOT reset when a socket drops (unlike `daemonState`, which
+  gates a microphone): a blip would flash the dock open and shut.
+  **Residual:** an api restart empties the memo while the app window has nothing new to announce —
+  the dock keeps its last value until the next toggle. Closing it needs the app to re-announce on
+  live-channel `status === 'open'` (three lines in `use-display-toggle`, P3a's file).
+- **`handed-off` is the channel's own phase, not the driver's.** The driver publishes `wake` and
+  then goes silent for the whole handoff, so a dock conversation parked at `wake` for its entire
+  life and no surface could tell "a wake just fired" from "the dock is holding the room".
+  `overlay-channel` publishes it from `deliverWake`'s CONFIRMED write — the one moment that knows
+  the room changed hands — and `endHandoff` → `setState('idle')` already clears it. Publishing it
+  from the driver instead would have run while the wake was still pending and `publishState` would
+  have NULLED that pending wake: the dock would connect to a session nobody handed it, `hasWakeTarget`
+  would be true so the connect watchdog would never fire, and the daemon would sit handed-off to no
+  one. Hence `OverlayPhase = VoiceSessionState | 'handed-off'` and the split `broadcastState`.
+  It maps sensibly in `display-orb-state.ts` untouched (energy falls through to 0, `!== 'idle'`
+  keeps the orb listening — exactly what `wake` did).
+- **What a wake now does to the screen** lives in `apps/voice/src/overlay/wake-handoff.ts`
+  (`createWakeHandoff`) instead of inline in `main.ts` — the app leg (`dockWindow.openApp()` +
+  `overlay.publishShowDisplay()`) runs on EVERY wake, BEFORE the dock's already-connected `focus()`
+  shortcut returns, because the dock may be resident while the app is not. `openApp()` spawns the
+  same exe ARGLESS (the shell's single-instance handler surfaces the main window) with no browser
+  fallback and no early-exit watchdog — for this call a fast exit is the healthy case.
+
+**Hand-over honesty.** The wake session stays in the **dock window's leg until it ends**. There is no
+mid-turn migration of a Web Speech session across windows — the room MIRRORS it (P3c: the orb reads
+`daemonState`/`isDaemonSpeaking`) and its own microphone stays shut until the dock posts
+`/session/end`, at which point the daemon returns to `idle` and the room's session takes over. So
+`show-display` is a request to LOOK at the room, never to move the conversation into it.
+
 ## Acceptance
 
 - Say the wake word with the app closed → the app opens on the Display, the dock shows the wake conversation

@@ -6,7 +6,9 @@ import type { Logger } from 'pino'
 // Tauri overlay app (transparent always-on-top, apps/desktop) when its exe exists;
 // fallback: a chromeless Chrome/Edge app-window on local-web's /display-dock route.
 // The daemon opens one on wake when no window is connected, and pulls an
-// existing one to the front otherwise. All best-effort native shell calls: if
+// existing one to the front otherwise. `openApp()` is the third call: the same
+// exe with NO args, which brings the full desktop app forward beside the dock.
+// All best-effort native shell calls: if
 // they fail the wake stays pending on the overlay channel and the handoff
 // watchdog returns the daemon to sleep.
 //
@@ -73,6 +75,12 @@ export interface DisplayDockWindow {
   open(): void
   /** Bring an already-open window to the front (Windows only; no-op elsewhere). */
   focus(): void
+  /** Launch the desktop app ITSELF — the same exe, ARGLESS. A first launch
+   *  opens the main window; a second routes into the resident shell's
+   *  single-instance handler, which surfaces the window that is already there
+   *  (apps/desktop src/main.rs). No browser fallback: this asks for the app, and
+   *  a machine without it simply has no app to bring forward. */
+  openApp(): void
 }
 
 export function createDisplayDockWindow(
@@ -124,6 +132,17 @@ export function createDisplayDockWindow(
         // (which open() implies is NOT connected); non-zero means a crash.
         if (Date.now() - startedAt <= APP_EARLY_EXIT_MS) fallBack(`exited immediately (code ${code})`)
       })
+    },
+    openApp(): void {
+      if (config.appPath === undefined || !existsSync(config.appPath)) {
+        logger.debug({ app: config.appPath }, 'no desktop app on this machine — the wake stays in the dock')
+        return
+      }
+      logger.info({ app: config.appPath }, 'bringing the desktop app forward for a wake')
+      // Deliberately NOT open()'s early-exit watchdog: here a fast exit is the
+      // HEALTHY case — single-instance routed the launch into the resident
+      // shell, which surfaced its own window.
+      run({ command: config.appPath, args: [] }, 'open-app')
     },
     focus(): void {
       if (process.platform !== 'win32') return

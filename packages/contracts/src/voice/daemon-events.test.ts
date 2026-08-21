@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isVoiceSurface, parseVoiceDaemonEvent } from './daemon-events.js'
 
 describe('voice daemon events', () => {
-  it('parses the three daemon kinds and drops the rest', () => {
+  it('parses the daemon kinds and drops the rest', () => {
     expect(parseVoiceDaemonEvent({ kind: 'state', state: 'listening' })).toEqual({
       kind: 'state',
       state: 'listening',
@@ -46,6 +46,15 @@ describe('voice daemon events', () => {
       text: 'done',
       sessionId: null,
     })
+  })
+
+  it('carries show-display, and never invents an api-only frame', () => {
+    // A payload-free kind — the daemon is asking, not describing.
+    expect(parseVoiceDaemonEvent({ kind: 'show-display' })).toEqual({ kind: 'show-display' })
+    // `display-active` and `daemon-link` are the API's own words on the voice
+    // channel; a daemon claiming them is not a daemon event.
+    expect(parseVoiceDaemonEvent({ kind: 'display-active', active: true })).toBeNull()
+    expect(parseVoiceDaemonEvent({ kind: 'daemon-link', connected: true })).toBeNull()
   })
 
   it('knows the two surfaces', () => {

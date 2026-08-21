@@ -540,6 +540,14 @@ watch(
 // take their answer from here.
 const { isDisplayActive, toggleDisplay } = useDisplayToggle();
 
+// A wake landed and the daemon brought this window forward — put the room on
+// screen. The switch's own rule applies: the Display of the tab you are ON,
+// never a tab change. Guarded rather than a second "open" entry point, because
+// an open that closed the room would be the opposite of what the wake asked.
+function showDisplay(): void {
+  if (!isDisplayActive.value) toggleDisplay();
+}
+
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
   isCreateWorkspaceOpen.value = false;
   addTab(workspace.id);
@@ -809,7 +817,7 @@ onBeforeUnmount(() => {
          overlay's session and wake link are created in ITS setup, so a wake
          would otherwise open a second orb and a second microphone behind the
          room. -->
-    <VoiceOverlay v-if="!isDisplayActive" />
+    <VoiceOverlay v-if="!isDisplayActive" @show-display="showDisplay" />
     <UpdatePill />
     <!-- The SHARED plan review dialog — chat vynel://plan links, list View
          actions, and task plan chips all open this one instance. -->

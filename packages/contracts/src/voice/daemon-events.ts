@@ -1,8 +1,12 @@
 // The voice daemon's overlay vocabulary as it crosses the api (the live
 // channel's `voice:<surface>` relay). The daemon (apps/voice, overlay-channel)
-// is the producer of the first three; `daemon-link` is the relay's own word on
-// whether the api currently holds a live link to the daemon for that surface —
-// the browser end reads it as its "daemon connected" light.
+// is the producer of `VoiceDaemonEvent`; the two other arms of
+// `VoiceRelayEvent` are the API's OWN words on the same channel —
+// `daemon-link` (does the api currently hold a live link to the daemon for
+// that surface — the browser end reads it as its "daemon connected" light) and
+// `VoiceControlEvent` (what one window tells the others, fanned by the hub).
+// They never pass through `parseVoiceDaemonEvent`: it parses what the daemon
+// can say, and a daemon that said `display-active` would be lying.
 
 /** Which window a voice subscriber is — the daemon prefers 'dock' for wake
  *  delivery; 'app' tabs get state + play delegated speech. */
@@ -34,8 +38,23 @@ export type VoiceDaemonEvent =
    *  daemon doesn't know) so a window can tell its own turn's voice from
    *  another producer's. */
   | { kind: 'speak'; text: string; sessionId: string | null }
+  /** A wake landed and the daemon wants the DESKTOP APP in front of the user,
+   *  showing the Display — the room mirrors the conversation the dock holds.
+   *  Goes to app surfaces only: the dock is already the wake window, and a
+   *  wake target has a conversation to run, not a view to switch. */
+  | { kind: 'show-display' }
 
-export type VoiceRelayEvent = VoiceDaemonEvent | { kind: 'daemon-link'; connected: boolean }
+/** What one of the user's windows tells the others over the voice channel —
+ *  produced by a route in the api, never by the daemon. `display-active` is the
+ *  app window's answer to "is the in-app Display on screen right now", which is
+ *  the one thing the dock cannot see for itself and the whole basis of its
+ *  hide/reveal rule. */
+export type VoiceControlEvent = { kind: 'display-active'; active: boolean }
+
+export type VoiceRelayEvent =
+  | VoiceDaemonEvent
+  | { kind: 'daemon-link'; connected: boolean }
+  | VoiceControlEvent
 
 /** Parse one daemon SSE payload; null = not a daemon event (ignored). */
 export function parseVoiceDaemonEvent(raw: unknown): VoiceDaemonEvent | null {
@@ -53,6 +72,8 @@ export function parseVoiceDaemonEvent(raw: unknown): VoiceDaemonEvent | null {
         ? { kind: 'wake', command, turnWatchdogMs }
         : { kind: 'wake', command }
     }
+    case 'show-display':
+      return { kind: 'show-display' }
     case 'speak':
       return typeof candidate['text'] === 'string' && candidate['text'] !== ''
         ? {

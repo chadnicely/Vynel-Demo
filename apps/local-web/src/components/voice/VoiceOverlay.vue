@@ -19,6 +19,14 @@ import VoiceStage from "./VoiceStage.vue";
 // stops a running turn by its own session id (round-2 R2-E), never the global
 // head. (The floating desktop variant of this surface is views/DisplayDockView.vue.)
 
+// The daemon wants the Display in front of the user (a wake is landing in the
+// display dock). This overlay holds the window's ONLY `voice:app` link while
+// the room is closed — which is exactly when there is something to open — so
+// the event arrives here and the shell, which owns the switch, acts on it.
+// (While the room IS open, DisplayView holds the link and there is nothing to
+// do.) A second link in the shell would double-play every relayed line.
+const emit = defineEmits<{ showDisplay: [] }>();
+
 const ui = useUiStore();
 const isMuted = ref(false);
 
@@ -29,6 +37,7 @@ const daemon = useVoiceDaemonLink({
   onWake: handleWake,
   ownLiveSessionId: voice.currentSessionId,
   speakThroughSession: voice.speakExternal,
+  onShowDisplay: () => emit("showDisplay"),
 });
 
 // The session settled (idle silence, close, or a start that couldn't begin):

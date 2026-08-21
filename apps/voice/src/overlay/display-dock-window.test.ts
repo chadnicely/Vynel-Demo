@@ -118,3 +118,26 @@ describe('createDisplayDockWindow open()', () => {
     expect(recorder.calls).toHaveLength(2)
   })
 })
+
+describe('createDisplayDockWindow openApp()', () => {
+  it('launches the same exe with NO args — the shell surfaces its main window', () => {
+    const recorder = createSpawnRecorder()
+    createOverlayWindow(recorder).openApp()
+    expect(recorder.calls).toEqual([
+      expect.objectContaining({ command: process.execPath, args: [] }),
+    ])
+  })
+
+  it('never falls back to the browser — an immediate exit is single-instance routing, not a crash', () => {
+    const recorder = createSpawnRecorder()
+    createOverlayWindow(recorder).openApp()
+    recorder.calls[0]?.handle.emitExit(0)
+    expect(recorder.calls).toHaveLength(1)
+  })
+
+  it('does nothing at all without a desktop app on this machine', () => {
+    const recorder = createSpawnRecorder()
+    createDisplayDockWindow({ browser: 'chrome', url: DOCK_URL }, logger, recorder.spawner).openApp()
+    expect(recorder.calls).toHaveLength(0)
+  })
+})

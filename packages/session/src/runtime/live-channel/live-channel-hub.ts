@@ -11,7 +11,9 @@
 // The `display` channel has no source object: its only producer is a route in
 // THIS process, and the hub already owns the per-user connection registry a
 // fan-out needs — so `publishDisplayFrame` is the whole channel, and the api's
-// `DisplayLiveSink` is a thin adapter onto it.
+// `DisplayLiveSink` is a thin adapter onto it. `publishVoiceControl` is the
+// same shape on the VOICE channels: one window telling the user's other
+// windows something only it can see.
 //
 // Ownership stays with the api: `authorizeChannel` answers "may this user watch
 // this session/trace" from the DB; the hub never sees a row.
@@ -33,7 +35,11 @@ import {
   type DisplayLiveChannelKey,
   type DisplayLiveFrame,
 } from '@vynel/contracts/display/display-live'
-import type { VoiceRelayEvent, VoiceSubscriber } from '@vynel/contracts/voice/daemon-events'
+import type {
+  VoiceControlEvent,
+  VoiceRelayEvent,
+  VoiceSubscriber,
+} from '@vynel/contracts/voice/daemon-events'
 import type { StructuralLogger } from '@vynel/logger'
 import type { TurnEventBroadcaster } from '../../delegation/turn-event-broadcaster.js'
 import { traceChannelKey } from '../../delegation/turn-event-broadcaster.js'
@@ -122,6 +128,10 @@ interface ConnectionState {
 
 export class LiveChannelHub {
   private readonly connections = new Map<string, ConnectionState>()
+  /** The last voice-control frame each user's app window published — replayed
+   *  to a voice subscriber that joins after it (the dock reconnecting, or
+   *  opening while the room is already on screen). */
+  private readonly lastVoiceControl = new Map<string, VoiceControlEvent>()
   private readonly limits: LiveChannelLimits
   private readonly now: () => number
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
@@ -193,6 +203,19 @@ export class LiveChannelHub {
     }
   }
 
+  /** Fan one voice-control frame to every `voice:*` subscription of ONE user —
+   *  the app window's Display state reaching the display dock, which cannot see
+   *  the app's screen and needs it to decide whether to hide.
+   *
+   *  Remembered, because the two windows connect independently: a dock that
+   *  reconnects (or opens after the room did) would otherwise never hear the
+   *  fact again. `closeConnection` drops the memo when the last window that
+   *  could be showing a Display goes away. */
+  publishVoiceControl(userId: string, frame: VoiceControlEvent): void {
+    this.lastVoiceControl.set(userId, frame)
+    this.sendToVoiceSubscriptions(userId, frame)
+  }
+
   /** Diagnostics: open sockets / total subscriptions across them. */
   connectionCount(): number {
     return this.connections.size
@@ -201,6 +224,38 @@ export class LiveChannelHub {
     let total = 0
     for (const state of this.connections.values()) total += state.subscriptions.size
     return total
+  }
+
+  private sendToVoiceSubscriptions(userId: string, frame: VoiceControlEvent): void {
+    // A copy: a failing send closes its connection, mutating the registry.
+    for (const state of [...this.connections.values()]) {
+      if (state.userId !== userId) continue
+      for (const channel of state.subscriptions.keys()) {
+        const parsed = parseLiveChannelKey(channel)
+        if (parsed?.kind !== 'voice') continue
+        this.send(state, { kind: 'event', channel: channel as VoiceChannelKey, event: frame })
+      }
+    }
+  }
+
+  /** Does this user still hold a window that could be SHOWING a Display? The
+   *  app window is the only producer of `display-active`, and it announces the
+   *  fact over HTTP — so its liveness is the fact's liveness. Without this a
+   *  closed app window would leave the dock hidden forever, waiting for a
+   *  `false` nobody is left to send.
+   *
+   *  Read on connection close only, never on unsubscribe: inside the app window
+   *  the voice link moves between the overlay and the room as the Display opens
+   *  (`v-if`), and that swap must stay invisible here. */
+  private hasAppVoiceSubscription(userId: string): boolean {
+    for (const state of this.connections.values()) {
+      if (state.userId !== userId) continue
+      for (const channel of state.subscriptions.keys()) {
+        const parsed = parseLiveChannelKey(channel)
+        if (parsed?.kind === 'voice' && parsed.surface === 'app') return true
+      }
+    }
+    return false
   }
 
   private handleMessage(state: ConnectionState, raw: unknown): void {
@@ -362,6 +417,10 @@ export class LiveChannelHub {
         })
         if (detached) handle()
         else unsubscribe = handle
+        // After the daemon's own replay, so the window reads the two facts in
+        // the order they were established.
+        const control = this.lastVoiceControl.get(state.userId)
+        if (control !== undefined) this.send(state, { kind: 'event', channel, event: control })
       },
     }
   }
@@ -412,6 +471,7 @@ export class LiveChannelHub {
     for (const detach of state.subscriptions.values()) detach()
     state.subscriptions.clear()
     this.connections.delete(state.connectionId)
+    this.releaseVoiceControlIfAppGone(state.userId)
     if (code !== undefined) {
       try {
         state.transport.close(code, reason ?? '')
@@ -420,6 +480,18 @@ export class LiveChannelHub {
       }
     }
     if (this.connections.size === 0) this.stopHeartbeat()
+  }
+
+  /** The last window that could be showing a Display just closed — retract the
+   *  fact instead of leaving the dock hidden behind a `true` nobody is left to
+   *  take back. */
+  private releaseVoiceControlIfAppGone(userId: string): void {
+    const control = this.lastVoiceControl.get(userId)
+    if (control === undefined || this.hasAppVoiceSubscription(userId)) return
+    this.lastVoiceControl.delete(userId)
+    if (control.active) {
+      this.sendToVoiceSubscriptions(userId, { kind: 'display-active', active: false })
+    }
   }
 
   private ensureHeartbeat(): void {

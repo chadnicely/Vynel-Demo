@@ -3744,6 +3744,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/display-active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report whether the app window's Display is on screen, for the user's other voice windows. */
+        post: operations["postVoiceDisplay-active"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/calls": {
         parameters: {
             query?: never;
@@ -17992,6 +18009,34 @@ export interface operations {
                     "application/json": {
                         spoken: boolean;
                         reason?: string;
+                    };
+                };
+            };
+        };
+    };
+    "postVoiceDisplay-active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    active: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description { published } — false when this engine has no live channel to fan it over. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        published: boolean;
                     };
                 };
             };
