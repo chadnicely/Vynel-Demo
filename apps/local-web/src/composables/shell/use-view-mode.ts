@@ -1,6 +1,5 @@
 import { computed, type ComputedRef } from "vue";
 import { useRoute } from "vue-router";
-import { useUiStore } from "../../stores/ui-store.js";
 
 /** What the window is showing, as the title-bar switch reads it: the Nodes
  *  screen, the Display, or the normal canvas (chat, sections, Home — all of
@@ -9,9 +8,9 @@ export type ViewMode = "normal" | "nodes" | "display";
 
 export interface ViewModeReading {
   readonly viewMode: ComputedRef<ViewMode>;
-  /** The view on screen fills the window — chrome gone, corner cluster only.
-   *  False on the normal view whatever the store's flag says: full view is a
-   *  property of the Nodes screen and the Display, never of the canvas. */
+  /** The view fills the window — chrome gone, corner cluster only. Nodes and
+   *  the Display ARE full views (Kafi, 2026-08-22: picking one opens it full,
+   *  no separate expander); the normal view never is. */
   readonly isFullView: ComputedRef<boolean>;
 }
 
@@ -25,7 +24,6 @@ export interface ViewModeReading {
 // the shell calls it exactly once and shares the reading.
 export function useViewMode(isDisplayActive: ComputedRef<boolean>): ViewModeReading {
   const route = useRoute();
-  const ui = useUiStore();
 
   const viewMode = computed<ViewMode>(() => {
     if (route.name === "nodes") return "nodes";
@@ -33,7 +31,7 @@ export function useViewMode(isDisplayActive: ComputedRef<boolean>): ViewModeRead
     return "normal";
   });
 
-  const isFullView = computed(() => ui.isFullView && viewMode.value !== "normal");
+  const isFullView = computed(() => viewMode.value !== "normal");
 
   return { viewMode, isFullView };
 }

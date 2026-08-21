@@ -18,7 +18,7 @@ local-web 18954). Brief from Kafi, 2026-08-22 (two screenshots). Code-complete t
 | Sidebar in full view | **Hides too** — a true takeover (the tab strip goes with it). |
 | The `Nodes` word in the menu bar | **Retired** — the switch's Nodes segment is the one door. |
 | The Display segment | **Show + voice on** — it IS the voice switch now; the Broadcast glyph is retired (its `toggle-display` command survives for the palette). Pressed again in the room = off (the old glyph's close). From another view while the voice runs it JOINS the conversation rather than hanging up. |
-| Full view | **A separate toggle** (the plate's trailing expander, only on Nodes/Display). Sticky for the session, not persisted — like `nodesMode`. |
+| Full view | **Automatic** — picking Nodes or the Display opens it full; Normal brings the chrome back. (First cut had a separate expander on the plate; Kafi corrected it on 2026-08-22 after seeing the Display open inside the chrome: "for node/display it will automatically get into full view".) No flag anywhere: `isFullView = viewMode !== "normal"`. |
 
 ## Shape as shipped
 

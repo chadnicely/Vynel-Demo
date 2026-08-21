@@ -70,12 +70,10 @@ describe("AppTitleBar", () => {
     await wrapper.get('[aria-label="Nodes"]').trigger("click");
     await wrapper.get('[aria-label="Display"]').trigger("click");
     await wrapper.get('[aria-label="Normal view"]').trigger("click");
-    await wrapper.get('[aria-label="Full view"]').trigger("click");
     expect(wrapper.emitted("command")).toEqual([
       ["open-nodes"],
       ["view-display"],
       ["view-normal"],
-      ["toggle-full-view"],
     ]);
   });
 
@@ -99,7 +97,7 @@ describe("AppTitleBar", () => {
     expect(wrapper.find("nav").exists()).toBe(false);
     expect(wrapper.find('[aria-label="Toggle tasks"]').exists()).toBe(false);
     expect(wrapper.text().replace(/\s+/g, "")).toBe("");
-    for (const label of ["Nodes", "Display", "Normal view", "Exit full view", "Claude account", "Minimize", "Maximize", "Close"]) {
+    for (const label of ["Nodes", "Display", "Normal view", "Claude account", "Minimize", "Maximize", "Close"]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true);
     }
     expect(wrapper.classes()).toContain("absolute");

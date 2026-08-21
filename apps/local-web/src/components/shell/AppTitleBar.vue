@@ -245,7 +245,6 @@ const wearsDisplayPalette = computed(() => props.fullView && props.viewMode === 
       :display-live="props.displayOn"
       :full-view="props.fullView"
       @pick="(mode) => emit('command', VIEW_COMMANDS[mode])"
-      @toggle-full-view="emit('command', 'toggle-full-view')"
     />
 
     <!-- The provider mark (Kafi, 2026-08-18): whose engine this machine runs

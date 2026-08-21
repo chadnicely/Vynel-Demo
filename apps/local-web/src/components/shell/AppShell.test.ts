@@ -202,34 +202,38 @@ describe("AppShell — the view switch", () => {
     expect(titleBar(wrapper).viewMode).toBe("normal");
   });
 
-  it("full view drops the sidebar and collapses the bar; Normal brings the chrome back", async () => {
-    const { wrapper, ui, router } = await mountShell();
-    press(wrapper, "open-nodes");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
-    await wrapper.vm.$nextTick();
+  // Nodes opens FULL by itself (Kafi, 2026-08-22): sidebar gone, the bar its
+  // corner cluster; Normal brings the chrome back — exactly as it was.
+  it("Nodes opens full — sidebar gone, bar collapsed; Normal brings the chrome back", async () => {
+    const { wrapper, router } = await mountShell();
     expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(1);
     expect(titleBar(wrapper).fullView).toBe(false);
 
-    press(wrapper, "toggle-full-view");
+    press(wrapper, "open-nodes");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
     await wrapper.vm.$nextTick();
-    expect(ui.isFullView).toBe(true);
     expect(titleBar(wrapper).fullView).toBe(true);
     expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(0);
     expect(wrapper.get(".app-shell").classes()).toContain("full-view");
 
-    // The normal view is always exactly as it is — and the flag stays put for
-    // the next time a full-capable view comes up.
     press(wrapper, "view-normal");
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"));
     await wrapper.vm.$nextTick();
     expect(titleBar(wrapper).fullView).toBe(false);
     expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(1);
-    expect(ui.isFullView).toBe(true);
+  });
 
-    press(wrapper, "open-nodes");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+  it("the Display opens full too, and leaving it restores the chrome", async () => {
+    const { wrapper } = await mountShell();
+    press(wrapper, "view-display");
     await wrapper.vm.$nextTick();
     expect(titleBar(wrapper).fullView).toBe(true);
+    expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(0);
+
+    press(wrapper, "view-normal");
+    await flushPromises();
+    expect(titleBar(wrapper).fullView).toBe(false);
+    expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(1);
   });
 
   it("Display opens the room and takes the voice; again closes it", async () => {
@@ -284,12 +288,4 @@ describe("AppShell — the view switch", () => {
     expect(titleBar(wrapper).viewMode).toBe("normal");
   });
 
-  // The palette can send the expander's command from anywhere; on the normal
-  // view it must not arm the sticky flag invisibly.
-  it("ignores the full-view toggle on the normal view", async () => {
-    const { wrapper, ui } = await mountShell();
-    press(wrapper, "toggle-full-view");
-    await wrapper.vm.$nextTick();
-    expect(ui.isFullView).toBe(false);
-  });
 });

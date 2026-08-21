@@ -6,9 +6,10 @@
 ## 🟡 2026-08-22 (latest) VIEW SWITCH + SETTINGS → EMBEDDING / VOICE — on `feature/view-modes` (worktree `view-modes`, band 18950), NOT merged
 
 Two arcs on one branch (Kafi). **(1) View switch + full view** (`fae86105`): a chamfered Nodes | Display |
-Normal plate in the title bar before the Claude mark; full view (separate sticky-per-session expander) hides
-menus + sidebar + strip and floats the corner cluster over the view's own strip; the Display segment IS the
-voice switch (Broadcast glyph + the `Nodes` word retired); note `docs/module-notes/view-modes.md`.
+Normal plate in the title bar before the Claude mark; Nodes and the Display open FULL automatically (Kafi's
+correction — no expander, no flag): menus + sidebar + strip gone, the corner cluster floating over the view's
+own strip; Normal restores the chrome; the Display segment IS the voice switch (Broadcast glyph + the `Nodes`
+word retired); note `docs/module-notes/view-modes.md`.
 **(2) Settings → Embedding / Voice** (`d88dd2be` → `a18768e5`, note `docs/module-notes/settings-models.md`):
 one local-model catalog in `@vynel/contracts/models/local-model-catalog` + a new `@vynel/models` leaf
 (probe/stamp/fetch with byte progress/`tar` extract/one in-memory download job per model); `/models`

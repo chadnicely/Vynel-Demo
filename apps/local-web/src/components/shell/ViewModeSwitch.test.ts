@@ -16,36 +16,23 @@ function segments(wrapper: ReturnType<typeof mountSwitch>) {
 }
 
 // The title bar's view switch (Kafi, 2026-08-22): three segments on one
-// plate, the live one pressed, and the full-view expander only where a full
-// view exists to go to.
+// plate, the live one pressed — and nothing else: Nodes and the Display open
+// full by themselves, so there is no expander to offer.
 describe("ViewModeSwitch", () => {
-  it("renders Nodes | Display | Normal with the live mode pressed, and no expander on the normal view", () => {
+  it("renders exactly Nodes | Display | Normal with the live mode pressed", () => {
     expect(segments(mountSwitch())).toEqual([
       { label: "Nodes", pressed: "false" },
       { label: "Display", pressed: "false" },
       { label: "Normal view", pressed: "true" },
     ]);
+    expect(segments(mountSwitch({ mode: "nodes", fullView: true }))).toHaveLength(3);
   });
 
-  it("offers the expander on a full-capable view, reading the full-view state", () => {
-    expect(segments(mountSwitch({ mode: "nodes" })).at(-1)).toEqual({
-      label: "Full view",
-      pressed: "false",
-    });
-    expect(segments(mountSwitch({ mode: "display", fullView: true })).at(-1)).toEqual({
-      label: "Exit full view",
-      pressed: "true",
-    });
-  });
-
-  it("emits the picked mode and the expander's toggle", async () => {
+  it("emits the picked mode", async () => {
     const wrapper = mountSwitch({ mode: "nodes" });
     await wrapper.get('[aria-label="Display"]').trigger("click");
     await wrapper.get('[aria-label="Normal view"]').trigger("click");
-    await wrapper.get('[aria-label="Full view"]').trigger("click");
-
     expect(wrapper.emitted("pick")).toEqual([["display"], ["normal"]]);
-    expect(wrapper.emitted("toggle-full-view")).toEqual([[]]);
   });
 
   // A conversation running behind another view must stay visible — the
@@ -59,14 +46,14 @@ describe("ViewModeSwitch", () => {
   });
 
   // The plate only borrows the Display's palette while it floats over the
-  // Display with the chrome gone; everywhere else it is the bar's quiet chrome.
-  it("wears the Display skin only in the Display's full view", () => {
+  // Display; over the Nodes screen and on the normal view it is quiet chrome.
+  it("wears the Display skin only over the Display", () => {
     expect(mountSwitch({ mode: "display", fullView: true }).attributes("data-skin")).toBe(
       "display",
     );
-    expect(mountSwitch({ mode: "display" }).attributes("data-skin")).toBe("chrome");
     expect(mountSwitch({ mode: "nodes", fullView: true }).attributes("data-skin")).toBe(
       "chrome",
     );
+    expect(mountSwitch({ mode: "normal" }).attributes("data-skin")).toBe("chrome");
   });
 });

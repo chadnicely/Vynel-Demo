@@ -19,9 +19,9 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   Remove never takes the last voice in use.
 - **A view switch in the top bar, and a full view.** Three icons just before the Claude
   mark — Nodes, Display, Normal — take you between the project constellation, the orb
-  room and the everyday chat. On Nodes or the Display a fourth icon expands to **full
-  view**: menus and sidebar step out, the view fills the window, and only the switch and
-  the window controls stay in the corner. The Display segment is the voice switch now
+  room and the everyday chat. Nodes and the Display open in **full view**: menus and
+  sidebar step out, the view fills the window, and only the switch and the window
+  controls stay in the corner; Normal brings everything back exactly as it was. The Display segment is the voice switch now
   (it opens the room and the microphone together; pressed again in the room it closes
   both); the Broadcast glyph and the `Nodes` word in the menu bar are gone. Normal view
   is exactly what it always was.

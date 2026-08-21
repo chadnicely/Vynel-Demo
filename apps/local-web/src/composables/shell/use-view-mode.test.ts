@@ -3,7 +3,6 @@ import { computed, defineComponent, h, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { createAppRouter } from "../../router.js";
-import { useUiStore } from "../../stores/ui-store.js";
 import { useViewMode, type ViewModeReading } from "./use-view-mode.js";
 
 async function mountReading(startPath: string, displayActive = false) {
@@ -23,12 +22,12 @@ async function mountReading(startPath: string, displayActive = false) {
     }),
     { global: { plugins: [router, pinia] } },
   );
-  return { reading, router, isDisplayActive, ui: useUiStore() };
+  return { reading, router, isDisplayActive };
 }
 
 // ONE derivation of what the switch shows: the route says Nodes, the Display
-// toggle says Display, everything else is normal — and full view is only ever
-// a property of the first two.
+// toggle says Display, everything else is normal — and Nodes / the Display
+// are the full views, the normal view never is.
 describe("useViewMode", () => {
   beforeEach(() => localStorage.clear());
 
@@ -52,20 +51,16 @@ describe("useViewMode", () => {
     expect(reading.viewMode.value).toBe("normal");
   });
 
-  // The store's flag is sticky for the session, but the normal view is always
-  // exactly as it is: the reading says "not full" there whatever the flag holds.
-  it("full view only ever applies to a full-capable view", async () => {
-    const { reading, router, ui } = await mountReading("/nodes");
-    expect(reading.isFullView.value).toBe(false);
-
-    ui.isFullView = true;
+  it("full view is exactly 'a full-capable view is on' — nothing else decides it", async () => {
+    const { reading, router, isDisplayActive } = await mountReading("/nodes");
     expect(reading.isFullView.value).toBe(true);
 
     await router.push("/chat");
     expect(reading.isFullView.value).toBe(false);
-    expect(ui.isFullView).toBe(true);
 
-    await router.push("/nodes");
+    isDisplayActive.value = true;
     expect(reading.isFullView.value).toBe(true);
+    isDisplayActive.value = false;
+    expect(reading.isFullView.value).toBe(false);
   });
 });

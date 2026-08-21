@@ -355,18 +355,6 @@ describe("ui-store nodes screen", () => {
     expect(useUiStore().nodesMode).toBe("nodes");
   });
 
-  // Full view (2026-08-22) is the same kind of thing as the reading: sticky
-  // for the session, never past it — a fresh app opens with its chrome on.
-  it("opens with the chrome on, and keeps full view only for the session", () => {
-    const ui = useUiStore();
-    expect(ui.isFullView).toBe(false);
-    ui.isFullView = true;
-    expect(useUiStore().isFullView).toBe(true);
-
-    setActivePinia(createPinia());
-    expect(useUiStore().isFullView).toBe(false);
-  });
-
   it("the create-workspace bell counts each ring", () => {
     // A counter, not a boolean: the shell watches it, and two asks in a row
     // must both reach the dialog — a flag would swallow the second.

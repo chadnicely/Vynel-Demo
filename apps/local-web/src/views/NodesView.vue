@@ -222,13 +222,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="nodes-screen">
-    <!-- In full view the bar is the window's top row, so it drags the window
-         (the title bar is gone). Bound, not constant: Tauri honours the
-         attribute whenever it is in the DOM, and the normal view has a title
-         bar to drag by already. The raw flag is the derived reading here —
-         this screen only mounts while its mode is live. -->
+    <!-- The Nodes screen is always a FULL view: this bar is the window's top
+         row, so it drags the window (the title bar is gone). -->
     <NodesFleetBar
-      :data-tauri-drag-region="ui.isFullView || undefined"
+      data-tauri-drag-region
       :mode="ui.nodesMode"
       :trail="trail"
       :nodes="displayNodes"

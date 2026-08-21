@@ -654,20 +654,13 @@ function runCommand(id: string) {
       break;
     // The view switch's segments. Display goes to the room and takes the
     // microphone if nobody has it (or closes the room when already there);
-    // Normal restores the canvas; the expander flips full view, which only
-    // ever shows while a full-capable view is on screen.
+    // Normal restores the canvas. Nodes and the Display open full by
+    // themselves — `isFullView` is derived, nothing to flip.
     case "view-display":
       pickDisplay();
       break;
     case "view-normal":
       returnToNormalView();
-      break;
-    case "toggle-full-view":
-      // Only where it shows — the palette can send this from the normal view,
-      // and arming the sticky flag invisibly there would open the NEXT
-      // Nodes/Display full with nothing the user did to explain it (the
-      // `toggle-sidebar` guard above exists for the same reason).
-      if (viewMode.value !== "normal") ui.isFullView = !ui.isFullView;
       break;
     case "settings":
       selectSection("application");
@@ -706,7 +699,6 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
-  { id: "toggle-full-view", label: "Toggle full view", group: "View", keywords: "nodes display fullscreen" },
   ui.navMode === "tabs"
     ? { id: "nav-menu", label: "Switch to menu navigation", group: "View", keywords: "tree workspaces" }
     : { id: "nav-tabs", label: "Switch to tabs navigation", group: "View", keywords: "strip" },

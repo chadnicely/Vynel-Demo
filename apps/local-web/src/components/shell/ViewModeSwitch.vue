@@ -2,30 +2,29 @@
 import { computed, type Component } from "vue";
 import {
   PhBroadcast as Broadcast,
-  PhCornersIn as CornersIn,
-  PhCornersOut as CornersOut,
   PhLayout as Layout,
   PhShareNetwork as ShareNetwork,
 } from "@phosphor-icons/vue";
 import type { ViewMode } from "../../composables/shell/use-view-mode.js";
 
 // The title bar's view switch — Nodes | Display | Normal on one chamfered
-// plate (Kafi, 2026-08-22: "a beautiful shape, like a game widget"), with the
-// full-view expander riding its trailing edge whenever the view on screen can
-// fill the window. Data-blind: it shows the mode it is handed and emits what
-// was picked; the shell decides what each pick does.
+// plate (Kafi, 2026-08-22: "like a game widget"). Nodes and the Display open
+// FULL — chrome gone, this plate floating in the corner — and Normal brings
+// the chrome back; there is no separate expander. Data-blind: it shows the
+// mode it is handed and emits what was picked; the shell decides what each
+// pick does.
 const props = defineProps<{
   mode: ViewMode;
   /** The Display feature holds this window's voice — its segment glows even
    *  while another view is on screen, exactly as the retired Broadcast glyph
    *  did, so a running conversation is never invisible. */
   displayLive: boolean;
+  /** The plate floats over a full view right now. */
   fullView: boolean;
 }>();
 
 const emit = defineEmits<{
   pick: [mode: ViewMode];
-  "toggle-full-view": [];
 }>();
 
 const SEGMENTS: ReadonlyArray<{ id: ViewMode; label: string; icon: Component }> = [
@@ -61,20 +60,6 @@ const skin = computed(() =>
           @click="emit('pick', segment.id)"
         >
           <component :is="segment.icon" :size="13" />
-        </button>
-        <!-- Only where there is a full view to go to: the normal view never
-             expands, so offering it there would be a control that does
-             nothing. -->
-        <button
-          v-if="props.mode !== 'normal'"
-          type="button"
-          class="segment expand"
-          :aria-label="props.fullView ? 'Exit full view' : 'Full view'"
-          :title="props.fullView ? 'Exit full view' : 'Full view'"
-          :aria-pressed="props.fullView"
-          @click="emit('toggle-full-view')"
-        >
-          <component :is="props.fullView ? CornersIn : CornersOut" :size="13" />
         </button>
       </div>
     </div>
@@ -160,10 +145,5 @@ const skin = computed(() =>
 .segment.on {
   background: var(--switch-on-bg);
   color: var(--switch-on-ink);
-}
-
-.expand {
-  margin-left: 3px;
-  border-left: 1px solid var(--switch-line);
 }
 </style>
