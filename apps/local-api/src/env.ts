@@ -33,6 +33,12 @@ function resolveAgainstRepoRoot(raw: string | undefined): string | undefined {
   return isAbsolute(raw) ? raw : resolve(repoRoot, raw)
 }
 
+// For vars with a Zod default — the value is never undefined, and the type
+// should say so rather than make every reader guard a case that cannot happen.
+function resolveRequiredAgainstRepoRoot(raw: string): string {
+  return isAbsolute(raw) ? raw : resolve(repoRoot, raw)
+}
+
 // Port and URL defaults derive from the band (`VYNEL_PORT_BASE`), so ONE
 // `.env` var shifts a whole instance — the worktree story. Explicit vars
 // still win over the derived defaults.
@@ -129,7 +135,14 @@ function buildEnvSchema(portBase: number) {
   VYNEL_EMBEDDINGS_CACHE_DIR: z
     .string()
     .default('.models/embeddings')
-    .transform(resolveAgainstRepoRoot),
+    .transform(resolveRequiredAgainstRepoRoot),
+  // Where the voice models live — the SAME directory the voice daemon reads
+  // (`apps/voice/src/env.ts`), so what Settings → Voice downloads is what the
+  // daemon loads. Repo-root-resolved like the embeddings cache.
+  VYNEL_VOICE_MODELS_DIR: z
+    .string()
+    .default('.models/voice')
+    .transform(resolveRequiredAgainstRepoRoot),
   // Where the packaged build's shipped content lives (migrations-sqlite/,
   // instructions/) — set by the desktop shell (and the release smoke) in
   // bundled mode, where package-relative resolution can't work because all

@@ -16,6 +16,14 @@ export {
 export { downloadToFile, type DownloadProgress, type DownloadToFileOptions } from './download-to-file.js'
 export { installModelFromSource, type InstallModelOptions } from './install-model-from-source.js'
 export {
+  cancelLocalModelDownload,
+  describeLocalModel,
+  listLocalModelStatuses,
+  removeLocalModel,
+  startLocalModelDownload,
+  type LocalModelsDeps,
+} from './local-models.js'
+export {
   ModelDownloadRunner,
   type ModelDownloadJob,
   type ModelDownloadRunnerOptions,

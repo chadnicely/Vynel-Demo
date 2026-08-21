@@ -291,6 +291,12 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
             "VYNEL_EMBEDDINGS_CACHE_DIR",
             bundled.app_data_dir.join("models").join("embeddings"),
         )
+        // The voice models' home beside the embeddings' — Settings → Voice
+        // downloads here, and the voice daemon (when it ships) reads here.
+        .env(
+            "VYNEL_VOICE_MODELS_DIR",
+            bundled.app_data_dir.join("models").join("voice"),
+        )
         .env("VYNEL_APP_VERSION", &bundled.app_version);
     Ok(command)
 }

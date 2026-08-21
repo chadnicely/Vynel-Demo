@@ -42,7 +42,28 @@ describe('getUserPreferences', () => {
         defaultWorkspaceId: null,
         chatStreamingEnabled: true,
         reducedMotion: false,
+        voiceTtsModelId: 'kokoro',
+        voiceSpeakerId: 0,
+        voiceSttModelId: 'moonshine-base',
       })
+    })
+  })
+
+  // The voice keys are catalog ids: a stored id the catalog no longer carries
+  // (a retired model) falls back to the default instead of poisoning the daemon.
+  it('resolves the voice keys, and falls back from a retired model id', async () => {
+    await withTestDatabase((db) => {
+      const user = getOrCreateLocalUser(db)
+      upsertPreferenceForUser(db, user.id, 'voiceTtsModelId', JSON.stringify('piper-lessac'))
+      upsertPreferenceForUser(db, user.id, 'voiceSpeakerId', JSON.stringify(7))
+      upsertPreferenceForUser(db, user.id, 'voiceSttModelId', JSON.stringify('whisper-large'))
+      const prefs = getUserPreferences(db, user.id)
+      expect(prefs.voiceTtsModelId).toBe('piper-lessac')
+      expect(prefs.voiceSpeakerId).toBe(7)
+      expect(prefs.voiceSttModelId).toBe('moonshine-base')
+
+      upsertPreferenceForUser(db, user.id, 'voiceSpeakerId', JSON.stringify(-1))
+      expect(getUserPreferences(db, user.id).voiceSpeakerId).toBe(0)
     })
   })
 

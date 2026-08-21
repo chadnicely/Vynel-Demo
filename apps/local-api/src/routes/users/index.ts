@@ -98,7 +98,7 @@ export const usersApp = factory
         exposed: true,
         name: 'get_user_preferences',
         description:
-          "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion). Defaults fill any keys the user has not explicitly set.",
+          "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion, the voice: TTS model, speaker, STT model). Defaults fill any keys the user has not explicitly set.",
       },
     }),
     ...userScoped,

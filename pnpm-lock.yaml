@@ -257,6 +257,9 @@ importers:
       '@vynel/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@vynel/models':
+        specifier: workspace:*
+        version: link:../../packages/models
       '@vynel/monitors':
         specifier: workspace:*
         version: link:../../packages/monitors
@@ -803,6 +806,9 @@ importers:
       '@vynel/channels':
         specifier: workspace:*
         version: link:../channels
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/db':
         specifier: workspace:*
         version: link:../db

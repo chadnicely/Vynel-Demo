@@ -25896,6 +25896,543 @@
         }
       }
     },
+    "/models": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Every catalog model: installed / missing / downloading (+ bytes) / failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "embedding",
+                              "tts",
+                              "stt",
+                              "vad"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "approxBytes": {
+                            "type": "number"
+                          },
+                          "speakers": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "accent": {
+                                  "type": "string",
+                                  "enum": [
+                                    "American",
+                                    "British"
+                                  ]
+                                },
+                                "gender": {
+                                  "type": "string",
+                                  "enum": [
+                                    "female",
+                                    "male"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "accent",
+                                "gender"
+                              ]
+                            }
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "installed",
+                              "missing",
+                              "downloading",
+                              "failed"
+                            ]
+                          },
+                          "installedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "download": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "bytes": {
+                                "type": "number"
+                              },
+                              "total": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "startedAt": {
+                                "type": "string"
+                              },
+                              "finishedAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "bytes",
+                              "total",
+                              "error",
+                              "startedAt",
+                              "finishedAt"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "label",
+                          "description",
+                          "approxBytes",
+                          "speakers",
+                          "state",
+                          "installedAt",
+                          "download"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "models"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This engine does not manage local models."
+          }
+        },
+        "operationId": "getModels",
+        "tags": [
+          "models"
+        ],
+        "parameters": [],
+        "summary": "List the local models on this computer with their state.",
+        "x-sdk-name": "localModels.list"
+      }
+    },
+    "/models/{modelId}/download": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The model, now downloading — poll GET /models to follow the bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "embedding",
+                        "tts",
+                        "stt",
+                        "vad"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "approxBytes": {
+                      "type": "number"
+                    },
+                    "speakers": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "accent": {
+                            "type": "string",
+                            "enum": [
+                              "American",
+                              "British"
+                            ]
+                          },
+                          "gender": {
+                            "type": "string",
+                            "enum": [
+                              "female",
+                              "male"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "accent",
+                          "gender"
+                        ]
+                      }
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "installed",
+                        "missing",
+                        "downloading",
+                        "failed"
+                      ]
+                    },
+                    "installedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "download": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "bytes": {
+                          "type": "number"
+                        },
+                        "total": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "finishedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "bytes",
+                        "total",
+                        "error",
+                        "startedAt",
+                        "finishedAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "label",
+                    "description",
+                    "approxBytes",
+                    "speakers",
+                    "state",
+                    "installedAt",
+                    "download"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown model."
+          },
+          "409": {
+            "description": "Already downloading, or this engine does not manage local models."
+          }
+        },
+        "operationId": "postModelsByModelIdDownload",
+        "tags": [
+          "models"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "modelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "Download one local model (runs in the background).",
+        "x-sdk-name": "localModels.download"
+      }
+    },
+    "/models/{modelId}/cancel": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Whether there was a download to cancel.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cancelled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "cancelled"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown model."
+          }
+        },
+        "operationId": "postModelsByModelIdCancel",
+        "tags": [
+          "models"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "modelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "Cancel a running model download.",
+        "x-sdk-name": "localModels.cancelDownload"
+      }
+    },
+    "/models/{modelId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "The model, now missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "embedding",
+                        "tts",
+                        "stt",
+                        "vad"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "approxBytes": {
+                      "type": "number"
+                    },
+                    "speakers": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "accent": {
+                            "type": "string",
+                            "enum": [
+                              "American",
+                              "British"
+                            ]
+                          },
+                          "gender": {
+                            "type": "string",
+                            "enum": [
+                              "female",
+                              "male"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "accent",
+                          "gender"
+                        ]
+                      }
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "installed",
+                        "missing",
+                        "downloading",
+                        "failed"
+                      ]
+                    },
+                    "installedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "download": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "bytes": {
+                          "type": "number"
+                        },
+                        "total": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "startedAt": {
+                          "type": "string"
+                        },
+                        "finishedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "bytes",
+                        "total",
+                        "error",
+                        "startedAt",
+                        "finishedAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "label",
+                    "description",
+                    "approxBytes",
+                    "speakers",
+                    "state",
+                    "installedAt",
+                    "download"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown model."
+          },
+          "409": {
+            "description": "Downloading right now — cancel first."
+          }
+        },
+        "operationId": "deleteModelsByModelId",
+        "tags": [
+          "models"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "modelId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          }
+        ],
+        "summary": "Remove a local model's files from this computer.",
+        "x-sdk-name": "localModels.remove"
+      }
+    },
     "/marketplace/sources": {
       "get": {
         "responses": {
@@ -29752,13 +30289,33 @@
                     },
                     "reducedMotion": {
                       "type": "boolean"
+                    },
+                    "voiceTtsModelId": {
+                      "type": "string",
+                      "enum": [
+                        "kokoro",
+                        "piper-lessac"
+                      ]
+                    },
+                    "voiceSpeakerId": {
+                      "type": "integer"
+                    },
+                    "voiceSttModelId": {
+                      "type": "string",
+                      "enum": [
+                        "moonshine-tiny",
+                        "moonshine-base"
+                      ]
                     }
                   },
                   "required": [
                     "theme",
                     "defaultWorkspaceId",
                     "chatStreamingEnabled",
-                    "reducedMotion"
+                    "reducedMotion",
+                    "voiceTtsModelId",
+                    "voiceSpeakerId",
+                    "voiceSttModelId"
                   ]
                 }
               }
@@ -29775,7 +30332,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "get_user_preferences",
-          "description": "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion). Defaults fill any keys the user has not explicitly set."
+          "description": "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion, the voice: TTS model, speaker, STT model). Defaults fill any keys the user has not explicitly set."
         }
       },
       "patch": {
@@ -29806,13 +30363,33 @@
                     },
                     "reducedMotion": {
                       "type": "boolean"
+                    },
+                    "voiceTtsModelId": {
+                      "type": "string",
+                      "enum": [
+                        "kokoro",
+                        "piper-lessac"
+                      ]
+                    },
+                    "voiceSpeakerId": {
+                      "type": "integer"
+                    },
+                    "voiceSttModelId": {
+                      "type": "string",
+                      "enum": [
+                        "moonshine-tiny",
+                        "moonshine-base"
+                      ]
                     }
                   },
                   "required": [
                     "theme",
                     "defaultWorkspaceId",
                     "chatStreamingEnabled",
-                    "reducedMotion"
+                    "reducedMotion",
+                    "voiceTtsModelId",
+                    "voiceSpeakerId",
+                    "voiceSttModelId"
                   ]
                 }
               }
@@ -29851,6 +30428,24 @@
                   },
                   "reducedMotion": {
                     "type": "boolean"
+                  },
+                  "voiceTtsModelId": {
+                    "type": "string",
+                    "enum": [
+                      "kokoro",
+                      "piper-lessac"
+                    ]
+                  },
+                  "voiceSpeakerId": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "voiceSttModelId": {
+                    "type": "string",
+                    "enum": [
+                      "moonshine-tiny",
+                      "moonshine-base"
+                    ]
                   }
                 }
               }

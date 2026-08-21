@@ -4,6 +4,8 @@
 // surface), so this file is mainly for internal core-layer convenience.
 // Per `docs/blueprints/users/coding.md §3`.
 
+import type { LocalSttModelId, LocalTtsModelId } from '@vynel/contracts/models/local-model-catalog'
+
 export type { User, NewUser } from '@vynel/db/repositories/users'
 export type { UserPreference, NewUserPreference } from '@vynel/db/repositories/users'
 
@@ -16,4 +18,7 @@ export interface ResolvedUserPreferences {
   defaultWorkspaceId: string | null
   chatStreamingEnabled: boolean
   reducedMotion: boolean
+  voiceTtsModelId: LocalTtsModelId
+  voiceSpeakerId: number
+  voiceSttModelId: LocalSttModelId
 }

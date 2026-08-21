@@ -20,6 +20,7 @@ import type { FireScheduleDeps } from '@vynel/schedules'
 import { ScheduleFirePool } from '@vynel/schedules'
 import type { DesktopNotificationReader } from '@vynel/desktop-control'
 import type { DisplayLiveSink } from '@vynel/display'
+import type { LocalModelsDeps } from '@vynel/models'
 import type { VoiceControlSink } from './live/voice-control-sink.js'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
@@ -54,6 +55,7 @@ import { journalUserApp } from './routes/journal/user-scoped.js'
 import { asksApp } from './routes/asks/index.js'
 import { sshServersApp } from './routes/ssh-servers/index.js'
 import { serverInstallApp } from './routes/server-install/index.js'
+import { modelsApp } from './routes/models/index.js'
 import { PendingAskRegistry } from '@vynel/asks'
 import { workspaceAppsApp } from './routes/workspace-apps/index.js'
 import { AppProcessSupervisor, publishAppExitOutcome } from '@vynel/apps'
@@ -204,6 +206,10 @@ export interface CreateAppOptions {
   // resolved at boot (dev: VYNEL_SERVER_PAYLOAD_ARCHIVE + its .sha256
   // sidecar); absent = the routes answer that no payload is available.
   readonly serverPayloadArchive?: ServerPayloadArchive
+  // The local models on this computer — `boot.ts` resolves the two model
+  // directories from env and builds the one download runner. Omitted (tests,
+  // the generators, a remote engine) → the `/models` routes answer 409.
+  readonly localModels?: LocalModelsDeps
   // The Display's in-process live push — `boot.ts` constructs the hub-backed
   // sink and hands it in. Omitted (tests, the SDK/MCP generators) → the
   // display routes call the leaf ops with no sink and nothing is published;
@@ -298,6 +304,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('remoteEngine', options.remoteEngine ?? false)
     c.set('appVersion', options.appVersion ?? '0.0.0')
     c.set('serverPayloadArchive', options.serverPayloadArchive ?? null)
+    c.set('localModels', options.localModels ?? null)
     if (options.desktopNotifications !== undefined)
       c.set('desktopNotifications', options.desktopNotifications)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
@@ -422,6 +429,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // surface is the `vynel-ssh` descriptor). Gated pro above.
   app.route('/ssh-servers', sshServersApp)
   app.route('/server-install', serverInstallApp)
+  // `/models` — the local models on this computer (Settings → Embedding /
+  // Voice): status, download with progress, remove. The user's door only.
+  app.route('/models', modelsApp)
   // `/marketplace` is the GLOBAL marketplace — user+both items, user-scope
   // installs (Chad's rule). The workspace surface stays mounted above.
   app.route('/marketplace/sources', marketplaceSourcesApp)

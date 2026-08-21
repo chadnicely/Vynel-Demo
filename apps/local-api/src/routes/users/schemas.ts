@@ -3,6 +3,7 @@
 // users/schemas.ts`.
 
 import { z } from 'zod'
+import { LOCAL_STT_MODEL_IDS, LOCAL_TTS_MODEL_IDS } from '@vynel/contracts/models/local-model-catalog'
 
 export const UpdateUserProfileRequestSchema = z.object({
   displayName: z.string().min(1).max(120).optional(),
@@ -16,6 +17,9 @@ export const SetUserPreferencesRequestSchema = z.object({
   defaultWorkspaceId: z.string().optional(),
   chatStreamingEnabled: z.boolean().optional(),
   reducedMotion: z.boolean().optional(),
+  voiceTtsModelId: z.enum(LOCAL_TTS_MODEL_IDS).optional(),
+  voiceSpeakerId: z.number().int().min(0).optional(),
+  voiceSttModelId: z.enum(LOCAL_STT_MODEL_IDS).optional(),
 })
 
 export const UserResponseSchema = z.object({
@@ -34,6 +38,9 @@ export const UserPreferencesResponseSchema = z.object({
   defaultWorkspaceId: z.string().nullable(),
   chatStreamingEnabled: z.boolean(),
   reducedMotion: z.boolean(),
+  voiceTtsModelId: z.enum(LOCAL_TTS_MODEL_IDS),
+  voiceSpeakerId: z.number().int(),
+  voiceSttModelId: z.enum(LOCAL_STT_MODEL_IDS),
 })
 
 export type UpdateUserProfileRequest = z.infer<typeof UpdateUserProfileRequestSchema>

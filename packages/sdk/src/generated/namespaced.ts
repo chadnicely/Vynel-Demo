@@ -837,6 +837,34 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  localModels: {
+  cancelDownload: async (modelId: NonNullable<paths["/models/{modelId}/cancel"]["post"]['parameters']>['path']["modelId"]) => {
+    const { data, error, response } = await client["POST"]("/models/{modelId}/cancel", {
+      params: { path: { modelId: modelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  download: async (modelId: NonNullable<paths["/models/{modelId}/download"]["post"]['parameters']>['path']["modelId"]) => {
+    const { data, error, response } = await client["POST"]("/models/{modelId}/download", {
+      params: { path: { modelId: modelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/models")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  remove: async (modelId: NonNullable<paths["/models/{modelId}"]["delete"]['parameters']>['path']["modelId"]) => {
+    const { data, error, response } = await client["DELETE"]("/models/{modelId}", {
+      params: { path: { modelId: modelId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   marketplace: {
   getItem: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items/{itemId}"]["get"]['parameters']>['path']["workspaceId"], itemId: NonNullable<paths["/workspaces/{workspaceId}/marketplace/items/{itemId}"]["get"]['parameters']>['path']["itemId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/marketplace/items/{itemId}", {

@@ -1789,7 +1789,7 @@ export const getPhase: McpToolFactory = (scope, app) =>
 export const getUserPreferences: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_user_preferences',
-    "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion). Defaults fill any keys the user has not explicitly set.",
+    "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion, the voice: TTS model, speaker, STT model). Defaults fill any keys the user has not explicitly set.",
     {},
     async (args: Record<string, unknown>) => {
       try {

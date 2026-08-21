@@ -19,7 +19,12 @@ import {
   sqliteMigrationsFolder,
 } from '@vynel/db'
 import { getOrCreateLocalUser } from '@vynel/core/users'
-import { configureEmbeddingsCacheDir } from '@vynel/embeddings'
+import {
+  configureEmbeddingsCacheDir,
+  evictEmbeddingModelCache,
+  warmEmbeddingModel,
+} from '@vynel/embeddings'
+import { ModelDownloadRunner, type LocalModelsDeps } from '@vynel/models'
 import { expireAskRequests, PendingAskRegistry } from '@vynel/asks'
 import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { reapAllStartedChatToolCalls } from '@vynel/chat'
@@ -115,9 +120,7 @@ export async function boot(): Promise<void> {
 
   // Before any embedding tick can lazily load the model — the cache must live
   // outside node_modules (see @vynel/embeddings).
-  if (env.VYNEL_EMBEDDINGS_CACHE_DIR !== undefined) {
-    configureEmbeddingsCacheDir(env.VYNEL_EMBEDDINGS_CACHE_DIR)
-  }
+  configureEmbeddingsCacheDir(env.VYNEL_EMBEDDINGS_CACHE_DIR)
 
   logger.info({ dialect: env.DB_DIALECT }, 'api boot: opening database')
   const db = createDatabase({
@@ -260,6 +263,19 @@ export async function boot(): Promise<void> {
 
   const serverPayloadArchive = resolveServerPayloadArchive(env.VYNEL_SERVER_PAYLOAD_ARCHIVE, logger)
 
+  // The local models (Settings → Embedding / Voice): the embedding model lives
+  // in transformers.js' cache and is fetched by it, so `@vynel/embeddings` lends
+  // the hf-hub installer (its progress) and the remover (which also forgets the
+  // warm pipeline); every voice model is an archive the runner fetches itself.
+  const localModels: LocalModelsDeps = {
+    baseDirFor: (entry) =>
+      entry.kind === 'embedding' ? env.VYNEL_EMBEDDINGS_CACHE_DIR : env.VYNEL_VOICE_MODELS_DIR,
+    runner: new ModelDownloadRunner({
+      installers: { 'hf-hub': ({ onProgress }) => warmEmbeddingModel(onProgress) },
+    }),
+    removers: { 'hf-hub': () => evictEmbeddingModelCache() },
+  }
+
   const askWaiters = new PendingAskRegistry()
   // ONE schedule fire pool per process, owned here like `sessionTargetLocks`:
   // the poll tick AND the user-facing `fire-now` routes admit through it, so
@@ -301,6 +317,7 @@ export async function boot(): Promise<void> {
     remoteEngine: env.VYNEL_REMOTE_ENGINE,
     appVersion,
     ...(serverPayloadArchive !== null ? { serverPayloadArchive } : {}),
+    localModels,
     ...(desktopNotifications !== undefined ? { desktopNotifications } : {}),
     ...(hubSession !== undefined ? { hubSession } : {}),
     // The Display's fast path: a widget route publishes its frame the moment

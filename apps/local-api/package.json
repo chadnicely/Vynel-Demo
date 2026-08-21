@@ -30,6 +30,7 @@
     "@vynel/desktop-control": "workspace:*",
     "@vynel/display": "workspace:*",
     "@vynel/embeddings": "workspace:*",
+    "@vynel/models": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/features": "workspace:*",
     "@vynel/files": "workspace:*",

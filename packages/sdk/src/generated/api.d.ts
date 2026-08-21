@@ -2544,6 +2544,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the local models on this computer with their state. */
+        get: operations["getModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/models/{modelId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download one local model (runs in the background). */
+        post: operations["postModelsByModelIdDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/models/{modelId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a running model download. */
+        post: operations["postModelsByModelIdCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/models/{modelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a local model's files from this computer. */
+        delete: operations["deleteModelsByModelId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/marketplace/sources": {
         parameters: {
             query?: never;
@@ -14088,6 +14156,213 @@ export interface operations {
             };
         };
     };
+    getModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every catalog model: installed / missing / downloading (+ bytes) / failed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        models: {
+                            id: string;
+                            /** @enum {string} */
+                            kind: "embedding" | "tts" | "stt" | "vad";
+                            label: string;
+                            description: string;
+                            approxBytes: number;
+                            speakers: {
+                                id: number;
+                                name: string;
+                                /** @enum {string} */
+                                accent: "American" | "British";
+                                /** @enum {string} */
+                                gender: "female" | "male";
+                            }[] | null;
+                            /** @enum {string} */
+                            state: "installed" | "missing" | "downloading" | "failed";
+                            installedAt: string | null;
+                            download: {
+                                bytes: number;
+                                total: number | null;
+                                error: string | null;
+                                startedAt: string;
+                                finishedAt: string | null;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description This engine does not manage local models. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postModelsByModelIdDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model, now downloading — poll GET /models to follow the bytes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @enum {string} */
+                        kind: "embedding" | "tts" | "stt" | "vad";
+                        label: string;
+                        description: string;
+                        approxBytes: number;
+                        speakers: {
+                            id: number;
+                            name: string;
+                            /** @enum {string} */
+                            accent: "American" | "British";
+                            /** @enum {string} */
+                            gender: "female" | "male";
+                        }[] | null;
+                        /** @enum {string} */
+                        state: "installed" | "missing" | "downloading" | "failed";
+                        installedAt: string | null;
+                        download: {
+                            bytes: number;
+                            total: number | null;
+                            error: string | null;
+                            startedAt: string;
+                            finishedAt: string | null;
+                        } | null;
+                    };
+                };
+            };
+            /** @description Unknown model. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already downloading, or this engine does not manage local models. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postModelsByModelIdCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether there was a download to cancel. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        cancelled: boolean;
+                    };
+                };
+            };
+            /** @description Unknown model. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteModelsByModelId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model, now missing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @enum {string} */
+                        kind: "embedding" | "tts" | "stt" | "vad";
+                        label: string;
+                        description: string;
+                        approxBytes: number;
+                        speakers: {
+                            id: number;
+                            name: string;
+                            /** @enum {string} */
+                            accent: "American" | "British";
+                            /** @enum {string} */
+                            gender: "female" | "male";
+                        }[] | null;
+                        /** @enum {string} */
+                        state: "installed" | "missing" | "downloading" | "failed";
+                        installedAt: string | null;
+                        download: {
+                            bytes: number;
+                            total: number | null;
+                            error: string | null;
+                            startedAt: string;
+                            finishedAt: string | null;
+                        } | null;
+                    };
+                };
+            };
+            /** @description Unknown model. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downloading right now — cancel first. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getMarketplaceSources: {
         parameters: {
             query?: never;
@@ -15610,6 +15885,11 @@ export interface operations {
                         defaultWorkspaceId: string | null;
                         chatStreamingEnabled: boolean;
                         reducedMotion: boolean;
+                        /** @enum {string} */
+                        voiceTtsModelId: "kokoro" | "piper-lessac";
+                        voiceSpeakerId: number;
+                        /** @enum {string} */
+                        voiceSttModelId: "moonshine-tiny" | "moonshine-base";
                     };
                 };
             };
@@ -15630,6 +15910,11 @@ export interface operations {
                     defaultWorkspaceId?: string;
                     chatStreamingEnabled?: boolean;
                     reducedMotion?: boolean;
+                    /** @enum {string} */
+                    voiceTtsModelId?: "kokoro" | "piper-lessac";
+                    voiceSpeakerId?: number;
+                    /** @enum {string} */
+                    voiceSttModelId?: "moonshine-tiny" | "moonshine-base";
                 };
             };
         };
@@ -15646,6 +15931,11 @@ export interface operations {
                         defaultWorkspaceId: string | null;
                         chatStreamingEnabled: boolean;
                         reducedMotion: boolean;
+                        /** @enum {string} */
+                        voiceTtsModelId: "kokoro" | "piper-lessac";
+                        voiceSpeakerId: number;
+                        /** @enum {string} */
+                        voiceSttModelId: "moonshine-tiny" | "moonshine-base";
                     };
                 };
             };

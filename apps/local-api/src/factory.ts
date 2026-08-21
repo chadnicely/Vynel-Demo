@@ -38,6 +38,7 @@ import type {
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { DesktopNotificationReader } from '@vynel/desktop-control'
 import type { DisplayLiveSink } from '@vynel/display'
+import type { LocalModelsDeps } from '@vynel/models'
 import type { VoiceControlSink } from './live/voice-control-sink.js'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
@@ -159,6 +160,11 @@ export interface AppEnv {
     // The linux engine payload server-install provisions with; null = none
     // available on this machine (the routes refuse with a 409).
     serverPayloadArchive: ServerPayloadArchive | null
+    // The local models on this computer (the Settings → Embedding / Voice
+    // screens): where each kind lives + the one download runner. null = this
+    // engine does not manage models (generators, tests, a remote engine) and
+    // the `/models` routes say so with a 409.
+    localModels: LocalModelsDeps | null
     // The Display's in-process live push — the `display` handlers hand it to
     // the leaf ops so a widget reaches a watching window the moment its
     // transaction commits (the outbox relay's tick is far too slow for
