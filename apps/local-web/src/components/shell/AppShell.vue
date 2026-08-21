@@ -606,7 +606,11 @@ function runCommand(id: string) {
       if (!browser.isOpen) isSidebarOpen.value = !isSidebarOpen.value;
       break;
     case "toggle-tasks":
-      ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
+      // Only where the rail can show — the palette can send this from a
+      // section, and flipping the preference invisibly there would surprise
+      // on the next chat (the `toggle-sidebar` guard's reason).
+      if (isTasksPanelSurface(ui.activeTab.shell.mainView))
+        ui.isTasksPanelOpen = !ui.isTasksPanelOpen;
       break;
     case "nav-tabs":
       ui.setNavMode("tabs");

@@ -146,8 +146,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 ### Fixed
 
 - **A workspace's logo shows everywhere, not just in the tree.** The drilled sidebar
-  card and the workspace's own replies in chat now wear the uploaded logo (a persona icon
-  set on purpose still wins) instead of falling back to the two-letter monogram.
+  card, the workspace's own replies in chat (including a manager speaking in its own
+  room) and the workspace chip beside a named manager now wear the uploaded logo as-is —
+  no tint behind it — instead of falling back to the two-letter monogram. A persona icon
+  set on purpose still wins.
+- **Every task in progress shows its current step.** In the tasks panel each running
+  task carries its own live step line under the row, not just the first one.
+- **Delete a task from the tasks panel.** Hover a row and a trash appears just before the
+  expand caret; one click arms it, a second deletes.
+- **The tasks panel belongs to the chat.** It opens beside the chat by default and stays
+  off every other screen (sections, files, the Display); its toggles only appear where
+  it can show.
 - **The embedding model could never download inside the engine.** Memory and knowledge
   search-by-meaning silently stayed off on a fresh install because the model's own
   downloader never wrote the weights to disk from within Vynel's server process. Vynel

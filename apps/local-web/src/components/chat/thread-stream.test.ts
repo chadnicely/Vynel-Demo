@@ -748,6 +748,38 @@ describe("ThreadStream", () => {
     });
   });
 
+  // A label that NAMES a workspace the map cannot resolve (a sibling's note
+  // delivered here, its workspace since deleted) keeps its monogram — the
+  // room is the answer for a BARE label only, never for a named one.
+  it("a named but unresolvable workspace never borrows the room's logo", () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useCustomizeStore().setWorkspaceImage("ws-letterman", "data:image/png;base64,LOGO");
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [
+          {
+            ...makeMessage(1),
+            id: "a1",
+            role: "assistant",
+            sourceKind: "workspace-manager",
+            sourceLabel: "Adam · Seo",
+            body: "Note from next door.",
+          },
+        ],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        workspacesByName: { letterman: "ws-letterman" },
+        workspaceId: "ws-letterman",
+      },
+      global: { plugins: [pinia] },
+    });
+    expect(wrapper.getComponent(MessageRow).props("authorPersona")).toMatchObject({
+      imageUrl: null,
+      monogram: "AD",
+    });
+  });
+
   // The workspace chip beside a named manager ("Adam · Seo") wears the logo
   // as-is too — the accent tint is the MONOGRAM's ground, never a logo's.
   it("a workspace chip with a logo carries no tint behind it", () => {

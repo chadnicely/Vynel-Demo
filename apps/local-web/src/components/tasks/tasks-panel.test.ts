@@ -420,6 +420,27 @@ describe("TasksPanel (work rail)", () => {
     expect(wrapper.findAll(".task-meta.is-live")).toHaveLength(1);
   });
 
+  // A running task whose steps are all done (the counts lag the statuses at
+  // the end of a run) — or whose steps are still loading — must not go blank:
+  // the line says "now" with the count until there is a step to name.
+  it("an in-progress task with no current step still says now on its line", async () => {
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [makeTask({ status: "in-progress", stepsDone: 3, stepsTotal: 3 })],
+        listSteps: async () => [
+          makeStep({ status: "done" }),
+          makeStep({ id: "s2", orderIndex: 1, status: "done" }),
+          makeStep({ id: "s3", orderIndex: 2, status: "done" }),
+        ],
+      },
+    });
+    const wrapper = mountPanel(client);
+    await flushPromises();
+    const line = wrapper.get(".live-step-line");
+    expect(line.text()).toContain("now");
+    expect(line.text()).toContain("3/3");
+  });
+
   // Delete from the row (Kafi, 2026-08-22): a compact trash just before the
   // caret — two clicks (arm, then confirm), never one.
   it("a row's trash arms on the first click and deletes on the second", async () => {

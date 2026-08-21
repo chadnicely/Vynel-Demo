@@ -251,8 +251,16 @@ const updateStepStatus = useUpdateStepStatus();
 // the sections use, on the queue's footprint.
 const deleteTask = useDeleteTask();
 function removeTask(task: TaskResponse) {
-  if (expandedTaskId.value === task.id) expandedTaskId.value = null;
-  deleteTask.mutate({ taskId: task.id });
+  deleteTask.mutate(
+    { taskId: task.id },
+    // Fold only once it is really gone — a failed delete keeps the row, and
+    // its open steps, exactly as they were.
+    {
+      onSuccess: () => {
+        if (expandedTaskId.value === task.id) expandedTaskId.value = null;
+      },
+    },
+  );
 }
 
 // The expanded task's PLAN + SESSION doors (the sketch's icon row): the plan

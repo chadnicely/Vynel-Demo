@@ -223,6 +223,25 @@ describe("AppShell — the view switch", () => {
     expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(1);
   });
 
+  // The tasks rail is the chat's: the title bar offers its glyph only there,
+  // and the palette's toggle cannot flip the preference invisibly elsewhere.
+  it("offers and honours the tasks toggle on the chat only", async () => {
+    const { wrapper, ui } = await mountShell();
+    expect(titleBar(wrapper).showsTasksToggle).toBe(true);
+    expect(ui.isTasksPanelOpen).toBe(true);
+
+    ui.globalTab.shell.mainView = "application";
+    await wrapper.vm.$nextTick();
+    expect(titleBar(wrapper).showsTasksToggle).toBe(false);
+    press(wrapper, "toggle-tasks");
+    expect(ui.isTasksPanelOpen).toBe(true);
+
+    ui.globalTab.shell.mainView = "chat";
+    await wrapper.vm.$nextTick();
+    press(wrapper, "toggle-tasks");
+    expect(ui.isTasksPanelOpen).toBe(false);
+  });
+
   it("the Display opens full too, and leaving it restores the chrome", async () => {
     const { wrapper } = await mountShell();
     press(wrapper, "view-display");

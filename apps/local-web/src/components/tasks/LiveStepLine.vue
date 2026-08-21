@@ -20,11 +20,15 @@ const currentStep = computed(() => currentStepOf(stepsQuery.data.value ?? []));
 </script>
 
 <template>
-  <div v-if="currentStep" class="live-step-line" data-testid="live-step-line">
+  <!-- Always a line: while the steps load, or once every step is done but
+       the task still runs, it says "now" with the count — the row never goes
+       blank for a task that is in progress. -->
+  <div class="live-step-line" data-testid="live-step-line">
     <span class="live-step-dot" aria-hidden="true" />
-    <span class="live-step-title" :title="currentStep.title">
+    <span v-if="currentStep" class="live-step-title" :title="currentStep.title">
       {{ currentStep.number }}. {{ currentStep.title }}
     </span>
+    <span v-else class="live-step-title">now</span>
     <span v-if="props.countLabel" class="live-step-count">{{ props.countLabel }}</span>
   </div>
 </template>

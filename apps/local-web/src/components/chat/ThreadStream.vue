@@ -201,12 +201,14 @@ function authorPersonaFor(message: ChatMessageResponse) {
   // manager speaking at home ("letterman", not "letterman · letterman"): its
   // persona name is the workspace's by default, and failing that the room
   // this thread belongs to is the answer — never a monogram beside a logo.
+  // A label that NAMES a workspace the map cannot resolve (a sibling's row
+  // delivered here, its workspace since deleted) keeps its monogram — the
+  // room is only ever the answer for a bare label.
   const { persona, workspace } = splitSourceLabel(message.sourceLabel!);
   const workspaceId =
-    (workspace !== null ? props.workspacesByName?.[workspace] : undefined) ??
-    props.workspacesByName?.[persona] ??
-    props.workspaceId ??
-    null;
+    workspace !== null
+      ? (props.workspacesByName?.[workspace] ?? null)
+      : (props.workspacesByName?.[persona] ?? props.workspaceId ?? null);
   return resolvePersona({ name: message.sourceLabel!, workspaceId });
 }
 
