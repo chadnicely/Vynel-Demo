@@ -3,10 +3,11 @@
 //
 // Spec: `docs/blueprints/channels/blueprint.md §4`.
 
-import { and, asc, inArray, eq, lt, lte } from 'drizzle-orm'
+import { and, asc, gte, inArray, eq, lt, lte } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   channelMessageQueue,
+  readTurnCorrelationId,
   type ChannelMessageQueueEntry,
   type NewChannelMessageQueueEntry,
   type OutboundMessageStatus,
@@ -57,6 +58,54 @@ export function listOutboundMessagesForChannel(
     .where(eq(channelMessageQueue.channelId, channelId))
     .orderBy(asc(channelMessageQueue.enqueuedAt))
     .all()
+}
+
+// How many REPLIES (`chat-stream-final` — the reply_to_channel / send_to_channel
+// shape) this conversation has had queued since a moment. The silent-turn
+// fallback's one question: "did the turn actually answer?" Status pushes,
+// approval cards and ask nudges are deliberately NOT replies — a turn that only
+// pushed a card still owes the sender a word.
+//
+// The time window alone is not enough: inbound messages run CONCURRENTLY, so a
+// sibling turn replying in the same chat used to suppress this turn's fallback
+// and the sender heard nothing at all. `turnCorrelationId` disqualifies a reply
+// that provably belongs to another turn — it NARROWS the window, it does not
+// replace it. A reply claiming no turn (a proactive send_to_channel) still
+// counts: an unstamped row degrades to the old behaviour, which errs toward
+// silence rather than toward two copies of one answer.
+export function countChannelRepliesSince(
+  db: Database,
+  input: {
+    channelId: string
+    externalChatContextId: string
+    since: Date
+    /** Group rooms: only replies addressed to the asker answer for them. */
+    externalRecipientId?: string
+    /** THIS turn's key — replies stamped with a different one are siblings'. */
+    turnCorrelationId?: string
+  },
+): number {
+  const rows = db
+    .select({ messageStructure: channelMessageQueue.messageStructure })
+    .from(channelMessageQueue)
+    .where(
+      and(
+        eq(channelMessageQueue.channelId, input.channelId),
+        eq(channelMessageQueue.externalChatContextId, input.externalChatContextId),
+        eq(channelMessageQueue.payloadKind, 'chat-stream-final'),
+        gte(channelMessageQueue.enqueuedAt, input.since),
+        ...(input.externalRecipientId !== undefined
+          ? [eq(channelMessageQueue.externalRecipientId, input.externalRecipientId)]
+          : []),
+      ),
+    )
+    .all()
+  const ownTurn = input.turnCorrelationId
+  if (ownTurn === undefined) return rows.length
+  return rows.filter((row) => {
+    const owner = readTurnCorrelationId(row.messageStructure)
+    return owner === null || owner === ownTurn
+  }).length
 }
 
 export function findOutboundMessageById(

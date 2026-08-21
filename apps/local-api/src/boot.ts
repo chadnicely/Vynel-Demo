@@ -469,6 +469,10 @@ export async function boot(): Promise<void> {
     enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
     readEnabledFeatureKeys,
     askWaiters,
+    // A channel bound to a WORKSPACE runs on that workspace's continuing
+    // conversation, so it holds the workspace key in the SAME registry the
+    // schedules fire path and the delegation pool hold theirs in.
+    targetLocks: sessionTargetLocks,
   })
   // The delegation claim-and-run tick — claims one pending routing job per tick,
   // runs it as a workspace turn, records the terminal state; at startup it fails

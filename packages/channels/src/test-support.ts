@@ -13,7 +13,7 @@ import type {
   ChannelUserLink,
   ChannelInboundMessage,
 } from './repositories/index.js'
-import type { ProcessInboundDeps } from './channels-types.js'
+import type { ChannelTurnRequest, ProcessInboundDeps } from './channels-types.js'
 
 // Re-exported for route/integration tests that seed a channel for a SPECIFIC
 // owner/scope directly (the production barrel keeps repositories internal) —
@@ -58,7 +58,8 @@ export function makeWorkspace(userId: string) {
 
 export interface SeededChannel {
   user: { id: string }
-  workspace: { id: string }
+  /** `path` rides along: a workspace-scoped channel turn is addressed by it. */
+  workspace: { id: string; path: string }
   channel: Channel
 }
 
@@ -166,38 +167,45 @@ export function insertPendingGroupChatTurnMessage(
   })
 }
 
-// Stub turn deps — a fake appRequest + a stub runRootTurn that records its calls
+// Stub turn deps — a fake appRequest + stub runners that record their calls
 // (the Ch4 origin-threading + direct-answer assertions). No vitest import
 // (test-support compiles into the package build).
-interface StubRootTurnCall {
-  userId: string
-  userMessageText: string
-  origin: {
-    channelId: string
-    externalSenderId: string
-    externalChatContextId: string
-    externalMessageId?: string
-  }
-  /** The per-message reply instruction (channel pipeline, 2026-07-27). */
-  channelReplyMarker?: string
-}
-
+//
+// The WORKSPACE runner is opt-in (`withWorkspaceTurn`): without it the deps are
+// the shape an embedder that wired no workspace runner has, and every channel —
+// workspace-scoped or not — falls to the root. Scope ROUTING itself is pinned in
+// `route-as-chat-turn.test.ts`, which opts in.
 export interface StubTurnDeps extends ProcessInboundDeps {
-  state: { rootTurnCalls: StubRootTurnCall[] }
+  state: {
+    rootTurnCalls: ChannelTurnRequest[]
+    workspaceTurnCalls: (ChannelTurnRequest & { workspaceId: string; workspacePath: string })[]
+  }
 }
 
 export function stubTurnDeps(
   options: {
     rootTurnResultText?: string
     rootTurnThrows?: boolean
+    /** Wire the workspace runner too — a workspace-scoped channel then routes there. */
+    withWorkspaceTurn?: boolean
     /** Surface-up: the stub turn "cards" this tool mid-turn — it invokes the caller's
      *  `onApprovalRequested` before resolving, like a brain turn whose own tool parked. */
     emitApproval?: { approvalRequestId: string; toolName: string; toolInput: unknown }
   } = {},
 ): StubTurnDeps {
-  const state: StubTurnDeps['state'] = { rootTurnCalls: [] }
+  const state: StubTurnDeps['state'] = { rootTurnCalls: [], workspaceTurnCalls: [] }
   return {
     appRequest: () => new Response(null),
+    ...(options.withWorkspaceTurn === true
+      ? {
+          runWorkspaceTurn: (_db, input) => {
+            state.workspaceTurnCalls.push(input)
+            if (options.emitApproval !== undefined) input.onApprovalRequested?.(options.emitApproval)
+            if (options.rootTurnThrows) return Promise.reject(new Error('workspace turn exploded'))
+            return Promise.resolve({ resultText: options.rootTurnResultText ?? 'On it.' })
+          },
+        }
+      : {}),
     // Ch4: route-as-chat-turn runs the global root via this dep — record the call (origin) and
     // return a configurable answer (or throw, for the failure path).
     runRootTurn: (_db, input) => {

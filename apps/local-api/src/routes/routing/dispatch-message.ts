@@ -20,7 +20,10 @@ import {
   enqueueSessionDelegation,
   enqueueReportDelivery,
   enqueueUpdateDelivery,
+  findDelegationJobById,
   markDelegationJobReported,
+  readDelegationJobOrigin,
+  type DelegationOrigin,
 } from '@vynel/orchestration'
 import { getWorkspaceById, findWorkspaceById } from '@vynel/workspaces'
 import { findPrimaryConversation } from '@vynel/session/continuity'
@@ -206,6 +209,21 @@ export async function dispatchTaskToSession(
   return { jobId, deliveredTo: sessionName }
 }
 
+/** The CHANNEL the running delegated job came from (channel report protocol) —
+ *  read off the job row, never the header: the origin header addresses the
+ *  turn's OWN inbound conversation, while a report travels about the JOB, and
+ *  those are the same only by accident. Absent header = not a delegated turn. */
+function readRunningJobOrigin(
+  c: RoutingContext,
+): { runningJobId?: string; origin?: DelegationOrigin } {
+  const runningJobId = parseDelegationJobHeader(c.req.header(DELEGATION_JOB_HEADER))
+  if (runningJobId === undefined) return {}
+  const job = findDelegationJobById(c.var.db, runningJobId)
+  if (job === null || job.userId !== c.var.user.id) return { runningJobId }
+  const origin = readDelegationJobOrigin(job)
+  return { runningJobId, ...(origin !== null ? { origin } : {}) }
+}
+
 /** Pass a FINAL result UP to whoever requested this turn's work. */
 export async function dispatchReportToRequester(
   c: RoutingContext,
@@ -214,6 +232,7 @@ export async function dispatchReportToRequester(
   const sender = await resolveUpwardSender(c)
 
   const { threadId } = readAmbientContext(c)
+  const { runningJobId, origin } = readRunningJobOrigin(c)
   const jobId = enqueueReportDelivery(c.var.db, {
     userId: c.var.user.id,
     reporterSessionId: sender.reporterSessionId,
@@ -224,12 +243,14 @@ export async function dispatchReportToRequester(
     // without this it would start a fresh thread and the chain would break at
     // exactly the hop threadId exists to connect.
     ...(threadId !== undefined ? { threadId } : {}),
+    // A channel drove this work, so somebody is still waiting there: the
+    // requester's notify turn is what answers them (channel report protocol —
+    // task completion no longer ships a line of its own).
+    ...(origin !== undefined ? { origin } : {}),
   })
 
-  // Mark the RUNNING row reported, so the tick does not also harvest this
-  // turn's chat reply and wake the requester a second time. Absent header = not
-  // a delegated turn, so there is no row to mark.
-  const runningJobId = parseDelegationJobHeader(c.req.header(DELEGATION_JOB_HEADER))
+  // Mark the RUNNING row reported, so the tick's auto-report net does not also
+  // relay this turn's final output and wake the requester a second time.
   if (runningJobId !== undefined) {
     markDelegationJobReported(c.var.db, runningJobId, new Date())
   }
@@ -250,17 +271,22 @@ export async function dispatchDirectToUser(
   const sender = await resolveUpwardSender(c)
 
   const { threadId } = readAmbientContext(c)
+  const { runningJobId, origin } = readRunningJobOrigin(c)
   const jobId = enqueueReportDelivery(c.var.db, {
     userId: c.var.user.id,
     reporterSessionId: sender.reporterSessionId,
     reporterLabel: sender.reporterLabel,
     reportBody: `${input.title.trim()}\n\n${input.message}`,
     requester: sender.requester,
-    deliverDirectly: true,
+    // CHANNEL-ORIGIN WORK NEVER GOES DIRECT (channel report protocol): the
+    // direct path persists the answer onto the requester's transcript and runs
+    // NO turn — so nobody would be left to reply to the person waiting on
+    // Telegram. The answer still reaches the user; it just travels as a report,
+    // through a requester turn that can answer the channel too.
+    ...(origin !== undefined ? { origin } : { deliverDirectly: true }),
     ...(threadId !== undefined ? { threadId } : {}),
   })
 
-  const runningJobId = parseDelegationJobHeader(c.req.header(DELEGATION_JOB_HEADER))
   if (runningJobId !== undefined) {
     markDelegationJobReported(c.var.db, runningJobId, new Date())
   }

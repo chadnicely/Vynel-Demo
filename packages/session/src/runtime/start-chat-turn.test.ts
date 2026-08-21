@@ -238,6 +238,55 @@ describe('startChatTurn — checkpoint + auto-continue wiring (session-continuit
   })
 })
 
+describe('startChatTurn — the channel origin stamp', () => {
+  it('stamps originChannel on the persisted row, and nothing without it', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      for (const sessionId of ['sdk-via-telegram', 'sdk-from-the-app']) {
+        insertChatSession(
+          db,
+          buildNewChatSessionRow({
+            sessionId,
+            userId: user.id,
+            workspaceId: workspace.id,
+            providerId: 'claude',
+            startedAt: new Date(),
+            title: 'Head',
+            visibility: 'hidden',
+          }),
+        )
+      }
+      const stampFor = async (
+        sessionId: string,
+        originChannel?: 'telegram',
+      ): Promise<string | null | undefined> => {
+        let stamp: string | null | undefined
+        for await (const event of startChatTurn(db, {
+          userId: user.id,
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+          providerId: 'claude',
+          resumeSessionId: sessionId,
+          userMessageText: 'how did yesterday go?',
+          permissionMode: 'ask',
+          ...(originChannel !== undefined ? { originChannel } : {}),
+        })) {
+          if (event.kind === 'user-message-persisted') stamp = event.message.originChannel
+        }
+        return stamp
+      }
+
+      // A channel-driven WORKSPACE turn: the transcript shows HOW it arrived
+      // ("via Telegram") — the same look the global-root runner has stamped
+      // since Ch4, now reachable from a workspace turn too.
+      expect(await stampFor('sdk-via-telegram', 'telegram')).toBe('telegram')
+      // The app composer stays unstamped — the plain user shape.
+      expect(await stampFor('sdk-from-the-app')).toBeNull()
+    })
+  })
+})
+
 describe('startChatTurn — the autopilot marker (session-hardening D8/B1)', () => {
   it('appends the marker to the PROVIDER text while the persisted row stays clean', async () => {
     await withTestDatabase(async (db) => {

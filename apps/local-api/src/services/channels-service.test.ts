@@ -12,15 +12,21 @@ import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { ProcessInboundDeps } from '@vynel/channels'
 
-const { pollMock, deliverMock, processMock, listPendingMock, runGlobalRootTurnMock } = vi.hoisted(
-  () => ({
-    pollMock: vi.fn(),
-    deliverMock: vi.fn(),
-    processMock: vi.fn(),
-    listPendingMock: vi.fn(),
-    runGlobalRootTurnMock: vi.fn(),
-  }),
-)
+const {
+  pollMock,
+  deliverMock,
+  processMock,
+  listPendingMock,
+  runGlobalRootTurnMock,
+  buildWorkspaceRunnerMock,
+} = vi.hoisted(() => ({
+  pollMock: vi.fn(),
+  deliverMock: vi.fn(),
+  processMock: vi.fn(),
+  listPendingMock: vi.fn(),
+  runGlobalRootTurnMock: vi.fn(),
+  buildWorkspaceRunnerMock: vi.fn(),
+}))
 
 vi.mock('@vynel/channels', () => ({
   runChannelPollingTick: pollMock,
@@ -34,9 +40,13 @@ vi.mock('@vynel/channels', () => ({
 vi.mock('../sessions/run-global-root-turn.js', () => ({
   runGlobalRootTurn: runGlobalRootTurnMock,
 }))
+vi.mock('../sessions/run-workspace-channel-turn.js', () => ({
+  buildWorkspaceChannelTurnRunner: buildWorkspaceRunnerMock,
+}))
 
 import { startChannelsService } from './channels-service.js'
 import { SessionActivityFeed } from '@vynel/session/runtime'
+import { SessionTargetLocks } from '@vynel/session/delegation'
 import { loadEnv } from '../env.js'
 
 function fakeOptions() {
@@ -45,6 +55,8 @@ function fakeOptions() {
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     appRequest: vi.fn(),
     activityFeed: new SessionActivityFeed(),
+    // A workspace-scoped channel's turn takes the workspace's single-writer key.
+    targetLocks: new SessionTargetLocks(),
   }
 }
 
@@ -55,6 +67,7 @@ beforeEach(() => {
   deliverMock.mockResolvedValue({ sentCount: 0, failedCount: 0 })
   processMock.mockResolvedValue(undefined)
   listPendingMock.mockReturnValue([])
+  buildWorkspaceRunnerMock.mockResolvedValue(vi.fn(async () => ({ resultText: '' })))
 })
 
 afterEach(() => {
@@ -160,6 +173,39 @@ describe('startChannelsService', () => {
       const runRootTurn = await captureRunRootTurn(fakeOptions())
       await expect(runRootTurn({} as unknown as Database, inbound)).rejects.toBe(capFailure)
     })
+  })
+
+  // The workspace runner is built on FIRST use and memoized. A memoized
+  // REJECTION would make one transient import failure permanent — every
+  // workspace channel message would fail identically until restart.
+  it('retries the workspace-runner build after a failure instead of memoizing the rejection', async () => {
+    listPendingMock.mockReturnValue([{ id: 'in-1' }])
+    const service = startChannelsService(fakeOptions())
+    await vi.advanceTimersByTimeAsync(1_000)
+    service.stop()
+    const runWorkspaceTurn = (processMock.mock.calls[0]?.[2] as ProcessInboundDeps)
+      .runWorkspaceTurn!
+    const workspaceInput = {
+      userId: 'u1',
+      userMessageText: 'hi',
+      origin: { channelId: 'c1', externalSenderId: 's1', externalChatContextId: 'ctx1' },
+      originChannel: 'telegram' as const,
+      workspaceId: 'ws-1',
+      workspacePath: '/tmp/ws',
+    }
+
+    buildWorkspaceRunnerMock.mockRejectedValueOnce(new Error('descriptor import failed'))
+    await expect(
+      runWorkspaceTurn({} as unknown as Database, workspaceInput),
+    ).rejects.toThrow('descriptor import failed')
+
+    // The next message builds again — and succeeds.
+    const runner = vi.fn(async () => ({ resultText: 'ok' }))
+    buildWorkspaceRunnerMock.mockResolvedValueOnce(runner)
+    await expect(
+      runWorkspaceTurn({} as unknown as Database, workspaceInput),
+    ).resolves.toEqual({ resultText: 'ok' })
+    expect(buildWorkspaceRunnerMock).toHaveBeenCalledTimes(2)
   })
 
   it('scrubs a processing failure through the logger without throwing', async () => {

@@ -39,6 +39,12 @@ export function parseDelegationOriginHeader(
         ...(typeof parsed.externalMessageId === 'string'
           ? { externalMessageId: parsed.externalMessageId }
           : {}),
+        // The owning turn, for the zero-reply fallback's correlation. Absent on
+        // stamps from before the field existed — and an absent key degrades to
+        // the old time-window behaviour, never to a duplicate message.
+        ...(typeof parsed.turnCorrelationId === 'string'
+          ? { turnCorrelationId: parsed.turnCorrelationId }
+          : {}),
       }
     }
     return undefined

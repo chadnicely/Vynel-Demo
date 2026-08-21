@@ -74,8 +74,10 @@ import { loadEnv } from '../env.js'
 
 // How long a channel turn's ask_user form waits before expiring — matched to
 // the approvals reaper's ~10-minute real-world bound, the app's standing
-// answer to "how long may a background turn wait on a human".
-const CHANNEL_ASK_TIMEOUT_MS = 10 * 60 * 1000
+// answer to "how long may a background turn wait on a human". Shared with the
+// WORKSPACE channel runner (`run-workspace-channel-turn.ts`): both are the same
+// question asked from the same place, and two numbers would be two answers.
+export const CHANNEL_ASK_TIMEOUT_MS = 10 * 60 * 1000
 
 // The drain sink narrows on the SAME `ChatTurnEvent` the runner emits, taken
 // straight off `SessionSink` so this edge never needs a `@vynel/chat` dependency.
@@ -678,6 +680,16 @@ export function buildGlobalRootReportTurnRunner(
       // The tick passes the kind's steer (update vs report); the report steer
       // stays the default for older callers.
       steerPromptAppend: input.steerInstructions ?? REPORT_DELIVERY_INSTRUCTIONS,
+      // The channel that asked for the work this report is about (channel
+      // report protocol): the ROOT is the requester here, so this turn is what
+      // answers the person waiting on Telegram — `reply_to_channel` reaches it
+      // through the routing descriptor, addressed by this origin, and the
+      // marker rides PROVIDER input only (no `originChannel`: this row is a
+      // report FROM A CHILD, not a message the channel sent).
+      ...(input.origin !== undefined ? { origin: input.origin } : {}),
+      ...(input.channelReplyMarker !== undefined
+        ? { channelReplyMarker: input.channelReplyMarker }
+        : {}),
       activityOrigin: 'delegation',
       ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
       ...(input.inboundMessageId !== undefined ? { inboundMessageId: input.inboundMessageId } : {}),

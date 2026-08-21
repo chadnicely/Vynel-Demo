@@ -13,6 +13,25 @@ describe('delegation-origin-header', () => {
     expect(parseDelegationOriginHeader(serializeDelegationOrigin(origin))).toEqual(origin)
   })
 
+  it('round-trips the turn key a reply is correlated by', () => {
+    const origin = {
+      channelId: 'chan-1',
+      externalSenderId: 'tg-42',
+      externalChatContextId: 'chat-7',
+      externalMessageId: 'msg-9',
+      turnCorrelationId: 'inbound-row-1',
+    }
+    expect(parseDelegationOriginHeader(serializeDelegationOrigin(origin))).toEqual(origin)
+  })
+
+  it('drops a mistyped turn key rather than the whole origin (it only narrows a window)', () => {
+    expect(
+      parseDelegationOriginHeader(
+        '{"channelId":"c","externalSenderId":"s","externalChatContextId":"x","turnCorrelationId":7}',
+      ),
+    ).toEqual({ channelId: 'c', externalSenderId: 's', externalChatContextId: 'x' })
+  })
+
   it('returns undefined for an absent or empty header (a non-channel origin)', () => {
     expect(parseDelegationOriginHeader(undefined)).toBeUndefined()
     expect(parseDelegationOriginHeader('')).toBeUndefined()

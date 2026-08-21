@@ -35,9 +35,10 @@ const SKIPPED_DIRS = new Set([
 // lines (one producer breaks before `.begin`); comment lines are dropped first.
 const BEGIN_CALL = /activityFeed\s*\.\s*begin\(/
 
-/** The producers today — 8 files. Bump deliberately, with frames below. */
+/** The producers today — 9 files. Bump deliberately, with frames below. */
 const KNOWN_PRODUCERS = [
   'apps/local-api/src/sessions/run-global-root-turn.ts',
+  'apps/local-api/src/sessions/run-workspace-channel-turn.ts',
   'apps/local-api/src/sessions/start-fired-workspace-turn.ts',
   'apps/local-api/src/streams/chat-turn.ts',
   'apps/local-api/src/streams/global-root-turn.ts',
@@ -172,6 +173,32 @@ const FRAMES_BY_PRODUCER: Record<string, ProducerFrame[]> = {
         sessionId: 'agent-segment-1',
         origin: 'web',
         primarySessionId: 'agent-1',
+      },
+    },
+  ],
+  'apps/local-api/src/sessions/run-workspace-channel-turn.ts': [
+    {
+      // A channel BOUND to a workspace answers on that room's continuing
+      // conversation (2026-08-21) — so the frame names that identity, and the
+      // app's rail opens the live thread the reply lands on. Deliberately NOT
+      // in ROOMS_OWN_THREAD_PRODUCERS: it always stamps the primary, so it
+      // never emits the unstamped shape that binding rule guards.
+      label: 'a workspace channel turn on the continuing conversation',
+      input: {
+        scopeKind: 'workspace',
+        workspaceId: 'ws-1',
+        sessionId: 'room-segment-1',
+        origin: 'telegram',
+        primarySessionId: 'room-primary-1',
+      },
+    },
+    {
+      label: 'a workspace channel turn, first-ever (segment resolves mid-turn)',
+      input: {
+        scopeKind: 'workspace',
+        workspaceId: 'ws-1',
+        origin: 'telegram',
+        primarySessionId: 'room-primary-1',
       },
     },
   ],

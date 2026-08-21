@@ -27,6 +27,31 @@ indexing ticks (never auto-retried after a failure). Verified live: VAD + embedd
 **Owed by Kafi:** Tauri smoke of full view (drag by the strip, controls over the Display); `pnpm dev:voice`
 smoke (pick speaker → Preview → switch to Piper → hear the swap). **Parked (own arc):** shipping the voice
 daemon as a second installer sidecar; the embedding model picker (384-dim lock → migration + re-embed).
+## ✅ 2026-08-22 (latest) CHANNELS — workspace routing · report protocol · never silent (merged to main)
+
+Kafi's three: (1) "all Telegram channels talk to global" — the inbound path never read the channel's `workspace_id`
+(`route-as-chat-turn.ts` called the root runner unconditionally). Now `resolve-channel-turn-scope` picks the runner: a
+workspace channel resumes ITS workspace's continuing conversation in-lock (`run-workspace-channel-turn.ts`:
+interactive cap, feed identity, "via Telegram" stamp through `startChatTurn.originChannel`, reply marker provider-side,
+origin+mode-wrapped dispatcher so delegations carry the channel origin, bounded `ask_user`, the interactive MCP context);
+global channels unchanged; deleted/not-owned workspace → global + warn; `reply_to_channel` rides the
+workspace-interactive surface. (2) Approval-card verification (agent B): five guarantees HOLD with regression tests
+(auto fallback mode, floor stands down, bounded ask + nudge, wall clock frees the root lock, reply never cards); the gap
+= a classifier-blocked tool on a channel turn ended in SILENCE → closed by (3). (3) **Option A protocol (Kafi):** task
+→ report to requester → requester decides → requester answers the channel. Before: the delegate never reported and a
+completion hook shipped a distilled summary straight to Telegram behind the requester's back. Now: the steer says no
+task ends without a report, the engine enqueues an AUTO-REPORT (body-marked) when a work job completes unreported;
+report delivery carries the job's origin (`read-delegation-job-origin.ts`) so the notify turn — global or workspace
+requester — addresses the same external chat; the completion→channel distill is GONE (`summarizeReport` unwired);
+one failsafe fires only on an EARNED terminal (CAS won, never on STOP) with the sender-facing half of the body; a
+channel turn (inbound or notify) that ends with zero replies ships ONE honest line (`ship-silent-turn-fallback`,
+correlated per turn via `DelegationOrigin.turnCorrelationId` stamped on outbound rows) — narrows the 2026-07-27
+tool-only rule. Plan + three open calls in `docs/module-notes/channel-report-protocol.md`: the fixed fallback line
+assumes a block; the main flow sends an interim ack then the report (two messages); a wordless notify turn reuses the
+same line. **Gate:** 110/110 · 5/5 · 965 files / 6606 tests. `run-report-delivery-tick.ts` is 721 lines — a split is a
+separate move. **Owed by Kafi:** Telegram → letterman channel → it answers from letterman; Telegram → global → "ask
+letterman to do X" → the worker reports, global answers Telegram once (after an interim line); a blocked tool → one
+honest line on Telegram.
 
 ## ✅ 2026-08-21 THE DISPLAY — P3 PRESENCE MERGED, ARC COMPLETE (all worktrees down)
 

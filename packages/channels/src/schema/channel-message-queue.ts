@@ -58,3 +58,28 @@ export const channelMessageQueue = table(
 
 export type ChannelMessageQueueEntry = typeof channelMessageQueue.$inferSelect
 export type NewChannelMessageQueueEntry = typeof channelMessageQueue.$inferInsert
+
+/** What `messageStructure` may carry for a plain-text reply. `turnCorrelationId`
+ *  is the TURN that queued it (channel report protocol): the zero-reply
+ *  fallback counts replies by it, so a sibling turn answering in the same chat
+ *  cannot silence this turn's line. Absent on rows queued outside a turn (a
+ *  proactive send_to_channel) and on rows from before the field existed. */
+export interface OutboundMessageStructure {
+  replyToExternalMessageId?: string
+  turnCorrelationId?: string
+}
+
+export function buildOutboundMessageStructure(input: OutboundMessageStructure): string {
+  return JSON.stringify(input)
+}
+
+/** The owning turn of an outbound row, or null when it claims none. Defensive:
+ *  the column is free-form JSON written by several producers. */
+export function readTurnCorrelationId(messageStructure: string): string | null {
+  try {
+    const parsed = JSON.parse(messageStructure) as Partial<OutboundMessageStructure>
+    return typeof parsed.turnCorrelationId === 'string' ? parsed.turnCorrelationId : null
+  } catch {
+    return null
+  }
+}

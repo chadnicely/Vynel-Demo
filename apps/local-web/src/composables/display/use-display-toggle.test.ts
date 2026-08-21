@@ -115,6 +115,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// The first case boots a REAL router (the toggle's one reading of "room on
+// screen" is the route), which takes ~6 s alone and crosses vitest's 20 s
+// default under full-suite contention — a later case then inherits a half-
+// navigated router and fails on its own. Not a logic timeout: the budget is
+// for the boot, the cases themselves assert in milliseconds.
+vi.setConfig({ testTimeout: 60_000 });
+
 describe("useDisplayToggle", () => {
   it("opens the room on the global tab and restores the view it took", async () => {
     const { toggle, ui } = await mountToggle();

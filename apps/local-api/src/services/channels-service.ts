@@ -37,7 +37,11 @@ import type { HonoAppRequestFn } from '../factory.js'
 import type { PendingAskRegistry } from '@vynel/asks'
 import type { ReadEnabledFeatureKeys } from '../sessions/enabled-feature-keys.js'
 import { runGlobalRootTurn } from '../sessions/run-global-root-turn.js'
-import type { TurnEventBroadcaster } from '@vynel/session/delegation'
+import {
+  buildWorkspaceChannelTurnRunner,
+  type RunWorkspaceChannelTurn,
+} from '../sessions/run-workspace-channel-turn.js'
+import type { SessionTargetLocks, TurnEventBroadcaster } from '@vynel/session/delegation'
 import { loadEnv } from '../env.js'
 
 const POLLING_INTERVAL_MS = 5_000
@@ -66,6 +70,10 @@ export interface ChannelsServiceOptions {
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
   /** The shared parked-ask registry — gives channel turns ask_user (bounded). */
   askWaiters?: PendingAskRegistry
+  /** The process-wide single-writer lock per target, SHARED with the delegation
+   *  pool, the schedules fire path and the session-turn route — a channel turn
+   *  on a WORKSPACE holds that workspace's key for its whole run. */
+  targetLocks: SessionTargetLocks
   /** The channel turn's wall-clock budget (ms) — a test override; the default
    *  is `VYNEL_INTERACTIVE_TURN_MAX_MS`, the streams' knob (BT4). */
   turnMaxMs?: number
@@ -82,8 +90,37 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
     enableDesktopActions,
     readEnabledFeatureKeys,
     askWaiters,
+    targetLocks,
   } = options
   const turnMaxMs = options.turnMaxMs ?? loadEnv().VYNEL_INTERACTIVE_TURN_MAX_MS
+
+  // The WORKSPACE runner, built on FIRST use and memoized: its descriptor
+  // imports pull the heavy SDK, and an install whose channels are all global
+  // should never pay for them. The promise is the memo, so concurrent first
+  // messages share one build — but a REJECTED promise must never be the memo:
+  // one transient import failure would otherwise make every workspace channel
+  // message fail identically until restart. A failed build clears itself and
+  // the next message tries again.
+  let workspaceTurnRunner: Promise<RunWorkspaceChannelTurn> | null = null
+  const runWorkspaceTurn: NonNullable<ProcessInboundDeps['runWorkspaceTurn']> = async (
+    turnDb,
+    input,
+  ) => {
+    workspaceTurnRunner ??= buildWorkspaceChannelTurnRunner({
+      logger,
+      appRequest,
+      activityFeed,
+      targetLocks,
+      hardCapMs: turnMaxMs,
+      ...(turnEvents !== undefined ? { turnEvents } : {}),
+      ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
+      ...(askWaiters !== undefined ? { askWaiters } : {}),
+    }).catch((err: unknown) => {
+      workspaceTurnRunner = null
+      throw err
+    })
+    return (await workspaceTurnRunner)(turnDb, input)
+  }
 
   const turnDeps: ProcessInboundDeps = {
     logger,
@@ -111,6 +148,10 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
         },
         { ...input, wallClock: { maxMs: turnMaxMs } },
       ),
+    // Ch4's blind spot, closed: a channel BOUND to a workspace answers on that
+    // workspace's continuing conversation instead of the global root. The leaf
+    // picks the runner from the channel row's own scope.
+    runWorkspaceTurn,
     // KLONE decoupled the approvals leaf: `resolveApproval` is injected here (the
     // channels leaf never imports @vynel/approvals). The channel approval-reply path
     // passes a nullable `workspaceId` faithfully; the current resolve is user-scoped
