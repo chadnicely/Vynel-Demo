@@ -4,12 +4,11 @@
 // a Telegram bot pointed at a workspace answered from the wrong thread (Kafi,
 // live 2026-08-21). Global channels keep `runGlobalRootTurn` untouched.
 //
-// The mechanics are a WORKSPACE SCHEDULE FIRE's, deliberately (this merges the
-// two halves of `start-fired-workspace-turn.ts` + `run-fired-workspace-turn.ts`):
-// take the workspace's single-writer key, resolve the continuing conversation
-// INSIDE the lock, arm the cap only once the lock is held, announce on the feed
-// with the workspace's own identity, drain `startChatTurn`. A busy workspace
-// parks this turn FIFO behind the holder — never a second writer.
+// The mechanics are a WORKSPACE SCHEDULE FIRE's, deliberately: take the
+// workspace's single-writer key, resolve the continuing conversation INSIDE the
+// lock, arm the cap only once the lock is held, announce on the feed with the
+// workspace's own identity, drain `startChatTurn`. A busy workspace parks this
+// turn FIFO behind the holder — never a second writer.
 //
 // What stays the CHANNEL pipeline's: the persisted user row is stamped with the
 // origin channel ("via Telegram"), the reply marker rides PROVIDER input only,
@@ -17,14 +16,15 @@
 // chat that asked (and a delegation this turn enqueues carries the same ids).
 //
 // TOOLSET: the same set the workspace's own interactive chat attaches
-// (`streams/chat-turn.ts`) — `reply_to_channel` reaches it because the route
-// declares `workspaceInteractiveSurface`. The workspace primary is ONE resumed
-// SDK session shared by every producer, so a per-origin toolset would make the
-// SDK's deferred-tool reconciliation strip `mcp__vynel*` and report the server
-// offline (the 2026-07-21 bug `build-workspace-background-mcp.ts` documents).
-// A global channel turn's bounded `ask_user` is deliberately NOT here: a
-// varying `vynel-ask` is already the shipped shape on this primary (schedule
-// fires and delegated runs attach none), and adding it needs its own bound.
+// (`streams/chat-turn.ts`) — a per-origin toolset would make the SDK strip
+// `mcp__vynel*` off this shared primary and report the server offline (the
+// 2026-07-21 bug `build-workspace-background-mcp.ts` documents). `ask_user`
+// rides it BOUNDED (2026-08-22, closing agent A's deviation): the global
+// channel runner has carried the same bound since the asks slice, and the
+// situation is identical — nobody may be looking at the app, so an unanswered
+// form expires and the turn proceeds on judgment instead of parking forever.
+// The Telegram nudge needs no wiring: `consumeAskCreatedEvent` resolves the
+// ask's own workspace channel first, which here is the channel that asked.
 
 import { ApprovalWaitGate } from '@vynel/orchestration'
 import { listEnabledCapabilities } from '@vynel/capabilities'
@@ -50,10 +50,16 @@ import type { DelegationOrigin } from '@vynel/orchestration'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 import type { HonoAppRequestFn } from '../factory.js'
+import type { PendingAskRegistry } from '@vynel/asks'
 import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
 import { resolveSessionToolPolicies } from './session-tool-catalog.js'
+import { createTurnSessionCarrier } from './turn-session-header.js'
 import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
-import { wrapAppRequestWithOrigin, TurnWallClockExceededError } from './run-global-root-turn.js'
+import {
+  wrapAppRequestWithOrigin,
+  TurnWallClockExceededError,
+  CHANNEL_ASK_TIMEOUT_MS,
+} from './run-global-root-turn.js'
 import { wrapAppRequestWithMode } from './delegation-mode-header.js'
 import { loadEnv } from '../env.js'
 
@@ -71,6 +77,10 @@ export interface WorkspaceChannelTurnOptions {
   turnEvents?: TurnEventBroadcaster
   /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
+  /** The process-wide parked-ask registry — attaching it gives this turn
+   *  `ask_user` with the bounded wait, the global channel runner's shape.
+   *  Absent (tests, older wiring) = ask-free turn. */
+  askWaiters?: PendingAskRegistry
   /** The turn's WORKING-time budget (ms). Omit = `VYNEL_INTERACTIVE_TURN_MAX_MS`,
    *  the same interactive knob a global channel turn wears (BT4). */
   hardCapMs?: number
@@ -118,6 +128,11 @@ export async function buildWorkspaceChannelTurnRunner(
   const sessionFeatureDescriptor = buildSessionFeatureDescriptor(
     swapThreshold !== undefined ? { swapThreshold } : {},
   )
+  const askWaiters = options.askWaiters
+  const buildAskFeatureDescriptor =
+    askWaiters !== undefined
+      ? (await import('@vynel/asks/mcp')).buildAskFeatureDescriptor
+      : undefined
 
   return async function runWorkspaceChannelTurn(db, input) {
     const { userId, workspaceId } = input
@@ -152,9 +167,43 @@ export async function buildWorkspaceChannelTurnRunner(
       // Read the entitlement PER TURN — the hub session refreshes while the
       // process runs; absent reader/entitlement = fail-open (no tier filter).
       const enabledFeatureKeys = readEnabledFeatureKeys?.()
+      // ONE gate per turn (the streams' rule): parked cards (the tracker below)
+      // and parked asks (the descriptor) both mark it, and the wall clock
+      // measures only what is left. Built BEFORE the composition — the ask
+      // descriptor takes it.
+      const waitGate = new ApprovalWaitGate()
+      const askTurnKey = crypto.randomUUID()
+      const askFeatureDescriptors =
+        buildAskFeatureDescriptor !== undefined && askWaiters !== undefined
+          ? [
+              buildAskFeatureDescriptor({
+                waiters: askWaiters,
+                turnKey: askTurnKey,
+                timeoutMs: CHANNEL_ASK_TIMEOUT_MS,
+                waitGate,
+                logger,
+              }),
+            ]
+          : []
+      // This turn's chat-session identity, filled by the stream's first frame —
+      // the read half is what lets `ask_user` name the conversation it parked,
+      // and what `whoami` / `set_todos` / `set_session_status` resolve against.
+      const turnSession = createTurnSessionCarrier()
       const composedMcp = composeSessionMcpServers(
-        [vynelWorkspaceInteractiveDescriptor, notebookFeatureDescriptor, sessionFeatureDescriptor],
-        { db, userId, workspaceId, appRequest, sessionId: target.primarySessionId },
+        [
+          vynelWorkspaceInteractiveDescriptor,
+          notebookFeatureDescriptor,
+          sessionFeatureDescriptor,
+          ...askFeatureDescriptors,
+        ],
+        {
+          db,
+          userId,
+          workspaceId,
+          appRequest,
+          sessionId: target.primarySessionId,
+          resolveChatSessionId: turnSession.current,
+        },
         {
           enabledCapabilityIds: new Set(
             listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),
@@ -169,7 +218,6 @@ export async function buildWorkspaceChannelTurnRunner(
       // The cap arms only now the lock is HELD — queue time was the holder's
       // budget. A parked card suspends it; on expiry the streams' helper
       // interrupts the running session and the turn fails the typed way.
-      const waitGate = new ApprovalWaitGate()
       const approvalParks = trackApprovalParks(waitGate)
       let runningSessionId: string | undefined = target.resumeSdkSessionId ?? undefined
       const cap: { failure: Promise<TurnWallClockFailure> | null } = { failure: null }
@@ -257,9 +305,11 @@ export async function buildWorkspaceChannelTurnRunner(
           if (event.kind === 'session-created') {
             runningSessionId = event.session.id
             activity.sessionResolved(event.session.id)
+            turnSession.resolve(event.session.id)
           } else if (event.kind === 'user-message-persisted') {
             runningSessionId = event.message.sessionId
             activity.sessionResolved(event.message.sessionId)
+            turnSession.resolve(event.message.sessionId)
           } else if (event.kind === 'text-chunk') {
             resultTextChunks.push(event.textDelta)
           } else if (event.kind === 'approval-requested') {
@@ -291,6 +341,21 @@ export async function buildWorkspaceChannelTurnRunner(
       } finally {
         wallClock.clear()
         activity.end(turnOutcome)
+        // A parked ask must not outlive its turn (the global runner's cleanup,
+        // mirrored): cancel THIS turn's waiters and expire their rows. GUARDED
+        // — a bookkeeping failure here must never replace the turn's real
+        // outcome; boot expiry sweeps any row this misses.
+        if (askWaiters !== undefined) {
+          try {
+            const cancelledAskIds = askWaiters.cancelForTurn(askTurnKey)
+            if (cancelledAskIds.length > 0) {
+              const { expireAskRequests } = await import('@vynel/asks')
+              expireAskRequests(db, { askIds: cancelledAskIds }, { logger })
+            }
+          } catch (err) {
+            logger.warn({ err }, 'failed to expire cancelled ask requests at turn end')
+          }
+        }
       }
       return { resultText: resultTextChunks.join('').trim() }
     } finally {

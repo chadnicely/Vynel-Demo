@@ -35,6 +35,8 @@ import {
 } from './report-caller-header.js'
 import { wrapAppRequestWithReportRequester } from './report-requester-header.js'
 import { findPrimaryConversation } from '@vynel/session/continuity'
+import type { DelegationOrigin } from '@vynel/orchestration'
+import { wrapAppRequestWithOrigin } from './run-global-root-turn.js'
 import { loadEnv } from '../env.js'
 
 export type WorkspaceBackgroundMcpComposer = (input: {
@@ -163,6 +165,12 @@ export type DelegatedTurnMcpComposer = (input: {
    *  desktop feature reads it, to decide how an approved plan acquires
    *  authority. Absent = the conservative floor. */
   permissionMode?: string
+  /** The CHANNEL conversation this turn answers (channel report protocol) —
+   *  stamped ambiently so `reply_to_channel` addresses the exact chat that
+   *  asked. Set by the report-delivery runner for a WORKSPACE requester whose
+   *  work a channel drove; absent everywhere else, and then the tool 400s
+   *  honestly as it always did. */
+  origin?: DelegationOrigin
 }) => ComposedSessionMcpServers
 
 // The `whoami` descriptor for every background producer — built once per
@@ -197,6 +205,7 @@ export async function buildDelegatedTurnMcpComposer(
     jobId,
     requesterWorkspaceId,
     permissionMode,
+    origin,
   }) => {
     // The caller identity (session-comms): stamped server-side onto every
     // request this routed turn's tools make, so the report route resolves the
@@ -242,6 +251,13 @@ export async function buildDelegatedTurnMcpComposer(
       permissionMode !== undefined
         ? wrapAppRequestWithMode(jobAwareAppRequest, permissionMode)
         : jobAwareAppRequest
+    // The channel this turn answers (channel report protocol) — the LAST wrap,
+    // matching both channel runners' order, so `reply_to_channel` reads the
+    // same ambient address an inbound channel turn's does.
+    const originAwareAppRequest =
+      origin !== undefined
+        ? wrapAppRequestWithOrigin(modeAwareAppRequest, origin)
+        : modeAwareAppRequest
     // The desktop half. Attached for eligible targets on BOTH branches: the
     // desktop belongs to the USER'S MACHINE, not to a workspace, so a
     // workspace-grounded spawned session is no less entitled than a global one.
@@ -330,7 +346,7 @@ export async function buildDelegatedTurnMcpComposer(
     if (workspaceId === null) {
       return composeSessionMcpServers(
         [vynelRoutingDescriptor, notebookFeatureDescriptor, sessionFeatureDescriptor, ...desktopDescriptors],
-        { db, userId, appRequest: modeAwareAppRequest, ...identityContext, ...desktopContext },
+        { db, userId, appRequest: originAwareAppRequest, ...identityContext, ...desktopContext },
         {
           enabledCapabilityIds: defaultEnabledCapabilityIds(),
           ...(enabledFeatureKeys !== undefined ? { enabledFeatureKeys } : {}),
@@ -346,7 +362,7 @@ export async function buildDelegatedTurnMcpComposer(
         sessionFeatureDescriptor,
         ...desktopDescriptors,
       ],
-      { db, userId, workspaceId, appRequest: modeAwareAppRequest, ...identityContext, ...desktopContext },
+      { db, userId, workspaceId, appRequest: originAwareAppRequest, ...identityContext, ...desktopContext },
       {
         enabledCapabilityIds: new Set(
           listEnabledCapabilities(db, workspaceId).map((capability) => capability.id),

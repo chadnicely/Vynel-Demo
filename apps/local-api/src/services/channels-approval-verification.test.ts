@@ -8,8 +8,8 @@
 //      BOUND to a workspace takes a second runner
 //      (`run-workspace-channel-turn.ts`) which resolves the same semantics
 //      through `resolveBackgroundTurnSettings` (`job.permissionMode ?? row ??
-//      DEFAULT_SESSION_MODE`) — same D1 rule, its own expression, and NOT
-//      covered here: that path was still in flight when this suite landed.
+//      DEFAULT_SESSION_MODE`) — same D1 rule, its own expression, owned by
+//      `resolve-background-turn-settings.test.ts`.
 //   2. the channel REPLY path's card class — the tool the model answers with
 //      must never be able to acquire an approval, or a turn could card on the
 //      very act of speaking back.
@@ -21,7 +21,9 @@
 //     `packages/channels/src/inbound/process-inbound-message.test.ts`
 //   - the BT4 wall clock on every channel turn -> `channels-service.test.ts`
 //   - the bounded `ask_user` + its Telegram nudge ->
-//     `run-global-root-turn.test.ts` + `consume-ask-created-event.test.ts`
+//     `run-global-root-turn.test.ts` + `run-workspace-channel-turn.test.ts`
+//     (both runners now share `CHANNEL_ASK_TIMEOUT_MS`) +
+//     `consume-ask-created-event.test.ts`
 //   - the unanswered-card reaper -> `recover-stale-pending-approvals.test.ts`
 //
 // Real SQLite throughout (`withTestDatabase`); the DB is never mocked.
@@ -166,8 +168,13 @@ describe('the channel REPLY path never requires an approval', () => {
     expect(replyTool?.cardClass).toBe('never')
   })
 
-  it('`reply_to_channel` is offered on the channel surface', () => {
+  it('`reply_to_channel` is offered on BOTH channel surfaces', () => {
     expect(replyTool?.surfaces).toContain('global-channel')
+    // A channel BOUND to a workspace answers on that workspace's own
+    // conversation (2026-08-21), so the reply tool must ride that surface too
+    // — and the requester's notify turn answers a channel through the same one
+    // (channel report protocol).
+    expect(replyTool?.surfaces).toContain('workspace-interactive')
   })
 
   it('the whole channel-turn surface declares no `always` card class', () => {
@@ -184,5 +191,18 @@ describe('the channel REPLY path never requires an approval', () => {
     expect(channelTools.length).toBeGreaterThan(0)
     const classesInUse = [...new Set(channelTools.map((entry) => entry.cardClass))].sort()
     expect(classesInUse).toEqual(['ask', 'never'])
+  })
+
+  it('the WORKSPACE-interactive surface declares no `always` card class either', () => {
+    // The second channel runner (a workspace-bound bot) composes this surface,
+    // and a delivery notify turn on a workspace requester composes it too — so
+    // the same "nothing can card unconditionally" guarantee has to hold here,
+    // or a Telegram turn could park on a card its sender cannot see.
+    const workspaceTools = TOOL_CATALOG_SNAPSHOT.filter((entry) =>
+      entry.surfaces.includes('workspace-interactive'),
+    )
+    expect(workspaceTools.length).toBeGreaterThan(0)
+    const classesInUse = [...new Set(workspaceTools.map((entry) => entry.cardClass))].sort()
+    expect(classesInUse).not.toContain('always')
   })
 })

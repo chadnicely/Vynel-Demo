@@ -97,7 +97,10 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
   // The WORKSPACE runner, built on FIRST use and memoized: its descriptor
   // imports pull the heavy SDK, and an install whose channels are all global
   // should never pay for them. The promise is the memo, so concurrent first
-  // messages share one build.
+  // messages share one build — but a REJECTED promise must never be the memo:
+  // one transient import failure would otherwise make every workspace channel
+  // message fail identically until restart. A failed build clears itself and
+  // the next message tries again.
   let workspaceTurnRunner: Promise<RunWorkspaceChannelTurn> | null = null
   const runWorkspaceTurn: NonNullable<ProcessInboundDeps['runWorkspaceTurn']> = async (
     turnDb,
@@ -111,6 +114,10 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
       hardCapMs: turnMaxMs,
       ...(turnEvents !== undefined ? { turnEvents } : {}),
       ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
+      ...(askWaiters !== undefined ? { askWaiters } : {}),
+    }).catch((err: unknown) => {
+      workspaceTurnRunner = null
+      throw err
     })
     return (await workspaceTurnRunner)(turnDb, input)
   }

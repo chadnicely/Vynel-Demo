@@ -116,6 +116,10 @@ import {
   REPORT_CALLER_HEADER,
 } from "./report-caller-header.js";
 import { DELEGATION_MODE_HEADER } from "./delegation-mode-header.js";
+import {
+  DELEGATION_ORIGIN_HEADER,
+  parseDelegationOriginHeader,
+} from "./delegation-origin-header.js";
 import type { HonoAppRequestFn } from "../factory.js";
 
 const target = {
@@ -254,6 +258,49 @@ describe("buildDelegatedTurnMcpComposer", () => {
       { method: "POST" },
     );
     expect(modeHeaders[1]).toBeNull();
+  });
+
+  it("stamps the ORIGIN header when the turn answers a channel — the reply tool's ambient address (channel report protocol)", async () => {
+    const originHeaders: Array<string | null> = [];
+    const appRequest: HonoAppRequestFn = (async (
+      _input: unknown,
+      init?: RequestInit,
+    ) => {
+      originHeaders.push(new Headers(init?.headers).get(DELEGATION_ORIGIN_HEADER));
+      return new Response("{}", { status: 200 });
+    }) as HonoAppRequestFn;
+    const compose = await buildDelegatedTurnMcpComposer(appRequest);
+
+    // A workspace requester's notify turn for channel-driven work: its
+    // `reply_to_channel` must reach the exact chat that asked, and the address
+    // is server-stamped — a mis-addressed reply is unrecoverable once enqueued.
+    const answering = compose({
+      ...target,
+      target: "workspace-root",
+      origin: {
+        channelId: "chan-1",
+        externalSenderId: "tg-42",
+        externalChatContextId: "chat-7",
+      },
+    });
+    await dispatcherOf(answering.mcpServers["vynel-interactive"])(
+      "/routing/reply-to-channel",
+      { method: "POST" },
+    );
+    expect(originHeaders[0]).not.toBeNull();
+    expect(parseDelegationOriginHeader(originHeaders[0] ?? undefined)).toEqual({
+      channelId: "chan-1",
+      externalSenderId: "tg-42",
+      externalChatContextId: "chat-7",
+    });
+
+    // No channel drove the work → nothing stamped, and the tool 400s honestly.
+    const plain = compose({ ...target, target: "workspace-root" });
+    await dispatcherOf(plain.mcpServers["vynel-interactive"])(
+      "/routing/reply-to-channel",
+      { method: "POST" },
+    );
+    expect(originHeaders[1]).toBeNull();
   });
 });
 

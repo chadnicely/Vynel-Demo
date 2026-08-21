@@ -35,9 +35,10 @@ const SKIPPED_DIRS = new Set([
 // lines (one producer breaks before `.begin`); comment lines are dropped first.
 const BEGIN_CALL = /activityFeed\s*\.\s*begin\(/;
 
-/** The producers today — 8 files. Bump deliberately, with a frame below. */
+/** The producers today — 9 files. Bump deliberately, with a frame below. */
 const KNOWN_PRODUCERS = [
   "apps/local-api/src/sessions/run-global-root-turn.ts",
+  "apps/local-api/src/sessions/run-workspace-channel-turn.ts",
   "apps/local-api/src/sessions/start-fired-workspace-turn.ts",
   "apps/local-api/src/streams/chat-turn.ts",
   "apps/local-api/src/streams/global-root-turn.ts",
@@ -226,6 +227,36 @@ const FRAMES_BY_PRODUCER: Record<string, ProducerFrame[]> = {
       }),
       chip: session("agent-1"),
       chipBeforeGlobalIdKnown: session("agent-1"),
+    },
+  ],
+  // A channel BOUND to a workspace answers on that room's continuing
+  // conversation (2026-08-21) — the same shape a workspace schedule fire wears,
+  // so the rail shows the NAMED conversation chip and clicking it opens the
+  // live thread the Telegram reply lands on (not the bare room chip, which
+  // would read as "the room is busy" and bind the wrong thread).
+  "apps/local-api/src/sessions/run-workspace-channel-turn.ts": [
+    {
+      label: "a workspace channel turn on the continuing conversation (resumed head)",
+      frame: published({
+        scopeKind: "workspace",
+        workspaceId: "ws-1",
+        sessionId: "room-segment-1",
+        origin: "telegram",
+        primarySessionId: "room-primary-1",
+      }),
+      chip: session("room-primary-1"),
+      chipBeforeGlobalIdKnown: session("room-primary-1"),
+    },
+    {
+      label: "a workspace channel turn, first-ever (segment resolves mid-turn)",
+      frame: published({
+        scopeKind: "workspace",
+        workspaceId: "ws-1",
+        origin: "telegram",
+        primarySessionId: "room-primary-1",
+      }),
+      chip: session("room-primary-1"),
+      chipBeforeGlobalIdKnown: session("room-primary-1"),
     },
   ],
   "apps/local-api/src/sessions/start-fired-workspace-turn.ts": [

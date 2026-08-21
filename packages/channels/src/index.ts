@@ -75,6 +75,15 @@ export {
   composeChannelTurnMarker,
   type ChannelTurnMarkerInput,
 } from './inbound/compose-channel-turn-marker.js'
+// The channel report protocol's other end (2026-08-22): the marker a REPORT
+// about channel-driven work carries, so the requester answers where the person
+// is waiting — and the fallback line a turn that replied nothing ships.
+export { composeChannelAnswerMarker } from './inbound/compose-channel-answer-marker.js'
+export {
+  shipSilentChannelTurnFallback,
+  SILENT_CHANNEL_TURN_FALLBACK,
+  type SilentChannelTurnFallbackInput,
+} from './inbound/ship-silent-turn-fallback.js'
 
 // User-scoped single-channel ops — the `/channels` HTTP surface (a user's
 // global + workspace channels alike). Each authorizes by (userId, channelId)

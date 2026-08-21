@@ -1,6 +1,10 @@
-// VERIFICATION suite (channels fix arc, agent B) — the ONE link where the
-// "a Telegram turn never dies silently" promise does NOT hold, pinned as a
-// characterization test so the gap is visible and any fix is a visible change.
+// VERIFICATION suite (channels fix arc, agent B) — the RUNNER's behaviour when
+// the SDK's own classifier refuses a tool. The gap this originally pinned
+// ("a Telegram turn dies silently") was CLOSED on 2026-08-22, one layer up:
+// `route-as-chat-turn` now ships one honest line when a turn queued no reply
+// (`ship-silent-turn-fallback.ts`). These cases still stand, and are what make
+// that fix necessary: a block does NOT fail the turn, records NO card, and
+// leaves the explanation in chat text the runner never delivers.
 //
 // THE SCENARIO. The SDK's own auto-mode classifier can refuse a tool outright,
 // ahead of `canUseTool`, so no Vynel card is ever recorded. The refusal arrives
@@ -14,14 +18,14 @@
 // In the desktop app that is fine: the thread renders a blocked card with a
 // "Run it anyway" affordance. On a CHANNEL turn the card is on a surface the
 // sender is not looking at, AND — as these cases pin — the block does not fail
-// the turn. `route-as-chat-turn` enqueues its apology only from the `catch`,
-// and chat text is never shipped (the tool-only reply policy), so a model that
-// takes the canned STOP at face value and stops without calling
-// `reply_to_channel` leaves the sender with "typing…" and then nothing.
+// the turn, so `route-as-chat-turn`'s `catch` apology never fires.
 //
-// These tests assert TODAY'S behaviour. If a fix lands (surfacing the block to
-// the origin channel, or failing the turn on a top-level block), they turn red
-// on purpose — that is the signal the gap closed.
+// The fix deliberately did NOT change any of that: failing the turn on a
+// top-level block would have thrown away a turn that may have done real work
+// first. The route decides instead, on the one honest signal — did this turn
+// queue anything for the sender? — and ships the model's own explanation, or
+// the fixed line when there is none. So these assertions stay GREEN by design;
+// `ship-silent-turn-fallback.test.ts` owns the other half.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Database } from '@vynel/db'

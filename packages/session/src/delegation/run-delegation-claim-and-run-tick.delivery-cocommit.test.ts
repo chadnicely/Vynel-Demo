@@ -87,8 +87,20 @@ describe('runDelegationClaimAndRunTick — completion co-commit failure', () => 
       expect(job?.resultText).toBe('Acme has 3 docs; all current.')
       expect(job?.surfacedToRootAt).toBeNull()
 
-      // NO delivery row exists either way — reports travel only via
-      // send_message now; the queue is empty.
+      // test: correct expectation for the channel report protocol (Kafi
+      // 2026-08-22) — was "NO delivery row exists either way". The auto-report
+      // lives PAST the completion write, so a co-commit failure must not eat
+      // it: this turn ended without calling send_message, and its requester
+      // still has to hear the result. One delivery is queued, and it settles
+      // (no injected global runner here, so it fails terminally rather than
+      // running a notify turn — either way the queue drains, never stuck).
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({ resultText: 'never' }),
+          logger: silentLogger,
+          activityFeed: new SessionActivityFeed(),
+        }),
+      ).toBe(true)
       expect(
         await runDelegationClaimAndRunTick(db, {
           provider: new FakeAiAgentProvider({ resultText: 'never' }),

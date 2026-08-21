@@ -23,8 +23,18 @@ let nextSdkSessionId = 'sdk-channel-1'
 /** The next turn ends with a terminal `session-errored` carrying this message. */
 let nextTurnErrors: string | null = null
 
-const { wrapAppRequestWithOriginSpy } = vi.hoisted(() => ({
+const { wrapAppRequestWithOriginSpy, askDescriptorCalls } = vi.hoisted(() => ({
   wrapAppRequestWithOriginSpy: vi.fn(),
+  askDescriptorCalls: [] as { waiters: unknown; turnKey: string; timeoutMs: number }[],
+}))
+
+// The ask descriptor pulls the SDK builder — stub it and record what the turn
+// asked for (the BOUND is the subject).
+vi.mock('@vynel/asks/mcp', () => ({
+  buildAskFeatureDescriptor: (input: { waiters: unknown; turnKey: string; timeoutMs: number }) => {
+    askDescriptorCalls.push(input)
+    return { serverName: 'vynel-ask', build: () => null, mutatingToolNames: [] }
+  },
 }))
 
 /** Ordering log — what happened before what (the lock's real subject). */
@@ -98,7 +108,9 @@ import { listChatMessagesForSession } from '@vynel/chat/repositories'
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { SessionActivityFeed } from '@vynel/session/runtime'
 import { SessionTargetLocks } from '@vynel/session/delegation'
+import { PendingAskRegistry } from '@vynel/asks'
 import { DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
+import { CHANNEL_ASK_TIMEOUT_MS } from './run-global-root-turn.js'
 import { buildWorkspaceChannelTurnRunner } from './run-workspace-channel-turn.js'
 
 const silentLogger = pino({ level: 'silent' })
@@ -109,6 +121,7 @@ beforeEach(() => {
   nextSdkSessionId = `sdk-${randomUUID()}`
   nextTurnErrors = null
   wrapAppRequestWithOriginSpy.mockClear()
+  askDescriptorCalls.length = 0
 })
 
 function seedWorld(db: Database) {
@@ -330,8 +343,53 @@ describe('runWorkspaceChannelTurn', () => {
       )
 
       // A leaked key would park every later turn on this workspace forever.
-      const release = await targetLocks.acquire(workspace.id)
-      release()
+      // Read the registry rather than acquiring: an acquire on a LEAKED key
+      // hangs instead of failing, so the guard would time out rather than tell
+      // us what went wrong.
+      expect(targetLocks.isBusy(workspace.id)).toBe(false)
+    })
+  })
+
+  it('gives the turn its chat-session identity and a BOUNDED ask_user (the global runner’s shape)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const askWaiters = new PendingAskRegistry()
+      const cancelForTurn = vi.spyOn(askWaiters, 'cancelForTurn')
+      const run = await buildWorkspaceChannelTurnRunner({
+        logger: silentLogger,
+        appRequest: () => new Response(null),
+        activityFeed: new SessionActivityFeed(),
+        targetLocks: new SessionTargetLocks(),
+        askWaiters,
+      })
+
+      await run(db, turnInput(user.id, workspace))
+
+      // The ask descriptor was built for THIS turn with the shared bound —
+      // nobody may be looking at the app, so an unanswered form expires.
+      expect(askDescriptorCalls).toHaveLength(1)
+      expect(askDescriptorCalls[0]?.timeoutMs).toBe(CHANNEL_ASK_TIMEOUT_MS)
+      expect(askDescriptorCalls[0]?.waiters).toBe(askWaiters)
+      expect(askDescriptorCalls[0]?.turnKey).toEqual(expect.any(String))
+      // …and its waiters are cancelled at turn end, so a parked ask can never
+      // outlive the turn that raised it.
+      expect(cancelForTurn).toHaveBeenCalledWith(askDescriptorCalls[0]?.turnKey)
+    })
+  })
+
+  it('attaches no ask_user at all when no registry is wired (the pre-slice shape)', async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedWorld(db)
+      const run = await buildWorkspaceChannelTurnRunner({
+        logger: silentLogger,
+        appRequest: () => new Response(null),
+        activityFeed: new SessionActivityFeed(),
+        targetLocks: new SessionTargetLocks(),
+      })
+
+      await run(db, turnInput(user.id, workspace))
+
+      expect(askDescriptorCalls).toHaveLength(0)
     })
   })
 })

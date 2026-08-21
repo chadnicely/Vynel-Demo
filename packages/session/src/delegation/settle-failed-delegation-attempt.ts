@@ -24,7 +24,7 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import { extractEmbeddedErrorCode, requeueIfRecoverable } from './classify-turn-failure.js'
-import { enqueueJobFailureDelivery, previewTaskText } from './enqueue-job-failure-delivery.js'
+import { enqueueJobFailureDelivery, previewTaskText } from './enqueue-job-report-delivery.js'
 
 /** Fresh-read whether this WORK job's turn already SPOKE its final report —
  *  the claim-time snapshot predates the mid-run `reportedAt` stamp

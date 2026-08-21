@@ -34,6 +34,13 @@
 // further delivery — the parent's own "report up" happens via the
 // `report_to_requester` tool INSIDE the notify turn (upward-only + the tree
 // topology bound the chain; it terminates at the global root).
+//
+// THE CHANNEL (channel report protocol, Kafi 2026-08-22): a delivery row about
+// work a CHANNEL asked for now carries that channel's origin columns. The notify
+// turn is where the person on Telegram gets their answer — so the origin rides
+// into the turn (its `reply_to_channel` is addressed by it, its approval cards
+// push to the sender), the body carries the answer marker, and if the delivery
+// dies terminally the failsafe ships the report to the channel itself.
 
 import { withTransaction, type Database } from '@vynel/db'
 import type { Logger } from 'pino'
@@ -46,9 +53,12 @@ import {
   requeueDelegationJob,
   resolveThreadIdOf,
   routeRequest,
+  readDelegationJobOrigin,
   type DelegationJob,
+  type DelegationOrigin,
 } from '@vynel/orchestration'
 import { recordDirectReplyMessage, type ChatTurnEvent } from '@vynel/chat'
+import { composeChannelAnswerMarker } from '@vynel/channels'
 import {
   dropPendingCheckpoint,
   findPrimaryConversation,
@@ -64,6 +74,8 @@ import {
   composeUpdateMessageMarker,
 } from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import { resolveDeliverableOrigin } from './resolve-task-target.js'
+import { deliverReportFailsafeToChannel } from './deliver-report-failsafe-to-channel.js'
 import { requeueForAnotherAttempt, requeueIfRecoverable } from './classify-turn-failure.js'
 import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
 import { resolveBackgroundTurnSettings } from './resolve-background-turn-settings.js'
@@ -108,6 +120,14 @@ export type RunGlobalRootReportTurn = (input: {
   /** The delivery variant's steer — the UPDATE steer for an interim ack/progress
    *  delivery. Omitted = the report steer (the shipped default). */
   steerInstructions?: string
+  /** The CHANNEL that asked for the work this delivery reports on (channel
+   *  report protocol) — stamped on every request the notify turn's tools make,
+   *  so `reply_to_channel` answers the exact chat that is waiting. Absent for
+   *  chat/voice-origin work. */
+  origin?: DelegationOrigin
+  /** The channel-answer marker — appended to PROVIDER input only, never the
+   *  persisted row (the voice-turn-marker split). */
+  channelReplyMarker?: string
   /** The delivery queue row — the notify turn's liveness enrichment. */
   jobId?: string
   /** The stable inbound-row id for this delivery (its job id): a retried notify
@@ -140,6 +160,7 @@ export interface RunReportDeliveryDeps {
     jobId?: string
     targetPrimarySessionId?: string
     permissionMode?: string
+    origin?: DelegationOrigin
   }) => RoutedTurnMcpAttachment
   runGlobalRootReportTurn?: RunGlobalRootReportTurn
   /** The pressure threshold the model fit check honors (the env smoke knob). */
@@ -213,10 +234,41 @@ export async function runReportDeliveryJob(
           ? composeSystemMessageMarker(sourceLabel)
           : composeReportMessageMarker(sourceLabel)
   }\n\n${claimed.taskText}`
+  // THE CHANNEL WAITING ON THIS (channel report protocol). Two reads of the same
+  // columns, deliberately: the ADDRESS (pure lift) rides into the turn so its
+  // tools are stamped with it, while the DELIVERABLE (channel row loaded, enabled
+  // + owned checked) decides whether to tell the model a channel is waiting at
+  // all — pointing it at a disabled channel would only make it call a tool that
+  // 400s. A note is never channel work.
+  const originAddress = isNote ? null : readDelegationJobOrigin(claimed)
+  const deliverableOrigin = originAddress !== null ? resolveDeliverableOrigin(db, claimed) : null
+  // The answer marker rides the MESSAGE (the channel-marker precedent — a
+  // system-prompt block decays; recency wins), so the requester's turn is told
+  // whose question this result answers and how to answer it. PROVIDER INPUT
+  // ONLY on both branches: the notify turn's inbound row is what the USER reads
+  // in their thread, and an instruction addressed to a model has no business
+  // there — nor on the direct-persist path, which shows `reportBody` verbatim
+  // as the sender speaking.
+  const channelAnswerMarker =
+    deliverableOrigin !== null
+      ? composeChannelAnswerMarker({ channelKind: deliverableOrigin.channel.channelKind })
+      : undefined
   const inboundSourceKind = isSystemNotification ? ('system' as const) : ('workspace-manager' as const)
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
   const isGlobalRequester = requesterWorkspaceId === null
+
+  /** The row is dead and no attempt remains — the ONE place the last-resort
+   *  channel line is decided (channel report protocol). A user STOP never comes
+   *  through here: stopping the work is not a failure to route around. A
+   *  requeue does not either — the next attempt may still land, and two copies
+   *  of one answer is its own bug. */
+  const failDeliveryTerminally = (reason: string): void => {
+    failDelegationJob(db, claimed.id, reason, new Date())
+    if (deliverableOrigin !== null) {
+      deliverReportFailsafeToChannel(db, claimed, { logger: deps.logger })
+    }
+  }
 
   // DIRECT-REPLY mode (live-tracking redesign): the message IS for the user,
   // so it persists straight onto the root's transcript (the box is the
@@ -364,6 +416,16 @@ export async function runReportDeliveryJob(
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
               ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               steerInstructions,
+              // The person on the channel is waiting on THIS turn's reply
+              // (channel report protocol) — the address is ambient, never
+              // model input, exactly like an inbound channel turn's; the marker
+              // rides provider input only. No `originChannel`: that stamps the
+              // persisted row "via Telegram", and this row is a report FROM A
+              // CHILD, not a message the channel sent.
+              ...(originAddress !== null ? { origin: originAddress } : {}),
+              ...(channelAnswerMarker !== undefined
+                ? { channelReplyMarker: channelAnswerMarker }
+                : {}),
               jobId: claimed.id,
               inboundMessageId: claimed.id,
               waitGate,
@@ -410,8 +472,12 @@ export async function runReportDeliveryJob(
         provider: deps.provider,
         workspaceName,
         waitGate,
-        // No origin: report-delivery rows never carry channel columns (channel
-        // delivery of the task's report happened at task completion).
+        // A delivery row CAN now carry channel columns (channel report
+        // protocol) — and when it does, the person who asked is the one
+        // waiting on this turn, so a card it raises is pushed to them exactly
+        // as a card from the task's own turn was. Absent origin = the shipped
+        // app-only card.
+        ...(deliverableOrigin !== null ? { origin: deliverableOrigin } : {}),
       })
       approvalHandler = handler
 
@@ -426,6 +492,10 @@ export async function runReportDeliveryJob(
               workspaceId: requesterWorkspaceId,
               target: 'workspace-root',
               permissionMode: turnSettings.permissionMode,
+              // Ambient channel address (channel report protocol): the
+              // workspace requester answers the person who asked through its
+              // own `reply_to_channel`, which the composer stamps for it.
+              ...(originAddress !== null ? { origin: originAddress } : {}),
             })
           : undefined
 
@@ -468,6 +538,9 @@ export async function runReportDeliveryJob(
               // requeue re-uses the report row instead of appending it (A3c).
               inboundMessageId: claimed.id,
               steerInstructions,
+              ...(channelAnswerMarker !== undefined
+                ? { providerMarker: channelAnswerMarker }
+                : {}),
               // A delivery is never work: no context nudge (nothing continues it).
               armContextNudge: false,
               ...(turnEvents !== undefined ? { turnEvents } : {}),
@@ -540,7 +613,7 @@ export async function runReportDeliveryJob(
       } else {
         activityHandle?.end('failed')
         if (!requeueForAnotherAttempt(db, claimed, outcome.message, deps.logger, queueLabel)) {
-          failDelegationJob(db, claimed.id, outcome.message, new Date())
+          failDeliveryTerminally(outcome.message)
           deps.logger.warn(
             { jobId: claimed.id, message: outcome.message },
             `${queueLabel} job failed — capped on its last attempt`,
@@ -555,11 +628,11 @@ export async function runReportDeliveryJob(
       // the report body is the ONLY copy of the child's result; before this a
       // failed delivery row was permanently invisible (excluded from both the
       // catch-up net and list_delegated_tasks). A stop never retries.
-      if (
-        cancelHandle?.isCancelRequested() ||
-        !requeueIfRecoverable(db, claimed, reason, deps.logger, queueLabel)
-      ) {
+      if (cancelHandle?.isCancelRequested()) {
         failDelegationJob(db, claimed.id, reason, new Date())
+        deps.logger.warn({ jobId: claimed.id, message: reason }, `${queueLabel} job failed`)
+      } else if (!requeueIfRecoverable(db, claimed, reason, deps.logger, queueLabel)) {
+        failDeliveryTerminally(reason)
         deps.logger.warn({ jobId: claimed.id, message: reason }, `${queueLabel} job failed`)
       }
     }
@@ -567,7 +640,7 @@ export async function runReportDeliveryJob(
   } catch (err) {
     activityHandle?.end('failed')
     await approvalHandler?.abandonParked()
-    failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
+    failDeliveryTerminally(err instanceof Error ? err.message : String(err))
     deps.logger.error({ err, jobId: claimed.id }, `${queueLabel} job run threw unexpectedly`)
     return true
   } finally {

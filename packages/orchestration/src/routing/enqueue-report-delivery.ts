@@ -15,14 +15,19 @@
 //
 // Column reuse (the module notes' shape): `taskText` carries the REPORT body,
 // `workspaceName` the CHILD's composed source label, `parentSessionId` the
-// REPORTER's sdk session id (provenance — the "from" side). Origin-channel
-// columns stay null: channel delivery of a completed task's report happens at
-// task completion (unchanged); the notify turn is the chat/awareness path only.
+// REPORTER's sdk session id (provenance — the "from" side).
+//
+// ORIGIN CHANNEL (channel report protocol, Kafi 2026-08-22): a delivery row MAY
+// now carry the origin columns, and they mean what they mean everywhere else —
+// "a channel message drove this". They used to be hard-nulled here because task
+// completion shipped the channel line itself; that shortcut is gone, so the
+// requester's notify turn is what answers the channel, and it needs the address.
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
 import { resolveThreadId } from './resolve-thread-id.js'
 import { insertDelegationJob } from '../repositories/index.js'
+import type { DelegationOrigin } from './enqueue-workspace-delegation.js'
 
 /** Who receives the notify turn — the conversation that requested the work. */
 export type ReportDeliveryRequester =
@@ -57,6 +62,11 @@ export interface EnqueueReportDeliveryInput {
    *  transcript as the sender speaking (no notify turn; the requester absorbs
    *  it via the catch-up net). Same queue, claim, and retry machinery. */
   deliverDirectly?: boolean
+  /** The CHANNEL that drove the work this report is about — carried so the
+   *  requester's notify turn can reply where the user actually asked
+   *  (`reply_to_channel` reads it as ambient origin). Omit for chat/voice work
+   *  with no external conversation waiting. */
+  origin?: DelegationOrigin
 }
 
 /** Enqueue a report-delivery job for the requester and return its id. */
@@ -101,9 +111,9 @@ export function enqueueReportDelivery(
     resultText: null,
     errorMessage: null,
     surfacedToRootAt: null,
-    originChannelId: null,
-    originExternalSenderId: null,
-    originExternalChatContextId: null,
+    originChannelId: input.origin?.channelId ?? null,
+    originExternalSenderId: input.origin?.externalSenderId ?? null,
+    originExternalChatContextId: input.origin?.externalChatContextId ?? null,
     permissionMode: null,
     model: null,
     thinkingEffort: null,

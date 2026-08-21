@@ -3,7 +3,7 @@
 //
 // Spec: `docs/blueprints/channels/blueprint.md §4`.
 
-import { and, asc, inArray, eq, lt, lte } from 'drizzle-orm'
+import { and, asc, count, gte, inArray, eq, lt, lte } from 'drizzle-orm'
 import type { Database } from '@vynel/db'
 import {
   channelMessageQueue,
@@ -57,6 +57,30 @@ export function listOutboundMessagesForChannel(
     .where(eq(channelMessageQueue.channelId, channelId))
     .orderBy(asc(channelMessageQueue.enqueuedAt))
     .all()
+}
+
+// How many REPLIES (`chat-stream-final` — the reply_to_channel / send_to_channel
+// shape) this conversation has had queued since a moment. The silent-turn
+// fallback's one question: "did the turn actually answer?" Status pushes,
+// approval cards and ask nudges are deliberately NOT replies — a turn that only
+// pushed a card still owes the sender a word.
+export function countChannelRepliesSince(
+  db: Database,
+  input: { channelId: string; externalChatContextId: string; since: Date },
+): number {
+  const [row] = db
+    .select({ value: count() })
+    .from(channelMessageQueue)
+    .where(
+      and(
+        eq(channelMessageQueue.channelId, input.channelId),
+        eq(channelMessageQueue.externalChatContextId, input.externalChatContextId),
+        eq(channelMessageQueue.payloadKind, 'chat-stream-final'),
+        gte(channelMessageQueue.enqueuedAt, input.since),
+      ),
+    )
+    .all()
+  return row?.value ?? 0
 }
 
 export function findOutboundMessageById(

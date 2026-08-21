@@ -120,7 +120,12 @@ describe('routeAsChatTurn — the channel decides the scope', () => {
 
       expect(deps.state.workspaceTurnCalls).toHaveLength(0)
       expect(deps.state.rootTurnCalls).toHaveLength(1)
-      expect(logger.warnings).toHaveLength(1)
+      // test: correct expectation — was a bare warning COUNT, which the
+      // silent-turn fallback's own warn now also lands in. Assert the warning
+      // this test is about instead: the scope fallback.
+      expect(logger.warnings.map((entry) => entry.message).join(' ')).toContain(
+        'workspace that is gone',
+      )
     })
   })
 

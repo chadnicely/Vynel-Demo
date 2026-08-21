@@ -29,9 +29,11 @@ export { resolveColleagueAgent } from './resolve-colleague-agent.js'
 export {
   resolveJobReportRequester,
   enqueueJobFailureDelivery,
+  enqueueAutoReportDelivery,
+  AUTO_REPORT_MARKER,
   previewTaskText,
   jobRetryHint,
-} from './enqueue-job-failure-delivery.js'
+} from './enqueue-job-report-delivery.js'
 export {
   delegateToLeafSession,
   type DelegateToLeafSessionInput,
