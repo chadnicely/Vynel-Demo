@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { DropdownMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
+import ViewModeSwitch from "./ViewModeSwitch.vue";
 
 function mountTitleBar(overrides: Record<string, unknown> = {}) {
   return mount(AppTitleBar, {
@@ -35,15 +36,14 @@ function viewMenuItems(wrapper: ReturnType<typeof mountTitleBar>): MenuItemModel
 // Assistant folded away (New workspace lives under Vynel; the rest is palette
 // territory) and Go died (the tab strip + sidebar are the navigation).
 describe("AppTitleBar", () => {
-  // test: correct expectation — Nodes joined the menu row (2026-08-15). It is
-  // a direct link rather than a menu, so it is a third `nav button` beside the
-  // two dropdown triggers, not a third dropdown.
-  it("renders the two menus plus the Nodes link, and window controls", () => {
+  // test: correct expectation — the Nodes word (2026-08-15) left the menu row
+  // again on 2026-08-22: the view switch's Nodes segment is its one door.
+  it("renders the two menus and the window controls", () => {
     const wrapper = mountTitleBar();
     const menuLabels = wrapper
       .findAll("nav button")
       .map((b) => b.text());
-    expect(menuLabels).toEqual(["Vynel", "View", "Nodes"]);
+    expect(menuLabels).toEqual(["Vynel", "View"]);
 
     for (const label of ["Minimize", "Maximize", "Close"]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true);
@@ -52,22 +52,70 @@ describe("AppTitleBar", () => {
 
   // test: correct expectation (2026-08-14 pixel pass) — title AND presence
   // dot both retired; the canvas's bar center is a bare drag region.
-  // Updated 2026-08-15 for the Nodes link's word.
   it("carries no title and no presence pair — the center is empty", () => {
     const wrapper = mountTitleBar();
     expect(wrapper.find('[data-testid="titlebar-presence"]').exists()).toBe(false);
     // Only the menu row carries text — nothing else. The bar names no scope:
     // the chat header and the tree already say where you are.
-    // test: correct expectation — the Tabs|Menu segment moved into the View
-    // menu (Kafi, 2026-08-21); was "VynelViewNodesTabsMenu".
-    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelViewNodes");
+    // test: correct expectation — was "VynelViewNodes" until the Nodes word
+    // became the switch's icon (2026-08-22).
+    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelView");
   });
 
-  it("the Nodes word commands open-nodes", async () => {
-    const wrapper = mountTitleBar();
-    const nodes = wrapper.findAll("nav button").find((b) => b.text() === "Nodes");
-    await nodes!.trigger("click");
-    expect(wrapper.emitted("command")).toEqual([["open-nodes"]]);
+  // The view switch (Kafi, 2026-08-22): Nodes | Display | Normal, just before
+  // the provider mark. Nodes rides the same command the old word sent.
+  it("the view switch commands open-nodes / view-display / view-normal", async () => {
+    const wrapper = mountTitleBar({ viewMode: "nodes" });
+    await wrapper.get('[aria-label="Nodes"]').trigger("click");
+    await wrapper.get('[aria-label="Display"]').trigger("click");
+    await wrapper.get('[aria-label="Normal view"]').trigger("click");
+    await wrapper.get('[aria-label="Full view"]').trigger("click");
+    expect(wrapper.emitted("command")).toEqual([
+      ["open-nodes"],
+      ["view-display"],
+      ["view-normal"],
+      ["toggle-full-view"],
+    ]);
+  });
+
+  it("sits just before the provider mark, reading the mode and the voice", () => {
+    const wrapper = mountTitleBar({ viewMode: "display", displayOn: true });
+    const switchEl = wrapper.getComponent(ViewModeSwitch);
+    expect(switchEl.props()).toMatchObject({
+      mode: "display",
+      displayLive: true,
+      fullView: false,
+    });
+    expect(switchEl.element.nextElementSibling?.getAttribute("aria-label")).toBe(
+      "Claude account",
+    );
+  });
+
+  // Full view: the bar is its corner cluster — no mark, no menus, no tasks
+  // glyph — floating over the view's own top strip.
+  it("collapses to the corner cluster in full view", () => {
+    const wrapper = mountTitleBar({ viewMode: "nodes", fullView: true });
+    expect(wrapper.find("nav").exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Toggle tasks"]').exists()).toBe(false);
+    expect(wrapper.text().replace(/\s+/g, "")).toBe("");
+    for (const label of ["Nodes", "Display", "Normal view", "Exit full view", "Claude account", "Minimize", "Maximize", "Close"]) {
+      expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true);
+    }
+    expect(wrapper.classes()).toContain("absolute");
+  });
+
+  // Over the Display the cluster wears the Display's palette — the chrome greys
+  // would vanish into its ground. Over the Nodes screen it stays chrome.
+  it("wears the Display palette only over the Display's full view", () => {
+    expect(
+      mountTitleBar({ viewMode: "display", fullView: true }).classes(),
+    ).toContain("display-palette");
+    expect(
+      mountTitleBar({ viewMode: "nodes", fullView: true }).classes(),
+    ).not.toContain("display-palette");
+    expect(mountTitleBar({ viewMode: "display" }).classes()).not.toContain(
+      "display-palette",
+    );
   });
 
   // A workspace puts the rail toggle beside its own files toggle, so the bar
@@ -86,30 +134,6 @@ describe("AppTitleBar", () => {
     const wrapper = mountTitleBar();
     await wrapper.get('[aria-label="Toggle tasks"]').trigger("click");
     expect(wrapper.emitted("command")).toEqual([["toggle-tasks"]]);
-  });
-
-  // The Display switch (2026-08-21): the orb room, and with it the microphone.
-  // Icon-only on purpose — the bar's only words are still its menus.
-  it("the Display glyph commands toggle-display and lights with the room", async () => {
-    const wrapper = mountTitleBar();
-    const glyph = wrapper.get('[aria-label="Toggle Display"]');
-    expect(glyph.attributes("aria-pressed")).toBe("false");
-
-    await glyph.trigger("click");
-    expect(wrapper.emitted("command")).toEqual([["toggle-display"]]);
-
-    const lit = mountTitleBar({ displayOn: true }).get('[aria-label="Toggle Display"]');
-    expect(lit.attributes("aria-pressed")).toBe("true");
-    expect(lit.attributes("title")).toBe("Close Display");
-  });
-
-  // The room is global — a workspace scope drops the rail toggle, never this.
-  it("rides every scope", () => {
-    expect(
-      mountTitleBar({ showsTasksToggle: false })
-        .find('[aria-label="Toggle Display"]')
-        .exists(),
-    ).toBe(true);
   });
 
   // The provider mark (Kafi, 2026-08-18): the Claude account popup's door,

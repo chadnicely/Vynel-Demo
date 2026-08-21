@@ -9,9 +9,10 @@
 // its command routing without booting the whole app.
 
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import { ResizablePanel } from "@vynel/ui";
 import type { VynelClient } from "@vynel/sdk";
 import { createAppRouter } from "../../router.js";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
@@ -172,5 +173,123 @@ describe("AppShell — the Display", () => {
     startVoice();
     expect(ui.isVoiceOverlayOpen).toBe(false);
     expect(displayVoice.isLive).toBe(true);
+  });
+});
+
+// The view switch (Kafi, 2026-08-22): Nodes | Display | Normal in the title
+// bar, and full view — the chrome stepping out from under the Nodes screen or
+// the Display. Derived, not stored: the switch reads the route + the Display
+// toggle back; only the full-view flag is the store's, and it is sticky.
+describe("AppShell — the view switch", () => {
+  function press(wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"], id: string) {
+    wrapper.getComponent(AppTitleBar).vm.$emit("command", id);
+  }
+  const titleBar = (wrapper: Awaited<ReturnType<typeof mountShell>>["wrapper"]) =>
+    wrapper.getComponent(AppTitleBar).props();
+
+  it("Nodes goes to the Nodes screen and reads back; Normal returns to the chat", async () => {
+    const { wrapper, router } = await mountShell();
+    expect(titleBar(wrapper).viewMode).toBe("normal");
+
+    press(wrapper, "open-nodes");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+    await wrapper.vm.$nextTick();
+    expect(titleBar(wrapper).viewMode).toBe("nodes");
+
+    press(wrapper, "view-normal");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"));
+    await wrapper.vm.$nextTick();
+    expect(titleBar(wrapper).viewMode).toBe("normal");
+  });
+
+  it("full view drops the sidebar and collapses the bar; Normal brings the chrome back", async () => {
+    const { wrapper, ui, router } = await mountShell();
+    press(wrapper, "open-nodes");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(1);
+    expect(titleBar(wrapper).fullView).toBe(false);
+
+    press(wrapper, "toggle-full-view");
+    await wrapper.vm.$nextTick();
+    expect(ui.isFullView).toBe(true);
+    expect(titleBar(wrapper).fullView).toBe(true);
+    expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(0);
+    expect(wrapper.get(".app-shell").classes()).toContain("full-view");
+
+    // The normal view is always exactly as it is — and the flag stays put for
+    // the next time a full-capable view comes up.
+    press(wrapper, "view-normal");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"));
+    await wrapper.vm.$nextTick();
+    expect(titleBar(wrapper).fullView).toBe(false);
+    expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(1);
+    expect(ui.isFullView).toBe(true);
+
+    press(wrapper, "open-nodes");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+    await wrapper.vm.$nextTick();
+    expect(titleBar(wrapper).fullView).toBe(true);
+  });
+
+  it("Display opens the room and takes the voice; again closes it", async () => {
+    const { wrapper, ui } = await mountShell();
+    const displayVoice = useDisplayVoice();
+
+    press(wrapper, "view-display");
+    await wrapper.vm.$nextTick();
+    expect(ui.globalTab.shell.mainView).toBe("display");
+    expect(titleBar(wrapper).viewMode).toBe("display");
+    expect(displayVoice.isLive).toBe(true);
+
+    press(wrapper, "view-display");
+    await wrapper.vm.$nextTick();
+    expect(ui.globalTab.shell.mainView).toBe("chat");
+    expect(titleBar(wrapper).viewMode).toBe("normal");
+    expect(displayVoice.isLive).toBe(false);
+  });
+
+  it("Normal leaves the room with the conversation still running, lit on the bar", async () => {
+    const { wrapper, ui } = await mountShell();
+    const displayVoice = useDisplayVoice();
+    press(wrapper, "view-display");
+    await wrapper.vm.$nextTick();
+
+    press(wrapper, "view-normal");
+    await flushPromises();
+
+    expect(ui.globalTab.shell.mainView).toBe("chat");
+    expect(titleBar(wrapper).viewMode).toBe("normal");
+    expect(displayVoice.isLive).toBe(true);
+    expect(titleBar(wrapper).displayOn).toBe(true);
+  });
+
+  // Display → Nodes leaves the room parked on the global tab (the Nodes screen
+  // is a route, not a canvas view). Normal from there must land on the chat —
+  // a raw route push would have brought the parked room straight back with
+  // the Display segment pressed (review, 2026-08-22).
+  it("Normal from Nodes lands on the chat even with a room parked behind it", async () => {
+    const { wrapper, ui, router } = await mountShell();
+    press(wrapper, "view-display");
+    await wrapper.vm.$nextTick();
+    press(wrapper, "open-nodes");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+    expect(ui.globalTab.shell.mainView).toBe("display");
+
+    press(wrapper, "view-normal");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"));
+    await wrapper.vm.$nextTick();
+
+    expect(ui.globalTab.shell.mainView).toBe("chat");
+    expect(titleBar(wrapper).viewMode).toBe("normal");
+  });
+
+  // The palette can send the expander's command from anywhere; on the normal
+  // view it must not arm the sticky flag invisibly.
+  it("ignores the full-view toggle on the normal view", async () => {
+    const { wrapper, ui } = await mountShell();
+    press(wrapper, "toggle-full-view");
+    await wrapper.vm.$nextTick();
+    expect(ui.isFullView).toBe(false);
   });
 });

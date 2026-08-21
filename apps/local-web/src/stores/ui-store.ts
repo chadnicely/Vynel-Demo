@@ -415,6 +415,15 @@ export const useUiStore = defineStore("ui", () => {
   // constellation.
   const nodesMode = ref<NodesMode>("nodes");
 
+  // Full view (Kafi, 2026-08-22): the Nodes screen or the Display filling the
+  // window — title-bar menus and sidebar gone, only the view switch and the
+  // window controls left in the corner. Sticky for the session (leaving for the
+  // normal view and coming back lands you full again) and, like `nodesMode`,
+  // deliberately not persisted: a fresh app opens with its chrome on. It only
+  // ever applies while a full-capable view is on screen — the normal view is
+  // always exactly as it is.
+  const isFullView = ref(false);
+
   return {
     theme,
     toggleTheme,
@@ -444,5 +453,6 @@ export const useUiStore = defineStore("ui", () => {
     createWorkspaceRequestCount,
     requestCreateWorkspace,
     nodesMode,
+    isFullView,
   };
 });

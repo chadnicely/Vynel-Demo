@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  PhBroadcast as Broadcast,
   PhBrowsers as Browsers,
   PhCommand as Command,
   PhDiamondsFour as DiamondsFour,
@@ -20,6 +19,8 @@ import {
 } from "@phosphor-icons/vue";
 import { ClaudeMark, DropdownMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
+import ViewModeSwitch from "./ViewModeSwitch.vue";
+import type { ViewMode } from "../../composables/shell/use-view-mode.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
 
@@ -31,6 +32,12 @@ import { shortcutHint } from "../../utils/shortcut-label.js";
 // Data-blind: it renders menus + emits `command`; the shell decides what each
 // id does. Window controls drive the frameless Tauri window (no-op in the
 // browser).
+//
+// Full view (Kafi, 2026-08-22): the Nodes screen or the Display fills the
+// window and the bar collapses to its corner cluster — the view switch, the
+// provider mark and the window controls — floating over the view's own top
+// strip. The mark, the menus and the bar's ground all go; nothing else moves,
+// so the normal view is exactly what it always was.
 const props = withDefaults(
   defineProps<{
   theme: "dark" | "light";
@@ -41,12 +48,17 @@ const props = withDefaults(
    *  workspace puts the rail toggle beside its files toggle, so the bar must
    *  not carry a second one. */
   showsTasksToggle?: boolean;
-  /** The Display room is on screen right now — the switch lights with it. */
+  /** The Display feature holds this window's voice — the switch's Display
+   *  segment glows with it, on screen or running behind another view. */
   displayOn?: boolean;
+  /** What the window is showing, as the switch reads it back. */
+  viewMode?: ViewMode;
+  /** The view fills the window — the bar is its corner cluster only. */
+  fullView?: boolean;
   }>(),
   // Explicit, not merely absent: Vue casts an unpassed boolean prop to false,
   // which would silently strip the toggle from a bar that never opted out.
-  { showsTasksToggle: true, displayOn: false },
+  { showsTasksToggle: true, displayOn: false, viewMode: "normal", fullView: false },
 );
 
 const emit = defineEmits<{
@@ -68,7 +80,8 @@ function onMenuOpenChange(open: boolean) {
 // settings, account, quit); View = how the window looks, each row wearing an
 // icon of what it changes. Navigation rows (Sessions, tasks) left the bar —
 // the tab strip + sidebar ARE the navigation, and the tasks dock has its own
-// title-bar button.
+// title-bar button. The Nodes word left too (2026-08-22): the view switch's
+// Nodes segment is its one door now.
 const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
   {
     label: "Vynel",
@@ -143,59 +156,82 @@ function onMenuCommand(id: string) {
   if (id === "quit") controls.close();
   else emit("command", id);
 }
+
+// Each segment is a command the shell already knows — Nodes rides the same
+// `open-nodes` the title-bar word used to send.
+const VIEW_COMMANDS: Record<ViewMode, string> = {
+  nodes: "open-nodes",
+  display: "view-display",
+  normal: "view-normal",
+};
+
+// Over the Display the corner cluster reads in the Display's own palette —
+// the app's chrome greys would vanish into its ground (or, in the light theme,
+// sit as dark smudges on it).
+const wearsDisplayPalette = computed(() => props.fullView && props.viewMode === "display");
 </script>
 
 <template>
   <header
-    class="flex h-[34px] shrink-0 items-center gap-0.5 border-b border-hair bg-chrome pl-2 pr-0 select-none"
+    class="flex h-[34px] shrink-0 items-center gap-0.5 pr-0 select-none"
+    :class="[
+      props.fullView
+        ? 'absolute right-0 top-0 z-20 bg-transparent'
+        : 'border-b border-hair bg-chrome pl-2',
+      wearsDisplayPalette ? 'display-palette corner-on-display' : '',
+    ]"
     data-tauri-drag-region
   >
-    <!-- Identity mark — the canvas's accent diamonds-four. -->
-    <span class="mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-[var(--color-accent)]">
-      <DiamondsFour :size="15" weight="regular" />
-    </span>
+    <template v-if="!props.fullView">
+      <!-- Identity mark — the canvas's accent diamonds-four. -->
+      <span class="mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-[var(--color-accent)]">
+        <DiamondsFour :size="15" weight="regular" />
+      </span>
 
-    <!-- Menu bar -->
-    <nav class="flex items-center gap-0.5">
-      <DropdownMenu
-        v-for="menu in menus"
-        :key="menu.label"
-        :items="menu.items"
-        align="start"
-        @select="onMenuCommand"
-        @toggle="(id) => emit('command', id)"
-        @update:open="onMenuOpenChange"
-      >
-        <template #trigger>
-          <button
-            type="button"
-            class="rounded-sm px-2 py-0.5 text-[12px] text-ink-2 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
-          >
-            {{ menu.label }}
-          </button>
-        </template>
-      </DropdownMenu>
-      <!-- The whole fleet's node screen, one word away (Chad, 2026-08-11):
-           a direct link, not a menu — the project rooms carry their own
-           quieter icons for their own nodes. Wears the menu triggers' own
-           classes so it sits flush with them rather than proud of them. -->
-      <button
-        type="button"
-        class="rounded-sm px-2 py-0.5 text-[12px] text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
-        @click="emit('command', 'open-nodes')"
-      >
-        Nodes
-      </button>
-    </nav>
+      <!-- Menu bar -->
+      <nav class="flex items-center gap-0.5">
+        <DropdownMenu
+          v-for="menu in menus"
+          :key="menu.label"
+          :items="menu.items"
+          align="start"
+          @select="onMenuCommand"
+          @toggle="(id) => emit('command', id)"
+          @update:open="onMenuOpenChange"
+        >
+          <template #trigger>
+            <button
+              type="button"
+              class="rounded-sm px-2 py-0.5 text-[12px] text-ink-2 transition hover:bg-row-hover hover:text-ink-1 data-[state=open]:bg-row-active data-[state=open]:text-ink-1"
+            >
+              {{ menu.label }}
+            </button>
+          </template>
+        </DropdownMenu>
+      </nav>
 
-    <!-- Center: pure drag region — the canvas's bar carries nothing here
-         (title + presence dot both retired; the tabs/tree/rail say where
-         you are and what's live). -->
-    <div class="flex-1" data-tauri-drag-region />
+      <!-- Center: pure drag region — the canvas's bar carries nothing here
+           (title + presence dot both retired; the tabs/tree/rail say where
+           you are and what's live). -->
+      <div class="flex-1" data-tauri-drag-region />
+    </template>
+
+    <!-- The view switch (Kafi, 2026-08-22): Nodes | Display | Normal, first of
+         the right cluster, just before the provider mark. Its Display segment
+         carries what the Broadcast glyph used to — the room, and with it the
+         microphone. -->
+    <ViewModeSwitch
+      class="mr-2"
+      :mode="props.viewMode"
+      :display-live="props.displayOn"
+      :full-view="props.fullView"
+      @pick="(mode) => emit('command', VIEW_COMMANDS[mode])"
+      @toggle-full-view="emit('command', 'toggle-full-view')"
+    />
 
     <!-- The provider mark (Kafi, 2026-08-18): whose engine this machine runs
-         on — the Claude account popup's door, first of the right cluster.
-         Identity coral, never gold (presence). -->
+         on — the Claude account popup's door. Identity coral, never gold
+         (presence). -->
     <button
       type="button"
       aria-label="Claude account"
@@ -210,26 +246,8 @@ function onMenuCommand(id: string) {
          rail toggle only appears where the scope has no pane tools of its own
          — a workspace keeps it beside its files toggle instead. -->
     <div class="flex shrink-0 items-center gap-[18px] pl-1.5 pr-3 text-[13px]">
-      <!-- The Display switch: the orb room, and with it the microphone. It
-           sits on every scope (the room is global) and leads the row — the
-           window controls stay rightmost. -->
       <button
-        type="button"
-        aria-label="Toggle Display"
-        :title="props.displayOn ? 'Close Display' : 'Open Display'"
-        :aria-pressed="props.displayOn"
-        class="grid place-items-center transition"
-        :class="
-          props.displayOn
-            ? 'text-[var(--color-accent-200)]'
-            : 'text-ink-3 hover:text-ink-1'
-        "
-        @click="emit('command', 'toggle-display')"
-      >
-        <Broadcast :size="13" />
-      </button>
-      <button
-        v-if="props.showsTasksToggle"
+        v-if="props.showsTasksToggle && !props.fullView"
         type="button"
         aria-label="Toggle tasks"
         title="Show tasks"
@@ -246,7 +264,7 @@ function onMenuCommand(id: string) {
       <button
         type="button"
         aria-label="Minimize"
-        class="grid place-items-center text-ink-3 transition hover:text-ink-1"
+        class="window-control grid place-items-center text-ink-3 transition hover:text-ink-1"
         @click="controls.minimize()"
       >
         <Minus :size="13" />
@@ -254,7 +272,7 @@ function onMenuCommand(id: string) {
       <button
         type="button"
         :aria-label="controls.isMaximized.value ? 'Restore' : 'Maximize'"
-        class="grid place-items-center text-ink-3 transition hover:text-ink-1"
+        class="window-control grid place-items-center text-ink-3 transition hover:text-ink-1"
         @click="controls.toggleMaximize()"
       >
         <Square :size="13" />
@@ -262,7 +280,7 @@ function onMenuCommand(id: string) {
       <button
         type="button"
         aria-label="Close"
-        class="grid place-items-center text-ink-3 transition hover:text-[var(--danger)]"
+        class="window-control grid place-items-center text-ink-3 transition hover:text-[var(--danger)]"
         @click="controls.close()"
       >
         <X :size="13" />
@@ -270,3 +288,15 @@ function onMenuCommand(id: string) {
     </div>
   </header>
 </template>
+
+<style scoped>
+/* The window controls over the Display: the palette's dim accent, brightening
+   to its text on hover — the same two values the room's own pills use. */
+.corner-on-display .window-control {
+  color: var(--display-accent-dim);
+}
+
+.corner-on-display .window-control:hover {
+  color: var(--display-text);
+}
+</style>

@@ -79,6 +79,7 @@ import { useSessionActivityFeed } from "../../composables/activity/use-session-a
 import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-status.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
+import { useViewMode } from "../../composables/shell/use-view-mode.js";
 import { foldGlobalAreaStatus } from "./global-area-status.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
@@ -542,8 +543,26 @@ watch(
 // take their answer from that one predicate, so they can never disagree.
 // `showDisplay` is the wake path: it puts the room on screen without touching
 // the session the wake just announced.
-const { toggleDisplay, showDisplay } = useDisplayToggle();
+const { isDisplayActive, toggleDisplay, showDisplay, leaveDisplay, pickDisplay } =
+  useDisplayToggle();
 const displayVoice = useDisplayVoice();
+
+// The view switch's reading (Kafi, 2026-08-22) — Nodes | Display | Normal,
+// derived from the route + the Display toggle, and whether that view fills
+// the window. In full view the chrome steps out: the title bar is its corner
+// cluster, the sidebar and strip are gone, and the view's own top bar leaves
+// the cluster room on the right (`--chrome-inset-right`, set below).
+const { viewMode, isFullView } = useViewMode(isDisplayActive);
+
+// "Normal" is wherever the canvas was before the view took it: the room hands
+// the tab its previous view back, the Nodes screen returns to the global chat
+// (it only ever lives on the Global tab). Through `selectSurface`, not a raw
+// route push: a room still parked on the global tab would otherwise come
+// straight back as the chat route lands (review, 2026-08-22).
+function returnToNormalView() {
+  if (viewMode.value === "display") leaveDisplay();
+  else if (viewMode.value === "nodes") selectSurface("chat");
+}
 
 // The overlay's own switch must never outlive the overlay. It can be left ON
 // behind the Display — "Start voice" from the palette, then a menu row into
@@ -624,6 +643,23 @@ function runCommand(id: string) {
     case "toggle-display":
       toggleDisplay();
       break;
+    // The view switch's segments. Display goes to the room and takes the
+    // microphone if nobody has it (or closes the room when already there);
+    // Normal restores the canvas; the expander flips full view, which only
+    // ever shows while a full-capable view is on screen.
+    case "view-display":
+      pickDisplay();
+      break;
+    case "view-normal":
+      returnToNormalView();
+      break;
+    case "toggle-full-view":
+      // Only where it shows — the palette can send this from the normal view,
+      // and arming the sticky flag invisibly there would open the NEXT
+      // Nodes/Display full with nothing the user did to explain it (the
+      // `toggle-sidebar` guard above exists for the same reason).
+      if (viewMode.value !== "normal") ui.isFullView = !ui.isFullView;
+      break;
     case "settings":
       selectSection("application");
       break;
@@ -645,6 +681,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "go-home", label: "Go to Home", group: "Go" },
   { id: "go-chat", label: "Go to Chat", group: "Go" },
   { id: "go-sessions", label: "Go to Sessions", group: "Go" },
+  { id: "open-nodes", label: "Go to Nodes", group: "Go", keywords: "fleet constellation projects" },
   ...workspaceOptions.value.map((w) => ({
     id: `ws:${w.id}`,
     label: w.name,
@@ -660,6 +697,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
+  { id: "toggle-full-view", label: "Toggle full view", group: "View", keywords: "nodes display fullscreen" },
   ui.navMode === "tabs"
     ? { id: "nav-menu", label: "Switch to menu navigation", group: "View", keywords: "tree workspaces" }
     : { id: "nav-tabs", label: "Switch to tabs navigation", group: "View", keywords: "strip" },
@@ -725,7 +763,7 @@ onBeforeUnmount(() => {
   <!-- Browser mode is a focus TAKEOVER: the scope strip and sidebar tuck
        away (their grid row collapses), chat keeps the left, the page takes
        the right. Closing restores every piece — nothing is torn down. -->
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'full-view': isFullView }">
     <AppTitleBar
       :theme="ui.theme"
       :nav-mode="ui.navMode"
@@ -733,13 +771,17 @@ onBeforeUnmount(() => {
       :tasks-open="ui.isTasksPanelOpen"
       :shows-tasks-toggle="!inWorkspaceScope"
       :display-on="displayVoice.ownsVoice"
+      :view-mode="viewMode"
+      :full-view="isFullView"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
     />
 
     <div class="app-body">
+      <!-- Full view takes the sidebar with the menus — the state underneath is
+           untouched, so leaving full view brings it straight back. -->
       <ResizablePanel
-        v-if="isSidebarOpen && !browser.isOpen"
+        v-if="isSidebarOpen && !browser.isOpen && !isFullView"
         side="left"
         storage-key="vynel.sidebar.width"
         :default-width="208"
@@ -788,7 +830,7 @@ onBeforeUnmount(() => {
              start at the chat edge, the sidebar runs beside them). Menu mode
              collapses it — the sidebar tree takes over. -->
         <AppTabStrip
-          v-if="!browser.isOpen && ui.navMode === 'tabs'"
+          v-if="!browser.isOpen && ui.navMode === 'tabs' && !isFullView"
           :tabs="ui.tabs"
           :active-tab-id="ui.activeTabId"
           :workspaces="workspaceOptions"
@@ -853,6 +895,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app-shell {
+  position: relative;
   display: grid;
   /* Title bar · body — the canvas's rows (34px bar, no status bar; the
      strip lives inside the canvas column). */
@@ -860,6 +903,15 @@ onBeforeUnmount(() => {
   height: 100vh;
   background: var(--bg-shell);
   color: var(--ink-1);
+}
+
+/* Full view: the body takes the whole window and the title bar floats over
+   its top-right corner as the cluster alone (it positions itself against
+   this box). The inset is that cluster's width — the view's own top strip
+   reads it to keep its right end clear. */
+.app-shell.full-view {
+  grid-template-rows: 1fr;
+  --chrome-inset-right: 268px;
 }
 
 .app-body {

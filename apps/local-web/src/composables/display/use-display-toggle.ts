@@ -27,6 +27,15 @@ export interface DisplayToggle {
    *  path. A wake asks the user to LOOK at the room; answering it with the
    *  switch would turn the very conversation it announced off. */
   showDisplay(): void;
+  /** Take the room off the canvas, restoring whatever the tab showed before,
+   *  without touching the voice — the conversation is the window's and keeps
+   *  running behind the view you return to (the dock mirrors it). */
+  leaveDisplay(): void;
+  /** The view switch's Display segment (Kafi, 2026-08-22): go to the room and
+   *  take the microphone if nobody has it; a conversation already running
+   *  is joined, never restarted. In the room already, the segment is the
+   *  switch's OFF — the same close the old glyph did. */
+  pickDisplay(): void;
 }
 
 /** Where a tab's canvas is rendered: the pinned Global tab lives on the chat
@@ -113,6 +122,12 @@ export function useDisplayToggle(): DisplayToggle {
     if (route.name !== canvasRoute) void router.push({ name: canvasRoute });
   }
 
+  function leaveDisplay(): void {
+    if (!isDisplayActive.value) return;
+    const tab = ui.activeTab;
+    tab.shell.mainView = viewBeforeDisplay.get(tab.id) ?? "chat";
+  }
+
   function toggleDisplay(): void {
     // OFF is whatever the glyph is lit for — the room on screen, a session
     // running somewhere behind another view, or both. A switch that read ON
@@ -121,15 +136,25 @@ export function useDisplayToggle(): DisplayToggle {
       displayVoice.end();
       // Only if that is where you are: ending a session from the workspace you
       // were working in must not drag you to the room to do it.
-      if (isDisplayActive.value) {
-        const tab = ui.activeTab;
-        tab.shell.mainView = viewBeforeDisplay.get(tab.id) ?? "chat";
-      }
+      leaveDisplay();
       return;
     }
     showDisplay();
     displayVoice.start();
   }
 
-  return { isDisplayActive, toggleDisplay, showDisplay };
+  function pickDisplay(): void {
+    if (isDisplayActive.value) {
+      toggleDisplay();
+      return;
+    }
+    // Read BEFORE showing: putting the room on screen is itself one of the
+    // ways the Display comes to own the voice, so reading after would never
+    // start a microphone.
+    const hadVoice = displayVoice.ownsVoice;
+    showDisplay();
+    if (!hadVoice) displayVoice.start();
+  }
+
+  return { isDisplayActive, toggleDisplay, showDisplay, leaveDisplay, pickDisplay };
 }

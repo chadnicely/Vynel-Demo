@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { DisplayOrb, DisplayPanel, DisplayStrip } from "@vynel/ui";
 import type { DisplayPanelRow } from "@vynel/ui";
+import { useUiStore } from "../../stores/ui-store.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import { useDisplayStatus } from "../../composables/display/use-display-status.js";
 import { TELEMETRY_CAP } from "../../composables/display/display-status-rows.js";
@@ -38,6 +39,9 @@ const props = defineProps<{
 }>();
 
 const voice = useDisplayVoice();
+// The raw full-view flag IS the derived reading here — the room only mounts
+// while the Display is the live view.
+const ui = useUiStore();
 
 const { status, telemetry, clock, noteBoardChange } = useDisplayStatus();
 const spikeKey = useSpokenClauseSpike();
@@ -120,7 +124,14 @@ const WIDGET_HINT = "Claude can put reports here";
 
 <template>
   <div class="display-root display-view">
+    <!-- In full view the strip IS the window's top row: it drags the window
+         (the title bar is gone) and leaves the shell's corner cluster its
+         room on the right. The drag is bound, not constant — Tauri honours
+         the attribute whenever it is in the DOM, and the normal view already
+         has a title bar to drag by. -->
     <DisplayStrip
+      class="strip"
+      :data-tauri-drag-region="ui.isFullView || undefined"
       brand="Vynel"
       :subtitle="subtitle"
       :linked="status.linked"
@@ -210,6 +221,12 @@ const WIDGET_HINT = "Claude can put reports here";
   gap: 14px;
   padding: 14px 16px 18px;
   min-height: 0;
+}
+
+/* The shell sets the inset only in full view — the width of the corner
+   cluster it floats over the strip's right end. */
+.strip {
+  padding-right: var(--chrome-inset-right, 0px);
 }
 
 .display-body {

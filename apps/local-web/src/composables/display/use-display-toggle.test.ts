@@ -358,3 +358,69 @@ describe("useDisplayToggle — the switch is the voice", () => {
     expect(voice.end).not.toHaveBeenCalled();
   });
 });
+
+// The view switch's verbs (Kafi, 2026-08-22). Picking Display is a place to
+// go, not a hang-up: it joins a conversation already running, starts one when
+// nobody has the microphone, and only closes the room when the room is what
+// is on screen. Leaving for the normal view never touches the voice.
+describe("useDisplayToggle — the view switch", () => {
+  it("pick from nothing shows the room and starts the voice", async () => {
+    const { toggle, ui, voiceStore } = await mountToggle();
+    ui.globalTab.shell.mainView = "account";
+
+    toggle().pickDisplay();
+
+    expect(ui.globalTab.shell.mainView).toBe("display");
+    expect(voiceStore.isLive).toBe(true);
+    expect(voice.start).toHaveBeenCalledTimes(1);
+  });
+
+  it("pick in the room is the switch's off — the voice ends, the canvas comes back", async () => {
+    const { toggle, ui, voiceStore } = await mountToggle();
+    ui.globalTab.shell.mainView = "account";
+    toggle().pickDisplay();
+
+    toggle().pickDisplay();
+
+    expect(ui.globalTab.shell.mainView).toBe("account");
+    expect(voiceStore.isLive).toBe(false);
+    expect(voice.end).toHaveBeenCalledTimes(1);
+  });
+
+  it("pick from another view joins the running conversation instead of restarting it", async () => {
+    const { toggle, ui, router, voiceStore } = await mountToggle();
+    toggle().pickDisplay();
+    await router.push("/home");
+    await flushPromises();
+    expect(toggle().isDisplayActive.value).toBe(false);
+
+    toggle().pickDisplay();
+    await flushPromises();
+
+    expect(router.currentRoute.value.name).toBe("chat");
+    expect(ui.globalTab.shell.mainView).toBe("display");
+    expect(voiceStore.isLive).toBe(true);
+    expect(voice.start).toHaveBeenCalledTimes(1);
+    expect(voice.end).not.toHaveBeenCalled();
+  });
+
+  it("leave hands the canvas back and keeps the conversation running", async () => {
+    const { toggle, ui, voiceStore } = await mountToggle();
+    ui.globalTab.shell.mainView = "account";
+    toggle().pickDisplay();
+
+    toggle().leaveDisplay();
+
+    expect(ui.globalTab.shell.mainView).toBe("account");
+    expect(toggle().isDisplayActive.value).toBe(false);
+    expect(voiceStore.isLive).toBe(true);
+    expect(voice.end).not.toHaveBeenCalled();
+  });
+
+  it("leave is a no-op when the room is not on screen", async () => {
+    const { toggle, ui } = await mountToggle("/home");
+    ui.globalTab.shell.mainView = "account";
+    toggle().leaveDisplay();
+    expect(ui.globalTab.shell.mainView).toBe("account");
+  });
+});

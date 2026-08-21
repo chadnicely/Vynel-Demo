@@ -115,7 +115,9 @@ const counts = computed(() => ({
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 8px 14px;
+  /* In full view the shell floats its corner cluster over this bar's right
+     end; the inset is the cluster's width, zero everywhere else. */
+  padding: 8px calc(14px + var(--chrome-inset-right, 0px)) 8px 14px;
   border-bottom: 1px solid var(--hair);
   background: rgba(22, 24, 38, 0.6);
   backdrop-filter: blur(6px);

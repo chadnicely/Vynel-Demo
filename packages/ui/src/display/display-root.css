@@ -11,7 +11,11 @@
  * `lighter` compositing has no light-theme equivalent, so the Display paints
  * its own ground regardless of the app theme. */
 
-.display-root {
+/* The palette alone, for chrome that sits OVER the Display without being part
+ * of it (the shell's full-view corner cluster): it reads the same seven values
+ * and paints no ground of its own. */
+.display-root,
+.display-palette {
   --display-accent: #4fd8ff;
   --display-accent-dim: rgba(79, 216, 255, 0.45);
   --display-accent-faint: rgba(79, 216, 255, 0.16);
@@ -23,7 +27,9 @@
    * these seven values and `DEFAULT_ORB_PALETTE`, nothing else. */
   --display-ground-top: #02132b;
   --display-ground-bottom: #010a1c;
+}
 
+.display-root {
   position: relative;
   overflow: hidden;
   color: var(--display-accent);

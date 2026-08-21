@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A view switch in the top bar, and a full view.** Three icons just before the Claude
+  mark — Nodes, Display, Normal — take you between the project constellation, the orb
+  room and the everyday chat. On Nodes or the Display a fourth icon expands to **full
+  view**: menus and sidebar step out, the view fills the window, and only the switch and
+  the window controls stay in the corner. The Display segment is the voice switch now
+  (it opens the room and the microphone together; pressed again in the room it closes
+  both); the Broadcast glyph and the `Nodes` word in the menu bar are gone. Normal view
+  is exactly what it always was.
+
 - **The Display follows you.** When you leave the Display mid-conversation, a small
   display dock appears bottom-right (above the desktop-control window when that one is
   showing) with the orb, the last line and the mic; it hides again when you return. Saying
