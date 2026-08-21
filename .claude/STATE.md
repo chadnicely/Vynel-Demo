@@ -3,7 +3,35 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-21 (latest) THE DISPLAY — P2 WIDGETS MERGED (main 074c6ba8), P3 PRESENCE NEXT
+## ✅ 2026-08-21 (latest) THE DISPLAY — P3 PRESENCE MERGED, ARC COMPLETE (all worktrees down)
+
+**Rename (Kafi: "go"):** the wake window is the **display dock** — Tauri label `display-dock` + `--dock-only`, route
+`/display-dock` + `DisplayDockView.vue`, title "Vynel Display", daemon launcher `display-dock-window.ts`, env
+`VYNEL_VOICE_DOCK_*` (JARVIS names accepted as aliases for one release — `applyDeprecatedVoiceEnvAliases`), wire surface
+`voice:dock`; product docs say "Voice", not "Voice/Jarvis". `WAKE_NAME` still answers to the old spelling (pinned; Kafi
+to rule). **P3 shipped:** P3c the room's orb mirrors the daemon leg (own session wins; speaking OR across legs); P3b a
+cold wake launches the desktop exe ONCE argless (the single-instance handler surfaces the main window; the dock webview
+comes with it; browser fallback only behind the connect watchdog) and publishes `show-display` to app surfaces → the
+shell opens the active tab's Display; api-originated control frames on the voice channel — `display-active` and
+`display-session {live, phase, caption≤280}` — memoised per user per kind, replayed on subscribe, retracted when the
+app window drops; a `handed-off` daemon phase; P3a dock mode = ONE derivation (`use-display-dock-mode`): wake
+(420×560 center) · mini (380×150 bottom-right, stacked 16 px above the desktop-control window when visible, no focus
+steal; small orb + caption + mic pill + `dock`-slot widgets) · hidden while the room owns it; the mini row has a ×;
+**the dock MIRRORS a session that lives in the app** (read-only pill — Web Speech cannot migrate across windows);
+**P3d the voice session is SHELL-owned** (`use-display-voice` Pinia store: session + daemon link + mirror announce;
+`ownsVoice` is the one predicate that keeps a window from holding two links) — **the top-bar toggle is the real voice
+on/off**: ON starts voice + shows the active tab's Display, moving anywhere keeps it live (the dock mirrors it), OFF
+ends it from anywhere; the room re-attaches on return; the room's mic waits while the dock holds a wake conversation.
+`dock` re-advertised to Claude. **Gate:** 110/110 · 5/5 · 957 files / 6510 tests, 0 failures. **Residuals (doc'd in
+display-p3.md):** a wake into a fully broken desk is deaf up to 2× the connect timeout; last-writer-wins per kind
+across multiple app windows; `setSize` on a `.resizable(false)` window unverified at runtime (degrades top-anchored);
+no `/session/start` seam so the daemon can wake into the dock while the app's mic is open (pre-existing); the
+`VYNEL_VOICE_DOCK_APP` exe path is dev-only until the installer sets it. **Owed by Kafi — the Display smoke:** toggle →
+room + mic; talk → orb; switch view → mini dock bottom-right mirrors you; start a desktop task → dock shifts up; back →
+dock hides; toggle off → mic off; app closed + wake word → app opens on the Display; "show this week's schedule runs as
+a table" → lands while Claude talks; "remove it"; restart → still there; workspace tab → its own board.
+
+## ✅ 2026-08-21 THE DISPLAY — P2 WIDGETS MERGED (main 074c6ba8), P3 PRESENCE NEXT
 
 **Shipped:** `@vynel/display` leaf (`display_widgets`: kinds markdown|table|metric|chart, slots left|stage|right|dock,
 12/scope oldest-evicted, optional `expiresAt` swept at boot + lazily + before the cap check; every write = one tx +
