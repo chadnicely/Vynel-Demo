@@ -81,6 +81,20 @@ export const CAPABILITY_CATALOG: readonly Capability[] = [
     isFirstParty: true,
     defaultEnabled: true,
   },
+  {
+    id: 'display',
+    displayName: 'Display',
+    description:
+      'A glanceable board beside the conversation — reports, tables and numbers the assistant puts on screen and keeps current.',
+    scope: 'workspace',
+    isFirstParty: true,
+    // ON by default, like every other core capability: the board is the answer
+    // made visible, and a spoken answer with nothing on screen is the whole
+    // problem the Display exists to solve. `defaultEnabledCapabilityIds()` is
+    // what the GLOBAL-ROOT composers pass, so `false` here would deny all five
+    // display tools on the root surface — where voice lives.
+    defaultEnabled: true,
+  },
 ] as const
 
 // `find*` — returns null when the id isn't a known first-party capability

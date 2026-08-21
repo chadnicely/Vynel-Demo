@@ -45,6 +45,10 @@ export function buildLiveChannelAuthorizer(
     switch (channel.kind) {
       case 'activity':
         return true
+      case 'display':
+        // Per-user, like the feed: the key names no row, and every frame the
+        // hub sends on it was published for THIS user's board.
+        return true
       case 'session': {
         const session = findChatSessionById(db, channel.sessionId)
         return session !== null && session.userId === userId

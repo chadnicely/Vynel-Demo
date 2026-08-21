@@ -31,6 +31,10 @@ import {
   type VoiceSubscriber,
   type VoiceSurface,
 } from '../voice/daemon-events.js'
+import {
+  DISPLAY_LIVE_CHANNEL_KEY,
+  type DisplayLiveChannelServerFrame,
+} from '../display/display-live.js'
 
 export const LIVE_CHANNEL_PROTOCOL_VERSION = 1
 
@@ -49,6 +53,10 @@ export type VoiceChannelKey = `voice:${VoiceSurface}` | `voice:${VoiceSurface}:w
 /** Build channel keys — the ONE home for the key grammar (server + client). */
 export const liveChannelKeys = {
   activity: 'activity' as const,
+  /** Per USER, not per scope — one window watching the global Display and one
+   *  watching a workspace's share the subscription; each frame carries the
+   *  `scopeKey` the client filters on. */
+  display: DISPLAY_LIVE_CHANNEL_KEY,
   session: (sessionId: string): LiveChannelKey => `session:${sessionId}`,
   trace: (partialSessionId: string): LiveChannelKey => `trace:${partialSessionId}`,
   voice: ({ surface, wake }: VoiceSubscriber): VoiceChannelKey =>
@@ -57,6 +65,7 @@ export const liveChannelKeys = {
 
 export type ParsedLiveChannelKey =
   | { kind: 'activity' }
+  | { kind: 'display' }
   | { kind: 'session'; sessionId: string }
   | { kind: 'trace'; partialSessionId: string }
   | { kind: 'voice'; surface: VoiceSurface; wake: boolean }
@@ -64,6 +73,9 @@ export type ParsedLiveChannelKey =
 /** Parse a channel key; null = not a channel this protocol knows. */
 export function parseLiveChannelKey(key: string): ParsedLiveChannelKey | null {
   if (key === 'activity') return { kind: 'activity' }
+  // Exact match only: the key carries no scope, so `display:<anything>` is a
+  // client that thinks it can subscribe per scope — refuse rather than widen.
+  if (key === DISPLAY_LIVE_CHANNEL_KEY) return { kind: 'display' }
   if (key.startsWith('session:')) {
     const sessionId = key.slice('session:'.length)
     return sessionId === '' ? null : { kind: 'session', sessionId }
@@ -99,6 +111,7 @@ export type LiveChannelServerFrame =
   | { kind: 'subscribed'; channel: LiveChannelKey }
   | { kind: 'unsubscribed'; channel: LiveChannelKey }
   | { kind: 'event'; channel: 'activity'; event: SessionActivityEvent }
+  | DisplayLiveChannelServerFrame
   | { kind: 'event'; channel: VoiceChannelKey; event: VoiceRelayEvent }
   | { kind: 'event'; channel: LiveChannelKey; event: ChatTurnEvent }
   | { kind: 'channel-ended'; channel: LiveChannelKey }

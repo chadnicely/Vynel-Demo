@@ -48,6 +48,7 @@ import {
 } from '@vynel/contracts/network/port-file'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
+import { sweepExpiredDisplayWidgetsAtBoot } from './boot-display-sweep.js'
 import { resolveServerPayloadArchive } from './server-payload-archive.js'
 import { createGatewayApp } from './gateway.js'
 import {
@@ -55,6 +56,7 @@ import {
   createLiveChannelUpgradeHandler,
 } from './live/live-channel-route.js'
 import { createVoiceDaemonRelay } from './live/voice-daemon-relay.js'
+import { createHubDisplayLiveSink } from './live/display-live-sink.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
 import { ScheduleFirePool } from '@vynel/schedules'
@@ -263,6 +265,24 @@ export async function boot(): Promise<void> {
   // "Run now" is bounded by the same knob and a schedule the tick already
   // claimed is declined instead of fired a second time (background-turns BT3).
   const scheduleFirePool = new ScheduleFirePool(env.VYNEL_MAX_CONCURRENT_DELEGATIONS)
+  // ONE voice-daemon link per surface, fanned to the windows over their live
+  // socket (the browsers used to hold one EventSource each).
+  const voiceDaemonRelay = createVoiceDaemonRelay({
+    voiceDaemonUrl: env.VYNEL_VOICE_DAEMON_URL,
+    logger,
+  })
+  // ONE live-channel hub per process — every window's single WebSocket lands
+  // here and subscribes to the feed / display / session / trace / voice
+  // channels it displays. Built BEFORE the app because the Display routes push
+  // through it: `createApp` takes the sink, so the hub has to exist first (the
+  // socket door below only needs it later).
+  const liveChannelHub = new LiveChannelHub({
+    turnEvents,
+    activityFeed,
+    voice: voiceDaemonRelay,
+    authorizeChannel: buildLiveChannelAuthorizer(db),
+    logger,
+  })
   const app = createApp({
     db,
     logger,
@@ -282,6 +302,10 @@ export async function boot(): Promise<void> {
     ...(serverPayloadArchive !== null ? { serverPayloadArchive } : {}),
     ...(desktopNotifications !== undefined ? { desktopNotifications } : {}),
     ...(hubSession !== undefined ? { hubSession } : {}),
+    // The Display's fast path: a widget route publishes its frame the moment
+    // its transaction commits, so the card appears while Claude is still
+    // talking. The outbox row stays the durable record for slower consumers.
+    displayLiveSink: createHubDisplayLiveSink(liveChannelHub),
     // ONE parked-ask registry shared by the routes (answer/dismiss resolve)
     // and the channel runner (ask_user on channel turns) — a runner-parked
     // ask must be resolvable by the route the app answers through.
@@ -329,6 +353,10 @@ export async function boot(): Promise<void> {
   } catch (err) {
     logger.error({ err }, 'boot checkpoint-survivor pass failed')
   }
+  // The Display's expiry pass — a card timed out while the app was closed has
+  // to be gone before the first window reads its board (it carries its own
+  // try/catch; see boot-display-sweep.ts).
+  sweepExpiredDisplayWidgetsAtBoot(db, { logger })
 
   // Warm the model roster from the ENGINE (2026-08-17). Fire-and-forget: the
   // picker's list is account-scoped and used to arrive only as a side-effect
@@ -483,21 +511,6 @@ export async function boot(): Promise<void> {
   if (env.VYNEL_AUTH_TOKEN !== undefined) {
     logger.info('api boot: bearer gate active (remote engine mode) — /health stays open')
   }
-  // ONE voice-daemon link per surface, fanned to the windows over their live
-  // socket (the browsers used to hold one EventSource each).
-  const voiceDaemonRelay = createVoiceDaemonRelay({
-    voiceDaemonUrl: env.VYNEL_VOICE_DAEMON_URL,
-    logger,
-  })
-  // ONE live-channel hub per process — every window's single WebSocket lands
-  // here and subscribes to the feed / session / trace / voice channels it displays.
-  const liveChannelHub = new LiveChannelHub({
-    turnEvents,
-    activityFeed,
-    voice: voiceDaemonRelay,
-    authorizeChannel: buildLiveChannelAuthorizer(db),
-    logger,
-  })
   const liveChannelUpgrade = createLiveChannelUpgradeHandler({
     hub: liveChannelHub,
     resolveUserId: () => getOrCreateLocalUser(db, { logger }).id,

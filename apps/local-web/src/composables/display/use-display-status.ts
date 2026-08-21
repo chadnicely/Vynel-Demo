@@ -12,6 +12,7 @@ import { useCurrentUser } from "../users/use-current-user.js";
 import {
   appendTelemetry,
   attentionTelemetryRows,
+  boardTelemetryRows,
   deriveDisplayStatus,
   clockLabel,
   turnTelemetryRows,
@@ -19,6 +20,7 @@ import {
   type DisplayStatusRow,
   type DisplayStatusView,
 } from "./display-status-rows.js";
+import type { DisplayBoardChange } from "./use-display-widgets.js";
 
 // Everything the Display's panels and strip show, derived in ONE place from
 // the reads the app ALREADY holds — the live socket, the working rail, the
@@ -31,6 +33,10 @@ export interface DisplayStatus {
   readonly status: ComputedRef<DisplayStatusView>;
   readonly telemetry: Ref<DisplayStatusRow[]>;
   readonly clock: Ref<string>;
+  /** Narrate one board change into the log. Fed by `use-display-widgets`'
+   *  frame tap — the room keeps ONE `display` subscription, and this is how
+   *  the log shares it. */
+  readonly noteBoardChange: (change: DisplayBoardChange) => void;
 }
 
 export function useDisplayStatus(): DisplayStatus {
@@ -109,11 +115,23 @@ export function useDisplayStatus(): DisplayStatus {
     knownNeedYou = next;
   });
 
+  function noteBoardChange(change: DisplayBoardChange): void {
+    telemetry.value = appendTelemetry(
+      telemetry.value,
+      boardTelemetryRows(change, new Date()),
+    );
+  }
+
   const clock = ref(clockLabel(new Date()));
   const clockTimer = setInterval(() => {
     clock.value = clockLabel(new Date());
   }, 1000);
   onUnmounted(() => clearInterval(clockTimer));
 
-  return { status: computed(() => deriveDisplayStatus(facts.value)), telemetry, clock };
+  return {
+    status: computed(() => deriveDisplayStatus(facts.value)),
+    telemetry,
+    clock,
+    noteBoardChange,
+  };
 }

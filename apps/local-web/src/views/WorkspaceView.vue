@@ -16,6 +16,7 @@ import FileEditorView from "../components/workspace/FileEditorView.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
 import WorkspaceCustomizeSection from "../components/customize/WorkspaceCustomizeSection.vue";
 import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.vue";
+import DisplayView from "./display/DisplayView.vue";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useWorkspaceStatuses } from "../composables/workspaces/use-workspace-status.js";
@@ -285,9 +286,11 @@ const occupancy = useContextOccupancy(
 const activeSection = computed<WorkspaceSectionId | null>(() =>
   typeof shell.mainView === "string" &&
   shell.mainView !== "chat" &&
-  // Global-only like account/application: the spoken thread has no workspace,
-  // and neither does the Display room.
+  // Global-only like account/application: the spoken thread has no workspace.
   shell.mainView !== "voice-chat" &&
+  // The Display is NOT global-only — this room has its own board — but it is
+  // not a menu section either: the title-bar switch opens it, and it renders
+  // its own canvas below.
   shell.mainView !== "display" &&
   shell.mainView !== "application" &&
   shell.mainView !== "account" &&
@@ -298,6 +301,7 @@ const activeSection = computed<WorkspaceSectionId | null>(() =>
 );
 
 const isCustomizeOpen = computed(() => shell.mainView === "customize");
+const isDisplayOpen = computed(() => shell.mainView === "display");
 
 // The Customize section's conversation icon (null = the Claude mark).
 const customizeStore = useCustomizeStore();
@@ -351,6 +355,13 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
           :workspace-id="tab.workspaceId ?? ''"
         />
       </div>
+    </div>
+
+    <!-- This room's own Display — the same board the workspace conversation's
+         `display_*` tools write to, opened by the title-bar switch. It paints
+         its own dark ground, so it takes the canvas whole. -->
+    <div v-else-if="isDisplayOpen" class="canvas display-canvas">
+      <DisplayView :scope="scope" />
     </div>
 
     <div v-else-if="isCustomizeOpen" class="canvas section-view">
@@ -463,7 +474,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
     </section>
 
     <FilesPanel
-      v-if="isFilesPanelOpen && !activeSection && !isCustomizeOpen"
+      v-if="isFilesPanelOpen && !activeSection && !isCustomizeOpen && !isDisplayOpen"
       :workspace-name="activeWorkspace?.name ?? 'Workspace'"
       :workspace-id="tab.workspaceId ?? ''"
       :active-file-path="openFile?.filePath ?? null"
@@ -471,8 +482,11 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
       @open-file="openFileOnCanvas"
     />
 
+    <!-- Not beside the Display: the room paints its own dark ground whatever
+         the app theme is, and a lit rail glued to its edge reads as breakage
+         (the same call GlobalChatView makes). -->
     <TasksPanel
-      v-if="ui.isTasksPanelOpen"
+      v-if="ui.isTasksPanelOpen && !isDisplayOpen"
       :scope="scope"
       :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
     />
@@ -570,6 +584,12 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
 .section-view {
   overflow-y: auto;
   background: var(--bg-shell);
+}
+
+/* The Display owns the whole area — its own ground, its own palette. */
+.display-canvas {
+  display: flex;
+  min-height: 0;
 }
 
 .section-column {

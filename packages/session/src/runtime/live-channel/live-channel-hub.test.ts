@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatTurnEvent } from '@vynel/chat'
 import type { ParsedLiveChannelKey } from '@vynel/contracts/chat/live-channel'
+import type { DisplayLiveFrame } from '@vynel/contracts/display/display-live'
 import type { VoiceRelayEvent } from '@vynel/contracts/voice/daemon-events'
 import { TurnEventBroadcaster, traceChannelKey } from '../../delegation/turn-event-broadcaster.js'
 import { SessionActivityFeed } from '../session-activity-feed.js'
@@ -18,6 +19,25 @@ const OTHER_USER = 'user-2'
 function textChunk(messageId: string, textDelta: string): ChatTurnEvent {
   return { kind: 'text-chunk', messageId, textDelta }
 }
+
+const upserted: DisplayLiveFrame = {
+  kind: 'upserted',
+  widget: {
+    id: 'w-1',
+    scopeKey: 'global',
+    title: 'This week',
+    kind: 'metric',
+    content: { kind: 'metric', value: '4', label: 'runs' },
+    slot: 'stage',
+    size: 'md',
+    sortOrder: 1,
+    createdBySessionId: null,
+    expiresAt: null,
+    createdAt: '2026-08-21T09:00:00.000Z',
+    updatedAt: '2026-08-21T09:00:00.000Z',
+  },
+}
+const cleared: DisplayLiveFrame = { kind: 'cleared', scopeKey: 'global' }
 
 interface FakeSocket {
   frames: LiveChannelOutboundFrame[]
@@ -446,5 +466,104 @@ describe('LiveChannelHub', () => {
     expect(chatty.take()).toEqual([{ kind: 'ping' }])
     expect(hub.connectionCount()).toBe(1)
     hub.dispose()
+  })
+
+  describe('the display channel', () => {
+    it('acks without a replay, then fans a frame to that ONE user\'s subscribed sockets', () => {
+      const { hub } = buildHub()
+      const board = fakeSocket()
+      const secondWindow = fakeSocket()
+      const bystander = fakeSocket()
+      const stranger = fakeSocket()
+      const boardConnection = hub.connect({ userId: USER, transport: board.transport })
+      const secondConnection = hub.connect({ userId: USER, transport: secondWindow.transport })
+      hub.connect({ userId: USER, transport: bystander.transport })
+      const strangerConnection = hub.connect({ userId: OTHER_USER, transport: stranger.transport })
+      board.take()
+      secondWindow.take()
+      bystander.take()
+      stranger.take()
+
+      boardConnection.handleMessage(subscribeMessage('display'))
+      secondConnection.handleMessage(subscribeMessage('display'))
+      strangerConnection.handleMessage(subscribeMessage('display'))
+      // The board is read over HTTP — the ack carries no replay of its own.
+      expect(board.take()).toEqual([{ kind: 'subscribed', channel: 'display' }])
+      expect(secondWindow.take()).toEqual([{ kind: 'subscribed', channel: 'display' }])
+      expect(stranger.take()).toEqual([{ kind: 'subscribed', channel: 'display' }])
+
+      hub.publishDisplayFrame(USER, upserted)
+      const expected = { kind: 'event', channel: 'display', event: upserted }
+      expect(board.take()).toEqual([expected])
+      // Both of the user's windows see it — the channel is per user, not per window.
+      expect(secondWindow.take()).toEqual([expected])
+      // …and neither the same user's unsubscribed socket nor another user's.
+      expect(bystander.take()).toEqual([])
+      expect(stranger.take()).toEqual([])
+      hub.dispose()
+    })
+
+    it('stops delivering after unsubscribe and after the socket closes', () => {
+      const { hub } = buildHub()
+      const socket = fakeSocket()
+      const connection = hub.connect({ userId: USER, transport: socket.transport })
+      socket.take()
+
+      connection.handleMessage(subscribeMessage('display'))
+      socket.take()
+      connection.handleMessage(unsubscribeMessage('display'))
+      expect(socket.take()).toEqual([{ kind: 'unsubscribed', channel: 'display' }])
+      hub.publishDisplayFrame(USER, upserted)
+      expect(socket.take()).toEqual([])
+
+      connection.handleMessage(subscribeMessage('display'))
+      socket.take()
+      connection.close()
+      hub.publishDisplayFrame(USER, upserted)
+      expect(socket.take()).toEqual([])
+      hub.dispose()
+    })
+
+    it('rides the ownership answer, and a scoped key is refused outright', () => {
+      const { hub } = buildHub({ authorize: (_userId, channel) => channel.kind !== 'display' })
+      const socket = fakeSocket()
+      const connection = hub.connect({ userId: USER, transport: socket.transport })
+      socket.take()
+
+      connection.handleMessage(subscribeMessage('display'))
+      expect(socket.take()).toEqual([
+        {
+          kind: 'error',
+          channel: 'display',
+          code: 'not_found',
+          message: 'No display to watch under "display".',
+        },
+      ])
+      // The channel is per USER — there is no per-scope key to subscribe to.
+      connection.handleMessage(subscribeMessage('display:global'))
+      expect(socket.take()[0]).toMatchObject({ code: 'unknown_channel', channel: 'display:global' })
+      hub.dispose()
+    })
+
+    it('never throws on a dead socket — it closes it and keeps serving the rest', () => {
+      const { hub } = buildHub()
+      const flaky = fakeSocket()
+      const healthy = fakeSocket()
+      const flakyConnection = hub.connect({ userId: USER, transport: flaky.transport })
+      const healthyConnection = hub.connect({ userId: USER, transport: healthy.transport })
+      flakyConnection.handleMessage(subscribeMessage('display'))
+      healthyConnection.handleMessage(subscribeMessage('display'))
+      flaky.take()
+      healthy.take()
+
+      flaky.failNextSend = true
+      expect(() => hub.publishDisplayFrame(USER, cleared)).not.toThrow()
+      expect(flaky.closes).toEqual([
+        { code: LIVE_CHANNEL_CLOSE_CODES.sendFailed, reason: 'send failed' },
+      ])
+      expect(healthy.take()).toEqual([{ kind: 'event', channel: 'display', event: cleared }])
+      expect(hub.connectionCount()).toBe(1)
+      hub.dispose()
+    })
   })
 })

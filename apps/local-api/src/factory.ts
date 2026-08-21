@@ -37,6 +37,7 @@ import type {
 } from '@vynel/session/delegation'
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { DesktopNotificationReader } from '@vynel/desktop-control'
+import type { DisplayLiveSink } from '@vynel/display'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -157,6 +158,13 @@ export interface AppEnv {
     // The linux engine payload server-install provisions with; null = none
     // available on this machine (the routes refuse with a 409).
     serverPayloadArchive: ServerPayloadArchive | null
+    // The Display's in-process live push — the `display` handlers hand it to
+    // the leaf ops so a widget reaches a watching window the moment its
+    // transaction commits (the outbox relay's tick is far too slow for
+    // "appears as Claude says it"). ABSENT is a legal state: tests, the
+    // generators and any daemon booted without the hub simply publish nothing,
+    // and the outbox row stays the durable record.
+    displayLiveSink?: DisplayLiveSink
   }
 }
 

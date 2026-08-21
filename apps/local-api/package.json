@@ -28,6 +28,7 @@
     "@vynel/core": "workspace:*",
     "@vynel/db": "workspace:*",
     "@vynel/desktop-control": "workspace:*",
+    "@vynel/display": "workspace:*",
     "@vynel/embeddings": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/features": "workspace:*",

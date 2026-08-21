@@ -352,7 +352,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
     <!-- The Display — the orb room the title-bar switch opens. It paints its
          own dark ground, so it takes the area whole. -->
     <div v-else-if="shell.mainView === 'display'" class="canvas display-canvas">
-      <DisplayView />
+      <DisplayView :scope="GLOBAL_SCOPE" />
     </div>
 
     <div v-else-if="shell.mainView === 'customize'" class="canvas section-view">

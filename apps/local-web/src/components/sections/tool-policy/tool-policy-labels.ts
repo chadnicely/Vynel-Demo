@@ -69,6 +69,7 @@ export const CAPABILITY_OPTIONS: CapabilityOption[] = [
   { id: "phases", label: "Phases" },
   { id: "features", label: "Features" },
   { id: "journal", label: "Journal" },
+  { id: "display", label: "Display" },
 ];
 
 /** `mcp__<server>__<tool>` reads as noise in a list — the UI shows the bare

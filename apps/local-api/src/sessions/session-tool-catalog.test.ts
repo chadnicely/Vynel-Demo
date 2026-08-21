@@ -44,6 +44,37 @@ describe('buildSessionToolCatalog', () => {
     expect(catalog.find((e) => e.toolName === 'mcp__vynel__list_tasks')!.cardClass).toBe('never')
   })
 
+  it('pins the Display tools: root + workspace-interactive, capability display, never carded', () => {
+    const displayToolNames = [
+      'mcp__vynel__display_list_widgets',
+      'mcp__vynel__display_add_widget',
+      'mcp__vynel__display_update_widget',
+      'mcp__vynel__display_remove_widget',
+      'mcp__vynel__display_clear',
+    ]
+    for (const toolName of displayToolNames) {
+      const entry = catalog.find((candidate) => candidate.toolName === toolName)!
+      expect(entry, toolName).toBeDefined()
+      expect([...entry.surfaces].sort()).toEqual(
+        [
+          'global-interactive',
+          'global-channel',
+          'delegated-global',
+          'workspace-interactive',
+          'delegated-workspace',
+          'spawned',
+          'agent',
+        ].sort(),
+      )
+      expect(entry.capabilityId).toBe('display')
+      // The whole reason remove/clear are POSTs: a DELETE would auto-join the
+      // ask tier and card the cheapest act in the product.
+      expect(entry.cardClass).toBe('never')
+      // A workspace-BACKGROUND turn has nobody watching a board.
+      expect(entry.surfaces).not.toContain('workspace-background')
+    }
+  })
+
   it("ask_user's surfaces match the map — interactive + the bounded channel turn", () => {
     // The regression that shipped inert: the ask slice attached the server to
     // channel turns while the catalog still excluded the surface, so the

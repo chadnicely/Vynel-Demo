@@ -17,6 +17,7 @@ const CapabilityIdSchema = z.enum([
   'phases',
   'features',
   'journal',
+  'display',
 ])
 
 // Path param.

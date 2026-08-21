@@ -9,6 +9,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Claude can put things on the Display.** Ask for a report, a table, a number, or a
+  chart and it appears on the Display while Claude is still talking — and stays there
+  after restart until you or Claude clear it. Four kinds (text, table, metric, chart),
+  drawn by Vynel itself so nothing Claude writes can run as code. Up to 12 per board;
+  the oldest makes room. Works from the global chat, a workspace chat, voice, and channels.
 - **The Display.** A new full-screen view, one click in the top bar: Vynel's orb in the
   middle — breathing while idle, lit while listening, pulsing with every spoken phrase —
   with live status panels around it (what's running, what needs you, account, telemetry)
