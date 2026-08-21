@@ -24,10 +24,9 @@ Four separate problems wear one symptom. Keeping them apart is the whole point o
 | **2. Permission** | Will Windows let us raise it? | **Solvable** — one technique works, and it is the one we happen to ship |
 | **3. Latency** | What does one attempt cost? | **~1235 ms of PowerShell**, replaceable with ~50–90 ms in-process |
 
-> **Conditional on one answer from Kafi:** which app, and which tool call, was failing? If it was a
-> native/Qt app, problem 0 is the whole story. If it was Electron (Discord/Slack), the wake path
-> *does* focus and problems 1–3 apply. That one sentence decides where the fix goes — this note
-> covers both.
+> **Confirmed by Kafi, 2026-08-22:** *"In our tool we have a maximize option but no option to bring
+> any background window to foreground — there is no function we have yet."* Problem 0 is the story.
+> Problems 1–3 are what the new function must not repeat.
 
 ---
 
@@ -169,6 +168,23 @@ libnut.focusWindow(hwnd)                 // ShowWindow(SW_RESTORE) if iconic + S
 Measured against the armed-lock fixture: **6/6, 50–90 ms total** (vs ~1235 ms). Restore-if-minimized
 comes free — libnut's `focusWindow` already does `SW_RESTORE` when `IsIconic` — so
 `restoreIfMinimized`'s spawn disappears too.
+
+### ⚠ Raising a window must not silently un-maximize it
+
+**`SW_SHOWNOACTIVATE` (4) restores a window to its *normal* size, discarding the maximized state.**
+Demonstrated live and unintentionally during this research: qBittorrent started maximized, the
+harness used `SW_SHOWNOACTIVATE` to park it behind the fixture, and it came back as a 686×796
+window. Kafi noticed from the screen before the harness noticed from the data.
+
+`SW_RESTORE` (9) is the safe one — on a maximized-then-minimized window it correctly returns to
+**maximized**, which is exactly why `restoreIfMinimized` already uses it, and why libnut's
+`focusWindow` (which calls `SW_RESTORE` when `IsIconic`) is safe to build on.
+
+The rule for the new focus function: **raising a window is not permission to resize it.** Only ever
+un-minimize, never normalize, and leave a non-minimized window's geometry untouched — the same
+IsIconic-gated discipline `window-state.ts` already documents. A focus call that quietly shrinks the
+user's maximized window is a worse bug than failing to focus at all, because it is invisible in the
+return value and permanent.
 
 ### Two traps in that snippet
 
