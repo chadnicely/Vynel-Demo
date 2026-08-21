@@ -37,11 +37,11 @@ export function createAppRouter() {
         component: () => import("./views/SessionsView.vue"),
       },
       {
-        // The floating Jarvis window (chrome --app). `bare` drops the app
-        // shell — this view IS the whole window.
-        path: "/jarvis",
-        name: "jarvis",
-        component: () => import("./views/JarvisView.vue"),
+        // The display dock — the Display's mini window (Tauri, or chrome
+        // --app). `bare` drops the app shell — this view IS the whole window.
+        path: "/display-dock",
+        name: "display-dock",
+        component: () => import("./views/DisplayDockView.vue"),
         meta: { bare: true },
       },
       {

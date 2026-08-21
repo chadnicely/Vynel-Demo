@@ -100,7 +100,7 @@ wake the assistant at the right time and deliver the result through a channel.
 How the user reaches the assistant *outside* the app.
 
 - **Telegram** — a per-user bot with an allowlist.
-- **Voice (Jarvis)** — an **always-on background voice** that listens and speaks. It's a *channel*
+- **Voice** — an **always-on background voice** that listens and speaks. It's a *channel*
   into the same one brain — not a separate product. The endpoint is: you just talk to it.
 
 ### Marketplace — an authenticated backend
@@ -121,7 +121,7 @@ once.
 
 Same core, thin surfaces. Easy install, all features built in.
 
-- **Desktop app** — the primary experience: the UI plus the always-on Jarvis voice overlay, hosting
+- **Desktop app** — the primary experience: the UI plus the always-on voice overlay, hosting
   or talking to the local daemon.
 - **Local API** — the daemon (the brain process) running on the user's machine.
 - **CLI** — for users who just want a feature from the command line, not the full app.
@@ -150,7 +150,7 @@ is simply the desktop-control plugin's tools attached to the running session.
 ## 9. Where we are
 
 Most of this is **already built and tested** in the old repo — we are moving it into this clean
-modular-monolith shape module-by-module (→ `restructure-research.md`). Voice/Jarvis works; the
+modular-monolith shape module-by-module (→ `restructure-research.md`). Voice works; the
 shipped pieces (memory, knowledge, schedules, Telegram, the local marketplace, desktop-control, and
 the global→workspace session routing) are proven. Near-term build: unify **"everything is a session"**
 into one Session library, then the genuinely net-new surfaces — the **CLI**, the **cloud marketplace

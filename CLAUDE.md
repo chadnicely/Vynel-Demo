@@ -2,7 +2,7 @@
 
 Vynel is a **desktop AI assistant for non-technical people** that wraps Claude Code (via
 `@anthropic-ai/claude-agent-sdk`) in a trustworthy experience layer: visible memory, curated skills,
-an approval card on every irreversible action, channels (Telegram, Voice/Jarvis), scheduled tasks.
+an approval card on every irreversible action, channels (Telegram, Voice), scheduled tasks.
 
 **We are rebuilding this repo by moving proven, tested code out of the old project module-by-module
 into a clean modular-monolith shape — never a rewrite, never a big-bang.** **Resuming a session? Read

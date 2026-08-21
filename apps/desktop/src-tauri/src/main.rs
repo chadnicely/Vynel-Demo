@@ -23,10 +23,10 @@ fn main() {
     // updated boot and permanently strand the user's data (reviewer-caught).
     data_home::migrate_legacy_data_home();
 
-    // The voice daemon launches this exe with --jarvis-only on wake: only the
+    // The voice daemon launches this exe with --dock-only on wake: only the
     // overlay window opens (the full app stays closed). The daemon sidecar is
     // still ensured in release — the overlay's UI is served by it.
-    let jarvis_only = std::env::args().any(|arg| arg == "--jarvis-only");
+    let dock_only = std::env::args().any(|arg| arg == "--dock-only");
 
     let context = tauri::generate_context!();
     // The updater's config lives only in tauri.release.conf.json (the
@@ -38,13 +38,13 @@ fn main() {
     let mut builder = tauri::Builder::default()
         // FIRST plugin, deliberately: a second launch of any flavor routes
         // into this process instead of spawning a rival that could steal or
-        // strand the daemon (the old --jarvis-only ownership hole). A full
-        // second launch surfaces the main window; a --jarvis-only relaunch is
+        // strand the daemon (the old --dock-only ownership hole). A full
+        // second launch surfaces the main window; a --dock-only relaunch is
         // a no-op — the overlay already lives here and shows itself.
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            let second_launch_jarvis_only = args.iter().any(|arg| arg == "--jarvis-only");
-            log::info!("second launch routed here (jarvis_only: {second_launch_jarvis_only})");
-            if !second_launch_jarvis_only {
+            let second_launch_dock_only = args.iter().any(|arg| arg == "--dock-only");
+            log::info!("second launch routed here (dock_only: {second_launch_dock_only})");
+            if !second_launch_dock_only {
                 if let Err(error) = windows::open_main_window(app) {
                     log::error!("failed to open the main window for a second launch: {error}");
                 }
@@ -93,16 +93,16 @@ fn main() {
             let handle = app.handle().clone();
             if cfg!(debug_assertions) {
                 // Dev: `pnpm dev` owns the api + Vite — just open the windows.
-                windows::create_windows(&handle, jarvis_only)?;
+                windows::create_windows(&handle, dock_only)?;
             } else {
-                daemon::ensure_daemon_then_open_windows(handle.clone(), jarvis_only);
-                // Not on a --jarvis-only cold launch: the update pipeline
+                daemon::ensure_daemon_then_open_windows(handle.clone(), dock_only);
+                // Not on a --dock-only cold launch: the update pipeline
                 // (and the app exiting itself on install) is hostile
                 // mid-voice-interaction. The common main-window launch path
                 // carries the silent check + background download — but only
                 // when the plugin was registered above (handle.updater() on
                 // unmanaged state panics, not a graceful Err).
-                if !jarvis_only && updater_configured {
+                if !dock_only && updater_configured {
                     updater::check_for_updates_in_background(handle);
                 }
             }
@@ -110,7 +110,7 @@ fn main() {
         })
         .on_window_event(|window, event| {
             // Closing the main window quits the app. Without this, the hidden
-            // jarvis overlay would keep a headless process (and the daemon
+            // display-dock overlay would keep a headless process (and the daemon
             // sidecar) alive after the user thinks Vynel is closed. The
             // single-instance plugin guarantees ONE process owns everything
             // (a second launch routes here), and the Job Object reaps the

@@ -64,7 +64,7 @@ export interface VoiceSessionIo {
   cutPlayback(): void
 }
 
-/** The daemon↔overlay wake seam: when a browser Jarvis view is connected, the
+/** The daemon↔overlay wake seam: when a browser voice view is connected, the
  *  wake is PUBLISHED to it instead of running the native turn — local/private
  *  wake stays here, the accurate command session runs in the browser. */
 export interface WakeHandoff {

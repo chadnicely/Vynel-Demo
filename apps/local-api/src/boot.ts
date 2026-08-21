@@ -57,6 +57,7 @@ import {
 } from './live/live-channel-route.js'
 import { createVoiceDaemonRelay } from './live/voice-daemon-relay.js'
 import { createHubDisplayLiveSink } from './live/display-live-sink.js'
+import { createHubVoiceControlSink } from './live/voice-control-sink.js'
 import { startHubSessionService, type HubSessionService } from './services/hub-session-service.js'
 import { startCatalogSyncService, type CatalogSyncService } from './services/catalog-sync-service.js'
 import { ScheduleFirePool } from '@vynel/schedules'
@@ -306,6 +307,9 @@ export async function boot(): Promise<void> {
     // its transaction commits, so the card appears while Claude is still
     // talking. The outbox row stays the durable record for slower consumers.
     displayLiveSink: createHubDisplayLiveSink(liveChannelHub),
+    // The app window's "the Display is on screen" fact, on its way to the
+    // display dock — the one thing that window cannot see for itself.
+    voiceControlSink: createHubVoiceControlSink(liveChannelHub),
     // ONE parked-ask registry shared by the routes (answer/dismiss resolve)
     // and the channel runner (ask_user on channel turns) — a runner-parked
     // ask must be resolvable by the route the app answers through.

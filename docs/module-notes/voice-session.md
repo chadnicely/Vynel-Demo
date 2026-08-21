@@ -7,7 +7,7 @@ for now; later a "Voice chat" menu can appear under the Global area. Built in wo
 `feature/voice-session`. Background: the 2026-08-19 incident — voice turns ran ON the global
 primary, so a 443k global (legit on 1M models) hard-failed every haiku-pinned voice turn.
 
-## What already existed ("voice-jarvis piece 1")
+## What already existed ("voice-continuity piece 1")
 
 `primary_sessions.scope 'voice'` + `uniq_primary_sessions_voice_user` liveness index ·
 `getOrCreateContinuingSession({scope:'voice'})` · `findVoicePrimarySessionForUser` ·

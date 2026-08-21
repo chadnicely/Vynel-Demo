@@ -91,9 +91,9 @@ apps/local-web ── mic (Web Audio, 16kHz mono) ──WS──► apps/local-a
 - **Superseded by sherpa-onnx (better):** the RMS `SpeechSegmenter` → **silero-VAD**; the STT-first
   `detectWakeWord` regex → **KWS acoustic model** (spots the phrase without transcribing the whole room).
   The leaf's segmenter/wake stay as tested fallbacks but the live loop uses sherpa-onnx.
-- **⚠ Gap to close:** the leaf's wake phrase is hardcoded **"jarvis"**. Add tolerant **"vynel"** variants
-  for the KWS keyword list + any text fallback ("vynel" will mis-hear as *vinyl/vinel/vynell*, same as jarvis
-  did). The demo already says "Hey Vynel".
+- **✅ Closed:** the wake phrase was originally one hardcoded borrowed name. `WAKE_NAME` now carries
+  tolerant **"vynel"** + **"claude"** variants (mis-heard as *vinyl/vinel/vynell*); the retired legacy
+  spellings are still accepted so an early user keeps being heard. The demo says "Hey Vynel".
 
 ## Model logistics (a real net-new concern)
 The ONNX model files (Moonshine STT, silero-VAD, the KWS keyword model, Kokoro/ZipVoice TTS) are tens–to–
@@ -139,9 +139,9 @@ composable's pure parts) is unit-testable and rides the `pnpm test` gate. The mo
 accuracy, TTS voice, mic capture, wake sensitivity) are **Chad live-smoke** — inherent to audio ML, matches
 how the repo already defers live-boot smoke to Chad.
 
-## ✅ BUILT — the browser "Jarvis view" + Web Speech command STT (2026-07-07)
+## ✅ BUILT — the browser voice view + Web Speech command STT (2026-07-07)
 The hybrid landed. The daemon stays the always-on LOCAL wake layer (Moonshine "hey vynel", never streams
-the room); **on wake a browser Jarvis view owns the command session** — Web Speech API (Google STT) with a
+the room); **on wake a browser voice view owns the command session** — Web Speech API (Google STT) with a
 live interim transcript in the orb, the brain over the same `/root/turn` SSE the chat composer uses, and
 the reply spoken sentence-by-sentence via browser `speechSynthesis`. **Fork resolutions (as built):**
 
@@ -167,39 +167,42 @@ silence → overlay closes, `POST /session/end`, daemon resumes wake-listening. 
 keeps the view; a new wake un-mutes. Web Speech needs Chrome/Edge — other browsers get an explanatory
 caption (the daemon-only native loop still works everywhere).
 
-### The FLOATING Jarvis window (Chad's pick, same day — "global overlay, not in the tab")
+### The FLOATING voice window — today the **display dock** (Chad's pick, same day — "global overlay, not in the tab")
 Chad wanted v1's global feel, not an overlay buried in a browser tab. Picked at the time: **a chromeless
-Chrome app-window** (`chrome --app=<local-web>/jarvis`, 420×560) that the **daemon opens (or foregrounds)
+Chrome app-window** (`chrome --app=<local-web>/display-dock`, 420×560) that the **daemon opens (or foregrounds)
 on wake** — global in practice, full Web Speech. (The fork was decided on the belief that Web Speech
 doesn't exist in Tauri's WebView2 — **since DISPROVED by a live probe; see the next section.**)
-- **`/jarvis` route** (`views/JarvisView.vue`, `meta.bare` — App.vue renders bare routes without the
+- **`/display-dock` route** (`views/DisplayDockView.vue`, `meta.bare` — App.vue renders bare routes without the
   shell and without the in-app `VoiceOverlay`, so one window never runs two daemon links). The stage
   (orb + caption + controls) is the shared `components/voice/VoiceStage.vue` + pure `voice-stage-view.ts`
   mapping — the in-app overlay and the window can't drift.
-- **Wake targeting:** clients subscribe as `?surface=app|jarvis`. With `VYNEL_VOICE_JARVIS_WINDOW=1`
-  (default) the channel delivers wakes ONLY to the newest jarvis-surface client — app tabs keep state
+- **Wake targeting:** clients subscribe as `?surface=app|dock`. With `VYNEL_VOICE_DOCK_WINDOW=1`
+  (default) the channel delivers wakes ONLY to the newest dock-surface client — app tabs keep state
   events + manual mic sessions but never race the window. `shouldHandOff` is unconditional in this mode.
 - **Held wake (`pendingWake`):** a wake nobody confirmed yet is REPLAYED to the next eligible connect —
   the same-breath command survives the window's launch time; a wake written to a dying socket recovers
   on reconnect (this replaced the browser-side "replayed state" hack). Dropped when the daemon leaves
   the wake state. `onClientsGone` now means "the wake RUNNER left" (a mere tab dropping doesn't end a
   live handoff).
-- **Launch/focus** (`apps/voice/src/overlay/jarvis-window.ts`): Windows launches via
+- **Launch/focus** (`apps/voice/src/overlay/display-dock-window.ts`): Windows launches via
   `cmd /c start "" chrome --app=…` (App Paths, not PATH) and foregrounds an existing window via
-  PowerShell `AppActivate('Vynel Jarvis')` — the title JarvisView sets (keep in sync). A **10 s connect
+  PowerShell `AppActivate('Vynel Display')` — the title DisplayDockView sets (keep in sync). A **10 s connect
   watchdog** in main.ts ends the handoff if a launched window never connects (Chrome missing / web
-  down) so a failed launch can't leave the daemon deaf. Env: `VYNEL_VOICE_JARVIS_WINDOW` ('1') ·
-  `VYNEL_VOICE_JARVIS_URL` (default `http://localhost:18894/jarvis`) · `VYNEL_VOICE_JARVIS_BROWSER`
+  down) so a failed launch can't leave the daemon deaf. Env: `VYNEL_VOICE_DOCK_WINDOW` ('1') ·
+  `VYNEL_VOICE_DOCK_URL` (default `http://localhost:18894/display-dock`) · `VYNEL_VOICE_DOCK_BROWSER`
   (chrome|msedge). `0` restores the previous behavior (hand off only to a connected tab, else native).
+  ⚠ Renamed from `VYNEL_VOICE_JARVIS_*` (display-dock rename, 2026-08-21). The OLD names are still
+  accepted for ONE release via `applyDeprecatedVoiceEnvAliases` in `apps/voice/src/env.ts` (the new
+  name wins when both are set); drop that map and its test after this release.
 - The window tries `window.close()` when the session settles (allowed while its history is a single
   entry); if Chrome refuses, it stays idle and the next wake reuses it instantly (focus, no launch).
 - ⚠ Dev papercut found live: Vite can bind **IPv6-only** (`[::1]:18894`) — IPv4 `127.0.0.1` probes fail
-  while `localhost` (→ ::1 in Chrome) works. The jarvis URL default uses `localhost` for this reason.
+  while `localhost` (→ ::1 in Chrome) works. The dock URL default uses `localhost` for this reason.
 
 ### ✅ BUILT same-day on the probe: the Tauri always-on-top overlay + Kokoro overlay voice
 Chad greenlit both. **`apps/desktop`** is a deliberately thin Tauri v2 shell: ONE frameless,
-transparent, always-on-top 420×560 window (`label: jarvis`, title "Vynel Jarvis") rendering
-**local-web's `/jarvis` route** off the dev server (`devUrl localhost:18894`; `frontendDist` points at
+transparent, always-on-top 420×560 window (`label: display-dock`, title "Vynel Display") rendering
+**local-web's `/display-dock` route** off the dev server (`devUrl localhost:18894`; `frontendDist` points at
 local-web's build for later). All overlay behavior lives in the WEB view via `withGlobalTauri` (no
 Tauri npm dep — `composables/voice/tauri-overlay-window.ts` wraps the `__TAURI__` global):
 **reveal (show+focus) on wake · dismiss (hide) when the session settles · park bottom-right · rounded
@@ -208,13 +211,13 @@ the same controls fall back to the Chrome app-window behaviors (close/resizeTo).
 `core:window:allow-{show,hide,set-focus,set-position,start-dragging}`. `main.rs` is the default
 builder; `icons/icon.ico` is a generated gold orb (tauri-build requires one on Windows even
 unbundled). Run: `pnpm --filter @vynel/desktop dev` (needs local-web up). A running overlay is just a
-connected `jarvis` client. **On wake with NO overlay connected the daemon now launches the TAURI app
-itself** (`VYNEL_VOICE_JARVIS_APP`, default the repo's `target/debug/vynel-desktop.exe`) and only
+connected `dock` client. **On wake with NO overlay connected the daemon now launches the TAURI app
+itself** (`VYNEL_VOICE_DOCK_APP`, default the repo's `target/debug/vynel-desktop.exe`) and only
 falls back to the Chrome app-window when that executable doesn't exist (fresh clone, not yet built).
 **⚠ BEFORE `bundle.active: true` (dev-only assumptions, reviewer-flagged):** the page's relative
 `fetch('/voice/…')` + the SDK's `/api` base only work through the Vite dev proxy — a bundled build
 serves assets over the Tauri protocol and needs absolute daemon/API URLs (or a Rust-side proxy);
-`"url": "/jarvis"` relies on the dev server's SPA fallback — verify the asset protocol resolves it;
+`"url": "/display-dock"` relies on the dev server's SPA fallback — verify the asset protocol resolves it;
 and `"csp": null` must become a real CSP (with `withGlobalTauri` any XSS gets the window API —
 capabilities scope it to show/hide/position today, but still).
 
@@ -273,7 +276,7 @@ and capitalized** ("Hey, can you check the weather for me?") — Edge's Azure-ba
 Web-Speech-grade. `speechSynthesis` + `getUserMedia` also present. **Consequence: the TRUE always-on-top
 transparent Tauri overlay can host the ENTIRE existing browser session** — same
 `composables/voice/*` (the wrapper already prefers `SpeechRecognition` over webkit), same daemon
-channel, same speak path; JarvisView ports as the overlay window's view. The M6 Tauri shell is the
+channel, same speak path; DisplayDockView ports as the overlay window's view. The M6 Tauri shell is the
 natural next home (`with_always_on_top`, transparency, no taskbar entry); the Chrome app-window stays
 the interim surface. Probe source: scratchpad `stt-probe/` (wry 0.55 + tao; ~50-line main.rs; page
 posts capability/result events to a local log server). Caveats to re-verify when building for real:

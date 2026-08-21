@@ -22681,7 +22681,7 @@
           "mutatingApproved": true,
           "rootSurface": true,
           "workspaceInteractiveSurface": true,
-          "description": "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Call display_list_widgets first and prefer display_update_widget on a matching card over adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. slot is 'left' | 'stage' | 'right' (default 'stage', the widest region) and size is 'sm' | 'md' | 'lg' (default 'md'). expiresAt is optional (ISO-8601, and in the future) — for a card that should clean itself up, e.g. a 'today' panel. Leave it out for a card that stays until someone removes it. The board holds 12 per scope: a 13th quietly evicts the oldest, so this never fails for being full."
+          "description": "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Call display_list_widgets first and prefer display_update_widget on a matching card over adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. slot is 'left' | 'stage' | 'right' | 'dock' (default 'stage', the widest region; 'dock' is the mini Display floating over the user's screen while they work — send a single number or one line there, never a table or a chart) and size is 'sm' | 'md' | 'lg' (default 'md'). expiresAt is optional (ISO-8601, and in the future) — for a card that should clean itself up, e.g. a 'today' panel. Leave it out for a card that stays until someone removes it. The board holds 12 per scope: a 13th quietly evicts the oldest, so this never fails for being full."
         },
         "requestBody": {
           "content": {
@@ -37196,7 +37196,7 @@
           "voice"
         ],
         "parameters": [],
-        "summary": "Speak text aloud through the user's voice (the Jarvis speaker) or into a live call.",
+        "summary": "Speak text aloud through the user's voice (the voice daemon's speaker) or into a live call.",
         "x-sdk-name": "voice.speak",
         "x-mcp": {
           "exposed": true,
@@ -37223,6 +37223,118 @@
                 },
                 "required": [
                   "text"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/display-active": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ published } — false when this engine has no live channel to fan it over.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "published": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "published"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceDisplay-active",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Report whether the app window's Display is on screen, for the user's other voice windows.",
+        "x-sdk-name": "voice.setDisplayActive",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "active"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/display-session": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ published } — false when this engine has no live channel to fan it over.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "published": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "published"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceDisplay-session",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Report the voice conversation the app window's Display is holding, so the dock can mirror it.",
+        "x-sdk-name": "voice.setDisplaySession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "live": {
+                    "type": "boolean"
+                  },
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "idle",
+                      "listening",
+                      "thinking",
+                      "speaking",
+                      "muted"
+                    ]
+                  },
+                  "caption": {
+                    "type": "string",
+                    "maxLength": 280
+                  }
+                },
+                "required": [
+                  "live",
+                  "phase",
+                  "caption"
                 ]
               }
             }

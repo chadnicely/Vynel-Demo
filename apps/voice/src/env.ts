@@ -80,22 +80,22 @@ function buildEnvSchema(portBase: number) {
   // hears nothing until the reply is whole). The default is the contracts'
   // one home — the browser leg falls back to the same number without a wake.
   VYNEL_VOICE_TURN_WATCHDOG_MS: z.coerce.number().int().positive().default(DEFAULT_VOICE_TURN_WATCHDOG_MS),
-  // Loopback port for the browser Jarvis-view channel (SSE wake/state events).
+  // Loopback port for the browser voice-view channel (SSE wake/state events).
   VYNEL_VOICE_DAEMON_PORT: z.coerce.number().int().positive().default(ports.voiceDaemon),
-  // '1' = wake opens/focuses the floating Jarvis window (chrome --app / the
-  // desktop shell's jarvis webview) and the browser owns every command
-  // session; '0' = the native leg answers unless a wake-capable BROWSER tab
+  // '1' = wake opens/focuses the display dock (chrome --app / the desktop
+  // shell's dock webview) and the browser owns every command session;
+  // '0' = the native leg answers unless a wake-capable BROWSER tab
   // (Web Speech, outside the desktop shell) is connected. The desktop shell's
   // own windows never take a wake with the feature off — its main window
-  // declares no wake capability and its hidden jarvis webview (always
+  // declares no wake capability and its hidden dock webview (always
   // connected) is not a target on the 'app' wake surface.
-  VYNEL_VOICE_JARVIS_WINDOW: z.enum(['0', '1']).default('1'),
-  // Where the floating window points (local-web's /jarvis route).
-  VYNEL_VOICE_JARVIS_URL: z.string().url().default(`http://localhost:${ports.localWeb}/jarvis`),
-  VYNEL_VOICE_JARVIS_BROWSER: z.enum(['chrome', 'msedge']).default('chrome'),
+  VYNEL_VOICE_DOCK_WINDOW: z.enum(['0', '1']).default('1'),
+  // Where the dock window points (local-web's /display-dock route).
+  VYNEL_VOICE_DOCK_URL: z.string().url().default(`http://localhost:${ports.localWeb}/display-dock`),
+  VYNEL_VOICE_DOCK_BROWSER: z.enum(['chrome', 'msedge']).default('chrome'),
   // The Tauri overlay executable — launched on wake when it exists and no
   // overlay is connected; otherwise the Chrome app-window is the fallback.
-  VYNEL_VOICE_JARVIS_APP: z
+  VYNEL_VOICE_DOCK_APP: z
     .string()
     .default('apps/desktop/src-tauri/target/debug/vynel-desktop.exe')
     .transform(resolveAgainstRepoRoot),
@@ -124,12 +124,39 @@ export const EnvSchema = buildEnvSchema(VYNEL_PORT_BASE_DEFAULT)
 
 export type Env = z.infer<typeof EnvSchema>
 
+// The display-dock rename (2026-08-21) renamed four user-facing knobs. An
+// existing `.env` must keep working for one release, so each OLD name is read
+// as a fallback HERE — one home, applied to the raw object before the schema
+// ever sees it, rather than four per-field `preprocess` hooks. The NEW name
+// wins when both are set: an explicit new value is the user's current intent.
+// Drop this map (and its test) one release after the rename ships.
+const DEPRECATED_ENV_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['VYNEL_VOICE_JARVIS_WINDOW', 'VYNEL_VOICE_DOCK_WINDOW'],
+  ['VYNEL_VOICE_JARVIS_URL', 'VYNEL_VOICE_DOCK_URL'],
+  ['VYNEL_VOICE_JARVIS_BROWSER', 'VYNEL_VOICE_DOCK_BROWSER'],
+  ['VYNEL_VOICE_JARVIS_APP', 'VYNEL_VOICE_DOCK_APP'],
+])
+
+/** Pure: a COPY of `raw` where each deprecated name fills its replacement when
+ *  the replacement is unset. Exported so the alias is tested without touching
+ *  `process.env`. */
+export function applyDeprecatedVoiceEnvAliases(raw: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const merged: NodeJS.ProcessEnv = { ...raw }
+  for (const [deprecatedName, currentName] of DEPRECATED_ENV_ALIASES) {
+    const deprecatedValue = raw[deprecatedName]
+    if (deprecatedValue !== undefined && merged[currentName] === undefined) {
+      merged[currentName] = deprecatedValue
+    }
+  }
+  return merged
+}
+
 let cachedEnv: Env | undefined
 
 export function loadEnv(): Env {
   if (cachedEnv !== undefined) return cachedEnv
   const portBase = parseVynelPortBase(process.env['VYNEL_PORT_BASE'])
-  const env = buildEnvSchema(portBase).parse(process.env)
+  const env = buildEnvSchema(portBase).parse(applyDeprecatedVoiceEnvAliases(process.env))
   // No explicit URL → prefer the port a LIVE engine of OUR band advertises
   // (the desktop shell may have allocated a non-default one), then the band
   // default.

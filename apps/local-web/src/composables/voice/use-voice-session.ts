@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref } from "vue";
+import { computed, onScopeDispose, ref } from "vue";
 import type { VynelClient } from "@vynel/sdk";
 // The voice tier — ONE home in contracts (daemon, overlay, panel defaults).
 import {
@@ -21,7 +21,7 @@ import type {
   VoiceTurnEvent,
 } from "./voice-command-session-types.js";
 
-// Binds one browser voice-command session to Vue state for the Jarvis overlay:
+// Binds one browser voice-command session to Vue state for the voice overlay:
 // Web Speech STT in, a voice-thread `/root/turn` per utterance on the voice
 // tier, the reply's streamed text spoken in the browser sentence by sentence,
 // and a barge-in that stops the server turn by its own id.
@@ -153,7 +153,10 @@ export function useVoiceSession(options: {
     return session?.speakExternal(text) ?? false;
   }
 
-  onUnmounted(() => {
+  // The OWNER'S scope, not a component's mount. Under a view the two are the
+  // same moment; the Display's voice lives in a window-lifetime store instead,
+  // so a session that outlives the room still ends when the window does.
+  onScopeDispose(() => {
     session?.end();
   });
 

@@ -260,7 +260,7 @@ de-duplicates client-side (`voice-turn-adapter`)". It does not — I checked the
 - `use-voice-session.ts:96` plays the overlay's own turn's `speak` calls through a SECOND, separate
   player (the adapter's `spoke` events). `voice-turn-adapter`'s `spoke` flag de-dupes its own gist
   fallback against its own `speak` calls — it never sees daemon-relayed ones.
-- Both composables are mounted together (`JarvisView.vue:26-27`, `VoiceOverlay.vue:20-21`).
+- Both composables are mounted together (`DisplayDockView.vue:26-27`, `VoiceOverlay.vue:20-21`).
 
 So the daemon publishing during a handoff double-plays the overlay's own turn — which is exactly what
 the old no-op branch was defending against (native `driver.speak` double-plays too: browser speaker +
@@ -268,8 +268,8 @@ daemon speaker on one machine). The daemon cannot route by producer on its own: 
 `{ text, callId? }`, and a server-side discriminator can't help either — the overlay leg, the daemon
 wake leg and the Voice-chat panel leg are all `voice`-scope global turns.
 
-**E deliberately did NOT ship the daemon half alone.** `VYNEL_VOICE_JARVIS_WINDOW` defaults to `'1'`
-and `shouldHandOff: () => jarvisEnabled || overlay.hasClient` (`main.ts:232`), so handed-off is the
+**E deliberately did NOT ship the daemon half alone.** `VYNEL_VOICE_DOCK_WINDOW` defaults to `'1'`
+and `shouldHandOff: () => dockEnabled || overlay.hasClient` (`main.ts:232`), so handed-off is the
 DEFAULT path for every wake — publishing there would double-play *every spoken reply* in the shipped
 config, and no daemon-side test can catch it (the loop is daemon → api relay → browser). E ships the
 honest drop instead: a `warn` naming the drop and pointing here, replacing the no-op that logged the
@@ -277,7 +277,7 @@ line as played. **Apply these two together, as one commit:**
 
 1. **web** (`apps/local-web/src/composables/voice/use-voice-daemon-link.ts`): take an optional
    `isPlayingOwnTurn: () => boolean` and skip the `event.kind === "speak"` branch when it is true;
-   `JarvisView.vue:26-27` / `VoiceOverlay.vue:20-21` pass `() => voice.isActive`.
+   `DisplayDockView.vue:26-27` / `VoiceOverlay.vue:20-21` pass `() => voice.isActive`.
 2. **daemon** (`apps/voice/src/main.ts`, the `driver.isHandedOff` branch of `onSpeak`):
 
    ```ts

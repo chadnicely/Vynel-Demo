@@ -1,10 +1,10 @@
 // Wake-word detection for the background voice service — does an utterance open
-// with "hey jarvis", and if so, what's the command after it? PURE + deterministic
+// with "hey vynel", and if so, what's the command after it? PURE + deterministic
 // so it's gate-tested; the always-listening capture + Whisper that feed it live in
 // the apps/voice shell.
 //
-// Tolerant by design: Whisper-tiny mishears the (uncommon) name "jarvis" often
-// (jarvas, jervis, …) and sprinkles punctuation/casing, so the match accepts a
+// Tolerant by design: Whisper-tiny mishears these uncommon names often
+// (vinel, jervis, …) and sprinkles punctuation/casing, so the match accepts a
 // small set of greetings + near-spellings at the START of the transcript. A miss
 // list is cheaper than a model; widen the variants if a real mishear slips through.
 
@@ -16,10 +16,11 @@ export interface WakeWordResult {
 }
 
 // The wake name + the near-spellings STT commonly returns for these uncommon
-// words: "jarvis" (legacy), "vynel" (the product), and "claude" (the assistant's
-// display name — the UI invites "Hey Claude"). "vynel" is invented, so tiny STT
-// mangles it hard — observed live: "Hey Vynel" → "hey fine". The list therefore
-// includes common-word garbles (fine/final/cloud); widen as more surface.
+// words: "vynel" (the product), "claude" (the assistant's display name — the
+// UI invites "Hey Claude"), plus a retired legacy name kept only so an early
+// user is still heard. "vynel" is invented, so tiny STT mangles it hard —
+// observed live: "Hey Vynel" → "hey fine". The list therefore includes
+// common-word garbles (fine/final/cloud); widen as more surface.
 const WAKE_NAME =
   'jarvis|jarvas|jarviss|jervis|jarvus|jarviz|jarvi|vynel|vinel|vynell|vinell|vinyl|vynal|vinal|vanel|vynol|vino|vinnel|venel|fine|final|claude|claud|clod|clawed|cloud|klaud'
 
@@ -41,10 +42,10 @@ export function detectWakeWord(transcript: string): WakeWordResult {
   return { detected: true, command: transcript.slice(match[0].length).trim() }
 }
 
-// Strip a leading "hey jarvis" / bare "jarvis" that the command capture may have
+// Strip a leading "hey vynel" / bare "vynel" that the command capture may have
 // caught right after the acoustic wake model fired (it fires mid-utterance). The
 // greeting is OPTIONAL here — this only cleans the FRONT of an already-captured
-// command; it is NOT wake detection (a bare "jarvis" mid-conversation would
+// command; it is NOT wake detection (a bare "vynel" mid-conversation would
 // over-match), so don't use it for that. ⚠ Without the greeting anchor the
 // common-word garbles in WAKE_NAME (fine/final/cloud) can eat a command's real
 // first word — currently unused in production; tighten the name list here

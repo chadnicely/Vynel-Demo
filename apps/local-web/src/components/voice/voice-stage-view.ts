@@ -2,7 +2,7 @@ import type { VoiceOrbState } from "@vynel/ui";
 import type { VoiceCommandSessionView } from "../../composables/voice/voice-command-session-types.js";
 
 // The one mapping from a voice session's view to what the stage shows — shared
-// by the in-app overlay and the floating Jarvis window so their orb and caption
+// by the in-app overlay and the display dock so their orb and caption
 // can never drift apart.
 
 export function voiceStageOrbState(

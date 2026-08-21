@@ -1,5 +1,5 @@
 // Integration tests for `getOrCreateContinuingSession` — the generic
-// continuing-session identity getter (voice-jarvis piece 1). Real SQLite via
+// continuing-session identity getter (voice-continuity piece 1). Real SQLite via
 // `withTestDatabase` (no mocking). The VOICE scope is the real second consumer
 // that proves the primary-continuity generalization; the workspace + global primary
 // paths keep their own tests in `get-or-create-primary-session.test.ts`.

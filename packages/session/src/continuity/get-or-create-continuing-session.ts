@@ -1,5 +1,5 @@
 // `getOrCreateContinuingSession` — the GENERIC continuing-session identity getter
-// (voice-jarvis piece 1). Returns the stable identity for a (user, scope) — creating
+// (voice-continuity piece 1). Returns the stable identity for a (user, scope) — creating
 // it on first use — so ANY caller (a primary, the voice session, later an agent) can make
 // its session continuous by resolving an identity here and running the seed-fresh swap
 // over it. The continuity MECHANISM (detect-pressure + bridge) is already scope-agnostic;

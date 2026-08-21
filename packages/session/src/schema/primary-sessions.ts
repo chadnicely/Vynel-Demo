@@ -40,7 +40,7 @@ import { workspaces } from '@vynel/db/schema/workspaces'
 // The kinds of continuing session this table holds. Primaries are the MANAGER
 // identities — the per-workspace brain (`'workspace'`) and the single global
 // brain (`'global'`, Slice 3b). `'voice'` is the first NON-primary continuing
-// session (voice-jarvis piece 1 — the Jarvis session is continuous too). The
+// session (voice-continuity piece 1 — the voice session is continuous too). The
 // continuity MECHANISM (detect-pressure + seed-fresh swap) is scope-agnostic,
 // so any kind added here gets continuity for free. `'spawned'` (session-library
 // Slice ④) is a session a ROOT creates as a tool — MANY per user (and, since
@@ -120,7 +120,7 @@ export const primarySessions = table(
       .on(t.userId)
       .where(sql`${t.scope} = 'global' AND ${t.deletedAt} IS NULL`),
 
-    // One LIVE voice continuing-session per user (voice-jarvis piece 1). Voice is
+    // One LIVE voice continuing-session per user (voice-continuity piece 1). Voice is
     // global-scoped (workspaceId NULL); like the global primary, SQLite treats NULLs
     // as distinct so the workspace index can't pin it — this scope-gated partial
     // index does. Same shape works in Postgres Phase 2.

@@ -1,9 +1,16 @@
 // The `voice` HTTP surface — the brain's spoken output + the call tools.
 //
 //   POST   /voice/speak           -> speak (rootSurface; callId retargets into a call)
+//   POST   /voice/display-active  -> the app window's screen state (NOT a tool)
+//   POST   /voice/display-session -> the room's live conversation, mirrored (NOT a tool)
 //   POST   /voice/calls           -> start_call (rootSurface, CARDS in ask mode)
 //   GET    /voice/calls           -> list_calls (rootSurface, read-only)
 //   DELETE /voice/calls/:callId   -> end_call (rootSurface, auto-approved)
+//
+// `display-active` and `display-session` are the two doors here that carry no
+// `x-mcp`: they are a WINDOW talking to the user's other windows, not a
+// capability the model may reach for. Claude deciding to hide the dock — or to
+// claim the room is talking — would be a control the user never asked for.
 //
 // `speak` lets ANY global session emit voice: the light voice-triage session, the
 // global root answering a voice request, a scheduled task's morning briefing.
@@ -47,6 +54,10 @@ import {
   startCallThroughDaemon,
 } from './calls-through-daemon.js'
 import {
+  DisplayActiveRequestSchema,
+  DisplayActiveResponseSchema,
+  DisplaySessionRequestSchema,
+  DisplaySessionResponseSchema,
   EndCallResponseSchema,
   ListCallsResponseSchema,
   SpeakRequestSchema,
@@ -67,7 +78,7 @@ export const voiceApp = factory
     '/speak',
     describeRoute({
       tags: ['voice'],
-      summary: "Speak text aloud through the user's voice (the Jarvis speaker) or into a live call.",
+      summary: "Speak text aloud through the user's voice (the voice daemon's speaker) or into a live call.",
       'x-sdk-name': 'voice.speak',
       responses: {
         200: {
@@ -105,6 +116,51 @@ export const voiceApp = factory
       // stamped, never model input) — the daemon routes the line by it.
       const sessionId = parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)) ?? null
       return c.json(await speakThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL, text, sessionId))
+    },
+  )
+  .post(
+    '/display-active',
+    describeRoute({
+      tags: ['voice'],
+      summary: "Report whether the app window's Display is on screen, for the user's other voice windows.",
+      'x-sdk-name': 'voice.setDisplayActive',
+      responses: {
+        200: {
+          description: '{ published } — false when this engine has no live channel to fan it over.',
+          content: { 'application/json': { schema: resolver(DisplayActiveResponseSchema) } },
+        },
+      },
+    }),
+    validator('json', DisplayActiveRequestSchema),
+    ...userScoped,
+    (c) => {
+      const { active } = c.req.valid('json')
+      const sink = c.var.voiceControlSink
+      sink?.publish(c.var.user.id, { kind: 'display-active', active })
+      return c.json({ published: sink !== undefined })
+    },
+  )
+  .post(
+    '/display-session',
+    describeRoute({
+      tags: ['voice'],
+      summary:
+        "Report the voice conversation the app window's Display is holding, so the dock can mirror it.",
+      'x-sdk-name': 'voice.setDisplaySession',
+      responses: {
+        200: {
+          description: '{ published } — false when this engine has no live channel to fan it over.',
+          content: { 'application/json': { schema: resolver(DisplaySessionResponseSchema) } },
+        },
+      },
+    }),
+    validator('json', DisplaySessionRequestSchema),
+    ...userScoped,
+    (c) => {
+      const { live, phase, caption } = c.req.valid('json')
+      const sink = c.var.voiceControlSink
+      sink?.publish(c.var.user.id, { kind: 'display-session', live, phase, caption })
+      return c.json({ published: sink !== undefined })
     },
   )
   .post(

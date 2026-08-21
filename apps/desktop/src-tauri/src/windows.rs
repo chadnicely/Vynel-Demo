@@ -33,7 +33,7 @@ fn webview_url(path: &str) -> WebviewUrl {
 }
 
 /// Bring the main window to the user — the single-instance path: a second
-/// launch routes here instead of starting a new process, so a --jarvis-only
+/// launch routes here instead of starting a new process, so a --dock-only
 /// resident (which has no main window) simply gains one, and a minimized app
 /// comes forward. The daemon keeps its one owner either way.
 pub fn open_main_window(handle: &AppHandle) -> tauri::Result<()> {
@@ -64,16 +64,16 @@ fn build_main_window(handle: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()> {
-    if !jarvis_only {
+pub fn create_windows(handle: &AppHandle, dock_only: bool) -> tauri::Result<()> {
+    if !dock_only {
         build_main_window(handle)?;
     }
 
-    // Flags mirror the pre-D1 tauri.conf.json jarvis window verbatim — the
+    // Flags mirror the pre-D1 tauri.conf.json dock window verbatim — the
     // overlay web view manages its own show/hide/park/drag behavior
     // (local-web composables/voice/tauri-overlay-window.ts).
-    WebviewWindowBuilder::new(handle, "jarvis", webview_url("/jarvis"))
-        .title("Vynel Jarvis")
+    WebviewWindowBuilder::new(handle, "display-dock", webview_url("/display-dock"))
+        .title("Vynel Display")
         .inner_size(420.0, 560.0)
         .decorations(false)
         .transparent(true)
@@ -81,9 +81,9 @@ pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()
         .always_on_top(true)
         .resizable(false)
         .skip_taskbar(true)
-        // Hidden until a wake reveals it (JarvisView handleWake → reveal()) —
+        // Hidden until a wake reveals it (DisplayDockView handleWake → reveal()) —
         // Tauri defaults to visible, which painted the overlay on every launch
-        // with no wake at all. NOT .visible(jarvis_only): a wake-launched
+        // with no wake at all. NOT .visible(dock_only): a wake-launched
         // overlay still reveals through the daemon's replayed wake.
         .visible(false)
         .build()?;
@@ -91,7 +91,7 @@ pub fn create_windows(handle: &AppHandle, jarvis_only: bool) -> tauri::Result<()
     // The desktop-control attention overlay — hidden until its web view reveals
     // it (first mcp__desktop__ step on the activity feed). Created in BOTH modes:
     // a voice-driven desktop turn must surface it with the main window closed.
-    // skip_taskbar: unlike jarvis there is nothing to summon from the taskbar —
+    // skip_taskbar: unlike the dock there is nothing to summon from the taskbar —
     // the feed shows/hides it. No set-focus permission (never steals typing).
     WebviewWindowBuilder::new(handle, "desktop-overlay", webview_url("/desktop-control"))
     .title("Claude on your desktop")

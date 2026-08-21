@@ -53,16 +53,18 @@ function installTauriShell(): void {
 }
 
 function mountLink(
-  surface: "app" | "jarvis" = "app",
+  surface: "app" | "dock" = "app",
   ownLiveSessionId?: () => string | null,
   speakThroughSession?: (text: string) => boolean,
 ) {
   const onWake = vi.fn();
+  const onShowDisplay = vi.fn();
   let link!: ReturnType<typeof useVoiceDaemonLink>;
   const Host = defineComponent({
     setup() {
       link = useVoiceDaemonLink({
         onWake,
+        onShowDisplay,
         surface,
         ...(ownLiveSessionId !== undefined ? { ownLiveSessionId } : {}),
         ...(speakThroughSession !== undefined ? { speakThroughSession } : {}),
@@ -73,7 +75,7 @@ function mountLink(
   wrapper = mount(Host, { global: { plugins: [createPinia()] } });
   const socket = latestFakeLiveSocket();
   socket.serverOpens();
-  return { link: () => link, onWake, socket };
+  return { link: () => link, onWake, onShowDisplay, socket };
 }
 
 /** A relayed speak frame; `sessionId` omitted = what an older relay sends. */
@@ -85,14 +87,14 @@ const speak = (channel: string, text: string, sessionId?: string | null) =>
   }) as LiveChannelServerFrame;
 
 describe("useVoiceDaemonLink (live channel)", () => {
-  it("the Jarvis window always subscribes wake-capable and follows the relay's link light", () => {
-    const { link, socket } = mountLink("jarvis");
-    expect(socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:jarvis:wake"] }]);
+  it("the display dock always subscribes wake-capable and follows the relay's link light", () => {
+    const { link, socket } = mountLink("dock");
+    expect(socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:dock:wake"] }]);
     expect(link().isDaemonConnected.value).toBe(false);
-    socket.serverAcks("voice:jarvis:wake");
+    socket.serverAcks("voice:dock:wake");
     socket.serverSends({
       kind: "event",
-      channel: "voice:jarvis:wake",
+      channel: "voice:dock:wake",
       event: { kind: "daemon-link", connected: true },
     });
     expect(link().isDaemonConnected.value).toBe(true);
@@ -116,9 +118,9 @@ describe("useVoiceDaemonLink (live channel)", () => {
   });
 
   it("the desktop shell's app window NEVER declares it — even though WebView2 ships Web Speech", () => {
-    // A host declaration, not a feature detect: with the jarvis window feature
+    // A host declaration, not a feature detect: with the dock window feature
     // off, a wake must reach the native leg — not land in the main window (or
-    // the shell's hidden jarvis webview) where nobody would hear it.
+    // the shell's hidden dock webview) where nobody would hear it.
     installTauriShell();
     installWebSpeech();
     const { socket } = mountLink("app");
@@ -126,9 +128,9 @@ describe("useVoiceDaemonLink (live channel)", () => {
     wrapper!.unmount();
     wrapper = null;
 
-    // The shell's jarvis webview itself still does — it exists for wakes.
-    const jarvis = mountLink("jarvis");
-    expect(jarvis.socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:jarvis:wake"] }]);
+    // The shell's dock webview itself still does — it exists for wakes.
+    const dock = mountLink("dock");
+    expect(dock.socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:dock:wake"] }]);
   });
 
   it("routes wake (with the daemon's watchdog bound), speaking state and delegated speech", () => {
@@ -154,6 +156,42 @@ describe("useVoiceDaemonLink (live channel)", () => {
     expect(link().isDaemonSpeaking.value).toBe(false);
     socket.serverSends(speak("voice:app:wake", "good morning", "sched-1"));
     expect(played).toEqual(["good morning"]);
+  });
+
+  // The Display's orb mirrors the WHOLE daemon conversation, not just its
+  // voice — so the phase itself is what the link carries.
+  it("carries every daemon phase, and forgets it when the daemon goes", () => {
+    const { link, socket } = mountLink("dock");
+    socket.serverAcks("voice:dock:wake");
+    expect(link().daemonState.value).toBe("idle");
+
+    const state = (value: string) =>
+      socket.serverSends({
+        kind: "event",
+        channel: "voice:dock:wake",
+        event: { kind: "state", state: value },
+      });
+    for (const phase of ["wake", "listening", "thinking", "speaking"]) {
+      state(phase);
+      expect(link().daemonState.value).toBe(phase);
+    }
+    // A phase a newer daemon invented reads as 'idle' — never a surface parked
+    // in something it cannot interpret.
+    state("rehearsing");
+    expect(link().daemonState.value).toBe("idle");
+
+    // The daemon is gone: a stale phase would leave the room's orb listening
+    // for a conversation that no longer exists.
+    state("listening");
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:dock:wake",
+      event: { kind: "daemon-link", connected: false },
+    });
+    expect(link().daemonState.value).toBe("idle");
+    state("listening");
+    socket.serverDrops();
+    expect(link().daemonState.value).toBe("idle");
   });
 
   it("drops a relayed line only when it was produced by this window's own live turn", async () => {
@@ -191,17 +229,17 @@ describe("useVoiceDaemonLink (live channel)", () => {
       takenBySession.push(text);
       return true;
     });
-    const { socket } = mountLink("jarvis", () => "voice-seg-7", speakThroughSession);
-    socket.serverAcks("voice:jarvis:wake");
-    socket.serverSends(speak("voice:jarvis:wake", "your build is green", "sched-1"));
+    const { socket } = mountLink("dock", () => "voice-seg-7", speakThroughSession);
+    socket.serverAcks("voice:dock:wake");
+    socket.serverSends(speak("voice:dock:wake", "your build is green", "sched-1"));
     expect(takenBySession).toEqual(["your build is green"]);
     expect(played).toEqual([]);
     // Our own turn's copy is still dropped BEFORE the session is even asked.
-    socket.serverSends(speak("voice:jarvis:wake", "own turn line", "voice-seg-7"));
+    socket.serverSends(speak("voice:dock:wake", "own turn line", "voice-seg-7"));
     expect(speakThroughSession).toHaveBeenCalledTimes(1);
     // No turn in flight → the session declines → the side player, as before.
     turnInFlight = false;
-    socket.serverSends(speak("voice:jarvis:wake", "lunch in five", null));
+    socket.serverSends(speak("voice:dock:wake", "lunch in five", null));
     await vi.waitFor(() => expect(played).toEqual(["lunch in five"]));
     expect(takenBySession).toEqual(["your build is green"]);
   });
@@ -230,5 +268,95 @@ describe("useVoiceDaemonLink (live channel)", () => {
     wrapper = null;
     expect(live.channelCount()).toBe(0);
     expect(socket.takeSent()).toEqual([{ op: "unsubscribe", channels: ["voice:app"] }]);
+  });
+});
+
+describe("what the two windows tell each other", () => {
+  it("reads the app window's Display state, and keeps it across a socket drop", () => {
+    const { link, socket } = mountLink("dock");
+    socket.serverAcks("voice:dock:wake");
+    expect(link().isAppDisplayActive.value).toBe(false);
+
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:dock:wake",
+      event: { kind: "display-active", active: true },
+    });
+    expect(link().isAppDisplayActive.value).toBe(true);
+
+    // A blip must not flash the dock open and shut: the phase is reset (it
+    // gates a microphone), this is not — the api replays it on re-subscribe.
+    socket.serverDrops();
+    expect(link().daemonState.value).toBe("idle");
+    expect(link().isAppDisplayActive.value).toBe(true);
+  });
+
+  // The other half: the conversation the ROOM is holding, which the dock
+  // mirrors in its corner while the user works somewhere else.
+  it("reads the app window's live conversation, and keeps it across a socket drop", () => {
+    const { link, socket } = mountLink("dock");
+    socket.serverAcks("voice:dock:wake");
+    expect(link().appDisplaySession.value).toBeNull();
+
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:dock:wake",
+      event: {
+        kind: "display-session",
+        live: true,
+        phase: "speaking",
+        caption: "Two builds are green",
+      },
+    } as unknown as LiveChannelServerFrame);
+    expect(link().appDisplaySession.value).toEqual({
+      live: true,
+      phase: "speaking",
+      caption: "Two builds are green",
+    });
+
+    // A phase a newer app window invented reads as 'idle' rather than parking
+    // the mirrored orb in something this one cannot interpret.
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:dock:wake",
+      event: { kind: "display-session", live: true, phase: "dreaming", caption: "hm" },
+    } as unknown as LiveChannelServerFrame);
+    expect(link().appDisplaySession.value?.phase).toBe("idle");
+
+    // Same reason as `display-active`: a blip would flash the corner row open
+    // and shut, and the api replays the fact on re-subscribe anyway.
+    socket.serverDrops();
+    expect(link().appDisplaySession.value?.live).toBe(true);
+  });
+
+  it("hands show-display to the surface that can act on it", () => {
+    const { onShowDisplay, socket } = mountLink("app");
+    socket.serverAcks("voice:app");
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:app",
+      event: { kind: "show-display" },
+    });
+    expect(onShowDisplay).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the handed-off phase — where a dock conversation sits for its whole life", () => {
+    const { link, socket } = mountLink("app");
+    socket.serverAcks("voice:app");
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:app",
+      event: { kind: "state", state: "handed-off" },
+    });
+    expect(link().daemonState.value).toBe("handed-off");
+    // Not speaking: the wake window has the room, not the daemon's speaker.
+    expect(link().isDaemonSpeaking.value).toBe(false);
+
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:app",
+      event: { kind: "state", state: "idle" },
+    });
+    expect(link().daemonState.value).toBe("idle");
   });
 });

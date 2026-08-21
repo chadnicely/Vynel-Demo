@@ -10,14 +10,22 @@ import {
 } from "./voice-stage-view.js";
 import VoiceStage from "./VoiceStage.vue";
 
-// The in-app Jarvis view: the daemon hears "Hey Vynel" locally and hands the
+// The in-app voice view: the daemon hears "Hey Vynel" locally and hands the
 // session here — Web Speech (Google STT) transcribes commands with a live
 // interim caption, the brain answers over /root/turn on the spoken thread, and
 // the reply's streamed text is spoken in the browser a sentence at a time while
 // the mic stays open (talk over it to interrupt). Also opens from the mic
 // button with no daemon. Closing it by any route ends the session — which
 // stops a running turn by its own session id (round-2 R2-E), never the global
-// head. (The floating desktop variant of this surface is views/JarvisView.vue.)
+// head. (The floating desktop variant of this surface is views/DisplayDockView.vue.)
+
+// The daemon wants the Display in front of the user (a wake is landing in the
+// display dock). This overlay holds the window's ONLY `voice:app` link while
+// the room is closed — which is exactly when there is something to open — so
+// the event arrives here and the shell, which owns the switch, acts on it.
+// (While the room IS open, DisplayView holds the link and there is nothing to
+// do.) A second link in the shell would double-play every relayed line.
+const emit = defineEmits<{ showDisplay: [] }>();
 
 const ui = useUiStore();
 const isMuted = ref(false);
@@ -29,6 +37,7 @@ const daemon = useVoiceDaemonLink({
   onWake: handleWake,
   ownLiveSessionId: voice.currentSessionId,
   speakThroughSession: voice.speakExternal,
+  onShowDisplay: () => emit("showDisplay"),
 });
 
 // The session settled (idle silence, close, or a start that couldn't begin):
@@ -47,6 +56,12 @@ function handleWake(command: string, turnWatchdogMs?: number): void {
 
 // The manual path: mic button opens the overlay → start listening; closing it
 // by any route ends the session.
+//
+// SYNC, like the daemon link's own gate: `use-display-voice.start()` closes
+// this overlay and then opens its recognizer in the same tick, counting on this
+// watcher to have ended ours first. Queued, the order inverts — the store's
+// recognizer opens and only THEN is ours closed, so the window holds two Web
+// Speech sessions for a tick, which is a fight neither wins.
 watch(
   () => ui.isVoiceOverlayOpen,
   (isOpen) => {
@@ -57,6 +72,7 @@ watch(
       voice.end();
     }
   },
+  { flush: "sync" },
 );
 
 function toggleMute() {

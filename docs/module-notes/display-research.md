@@ -1,7 +1,7 @@
 # Display — research (2026-08-21)
 
 > Naming (Kafi 2026-08-21): the view is **Display** (menu may say "Display Console"), package `@vynel/display`,
-> tools `display_*`, the mini one is the **display dock**. "HUD" below refers to the demo's tab only; "Jarvis" is not
+> tools `display_*`, the mini one is the **display dock**. "HUD" below refers to the demo's tab only; the borrowed hero name is not
 > used anywhere in the product.
 
 Kafi's brief: bring the mission-control demo's **HUD tab** (`.tmp/vynel-mission-control`, `index.html` → `js/hud.js`)
@@ -42,14 +42,14 @@ the synthesis. No code yet.
   spokenText, notice}`, `isActive`, `start/end`, `currentSessionId`, `speakExternal`) + `use-voice-daemon-link.ts`
   (wake, daemon speaking, session end). `VoiceStage.vue` + `voice-stage-view.ts` are pure presentation and reusable at
   any orb size. The Tauri MAIN window deliberately declares **no wake capability** (the voice-routing fix) — the
-  toggle starts a manual in-app session; the wake path goes through the Jarvis window.
+  toggle starts a manual in-app session; the wake path goes through the display-dock window.
 - **Wake opens the app — no new Rust:** `main.rs:44-52` single-instance handler already calls
-  `open_main_window()` when the exe is launched WITHOUT `--jarvis-only`; the daemon only ever spawns with it
-  (`jarvis-window.ts:108`). An argless spawn = "wake opens the app". Switching to the HUD view = a frame to the
+  `open_main_window()` when the exe is launched WITHOUT `--dock-only`; the daemon only ever spawns with it
+  (`display-dock-window.ts:108`). An argless spawn = "wake opens the app". Switching to the HUD view = a frame to the
   app (the `voice` live channel already reaches the main window).
 - **The mini dock is CROSS-WINDOW:** the desktop-control progress UI is its own always-on-top transparent Tauri window
   (`windows.rs:96-106`, 380×360, parked bottom-right by `tauri-overlay-window.ts:54-69`). "Same position, stacked
-  above" is therefore an OS-window statement, not CSS. Note the **Jarvis window already IS such a window**
+  above" is therefore an OS-window statement, not CSS. Note the **display-dock window already IS such a window**
   (`windows.rs:75-89`, 420×560, always-on-top, transparent, reveals on wake, parks center).
 - **Live data — no new channel needed for status:** compose `activity` (turn frames, replayed on subscribe),
   `voice:<surface>` (daemon state), `GET /root/voice-chat/status`, the sessions overview, approvals/asks — exactly
@@ -93,17 +93,17 @@ the synthesis. No code yet.
 
 ## 4. Recommended shape + phases
 
-**The mini dock = the Jarvis window in "mini mode".** It is already the always-on-top transparent OS window that
+**The mini dock = the display-dock window in "mini mode".** It is already the always-on-top transparent OS window that
 reveals on wake; give it a second parking spot (bottom-right, offset above the desktop-control window when that one
 is visible — both use `createOverlayWindowControls`; add a stacking offset) and a compact `VoiceStage` at a small
-orb. Rule: HUD view active in-app → the Jarvis window hides (the in-app HUD owns the orb); user on any other view
-while a voice session is live → the Jarvis window shows mini, bottom-right. No third window, no new capability file.
+orb. Rule: HUD view active in-app → the dock window hides (the in-app HUD owns the orb); user on any other view
+while a voice session is live → the dock window shows mini, bottom-right. No third window, no new capability file.
 
 | Phase | Delivers | Size |
 |---|---|---|
 | **P1 — the HUD room** | `OrbRenderer` (ported, tokened, dark-only, stops on unmount, spikes per spoken clause) · `HudPanel`/`HudRow` · top strip (LINKED · N building · N need you · clock) · panels wired to existing status sources (voice status, overview, rail entities, approvals/asks) · HUD as a global canvas view · top-bar toggle (starts the in-app voice session + shows the HUD) · empty widget slots | ~2 days, no schema, no tools |
 | **P2 — widgets** | P2a `@vynel/hud` + migration · P2b routes + x-mcp + gates + census · P2c `hud` live channel + injected sink + `use-hud-widgets` · P2d renderers (markdown/table/metric/chart) · instruction steer (global-root + voice-turn: "one sentence, detail on the HUD") | ~3 days, four gated slices |
-| **P3 — presence** | Jarvis-window mini mode (bottom-right, stacked above desktop-control) · wake opens the app (argless spawn → single-instance handler) + a switch-to-HUD frame · orb reactivity from `voice:<surface>` listen-only | ~2 days |
+| **P3 — presence** | dock-window mini mode (bottom-right, stacked above desktop-control) · wake opens the app (argless spawn → single-instance handler) + a switch-to-HUD frame · orb reactivity from `voice:<surface>` listen-only | ~2 days |
 | **Later / gated** | `kind: 'html'` behind the CSP prerequisites · user rearrangement · light theme (needs a different orb) | — |
 
 ## 5. Decisions — ALL SIX RECOMMENDATIONS ACCEPTED (Kafi 2026-08-21)
@@ -111,7 +111,7 @@ while a voice session is live → the Jarvis window shows mini, bottom-right. No
 Plus: **the in-app web speech leg is the PRIMARY voice path** (recognition accuracy — "we will use the web synthesis
 maximum time"); the native daemon leg is the wake path only. Original questions, kept for the record:
 
-1. Mini dock = Jarvis window mini mode (recommended) vs a new third OS window vs an in-window card.
+1. Mini dock = display-dock window mini mode (recommended) vs a new third OS window vs an in-window card.
 2. Widgets: persist + 12/scope cap + named slots; ship four safe kinds now, raw `html` later behind CSP work — OK?
 3. HUD tools never card; `remove`/`clear` as POST routes (no approval card to tidy the board) — OK?
 4. HUD is dark-only (the orb's compositing) — OK, or is a light variant required?

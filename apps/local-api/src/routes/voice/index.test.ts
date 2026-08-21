@@ -11,6 +11,10 @@ import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { listAllChatSessionsForUser } from '@vynel/chat/repositories'
+import {
+  DISPLAY_SESSION_CAPTION_MAX_LENGTH,
+  type VoiceControlEvent,
+} from '@vynel/contracts/voice/daemon-events'
 import { createApp } from '../../app.js'
 import { TURN_SESSION_HEADER } from '../../sessions/turn-session-header.js'
 
@@ -172,6 +176,131 @@ describe('POST /voice/speak', () => {
       // failed that way once). The invariant is that the REMOTE short-circuit
       // stayed out of the way, so the relay is what answered.
       expect(body.reason ?? '').not.toContain('remote server')
+    })
+  })
+})
+
+describe('POST /voice/display-active', () => {
+  it('hands the app window’s Display state to the live channel, scoped to that user', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const published: Array<{ userId: string; frame: VoiceControlEvent }> = []
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        voiceControlSink: { publish: (userId, frame) => published.push({ userId, frame }) },
+      })
+
+      const response = await app.request('/voice/display-active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ active: true }),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ published: true })
+      expect(published).toEqual([
+        { userId: user.id, frame: { kind: 'display-active', active: true } },
+      ])
+    })
+  })
+
+  it('answers published: false without a live channel, and refuses a non-boolean', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger })
+
+      const noSink = await app.request('/voice/display-active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ active: false }),
+      })
+      expect(noSink.status).toBe(200)
+      expect(await noSink.json()).toEqual({ published: false })
+
+      const bad = await app.request('/voice/display-active', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ active: 'yes' }),
+      })
+      expect(bad.status).toBe(400)
+    })
+  })
+})
+
+describe('POST /voice/display-session', () => {
+  it('hands the room’s live conversation to the live channel, scoped to that user', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const published: Array<{ userId: string; frame: VoiceControlEvent }> = []
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        voiceControlSink: { publish: (userId, frame) => published.push({ userId, frame }) },
+      })
+
+      const response = await app.request('/voice/display-session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ live: true, phase: 'speaking', caption: 'Two builds are green' }),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ published: true })
+      expect(published).toEqual([
+        {
+          userId: user.id,
+          frame: {
+            kind: 'display-session',
+            live: true,
+            phase: 'speaking',
+            caption: 'Two builds are green',
+          },
+        },
+      ])
+    })
+  })
+
+  it('answers published: false without a live channel, and refuses a phase it does not know', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger })
+
+      const noSink = await app.request('/voice/display-session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ live: false, phase: 'idle', caption: '' }),
+      })
+      expect(noSink.status).toBe(200)
+      expect(await noSink.json()).toEqual({ published: false })
+
+      // `wake` belongs to the daemon leg — a window's own session never reaches it.
+      const bad = await app.request('/voice/display-session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ live: true, phase: 'wake', caption: '' }),
+      })
+      expect(bad.status).toBe(400)
+    })
+  })
+
+  // The producer clamps to this very number, so the longest caption it can
+  // ever send is the longest one this route accepts — one shared const, no
+  // silent 400 that would freeze the dock's row mid-reply.
+  it('accepts a caption of exactly the contract’s cap, and refuses one past it', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger })
+      const post = (caption: string) =>
+        app.request('/voice/display-session', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ live: true, phase: 'speaking', caption }),
+        })
+
+      const atCap = await post('x'.repeat(DISPLAY_SESSION_CAPTION_MAX_LENGTH))
+      expect(atCap.status).toBe(200)
+
+      const overCap = await post('x'.repeat(DISPLAY_SESSION_CAPTION_MAX_LENGTH + 1))
+      expect(overCap.status).toBe(400)
     })
   })
 })

@@ -6,8 +6,8 @@ import AppShell from "./components/shell/AppShell.vue";
 import OnboardingWizard from "./components/onboarding/OnboardingWizard.vue";
 import { useOnboardingStore } from "./stores/onboarding-store.js";
 
-// Bare routes (the floating Jarvis window, dev previews) render their view alone
-// — no shell, and crucially no shell data hooks (the /jarvis overlay must not
+// Bare routes (the display dock, dev previews) render their view alone
+// — no shell, and crucially no shell data hooks (the /display-dock window must not
 // run the approvals poll or a second voice link). The full desktop shell lives
 // in AppShell, mounted only for real surfaces below.
 const route = useRoute();

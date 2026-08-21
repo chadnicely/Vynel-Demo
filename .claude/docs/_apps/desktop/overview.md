@@ -2,7 +2,7 @@
 
 > The native window shell users actually double-click: a thin Tauri app that hosts Vynel on their machine — it starts the local backend, opens the windows, and paints the same web UI a browser would, wrapped in a real desktop frame.
 >
-> **Status:** shipped (D1) · installer (D2) pending · **Depends on:** [local-api](../local-api/overview.md) (the daemon it hosts), [local-web](../local-web/overview.md) (the UI it loads), [voice](../voice/overview.md) (wakes the Jarvis overlay) · **Code map:** [structure.md](./structure.md)
+> **Status:** shipped (D1) · installer (D2) pending · **Depends on:** [local-api](../local-api/overview.md) (the daemon it hosts), [local-web](../local-web/overview.md) (the UI it loads), [voice](../voice/overview.md) (wakes the display dock) · **Code map:** [structure.md](./structure.md)
 
 ## Purpose
 
@@ -15,8 +15,8 @@ The shell runs in two very different modes. **In development** it assumes the de
 ## What it can do
 
 - **Open the main window** — a titled, resizable frame (with a sensible minimum size) that loads Vynel's root UI.
-- **Open the Jarvis overlay** — a small, frameless, transparent, always-on-top, non-resizable window that loads the voice route and floats above other apps; the overlay's own web view drives its show / hide / park / drag behavior.
-- **Launch overlay-only on wake** — when the voice daemon relaunches the app with the voice-only flag, only the Jarvis overlay opens and the full app stays closed, so speaking to Vynel doesn't pop a whole window.
+- **Open the display dock** — a small, frameless, transparent, always-on-top, non-resizable window that loads the voice route and floats above other apps; the overlay's own web view drives its show / hide / park / drag behavior.
+- **Launch overlay-only on wake** — when the voice daemon relaunches the app with the voice-only flag, only the display dock opens and the full app stays closed, so speaking to Vynel doesn't pop a whole window.
 - **Quit when the main window closes** — closing the main window exits the entire app, so no headless overlay (or backend) is left running after the user thinks Vynel is shut.
 - *(background)* **Start the backend daemon** in release builds — locate the app's code, spawn the API server as a child process, and hand the windows the address it serves.
 - *(background)* **Supervise the daemon** — if the backend dies unexpectedly, respawn it with backoff, up to a small fixed number of attempts before giving up and letting the window show a connection error.
@@ -39,10 +39,10 @@ The shell runs in two very different modes. **In development** it assumes the de
 |---|---|
 | **The shell** | The native Tauri process itself — the window frame and process lifecycle, holding no UI of its own. |
 | **Main window** | The primary Vynel frame: titled, resizable, loads the app's root UI. Closing it quits everything. |
-| **Jarvis overlay** | The voice window: small, frameless, transparent, shadowless, non-resizable, always-on-top. Loads the voice route; manages its own show/hide/park/drag. |
+| **Display dock** | The voice window: small, frameless, transparent, shadowless, non-resizable, always-on-top. Loads the voice route; manages its own show/hide/park/drag. |
 | **The daemon (sidecar)** | The local backend server, run as a child process the shell owns in release builds. |
 | **Dev mode vs. release mode** | Two behaviors. In dev the shell just opens windows against a developer-run server + dev UI; in release it starts and supervises the backend and loads the daemon-hosted UI. |
-| **Overlay-only launch** | A launch mode (triggered by the voice daemon on wake) that opens *only* the Jarvis overlay, leaving the full app closed. |
+| **Overlay-only launch** | A launch mode (triggered by the voice daemon on wake) that opens *only* the display dock, leaving the full app closed. |
 | **The port probe** | Watching the backend's loopback port open as the signal that the daemon has finished booting — the shell's health check. |
 | **D1 / D2** | Ship stages. D1 = the real desktop app, shipped, running from a repo checkout. D2 = the installer, bundled runtime, and lifecycle hardening — still to come. |
 
@@ -78,7 +78,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Desktop is the outermost ring of Vynel on a user's machine — the only piece they launch directly, and the one that makes all the others reachable. It hosts [local-api](../local-api/overview.md) as a sidecar process and loads [local-web](../local-web/overview.md) into its windows; in a shipped build the web UI it shows is the one the API's own gateway serves, so the shell is really just framing a self-contained local system. Its second window exists for [voice](../voice/overview.md): the always-on-top Jarvis overlay is how Vynel answers when spoken to, and the voice daemon can relaunch the shell in overlay-only mode so a wake word summons just that floating window. Everything conversational — memory, knowledge, chat, approvals — happens inside those web views, served by the backend the shell quietly keeps alive; the desktop app's whole contribution is making that backend start, stay up, and stop cleanly, wrapped in windows that feel native. The remaining work to make it a true consumer product — a real installer, a bundled runtime instead of a repo checkout, and hardened single-instance ownership — is the D2 stage still ahead.
+Desktop is the outermost ring of Vynel on a user's machine — the only piece they launch directly, and the one that makes all the others reachable. It hosts [local-api](../local-api/overview.md) as a sidecar process and loads [local-web](../local-web/overview.md) into its windows; in a shipped build the web UI it shows is the one the API's own gateway serves, so the shell is really just framing a self-contained local system. Its second window exists for [voice](../voice/overview.md): the always-on-top display dock is how Vynel answers when spoken to, and the voice daemon can relaunch the shell in overlay-only mode so a wake word summons just that floating window. Everything conversational — memory, knowledge, chat, approvals — happens inside those web views, served by the backend the shell quietly keeps alive; the desktop app's whole contribution is making that backend start, stay up, and stop cleanly, wrapped in windows that feel native. The remaining work to make it a true consumer product — a real installer, a bundled runtime instead of a repo checkout, and hardened single-instance ownership — is the D2 stage still ahead.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

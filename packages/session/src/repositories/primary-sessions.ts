@@ -103,7 +103,7 @@ export function findGlobalPrimarySessionForUser(db: Database, userId: string): P
   return row ?? null
 }
 
-// The single live VOICE continuing-session for a user (voice-jarvis piece 1) —
+// The single live VOICE continuing-session for a user (voice-continuity piece 1) —
 // null if none exists yet. Voice is global-scoped (workspaceId NULL); resolution
 // is by (userId, scope='voice'). The partial unique index guarantees at most one
 // live voice row per user.

@@ -20,7 +20,7 @@
 | `packages/voice/src/relay/ack-library.ts` | `pickAckForRequest` — **pure** keyword→instant-ack matcher (no LLM); deterministic per transcript. *Dormant* |
 | `packages/voice/src/turn-taking/turn-taking-gate.ts` | `TurnTakingGate` — sticky open/close boolean gate + `waitUntilOpen()` for mic gating; no missed-signal deadlock. *Dormant* |
 | `packages/voice/src/turn-taking/barge-in.ts` | `shouldBargeInNow` — **pure** predicate: pending notification ∧ ¬user-speaking ∧ ¬assistant-speaking. *Dormant* |
-| `packages/voice/src/turn-taking/wake-word.ts` | `detectWakeWord` (**wired**, daemon) + `stripWakePrefix` (*dormant*) — regex wake match tolerant of tiny-STT mishears ("hey vynel"/"hey claude"/"hey jarvis") |
+| `packages/voice/src/turn-taking/wake-word.ts` | `detectWakeWord` (**wired**, daemon) + `stripWakePrefix` (*dormant*) — regex wake match tolerant of tiny-STT mishears ("hey vynel"/"hey claude") |
 | `packages/voice/src/turn-taking/audio-segmenter.ts` | `SpeechSegmenter` — RMS-energy speech segmenter (16 kHz mono float → utterance clips). *Dormant — superseded by sherpa VAD in `@vynel/voice-engine`* |
 
 Every source file has a colocated `*.test.ts` (9 test files) — the whole leaf is unit-tested with plain inputs, no fakes/db needed. Design source: `.claude/ceo/agent-base/voice-relay-design.md` (per `index.ts` header).
@@ -80,7 +80,7 @@ The local-web browser overlay (`apps/local-web/src/composables/voice/voice-comma
 | providers (`@vynel/providers`) | out | import (type-only) | `NormalizedSessionEvent` — the event shape `summarizeTurnForVoice` / `RelayTaskNotifier` fold |
 | [voice-engine](../voice-engine/overview.md) (`@vynel/voice-engine`) | — | **none** (siblings, no import either way) | separate leaf: sherpa-onnx STT/TTS/VAD models + `PcmAudio` seams; the two only meet inside `apps/voice` |
 | apps/voice (`@vynel/voice-daemon`) | in | import | `detectWakeWord` + `SpokenSentenceBuffer` used by `voice-session-driver.ts`; the app also imports `@vynel/voice-engine` |
-| apps/local-web (`@vynel/local-web`) | in | import | `stripSpokenMarkup` in the Jarvis-view voice composable |
+| apps/local-web (`@vynel/local-web`) | in | import | `stripSpokenMarkup` in the voice-view composable |
 | [channels](../channels/overview.md) (`@vynel/channels`) | — | **none** (verified) | despite CLAUDE.md framing Voice as a "channel", there is **no** code edge: `@vynel/voice` imports nothing from `packages/channels`, and channels references nothing in voice. Voice-as-a-channel is a product/app-surface idea, not a package dependency |
 
 **The three-way boundary (verified):**
@@ -89,7 +89,7 @@ The local-web browser overlay (`apps/local-web/src/composables/voice/voice-comma
 - **`packages/voice-engine`** = `@vynel/voice-engine` — the STT/TTS/VAD *engine* (sherpa-onnx native, CPU). Owns `PcmAudio`, `VoiceEngine`, `SpeechRecognizer`, `VoiceActivityDetector`, `SherpaVoiceEngine`, etc. **Does not import `@vynel/voice`, and `@vynel/voice` does not import it** — they are independent siblings joined only in the daemon.
 - **`apps/voice`** = `@vynel/voice-daemon` — the imperative shell (`main.ts`, `audio/` via node-cpal, `brain/` SSE client, `loop/` driver, `overlay/`). Imports **both** leaves and wires them into the running loop; it is the only place they meet.
 
-**Voice ≠ channels (as code).** CLAUDE.md lists "channels (Telegram, Voice/Jarvis)" together, but that is a *product* grouping. The `@vynel/voice` leaf has **no dependency on `packages/channels`** and channels has none on voice (both directions grepped clean). Voice reaches the brain through the daemon's own SSE `/root/turn` client, not through the channels feature.
+**Voice ≠ channels (as code).** CLAUDE.md groups the voice channel with Telegram, but that is a *product* grouping. The `@vynel/voice` leaf has **no dependency on `packages/channels`** and channels has none on voice (both directions grepped clean). Voice reaches the brain through the daemon's own SSE `/root/turn` client, not through the channels feature.
 
 **Events published/consumed:** none. **Outbox:** none. **MCP:** none of its own (the `speak` tool lives in the app/session layer, not here).
 

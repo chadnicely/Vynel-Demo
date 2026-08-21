@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  DISPLAY_SESSION_CAPTION_MAX_LENGTH,
+  DISPLAY_SESSION_PHASES,
+} from '@vynel/contracts/voice/daemon-events'
 
 // The `speak` tool's wire contract. `text` is SPOKEN aloud, so it must be plain
 // spoken-style prose — the description steers the model; the daemon speaks it
@@ -23,6 +27,36 @@ export const SpeakResponseSchema = z.object({
 })
 
 export type SpeakResponse = z.infer<typeof SpeakResponseSchema>
+
+// The app window's report of whether the in-app Display is on screen right
+// now. Not a tool and not a preference — a presence fact one window publishes
+// so the display dock (which cannot see the app's screen) knows whether the
+// room already owns the orb.
+export const DisplayActiveRequestSchema = z.object({
+  active: z.boolean(),
+})
+
+export const DisplayActiveResponseSchema = z.object({
+  /** `false` = no live channel on this engine, so no window heard it. */
+  published: z.boolean(),
+})
+
+// The other half of the same seam: the conversation the app window's Display
+// room is HOLDING, so the display dock can mirror a session that lives in
+// another window. `caption` is the last line of it, capped at a sentence or
+// two — the mini row shows one line and the room carries the whole reply. The
+// cap is the contract's own number, not a second opinion: the producer clamps
+// to the same one, so a reply long enough to trip this can never reach here.
+export const DisplaySessionRequestSchema = z.object({
+  live: z.boolean(),
+  phase: z.enum(DISPLAY_SESSION_PHASES),
+  caption: z.string().max(DISPLAY_SESSION_CAPTION_MAX_LENGTH),
+})
+
+export const DisplaySessionResponseSchema = z.object({
+  /** `false` = no live channel on this engine, so no window heard it. */
+  published: z.boolean(),
+})
 
 // ── The call tools' wire contracts (voice-in-calls Part C) ──────────────────
 

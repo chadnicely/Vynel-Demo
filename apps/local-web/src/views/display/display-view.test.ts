@@ -2,11 +2,16 @@
 // the session, and the orb fed from the one derivation. The voice session is
 // stubbed (happy-dom has no Web Speech and no microphone) — everything else
 // runs for real, including the status composable over a quiet API.
+//
+// The session is NOT the room's any more (2026-08-21): it belongs to the
+// window (`use-display-voice`), so these cases open the room over a session
+// that already exists and check what the room DRAWS — including the room
+// closing and the conversation carrying on without it.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MaybeRefOrGetter, Ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
-import { createPinia, setActivePinia } from "pinia";
+import { createPinia, setActivePinia, type Pinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { DisplayOrb, DisplayPanel } from "@vynel/ui";
 import type { VynelClient } from "@vynel/sdk";
@@ -14,6 +19,8 @@ import type { LiveChannelServerFrame } from "@vynel/contracts/chat/live-channel"
 import type { DisplayWidgetView } from "@vynel/contracts/display/display-widget";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { DisplayBoardChange } from "../../composables/display/use-display-widgets.js";
+import type { DisplaySessionAnnouncement } from "../../composables/display/use-display-session-announce.js";
+import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import type { SessionScope } from "../../composables/chat/session-scope.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import {
@@ -40,7 +47,7 @@ interface VoiceStub {
 const voice = vi.hoisted(() => ({}) as VoiceStub);
 
 vi.mock("../../composables/voice/use-voice-session.js", async () => {
-  const { computed, onUnmounted, ref } = await import("vue");
+  const { computed, onScopeDispose, ref } = await import("vue");
   voice.view = ref<VoiceCommandSessionView>({
     state: "ended",
     transcript: "",
@@ -61,13 +68,13 @@ vi.mock("../../composables/voice/use-voice-session.js", async () => {
   // the room's default, so the side player is never reached in these tests.
   voice.currentSessionId = vi.fn(() => null);
   voice.speakExternal = vi.fn(() => true);
-  // The real composable ends its session on unmount — mirrored here so the
-  // stub keeps the same contract, which is what pins the session to the ROOM:
-  // created in DisplayView's own setup, its life is the view's life.
+  // The real composable ends its session when its OWNER'S scope goes away —
+  // mirrored here so the stub keeps the same contract. Its owner is the
+  // window-lifetime store now, which is why closing the room ends nothing.
   return {
     useVoiceSession: (options: { onEnded: () => void }) => {
       voice.fireEnded = options.onEnded;
-      onUnmounted(() => voice.end());
+      onScopeDispose(() => voice.end());
       return voice;
     },
   };
@@ -159,8 +166,11 @@ function makeWidget(
   };
 }
 
-/** A machine at rest: everything the Display reads, answering empty. */
-function quietClient(): VynelClient {
+/** A machine at rest: everything the Display reads, answering empty.
+ *  `sessions` is captured per mount on purpose — the voice stub is a module
+ *  singleton, so a store left behind by an earlier case still watches it, and
+ *  a shared array would let that ghost announce into this case's expectations. */
+function quietClient(sessions: DisplaySessionAnnouncement[]): VynelClient {
   return {
     dashboard: {
       getOverview: async () => ({
@@ -187,14 +197,31 @@ function quietClient(): VynelClient {
       }),
     },
     sessions: { overview: async () => [] },
+    // The window announces the conversation it holds so the display dock
+    // (another window) can mirror it — every phase change, room or no room.
+    voice: {
+      setDisplaySession: async (announcement: DisplaySessionAnnouncement) => {
+        sessions.push(announcement);
+        return { published: false };
+      },
+    },
   } as unknown as VynelClient;
 }
 
-/** POSTs the room makes on its own — only the daemon's session hand-back. */
+/** POSTs made on this window's behalf — only the daemon's session hand-back. */
 let posted: Array<[string, RequestInit | undefined]>;
+/** Every `setDisplaySession` this window announced, in order — what the display
+ *  dock mirrors while the user is looking somewhere else. */
+let announcedSessions: DisplaySessionAnnouncement[];
+/** The window's voice, as the shell would hold it. */
+let displayVoice: ReturnType<typeof useDisplayVoice>;
+/** Kept so a second mount can re-open the room over the SAME window voice. */
+let windowPinia: Pinia;
+let mounted: ReturnType<typeof mount> | null = null;
 
 beforeEach(() => {
   posted = [];
+  announcedSessions = [];
   board.widgets.value = [];
   vi.stubGlobal("fetch", (url: string, init?: RequestInit) => {
     posted.push([url, init]);
@@ -205,22 +232,34 @@ beforeEach(() => {
   vi.stubGlobal("WebSocket", undefined);
 });
 
+// One room at a time: the voice stub is a module singleton, so a view left
+// mounted by an earlier case would answer this one's session changes too.
 afterEach(() => {
+  mounted?.unmount();
+  mounted = null;
   vi.unstubAllGlobals();
 });
 
-async function mountDisplay(
-  prepare?: (ui: ReturnType<typeof useUiStore>) => void,
-  scope: SessionScope = { kind: "global" },
-) {
+interface MountOptions {
+  prepare?: (ui: ReturnType<typeof useUiStore>) => void;
+  scope?: SessionScope;
+  /** Whether the window's voice is already on when the room opens — what the
+   *  title-bar switch does, and the state the room is normally reached in. */
+  voiceOn?: boolean;
+}
+
+async function mountDisplay(options: MountOptions = {}) {
+  const { prepare, scope = { kind: "global" }, voiceOn = true } = options;
   voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
   voice.failure.value = null;
   voice.start.mockClear();
   voice.end.mockClear();
   voice.speakExternal.mockClear();
   board.clearOnServer.mockClear();
+  announcedSessions = [];
 
   const pinia = createPinia();
+  windowPinia = pinia;
   setActivePinia(pinia);
   prepare?.(useUiStore());
 
@@ -231,9 +270,35 @@ async function mountDisplay(
         pinia,
         [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }],
       ],
-      provide: { [vynelClientKey as symbol]: quietClient() },
+      provide: { [vynelClientKey as symbol]: quietClient(announcedSessions) },
     },
   });
+  mounted = wrapper;
+  // The shell's switch is the one reading of "the room is on screen" — with no
+  // shell here, this case stands in for it. Without it the window would not
+  // hold the daemon link the room draws its other leg from.
+  displayVoice = useDisplayVoice();
+  displayVoice.setRoomOnScreen(true);
+  if (voiceOn) displayVoice.start();
+  await flushPromises();
+  return wrapper;
+}
+
+/** Re-open the room over the SAME window voice — what coming back to the
+ *  Display does. */
+async function remountDisplay() {
+  mounted?.unmount();
+  const wrapper = mount(DisplayView, {
+    props: { scope: { kind: "global" } as SessionScope },
+    global: {
+      plugins: [
+        windowPinia,
+        [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }],
+      ],
+      provide: { [vynelClientKey as symbol]: quietClient(announcedSessions) },
+    },
+  });
+  mounted = wrapper;
   await flushPromises();
   return wrapper;
 }
@@ -290,15 +355,31 @@ describe("DisplayView", () => {
     expect((account.props("rows") as readonly { value: string }[])[0]!.value).toBe("Chad");
   });
 
-  // The room's session is the ROOM'S: opening it takes the microphone, and
-  // leaving by any route — the switch, a menu row, Home — gives it back,
-  // because the session is created in this view's setup and dies with it.
-  it("starts the session when the room opens and ends it when it closes", async () => {
+  // The room is a SCREEN, not the conversation. It opens over whatever the
+  // window's voice is doing and starts nothing of its own — the switch did
+  // that — so a room opened with voice off shows an idle orb and an invitation.
+  it("starts no session of its own", async () => {
+    await mountDisplay({ voiceOn: false });
+    expect(voice.start).not.toHaveBeenCalled();
+    expect(displayVoice.isLive).toBe(false);
+  });
+
+  // The whole point of the change: walking away from the Display used to hang
+  // up the call, which put the dock's mirror — the corner form of this very
+  // room — permanently out of reach.
+  it("leaves the conversation running when the room closes, and re-attaches to it", async () => {
     const wrapper = await mountDisplay();
     expect(voice.start).toHaveBeenCalledTimes(1);
 
     wrapper.unmount();
-    expect(voice.end).toHaveBeenCalled();
+    expect(voice.end).not.toHaveBeenCalled();
+    expect(displayVoice.isLive).toBe(true);
+    expect(displayVoice.isActive).toBe(true);
+
+    // Coming back re-attaches to the same session rather than opening a second.
+    const again = await remountDisplay();
+    expect(voice.start).toHaveBeenCalledTimes(1);
+    expect(again.get('[data-testid="display-listening-pill"]').text()).toBe("Listening");
   });
 
   it("the listening pill mirrors the mic and mutes it", async () => {
@@ -338,11 +419,28 @@ describe("DisplayView", () => {
 
     await pill.trigger("click");
     expect(voice.end).toHaveBeenCalledTimes(1);
+    expect(displayVoice.isLive).toBe(false);
     expect(pill.text()).toBe("Voice on");
     expect(wrapper.find('[data-testid="display-stage"]').exists()).toBe(true);
 
     await pill.trigger("click");
     expect(voice.start).toHaveBeenCalledTimes(2);
+    expect(displayVoice.isLive).toBe(true);
+  });
+
+  // Voice off is its OWN state: there is nothing to mute and nothing to
+  // resume, so the mic pill offers to start one — the room stays a place you
+  // can sit in quietly.
+  it("offers to start the conversation when the window's voice is off", async () => {
+    const wrapper = await mountDisplay({ voiceOn: false });
+    const pill = wrapper.get('[data-testid="display-listening-pill"]');
+    expect(pill.text()).toBe("Start");
+    expect(wrapper.get('[data-testid="display-voice-pill"]').text()).toBe("Voice on");
+
+    await pill.trigger("click");
+    expect(voice.start).toHaveBeenCalledTimes(1);
+    expect(displayVoice.isLive).toBe(true);
+    expect(pill.text()).toBe("Listening");
   });
 
   it("drives the orb from the session — listening through the reply, speaking with it", async () => {
@@ -379,9 +477,10 @@ describe("DisplayView", () => {
   });
 });
 
-// Taking the overlay's session means taking its daemon link too: the overlay is
-// the window's only `voice:app` subscriber, so while the room is up it is the
-// room that answers the wake word and plays what other producers say.
+// The window's voice holds the `voice:app` link whenever the Display owns the
+// microphone — the room on screen is one of the two ways that happens — so
+// while the room is up it is this leg that answers the wake word and plays what
+// other producers say, and the room draws it.
 describe("DisplayView — the daemon link", () => {
   it("plays a relayed line through the room's own session", async () => {
     const restoreSocket = installFakeLiveSocket();
@@ -430,6 +529,42 @@ describe("DisplayView — the daemon link", () => {
     restoreSocket();
   });
 
+  // A wake answered on the DAEMON's leg — natively, or handed to the wake
+  // window while this room stayed open. The conversation is the assistant's
+  // either way, so the room's orb mirrors it — but only once the room's own
+  // microphone is out of the way. Two legs, never two "listening" sources.
+  it("mirrors the daemon's conversation once the room's own session lets go", async () => {
+    const restoreSocket = installFakeLiveSocket();
+    const wrapper = await mountDisplay();
+    const socket = latestFakeLiveSocket();
+    socket.serverOpens();
+    const channel = voiceChannelOf(socket);
+    socket.serverAcks(channel);
+    const orb = () => wrapper.getComponent(DisplayOrb);
+    const daemonState = (state: string) =>
+      socket.serverSends({ kind: "event", channel, event: { kind: "state", state } } as LiveChannelServerFrame);
+
+    // The room's own session, with a quiet daemon behind it.
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, false]);
+
+    // Idle silence ends it — with neither leg live the orb goes deaf.
+    idleTimeout();
+    await wrapper.vm.$nextTick();
+    expect(orb().props("listening")).toBe(false);
+
+    // The daemon takes the conversation: the room's orb mirrors it anyway.
+    daemonState("listening");
+    await wrapper.vm.$nextTick();
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, false]);
+
+    daemonState("speaking");
+    await wrapper.vm.$nextTick();
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, true]);
+
+    wrapper.unmount();
+    restoreSocket();
+  });
+
   it("gives the microphone back to the daemon when the session ends", async () => {
     await mountDisplay();
     expect(posted).toEqual([]);
@@ -438,34 +573,97 @@ describe("DisplayView — the daemon link", () => {
 
     expect(posted).toEqual([["/voice/session/end", { method: "POST" }]]);
   });
-});
 
-describe("DisplayView — the room owns the microphone", () => {
-  // "Start voice" from the palette or the menu can't reach the room's session,
-  // so the shell rings a bell and the room answers — no second orb behind it.
-  it("answers 'Start voice' on its own session, and only when there is none", async () => {
-    const wrapper = await mountDisplay();
-    const ui = useUiStore();
+  // Hand-over honesty (P3b): the wake session stays in the dock's window until
+  // it ends. The room can SEE it — the orb mirrors it — but it may not take the
+  // microphone, so its pill reports who is listening instead of offering a
+  // click that would open a second recognizer over the top.
+  it("says who is listening, and refuses the mic, while the dock holds the room", async () => {
+    const restoreSocket = installFakeLiveSocket();
+    const wrapper = await mountDisplay({ voiceOn: false });
+    const socket = latestFakeLiveSocket();
+    socket.serverOpens();
+    const channel = voiceChannelOf(socket);
+    socket.serverAcks(channel);
+    const pill = wrapper.get('[data-testid="display-listening-pill"]');
+    expect(pill.text()).toBe("Start");
 
-    ui.requestDisplayVoice();
+    socket.serverSends({
+      kind: "event",
+      channel,
+      event: { kind: "state", state: "handed-off" },
+    } as LiveChannelServerFrame);
     await wrapper.vm.$nextTick();
+    expect(pill.text()).toBe("Dock is listening");
+
+    await pill.trigger("click");
+    expect(voice.start).not.toHaveBeenCalled();
+
+    // The dock gave it back — the room is a room you can talk in again.
+    socket.serverSends({
+      kind: "event",
+      channel,
+      event: { kind: "state", state: "idle" },
+    } as LiveChannelServerFrame);
+    await wrapper.vm.$nextTick();
+    expect(pill.text()).toBe("Start");
+
+    await pill.trigger("click");
     expect(voice.start).toHaveBeenCalledTimes(1);
 
-    idleTimeout();
-    await wrapper.vm.$nextTick();
-    ui.requestDisplayVoice();
-    await wrapper.vm.$nextTick();
-    expect(voice.start).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+    restoreSocket();
+  });
+});
+
+// The display dock is this room in another window, and cannot see this screen.
+// A Web Speech session cannot move between windows either — so the WINDOW says
+// what it is holding and the dock MIRRORS it in the corner. It rides the
+// window, not the room: mirroring a conversation you have walked away from is
+// the entire reason the dock exists.
+describe("DisplayView — announcing the conversation to the dock", () => {
+  it("announces the phase the moment it changes, and keeps going without the room", async () => {
+    const wrapper = await mountDisplay();
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toEqual({
+      live: true,
+      phase: "listening",
+      caption: "Listening…",
+    });
+
+    voice.view.value = { state: "thinking", transcript: "", spokenText: "", notice: "" };
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toMatchObject({ live: true, phase: "thinking" });
+
+    // The room closes; the conversation — and the corner row showing it — does not.
+    wrapper.unmount();
+    voice.view.value = { state: "speaking", transcript: "", spokenText: "All quiet.", notice: "" };
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toMatchObject({
+      live: true,
+      phase: "speaking",
+      caption: "All quiet.",
+    });
   });
 
-  // Opened from the palette and then handed the canvas, the overlay's switch
-  // is left ON behind an overlay that is no longer mounted — nothing would
-  // ever turn it off, and the shell keeps the page dimmed for it.
-  it("clears the overlay's switch it inherited", async () => {
-    await mountDisplay((ui) => {
-      ui.isVoiceOverlayOpen = true;
+  // Muted is a PAUSED conversation, not an ended one — the corner row says so
+  // rather than disappearing and stranding the user's own mute.
+  it("keeps a muted room live, and reports it as muted", async () => {
+    const wrapper = await mountDisplay();
+    await wrapper.find("[data-testid='display-listening-pill']").trigger("click");
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toEqual({
+      live: true,
+      phase: "muted",
+      caption: "Muted — Vynel isn't listening",
     });
-    expect(useUiStore().isVoiceOverlayOpen).toBe(false);
+  });
+
+  it("says the conversation is over when the idle timer ends it", async () => {
+    await mountDisplay();
+    idleTimeout();
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toMatchObject({ live: false, phase: "idle" });
   });
 });
 
@@ -498,15 +696,19 @@ describe("DisplayView — the board", () => {
     await mountDisplay();
     expect(board.scope).toBe("global");
 
-    await mountDisplay(undefined, { kind: "workspace", workspaceId: "ws-7" });
+    await mountDisplay({ scope: { kind: "workspace", workspaceId: "ws-7" } });
     expect(board.scope).toBe("ws-7");
   });
 
-  // One machine, one microphone — a workspace room is still the room you talk
-  // to, so it takes the session exactly like the global one.
-  it("keeps the microphone whichever board it shows", async () => {
-    await mountDisplay(undefined, { kind: "workspace", workspaceId: "ws-7" });
+  // One machine, one microphone — a workspace room draws the window's existing
+  // conversation rather than opening a second one beside the global room's.
+  it("opens no session of its own for a workspace board", async () => {
+    const wrapper = await mountDisplay({
+      scope: { kind: "workspace", workspaceId: "ws-7" },
+    });
+    // Once, by the switch this case stands in for — never again by the room.
     expect(voice.start).toHaveBeenCalledTimes(1);
+    expect(wrapper.get('[data-testid="display-listening-pill"]').text()).toBe("Listening");
   });
 
   it("puts every widget in the slot it belongs to", async () => {

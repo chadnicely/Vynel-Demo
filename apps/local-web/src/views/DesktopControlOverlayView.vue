@@ -17,7 +17,10 @@ import {
 } from "../stores/desktop-activity-fold.js";
 import { usePendingApprovals } from "../composables/approvals/use-pending-approvals.js";
 import { useDecideApproval } from "../composables/approvals/use-decide-approval.js";
-import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-window.js";
+import {
+  createOverlayWindowControls,
+  DESKTOP_CONTROL_OVERLAY_SIZE,
+} from "../composables/voice/tauri-overlay-window.js";
 
 // The desktop-control attention overlay — a bare always-on-top window that
 // narrates, step by step, what Claude is doing to the user's desktop while a
@@ -34,10 +37,9 @@ import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-
 // your back, so the banner changes the moment a plan is armed.
 
 const WINDOW_TITLE = "Claude on your desktop";
-// Mirrors the desktop-overlay window's inner_size (src-tauri/windows.rs).
+// The footprint is shared with the mini dock, which parks above this window.
 const overlayWindow = createOverlayWindowControls({
-  width: 380,
-  height: 360,
+  ...DESKTOP_CONTROL_OVERLAY_SIZE,
   park: "bottom-right",
   // Never steal keyboard focus — the user may be typing in the app Claude is
   // reading; the approval buttons still work on click.

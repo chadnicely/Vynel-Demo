@@ -38,6 +38,7 @@ import type {
 import type { SessionActivityFeed } from '@vynel/session/runtime'
 import type { DesktopNotificationReader } from '@vynel/desktop-control'
 import type { DisplayLiveSink } from '@vynel/display'
+import type { VoiceControlSink } from './live/voice-control-sink.js'
 
 // In-process Hono request dispatcher — bound at construction (`app.ts`) and
 // stashed on `c.var.appRequest` so handlers can re-enter the app (the mcp
@@ -165,6 +166,11 @@ export interface AppEnv {
     // generators and any daemon booted without the hub simply publish nothing,
     // and the outbox row stays the durable record.
     displayLiveSink?: DisplayLiveSink
+    // The cross-window voice push — `POST /voice/display-active` hands the app
+    // window's Display state to every other window of the user (the display
+    // dock reads it to decide whether to hide). ABSENT is a legal state, like
+    // `displayLiveSink`: without the hub the fact simply reaches nobody.
+    voiceControlSink?: VoiceControlSink
   }
 }
 

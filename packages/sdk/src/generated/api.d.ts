@@ -3736,8 +3736,42 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Speak text aloud through the user's voice (the Jarvis speaker) or into a live call. */
+        /** Speak text aloud through the user's voice (the voice daemon's speaker) or into a live call. */
         post: operations["postVoiceSpeak"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/display-active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report whether the app window's Display is on screen, for the user's other voice windows. */
+        post: operations["postVoiceDisplay-active"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/display-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report the voice conversation the app window's Display is holding, so the dock can mirror it. */
+        post: operations["postVoiceDisplay-session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -17992,6 +18026,65 @@ export interface operations {
                     "application/json": {
                         spoken: boolean;
                         reason?: string;
+                    };
+                };
+            };
+        };
+    };
+    "postVoiceDisplay-active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    active: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description { published } — false when this engine has no live channel to fan it over. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        published: boolean;
+                    };
+                };
+            };
+        };
+    };
+    "postVoiceDisplay-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    live: boolean;
+                    /** @enum {string} */
+                    phase: "idle" | "listening" | "thinking" | "speaking" | "muted";
+                    caption: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { published } — false when this engine has no live channel to fan it over. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        published: boolean;
                     };
                 };
             };

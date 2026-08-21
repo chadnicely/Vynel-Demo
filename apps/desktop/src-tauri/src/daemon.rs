@@ -47,7 +47,7 @@ static DAEMON: Mutex<DaemonState> = Mutex::new(DaemonState {
 /// Release-mode entry: make sure a daemon serves the port, then open the
 /// windows on the main thread. Runs off-thread so setup() returns immediately
 /// (a frozen event loop would never paint the windows).
-pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, jarvis_only: bool) {
+pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, dock_only: bool) {
     // Resolved here (not in the supervisor thread) — the plan needs the
     // AppHandle for app_data_dir + the packaged version.
     let plan = resolve_launch_plan(&handle);
@@ -83,7 +83,7 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, jarvis_only: bo
         crate::windows::set_engine_port(engine_port);
         let handle_for_windows = handle.clone();
         let created = handle.run_on_main_thread(move || {
-            if let Err(error) = crate::windows::create_windows(&handle_for_windows, jarvis_only) {
+            if let Err(error) = crate::windows::create_windows(&handle_for_windows, dock_only) {
                 log::error!("failed to create windows: {error}");
             }
         });

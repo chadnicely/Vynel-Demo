@@ -110,7 +110,7 @@ Vynel features.
 ## 4. Access tiers + entitlements — what a tier unlocks and how it's enforced
 
 - **`plans`** (hub-side): tier → set of **feature keys** + **limits**. Feature keys are stable
-  strings the desktop gates on — e.g. `channels.telegram`, `voice.jarvis`, `marketplace.install`,
+  strings the desktop gates on — e.g. `channels.telegram`, `voice.wake`, `marketplace.install`,
   `schedules`, plus limits like `workspaces.max`. The exact tier matrix is Chad's business call
   (fork §9-E); the mechanism doesn't care.
 - **Grants — DECIDED (Chad, 2026-07-10): Chad's own platform provisions accounts AND handles
@@ -231,7 +231,7 @@ release rollout tier-stageable (e.g. beta channel) later. This is what makes the
 - **D1 — the app window (no cloud needed, highest visibility):** `apps/desktop` gains the main
   window loading local-web (dev: Vite URL, as the overlay does today; prod: built assets), spawns
   `local-api` as a **sidecar process** with health-check + restart + clean shutdown, keeps the
-  Jarvis overlay window as-is. Result: Chad double-clicks one thing and Vynel opens like a product.
+  voice overlay window as-is. Result: Chad double-clicks one thing and Vynel opens like a product.
 - **D2 — installer:** Tauri bundler → NSIS. The installer must also provision the **Node runtime**
   for the daemon — fork §9-F: bundle a pinned `node.exe` with the app (recommended: simplest,
   ~50 MB, no user action) vs compile the daemon to a single executable (SEA/pkg/Bun — nicer but a

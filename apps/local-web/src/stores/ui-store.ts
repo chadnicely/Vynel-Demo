@@ -398,17 +398,8 @@ export const useUiStore = defineStore("ui", () => {
   // clears it, so the user reviews before sending.
   const composerSeed = ref<string | null>(null);
 
-  // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
+  // The in-app voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);
-
-  // The same bell for the Display's own microphone. "Start voice" belongs to
-  // whoever owns the mic: while the room holds the canvas that is the room,
-  // whose session lives inside DisplayView and can't be reached from the shell
-  // — so the shell rings, and the room answers by starting its session.
-  const displayVoiceRequestCount = ref(0);
-  function requestDisplayVoice() {
-    displayVoiceRequestCount.value += 1;
-  }
 
   // A ring-the-bell counter for the create-workspace dialog. The dialog is
   // mounted once in AppShell; routed views (the Nodes screen's empty state)
@@ -450,8 +441,6 @@ export const useUiStore = defineStore("ui", () => {
     composerAutoBuildout,
     composerSeed,
     isVoiceOverlayOpen,
-    displayVoiceRequestCount,
-    requestDisplayVoice,
     createWorkspaceRequestCount,
     requestCreateWorkspace,
     nodesMode,

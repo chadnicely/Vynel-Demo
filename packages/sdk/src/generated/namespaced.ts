@@ -2094,6 +2094,20 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  setDisplayActive: async (input: NonNullable<paths["/voice/display-active"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/voice/display-active", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  setDisplaySession: async (input: NonNullable<paths["/voice/display-session"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/voice/display-session", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   speak: async (input: NonNullable<paths["/voice/speak"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/voice/speak", {
       body: input,

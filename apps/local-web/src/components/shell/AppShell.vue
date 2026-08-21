@@ -78,11 +78,12 @@ import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
 import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-status.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
+import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import { foldGlobalAreaStatus } from "./global-area-status.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 // The reinvented desktop shell — mounted only for real surfaces (App.vue keeps
-// bare routes and the onboarding wizard out of here, so the /jarvis overlay
+// bare routes and the onboarding wizard out of here, so the /display-dock window
 // never pays for the shell's data hooks). Navigation writes the shared ui-store
 // + route; the routed view reacts.
 const route = useRoute();
@@ -535,10 +536,26 @@ watch(
   { immediate: true },
 );
 
-// The Display switch + the ONE reading of whether its room is on screen —
-// the title-bar glyph, the voice overlay's suppression and the command all
-// take their answer from here.
-const { isDisplayActive, toggleDisplay } = useDisplayToggle();
+// The Display switch — the real voice on/off — and `displayVoice.ownsVoice`,
+// the ONE reading of "the Display feature holds this window's microphone".
+// The title-bar glyph, the voice overlay's suppression and "Start voice" all
+// take their answer from that one predicate, so they can never disagree.
+// `showDisplay` is the wake path: it puts the room on screen without touching
+// the session the wake just announced.
+const { toggleDisplay, showDisplay } = useDisplayToggle();
+const displayVoice = useDisplayVoice();
+
+// The overlay's own switch must never outlive the overlay. It can be left ON
+// behind the Display — "Start voice" from the palette, then a menu row into
+// the room — and the overlay unmounts without ever seeing it change, which
+// would leave the page dimmed below for a dialog that isn't there.
+watch(
+  () => displayVoice.ownsVoice,
+  (owns) => {
+    if (owns) ui.isVoiceOverlayOpen = false;
+  },
+  { immediate: true },
+);
 
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
   isCreateWorkspaceOpen.value = false;
@@ -594,11 +611,12 @@ function runCommand(id: string) {
     case "claude-account":
       isClaudeAccountOpen.value = true;
       break;
-    // The room owns the microphone while it holds the canvas — raising the
-    // overlay behind it would start a second session with no orb to show it,
-    // and leave the page dimmed for an overlay that isn't mounted.
+    // Whoever owns the microphone answers. Once the Display has it — the room
+    // on screen, or a session still running behind another view — raising the
+    // overlay would start a second one and dim the page for an overlay that
+    // isn't mounted.
     case "start-voice":
-      if (isDisplayActive.value) ui.requestDisplayVoice();
+      if (displayVoice.ownsVoice) displayVoice.start();
       else ui.isVoiceOverlayOpen = true;
       break;
     // The Display owns its own session — never the overlay's (two live
@@ -714,7 +732,7 @@ onBeforeUnmount(() => {
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
       :shows-tasks-toggle="!inWorkspaceScope"
-      :display-on="isDisplayActive"
+      :display-on="displayVoice.ownsVoice"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
     />
@@ -805,11 +823,12 @@ onBeforeUnmount(() => {
     <ConversationSidebar />
     <ApprovalNotifier />
     <AskNotifier />
-    <!-- Unmounted, not merely hidden, while the Display holds the canvas: the
-         overlay's session and wake link are created in ITS setup, so a wake
-         would otherwise open a second orb and a second microphone behind the
-         room. -->
-    <VoiceOverlay v-if="!isDisplayActive" />
+    <!-- Unmounted, not merely hidden, whenever the Display owns this window's
+         voice — the room on screen OR a session still running behind another
+         view. The overlay's session and wake link are created in ITS setup, so
+         a merely-invisible one would still answer a wake with a second orb, a
+         second microphone and a second player. -->
+    <VoiceOverlay v-if="!displayVoice.ownsVoice" @show-display="showDisplay" />
     <UpdatePill />
     <!-- The SHARED plan review dialog — chat vynel://plan links, list View
          actions, and task plan chips all open this one instance. -->

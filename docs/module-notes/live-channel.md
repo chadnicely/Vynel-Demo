@@ -14,10 +14,10 @@ everywhere: `localhost:18894` (vite dev) or `127.0.0.1:18892` (the engine gatewa
 windows load from — `apps/desktop/src-tauri/src/windows.rs`, `tauri.conf.json frontendDist`).
 
 **Tauri is not exempt.** WebView2 (Windows) *is* Chromium — same network stack, same pools — and
-`create_windows` builds THREE webviews at launch (main, jarvis hidden, desktop-overlay hidden), all
+`create_windows` builds THREE webviews at launch (main, display-dock hidden, desktop-overlay hidden), all
 one origin, all sharing the 6:
 
-| standing stream                        | main | jarvis | overlay |
+| standing stream                        | main | dock | overlay |
 |----------------------------------------|:----:|:------:|:-------:|
 | `/api/activity/stream` (feed)          |  1   |        |    1    |
 | `/voice/events` (voice EventSource)    |  1   |   1    |         |
@@ -106,7 +106,7 @@ agents" is N×M subscriptions on one socket. B stays the fallback if the dep bum
 
 ### Client (`apps/local-web/src/composables/live/`)
 
-- **`useLiveChannel()`** — one per app instance (AppShell, Jarvis, overlay each get exactly one):
+- **`useLiveChannel()`** — one per app instance (AppShell, the display dock, overlay each get exactly one):
   connect (`ws(s)://<origin>/api/live`), backoff reconnect (1 s → 15 s), **resubscribe the full
   channel set on reconnect** (the server replays the activity snapshot; session channels seed
   from persisted rows as today), stall detection (no frame incl. ping for 60 s → reconnect),
@@ -143,7 +143,7 @@ agents" is N×M subscriptions on one socket. B stays the fallback if the dep bum
    subscriber and republishes on `voice:<surface>`; keeps the four-party audio ownership rules
    (`voice-audio-ownership-and-instruction-decay`). Only needed if a window ever needs the pool
    slot; with WS it is a tidy-up, not a fix.
-6. **Jarvis + overlay** windows adopt the channel (they mount the same composables — mostly free
+6. **Display-dock + overlay** windows adopt the channel (they mount the same composables — mostly free
    after 2/3).
 
 ## 6. Forks for Kafi / Chad

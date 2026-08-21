@@ -67,7 +67,7 @@ vynel/
 │   ├── api/                   # Hono HTTP + SSE daemon — the brain process (local; cloud in P2)
 │   ├── web/                   # Vue 3 SPA — chat, panels, settings
 │   ├── desktop/               # desktop shell hosting web + the voice overlay (Tauri today — §8)
-│   ├── voice/                 # always-on "Jarvis" — wake-word → STT → TTS → /root/turn → speak
+│   ├── voice/                 # the always-on voice channel — wake-word → STT → TTS → /root/turn → speak
 │   ├── worker/                # in-process cron scheduler (P1) → queue (P2)
 │   ├── mcp/                   # external MCP server + the generated tool registry
 │   └── cli/                   # NEW — `vynel` CLI over @vynel/sdk (net-new surface)

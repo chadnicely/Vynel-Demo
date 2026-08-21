@@ -56,7 +56,7 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
  *  declared — the conservative default is "cannot run a session"). */
 async function subscribe(
   port: number,
-  surface: 'app' | 'jarvis' = 'app',
+  surface: 'app' | 'dock' = 'app',
   wake?: '1' | '0',
 ): Promise<{ events: OverlayEvent[]; close: () => void }> {
   const abort = new AbortController()
@@ -96,6 +96,10 @@ const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve,
 
 const speakEvents = (events: OverlayEvent[]): OverlayEvent[] => events.filter((event) => event.kind === 'speak')
 const wakeEvents = (events: OverlayEvent[]): OverlayEvent[] => events.filter((event) => event.kind === 'wake')
+const stateEvents = (events: OverlayEvent[]): OverlayEvent[] =>
+  events.filter((event) => event.kind === 'state')
+const showDisplayEvents = (events: OverlayEvent[]): OverlayEvent[] =>
+  events.filter((event) => event.kind === 'show-display')
 
 async function postJson(port: number, path: string, body: unknown): Promise<Response> {
   return fetch(`http://127.0.0.1:${port}${path}`, {
@@ -269,7 +273,7 @@ describe('overlay channel', () => {
     expect(channel.publishSpeak('nobody is listening', null)).toBe(false)
 
     const first = await subscribe(port)
-    const second = await subscribe(port, 'jarvis')
+    const second = await subscribe(port, 'dock')
     await waitFor(() => first.events.length >= 1 && second.events.length >= 1)
 
     expect(channel.publishSpeak('your report is ready', 'chat-7')).toBe(true)
@@ -305,8 +309,8 @@ describe('overlay channel', () => {
     client.close()
   })
 
-  it("wakeSurface 'jarvis': app tabs never receive wakes, the jarvis window does", async () => {
-    const { channel, hooks } = buildChannel({ wakeSurface: 'jarvis', turnWatchdogMs: TURN_WATCHDOG_MS })
+  it("wakeSurface 'dock': app tabs never receive wakes, the display dock does", async () => {
+    const { channel, hooks } = buildChannel({ wakeSurface: 'dock', turnWatchdogMs: TURN_WATCHDOG_MS })
     activeChannel = channel
     const port = await channel.whenListening
 
@@ -318,38 +322,38 @@ describe('overlay channel', () => {
     await settle()
     expect(wakeEvents(appTab.events)).toEqual([])
 
-    const jarvis = await subscribe(port, 'jarvis')
-    await waitFor(() => wakeEvents(jarvis.events).length === 1)
-    expect(wakeEvents(jarvis.events)[0]).toEqual({
+    const dock = await subscribe(port, 'dock')
+    await waitFor(() => wakeEvents(dock.events).length === 1)
+    expect(wakeEvents(dock.events)[0]).toEqual({
       kind: 'wake',
       command: 'open my notes',
       turnWatchdogMs: TURN_WATCHDOG_MS,
     })
     expect(channel.hasWakeTarget).toBe(true)
 
-    // Losing the jarvis window (the wake runner) fires onClientsGone even
+    // Losing the dock window (the wake runner) fires onClientsGone even
     // though the app tab is still connected; losing a mere tab does not.
-    jarvis.close()
+    dock.close()
     await waitFor(() => hooks.clientsGone === 1)
     appTab.close()
     await waitFor(() => !channel.hasClient)
     expect(hooks.clientsGone).toBe(1)
   })
 
-  it("wakeSurface 'app' (window feature off): the jarvis surface never receives wakes, a capable app tab does", async () => {
+  it("wakeSurface 'app' (window feature off): the dock surface never receives wakes, a capable app tab does", async () => {
     const { channel, hooks } = buildChannel({ wakeSurface: 'app', turnWatchdogMs: TURN_WATCHDOG_MS })
     activeChannel = channel
     const port = await channel.whenListening
 
-    // The desktop shell keeps its hidden jarvis webview connected whatever the
+    // The desktop shell keeps its hidden dock webview connected whatever the
     // flag says — a wake handed to it would vanish into a window nobody sees.
-    const hiddenJarvis = await subscribe(port, 'jarvis')
+    const hiddenDock = await subscribe(port, 'dock')
     await waitFor(() => channel.hasClient)
     expect(channel.hasWakeTarget).toBe(false)
 
     channel.publishWake('open my notes')
     await settle()
-    expect(wakeEvents(hiddenJarvis.events)).toEqual([])
+    expect(wakeEvents(hiddenDock.events)).toEqual([])
 
     // A browser tab that declared Web Speech is the one client that may run it.
     const browserTab = await subscribe(port, 'app', '1')
@@ -357,10 +361,10 @@ describe('overlay channel', () => {
     expect(channel.hasWakeTarget).toBe(true)
 
     // Losing the tab (the wake runner) fires onClientsGone; losing the hidden
-    // jarvis webview never does — it was never a runner here.
+    // dock webview never does — it was never a runner here.
     browserTab.close()
     await waitFor(() => hooks.clientsGone === 1)
-    hiddenJarvis.close()
+    hiddenDock.close()
     await waitFor(() => !channel.hasClient)
     expect(hooks.clientsGone).toBe(1)
   })
@@ -401,18 +405,18 @@ describe('overlay channel — wake capability', () => {
     expect(hooks.clientsGone).toBe(1)
   })
 
-  it('the jarvis surface is always capable, wake flag or not', async () => {
+  it('the dock surface is always capable, wake flag or not', async () => {
     const { channel } = buildChannel()
     activeChannel = channel
     const port = await channel.whenListening
 
-    const jarvis = await subscribe(port, 'jarvis', '0')
+    const dock = await subscribe(port, 'dock', '0')
     await waitFor(() => channel.hasClient)
     expect(channel.hasWakeTarget).toBe(true)
 
     channel.publishWake('open my notes')
-    await waitFor(() => wakeEvents(jarvis.events).length === 1)
-    jarvis.close()
+    await waitFor(() => wakeEvents(dock.events).length === 1)
+    dock.close()
   })
 
   it('the newest CAPABLE client takes the wake even when an incapable one connected later', async () => {
@@ -439,7 +443,7 @@ describe('overlay channel — speak routing by handoff owner', () => {
     activeChannel = channel
     const port = await channel.whenListening
 
-    const owner = await subscribe(port, 'jarvis')
+    const owner = await subscribe(port, 'dock')
     await waitFor(() => owner.events.length >= 1)
     channel.publishWake('summarize my day')
     await waitFor(() => wakeEvents(owner.events).length === 1)
@@ -476,7 +480,7 @@ describe('overlay channel — speak routing by handoff owner', () => {
     const port = await channel.whenListening
 
     const bystander = await subscribe(port, 'app', '1')
-    const owner = await subscribe(port, 'jarvis')
+    const owner = await subscribe(port, 'dock')
     await waitFor(() => bystander.events.length >= 1 && owner.events.length >= 1)
     channel.publishWake('what is the time')
     await waitFor(() => wakeEvents(owner.events).length === 1)
@@ -492,5 +496,67 @@ describe('overlay channel — speak routing by handoff owner', () => {
     expect(channel.publishSpeak('still here', null)).toBe(true)
     await waitFor(() => speakEvents(bystander.events).length === 1)
     bystander.close()
+  })
+})
+
+describe('the wake window handover, as the wire tells it', () => {
+  it('publishes handed-off only once a client has CONFIRMED the wake', async () => {
+    const { channel } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    // Cold path: the wake lands before the dock window exists. The held wake is
+    // the only thing that survives its launch time — publishing a phase here
+    // must not destroy it.
+    channel.publishState('wake')
+    channel.publishWake('what is the time')
+    await settle()
+
+    const dock = await subscribe(port, 'dock')
+    await waitFor(() => stateEvents(dock.events).length >= 2)
+    expect(dock.events[0]).toEqual({ kind: 'state', state: 'wake' })
+    expect(wakeEvents(dock.events)).toHaveLength(1)
+    // Confirmed delivery IS the hand-over — the room changed windows.
+    expect(dock.events.at(-1)).toEqual({ kind: 'state', state: 'handed-off' })
+
+    // A window opening mid-conversation reads the same truth, not a stale wake.
+    const late = await subscribe(port, 'app', '0')
+    await waitFor(() => late.events.length >= 1)
+    expect(late.events).toEqual([{ kind: 'state', state: 'handed-off' }])
+
+    // And the session ending puts everyone back to idle (the driver's own
+    // `endHandoff` → `setState('idle')`).
+    channel.publishState('idle')
+    await waitFor(() => stateEvents(late.events).length === 2)
+    expect(late.events.at(-1)).toEqual({ kind: 'state', state: 'idle' })
+    dock.close()
+    late.close()
+  })
+
+  it('sends show-display to app surfaces only — never the dock, wake-capable or not', async () => {
+    const { channel } = buildChannel({ wakeSurface: 'dock', turnWatchdogMs: TURN_WATCHDOG_MS })
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const dock = await subscribe(port, 'dock')
+    const appTab = await subscribe(port, 'app', '0')
+    const capableTab = await subscribe(port, 'app', '1')
+    await waitFor(
+      () => dock.events.length >= 1 && appTab.events.length >= 1 && capableTab.events.length >= 1,
+    )
+
+    channel.publishShowDisplay()
+    await waitFor(
+      () =>
+        showDisplayEvents(appTab.events).length === 1 &&
+        showDisplayEvents(capableTab.events).length === 1,
+    )
+    await settle()
+    // The dock IS the wake window — asking it to show the Display would be
+    // asking it to get out of its own way.
+    expect(showDisplayEvents(dock.events)).toEqual([])
+    dock.close()
+    appTab.close()
+    capableTab.close()
   })
 })

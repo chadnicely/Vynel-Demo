@@ -171,8 +171,8 @@ How the runnable apps boot and wire the packages together. Thin adapters — no 
 | `_apps/cli` | The command-line surface over the same generated SDK the web app uses. | [overview](./_apps/cli/overview.md) · [structure](./_apps/cli/structure.md) |
 | `_apps/cloud-api` | The hub server — accounts/auth + the marketplace registry + platform webhooks, over the Postgres kernel. | [overview](./_apps/cloud-api/overview.md) · [structure](./_apps/cloud-api/structure.md) |
 | `_apps/cloud-admin-web` | The marketplace admin portal — a Vue SPA for catalog curation + account management. | [overview](./_apps/cloud-admin-web/overview.md) · [structure](./_apps/cloud-admin-web/structure.md) |
-| `_apps/voice` | The voice/Jarvis daemon — the imperative shell owning audio I/O, composing `voice` + `voice-engine`. | [overview](./_apps/voice/overview.md) · [structure](./_apps/voice/structure.md) |
-| `_apps/desktop` | The Tauri (Rust) shell — spawns the local-api daemon as a sidecar, hosts the main + Jarvis-overlay windows. | [overview](./_apps/desktop/overview.md) · [structure](./_apps/desktop/structure.md) |
+| `_apps/voice` | The voice daemon — the imperative shell owning audio I/O, composing `voice` + `voice-engine`. | [overview](./_apps/voice/overview.md) · [structure](./_apps/voice/structure.md) |
+| `_apps/desktop` | The Tauri (Rust) shell — spawns the local-api daemon as a sidecar, hosts the main + display-dock windows. | [overview](./_apps/desktop/overview.md) · [structure](./_apps/desktop/structure.md) |
 
 ## Phase-1 wiring notes (read before trusting an "events" section)
 

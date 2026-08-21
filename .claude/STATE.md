@@ -23,14 +23,15 @@ ever executes in the app origin (raw `html` kind deferred behind CSP hardening).
 ambient stamp only fires on a field named `workspaceId`). **Gate:** typecheck 110/110 · parity 5/5 · vitest 6354 green
 (one unrelated ephemeral-socket flake in `claude-mcp-cli.test.ts`, passes alone). **Next — P3** (`display-p3.md`):
 dock mode in the wake window (mini bottom-right above desktop-control), wake opens the app + switches to the Display,
-orb from the daemon leg; re-advertise `dock`. **Decision pending (Kafi):** rename the `jarvis` window/route/env
-identifiers to `display-dock` now vs title-only. **Owed by Kafi:** in voice or chat ask "show this week's schedule runs
+orb from the daemon leg; re-advertise `dock`. **Naming DECIDED (Kafi) + SHIPPED:** the wake window/route/env
+identifiers are now `display-dock` (map in `display-p3.md`; the old `VYNEL_VOICE_JARVIS_*` env names alias for
+one release). **Owed by Kafi:** in voice or chat ask "show this week's schedule runs
 as a table" → it lands on the Display while Claude talks; "remove it"; restart → still there; a workspace tab's board
 is its own.
 
 ## ✅ 2026-08-21 THE DISPLAY — P1 MERGED (main a98db50c), P2 WIDGETS IN FLIGHT
 
-Kafi's new arc: the mission-control demo's HUD tab becomes **the Display** (never "HUD"/"Jarvis" — no borrowed hero
+Kafi's new arc: the mission-control demo's HUD tab becomes **the Display** (never "HUD", never a borrowed hero
 names; package `@vynel/display`, tools `display_*`, the mini one = the display dock). Research
 `docs/module-notes/display-research.md` (demo internals · app seams · widget design); all six recommendations accepted
 + **the in-app web speech leg is the PRIMARY voice path** (daemon = wake). **P1 shipped:** `packages/ui/src/display/`

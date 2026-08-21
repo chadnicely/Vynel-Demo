@@ -179,11 +179,13 @@ export const displayApp = factory
           'over adding a near-duplicate. ' +
           SCOPE_STEER +
           CONTENT_STEER +
-          // 'dock' is deliberately NOT advertised: the leaf and the contracts
-          // accept it (P3 draws the dock), but no surface renders it today, so
-          // a card sent there would vanish from the user's point of view. Put
-          // it back in this sentence the day the dock lands.
-          "slot is 'left' | 'stage' | 'right' (default 'stage', the widest region) and " +
+          // 'dock' rejoined this sentence with P3a, which draws it: the mini
+          // Display is one row over the user's other work, so the words have
+          // to say what fits there — a card nobody can read in a corner is a
+          // card the user never sees either.
+          "slot is 'left' | 'stage' | 'right' | 'dock' (default 'stage', the widest region; " +
+          "'dock' is the mini Display floating over the user's screen while they work — send " +
+          'a single number or one line there, never a table or a chart) and ' +
           "size is 'sm' | 'md' | 'lg' (default 'md'). " +
           EXPIRY_STEER +
           'The board holds 12 per scope: a 13th ' +

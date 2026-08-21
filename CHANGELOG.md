@@ -9,6 +9,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The Display follows you.** When you leave the Display mid-conversation, a small
+  display dock appears bottom-right (above the desktop-control window when that one is
+  showing) with the orb, the last line and the mic; it hides again when you return. Saying
+  the wake word now opens the app on the Display, and the orb mirrors the conversation
+  whichever side it runs on. Claude can place small widgets on the dock too.
 - **Claude can put things on the Display.** Ask for a report, a table, a number, or a
   chart and it appears on the Display while Claude is still talking — and stays there
   after restart until you or Claude clear it. Four kinds (text, table, metric, chart),
@@ -79,6 +84,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- The wake window is now the **display dock** everywhere (window, route, settings
+  `VYNEL_VOICE_DOCK_*` — the old `VYNEL_VOICE_JARVIS_*` names still work for one release).
 - **The workspace tree is what you open into.** The app now starts in Menu view —
   the sidebar's workspace tree — instead of the tab strip. If you had already
   picked Tabs, you keep Tabs.

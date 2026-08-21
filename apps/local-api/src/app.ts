@@ -20,6 +20,7 @@ import type { FireScheduleDeps } from '@vynel/schedules'
 import { ScheduleFirePool } from '@vynel/schedules'
 import type { DesktopNotificationReader } from '@vynel/desktop-control'
 import type { DisplayLiveSink } from '@vynel/display'
+import type { VoiceControlSink } from './live/voice-control-sink.js'
 import type { AppEnv } from './factory.js'
 import { openApiInfo } from './openapi.js'
 import { knowledgeApp } from './routes/knowledge/index.js'
@@ -208,6 +209,11 @@ export interface CreateAppOptions {
   // display routes call the leaf ops with no sink and nothing is published;
   // the outbox row is still written, so no state change is lost.
   readonly displayLiveSink?: DisplayLiveSink
+  // The cross-window voice push — `boot.ts` constructs the hub-backed sink.
+  // Omitted (tests, the SDK/MCP generators) → `POST /voice/display-active`
+  // still answers, and the fact reaches no window; nothing durable is lost
+  // because there is nothing durable about "the room is on screen".
+  readonly voiceControlSink?: VoiceControlSink
 }
 
 // Hono's HTTPException statuses, spoken in the VynelError code vocabulary.
@@ -296,6 +302,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       c.set('desktopNotifications', options.desktopNotifications)
     if (options.scheduleFireDeps !== undefined) c.set('scheduleFireDeps', options.scheduleFireDeps)
     if (options.displayLiveSink !== undefined) c.set('displayLiveSink', options.displayLiveSink)
+    if (options.voiceControlSink !== undefined) c.set('voiceControlSink', options.voiceControlSink)
     if (options.hubSession !== undefined) c.set('hubSession', options.hubSession)
     c.set('marketplacePluginDelegate', options.marketplacePluginDelegate ?? claudePluginDelegate)
     c.set(

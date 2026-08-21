@@ -13,7 +13,7 @@ assume any port — on an end user's machine the port is allocated at every star
 | 18891 | cloud-admin-web dev      | literal in `apps/cloud-admin-web/vite.config.ts`                       |
 | 18892 | engine (local-api)       | `VYNEL_ENGINE_PORT` in contracts + Rust/Tauri copies (parity-guarded) |
 | 18893 | voice daemon             | `VYNEL_VOICE_DAEMON_PORT` in contracts                                 |
-| 18894 | local-web dev            | literal in `apps/local-web/env.ts` + jarvis URL + tauri devUrl         |
+| 18894 | local-web dev            | literal in `apps/local-web/env.ts` + dock URL + tauri devUrl           |
 | 8996  | release smoke boot       | literal `SMOKE_PORT` in `scripts/src/release/smoke-boot.ts`            |
 
 ## Root causes
