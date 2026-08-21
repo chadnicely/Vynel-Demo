@@ -3,7 +3,14 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🟡 2026-08-22 (latest) VIEW SWITCH + SETTINGS → EMBEDDING / VOICE — on `feature/view-modes` (worktree `view-modes`, band 18950), NOT merged
+## ✅ 2026-08-22 (latest) VIEW SWITCH + SETTINGS → EMBEDDING / VOICE + UI FIXES — MERGED TO MAIN + PUSHED (`8ce95035`), reviewed, full gate green (984 files / 6713 tests)
+
+Also landed after the main merge (Kafi's live feedback, each reviewed): Settings is a TITLE-BAR MENU
+between Vynel and View (not a sidebar group); a workspace's logo is its persona's face everywhere
+(`personaFaceOf`; bare-label manager rows resolve by name then by the room; chat avatar / workspace chip
+show a logo as-is); every in-progress task carries its own current-step line (`LiveStepLine`); a
+hover trash (ConfirmButton `compact`) before the step caret; the tasks panel belongs to the chat
+(`isTasksPanelSurface`). Worktree `view-modes` (band 18950) still up for the next UI round.
 
 Two arcs on one branch (Kafi). **(1) View switch + full view** (`fae86105`): a chamfered Nodes | Display |
 Normal plate in the title bar before the Claude mark; Nodes and the Display open FULL automatically (Kafi's
