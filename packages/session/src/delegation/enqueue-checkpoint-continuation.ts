@@ -21,6 +21,7 @@ import {
   enqueueAgentRun,
   enqueueSessionDelegation,
   enqueueWorkspaceDelegation,
+  readDelegationJobOrigin,
   resolveThreadIdOf,
   type DelegationJob,
 } from '@vynel/orchestration'
@@ -161,18 +162,8 @@ function enqueueFollowUpJob(
     ...(job.thinkingEffort !== null ? { thinkingEffort: job.thinkingEffort } : {}),
     ...(job.requesterWorkspaceId !== null ? { requesterWorkspaceId: job.requesterWorkspaceId } : {}),
   }
-  const origin =
-    job.originChannelId !== null &&
-    job.originExternalSenderId !== null &&
-    job.originExternalChatContextId !== null
-      ? {
-          origin: {
-            channelId: job.originChannelId,
-            externalSenderId: job.originExternalSenderId,
-            externalChatContextId: job.originExternalChatContextId,
-          },
-        }
-      : {}
+  const jobOrigin = readDelegationJobOrigin(job)
+  const origin = jobOrigin !== null ? { origin: jobOrigin } : {}
   if (job.jobKind === 'agent-run') {
     if (job.agentSlug === null) return null
     // An agent-run row never carries a channel origin (`enqueueAgentRun` has no

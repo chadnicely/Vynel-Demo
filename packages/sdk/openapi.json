@@ -36723,6 +36723,7 @@
           "exposed": true,
           "name": "reply_to_channel",
           "mutatingApproved": true,
+          "workspaceInteractiveSurface": true,
           "description": "Reply to the channel message that started this turn — Telegram DM or group alike. Pass ONLY your answer as `message`; Vynel already knows which channel and which conversation it came from and delivers your reply exactly there (threading onto the asking message in groups). This is THE way a channel gets your answer — plain chat text is never delivered. For proactive outreach on a channel that did NOT ask, use send_to_channel instead."
         },
         "requestBody": {

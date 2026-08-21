@@ -38,6 +38,28 @@ describe('replyToChannelOrigin', () => {
     })
   })
 
+  it('stamps the turn key so the zero-reply fallback can recognise its own reply', async () => {
+    await withTestDatabase((db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+
+      replyToChannelOrigin(db, {
+        userId: channel.userId,
+        origin: {
+          channelId: channel.id,
+          externalSenderId: '123456',
+          externalChatContextId: '123456',
+          turnCorrelationId: 'inbound-row-1',
+        },
+        body: 'The supplier emailed about pricing.',
+      })
+
+      const [queued] = listReadyOutboundMessages(db, {})
+      expect(JSON.parse(queued!.messageStructure)).toEqual({
+        turnCorrelationId: 'inbound-row-1',
+      })
+    })
+  })
+
   it('threads a GROUP reply onto the asking message via the origin', async () => {
     await withTestDatabase((db) => {
       const { channel } = seedChannelWithAllowedSender(db)

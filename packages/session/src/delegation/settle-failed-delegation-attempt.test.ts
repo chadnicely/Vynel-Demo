@@ -11,6 +11,7 @@ import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import { insertChannel } from '@vynel/channels/test-support'
 import type { Database } from '@vynel/db'
 import {
   claimNextPendingDelegationJob,
@@ -145,6 +146,57 @@ describe('settleFailedDelegationAttempt', () => {
       expect(push).not.toBeNull()
       expect(push!.jobKind).toBe('report-delivery')
       expect(push!.taskText).toContain('failed')
+    })
+  })
+
+  it("a CHANNEL-driven job's give-up push carries the origin — the requester tells the channel it died", async () => {
+    await withTestDatabase(async (db) => {
+      const { user, workspace } = seedClaimedJob(db)
+      const now = new Date()
+      const channel = insertChannel(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: null,
+        channelKind: 'telegram',
+        displayName: 'Bot',
+        botCredentials: JSON.stringify({ botToken: 't' }),
+        botMetadata: '{}',
+        connectionStatus: 'healthy',
+        connectionStatusMessage: null,
+        lastPolledCursor: null,
+        lastPolledAt: null,
+        lastInboundAt: null,
+        isEnabled: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'global-sdk-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'the channel-driven task',
+        origin: {
+          channelId: channel.id,
+          externalSenderId: 'tg-42',
+          externalChatContextId: 'chat-7',
+        },
+      })
+      const channelJob = claimAnythingDue(db)!
+
+      settleFailedDelegationAttempt(db, channelJob, TERMINAL_ERROR, settleDeps)
+
+      // A FAILURE is a result too: the requester's notify turn is what tells
+      // the person on Telegram, so its row needs the same address a successful
+      // report's does (the twin of the completion path).
+      const push = claimAnythingDue(db)!
+      expect(push).toMatchObject({
+        jobKind: 'report-delivery',
+        originChannelId: channel.id,
+        originExternalSenderId: 'tg-42',
+        originExternalChatContextId: 'chat-7',
+      })
     })
   })
 })

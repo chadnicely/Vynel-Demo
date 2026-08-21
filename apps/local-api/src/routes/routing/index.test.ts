@@ -41,6 +41,7 @@ import {
   DELEGATION_ORIGIN_HEADER,
 } from '../../sessions/delegation-origin-header.js'
 import { DELEGATION_MODE_HEADER } from '../../sessions/delegation-mode-header.js'
+import { insertChannel } from '@vynel/channels/test-support'
 import { DELEGATION_JOB_HEADER } from '../../sessions/delegation-job-header.js'
 import {
   serializeReportCaller,
@@ -1500,6 +1501,121 @@ describe('POST /routing/message (send_message — the unified comms tool)', () =
       expect(report.kind).toBe('report')
       expect(findDelegationJobById(db, report.jobId)?.jobKind).toBe('report-delivery')
       expect(findDelegationJobById(db, runningJobId)?.reportedAt).not.toBeNull()
+    })
+  })
+
+  // Channel report protocol (Kafi 2026-08-22): the report about channel-driven
+  // work carries the CHANNEL's origin, so the requester's notify turn can
+  // answer the person still waiting there. Read off the running JOB row, never
+  // a header: the report travels about the job, not about this turn's inbound.
+  describe('a report about CHANNEL-driven work carries its origin', () => {
+    const seedChannelOriginJob = (db: Database, userId: string, workspace: { id: string; path: string; name: string }) => {
+      const now = new Date()
+      const channel = insertChannel(db, {
+        id: randomUUID(),
+        userId,
+        workspaceId: null,
+        channelKind: 'telegram',
+        displayName: 'Bot',
+        botCredentials: JSON.stringify({ botToken: 't' }),
+        botMetadata: '{}',
+        connectionStatus: 'healthy',
+        connectionStatusMessage: null,
+        lastPolledCursor: null,
+        lastPolledAt: null,
+        lastInboundAt: null,
+        isEnabled: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const runningJobId = enqueueWorkspaceDelegation(db, {
+        userId,
+        parentSessionId: 'g-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'the channel-driven task',
+        origin: {
+          channelId: channel.id,
+          externalSenderId: 'tg-42',
+          externalChatContextId: 'chat-7',
+        },
+      })
+      return { channel, runningJobId }
+    }
+
+    it('stamps the origin columns onto the report-delivery row', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const workspace = seedManagedWorkspace(db, user.id)
+        await seedLinkedGlobalRoot(db, user.id)
+        await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-chan')
+        const { channel, runningJobId } = seedChannelOriginJob(db, user.id, workspace)
+        const app = makeHarness(db)
+
+        const res = await app.request('/routing/message', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [REPORT_CALLER_HEADER]: serializeReportCaller({
+              kind: 'workspace-primary',
+              workspaceId: workspace.id,
+            }),
+            [DELEGATION_JOB_HEADER]: runningJobId,
+          },
+          body: JSON.stringify({ to: 'requester', body: 'Done: 3 files changed.', kind: 'report' }),
+        })
+        expect(res.status).toBe(200)
+        const { jobId } = (await res.json()) as { jobId: string }
+        expect(findDelegationJobById(db, jobId)).toMatchObject({
+          jobKind: 'report-delivery',
+          originChannelId: channel.id,
+          originExternalSenderId: 'tg-42',
+          originExternalChatContextId: 'chat-7',
+        })
+      })
+    })
+
+    it('reroutes a direct_to_user OFF the direct path — the direct path runs no turn, so nobody would answer the channel', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const workspace = seedManagedWorkspace(db, user.id)
+        await seedLinkedGlobalRoot(db, user.id)
+        await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-chan2')
+        const { channel, runningJobId } = seedChannelOriginJob(db, user.id, workspace)
+        const app = makeHarness(db)
+
+        const res = await app.request('/routing/message', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [REPORT_CALLER_HEADER]: serializeReportCaller({
+              kind: 'workspace-primary',
+              workspaceId: workspace.id,
+            }),
+            [DELEGATION_JOB_HEADER]: runningJobId,
+          },
+          body: JSON.stringify({
+            to: 'requester',
+            body: 'Full overview text.',
+            kind: 'direct_to_user',
+            title: 'Overview',
+          }),
+        })
+        expect(res.status).toBe(200)
+        const { jobId } = (await res.json()) as { jobId: string }
+        // The answer still reaches the user — as a REPORT, through a requester
+        // turn that can also reply to Telegram.
+        expect(findDelegationJobById(db, jobId)).toMatchObject({
+          jobKind: 'report-delivery',
+          originChannelId: channel.id,
+        })
+        expect(findDelegationJobById(db, jobId)?.taskText).toBe(
+          `Overview
+
+Full overview text.`,
+        )
+      })
     })
   })
 

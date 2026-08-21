@@ -351,12 +351,7 @@ export async function runTaskJob(
         'delegation: stopped by the user at terminal time (report suppressed)',
       )
     } else if (outcome.status === 'completed') {
-      await settleCompletedTask(db, deps, claimed, {
-        result: outcome.result,
-        isNote,
-        runCwdPath,
-        targetName,
-      })
+      settleCompletedTask(db, deps, claimed, { result: outcome.result, isNote })
     } else if (outcome.status === 'capped') {
       // The turn ran past the hard cap, was interrupted, and has SETTLED — the
       // run is over (the lock is only released when this returns). Stop still

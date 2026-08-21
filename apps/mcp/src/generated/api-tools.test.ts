@@ -311,6 +311,12 @@ const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
   'get_delegated_task',
   'list_delegated_tasks',
   'list_sessions',
+  // A channel BOUND to a workspace answers on that workspace's conversation
+  // (2026-08-21), so the reply tool rides this surface too — present on every
+  // turn of that primary, never only channel-driven ones, because a toolset
+  // that changed with the turn's origin is what made the CLI strip
+  // `mcp__vynel*` and report the server offline (2026-07-21).
+  'reply_to_channel',
 ] as const
 
 const snakeToCamel = (s: string): string => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())

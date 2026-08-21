@@ -10,6 +10,13 @@ import { loadSessionInstruction } from '@vynel/instructions/session-instructions
 // the task text (the task persists verbatim to the transcript). ACKNOWLEDGE-FIRST
 // (persona-sessions, Chad's model-spoken call): the child speaks its own lifecycle —
 // ack, milestones, one final report — through send_message; nothing is harvested.
+//
+// THE REPORT IS NOT OPTIONAL (channel report protocol, Kafi 2026-08-22): the
+// requester's next turn is what tells the user — a channel sender is often
+// waiting on the other end of it. A turn that ends without reporting gets an
+// AUTO-REPORT synthesized from its final output (`settle-completed-task.ts`),
+// which is a net, not a substitute: it is labelled as one, and the model's own
+// report is always the better message.
 export const ROUTED_TASK_INSTRUCTIONS =
   'This task was routed from the user’s assistant and runs in the background. You speak ' +
   'for yourself: FIRST, before starting the work, send a one-line acknowledgment with ' +
@@ -17,7 +24,10 @@ export const ROUTED_TASK_INSTRUCTIONS =
   'report when done."). At meaningful milestones on longer work you may send further ' +
   'kind-"update" messages — brief status, never partial results dumps. When the work is ' +
   'DONE, send exactly ONE final send_message to "requester" with kind "report" carrying ' +
-  'the REAL result — findings, numbers, paths, not just "done". Prefer read-only tools ' +
+  'the REAL result — findings, numbers, paths, not just "done". NO TASK ENDS WITHOUT A ' +
+  'REPORT: send it even when the work failed, was blocked, or found nothing — say so in ' +
+  'the report. Whoever asked is waiting on it (often a person on Telegram), and your chat ' +
+  'text is NOT delivered anywhere; the report is. Prefer read-only tools ' +
   '(Read, Glob, Grep, LS) for read/analysis tasks. An irreversible action (write, edit, ' +
   'delete, shell command) PAUSES until the user approves it from their app or chat — use ' +
   'one only when the task genuinely needs it, and if it is denied or times out, put what ' +
@@ -45,6 +55,13 @@ export const SYSTEM_DELIVERY_INSTRUCTIONS =
 // ("if something above you requested this") because the GLOBAL root's notify
 // turn has NO REQUESTER — it sees send_message, but an upward send 400s
 // honestly there; its reply IS the answer.
+//
+// The channel sentence FLIPPED (channel report protocol, Kafi 2026-08-22): task
+// completion no longer ships a distilled line to the origin channel itself, so
+// "do not re-send this to channels" would leave the person who asked with
+// nothing. WHETHER a channel is waiting is per-delivery, not per-steer — the
+// origin marker on the message body says so when it is
+// (`composeChannelAnswerMarker`), and this steer stays silent about channels.
 export const REPORT_DELIVERY_INSTRUCTIONS =
   'This message is a REPORT from a session, workspace, or agent you delegated work to — ' +
   'the FINAL result arriving back, relayed automatically by the system: that task is now ' +
@@ -53,8 +70,7 @@ export const REPORT_DELIVERY_INSTRUCTIONS =
   'needed; NEVER re-run or re-verify the work it describes from scratch. If something ' +
   'above you requested this work, pass the REAL result up with send_message to ' +
   '"requester" — the full findings, numbers, paths, not just "done"; otherwise reply ' +
-  'briefly with the outcome for the user. The user has already been notified on any ' +
-  'channel they asked from — do not re-send this report to channels.'
+  'briefly with the outcome for the user.'
 
 // The UPDATE-DELIVERY steer (persona-sessions) — the interim sibling: a spoken
 // ack/progress line from a child mid-task. Absorb quietly; the task is NOT
@@ -183,10 +199,21 @@ export const CONTINUATION_TASK_INSTRUCTIONS =
   ROUTED_TASK_INSTRUCTIONS
 
 /** The PROVIDER text of a routed turn's inbound message: the task/message as
- *  written, plus the per-message autopilot marker when the target conversation
- *  runs on autopilot (D8 — `autoBuildout`). Provider input ONLY: the persisted
- *  row keeps the clean text (the voice-turn-marker precedent — a system-prompt
- *  block decays on a long session; the marker rides every message instead). */
-export function composeRoutedTurnProviderText(taskText: string, autoBuildout: boolean): string {
-  return autoBuildout ? `${taskText}\n\n${loadSessionInstruction('autopilot-marker')}` : taskText
+ *  written, plus any per-message markers — the autopilot marker when the target
+ *  conversation runs on autopilot (D8 — `autoBuildout`), and whatever the caller
+ *  adds (the channel-answer marker on a report about channel-driven work).
+ *  Provider input ONLY: the persisted row keeps the clean text (the
+ *  voice-turn-marker precedent — a system-prompt block decays on a long
+ *  session; the marker rides every message instead), and a marker in the
+ *  persisted row would be read by the USER, who is not its audience. */
+export function composeRoutedTurnProviderText(
+  taskText: string,
+  autoBuildout: boolean,
+  perMessageMarker?: string,
+): string {
+  const markers = [
+    ...(autoBuildout ? [loadSessionInstruction('autopilot-marker')] : []),
+    ...(perMessageMarker !== undefined ? [perMessageMarker] : []),
+  ]
+  return markers.length === 0 ? taskText : [taskText, ...markers].join('\n\n')
 }

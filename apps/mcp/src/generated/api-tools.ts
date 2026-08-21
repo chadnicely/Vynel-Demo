@@ -4765,6 +4765,7 @@ export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   getDelegatedTask,
   listDelegatedTasks,
   listSessions,
+  replyToChannel,
 ]
 
 // The ask-approval tier — DELETE-method routes + x-mcp.askApproval opt-ins.

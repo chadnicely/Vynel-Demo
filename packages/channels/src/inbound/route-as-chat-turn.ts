@@ -1,14 +1,26 @@
-// The channel turn routes to the GLOBAL ROOT (brain-tree Ch4 — the dispatcher vision). A channel
-// message no longer runs against the channel's bound workspace; instead it runs a global-root turn
-// (via the injected runner), carrying the ORIGIN channel so the root's reply — and any delegation's
-// report — come back HERE.
+// The channel turn routes by the channel's OWN SCOPE. A GLOBAL channel (no
+// workspace) runs a global-root turn — the brain-tree Ch4 dispatcher vision,
+// unchanged. A channel BOUND to a workspace runs on that workspace's continuing
+// conversation instead, through the injected workspace runner: Ch4 had made the
+// bound workspace inert, so a Telegram bot the user pointed at "letterman" still
+// answered from the global brain (Kafi, live 2026-08-21). Either way the turn
+// carries the ORIGIN channel, so the reply — and any delegation's report — come
+// back HERE.
 //
-// TOOL-ONLY REPLIES (channel pipeline, Chad locked 2026-07-27): the turn's chat
-// text is NEVER captured and shipped to the channel — the model replies by
-// CALLING reply_to_channel (the per-message marker instructs it every turn; the
-// server-stamped origin addresses it). A turn that answers nothing sends
-// nothing — deliberate, like the session-comms no-harvest rule. A delegation's
-// report still follows later (the claim-and-run tick, Ch4 Step 3).
+// TOOL-ONLY REPLIES (channel pipeline, Chad locked 2026-07-27, NARROWED
+// 2026-08-22): the turn's chat text is NEVER auto-shipped to the channel WHILE
+// the turn has replied through the tool — the model replies by CALLING
+// reply_to_channel (the per-message marker instructs it every turn; the
+// server-stamped origin addresses it). That much is unchanged, byte for byte.
+//
+// What changed is the OTHER half. "A turn that answers nothing sends nothing"
+// was deliberate, but it also covered turns that answered nothing by accident:
+// the SDK classifier refusing a tool, an approval timing out, the model writing
+// text and stopping (agent B's GAP 3). The sender saw "typing…" stop and then
+// silence, with no way to tell a refusal from a crash. Such a turn now ships ONE
+// honest line (`shipSilentTurnFallback`). A delegation's report still follows
+// later — and now travels to the REQUESTER, who answers the channel itself
+// (channel report protocol).
 //
 // The api-side service has no request context, so `runRootTurn` (wrapping runGlobalRootTurn) is
 // INJECTED via `deps` — keeps apps/api + the orchestration runner out of packages/core. Session
@@ -23,9 +35,15 @@ import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import { extractErrorMessage } from '../adapters/extract-error-message.js'
 import { readInboundContext, describeSender } from './read-inbound-context.js'
 import { composeChannelTurnMarker } from './compose-channel-turn-marker.js'
+import { resolveChannelTurnScope } from './resolve-channel-turn-scope.js'
+import { shipSilentChannelTurnFallback } from './ship-silent-turn-fallback.js'
 import type { Database } from '@vynel/db'
 import type { Channel, ChannelInboundMessage } from '../repositories/index.js'
-import type { BotCredentials, ProcessInboundDeps } from '../channels-types.js'
+import type {
+  BotCredentials,
+  ChannelTurnRequest,
+  ProcessInboundDeps,
+} from '../channels-types.js'
 
 // Telegram's "typing…" action lasts ~5s — refresh just under that so the indicator stays continuous.
 const TYPING_REFRESH_MS = 4_000
@@ -50,10 +68,14 @@ export async function routeAsChatTurn(
   // reply_to_channel tool) + any delegation report come back to who asked, in
   // the conversation they asked from. Group messages carry the asking
   // message's id so the tool reply threads onto it.
+  // The inbound row's id IS this turn's key: every reply the turn queues is
+  // stamped with it, so the zero-reply check below counts only its own answers
+  // — a concurrent message in the same chat can no longer silence this one.
   const origin = {
     channelId: input.channel.id,
     externalSenderId: input.message.externalSenderId,
     externalChatContextId: input.message.externalChatContextId,
+    turnCorrelationId: input.message.id,
     ...(isGroupOrigin ? { externalMessageId: input.message.externalMessageId } : {}),
   }
 
@@ -88,9 +110,8 @@ export async function routeAsChatTurn(
   }
 
   try {
-    // Run the global-root turn (serialized per user by the runner's lock). The
-    // root replies via reply_to_channel — or delegates, carrying the origin.
-    const rootTurnResult = await deps.runRootTurn(db, {
+    // ONE request shape, whichever conversation answers it.
+    const turnRequest: ChannelTurnRequest = {
       userId: input.channel.userId,
       userMessageText: speakerLine + input.message.messageBody,
       origin,
@@ -124,17 +145,61 @@ export async function routeAsChatTurn(
           )
         }
       },
-    })
-    // NO CAPTURE: the turn's chat text is never shipped to the channel — the
-    // model replied through reply_to_channel (or chose not to reply). The old
-    // resultText enqueue was the channel's harvest; it dressed the model's
-    // whole chat answer as the reply and sent it whether the model meant to
-    // send it or not. Logged so a "Telegram went silent" report is diagnosable
-    // without reading the transcript: text + no tool call = deliberate policy.
-    if (rootTurnResult.resultText.trim() !== '') {
-      deps.logger?.info(
-        { channelId: input.channel.id, resultTextLength: rootTurnResult.resultText.length },
-        'channel turn completed with chat text — NOT delivered (replies travel only via reply_to_channel)',
+    }
+
+    // Surface decides the scope: the channel's own `workspaceId` picks the
+    // conversation. A workspace channel resumes that workspace's continuing
+    // thread (its lock, its identity); a global one keeps the root.
+    const runWorkspaceTurn = deps.runWorkspaceTurn
+    const scope = resolveChannelTurnScope(
+      db,
+      { channel: input.channel, canRunWorkspaceTurn: runWorkspaceTurn !== undefined },
+      deps.logger !== undefined ? { logger: deps.logger } : {},
+    )
+    // Read BEFORE the turn: every reply queued from here on is this turn's.
+    const turnStartedAt = new Date()
+    const turnResult =
+      scope.kind === 'workspace' && runWorkspaceTurn !== undefined
+        ? await runWorkspaceTurn(db, {
+            ...turnRequest,
+            workspaceId: scope.workspaceId,
+            workspacePath: scope.workspacePath,
+          })
+        : await deps.runRootTurn(db, turnRequest)
+    // NO CAPTURE while the turn HAS replied: the model spoke through
+    // reply_to_channel and its chat text stays where it is. The old resultText
+    // enqueue was the channel's harvest — it dressed the model's whole chat
+    // answer as the reply and sent it whether the model meant to send it or
+    // not; that is what stays dead. Only a turn that queued NOTHING for this
+    // conversation falls through to the fallback line. Best-effort: a completed
+    // turn is never failed over its own courtesy note.
+    try {
+      const shipped = shipSilentChannelTurnFallback(
+        db,
+        {
+          channel: input.channel,
+          message: input.message,
+          resultText: turnResult.resultText,
+          turnStartedAt,
+          turnCorrelationId: input.message.id,
+          isGroupOrigin,
+        },
+        deps.logger !== undefined ? { logger: deps.logger } : {},
+      )
+      if (!shipped && turnResult.resultText.trim() !== '') {
+        deps.logger?.info(
+          {
+            channelId: input.channel.id,
+            scope: scope.kind,
+            resultTextLength: turnResult.resultText.length,
+          },
+          'channel turn replied via the tool — its chat text was NOT delivered (tool-only replies)',
+        )
+      }
+    } catch (fallbackErr) {
+      deps.logger?.warn(
+        { error: extractErrorMessage(fallbackErr), channelId: input.channel.id },
+        'silent-turn fallback failed to enqueue (the turn itself succeeded)',
       )
     }
   } catch (err) {

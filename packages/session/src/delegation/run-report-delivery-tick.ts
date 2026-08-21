@@ -34,6 +34,19 @@
 // further delivery — the parent's own "report up" happens via the
 // `report_to_requester` tool INSIDE the notify turn (upward-only + the tree
 // topology bound the chain; it terminates at the global root).
+//
+// THE CHANNEL (channel report protocol, Kafi 2026-08-22): a delivery row about
+// work a CHANNEL asked for now carries that channel's origin columns. The notify
+// turn is where the person on Telegram gets their answer — so the origin rides
+// into the turn (its `reply_to_channel` is addressed by it, its approval cards
+// push to the sender), the body carries the answer marker, and if the delivery
+// dies terminally the failsafe ships the report to the channel itself.
+//
+// TWO NETS, NOT ONE. The failsafe covers a delivery that DIED. A delivery that
+// SUCCEEDS can still leave the sender with nothing — the notify turn absorbs
+// the report, writes chat text, and never calls `reply_to_channel`. That is the
+// inbound runners' zero-reply shape exactly, so it gets their exact net:
+// `shipSilentChannelTurnFallback`, one home for both the decision and the line.
 
 import { withTransaction, type Database } from '@vynel/db'
 import type { Logger } from 'pino'
@@ -46,9 +59,12 @@ import {
   requeueDelegationJob,
   resolveThreadIdOf,
   routeRequest,
+  readDelegationJobOrigin,
   type DelegationJob,
+  type DelegationOrigin,
 } from '@vynel/orchestration'
 import { recordDirectReplyMessage, type ChatTurnEvent } from '@vynel/chat'
+import { composeChannelAnswerMarker, shipSilentChannelTurnFallback } from '@vynel/channels'
 import {
   dropPendingCheckpoint,
   findPrimaryConversation,
@@ -64,6 +80,8 @@ import {
   composeUpdateMessageMarker,
 } from '@vynel/contracts/chat/report-message-marker'
 import { delegateToWorkspaceRoot } from './delegate-to-workspace-root.js'
+import { resolveDeliverableOrigin } from './resolve-task-target.js'
+import { deliverReportFailsafeToChannel } from './deliver-report-failsafe-to-channel.js'
 import { requeueForAnotherAttempt, requeueIfRecoverable } from './classify-turn-failure.js'
 import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
 import { resolveBackgroundTurnSettings } from './resolve-background-turn-settings.js'
@@ -108,6 +126,14 @@ export type RunGlobalRootReportTurn = (input: {
   /** The delivery variant's steer — the UPDATE steer for an interim ack/progress
    *  delivery. Omitted = the report steer (the shipped default). */
   steerInstructions?: string
+  /** The CHANNEL that asked for the work this delivery reports on (channel
+   *  report protocol) — stamped on every request the notify turn's tools make,
+   *  so `reply_to_channel` answers the exact chat that is waiting. Absent for
+   *  chat/voice-origin work. */
+  origin?: DelegationOrigin
+  /** The channel-answer marker — appended to PROVIDER input only, never the
+   *  persisted row (the voice-turn-marker split). */
+  channelReplyMarker?: string
   /** The delivery queue row — the notify turn's liveness enrichment. */
   jobId?: string
   /** The stable inbound-row id for this delivery (its job id): a retried notify
@@ -140,6 +166,7 @@ export interface RunReportDeliveryDeps {
     jobId?: string
     targetPrimarySessionId?: string
     permissionMode?: string
+    origin?: DelegationOrigin
   }) => RoutedTurnMcpAttachment
   runGlobalRootReportTurn?: RunGlobalRootReportTurn
   /** The pressure threshold the model fit check honors (the env smoke knob). */
@@ -213,6 +240,30 @@ export async function runReportDeliveryJob(
           ? composeSystemMessageMarker(sourceLabel)
           : composeReportMessageMarker(sourceLabel)
   }\n\n${claimed.taskText}`
+  // THE CHANNEL WAITING ON THIS (channel report protocol). Two reads of the same
+  // columns, deliberately: the ADDRESS (pure lift) rides into the turn so its
+  // tools are stamped with it, while the DELIVERABLE (channel row loaded, enabled
+  // + owned checked) decides whether to tell the model a channel is waiting at
+  // all — pointing it at a disabled channel would only make it call a tool that
+  // 400s. A note is never channel work.
+  const jobOrigin = isNote ? null : readDelegationJobOrigin(claimed)
+  // The row's id is this notify turn's key: every reply it queues through
+  // `reply_to_channel` carries it, so the zero-reply net below counts its own
+  // answers and never a concurrent inbound turn's in the same chat.
+  const originAddress =
+    jobOrigin === null ? null : { ...jobOrigin, turnCorrelationId: claimed.id }
+  const deliverableOrigin = originAddress !== null ? resolveDeliverableOrigin(db, claimed) : null
+  // The answer marker rides the MESSAGE (the channel-marker precedent — a
+  // system-prompt block decays; recency wins), so the requester's turn is told
+  // whose question this result answers and how to answer it. PROVIDER INPUT
+  // ONLY on both branches: the notify turn's inbound row is what the USER reads
+  // in their thread, and an instruction addressed to a model has no business
+  // there — nor on the direct-persist path, which shows `reportBody` verbatim
+  // as the sender speaking.
+  const channelAnswerMarker =
+    deliverableOrigin !== null
+      ? composeChannelAnswerMarker({ channelKind: deliverableOrigin.channel.channelKind })
+      : undefined
   const inboundSourceKind = isSystemNotification ? ('system' as const) : ('workspace-manager' as const)
   // Captured once for narrowing: null = the GLOBAL root is the requester.
   const requesterWorkspaceId = claimed.workspaceId
@@ -301,6 +352,71 @@ export async function runReportDeliveryJob(
     jobId: claimed.id,
   })
 
+  /** The row is dead and no attempt remains — the ONE place the last-resort
+   *  channel line is decided (channel report protocol). Two gates stand in
+   *  front of it, because "terminal" is a claim this run has to EARN:
+   *
+   *   - a user STOP is not a failure to route around, so it settles the row
+   *     and says nothing to the channel;
+   *   - the fail CAS must WIN. A run whose heartbeats starved has already had
+   *     its row handed back to pending by `requeueOrphanedClaimedDeliveries`;
+   *     the CAS then no-ops while the requeued attempt goes on to answer
+   *     through `reply_to_channel` — shipping the failsafe here would put two
+   *     copies of one answer on the channel. Null = not ours any more; stand
+   *     down (the settle path's rule, applied to the delivery half). */
+  const failDeliveryTerminally = (reason: string): void => {
+    if (cancelHandle?.isCancelRequested()) {
+      failDelegationJob(db, claimed.id, 'stopped by the user', new Date())
+      return
+    }
+    if (failDelegationJob(db, claimed.id, reason, new Date()) === null) {
+      deps.logger.warn(
+        { jobId: claimed.id, message: reason },
+        `${queueLabel}: failed after its claim was settled elsewhere — no channel failsafe`,
+      )
+      return
+    }
+    if (deliverableOrigin !== null) {
+      deliverReportFailsafeToChannel(db, claimed, { logger: deps.logger })
+    }
+  }
+
+  // Read BEFORE the turn (both branches): a checkpoint or a channel reply from
+  // this moment on is this turn's own.
+  const notifyTurnStartedAt = new Date()
+
+  /** THE NOTIFY TURN'S ZERO-REPLY NET (channel report protocol). The protocol
+   *  ends with the requester answering the channel — but a turn can absorb the
+   *  report, write chat text and simply never call `reply_to_channel`, leaving
+   *  the person who asked with the inbound turn's interim ack and nothing
+   *  since. That is the inbound runners' silent-turn shape, so it takes their
+   *  decision and their line unchanged. Best-effort by contract: a report that
+   *  WAS delivered is never failed over its courtesy note. */
+  const shipNotifyTurnChannelFallback = (resultText: string): void => {
+    if (deliverableOrigin === null) return
+    try {
+      shipSilentChannelTurnFallback(
+        db,
+        {
+          channel: deliverableOrigin.channel,
+          message: {
+            externalSenderId: deliverableOrigin.externalRecipientId,
+            externalChatContextId: deliverableOrigin.externalChatContextId,
+          },
+          resultText,
+          turnStartedAt: notifyTurnStartedAt,
+          turnCorrelationId: claimed.id,
+        },
+        { logger: deps.logger },
+      )
+    } catch (err) {
+      deps.logger.warn(
+        { err, jobId: claimed.id },
+        `${queueLabel}: the notify turn's channel fallback could not be enqueued`,
+      )
+    }
+  }
+
   deps.logger.info(
     {
       jobId: claimed.id,
@@ -364,6 +480,16 @@ export async function runReportDeliveryJob(
               ...(partialSessionId !== undefined ? { partialSessionId } : {}),
               ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
               steerInstructions,
+              // The person on the channel is waiting on THIS turn's reply
+              // (channel report protocol) — the address is ambient, never
+              // model input, exactly like an inbound channel turn's; the marker
+              // rides provider input only. No `originChannel`: that stamps the
+              // persisted row "via Telegram", and this row is a report FROM A
+              // CHILD, not a message the channel sent.
+              ...(originAddress !== null ? { origin: originAddress } : {}),
+              ...(channelAnswerMarker !== undefined
+                ? { channelReplyMarker: channelAnswerMarker }
+                : {}),
               jobId: claimed.id,
               inboundMessageId: claimed.id,
               waitGate,
@@ -410,8 +536,12 @@ export async function runReportDeliveryJob(
         provider: deps.provider,
         workspaceName,
         waitGate,
-        // No origin: report-delivery rows never carry channel columns (channel
-        // delivery of the task's report happened at task completion).
+        // A delivery row CAN now carry channel columns (channel report
+        // protocol) — and when it does, the person who asked is the one
+        // waiting on this turn, so a card it raises is pushed to them exactly
+        // as a card from the task's own turn was. Absent origin = the shipped
+        // app-only card.
+        ...(deliverableOrigin !== null ? { origin: deliverableOrigin } : {}),
       })
       approvalHandler = handler
 
@@ -426,13 +556,14 @@ export async function runReportDeliveryJob(
               workspaceId: requesterWorkspaceId,
               target: 'workspace-root',
               permissionMode: turnSettings.permissionMode,
+              // Ambient channel address (channel report protocol): the
+              // workspace requester answers the person who asked through its
+              // own `reply_to_channel`, which the composer stamps for it.
+              ...(originAddress !== null ? { origin: originAddress } : {}),
             })
           : undefined
 
       const turnEvents = deps.turnEvents
-      // The notify turn's own start — a checkpoint pending from BEFORE it is
-      // the user's restart survivor (durable register), never this turn's stray.
-      const notifyTurnStartedAt = new Date()
       outcome = await routeRequest(
         {
           userId: claimed.userId,
@@ -468,6 +599,9 @@ export async function runReportDeliveryJob(
               // requeue re-uses the report row instead of appending it (A3c).
               inboundMessageId: claimed.id,
               steerInstructions,
+              ...(channelAnswerMarker !== undefined
+                ? { providerMarker: channelAnswerMarker }
+                : {}),
               // A delivery is never work: no context nudge (nothing continues it).
               armContextNudge: false,
               ...(turnEvents !== undefined ? { turnEvents } : {}),
@@ -522,11 +656,21 @@ export async function runReportDeliveryJob(
     } else if (outcome.status === 'completed') {
       // Terminal: the notify turn's reply is the row's result. NO further
       // delivery is enqueued here — see the anti-cascade invariant above.
-      completeDelegationJob(db, claimed.id, outcome.result, new Date())
-      deps.logger.info(
-        { jobId: claimed.id, replyPreview: outcome.result.slice(0, 120) },
-        `${queueLabel}: completed — the requester absorbed it in its own turn`,
-      )
+      // The CAS gates the channel net for the same reason the failure path's
+      // does: a row already handed back to pending belongs to the attempt that
+      // will answer, and speaking for it here would double the answer.
+      if (completeDelegationJob(db, claimed.id, outcome.result, new Date()) === null) {
+        deps.logger.warn(
+          { jobId: claimed.id },
+          `${queueLabel}: completed after its claim was settled elsewhere — standing down`,
+        )
+      } else {
+        deps.logger.info(
+          { jobId: claimed.id, replyPreview: outcome.result.slice(0, 120) },
+          `${queueLabel}: completed — the requester absorbed it in its own turn`,
+        )
+        shipNotifyTurnChannelFallback(outcome.result)
+      }
     } else if (outcome.status === 'capped') {
       // The notify turn ran past the hard cap, was interrupted, and has
       // SETTLED. Stop wins; otherwise the delivery is RECOVERABLE (see the
@@ -540,7 +684,7 @@ export async function runReportDeliveryJob(
       } else {
         activityHandle?.end('failed')
         if (!requeueForAnotherAttempt(db, claimed, outcome.message, deps.logger, queueLabel)) {
-          failDelegationJob(db, claimed.id, outcome.message, new Date())
+          failDeliveryTerminally(outcome.message)
           deps.logger.warn(
             { jobId: claimed.id, message: outcome.message },
             `${queueLabel} job failed — capped on its last attempt`,
@@ -555,11 +699,11 @@ export async function runReportDeliveryJob(
       // the report body is the ONLY copy of the child's result; before this a
       // failed delivery row was permanently invisible (excluded from both the
       // catch-up net and list_delegated_tasks). A stop never retries.
-      if (
-        cancelHandle?.isCancelRequested() ||
-        !requeueIfRecoverable(db, claimed, reason, deps.logger, queueLabel)
-      ) {
+      if (cancelHandle?.isCancelRequested()) {
         failDelegationJob(db, claimed.id, reason, new Date())
+        deps.logger.warn({ jobId: claimed.id, message: reason }, `${queueLabel} job failed`)
+      } else if (!requeueIfRecoverable(db, claimed, reason, deps.logger, queueLabel)) {
+        failDeliveryTerminally(reason)
         deps.logger.warn({ jobId: claimed.id, message: reason }, `${queueLabel} job failed`)
       }
     }
@@ -567,7 +711,7 @@ export async function runReportDeliveryJob(
   } catch (err) {
     activityHandle?.end('failed')
     await approvalHandler?.abandonParked()
-    failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
+    failDeliveryTerminally(err instanceof Error ? err.message : String(err))
     deps.logger.error({ err, jobId: claimed.id }, `${queueLabel} job run threw unexpectedly`)
     return true
   } finally {

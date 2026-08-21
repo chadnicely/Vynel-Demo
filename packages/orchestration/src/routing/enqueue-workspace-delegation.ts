@@ -30,6 +30,13 @@ export interface DelegationOrigin {
    *  columns carry the three addresses above); it rides the ambient origin
    *  header for the reply_to_channel tool. */
   externalMessageId?: string
+  /** WHICH TURN owns the replies made through this origin — the inbound
+   *  message id for a channel turn, the delivery job id for a notify turn.
+   *  Stamped on every outbound row `reply_to_channel` queues, so the
+   *  zero-reply fallback can tell this turn's answer from a sibling turn's in
+   *  the same chat. Same rules as `externalMessageId`: header-only, never a
+   *  column, job enqueues ignore it. */
+  turnCorrelationId?: string
 }
 
 export interface EnqueueWorkspaceDelegationInput {

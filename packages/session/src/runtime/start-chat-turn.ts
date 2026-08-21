@@ -72,6 +72,15 @@ export type StartChatTurnInput = {
    * user shape (unchanged).
    */
   messageAttribution?: TurnMessageAttribution
+  /**
+   * HOW this message reached Vynel, when it did not come from the app — the
+   * transcript's "via Telegram" origin (`deriveMessageOrigin`). Distinct from
+   * `messageAttribution`, which says WHO is speaking (a system notice); a
+   * channel message is still the USER speaking, just not from the composer.
+   * The global-root runner has always stamped it; a WORKSPACE turn needs it
+   * since a channel bound to a workspace answers on that workspace's thread.
+   */
+  originChannel?: 'voice' | 'telegram' | 'discord' | 'zoom'
   /** Images attached to this turn — inline base64; sent to the provider + persisted for re-display. */
   attachedImages?: AttachedImageBytes[]
   /** The model to run this turn (per-chat picker). Omit to inherit the CLI default. */
@@ -275,6 +284,7 @@ export async function* startChatTurn(
       body: input.userMessageText,
       attachedImagesMetadata,
       ...(attachedImages.length > 0 ? { attachedImages } : {}),
+      ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
     },
     userId: input.userId,
     workspaceId: input.workspaceId,

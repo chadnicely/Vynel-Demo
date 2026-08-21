@@ -52,6 +52,7 @@ export {
   type EnqueueWorkspaceDelegationInput,
   type DelegationOrigin,
 } from './routing/enqueue-workspace-delegation.js'
+export { readDelegationJobOrigin } from './routing/read-delegation-job-origin.js'
 export {
   enqueueSessionDelegation,
   type EnqueueSessionDelegationInput,
