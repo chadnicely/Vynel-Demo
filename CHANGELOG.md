@@ -128,6 +128,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A Telegram channel added to a workspace now talks to that workspace**, not to the global
+  conversation — messages run on the workspace's own thread and replies come from there.
+- **Tasks started from a channel report back properly.** The worker reports to whoever asked
+  (Vynel writes the report itself if the worker forgets), the requester decides what to say,
+  and the requester answers the channel — instead of a shortcut summary sent behind its back.
+- **A channel turn never ends in silence**: if Vynel couldn't act (a safety block, an approval
+  that timed out) or only had text, one honest line still reaches the channel.
 - **Adding a Display widget no longer fails on the first try** — Claude now sees the real
   shape of a widget's content (and a pasted JSON string is accepted too).
 - **A missed schedule now tells you.** If Vynel was not running when a schedule was due
