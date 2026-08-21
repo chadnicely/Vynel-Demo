@@ -1,6 +1,10 @@
 import type { SessionEffectiveStatus } from "@vynel/contracts/chat/session-status";
 import type { SessionTurnActivity } from "@vynel/contracts/chat/session-activity";
 import { activityEnergy, type DisplayActivity } from "./display-orb-state.js";
+import type {
+  DisplayBoardChange,
+  DisplayBoardChangeKind,
+} from "./use-display-widgets.js";
 
 // What the Display's panels and strip SAY, as pure functions of flat facts —
 // the wiring that gathers those facts lives next door in `use-display-status`.
@@ -187,6 +191,37 @@ export function attentionTelemetryRows(
 ): DisplayStatusRow[] {
   if (next <= previous) return [];
   return [{ label: clockLabel(at), value: `${next} waiting on you`, tone: "attention" }];
+}
+
+const BOARD_CHANGE_WORDS: Record<DisplayBoardChangeKind, string> = {
+  added: "widget added",
+  updated: "widget updated",
+  removed: "widget removed",
+  cleared: "display cleared",
+};
+
+// A card going UP is the loud one — it is the thing you are meant to look at.
+const BOARD_CHANGE_TONES: Record<DisplayBoardChangeKind, DisplayRowTone> = {
+  added: "live",
+  updated: "default",
+  removed: "muted",
+  cleared: "muted",
+};
+
+/** One line for a card appearing, changing or leaving — so the log accounts
+ *  for what changed on screen, not only for what ran. */
+export function boardTelemetryRows(
+  change: DisplayBoardChange,
+  at: Date,
+): DisplayStatusRow[] {
+  const words = BOARD_CHANGE_WORDS[change.kind];
+  return [
+    {
+      label: clockLabel(at),
+      value: change.title === null ? words : `${words} · ${change.title}`,
+      tone: BOARD_CHANGE_TONES[change.kind],
+    },
+  ];
 }
 
 /** Newest last, capped — the log reads downward like a terminal. */

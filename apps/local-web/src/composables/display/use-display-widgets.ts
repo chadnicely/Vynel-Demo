@@ -30,6 +30,27 @@ import { displayWidgetKeys } from "./display-widget-keys.js";
 
 export type DisplayWidgetsBySlot = Record<DisplayWidgetSlot, DisplayWidgetView[]>;
 
+/** What a live frame MEANT for this board, in the words a reader uses. An
+ *  `upserted` frame is an ADD or an EDIT depending on what the board already
+ *  held, and a `removed` frame names its card only while that card is still
+ *  there — both are knowable here and nowhere else, which is why the notice is
+ *  built rather than the raw frame handed on. */
+export type DisplayBoardChangeKind = "added" | "updated" | "removed" | "cleared";
+
+export interface DisplayBoardChange {
+  readonly kind: DisplayBoardChangeKind;
+  /** null when the frame names no single card (`cleared`), or when the board
+   *  had not been read yet and the id could not be resolved. */
+  readonly title: string | null;
+}
+
+export interface DisplayWidgetsOptions {
+  /** A tap on the live stream so a caller can narrate the board — the room's
+   *  telemetry log rides this rather than opening a SECOND `display`
+   *  subscription over the same socket. */
+  onChange?: (change: DisplayBoardChange) => void;
+}
+
 export interface DisplayWidgets {
   /** The scope's cards, unordered — read `bySlot` to lay them out. */
   readonly widgets: ComputedRef<DisplayWidgetView[]>;
@@ -41,6 +62,13 @@ export interface DisplayWidgets {
    *  brings every card back. Idempotent: the server's own `cleared` frame
    *  lands on an already-empty list. */
   clear: () => void;
+  /** Blank the board FOR REAL — the whole of the "Clear" affordance: the
+   *  optimistic local blank AND the POST that makes it true. It lives with the
+   *  board because clearing is bound to the SCOPE this instance reads; a
+   *  caller doing it itself would have to carry that scope to a second door
+   *  and keep the two halves in step by hand. Rejects if the POST failed, its
+   *  board already put back. */
+  clearOnServer: () => Promise<void>;
 }
 
 /** Which scope a frame is about — `upserted` carries it on the widget, the
@@ -63,7 +91,33 @@ function applyFrame(
   }
 }
 
-export function useDisplayWidgets(scope: MaybeRefOrGetter<string>): DisplayWidgets {
+/** What a frame changed, read against the board as it stands BEFORE the patch. */
+function describeFrame(
+  board: DisplayWidgetView[] | undefined,
+  frame: DisplayLiveFrame,
+): DisplayBoardChange {
+  switch (frame.kind) {
+    case "upserted":
+      return {
+        // With no board read yet nothing can have been updated — and a card
+        // arriving on an unread board reads as "added" either way.
+        kind: board?.some((card) => card.id === frame.widget.id) ? "updated" : "added",
+        title: frame.widget.title,
+      };
+    case "removed":
+      return {
+        kind: "removed",
+        title: board?.find((card) => card.id === frame.widgetId)?.title ?? null,
+      };
+    case "cleared":
+      return { kind: "cleared", title: null };
+  }
+}
+
+export function useDisplayWidgets(
+  scope: MaybeRefOrGetter<string>,
+  options: DisplayWidgetsOptions = {},
+): DisplayWidgets {
   const vynel = useVynel();
   const live = useLiveChannelStore();
   const queryClient = useQueryClient();
@@ -117,6 +171,14 @@ export function useDisplayWidgets(scope: MaybeRefOrGetter<string>): DisplayWidge
     onEvent: (raw) => {
       const frame = raw as DisplayLiveFrame;
       if (frameScopeKey(frame) !== scopeKey.value) return;
+      options.onChange?.(
+        describeFrame(
+          queryClient.getQueryData<DisplayWidgetView[]>(
+            displayWidgetKeys.scope(scopeKey.value),
+          ),
+          frame,
+        ),
+      );
       absorbFrame(frame);
     },
     onSubscribed: () => {
@@ -145,16 +207,27 @@ export function useDisplayWidgets(scope: MaybeRefOrGetter<string>): DisplayWidge
     return buckets;
   });
 
-  return {
-    widgets,
-    bySlot,
-    isLoading: query.isLoading,
-    // No board yet = nothing on screen to blank, and seeding an empty one
-    // would race the read in flight.
-    clear: () =>
-      queryClient.setQueryData<DisplayWidgetView[]>(
-        displayWidgetKeys.scope(scopeKey.value),
-        (board) => (board === undefined ? undefined : []),
-      ),
-  };
+  // No board yet = nothing on screen to blank, and seeding an empty one would
+  // race the read in flight.
+  function clear(): void {
+    queryClient.setQueryData<DisplayWidgetView[]>(
+      displayWidgetKeys.scope(scopeKey.value),
+      (board) => (board === undefined ? undefined : []),
+    );
+  }
+
+  async function clearOnServer(): Promise<void> {
+    const key = displayWidgetKeys.scope(scopeKey.value);
+    clear();
+    try {
+      await vynel.display.clear({ scope: scopeKey.value });
+    } catch (error) {
+      // The board on screen is now a lie — put the truth back before handing
+      // the failure on, so the caller's message and the board agree.
+      void queryClient.invalidateQueries({ queryKey: key });
+      throw error;
+    }
+  }
+
+  return { widgets, bySlot, isLoading: query.isLoading, clear, clearOnServer };
 }

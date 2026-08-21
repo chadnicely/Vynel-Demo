@@ -4,6 +4,7 @@ import { activityEnergy } from "./display-orb-state.js";
 import {
   appendTelemetry,
   attentionTelemetryRows,
+  boardTelemetryRows,
   clockLabel,
   deriveDisplayStatus,
   turnTelemetryRows,
@@ -168,6 +169,22 @@ describe("telemetry", () => {
     ]);
     expect(attentionTelemetryRows(2, 1, AT)).toEqual([]);
     expect(attentionTelemetryRows(1, 1, AT)).toEqual([]);
+  });
+
+  // The log accounts for what changed ON SCREEN too, not only for what ran.
+  it("names the card a board change touched, and the loud one is a card going up", () => {
+    expect(boardTelemetryRows({ kind: "added", title: "This week" }, AT)).toEqual([
+      { label: "09:04:05", value: "widget added · This week", tone: "live" },
+    ]);
+    expect(boardTelemetryRows({ kind: "updated", title: "This week" }, AT)).toEqual([
+      { label: "09:04:05", value: "widget updated · This week", tone: "default" },
+    ]);
+    expect(boardTelemetryRows({ kind: "removed", title: null }, AT)).toEqual([
+      { label: "09:04:05", value: "widget removed", tone: "muted" },
+    ]);
+    expect(boardTelemetryRows({ kind: "cleared", title: null }, AT)).toEqual([
+      { label: "09:04:05", value: "display cleared", tone: "muted" },
+    ]);
   });
 
   it("keeps the last 14 lines, newest last", () => {

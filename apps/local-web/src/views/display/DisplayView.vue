@@ -10,10 +10,12 @@ import {
   voiceStageIsListening,
 } from "../../components/voice/voice-stage-view.js";
 import { useDisplayStatus } from "../../composables/display/use-display-status.js";
+import { useDisplayWidgets } from "../../composables/display/use-display-widgets.js";
 import {
   displayOrbState,
   useSpokenClauseSpike,
 } from "../../composables/display/display-orb-state.js";
+import DisplayWidgetSlot from "../../components/display/DisplayWidgetSlot.vue";
 
 // The Display — the room you talk to. The orb IS the assistant's presence, the
 // panels are the app's own status read back at a glance, and the strip carries
@@ -56,8 +58,33 @@ function handleWake(command: string, turnWatchdogMs?: number): void {
   if (!voice.isActive.value) voice.start(command || undefined, turnWatchdogMs);
 }
 
-const { status, telemetry, clock } = useDisplayStatus();
+const { status, telemetry, clock, noteBoardChange } = useDisplayStatus();
 const spikeKey = useSpokenClauseSpike();
+
+// The board Claude puts things on. The Display is a GLOBAL canvas view today
+// (docs/module-notes/display-p1.md), so it reads the global scope — expressed
+// as a GETTER because that is the seam: the day a workspace grows its own
+// Display, this returns the active workspace's id and the board, the frames,
+// the telemetry and Clear all follow it with no other change here.
+const boardScope = computed<string>(() => "global");
+// ONE `display` subscription for the whole room: the log narrates the board
+// through this tap rather than opening a second one. (`bySlot.dock` stays
+// typed and unread — the dock is P3.)
+const { bySlot, widgets, clearOnServer } = useDisplayWidgets(boardScope, {
+  onChange: noteBoardChange,
+});
+
+// Clearing is the user's own act, so a failure has to be visible where they
+// clicked rather than swallowed — the pill says so until the next attempt.
+const clearFailed = ref(false);
+async function clearBoard(): Promise<void> {
+  clearFailed.value = false;
+  try {
+    await clearOnServer();
+  } catch {
+    clearFailed.value = true;
+  }
+}
 
 onMounted(() => {
   // The overlay's switch can be left ON behind the room — "Start voice" from
@@ -155,9 +182,8 @@ const isVoiceActive = voice.isActive;
 // the status either way, so the stage says so quietly and stays.
 const hasOrb = ref(true);
 
-// P2 lands widgets (reports, tables, numbers Claude puts up while it talks) in
-// the three slots below; P1 shows where they will go rather than pretending
-// the room is finished.
+// What an empty slot says — a promise of where reports, tables and numbers
+// land, so the room reads as ready rather than broken.
 const WIDGET_HINT = "Claude can put reports here";
 </script>
 
@@ -171,9 +197,23 @@ const WIDGET_HINT = "Claude can put reports here";
       :need-you="status.needYou"
       :clock="clock"
     >
+      <!-- Only when there is something to clear: a dead control on a board
+           that is already empty is furniture. It stays through a FAILURE
+           though — clearing blanks the board optimistically, so hiding the
+           pill on an empty board would hide the news that it did not work. -->
+      <button
+        v-if="widgets.length > 0 || clearFailed"
+        type="button"
+        class="strip-pill"
+        :class="{ attention: clearFailed }"
+        data-testid="display-clear"
+        @click="clearBoard"
+      >
+        {{ clearFailed ? "Clear failed" : "Clear" }}
+      </button>
       <button
         type="button"
-        class="voice-pill"
+        class="strip-pill"
         :class="{ on: isListening }"
         :aria-pressed="isListening"
         data-testid="display-listening-pill"
@@ -183,7 +223,7 @@ const WIDGET_HINT = "Claude can put reports here";
       </button>
       <button
         type="button"
-        class="voice-pill"
+        class="strip-pill"
         :class="{ on: isVoiceActive }"
         data-testid="display-voice-pill"
         @click="toggleVoice"
@@ -198,7 +238,7 @@ const WIDGET_HINT = "Claude can put reports here";
         <DisplayPanel title="Telemetry" :rows="telemetry">
           <p v-if="telemetry.length === 0" class="quiet">nothing yet</p>
         </DisplayPanel>
-        <div class="widget-slot" data-testid="display-slot-left">{{ WIDGET_HINT }}</div>
+        <DisplayWidgetSlot name="left" :widgets="bySlot.left" :hint="WIDGET_HINT" />
       </aside>
 
       <section class="stage" data-testid="display-stage">
@@ -212,13 +252,18 @@ const WIDGET_HINT = "Claude can put reports here";
         />
         <p v-if="!hasOrb" class="quiet">Orb unavailable — status panels still live</p>
         <p class="caption">{{ caption }}</p>
-        <div class="widget-slot" data-testid="display-slot-stage">{{ WIDGET_HINT }}</div>
+        <DisplayWidgetSlot
+          class="stage-widgets"
+          name="stage"
+          :widgets="bySlot.stage"
+          :hint="WIDGET_HINT"
+        />
       </section>
 
       <aside class="column" data-testid="display-column-right">
         <DisplayPanel title="Account" :rows="status.accountRows" />
         <DisplayPanel title="Legend" :rows="LEGEND_ROWS" />
-        <div class="widget-slot" data-testid="display-slot-right">{{ WIDGET_HINT }}</div>
+        <DisplayWidgetSlot name="right" :widgets="bySlot.right" :hint="WIDGET_HINT" />
       </aside>
     </div>
   </div>
@@ -283,18 +328,15 @@ const WIDGET_HINT = "Claude can put reports here";
   color: var(--display-accent-dim, rgba(79, 216, 255, 0.45));
 }
 
-/* Deliberately faint: an empty slot is a promise, not furniture. */
-.widget-slot {
-  border: 1px dashed var(--display-accent-faint, rgba(79, 216, 255, 0.16));
-  padding: 10px;
-  text-align: center;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--display-accent-dim, rgba(79, 216, 255, 0.45));
+/* The stage's cards sit under the orb and scroll among THEMSELVES — the orb
+   keeps its share of the stage however many reports are up. */
+.stage-widgets {
+  width: 100%;
+  max-height: 46%;
+  overflow-y: auto;
 }
 
-.voice-pill {
+.strip-pill {
   border: 1px solid var(--display-accent-faint, rgba(79, 216, 255, 0.16));
   background: transparent;
   padding: 3px 10px;
@@ -307,12 +349,18 @@ const WIDGET_HINT = "Claude can put reports here";
   transition: color 120ms ease, border-color 120ms ease;
 }
 
-.voice-pill.on {
+.strip-pill.on {
   border-color: var(--display-accent, #4fd8ff);
   color: var(--display-text, #cdf3ff);
 }
 
-.voice-pill:hover {
+/* The room's one alert colour, on the one control that can fail here. */
+.strip-pill.attention {
+  border-color: var(--display-attention, #ffc46b);
+  color: var(--display-attention, #ffc46b);
+}
+
+.strip-pill:hover {
   color: var(--display-text, #cdf3ff);
 }
 

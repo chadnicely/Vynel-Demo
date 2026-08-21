@@ -17,7 +17,11 @@ import {
   installFakeLiveSocket,
   latestFakeLiveSocket,
 } from "../../stores/live-channel-test-support.js";
-import { useDisplayWidgets, type DisplayWidgets } from "./use-display-widgets.js";
+import {
+  useDisplayWidgets,
+  type DisplayBoardChange,
+  type DisplayWidgets,
+} from "./use-display-widgets.js";
 
 function makeWidget(
   id: string,
@@ -53,28 +57,36 @@ function mountBoard(reads: Read[], scopeKey = "global") {
   const scope = ref(scopeKey);
   let read = 0;
   const listWidgets = vi.fn(async () => reads[Math.min(read++, reads.length - 1)]!);
+  const clearWidgets = vi.fn(async () => ({ clearedCount: 1 }));
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+  // The frame tap the room's telemetry log rides — collected so a case can
+  // read what the board SAID happened, not only what it now holds.
+  const changes: DisplayBoardChange[] = [];
   let display!: DisplayWidgets;
   const Host = defineComponent({
     setup() {
-      display = useDisplayWidgets(() => scope.value);
+      display = useDisplayWidgets(() => scope.value, {
+        onChange: (change) => changes.push(change),
+      });
       return () => h("div");
     },
   });
   wrapper = mount(Host, {
     global: {
       plugins: [createPinia(), [VueQueryPlugin, { queryClient }]],
-      provide: { [vynelClientKey as symbol]: { display: { listWidgets } } },
+      provide: {
+        [vynelClientKey as symbol]: { display: { listWidgets, clear: clearWidgets } },
+      },
     },
   });
   const socket = latestFakeLiveSocket();
   socket.serverOpens();
   const send = (event: DisplayLiveFrame) =>
     socket.serverSends({ kind: "event", channel: "display", event });
-  return { display, socket, send, scope, listWidgets, invalidateQueries };
+  return { display, socket, send, scope, listWidgets, clearWidgets, changes, invalidateQueries };
 }
 
 /** The common case: the board has loaded and the channel is acked. */
@@ -218,6 +230,50 @@ describe("useDisplayWidgets", () => {
     expect(next.takeSent()).toEqual([{ op: "subscribe", channels: ["display"] }]);
     next.serverAcks("display");
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["display-widgets"] });
+  });
+
+  it("names every change the frames made, telling an edit from an add", async () => {
+    const { send, changes } = await mountLoadedBoard([
+      makeWidget("w-1", { title: "This week" }),
+    ]);
+
+    send({ kind: "upserted", widget: makeWidget("w-2", { title: "Spend" }) });
+    send({ kind: "upserted", widget: makeWidget("w-2", { title: "Spend so far" }) });
+    send({ kind: "removed", widgetId: "w-1", scopeKey: "global" });
+    send({ kind: "cleared", scopeKey: "global" });
+    // Another board's frame is not this board's news.
+    send({ kind: "cleared", scopeKey: "ws_other" });
+
+    expect(changes).toEqual([
+      { kind: "added", title: "Spend" },
+      { kind: "updated", title: "Spend so far" },
+      // Named from the board it was still on — a `removed` frame carries an id.
+      { kind: "removed", title: "This week" },
+      { kind: "cleared", title: null },
+    ]);
+  });
+
+  it("clearOnServer blanks the board AND clears the scope on the server", async () => {
+    const { display, clearWidgets } = await mountLoadedBoard([makeWidget("w-1")]);
+
+    await display.clearOnServer();
+
+    expect(display.widgets.value).toEqual([]);
+    expect(clearWidgets).toHaveBeenCalledWith({ scope: "global" });
+  });
+
+  it("clearOnServer puts the board back when the POST failed", async () => {
+    const { display, clearWidgets, invalidateQueries } = await mountLoadedBoard([
+      makeWidget("w-1"),
+    ]);
+    clearWidgets.mockRejectedValueOnce(new Error("offline"));
+    invalidateQueries.mockClear();
+
+    await expect(display.clearOnServer()).rejects.toThrow("offline");
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["display-widgets", "global"],
+    });
   });
 
   it("clear() blanks the board locally, and dispose releases the channel", async () => {

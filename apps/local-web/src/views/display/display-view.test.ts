@@ -4,14 +4,16 @@
 // runs for real, including the status composable over a quiet API.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Ref } from "vue";
+import type { MaybeRefOrGetter, Ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { DisplayOrb, DisplayPanel } from "@vynel/ui";
 import type { VynelClient } from "@vynel/sdk";
 import type { LiveChannelServerFrame } from "@vynel/contracts/chat/live-channel";
+import type { DisplayWidgetView } from "@vynel/contracts/display/display-widget";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
+import type { DisplayBoardChange } from "../../composables/display/use-display-widgets.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import {
   installFakeLiveSocket,
@@ -89,6 +91,73 @@ vi.mock("../../composables/voice/spoken-audio-player.js", async (importOriginal)
   };
 });
 
+/** The board, faked. What these cases are about is the view's CONTRACT with
+ *  `use-display-widgets`: which slot a card lands in, what Clear calls, and
+ *  that the log rides the composable's own frame tap rather than a second
+ *  `display` subscription. The composable itself is tested over a real socket
+ *  next door in `use-display-widgets.test.ts`. */
+interface BoardStub {
+  widgets: Ref<DisplayWidgetView[]>;
+  clearOnServer: ReturnType<typeof vi.fn>;
+  /** The scope the room asked for. */
+  scope: string | null;
+  /** The room's own `onChange`, so a case can play a live frame arriving. */
+  notify: (change: DisplayBoardChange) => void;
+}
+
+const board = vi.hoisted(() => ({}) as BoardStub);
+
+vi.mock("../../composables/display/use-display-widgets.js", async () => {
+  const { computed, ref, toValue } = await import("vue");
+  board.widgets = ref<DisplayWidgetView[]>([]);
+  board.clearOnServer = vi.fn(async () => {});
+  board.scope = null;
+  const inSlot = (slot: string) =>
+    board.widgets.value.filter((widget) => widget.slot === slot);
+  return {
+    useDisplayWidgets: (
+      scope: MaybeRefOrGetter<string>,
+      options?: { onChange?: (change: DisplayBoardChange) => void },
+    ) => {
+      board.scope = toValue(scope);
+      board.notify = (change) => options?.onChange?.(change);
+      return {
+        widgets: computed(() => board.widgets.value),
+        bySlot: computed(() => ({
+          left: inSlot("left"),
+          stage: inSlot("stage"),
+          right: inSlot("right"),
+          dock: inSlot("dock"),
+        })),
+        isLoading: ref(false),
+        clear: vi.fn(),
+        clearOnServer: board.clearOnServer,
+      };
+    },
+  };
+});
+
+function makeWidget(
+  id: string,
+  overrides: Partial<DisplayWidgetView> = {},
+): DisplayWidgetView {
+  return {
+    id,
+    scopeKey: "global",
+    title: id,
+    kind: "metric",
+    content: { kind: "metric", value: "12", label: "Runs" },
+    slot: "stage",
+    size: "md",
+    sortOrder: 1,
+    createdBySessionId: null,
+    expiresAt: null,
+    createdAt: "2026-08-21T09:00:00.000Z",
+    updatedAt: "2026-08-21T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
 /** A machine at rest: everything the Display reads, answering empty. */
 function quietClient(): VynelClient {
   return {
@@ -125,6 +194,7 @@ let posted: Array<[string, RequestInit | undefined]>;
 
 beforeEach(() => {
   posted = [];
+  board.widgets.value = [];
   vi.stubGlobal("fetch", (url: string, init?: RequestInit) => {
     posted.push([url, init]);
     return Promise.resolve({ ok: true } as Response);
@@ -144,6 +214,7 @@ async function mountDisplay(prepare?: (ui: ReturnType<typeof useUiStore>) => voi
   voice.start.mockClear();
   voice.end.mockClear();
   voice.speakExternal.mockClear();
+  board.clearOnServer.mockClear();
 
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -188,8 +259,8 @@ describe("DisplayView", () => {
     expect(panelTitles(wrapper)).toEqual(["System", "Telemetry", "Account", "Legend"]);
   });
 
-  // Empty on purpose (P2 fills them) — but named, so the room reads as
-  // unfinished rather than broken.
+  // An empty board still names its three regions, so the room reads as ready
+  // rather than broken.
   it("shows the three widget slots with the hint of what lands there", async () => {
     const wrapper = await mountDisplay();
     for (const slot of ["left", "stage", "right"]) {
@@ -390,5 +461,110 @@ describe("DisplayView — the room owns the microphone", () => {
       ui.isVoiceOverlayOpen = true;
     });
     expect(useUiStore().isVoiceOverlayOpen).toBe(false);
+  });
+});
+
+describe("DisplayView — the board", () => {
+  /** What one region holds, by title. */
+  function titlesIn(
+    wrapper: Awaited<ReturnType<typeof mountDisplay>>,
+    slot: string,
+  ): string[] {
+    return wrapper
+      .get(`[data-testid="display-widgets-${slot}"]`)
+      .findAll(".title")
+      .map((title) => title.text());
+  }
+
+  function telemetryValues(
+    wrapper: Awaited<ReturnType<typeof mountDisplay>>,
+  ): string[] {
+    const panel = wrapper
+      .findAllComponents(DisplayPanel)
+      .find((candidate) => candidate.props("title") === "Telemetry")!;
+    return (panel.props("rows") as readonly { value: string }[]).map(
+      (row) => row.value,
+    );
+  }
+
+  it("reads the global board — the Display's scope today", async () => {
+    await mountDisplay();
+
+    expect(board.scope).toBe("global");
+  });
+
+  it("puts every widget in the slot it belongs to", async () => {
+    board.widgets.value = [
+      makeWidget("left-card", { slot: "left", title: "Open tasks" }),
+      makeWidget("stage-card", { slot: "stage", title: "This week" }),
+      makeWidget("right-card", { slot: "right", title: "Spend" }),
+      // The dock is P3: typed, carried, and deliberately not drawn.
+      makeWidget("dock-card", { slot: "dock", title: "Later" }),
+    ];
+
+    const wrapper = await mountDisplay();
+
+    expect(titlesIn(wrapper, "left")).toEqual(["Open tasks"]);
+    expect(titlesIn(wrapper, "stage")).toEqual(["This week"]);
+    expect(titlesIn(wrapper, "right")).toEqual(["Spend"]);
+    expect(wrapper.text()).not.toContain("Later");
+  });
+
+  it("keeps the hint only where the slot is still empty", async () => {
+    board.widgets.value = [makeWidget("stage-card", { slot: "stage" })];
+
+    const wrapper = await mountDisplay();
+
+    expect(wrapper.find('[data-testid="display-slot-stage"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="display-slot-left"]').text()).toBe(
+      "Claude can put reports here",
+    );
+    expect(wrapper.find('[data-testid="display-slot-right"]').exists()).toBe(true);
+  });
+
+  it("offers Clear only with something to clear, and clears the scope for real", async () => {
+    const empty = await mountDisplay();
+    expect(empty.find('[data-testid="display-clear"]').exists()).toBe(false);
+
+    board.widgets.value = [makeWidget("stage-card")];
+    const wrapper = await mountDisplay();
+
+    await wrapper.get('[data-testid="display-clear"]').trigger("click");
+    await flushPromises();
+
+    expect(board.clearOnServer).toHaveBeenCalledTimes(1);
+  });
+
+  // Clearing blanks the board optimistically, so by the time the POST fails
+  // the board is already empty — the pill has to outlive that, or the failure
+  // would look exactly like a success.
+  it("says so on the pill when clearing failed, rather than pretending", async () => {
+    board.widgets.value = [makeWidget("stage-card")];
+    board.clearOnServer.mockImplementationOnce(async () => {
+      board.widgets.value = [];
+      throw new Error("offline");
+    });
+    const wrapper = await mountDisplay();
+
+    await wrapper.get('[data-testid="display-clear"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="display-clear"]').text()).toBe("Clear failed");
+  });
+
+  it("logs one telemetry line per board change, off the room's one subscription", async () => {
+    const wrapper = await mountDisplay();
+    expect(telemetryValues(wrapper)).toEqual([]);
+
+    board.notify({ kind: "added", title: "This week" });
+    board.notify({ kind: "removed", title: "This week" });
+    board.notify({ kind: "cleared", title: null });
+    await wrapper.vm.$nextTick();
+
+    expect(telemetryValues(wrapper)).toEqual([
+      "widget added · This week",
+      "widget removed · This week",
+      "display cleared",
+    ]);
   });
 });
