@@ -21,6 +21,7 @@ const DEFAULT_OPTIONS: OverlayChannelOptions = { wakeSurface: 'any', turnWatchdo
 interface RecordedHooks {
   sessionEnds: number
   clientsGone: number
+  reloads: number
   spoken: Array<{ text: string; sessionId: string | null }>
 }
 
@@ -28,7 +29,7 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
   channel: OverlayChannel
   hooks: RecordedHooks
 } {
-  const hooks: RecordedHooks = { sessionEnds: 0, clientsGone: 0, spoken: [] }
+  const hooks: RecordedHooks = { sessionEnds: 0, clientsGone: 0, reloads: 0, spoken: [] }
   const channel = startOverlayChannel(
     0,
     {
@@ -44,12 +45,43 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
         hooks.spoken.push({ text, sessionId })
         return Promise.resolve()
       },
+      onReload: () => {
+        hooks.reloads += 1
+        return Promise.resolve({
+          ttsModelId: 'piper-lessac',
+          sttModelId: 'moonshine-base',
+          speakerId: 0,
+          changed: ['tts'],
+          missing: [],
+        })
+      },
     },
     silentLogger,
     options,
   )
   return { channel, hooks }
 }
+
+describe('POST /reload', () => {
+  it('applies the pick through the hook and answers with what changed', async () => {
+    const { channel, hooks } = buildChannel()
+    const port = await channel.whenListening
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/reload`, { method: 'POST' })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        ttsModelId: 'piper-lessac',
+        sttModelId: 'moonshine-base',
+        speakerId: 0,
+        changed: ['tts'],
+        missing: [],
+      })
+      expect(hooks.reloads).toBe(1)
+    } finally {
+      channel.stop()
+    }
+  })
+})
 
 /** Subscribe to /events and collect parsed data events as they arrive. An
  *  omitted `wake` leaves the flag off the query (an app client that never
@@ -175,6 +207,7 @@ describe('overlay channel', () => {
         onClientsGone: () => {},
         onSynthesize: () => Promise.resolve(new Uint8Array()),
         onSpeak: () => Promise.resolve(),
+        onReload: () => Promise.reject(new Error('not under test')),
       },
       silentLogger,
       DEFAULT_OPTIONS,
@@ -230,6 +263,7 @@ describe('overlay channel', () => {
         onClientsGone: () => {},
         onSynthesize: () => Promise.reject(new Error('model exploded')),
         onSpeak: () => Promise.resolve(),
+        onReload: () => Promise.reject(new Error('not under test')),
       },
       silentLogger,
       DEFAULT_OPTIONS,

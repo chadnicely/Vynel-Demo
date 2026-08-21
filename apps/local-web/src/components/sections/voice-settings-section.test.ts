@@ -49,8 +49,13 @@ const DEFAULT_PREFERENCES = {
   voiceSttModelId: "moonshine-base",
 };
 
-function harness(models: LocalModelStatusResponse[], preferences = DEFAULT_PREFERENCES) {
+function harness(
+  models: LocalModelStatusResponse[],
+  preferences = DEFAULT_PREFERENCES,
+  reloadAnswer: unknown = { reloaded: true, ttsModelId: "kokoro", sttModelId: "moonshine-base", speakerId: 5, changed: [], missing: [] },
+) {
   const updatePreferences = vi.fn(async (patch: Record<string, unknown>) => ({ ...preferences, ...patch }));
+  const reload = vi.fn(async () => reloadAnswer);
   const client = {
     localModels: {
       list: async () => ({ models }),
@@ -59,6 +64,7 @@ function harness(models: LocalModelStatusResponse[], preferences = DEFAULT_PREFE
       remove: vi.fn(async () => models[0]),
     },
     users: { getPreferences: async () => preferences, updatePreferences },
+    voice: { reload },
   } as unknown as VynelClient;
   const wrapper = mount(VoiceSettingsSection, {
     global: {
@@ -71,7 +77,7 @@ function harness(models: LocalModelStatusResponse[], preferences = DEFAULT_PREFE
       provide: { [vynelClientKey as symbol]: client },
     },
   });
-  return { wrapper, updatePreferences };
+  return { wrapper, updatePreferences, reload };
 }
 
 describe("VoiceSettingsSection", () => {
@@ -127,5 +133,50 @@ describe("VoiceSettingsSection", () => {
     const withTwo = harness([KOKORO, { ...PIPER, state: "installed" }, MOONSHINE_BASE, VAD]);
     await flushPromises();
     expect(withTwo.wrapper.findAll(".model-card")[0]!.find(".remove-button").exists()).toBe(true);
+  });
+
+  // Saved first, applied second: a pick is never lost to a dead daemon, and the
+  // note says honestly whether it took.
+  it("applies a saved pick to the running daemon and says so", async () => {
+    const { wrapper, reload } = harness([KOKORO, PIPER, MOONSHINE_BASE, VAD]);
+    await flushPromises();
+    expect(wrapper.get(".apply-note").text()).toContain("next voice conversation");
+
+    await wrapper.get(".speaker-pick select").setValue("5");
+    await flushPromises();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(wrapper.get(".apply-note").text()).toBe("Applied.");
+  });
+
+  it("says when no daemon took the pick, and when the picked model is missing", async () => {
+    const down = harness([KOKORO, PIPER, MOONSHINE_BASE, VAD], DEFAULT_PREFERENCES, {
+      reloaded: false,
+      reason: "the voice daemon is not running",
+    });
+    await flushPromises();
+    await down.wrapper.get(".speaker-pick select").setValue("5");
+    await flushPromises();
+    expect(down.wrapper.get(".apply-note").text()).toContain("applies when the voice starts");
+
+    const missing = harness([KOKORO, PIPER, MOONSHINE_BASE, VAD], DEFAULT_PREFERENCES, {
+      reloaded: true,
+      ttsModelId: "kokoro",
+      sttModelId: "moonshine-base",
+      speakerId: 0,
+      changed: [],
+      missing: ["piper-lessac"],
+    });
+    await flushPromises();
+    await missing.wrapper.get(".speaker-pick select").setValue("5");
+    await flushPromises();
+    expect(missing.wrapper.get(".apply-note").text()).toContain("piper-lessac is not downloaded yet");
+  });
+
+  it("offers Preview on the chosen, installed voice only", async () => {
+    const { wrapper } = harness([KOKORO, PIPER, MOONSHINE_BASE, VAD]);
+    await flushPromises();
+    const cards = wrapper.findAll(".model-card");
+    expect(cards[0]!.find(".preview-button").exists()).toBe(true);
+    expect(cards[1]!.find(".preview-button").exists()).toBe(false);
   });
 });

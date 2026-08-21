@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
+import type { VoiceReloadOutcome } from '@vynel/contracts/voice/voice-reload'
 import type { VoiceSessionState } from '../loop/voice-session-types.js'
 
 // The daemon↔browser channel for the voice views. The daemon stays the local,
@@ -68,6 +69,8 @@ export interface OverlayChannelHooks {
    *  output); `sessionId` = the producing chat session, null when unknown.
    *  Resolves once the line is accepted for playback. */
   onSpeak(text: string, sessionId: string | null): Promise<void>
+  /** Re-read the user's voice pick and apply it (Settings → Voice saved). */
+  onReload(): Promise<VoiceReloadOutcome>
 }
 
 export interface OverlayChannelOptions {
@@ -274,6 +277,21 @@ export function startOverlayChannel(
           'overlay synthesize failed',
         )
         return c.json({ error: 'synthesis failed — see the daemon log' }, 500)
+      }
+    })
+
+    // Settings → Voice saved a new pick — apply it now rather than at the next
+    // daemon start. The outcome says what actually changed and what is
+    // missing from the disk, so the screen can be honest about both.
+    .post('/reload', async (c) => {
+      try {
+        return c.json(await hooks.onReload())
+      } catch (error) {
+        logger.error(
+          { error: error instanceof Error ? error.message : String(error) },
+          'overlay reload failed',
+        )
+        return c.json({ error: 'reload failed — see the daemon log' }, 500)
       }
     })
 

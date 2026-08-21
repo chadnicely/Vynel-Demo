@@ -5,7 +5,7 @@
 // @vynel/voice-daemon dev`.
 
 import pino from 'pino'
-import { SherpaSpeechRecognizer, SherpaVoiceActivityDetector, SherpaVoiceEngine } from '@vynel/voice-engine'
+import { SherpaVoiceActivityDetector } from '@vynel/voice-engine'
 import type {
   PcmAudio,
   SpeechRecognizer,
@@ -15,7 +15,8 @@ import type {
 } from '@vynel/voice-engine'
 import type { Logger } from 'pino'
 import { loadEnv } from './env.js'
-import { findMissingModelFile, resolveVoiceModelConfigs } from './models.js'
+import { VoiceEngines, VoiceModelMissingError } from './voice-engines.js'
+import { readVoiceSelection } from './voice-selection.js'
 import { createBrainClient } from './brain/run-brain-turn.js'
 import { createAudioShell } from './audio/audio-shell.js'
 import { cpal } from './audio/cpal.js'
@@ -46,39 +47,48 @@ async function main(): Promise<void> {
   const env = loadEnv()
   const logger = pino({ level: env.LOG_LEVEL })
 
-  const {
-    tts: ttsConfig,
-    stt: sttConfig,
-    vad: vadConfig,
-    entries: modelEntries,
-  } = resolveVoiceModelConfigs({
-    modelsDir: env.VYNEL_VOICE_MODELS_DIR,
-    ttsModelId: env.VYNEL_VOICE_TTS,
-    sttModelId: env.VYNEL_VOICE_STT,
-  })
+  // The user's voice pick (Settings → Voice) — env is the fallback for a daemon
+  // that boots before the engine, or a dev box with no pick saved.
+  const readSelection = () =>
+    readVoiceSelection({
+      apiUrl: env.VYNEL_API_URL,
+      fallback: {
+        ttsModelId: env.VYNEL_VOICE_TTS,
+        sttModelId: env.VYNEL_VOICE_STT,
+        speakerId: env.VYNEL_VOICE_ID,
+      },
+    })
+  const selection = await readSelection()
 
-  const missing = findMissingModelFile(env.VYNEL_VOICE_MODELS_DIR, modelEntries)
-  if (missing !== null) {
+  logger.info({ tts: selection.ttsModelId, stt: selection.sttModelId }, 'loading voice models on CPU…')
+  let engines: VoiceEngines
+  try {
+    engines = VoiceEngines.load(env.VYNEL_VOICE_MODELS_DIR, selection, logger)
+  } catch (error) {
+    if (!(error instanceof VoiceModelMissingError)) throw error
     logger.error(
-      { missing },
+      { missing: error.missingPath },
       'voice model file missing — download it in Settings → Voice, or run `pnpm voice:fetch-models <model>` for each of kokoro, moonshine-base, silero-vad',
     )
     process.exitCode = 1
     return
   }
-
-  logger.info({ tts: env.VYNEL_VOICE_TTS, stt: env.VYNEL_VOICE_STT }, 'loading voice models on CPU…')
-  const synthesizer = new SherpaVoiceEngine({ tts: ttsConfig })
-  const recognizer = new SherpaSpeechRecognizer({ stt: sttConfig })
+  const vadConfig = engines.vadConfig
   const vad = new SherpaVoiceActivityDetector({ vad: vadConfig })
-  logger.info({ voices: synthesizer.voiceCount, sampleRate: synthesizer.sampleRate }, 'models loaded')
+  logger.info(
+    { voices: engines.synthesizer.voiceCount, sampleRate: engines.synthesizer.sampleRate },
+    'models loaded',
+  )
 
   // The native STT/TTS engines are SINGLE instances shared by the wake line
   // and every call loop — serialize them so concurrent turns can't race the
   // sherpa addon (each call gets its own VAD; those are per-stream state).
-  const sharedTranscribe = serializeAsync((audio: PcmAudio) => recognizer.transcribe(audio))
+  // Both lanes read the HOLDER at call time, so a reload's swap lands between
+  // calls. The speaker is injected HERE — the one place the pick is applied —
+  // unless a caller chose one deliberately.
+  const sharedTranscribe = serializeAsync((audio: PcmAudio) => engines.recognizer.transcribe(audio))
   const sharedSynthesize = serializeAsync((text: string, options?: SynthesizeOptions) =>
-    synthesizer.synthesize(text, options),
+    engines.synthesizer.synthesize(text, { voiceId: engines.selection.speakerId, ...options }),
   )
   const serializedRecognizer: SpeechRecognizer = { transcribe: sharedTranscribe }
   const serializedSynthesizer: VoiceEngine = { synthesize: sharedSynthesize }
@@ -125,7 +135,7 @@ async function main(): Promise<void> {
     turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
     createVad: () => new SherpaVoiceActivityDetector({ vad: vadConfig }),
     transcribe: sharedTranscribe,
-    synthesize: (sentence) => sharedSynthesize(sentence, { voiceId: env.VYNEL_VOICE_ID }),
+    synthesize: (sentence) => sharedSynthesize(sentence),
     findCallSink: (callId) => callRegistry.findCallSink(callId),
   })
   callRegistry.bindCallLoop(callConversations)
@@ -136,8 +146,9 @@ async function main(): Promise<void> {
       onSessionEnd: () => driver.endHandoff(),
       onClientsGone: () => driver.endHandoff(),
       // The overlay speaks with the daemon's own voice — one voice everywhere.
-      onSynthesize: async (text) =>
-        encodeWav(await sharedSynthesize(text, { voiceId: env.VYNEL_VOICE_ID })),
+      onSynthesize: async (text) => encodeWav(await sharedSynthesize(text)),
+      // Settings → Voice saved: re-read the pick and swap what changed.
+      onReload: async () => engines.apply(await readSelection()),
       // The `speak` MCP tool — any session's voice output. Route it to whoever
       // can actually play it:
       //   - while an overlay owns the command session (handed-off) it is
@@ -255,7 +266,7 @@ async function main(): Promise<void> {
     {
       idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS,
       turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
-      voiceId: env.VYNEL_VOICE_ID,
+      // No voiceId here: the shared synthesize lane applies the user's pick.
     },
   )
 

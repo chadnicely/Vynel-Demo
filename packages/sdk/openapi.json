@@ -37825,6 +37825,84 @@
         }
       }
     },
+    "/voice/reload": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ reloaded: true, …what is now in force, changed, missing } — or { reloaded: false, reason } when no daemon is running (the pick still applies at its next start).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reloaded": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "ttsModelId": {
+                          "type": "string"
+                        },
+                        "sttModelId": {
+                          "type": "string"
+                        },
+                        "speakerId": {
+                          "type": "integer"
+                        },
+                        "changed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "missing": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "reloaded",
+                        "ttsModelId",
+                        "sttModelId",
+                        "speakerId",
+                        "changed",
+                        "missing"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reloaded": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reloaded",
+                        "reason"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceReload",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Apply the user's saved voice pick to the running voice daemon.",
+        "x-sdk-name": "voice.reload"
+      }
+    },
     "/voice/display-active": {
       "post": {
         "responses": {

@@ -3812,6 +3812,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply the user's saved voice pick to the running voice daemon. */
+        post: operations["postVoiceReload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/display-active": {
         parameters: {
             query?: never;
@@ -18316,6 +18333,38 @@ export interface operations {
                     "application/json": {
                         spoken: boolean;
                         reason?: string;
+                    };
+                };
+            };
+        };
+    };
+    postVoiceReload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { reloaded: true, …what is now in force, changed, missing } — or { reloaded: false, reason } when no daemon is running (the pick still applies at its next start). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        reloaded: true;
+                        ttsModelId: string;
+                        sttModelId: string;
+                        speakerId: number;
+                        changed: string[];
+                        missing: string[];
+                    } | {
+                        /** @constant */
+                        reloaded: false;
+                        reason: string;
                     };
                 };
             };

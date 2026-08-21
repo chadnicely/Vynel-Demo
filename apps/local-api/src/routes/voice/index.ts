@@ -47,6 +47,7 @@ import { loadEnv } from '../../env.js'
 import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspace.js'
 import { TURN_SESSION_HEADER, parseTurnSessionHeader } from '../../sessions/turn-session-header.js'
 import { speakThroughDaemon } from './speak-through-daemon.js'
+import { reloadVoiceThroughDaemon } from './reload-through-daemon.js'
 import {
   endCallThroughDaemon,
   listCallsThroughDaemon,
@@ -71,6 +72,19 @@ import {
 const CALL_ASSISTANT_NAME = 'Vynel'
 
 const CallIdParamSchema = z.object({ callId: z.string().min(1) })
+
+// Mirrors `VoiceReloadResponse` (@vynel/contracts/voice/voice-reload).
+const VoiceReloadResponseSchema = z.union([
+  z.object({
+    reloaded: z.literal(true),
+    ttsModelId: z.string(),
+    sttModelId: z.string(),
+    speakerId: z.number().int(),
+    changed: z.array(z.string()),
+    missing: z.array(z.string()),
+  }),
+  z.object({ reloaded: z.literal(false), reason: z.string() }),
+])
 
 export const voiceApp = factory
   .createApp()
@@ -116,6 +130,33 @@ export const voiceApp = factory
       // stamped, never model input) — the daemon routes the line by it.
       const sessionId = parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)) ?? null
       return c.json(await speakThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL, text, sessionId))
+    },
+  )
+  // Settings → Voice saved a pick: apply it to the running daemon now. The
+  // user's door (no x-mcp) — Claude does not change whose voice it speaks with.
+  .post(
+    '/reload',
+    describeRoute({
+      tags: ['voice'],
+      summary: "Apply the user's saved voice pick to the running voice daemon.",
+      'x-sdk-name': 'voice.reload',
+      responses: {
+        200: {
+          description:
+            '{ reloaded: true, …what is now in force, changed, missing } — or { reloaded: false, reason } when no daemon is running (the pick still applies at its next start).',
+          content: { 'application/json': { schema: resolver(VoiceReloadResponseSchema) } },
+        },
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      if (c.var.remoteEngine) {
+        return c.json({
+          reloaded: false,
+          reason: 'voice lives on the desktop; this engine runs on a remote server',
+        })
+      }
+      return c.json(await reloadVoiceThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL))
     },
   )
   .post(
