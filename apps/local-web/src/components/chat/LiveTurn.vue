@@ -145,7 +145,7 @@ const elapsedLabel = useTickingElapsed(
 <template>
   <div class="live-turn">
     <p class="role-label">
-      <span class="author-avatar" aria-hidden="true">
+      <span class="author-avatar" :class="{ 'has-image': props.authorIconUrl }" aria-hidden="true">
         <img v-if="props.authorIconUrl" :src="props.authorIconUrl" alt="" />
         <ClaudeMark v-else :size="14" />
       </span>
@@ -291,10 +291,17 @@ const elapsedLabel = useTickingElapsed(
   background: var(--claude-mark-soft);
 }
 
+/* An uploaded logo as-is — no tint, whole, the tree's 5px square — the same
+   treatment MessageRow gives the settled rows. */
+.author-avatar.has-image {
+  background: transparent;
+  border-radius: 5px;
+}
+
 .author-avatar img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .live-status {

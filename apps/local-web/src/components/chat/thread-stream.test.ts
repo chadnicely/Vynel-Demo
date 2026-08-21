@@ -726,6 +726,9 @@ describe("ThreadStream", () => {
     expect(byName.getComponent(MessageRow).props("authorPersona")).toMatchObject({
       imageUrl: "data:image/png;base64,LOGO",
     });
+    // The logo is shown as-is — no identity tint behind it (the tree's and
+    // the sidebar card's treatment), so one logo looks the same everywhere.
+    expect(byName.get(".author-avatar").classes()).toContain("has-image");
 
     // A renamed manager ("Dana" in the letterman room): the name is unknown
     // to the map, the room itself answers.

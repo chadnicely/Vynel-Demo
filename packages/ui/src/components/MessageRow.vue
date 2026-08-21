@@ -431,6 +431,7 @@ const collapsedPreview = computed(() => {
         <span
           v-if="authorGlyph"
           class="author-avatar"
+          :class="{ 'has-image': authorGlyph.kind === 'image' }"
           :style="
             authorGlyph.kind === 'monogram'
               ? {
@@ -1179,10 +1180,17 @@ const collapsedPreview = computed(() => {
   background: var(--claude-mark-soft);
 }
 
+/* An uploaded logo is shown as-is — no tint behind it, whole, on the same
+   5px-rounded square the tree row and the sidebar card use — so one logo
+   looks the same in every place it appears (Kafi, 2026-08-22). */
+.author-avatar.has-image {
+  background: transparent;
+  border-radius: 5px;
+}
 .author-avatar img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* The human's chip stays neutral — the coral tint above is Claude's identity
