@@ -74,7 +74,7 @@ rather than speech, and both exist because the app window and the display dock c
 | `{ kind: 'display-session', live, phase, caption }` | app window → every `voice:*` of that user | the second `VoiceControlEvent` — the conversation the ROOM is holding, so the dock can MIRROR a session it does not own |
 
 - **The mirror (`display-session`).** Most conversations start in the room, not on a wake, and a Web
-  Speech session cannot migrate across windows — so `DisplayView` announces its phase/caption
+  Speech session cannot migrate across windows — so the app window announces its phase/caption
   (`use-display-session-announce.ts`, one home; liveness + phase immediate, caption throttled to
   ≥ 250 ms, `live: false` on end/unmount, re-announced on live-channel `status === 'open'`) via
   **`POST /voice/display-session`** (`x-sdk-name: voice.setDisplaySession`, **no `x-mcp`**), and the dock
@@ -126,8 +126,36 @@ mid-turn migration of a Web Speech session across windows — the room MIRRORS i
 `/session/end`, at which point the daemon returns to `idle` and the room's session takes over. So
 `show-display` is a request to LOOK at the room, never to move the conversation into it.
 
+## P3d — the voice outlives the room (2026-08-21, Kafi)
+
+The mirror above was unreachable as built: the room owned the session (start on mount, end on unmount), so
+leaving the Display hung the conversation up and the mini dock had nothing left to mirror. **The top-bar
+switch is the real voice on/off now**, and the session belongs to the WINDOW:
+
+- `composables/display/use-display-voice.ts` — one Pinia store per window (`live-turn-registry` is the
+  precedent for window-lifetime machinery that needs the injected client) owning `useVoiceSession`, the daemon
+  link and the mirror announcement. `start()` / `end()` / `toggleMute()`, `isLive`, and the view/orb inputs the
+  room reads.
+- `ownsVoice = isLive || isRoomOnScreen` is the ONE predicate for "the Display feature holds this window's
+  microphone": it gates the daemon link inside the store AND `<VoiceOverlay v-if="!displayVoice.ownsVoice">` in
+  the shell, so the window can never hold two links (two players, every relayed line spoken twice).
+  `isRoomOnScreen` is pushed by `use-display-toggle`'s sync watcher — the toggle is the one reading of "the room
+  is on screen", and the store must not depend on the toggle back.
+- The switch: **on** → `start()` + show the active tab's Display; **off** → `end()` from wherever you are,
+  restoring the tab's previous view only if the room was what you were looking at. `showDisplay()` is a
+  separate door for the wake path (`show-display` must never turn the conversation it announced off).
+- `DisplayView` renders whatever the window's session is doing and starts nothing. Its mic pill gained a fourth
+  honest state — **Start** — for voice off. Idle silence still ends the recognizer without ending the voice
+  (Resume, and a wake still lands here).
+- Dropped: `ui.displayVoiceRequestCount` / `requestDisplayVoice`. The shell reaches the session directly now.
+- **Open product call for the lead:** `AppTitleBar`'s "Open/Close Display" title reads wrong in the one state
+  where voice is live behind another view (the switch is lit, but the room is not on screen). Chad's label was
+  left alone.
+
 ## Acceptance
 
+- Turn the switch on, start talking, leave the Display → the conversation keeps going and the dock mirrors it
+  bottom-right; come back → the same session, no restart; switch off from anywhere → it ends.
 - Say the wake word with the app closed → the app opens on the Display, the dock shows the wake conversation
   (center), the room's orb mirrors it; when that session ends the room's own mic takes over.
 - In the Display, start talking, switch to a workspace → the dock appears mini bottom-right with the last caption

@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref } from "vue";
+import { computed, onScopeDispose, ref } from "vue";
 import type { VynelClient } from "@vynel/sdk";
 // The voice tier — ONE home in contracts (daemon, overlay, panel defaults).
 import {
@@ -153,7 +153,10 @@ export function useVoiceSession(options: {
     return session?.speakExternal(text) ?? false;
   }
 
-  onUnmounted(() => {
+  // The OWNER'S scope, not a component's mount. Under a view the two are the
+  // same moment; the Display's voice lives in a window-lifetime store instead,
+  // so a session that outlives the room still ends when the window does.
+  onScopeDispose(() => {
     session?.end();
   });
 

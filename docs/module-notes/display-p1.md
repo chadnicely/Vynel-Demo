@@ -68,6 +68,9 @@ Display. No schema, no tools, no widgets yet (empty slots where they will land).
   (`ui.isVoiceOverlayOpen` is NOT used — the Display owns the orb; the overlay must not also open) + switch to
   the Display; off → end the session, return to the previous view. While the Display is active the
   `VoiceOverlay` stays hidden (guard in `AppShell.vue:786` mount or in the overlay's own `v-if`).
+  **Superseded 2026-08-21 (P3):** the session is no longer the room's — the switch is the real voice on/off and
+  the session lives in `composables/display/use-display-voice.ts`, one per window (see the P3 note). The
+  overlay's guard is now `!displayVoice.ownsVoice`, which covers a session still running behind another view.
 - Tests: view renders the three columns + slots; status derivation (all branches); orb-state mapping; toggle
   starts/ends the session and switches the view; overlay suppressed while Display is active.
 
@@ -78,5 +81,6 @@ commits (the lead commits); `git status` shows only your paths at hand-back; ≤
 
 - Top-bar "Display" → the room opens, the orb breathes, the mic is live (browser leg), speaking makes the orb
   pulse and spike per clause, the strip's counters and the panels reflect real status, no overlay double-orb.
-- Leaving the Display stops the renderer (no rAF after unmount); toggling off ends the session.
+- Leaving the Display stops the renderer (no rAF after unmount); toggling off ends the session. *(P3: leaving
+  the Display no longer ends the session — only the switch does. The renderer half still holds.)*
 - Dark ground regardless of app theme; nothing outside the Display changes.

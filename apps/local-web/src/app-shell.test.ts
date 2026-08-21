@@ -105,8 +105,12 @@ function makeFakeVynelClient(
       }),
     },
     // The shell announces whether its Display is on screen so the display dock
-    // (another window) knows to get out of the way — every mount does it once.
-    voice: { setDisplayActive: async () => ({ published: false }) },
+    // (another window) knows to get out of the way — every mount does it once —
+    // and what conversation the window is holding, so the dock can mirror it.
+    voice: {
+      setDisplayActive: async () => ({ published: false }),
+      setDisplaySession: async () => ({ published: false }),
+    },
     dashboard: {
       getOverview: async () => ({
         workspaces: [],

@@ -1,4 +1,11 @@
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import {
+  computed,
+  onScopeDispose,
+  ref,
+  toValue,
+  watch,
+  type MaybeRefOrGetter,
+} from "vue";
 import { liveChannelKeys } from "@vynel/contracts/chat/live-channel";
 import { parseVoiceControlEvent } from "@vynel/contracts/voice/daemon-events";
 import type {
@@ -112,6 +119,13 @@ export function useVoiceDaemonLink(options: {
    *  landed and the display dock is taking the conversation, so the room should
    *  be the thing the user is looking at. Only app surfaces are ever sent it. */
   onShowDisplay?: () => void;
+  /** Whether this link should hold the channel right now. Default true — a
+   *  view's link lives exactly as long as the view. The Display's voice lives
+   *  in a window-lifetime store instead, and a window must never hold TWO
+   *  links (two players, every relayed line spoken twice), so that one hands
+   *  the channel back to `VoiceOverlay` whenever the Display does not own the
+   *  window's voice. */
+  enabled?: MaybeRefOrGetter<boolean>;
 }) {
   const live = useLiveChannelStore();
   const isDaemonConnected = ref(false);
@@ -210,7 +224,8 @@ export function useVoiceDaemonLink(options: {
     }
   }
 
-  onMounted(() => {
+  function attach(): void {
+    if (release !== null) return;
     const subscriber = describeVoiceSubscriber(options.surface ?? "app");
     release = live.subscribe(liveChannelKeys.voice(subscriber), {
       onEvent,
@@ -221,18 +236,31 @@ export function useVoiceDaemonLink(options: {
         daemonState.value = "idle";
       },
     });
-  });
+  }
 
-  onUnmounted(() => {
+  function detach(): void {
     release?.();
     release = null;
     isDaemonConnected.value = false;
+    // No link, no conversation: a phase kept from a channel we no longer hear
+    // would gate a microphone on news that can never arrive.
+    daemonState.value = "idle";
     // The drain's own `finally` clears `isPlayingRelayedLine` — cancel() makes
     // the line in flight resolve and the emptied queue ends the loop. Clearing
     // it here instead would open the re-entrancy guard while it still runs.
     speakQueue.length = 0;
     player.cancel();
+  }
+
+  // SYNC on purpose: the other half of "exactly one link per window" is a
+  // `v-if` in the shell, and a queued job would let the two overlap for a tick
+  // — long enough for one relayed line to play on two players.
+  watch(() => toValue(options.enabled ?? true), (on) => (on ? attach() : detach()), {
+    immediate: true,
+    flush: "sync",
   });
+
+  onScopeDispose(detach);
 
   /** Tell the daemon the overlay's command session is over (best-effort — if
    *  the daemon is gone there is nothing to resume). */

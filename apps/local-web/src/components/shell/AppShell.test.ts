@@ -1,8 +1,9 @@
-// The shell's Display wiring, and nothing else: the room's switch is the ONE
-// reading of whether the Display holds the canvas, and while it does the voice
-// overlay must be GONE — not hidden. The overlay creates its session and its
-// wake link in setup, so a merely-invisible overlay would still answer a wake
-// with a second orb and a second microphone behind the room.
+// The shell's Display wiring, and nothing else: `displayVoice.ownsVoice` is the
+// ONE reading of whether the Display feature holds this window's microphone —
+// the room on screen, or a session still running behind another view — and
+// while it does the voice overlay must be GONE, not hidden. The overlay creates
+// its session and its wake link in setup, so a merely-invisible overlay would
+// still answer a wake with a second orb and a second microphone.
 //
 // Shallow: every child is stubbed, so this pins the shell's own template and
 // its command routing without booting the whole app.
@@ -15,6 +16,8 @@ import type { VynelClient } from "@vynel/sdk";
 import { createAppRouter } from "../../router.js";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
+import { useBrowserStore } from "../../stores/browser-store.js";
+import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import AppShell from "./AppShell.vue";
 import AppTitleBar from "./AppTitleBar.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
@@ -33,8 +36,11 @@ const quietClient = new Proxy(
 
 async function mountShell() {
   // No socket in this environment — the live channel goes "unavailable"
-  // instead of dialing localhost and retrying for the whole run.
+  // instead of dialing localhost and retrying for the whole run. The one POST
+  // the window's voice makes on its own (the daemon's session hand-back) has
+  // nothing to reach either.
   vi.stubGlobal("WebSocket", undefined);
+  vi.stubGlobal("fetch", () => Promise.resolve({ ok: true } as Response));
   const router = createAppRouter();
   await router.push("/chat");
   await router.isReady();
@@ -86,10 +92,10 @@ describe("AppShell — the Display", () => {
     expect(wrapper.findComponent(VoiceOverlay).exists()).toBe(true);
   });
 
-  // The room is only on screen where the global chat canvas renders it —
-  // leaving for another surface gives the wake word its overlay back, even
-  // though the tab is still pointed at the Display.
-  it("gives the overlay back the moment the canvas goes elsewhere", async () => {
+  // Leaving the room no longer hangs up: the conversation is the window's, so
+  // the overlay stays out of the way and the switch stays lit. Only turning
+  // the voice off gives the overlay its wake link back.
+  it("keeps the overlay away while the conversation runs behind another view", async () => {
     const { wrapper, ui, router } = await mountShell();
     pressDisplaySwitch(wrapper);
     await wrapper.vm.$nextTick();
@@ -98,12 +104,28 @@ describe("AppShell — the Display", () => {
     await wrapper.vm.$nextTick();
 
     expect(ui.globalTab.shell.mainView).toBe("display");
+    expect(wrapper.findComponent(VoiceOverlay).exists()).toBe(false);
+    expect(wrapper.getComponent(AppTitleBar).props("displayOn")).toBe(true);
+
+    pressDisplaySwitch(wrapper);
+    await wrapper.vm.$nextTick();
     expect(wrapper.findComponent(VoiceOverlay).exists()).toBe(true);
     expect(wrapper.getComponent(AppTitleBar).props("displayOn")).toBe(false);
   });
 
-  // `ui.isVoiceOverlayOpen` is the OVERLAY's switch — the Display owns its own
-  // session, so opening the room must never raise the overlay too.
+  // With the voice off, the room is still the thing on screen — it needs the
+  // window's daemon link, so the overlay stays away for that reason alone.
+  it("keeps the overlay away for a room with the voice switched off", async () => {
+    const { wrapper, ui } = await mountShell();
+    ui.globalTab.shell.mainView = "display";
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent(VoiceOverlay).exists()).toBe(false);
+    expect(wrapper.getComponent(AppTitleBar).props("displayOn")).toBe(true);
+  });
+
+  // `ui.isVoiceOverlayOpen` is the OVERLAY's switch — the Display owns the
+  // window's voice, so opening the room must never raise the overlay too.
   it("never opens the overlay's own session", async () => {
     const { wrapper, ui } = await mountShell();
     pressDisplaySwitch(wrapper);
@@ -111,12 +133,31 @@ describe("AppShell — the Display", () => {
     expect(ui.isVoiceOverlayOpen).toBe(false);
   });
 
-  // "Start voice" (the palette entry, the menu row) belongs to whoever owns
-  // the microphone. With the room up that is the room — raising the overlay
-  // behind it would start a second session with no orb to show it, and dim
-  // the page for an overlay that isn't mounted.
-  it("routes 'Start voice' to the room's own microphone while it holds the canvas", async () => {
+  // The overlay's switch must not outlive the overlay: left ON behind the room
+  // it would dim the page below for a dialog that is no longer mounted, with
+  // nothing left to observe the flag and turn it off.
+  it("clears the overlay's switch when the Display takes the window's voice", async () => {
     const { wrapper, ui } = await mountShell();
+    const browser = useBrowserStore();
+    ui.isVoiceOverlayOpen = true;
+    await wrapper.vm.$nextTick();
+    expect(browser.isObscured).toBe(true);
+
+    // Not the switch — a menu row taking the canvas, with the voice still off.
+    ui.globalTab.shell.mainView = "display";
+    await wrapper.vm.$nextTick();
+
+    expect(ui.isVoiceOverlayOpen).toBe(false);
+    expect(browser.isObscured).toBe(false);
+  });
+
+  // "Start voice" (the palette entry, the menu row) belongs to whoever owns
+  // the microphone. Once the Display has it, raising the overlay would start a
+  // second session with no orb to show it, and dim the page for an overlay
+  // that isn't mounted.
+  it("routes 'Start voice' to the window's voice once the Display owns it", async () => {
+    const { wrapper, ui } = await mountShell();
+    const displayVoice = useDisplayVoice();
     const startVoice = () =>
       wrapper.getComponent(AppTitleBar).vm.$emit("command", "start-voice");
 
@@ -124,11 +165,12 @@ describe("AppShell — the Display", () => {
     expect(ui.isVoiceOverlayOpen).toBe(true);
     ui.isVoiceOverlayOpen = false;
 
-    pressDisplaySwitch(wrapper);
+    // The room on screen with the voice off is already the Display's to answer.
+    ui.globalTab.shell.mainView = "display";
     await wrapper.vm.$nextTick();
 
     startVoice();
     expect(ui.isVoiceOverlayOpen).toBe(false);
-    expect(ui.displayVoiceRequestCount).toBe(1);
+    expect(displayVoice.isLive).toBe(true);
   });
 });

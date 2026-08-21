@@ -1,24 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { DisplayOrb, DisplayPanel, DisplayStrip } from "@vynel/ui";
 import type { DisplayPanelRow } from "@vynel/ui";
-import type { DisplaySessionPhase } from "@vynel/contracts/voice/daemon-events";
-import { useUiStore } from "../../stores/ui-store.js";
-import { useVoiceSession } from "../../composables/voice/use-voice-session.js";
-import { useVoiceDaemonLink } from "../../composables/voice/use-voice-daemon-link.js";
-import {
-  voiceStageCaption,
-  voiceStageIsListening,
-  voiceStageOrbState,
-} from "../../components/voice/voice-stage-view.js";
-import { useDisplaySessionAnnounce } from "../../composables/display/use-display-session-announce.js";
+import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import { useDisplayStatus } from "../../composables/display/use-display-status.js";
 import { useDisplayWidgets } from "../../composables/display/use-display-widgets.js";
 import type { SessionScope } from "../../composables/chat/session-scope.js";
 import {
   displayOrbState,
   useSpokenClauseSpike,
-  type DisplayDaemonLeg,
 } from "../../composables/display/display-orb-state.js";
 import DisplayWidgetSlot from "../../components/display/DisplayWidgetSlot.vue";
 
@@ -26,21 +16,19 @@ import DisplayWidgetSlot from "../../components/display/DisplayWidgetSlot.vue";
 // panels are the app's own status read back at a glance, and the strip carries
 // the two numbers that decide whether you get up from your chair.
 //
-// The voice session is the ROOM'S: it starts when the room opens and ends when
-// it closes (`useVoiceSession` ends its session on unmount), so leaving by any
-// route — the switch, a menu row, Home — hands the microphone back. That is
-// also why the shell hides `VoiceOverlay` while this view is up: two live
-// sessions would mean two orbs and two microphones.
-//
-// Taking the overlay's session means taking its DAEMON LINK too — the overlay
-// is the window's only `voice:app` subscriber, so without this the wake word
-// would have nowhere to land and a relayed `speak` (a schedule, the typed
-// chat, another producer) would be dropped for as long as the room is up.
+// The voice session is NOT the room's: it belongs to the window
+// (`use-display-voice`), starts with the title-bar switch and outlives this
+// screen, so walking away keeps the conversation and coming back re-attaches
+// to the same one. The room RENDERS whatever that session is doing — including
+// nothing at all, which is the orb idle and a "Start" pill. The daemon link
+// rides the same store, which is also why the shell keeps `VoiceOverlay`
+// unmounted while the Display owns the window's voice: two links would mean
+// two players and two microphones.
 //
 // The BOARD follows the surface (house rule: the surface decides the scope) —
 // the global chat's room shows the global board, a workspace room shows that
-// workspace's. The microphone does not: there is one, it belongs to whichever
-// room is on screen, and the status panels stay app-wide because the app is.
+// workspace's. The microphone does not: there is one, it belongs to the
+// window, and the status panels stay app-wide because the app is.
 
 const props = defineProps<{
   /** Whose board this room shows. Required on purpose: a defaulted 'global'
@@ -48,31 +36,7 @@ const props = defineProps<{
   scope: SessionScope;
 }>();
 
-const ui = useUiStore();
-const isMuted = ref(false);
-
-// Hoisted handlers so the two composables can reference each other's owners —
-// both callbacks only ever fire after setup completes.
-const voice = useVoiceSession({ onEnded: handleSessionEnded });
-const daemon = useVoiceDaemonLink({
-  onWake: handleWake,
-  ownLiveSessionId: voice.currentSessionId,
-  speakThroughSession: voice.speakExternal,
-});
-
-// Idle silence ends the session and the room stays open — it is a place, not a
-// modal. The pills invite you back in; the daemon takes the microphone back so
-// the wake word works again from here. (This also fires when the user MUTES,
-// which ends the session on purpose — resetting `isMuted` here would undo the
-// mute they just asked for.)
-function handleSessionEnded(): void {
-  daemon.notifySessionEnd();
-}
-
-function handleWake(command: string, turnWatchdogMs?: number): void {
-  isMuted.value = false;
-  if (!voice.isActive.value) voice.start(command || undefined, turnWatchdogMs);
-}
+const voice = useDisplayVoice();
 
 const { status, telemetry, clock, noteBoardChange } = useDisplayStatus();
 const spikeKey = useSpokenClauseSpike();
@@ -103,68 +67,18 @@ async function clearBoard(): Promise<void> {
   }
 }
 
-onMounted(() => {
-  // The overlay's switch can be left ON behind the room — "Start voice" from
-  // the palette, then the Display — and the overlay is unmounted here, so
-  // nothing would ever turn it off again: the shell would keep dimming the
-  // page for an overlay that isn't there.
-  ui.isVoiceOverlayOpen = false;
-  voice.start();
-});
-
-// "Start voice" while the room holds the canvas: the microphone is the room's,
-// so the shell rings this counter instead of raising a second session behind
-// the orb.
-watch(
-  () => ui.displayVoiceRequestCount,
-  () => {
-    if (voice.isActive.value) return;
-    isMuted.value = false;
-    voice.start();
-  },
-);
-
-// The OTHER leg: a wake the daemon answered natively, or one it handed to the
-// wake window while this room stayed open. The conversation is the assistant's
-// either way, so the room's orb mirrors it — behind its own session, which
-// always wins the microphone (see `displayOrbState`).
-const daemonLeg = computed<DisplayDaemonLeg>(() => ({
-  state: daemon.daemonState.value,
-  isPlayingRelayedLine: daemon.isPlayingRelayedLine.value,
-}));
-
 const orb = computed(() =>
-  displayOrbState(voice.view.value, status.value.orbEnergy, isMuted.value, daemonLeg.value),
+  displayOrbState(voice.view, status.value.orbEnergy, voice.isMuted, voice.daemonLeg),
 );
-const caption = computed(() =>
-  voiceStageCaption(voice.view.value, isMuted.value, voice.failure.value),
-);
-const isListening = computed(() => voiceStageIsListening(voice.view.value, isMuted.value));
 
-// The display dock is this room in another window. It cannot see this screen,
-// and a Web Speech session cannot move between windows — so the room ANNOUNCES
-// the conversation it holds and the dock mirrors it in the corner while the
-// user works somewhere else. Muted counts as live: a muted room is a paused
-// conversation, not an ended one, and the row says so.
-//
-// The stage's orb vocabulary is the wire's plus `wake`, which belongs to the
-// daemon leg and never comes out of the room's own session — so the phase reads
-// the one mapping rather than keeping a second copy of it.
-const sessionPhase = computed<DisplaySessionPhase>(() => {
-  const orb = voiceStageOrbState(voice.view.value, isMuted.value);
-  return orb === "wake" ? "listening" : orb;
-});
-useDisplaySessionAnnounce(() => ({
-  live: voice.isActive.value || isMuted.value,
-  phase: sessionPhase.value,
-  caption: caption.value,
-}));
-
-// Three honest states, not two: a session the idle timer ended is not "Muted"
-// — nobody muted it — and the click that follows restarts it.
+// Four honest states, not two. Voice off is its OWN state — there is no
+// session to mute and none to resume, so the pill offers to start one. And a
+// session the idle timer ended is not "Muted": nobody muted it, and the click
+// that follows restarts it.
 const micPillLabel = computed(() => {
-  if (isMuted.value) return "Muted";
-  return voice.isActive.value ? "Listening" : "Resume";
+  if (!voice.isLive) return "Start";
+  if (voice.isMuted) return "Muted";
+  return voice.isActive ? "Listening" : "Resume";
 });
 
 // What the strip says under the wordmark — the room's own one-liner, not the
@@ -175,30 +89,11 @@ const subtitle = computed(() => {
   return status.value.building > 0 ? "Working" : "Standing by";
 });
 
-/** The microphone switch. Idle silence ends the session while the room stays
- *  open, so on a dead session the first click must bring the mic BACK — muting
- *  what is already silent would leave the two pills contradicting each other
- *  ("Muted" beside "Voice on") and cost the user a second click. */
-function toggleMute(): void {
-  if (!voice.isActive.value) {
-    isMuted.value = false;
-    voice.start();
-    return;
-  }
-  isMuted.value = !isMuted.value;
-  if (isMuted.value) voice.end();
-  else voice.start();
-}
-
 /** The session switch itself — off gives the microphone back without leaving
- *  the room; on takes it again. */
+ *  the room; on takes it again, and the room stays whichever way it goes. */
 function toggleVoice(): void {
-  if (voice.isActive.value) {
-    voice.end();
-    return;
-  }
-  isMuted.value = false;
-  voice.start();
+  if (voice.isLive) voice.end();
+  else voice.start();
 }
 
 // The status vocabulary, spelled out once where the user can read it — the
@@ -208,9 +103,6 @@ const LEGEND_ROWS: DisplayPanelRow[] = [
   { label: "Working", value: "running right now", tone: "live" },
   { label: "Idle", value: "nothing in hand", tone: "muted" },
 ];
-
-/** The pills read the session, so the template needs it unwrapped. */
-const isVoiceActive = voice.isActive;
 
 // A machine without canvas 2D loses the orb, not the room: the panels carry
 // the status either way, so the stage says so quietly and stays.
@@ -248,21 +140,21 @@ const WIDGET_HINT = "Claude can put reports here";
       <button
         type="button"
         class="strip-pill"
-        :class="{ on: isListening }"
-        :aria-pressed="isListening"
+        :class="{ on: voice.isListening }"
+        :aria-pressed="voice.isListening"
         data-testid="display-listening-pill"
-        @click="toggleMute"
+        @click="voice.toggleMute()"
       >
         {{ micPillLabel }}
       </button>
       <button
         type="button"
         class="strip-pill"
-        :class="{ on: isVoiceActive }"
+        :class="{ on: voice.isLive }"
         data-testid="display-voice-pill"
         @click="toggleVoice"
       >
-        {{ isVoiceActive ? "Voice off" : "Voice on" }}
+        {{ voice.isLive ? "Voice off" : "Voice on" }}
       </button>
     </DisplayStrip>
 
@@ -285,7 +177,7 @@ const WIDGET_HINT = "Claude can put reports here";
           @renderer-failed="hasOrb = false"
         />
         <p v-if="!hasOrb" class="quiet">Orb unavailable — status panels still live</p>
-        <p class="caption">{{ caption }}</p>
+        <p class="caption">{{ voice.caption }}</p>
         <DisplayWidgetSlot
           class="stage-widgets"
           name="stage"

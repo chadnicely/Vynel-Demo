@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, h } from "vue";
+// The title-bar switch: which room it opens, what it restores, what it tells
+// the display dock — and, since 2026-08-21, the window's voice itself. On
+// starts the conversation and shows the room; off ends it from wherever the
+// user happens to be. The voice session is stubbed (happy-dom has no Web
+// Speech and no microphone); everything else runs for real.
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { defineComponent, h, type Ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import type { VynelClient } from "@vynel/sdk";
@@ -7,7 +13,44 @@ import { createAppRouter } from "../../router.js";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useLiveChannelStore } from "../../stores/live-channel-store.js";
+import type { VoiceCommandSessionView } from "../voice/voice-command-session-types.js";
+import { useDisplayVoice } from "./use-display-voice.js";
 import { useDisplayToggle, type DisplayToggle } from "./use-display-toggle.js";
+
+interface VoiceStub {
+  view: Ref<VoiceCommandSessionView>;
+  failure: Ref<string | null>;
+  isActive: Ref<boolean>;
+  start: ReturnType<typeof vi.fn>;
+  end: ReturnType<typeof vi.fn>;
+  currentSessionId: ReturnType<typeof vi.fn>;
+  speakExternal: ReturnType<typeof vi.fn>;
+}
+
+const voice = vi.hoisted(() => ({}) as VoiceStub);
+
+vi.mock("../voice/use-voice-session.js", async () => {
+  const { computed, ref } = await import("vue");
+  voice.view = ref<VoiceCommandSessionView>({
+    state: "ended",
+    transcript: "",
+    spokenText: "",
+    notice: "",
+  });
+  voice.failure = ref<string | null>(null);
+  voice.isActive = computed(
+    () => voice.view.value.state !== "ended",
+  ) as unknown as Ref<boolean>;
+  voice.start = vi.fn(() => {
+    voice.view.value = { state: "listening", transcript: "", spokenText: "", notice: "" };
+  });
+  voice.end = vi.fn(() => {
+    voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
+  });
+  voice.currentSessionId = vi.fn(() => null);
+  voice.speakExternal = vi.fn(() => true);
+  return { useVoiceSession: () => voice };
+});
 
 /** Every `setDisplayActive` the toggle announced, in order — what the display
  *  dock hears (it hides while the room is on screen). */
@@ -20,6 +63,7 @@ function announcingClient(): VynelClient {
         displayActiveCalls.push(active);
         return {};
       },
+      setDisplaySession: async () => ({ published: false }),
     },
   } as unknown as VynelClient;
 }
@@ -50,6 +94,7 @@ async function mountToggle(startPath = "/chat") {
     toggle: () => toggle,
     ui: useUiStore(),
     live: useLiveChannelStore(),
+    voiceStore: useDisplayVoice(),
   };
 }
 
@@ -58,6 +103,16 @@ async function mountToggle(startPath = "/chat") {
 beforeEach(() => {
   localStorage.clear();
   displayActiveCalls = [];
+  voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
+  voice.start.mockClear();
+  voice.end.mockClear();
+  // No socket in this environment, and nothing here should reach the network.
+  vi.stubGlobal("WebSocket", undefined);
+  vi.stubGlobal("fetch", () => Promise.resolve({ ok: true } as Response));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("useDisplayToggle", () => {
@@ -209,6 +264,8 @@ describe("useDisplayToggle", () => {
     const { toggle, ui, router } = await mountToggle();
     ui.globalTab.shell.mainView = "account";
     toggle().toggleDisplay();
+    toggle().toggleDisplay();
+    expect(ui.globalTab.shell.mainView).toBe("account");
 
     const workspaceTab = ui.addWorkspaceTab("ws-1");
     ui.activeTab.shell.mainView = "knowledge";
@@ -218,11 +275,86 @@ describe("useDisplayToggle", () => {
     expect(workspaceTab.shell.mainView).toBe("knowledge");
 
     // The global tab's own memory survived the detour through the workspace.
-    ui.activateTab(GLOBAL_TAB_ID);
-    await router.push("/chat");
-    await flushPromises();
-    expect(toggle().isDisplayActive.value).toBe(true);
-    toggle().toggleDisplay();
     expect(ui.globalTab.shell.mainView).toBe("account");
+  });
+});
+
+// The switch is the real voice on/off (Kafi, 2026-08-21). It used to open a
+// screen and let the room start its own session, which made walking away from
+// the Display hang up the call — and put the dock's mirror, the corner form of
+// that very room, permanently out of reach.
+describe("useDisplayToggle — the switch is the voice", () => {
+  it("on starts the window's voice and shows the room", async () => {
+    const { toggle, ui, voiceStore } = await mountToggle();
+    expect(voiceStore.isLive).toBe(false);
+
+    toggle().toggleDisplay();
+
+    expect(voiceStore.isLive).toBe(true);
+    expect(voice.start).toHaveBeenCalledTimes(1);
+    expect(ui.globalTab.shell.mainView).toBe("display");
+  });
+
+  it("off ends the conversation and hands the canvas back", async () => {
+    const { toggle, ui, voiceStore } = await mountToggle();
+    ui.globalTab.shell.mainView = "account";
+    toggle().toggleDisplay();
+
+    toggle().toggleDisplay();
+
+    expect(voiceStore.isLive).toBe(false);
+    expect(voice.end).toHaveBeenCalledTimes(1);
+    expect(ui.globalTab.shell.mainView).toBe("account");
+  });
+
+  // The switch reads ON wherever the user is, because the conversation is
+  // still theirs — so pressing it hangs up, rather than dragging them back to
+  // the room to do it.
+  it("off from another view ends the conversation without going there", async () => {
+    const { toggle, ui, router, voiceStore } = await mountToggle();
+    toggle().toggleDisplay();
+    await router.push("/home");
+    await flushPromises();
+    expect(toggle().isDisplayActive.value).toBe(false);
+    expect(voiceStore.ownsVoice).toBe(true);
+
+    toggle().toggleDisplay();
+
+    expect(voiceStore.isLive).toBe(false);
+    expect(router.currentRoute.value.name).toBe("home");
+    // Nothing to restore: the room was not the thing on screen.
+    expect(ui.globalTab.shell.mainView).toBe("display");
+  });
+
+  // The room needs the window's daemon link even with voice off, or a wake
+  // would land nowhere while the user sits looking at the orb.
+  it("tells the window's voice whether the room is on screen", async () => {
+    const { toggle, router, voiceStore } = await mountToggle("/home");
+    expect(voiceStore.ownsVoice).toBe(false);
+
+    toggle().showDisplay();
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("chat");
+    expect(voiceStore.ownsVoice).toBe(true);
+    // A screen, not a conversation: `showDisplay` starts nothing.
+    expect(voiceStore.isLive).toBe(false);
+    expect(voice.start).not.toHaveBeenCalled();
+  });
+
+  // A wake landed in the dock and the daemon asked the app to come forward.
+  // Answering it with the SWITCH would turn off the very conversation the wake
+  // just announced.
+  it("opens the room when the window's voice rings for it", async () => {
+    const { toggle, ui, voiceStore } = await mountToggle();
+    voiceStore.start();
+    voice.start.mockClear();
+
+    voiceStore.showDisplayRequestCount += 1;
+    await flushPromises();
+
+    expect(ui.globalTab.shell.mainView).toBe("display");
+    expect(toggle().isDisplayActive.value).toBe(true);
+    expect(voiceStore.isLive).toBe(true);
+    expect(voice.end).not.toHaveBeenCalled();
   });
 });
