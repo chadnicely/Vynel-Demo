@@ -1,5 +1,5 @@
 {
-  "name": "@vynel/voice-engine",
+  "name": "@vynel/models",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@vynel/contracts": "workspace:*",
-    "sherpa-onnx-node": "^1.13.3"
+    "@vynel/errors": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

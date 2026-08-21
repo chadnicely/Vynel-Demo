@@ -21,3 +21,4 @@ export type { SherpaSpeechRecognizerOptions } from './sherpa/sherpa-speech-recog
 export { SherpaVoiceActivityDetector } from './sherpa/sherpa-voice-activity-detector.js'
 export type { SherpaVoiceActivityDetectorOptions } from './sherpa/sherpa-voice-activity-detector.js'
 export { writeWavFile, readWavFile } from './sherpa/wave-file.js'
+export { resolveSttConfig, resolveTtsConfig, resolveVadConfig } from './model-configs.js'

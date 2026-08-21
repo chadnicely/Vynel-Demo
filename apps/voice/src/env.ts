@@ -17,6 +17,12 @@ import {
   resolveVynelPorts,
 } from '@vynel/contracts/network/ports'
 import { DEFAULT_VOICE_TURN_WATCHDOG_MS } from '@vynel/contracts/voice/turn-watchdog'
+import {
+  DEFAULT_STT_MODEL_ID,
+  DEFAULT_TTS_MODEL_ID,
+  LOCAL_STT_MODEL_IDS,
+  LOCAL_TTS_MODEL_IDS,
+} from '@vynel/contracts/models/local-model-catalog'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..') // src -> voice -> apps -> repo-root
@@ -39,11 +45,11 @@ function buildEnvSchema(portBase: number) {
   VYNEL_API_URL: z.string().url().default(`http://127.0.0.1:${ports.engine}`),
   // Where the downloaded voice models live (gitignored) — `pnpm voice:fetch-models`.
   VYNEL_VOICE_MODELS_DIR: z.string().default('.models/voice').transform(resolveAgainstRepoRoot),
-  // Which TTS voice to speak with: 'kokoro' (11 natural voices) or 'piper-lessac' (small).
-  VYNEL_VOICE_TTS: z.enum(['kokoro', 'piper-lessac']).default('kokoro'),
-  // Which STT model to hear with: 'moonshine-base' (default — the accuracy sweet
-  // spot, still realtime on CPU) or 'moonshine-tiny' (lightest, less accurate).
-  VYNEL_VOICE_STT: z.enum(['moonshine-tiny', 'moonshine-base']).default('moonshine-base'),
+  // Which TTS voice to speak with and which STT model to hear with — catalog
+  // ids (`@vynel/contracts/models/local-model-catalog`), so the env, the
+  // Settings screen and the downloader name the same models.
+  VYNEL_VOICE_TTS: z.enum(LOCAL_TTS_MODEL_IDS).default(DEFAULT_TTS_MODEL_ID),
+  VYNEL_VOICE_STT: z.enum(LOCAL_STT_MODEL_IDS).default(DEFAULT_STT_MODEL_ID),
   // Speaker id for multi-voice models (Kokoro: 0-10).
   VYNEL_VOICE_ID: z.coerce.number().int().min(0).default(0),
   // Optional explicit audio devices — exact names as node-cpal enumerates them

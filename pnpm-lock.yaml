@@ -940,6 +940,9 @@ importers:
       '@huggingface/transformers':
         specifier: ^3.0.0
         version: 3.8.1
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       typescript:
         specifier: ^5.6.0
@@ -1192,6 +1195,19 @@ importers:
       '@vynel/testing':
         specifier: workspace:*
         version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/models:
+    dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -1701,6 +1717,9 @@ importers:
 
   packages/voice-engine:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       sherpa-onnx-node:
         specifier: ^1.13.3
         version: 1.13.3
@@ -1751,6 +1770,9 @@ importers:
       '@vynel/local-api':
         specifier: workspace:*
         version: link:../apps/local-api
+      '@vynel/models':
+        specifier: workspace:*
+        version: link:../packages/models
       '@vynel/registry':
         specifier: workspace:*
         version: link:../packages/registry

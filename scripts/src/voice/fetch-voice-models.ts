@@ -1,75 +1,43 @@
-import { createWriteStream, existsSync } from 'node:fs'
-import { mkdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
-import { Readable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { DEFAULT_VOICE_MODEL, resolveVoiceModel, voiceModelsDir } from './voice-models.js'
+import {
+  DEFAULT_TTS_MODEL_ID,
+  LOCAL_MODELS,
+  getLocalModelOrThrow,
+} from '@vynel/contracts/models/local-model-catalog'
+import { installModelFromSource, probeInstalledModel } from '@vynel/models'
+import { voiceModelsDir } from './voice-models-dir.js'
 
-// Download a sherpa-onnx model into the gitignored `.models/voice/`. Handles both
-// `.tar.bz2` archives (extracted with `tar`) and single files (e.g. silero_vad.onnx).
-// Idempotent (skips if present). Extraction shells out to `tar`, which on Windows
-// 10+/macOS/Linux is bsdtar and handles `.tar.bz2` natively — no bzip2 npm dep.
-// Usage: `pnpm voice:fetch-models [model]` (default: kokoro).
-
-const execFileAsync = promisify(execFile)
+// Download a voice model into the gitignored `.models/voice/` — the same
+// installer the Settings → Voice screen runs, from the same catalog. Idempotent
+// (skips a model whose files are all present). Usage:
+// `pnpm voice:fetch-models [model]` (default: kokoro); models: every
+// non-embedding id in the catalog.
 
 async function main(): Promise<void> {
-  const name = process.argv[2] ?? DEFAULT_VOICE_MODEL
-  const entry = resolveVoiceModel(name)
-  const targetDir = join(voiceModelsDir, entry.folder)
+  const name = process.argv[2] ?? DEFAULT_TTS_MODEL_ID
+  const entry = getLocalModelOrThrow(name)
+  if (entry.kind === 'embedding') {
+    const voiceIds = LOCAL_MODELS.filter((row) => row.kind !== 'embedding').map((row) => row.id)
+    throw new Error(`"${name}" is the embedding model — this fetches voice models: ${voiceIds.join(', ')}.`)
+  }
 
-  if (existsSync(targetDir)) {
-    console.log(`[voice:models] "${name}" already present at ${targetDir} — nothing to do.`)
+  const before = await probeInstalledModel(voiceModelsDir, entry)
+  if (before.installed) {
+    console.log(`[voice:models] "${name}" already present under ${voiceModelsDir} — nothing to do.`)
     return
   }
 
-  await mkdir(voiceModelsDir, { recursive: true })
-  console.log(`[voice:models] downloading "${name}" (${entry.approxSize}) …`)
-
-  try {
-    if (entry.download.format === 'archive') {
-      await fetchArchive(entry.download.url, entry.folder)
-    } else {
-      await fetchFile(entry.download.url, targetDir)
-    }
-  } catch (error) {
-    // A crash mid-fetch can leave a partial folder that the idempotency check
-    // would later mistake for complete — wipe it so a retry is clean.
-    await rm(targetDir, { recursive: true, force: true })
-    throw error
-  }
-
-  console.log(`[voice:models] ready → ${targetDir}`)
-}
-
-async function fetchArchive(url: string, folder: string): Promise<void> {
-  const archiveName = `${folder}.tar.bz2`
-  const archivePath = join(voiceModelsDir, archiveName)
-  try {
-    await downloadTo(url, archivePath)
-    // Extract with `cwd` + the bare filename: bsdtar (Windows/macOS/Linux) reads a
-    // drive-letter path like `E:\…` as a remote `host:path`, so absolute args fail.
-    console.log('[voice:models] extracting …')
-    await execFileAsync('tar', ['-xf', archiveName], { cwd: voiceModelsDir })
-  } finally {
-    await rm(archivePath, { force: true })
-  }
-}
-
-async function fetchFile(url: string, targetDir: string): Promise<void> {
-  await mkdir(targetDir, { recursive: true })
-  const filename = url.split('/').pop() ?? 'model.onnx'
-  await downloadTo(url, join(targetDir, filename))
-}
-
-async function downloadTo(url: string, destPath: string): Promise<void> {
-  const response = await fetch(url)
-  if (!response.ok || response.body === null) {
-    throw new Error(`download failed (${response.status} ${response.statusText}) for ${url}`)
-  }
-  await pipeline(Readable.fromWeb(response.body), createWriteStream(destPath))
+  console.log(`[voice:models] downloading "${name}" (~${Math.round(entry.approxBytes / 1_000_000)} MB) …`)
+  let lastReported = -1
+  await installModelFromSource(voiceModelsDir, entry, {
+    onProgress: ({ bytes, total }) => {
+      const percent = total === null ? null : Math.floor((bytes / total) * 100)
+      if (percent !== null && percent !== lastReported && percent % 10 === 0) {
+        lastReported = percent
+        console.log(`[voice:models]   ${percent}%`)
+      }
+    },
+  })
+  console.log(`[voice:models] ready → ${voiceModelsDir}/${entry.folder}`)
 }
 
 main().catch((error: unknown) => {

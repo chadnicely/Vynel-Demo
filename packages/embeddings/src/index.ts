@@ -1,6 +1,9 @@
 // `@vynel/embeddings` — text-to-vector embedding for local semantic
 // search. Phase 1 model: `all-MiniLM-L6-v2` (quantized q8, ~23 MB) via
 // `@huggingface/transformers` (384-dim Float32). Memory + knowledge consume it.
+// WHICH model, and its files on disk, is the catalog's say
+// (`@vynel/contracts/models/local-model-catalog`) — the Settings screen and
+// the probe read the same entry this loads.
 //
 // Lazy first-use cached singleton (per knowledge decisions D23): the
 // model loads on the first `generateEmbedding()` call across the
@@ -33,7 +36,13 @@
 
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { env, pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
+import {
+  env,
+  pipeline,
+  type FeatureExtractionPipeline,
+  type ProgressInfo,
+} from '@huggingface/transformers'
+import { LOCAL_EMBEDDING_MODEL } from '@vynel/contracts/models/local-model-catalog'
 
 export const EMBEDDING_DIMENSIONS = 384
 export const EMBEDDING_BYTES = EMBEDDING_DIMENSIONS * 4 // 1536 bytes (384 × float32)
@@ -49,7 +58,7 @@ export const EMBEDDING_BYTES = EMBEDDING_DIMENSIONS * 4 // 1536 bytes (384 × fl
 // never completed — so there is nothing to invalidate.)
 export const EMBEDDING_MODEL_VERSION = 'all-MiniLM-L6-v2/v1'
 
-const EMBEDDING_MODEL_ID = 'Xenova/all-MiniLM-L6-v2'
+const EMBEDDING_MODEL_ID = LOCAL_EMBEDDING_MODEL.source.hfModelId
 
 /** Point the model cache at a stable directory outside node_modules.
  *  Call once at app boot, BEFORE the first `generateEmbedding()`. */
@@ -57,17 +66,45 @@ export function configureEmbeddingsCacheDir(cacheDir: string): void {
   env.cacheDir = cacheDir
 }
 
+/** Bytes fetched so far across the model's files; `total` once every file has
+ *  announced its size, null before. */
+export interface EmbeddingModelProgress {
+  readonly bytes: number
+  readonly total: number | null
+}
+
 // Module-level Promise dedupes concurrent first-callers — JS
 // single-threaded execution means no further concurrency primitive
 // is needed.
 let pipelinePromise: Promise<FeatureExtractionPipeline> | null = null
 
-function loadPipeline(): Promise<FeatureExtractionPipeline> {
+// transformers.js reports per FILE; the screen wants one bar. Sum what each
+// file has said so far — a file that is already cached never reports, which is
+// exactly right: nothing to download there.
+function aggregateProgress(onProgress: (progress: EmbeddingModelProgress) => void) {
+  const byFile = new Map<string, { loaded: number; total: number }>()
+  return (info: ProgressInfo): void => {
+    if (info.status !== 'progress') return
+    byFile.set(info.file, { loaded: info.loaded, total: info.total })
+    let bytes = 0
+    let total = 0
+    for (const file of byFile.values()) {
+      bytes += file.loaded
+      total += file.total
+    }
+    onProgress({ bytes, total: total > 0 ? total : null })
+  }
+}
+
+function loadPipeline(
+  onProgress?: (progress: EmbeddingModelProgress) => void,
+): Promise<FeatureExtractionPipeline> {
   // q8: ~4× smaller download + faster CPU inference than fp32, with
   // near-identical retrieval quality — the right default for a
   // non-technical user's first run.
   return pipeline('feature-extraction', EMBEDDING_MODEL_ID, {
     dtype: 'q8',
+    ...(onProgress ? { progress_callback: aggregateProgress(onProgress) } : {}),
   }) as Promise<FeatureExtractionPipeline>
 }
 
@@ -80,16 +117,18 @@ async function evictCachedModel(): Promise<void> {
   await rm(modelCacheDir, { recursive: true, force: true }).catch(() => undefined)
 }
 
-async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
+function getEmbeddingPipeline(
+  onProgress?: (progress: EmbeddingModelProgress) => void,
+): Promise<FeatureExtractionPipeline> {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
       try {
-        return await loadPipeline()
+        return await loadPipeline(onProgress)
       } catch (error) {
         if (!isCorruptModelCacheError(error)) throw error
         // A truncated download poisoned the cache — evict + retry once.
         await evictCachedModel()
-        return await loadPipeline()
+        return await loadPipeline(onProgress)
       }
     })()
     // A failed load must not poison every future call with the same
@@ -99,6 +138,22 @@ async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
     })
   }
   return pipelinePromise
+}
+
+/** Download (if needed) and load the model now, reporting bytes as they land —
+ *  the Settings screen's Download. A load already in flight (a service tick got
+ *  there first) is joined as-is: its bytes are not observable, only its end. */
+export async function warmEmbeddingModel(
+  onProgress?: (progress: EmbeddingModelProgress) => void,
+): Promise<void> {
+  await getEmbeddingPipeline(onProgress)
+}
+
+/** Drop the cached model files and forget the warm instance — the Settings
+ *  screen's Remove. The next `generateEmbedding()` downloads again. */
+export async function evictEmbeddingModelCache(): Promise<void> {
+  pipelinePromise = null
+  await evictCachedModel()
 }
 
 // The first `generateEmbedding()` of a process DOWNLOADS the model (~23 MB from

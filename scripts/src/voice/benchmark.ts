@@ -1,9 +1,16 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { SherpaSpeechRecognizer, SherpaVoiceEngine, readWavFile } from '@vynel/voice-engine'
+import { LOCAL_MODELS, type LocalModelEntry } from '@vynel/contracts/models/local-model-catalog'
+import { probeInstalledModel } from '@vynel/models'
+import {
+  SherpaSpeechRecognizer,
+  SherpaVoiceEngine,
+  readWavFile,
+  resolveSttConfig,
+  resolveTtsConfig,
+} from '@vynel/voice-engine'
 import type { PcmAudio } from '@vynel/voice-engine'
-import { voiceModels, voiceModelsDir } from './voice-models.js'
-import type { SttModelEntry, TtsModelEntry } from './voice-models.js'
+import { voiceModelsDir } from './voice-models-dir.js'
 
 // Measure the real-time factor (RTF = processing time ÷ audio duration) of each
 // downloaded model on THIS CPU — RTF < 1 means faster than realtime. Warms each
@@ -26,9 +33,9 @@ function reportRow(name: string, kind: string, loadMs: number, audioS: number, p
   )
 }
 
-async function benchmarkTts(name: string, entry: TtsModelEntry, baseDir: string): Promise<PcmAudio> {
+async function benchmarkTts(entry: LocalModelEntry): Promise<PcmAudio> {
   const startedAt = performance.now()
-  const engine = new SherpaVoiceEngine({ tts: entry.toTtsConfig(baseDir) })
+  const engine = new SherpaVoiceEngine({ tts: resolveTtsConfig(voiceModelsDir, entry) })
   const loadMs = performance.now() - startedAt
   await engine.synthesize('warm up the model')
 
@@ -40,13 +47,13 @@ async function benchmarkTts(name: string, entry: TtsModelEntry, baseDir: string)
     times.push(performance.now() - runStart)
   }
   const audioSeconds = audio.samples.length / audio.sampleRate
-  reportRow(name, 'tts', loadMs, audioSeconds, median(times), `${engine.voiceCount} voice(s) @ ${engine.sampleRate}Hz`)
+  reportRow(entry.id, 'tts', loadMs, audioSeconds, median(times), `${engine.voiceCount} voice(s) @ ${engine.sampleRate}Hz`)
   return audio
 }
 
-async function benchmarkStt(name: string, entry: SttModelEntry, baseDir: string, input: PcmAudio): Promise<void> {
+async function benchmarkStt(entry: LocalModelEntry, input: PcmAudio): Promise<void> {
   const startedAt = performance.now()
-  const recognizer = new SherpaSpeechRecognizer({ stt: entry.toSttConfig(baseDir) })
+  const recognizer = new SherpaSpeechRecognizer({ stt: resolveSttConfig(voiceModelsDir, entry) })
   const loadMs = performance.now() - startedAt
   await recognizer.transcribe(input)
 
@@ -59,29 +66,34 @@ async function benchmarkStt(name: string, entry: SttModelEntry, baseDir: string,
   }
   const audioSeconds = input.samples.length / input.sampleRate
   const preview = text.length > 44 ? `${text.slice(0, 44)}…` : text
-  reportRow(name, 'stt', loadMs, audioSeconds, median(times), `heard: "${preview}"`)
+  reportRow(entry.id, 'stt', loadMs, audioSeconds, median(times), `heard: "${preview}"`)
+}
+
+async function installedVoiceModels(): Promise<LocalModelEntry[]> {
+  const present: LocalModelEntry[] = []
+  for (const entry of LOCAL_MODELS) {
+    if (entry.kind === 'embedding') continue
+    if ((await probeInstalledModel(voiceModelsDir, entry)).installed) present.push(entry)
+  }
+  return present
 }
 
 async function main(): Promise<void> {
-  const present = Object.entries(voiceModels).filter(([, entry]) =>
-    existsSync(join(voiceModelsDir, entry.folder)),
-  )
+  const present = await installedVoiceModels()
   if (present.length === 0) {
-    throw new Error('No models present. Run: pnpm voice:fetch-models [piper-lessac|moonshine|kokoro]')
+    throw new Error('No models present. Run: pnpm voice:fetch-models [piper-lessac|moonshine-tiny|kokoro]')
   }
 
   console.log(`\n  Voice engine RTF benchmark — CPU, median of ${RUNS} runs (RTF < 1 = faster than realtime)\n`)
   console.log('  model            kind  load(ms)  audio(s)  proc(ms)    RTF  note')
   console.log(`  ${'─'.repeat(74)}`)
 
-  const ttsEntries = present.filter((e): e is [string, TtsModelEntry] => e[1].kind === 'tts')
-  const sttEntries = present.filter((e): e is [string, SttModelEntry] => e[1].kind === 'stt')
+  const ttsEntries = present.filter((entry) => entry.kind === 'tts')
+  const sttEntries = present.filter((entry) => entry.kind === 'stt')
 
   // TTS first so a freshly-synthesized utterance can feed the STT benchmark.
   let sttInput: PcmAudio | undefined
-  for (const [name, entry] of ttsEntries) {
-    sttInput = await benchmarkTts(name, entry, join(voiceModelsDir, entry.folder))
-  }
+  for (const entry of ttsEntries) sttInput = await benchmarkTts(entry)
 
   if (sttEntries.length > 0) {
     const smokeWav = join(voiceModelsDir, 'vynel-smoke.wav')
@@ -89,9 +101,7 @@ async function main(): Promise<void> {
     if (sttInput === undefined) {
       console.log('\n  (STT skipped — needs a TTS model present or a prior `pnpm voice:smoke` WAV to transcribe.)')
     } else {
-      for (const [name, entry] of sttEntries) {
-        await benchmarkStt(name, entry, join(voiceModelsDir, entry.folder), sttInput)
-      }
+      for (const entry of sttEntries) await benchmarkStt(entry, sttInput)
     }
   }
   console.log('')

@@ -1,71 +1,59 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { SttModelConfig, TtsModelConfig, VadModelConfig } from '@vynel/voice-engine'
+import {
+  VAD_MODEL_ID,
+  getLocalModelOrThrow,
+  requiredModelFiles,
+  type LocalModelEntry,
+} from '@vynel/contracts/models/local-model-catalog'
+import {
+  resolveSttConfig,
+  resolveTtsConfig,
+  resolveVadConfig,
+  type SttModelConfig,
+  type TtsModelConfig,
+  type VadModelConfig,
+} from '@vynel/voice-engine'
 
-// Resolve model file paths from the models dir. The folder layout mirrors what
-// `pnpm voice:fetch-models` extracts (kept in sync with scripts/src/voice/
-// voice-models.ts by convention — the daemon stays independent of dev tooling).
+// The daemon's three models, resolved from the catalog the Settings screen and
+// the downloader read — one layout, one set of ids (`VYNEL_VOICE_TTS` /
+// `VYNEL_VOICE_STT` are catalog ids).
 
-export type TtsChoice = 'kokoro' | 'piper-lessac'
+export interface VoiceModelSelection {
+  readonly modelsDir: string
+  readonly ttsModelId: string
+  readonly sttModelId: string
+}
 
-export function resolveTtsConfig(modelsDir: string, choice: TtsChoice): TtsModelConfig {
-  if (choice === 'kokoro') {
-    const base = join(modelsDir, 'kokoro-en-v0_19')
-    return {
-      kind: 'kokoro',
-      model: join(base, 'model.onnx'),
-      voices: join(base, 'voices.bin'),
-      tokens: join(base, 'tokens.txt'),
-      dataDir: join(base, 'espeak-ng-data'),
+export interface VoiceModelConfigs {
+  readonly tts: TtsModelConfig
+  readonly stt: SttModelConfig
+  readonly vad: VadModelConfig
+  readonly entries: readonly LocalModelEntry[]
+}
+
+export function resolveVoiceModelConfigs(selection: VoiceModelSelection): VoiceModelConfigs {
+  const tts = getLocalModelOrThrow(selection.ttsModelId)
+  const stt = getLocalModelOrThrow(selection.sttModelId)
+  const vad = getLocalModelOrThrow(VAD_MODEL_ID)
+  return {
+    tts: resolveTtsConfig(selection.modelsDir, tts),
+    stt: resolveSttConfig(selection.modelsDir, stt),
+    vad: resolveVadConfig(selection.modelsDir, vad),
+    entries: [tts, stt, vad],
+  }
+}
+
+/** The first required model path that is missing, or null when everything is
+ *  in place — so main can fail with a clear "download it in Settings → Voice /
+ *  run pnpm voice:fetch-models" instead of a cryptic native load error. */
+export function findMissingModelFile(modelsDir: string, entries: readonly LocalModelEntry[]): string | null {
+  for (const entry of entries) {
+    const base = join(modelsDir, ...entry.folder.split('/'))
+    for (const relative of requiredModelFiles(entry)) {
+      const path = join(base, ...relative.split('/'))
+      if (!existsSync(path)) return path
     }
   }
-  const base = join(modelsDir, 'vits-piper-en_US-lessac-medium')
-  return {
-    kind: 'vits',
-    model: join(base, 'en_US-lessac-medium.onnx'),
-    tokens: join(base, 'tokens.txt'),
-    dataDir: join(base, 'espeak-ng-data'),
-  }
-}
-
-export type SttChoice = 'moonshine-tiny' | 'moonshine-base'
-
-export function resolveSttConfig(modelsDir: string, choice: SttChoice): SttModelConfig {
-  // Both Moonshine sizes ship the same 4 files + tokens; only the folder differs.
-  const folder =
-    choice === 'moonshine-base'
-      ? 'sherpa-onnx-moonshine-base-en-int8'
-      : 'sherpa-onnx-moonshine-tiny-en-int8'
-  const base = join(modelsDir, folder)
-  return {
-    kind: 'moonshine',
-    preprocessor: join(base, 'preprocess.onnx'),
-    encoder: join(base, 'encode.int8.onnx'),
-    uncachedDecoder: join(base, 'uncached_decode.int8.onnx'),
-    cachedDecoder: join(base, 'cached_decode.int8.onnx'),
-    tokens: join(base, 'tokens.txt'),
-  }
-}
-
-export function resolveVadConfig(modelsDir: string): VadModelConfig {
-  return { model: join(modelsDir, 'silero-vad', 'silero_vad.onnx') }
-}
-
-/** The model files the daemon needs present to run. Returns the first missing
- *  path, or null when everything is in place — so main can fail with a clear
- *  "run pnpm voice:fetch-models" instead of a cryptic native load error. */
-export function findMissingModelFile(
-  tts: TtsModelConfig,
-  stt: SttModelConfig,
-  vad: VadModelConfig,
-): string | null {
-  const required = [
-    tts.model,
-    ...(tts.kind === 'kokoro' ? [tts.voices] : []),
-    tts.tokens,
-    stt.encoder,
-    stt.tokens,
-    vad.model,
-  ]
-  return required.find((path) => !existsSync(path)) ?? null
+  return null
 }

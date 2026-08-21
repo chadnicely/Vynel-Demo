@@ -15,12 +15,7 @@ import type {
 } from '@vynel/voice-engine'
 import type { Logger } from 'pino'
 import { loadEnv } from './env.js'
-import {
-  findMissingModelFile,
-  resolveSttConfig,
-  resolveTtsConfig,
-  resolveVadConfig,
-} from './models.js'
+import { findMissingModelFile, resolveVoiceModelConfigs } from './models.js'
 import { createBrainClient } from './brain/run-brain-turn.js'
 import { createAudioShell } from './audio/audio-shell.js'
 import { cpal } from './audio/cpal.js'
@@ -51,15 +46,22 @@ async function main(): Promise<void> {
   const env = loadEnv()
   const logger = pino({ level: env.LOG_LEVEL })
 
-  const ttsConfig = resolveTtsConfig(env.VYNEL_VOICE_MODELS_DIR, env.VYNEL_VOICE_TTS)
-  const sttConfig = resolveSttConfig(env.VYNEL_VOICE_MODELS_DIR, env.VYNEL_VOICE_STT)
-  const vadConfig = resolveVadConfig(env.VYNEL_VOICE_MODELS_DIR)
+  const {
+    tts: ttsConfig,
+    stt: sttConfig,
+    vad: vadConfig,
+    entries: modelEntries,
+  } = resolveVoiceModelConfigs({
+    modelsDir: env.VYNEL_VOICE_MODELS_DIR,
+    ttsModelId: env.VYNEL_VOICE_TTS,
+    sttModelId: env.VYNEL_VOICE_STT,
+  })
 
-  const missing = findMissingModelFile(ttsConfig, sttConfig, vadConfig)
+  const missing = findMissingModelFile(env.VYNEL_VOICE_MODELS_DIR, modelEntries)
   if (missing !== null) {
     logger.error(
       { missing },
-      'voice model file missing — run `pnpm voice:fetch-models kokoro` (+ moonshine + silero-vad)',
+      'voice model file missing — download it in Settings → Voice, or run `pnpm voice:fetch-models <model>` for each of kokoro, moonshine-base, silero-vad',
     )
     process.exitCode = 1
     return

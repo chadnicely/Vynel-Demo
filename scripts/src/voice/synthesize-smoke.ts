@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { SherpaVoiceEngine, writeWavFile } from '@vynel/voice-engine'
-import { DEFAULT_VOICE_MODEL, resolveVoiceModel, voiceModelsDir } from './voice-models.js'
+import { DEFAULT_TTS_MODEL_ID, getLocalModelOrThrow } from '@vynel/contracts/models/local-model-catalog'
+import { probeInstalledModel } from '@vynel/models'
+import { SherpaVoiceEngine, resolveTtsConfig, writeWavFile } from '@vynel/voice-engine'
+import { voiceModelsDir } from './voice-models-dir.js'
 
 // Increment-1 smoke: load a real TTS model on CPU, synthesize a phrase, write a
 // WAV for Chad to play. This is the manual gate — a real ONNX model can't ride
@@ -10,21 +11,21 @@ import { DEFAULT_VOICE_MODEL, resolveVoiceModel, voiceModelsDir } from './voice-
 const DEFAULT_PHRASE = "Hello, I'm Vynel. The voice engine is working, and it's all running on your CPU."
 
 async function main(): Promise<void> {
-  const name = process.argv[2] ?? DEFAULT_VOICE_MODEL
+  const name = process.argv[2] ?? DEFAULT_TTS_MODEL_ID
   const phrase = process.argv[3] ?? DEFAULT_PHRASE
-  const entry = resolveVoiceModel(name)
+  const entry = getLocalModelOrThrow(name)
   if (entry.kind !== 'tts') {
     throw new Error(`"${name}" is a ${entry.kind} model — the smoke synthesizes, so pass a TTS model.`)
   }
-  const baseDir = join(voiceModelsDir, entry.folder)
 
-  if (!existsSync(baseDir)) {
-    throw new Error(`model "${name}" not found at ${baseDir}. Run: pnpm voice:fetch-models ${name}`)
+  const probe = await probeInstalledModel(voiceModelsDir, entry)
+  if (!probe.installed) {
+    throw new Error(`model "${name}" is missing ${probe.missingFile}. Run: pnpm voice:fetch-models ${name}`)
   }
 
   console.log(`[voice:smoke] loading "${name}" on CPU …`)
   const startedAt = performance.now()
-  const engine = new SherpaVoiceEngine({ tts: entry.toTtsConfig(baseDir) })
+  const engine = new SherpaVoiceEngine({ tts: resolveTtsConfig(voiceModelsDir, entry) })
   console.log(`[voice:smoke] loaded in ${Math.round(performance.now() - startedAt)} ms — ${engine.voiceCount} voice(s) @ ${engine.sampleRate} Hz`)
 
   const synthAt = performance.now()
