@@ -30,6 +30,36 @@ Four separate problems wear one symptom. Keeping them apart is the whole point o
 
 ---
 
+### Why Electron apps focus *sometimes* — the intermittency, diagnosed
+
+Kafi, 2026-08-22: *"On Discord it was getting to the front. Sometimes not — I guess we are missing
+some flow."* There is a flow missing, and it is problem 0 wearing a disguise.
+
+`resolveAppWithFallback` has two paths, and **only one of them focuses**:
+
+| Discord's Chromium a11y tree | `App.find` | path taken | focused? |
+|---|---|---|---|
+| **dormant** (cold, no UIA client) | misses | `byPid` → Electron wake → `ensureForeground` | **YES** ✅ |
+| **awake** (recently woken, or any UIA client attached) | **hits** | early return, `focusSucceeded: null` | **NO** ❌ |
+
+Measured live — with Discord open, `App.find('Discord')` **succeeded**, so a `snapshot_app` right now
+would resolve it *without ever focusing it*:
+
+```
+App.find(Discord)     -> FOUND music🎧 | localhost - Discord pid=18912   => EARLY RETURN, NEVER FOCUSED
+App.find(qBittorrent) -> FOUND qBittorrent pid=11772                     => EARLY RETURN, NEVER FOCUSED
+App.find(Telegram)    -> FOUND TelegramDesktop pid=27588                 => EARLY RETURN, NEVER FOCUSED
+```
+
+**The state is a side effect of our own previous calls.** A wake leaves the tree alive; our own
+`screenReaderFlag` keeps Chromium's accessibility on while any UIA client listens. So the *first*
+`snapshot_app` on a cold Discord focuses it, and a *second* one minutes later does not — same app,
+same tool, same arguments, opposite behaviour. From outside it looks random. It is deterministic on
+a piece of state nothing surfaces.
+
+This is why fix 0(a) — focus on the `App.find` path too — is not a tidy-up. It is the difference
+between a tool that works and a tool the user cannot predict.
+
 ## 1. Targeting — the real defect
 
 `window-focus.ts`, `window-state.ts` and `window-bounds.ts` all reach a window as
@@ -155,7 +185,7 @@ surface.
    for Kafi, not a refactor** — and note it is a mutating, user-visible action, so it belongs in the
    plan envelope with the other actuating tools.
 1. **Target by real HWND** from `node-screenshots` `Window.id()` — the same source that already owns
-   identity and enforcement.
+   identity and enforcement. See *Which window?* below: an app name is not a target.
 2. **Tap Shift, settle, then focus — all in ONE process.**
 3. **Verify** via `isFocused()` (1.8 ms), retry once. Keep the existing verify-don't-trust contract.
 
@@ -168,6 +198,35 @@ libnut.focusWindow(hwnd)                 // ShowWindow(SW_RESTORE) if iconic + S
 Measured against the armed-lock fixture: **6/6, 50–90 ms total** (vs ~1235 ms). Restore-if-minimized
 comes free — libnut's `focusWindow` already does `SW_RESTORE` when `IsIconic` — so
 `restoreIfMinimized`'s spawn disappears too.
+
+### Which window? — an app name is not a target
+
+Kafi, 2026-08-22: *"One app can have multiple windows in the background, so the proper window needs
+to be restored to max or brought to front."* Correct, and it is why this cannot be an app-addressed
+call. Chrome had **three** windows on one pid during the measurement; Explorer had three; the
+terminal had five.
+
+`node-screenshots` gives us everything needed to address them properly — per window: `id()` (the
+HWND), `pid()`, `appName()`, `title()`, `z()`, `isMinimized()`, `isMaximized()`, `currentMonitor()`.
+So the shape is:
+
+- **Expose windows, not just apps.** `list_open_apps` collapses an app to one row today. The model
+  cannot ask for a window it cannot see, so the roster needs per-window rows (app · title · monitor ·
+  minimized) before "the proper window" is even expressible.
+- **`focus_window` takes an app *and* an optional window selector**, and always **reports which
+  window it raised** — by title. Naming the window it acted on is what lets the model notice it got
+  the wrong one; a bare "ok" hides the whole failure mode.
+- **Default when unspecified: the app's most recently foregrounded window** — highest `z()` among its
+  non-minimized windows, falling back to its only window. Not "first enumerated", which is the bug
+  `selectWindowedPid` already had to learn for Electron helper windows.
+- **Ambiguity is answerable, not guessable.** Two equally plausible windows should come back as a
+  question naming both titles, the way `pickIdentityForPid` already returns null rather than naming
+  the wrong app.
+
+**"Restore to max" needs care.** `SW_RESTORE` returns a maximized-then-minimized window to
+maximized, which is almost always what the user means. It must not *promote* a normal window to
+maximized — restoring means "back to how you left it", not "as big as possible". See the hazard
+directly below.
 
 ### ⚠ Raising a window must not silently un-maximize it
 
@@ -202,8 +261,13 @@ return value and permanent.
 
   The bottom-left cell proves the settle matters; the **top-right cell proves the keystroke is the
   actual mechanism** and that `libnut.keyToggle('shift', …)` really fires. The injected key has to be
-  processed by the system before `SetForegroundWindow` is evaluated. Today's PowerShell gets that gap
-  for free from process startup; an in-process port must make it explicit.
+  processed by the system before `SetForegroundWindow` is evaluated.
+
+  **Today's PowerShell is not flaky for this reason** — tested, 5/5, and the hypothesis that it was
+  is wrong. `SendKeys` is a COM call that takes **~11 ms** to return; that latency *is* the settle,
+  even though the code has no explicit pause. An in-process port has no such incidental delay
+  (`libnut.keyToggle` returns in ~1 ms), which is exactly why the settle must become explicit when
+  the PowerShell goes away. A faithful port that "changes nothing but the transport" would break.
 - **Same process, or nothing.** The input credit belongs to the process that injected. Tapping the
   key in Node and calling `SetForegroundWindow` from PowerShell would break — and so would reaching
   for **`libnut.focusWindow()` on its own, which is bare `SetForegroundWindow` and was refused
