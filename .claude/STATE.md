@@ -3,7 +3,32 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-21 (latest) THE DISPLAY — P1 MERGED (main a98db50c), P2 WIDGETS IN FLIGHT
+## ✅ 2026-08-21 (latest) THE DISPLAY — P2 WIDGETS MERGED (main 074c6ba8), P3 PRESENCE NEXT
+
+**Shipped:** `@vynel/display` leaf (`display_widgets`: kinds markdown|table|metric|chart, slots left|stage|right|dock,
+12/scope oldest-evicted, optional `expiresAt` swept at boot + lazily + before the cap check; every write = one tx +
+outbox event; live sink addressed `(userId, frame)` published AFTER commit; migration 0051; content/title/slot/size
+Zod in `@vynel/contracts/display` — ONE definition for route, tool and UI); five x-mcp routes under `/display` →
+`display_list_widgets` / `display_add_widget` / `display_update_widget` / `display_remove_widget` (POST) / `display_clear`
+— never-card, root + workspace surfaces (voice rides root), behind a default-on `display` capability; one per-user
+`display` live channel (contracts key/parse/frame, hub `publishDisplayFrame`, authorizer arm, hub-backed sink wired in
+boot, route handlers push in-process); `use-display-widgets` (scope cache patched on upserted/removed/cleared, one
+subscription, `onChange` tap feeds the telemetry log, `clearOnServer`); renderers drawn by OUR components (markdown via
+MarkdownText's sanitizer, table/metric data-bound, charts = inline SVG from pure geometry, `--chart-1..4` re-pinned
+dark) filling the room's left/stage/right; × removes optimistically, Clear blanks the scope; **the Display is
+scope-aware** — a workspace tab opens its own board (`DisplayView :scope`), the toggle opens the ACTIVE tab's room
+and restores per tab; `dock` accepted but unadvertised until P3 renders it. Security verdict held: no model content
+ever executes in the app origin (raw `html` kind deferred behind CSP hardening). Generator follow-ups: the tool body
+`content` reaches the tool schema as `any` (nested unions not flattened); `scope` must be passed explicitly (the
+ambient stamp only fires on a field named `workspaceId`). **Gate:** typecheck 110/110 · parity 5/5 · vitest 6354 green
+(one unrelated ephemeral-socket flake in `claude-mcp-cli.test.ts`, passes alone). **Next — P3** (`display-p3.md`):
+dock mode in the wake window (mini bottom-right above desktop-control), wake opens the app + switches to the Display,
+orb from the daemon leg; re-advertise `dock`. **Decision pending (Kafi):** rename the `jarvis` window/route/env
+identifiers to `display-dock` now vs title-only. **Owed by Kafi:** in voice or chat ask "show this week's schedule runs
+as a table" → it lands on the Display while Claude talks; "remove it"; restart → still there; a workspace tab's board
+is its own.
+
+## ✅ 2026-08-21 THE DISPLAY — P1 MERGED (main a98db50c), P2 WIDGETS IN FLIGHT
 
 Kafi's new arc: the mission-control demo's HUD tab becomes **the Display** (never "HUD"/"Jarvis" — no borrowed hero
 names; package `@vynel/display`, tools `display_*`, the mini one = the display dock). Research
