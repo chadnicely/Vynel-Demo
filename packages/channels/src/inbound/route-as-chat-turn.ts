@@ -1,7 +1,11 @@
-// The channel turn routes to the GLOBAL ROOT (brain-tree Ch4 — the dispatcher vision). A channel
-// message no longer runs against the channel's bound workspace; instead it runs a global-root turn
-// (via the injected runner), carrying the ORIGIN channel so the root's reply — and any delegation's
-// report — come back HERE.
+// The channel turn routes by the channel's OWN SCOPE. A GLOBAL channel (no
+// workspace) runs a global-root turn — the brain-tree Ch4 dispatcher vision,
+// unchanged. A channel BOUND to a workspace runs on that workspace's continuing
+// conversation instead, through the injected workspace runner: Ch4 had made the
+// bound workspace inert, so a Telegram bot the user pointed at "letterman" still
+// answered from the global brain (Kafi, live 2026-08-21). Either way the turn
+// carries the ORIGIN channel, so the reply — and any delegation's report — come
+// back HERE.
 //
 // TOOL-ONLY REPLIES (channel pipeline, Chad locked 2026-07-27): the turn's chat
 // text is NEVER captured and shipped to the channel — the model replies by
@@ -23,9 +27,14 @@ import { resolveChannelAdapter } from '../adapters/channel-adapter-registry.js'
 import { extractErrorMessage } from '../adapters/extract-error-message.js'
 import { readInboundContext, describeSender } from './read-inbound-context.js'
 import { composeChannelTurnMarker } from './compose-channel-turn-marker.js'
+import { resolveChannelTurnScope } from './resolve-channel-turn-scope.js'
 import type { Database } from '@vynel/db'
 import type { Channel, ChannelInboundMessage } from '../repositories/index.js'
-import type { BotCredentials, ProcessInboundDeps } from '../channels-types.js'
+import type {
+  BotCredentials,
+  ChannelTurnRequest,
+  ProcessInboundDeps,
+} from '../channels-types.js'
 
 // Telegram's "typing…" action lasts ~5s — refresh just under that so the indicator stays continuous.
 const TYPING_REFRESH_MS = 4_000
@@ -88,9 +97,8 @@ export async function routeAsChatTurn(
   }
 
   try {
-    // Run the global-root turn (serialized per user by the runner's lock). The
-    // root replies via reply_to_channel — or delegates, carrying the origin.
-    const rootTurnResult = await deps.runRootTurn(db, {
+    // ONE request shape, whichever conversation answers it.
+    const turnRequest: ChannelTurnRequest = {
       userId: input.channel.userId,
       userMessageText: speakerLine + input.message.messageBody,
       origin,
@@ -124,16 +132,38 @@ export async function routeAsChatTurn(
           )
         }
       },
-    })
+    }
+
+    // Surface decides the scope: the channel's own `workspaceId` picks the
+    // conversation. A workspace channel resumes that workspace's continuing
+    // thread (its lock, its identity); a global one keeps the root.
+    const runWorkspaceTurn = deps.runWorkspaceTurn
+    const scope = resolveChannelTurnScope(
+      db,
+      { channel: input.channel, canRunWorkspaceTurn: runWorkspaceTurn !== undefined },
+      deps.logger !== undefined ? { logger: deps.logger } : {},
+    )
+    const turnResult =
+      scope.kind === 'workspace' && runWorkspaceTurn !== undefined
+        ? await runWorkspaceTurn(db, {
+            ...turnRequest,
+            workspaceId: scope.workspaceId,
+            workspacePath: scope.workspacePath,
+          })
+        : await deps.runRootTurn(db, turnRequest)
     // NO CAPTURE: the turn's chat text is never shipped to the channel — the
     // model replied through reply_to_channel (or chose not to reply). The old
     // resultText enqueue was the channel's harvest; it dressed the model's
     // whole chat answer as the reply and sent it whether the model meant to
     // send it or not. Logged so a "Telegram went silent" report is diagnosable
     // without reading the transcript: text + no tool call = deliberate policy.
-    if (rootTurnResult.resultText.trim() !== '') {
+    if (turnResult.resultText.trim() !== '') {
       deps.logger?.info(
-        { channelId: input.channel.id, resultTextLength: rootTurnResult.resultText.length },
+        {
+          channelId: input.channel.id,
+          scope: scope.kind,
+          resultTextLength: turnResult.resultText.length,
+        },
         'channel turn completed with chat text — NOT delivered (replies travel only via reply_to_channel)',
       )
     }

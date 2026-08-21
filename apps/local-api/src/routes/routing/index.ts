@@ -218,6 +218,15 @@ export const routingApp = factory
         exposed: true,
         name: 'reply_to_channel',
         mutatingApproved: true,
+        // A channel BOUND to a workspace answers on that workspace's own
+        // conversation, so the reply tool must ride the workspace-interactive
+        // surface too. Present on EVERY turn of that primary rather than only
+        // channel-driven ones, deliberately: the workspace primary is one
+        // resumed SDK session shared by every producer, and a toolset that
+        // changed with the turn's origin is what made the CLI strip
+        // `mcp__vynel*` and report the server offline (2026-07-21). Called
+        // without a channel origin it 400s honestly.
+        workspaceInteractiveSurface: true,
         description:
           'Reply to the channel message that started this turn — Telegram DM or group alike. ' +
           'Pass ONLY your answer as `message`; Vynel already knows which channel and which ' +

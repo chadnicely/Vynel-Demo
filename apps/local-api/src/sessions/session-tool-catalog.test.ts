@@ -166,4 +166,30 @@ describe('buildSessionToolCatalog', () => {
     const listApps = catalog.find((entry) => entry.toolName === 'mcp__vynel__list_apps')!
     expect(listApps.surfaces).not.toContain('global-interactive')
   })
+
+  it('reply_to_channel bridges both worlds — a channel can be bound to a workspace (2026-08-21)', () => {
+    // The routing surfaces alone left a workspace-scoped Telegram channel with
+    // no way to answer: its turn runs on the workspace primary. Present on
+    // EVERY turn of that primary (not only channel-driven ones) so the shared
+    // resumed session's toolset never flips with the turn's origin.
+    const replyToChannel = catalog.find(
+      (entry) => entry.toolName === 'mcp__vynel__reply_to_channel',
+    )!
+    expect([...replyToChannel.surfaces].sort()).toEqual(
+      [
+        'global-interactive',
+        'global-channel',
+        'delegated-global',
+        'workspace-interactive',
+        'delegated-workspace',
+        'spawned',
+        'agent',
+      ].sort(),
+    )
+    // Never a truly autonomous workspace turn: a schedule fire has no channel
+    // asking, and the plain workspace descriptor does not build it.
+    expect(replyToChannel.surfaces).not.toContain('schedule')
+    expect(replyToChannel.surfaces).not.toContain('workspace-background')
+    expect(replyToChannel.cardClass).toBe('never')
+  })
 })

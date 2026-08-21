@@ -20,7 +20,11 @@ beforeEach(() => {
   sendChatAction.mockResolvedValue(true)
 })
 
-describe('processInboundMessage — chat-turn routes to the global root (Ch4)', () => {
+// `stubTurnDeps` wires the ROOT runner only, so these exercise the root path
+// whatever the seeded channel's scope. WHICH conversation a channel's messages
+// run on is `route-as-chat-turn.test.ts`'s subject (a workspace-bound channel
+// answers on its workspace since 2026-08-21).
+describe('processInboundMessage — the inbound chat-turn pipeline', () => {
   // test: recast for the channel pipeline (Chad, locked 2026-07-27) — the
   // turn's chat text is NEVER captured and queued; the model replies via the
   // reply_to_channel tool (the per-message marker instructs it every turn).

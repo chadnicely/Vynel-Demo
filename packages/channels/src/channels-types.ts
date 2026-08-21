@@ -24,6 +24,34 @@ export type AppRequestFn = (
   init?: RequestInit,
 ) => Response | Promise<Response>
 
+// What a channel turn hands its runner, whichever conversation it lands on.
+// ONE shape for both runners so the global and workspace paths can never drift
+// on what a channel turn carries (origin, attribution, the reply marker, the
+// card push).
+export interface ChannelTurnRequest {
+  userId: string
+  userMessageText: string
+  origin: {
+    channelId: string
+    externalSenderId: string
+    externalChatContextId: string
+    /** GROUP messages only — reply_to_channel threads onto the asking message. */
+    externalMessageId?: string
+  }
+  /** The inbound channel's kind — stamped on the persisted user row so the
+   *  transcript shows HOW the message arrived ("via Telegram"). Every inbound
+   *  message knows its channel's kind, so this is never absent. */
+  originChannel: 'telegram' | 'discord' | 'zoom'
+  /** The per-message reply instruction (voice-turn-marker precedent) —
+   *  appended to PROVIDER input only; the persisted row stays clean. */
+  channelReplyMarker?: string
+  onApprovalRequested?: (approval: {
+    approvalRequestId: string
+    toolName: string
+    toolInput: unknown
+  }) => void
+}
+
 // Deps injected into the turn path by the api-side service. Keeps Hono's app.request + the
 // global-root runner OUT of packages/core (core stays unit-testable with stubs). The pre-Ch4
 // workspace-turn deps (buildInProcessMcpServer + composeSessionCapabilities) were removed when
@@ -40,30 +68,16 @@ export interface ProcessInboundDeps {
   // `onApprovalRequested` (surface-up): the brain's own carded tool RECORDS its approval in the
   // core (web notifier) and PARKS — this callback lets the channel path ALSO push the card to
   // the sender, who answers via the existing approval-reply route.
-  runRootTurn: (
+  runRootTurn: (db: Database, input: ChannelTurnRequest) => Promise<{ resultText: string }>
+  // The WORKSPACE-scoped twin: a channel bound to a workspace runs on THAT
+  // workspace's continuing conversation, the way a workspace schedule fire
+  // does (the api-side service injects `runWorkspaceChannelTurn`, which takes
+  // the workspace's single-writer lock and resumes the primary's head inside
+  // it). Optional so an embedder without it — and every GLOBAL channel — keeps
+  // the root path byte-for-byte.
+  runWorkspaceTurn?: (
     db: Database,
-    input: {
-      userId: string
-      userMessageText: string
-      origin: {
-        channelId: string
-        externalSenderId: string
-        externalChatContextId: string
-        /** GROUP messages only — reply_to_channel threads onto the asking message. */
-        externalMessageId?: string
-      }
-      /** The inbound channel's kind — stamped on the persisted user row so the
-       *  transcript shows HOW the message arrived ("via Telegram"). */
-      originChannel?: 'telegram' | 'discord' | 'zoom'
-      /** The per-message reply instruction (voice-turn-marker precedent) —
-       *  appended to PROVIDER input only; the persisted row stays clean. */
-      channelReplyMarker?: string
-      onApprovalRequested?: (approval: {
-        approvalRequestId: string
-        toolName: string
-        toolInput: unknown
-      }) => void
-    },
+    input: ChannelTurnRequest & { workspaceId: string; workspacePath: string },
   ) => Promise<{ resultText: string }>
   // Resolve an approval at the sender's direction (the channel approval-reply path). Injected +
   // typed STRUCTURALLY here so the channels leaf never imports the approvals leaf (invariant #2 —

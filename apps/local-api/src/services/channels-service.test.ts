@@ -37,6 +37,7 @@ vi.mock('../sessions/run-global-root-turn.js', () => ({
 
 import { startChannelsService } from './channels-service.js'
 import { SessionActivityFeed } from '@vynel/session/runtime'
+import { SessionTargetLocks } from '@vynel/session/delegation'
 import { loadEnv } from '../env.js'
 
 function fakeOptions() {
@@ -45,6 +46,8 @@ function fakeOptions() {
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Logger,
     appRequest: vi.fn(),
     activityFeed: new SessionActivityFeed(),
+    // A workspace-scoped channel's turn takes the workspace's single-writer key.
+    targetLocks: new SessionTargetLocks(),
   }
 }
 
