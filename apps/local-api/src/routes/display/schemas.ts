@@ -25,21 +25,37 @@ export const ListDisplayWidgetsQuerySchema = z.object({ scope: DisplayScopeSchem
 
 export const DisplayWidgetParamSchema = z.object({ widgetId: z.string().min(1).max(64) })
 
+/** When a card takes itself off the board. ISO-8601 and in the FUTURE: the
+ *  sweep drops anything already past, so a backdated stamp would make the write
+ *  look like it silently failed — the card would be gone before anyone looked.
+ *  Rejected at the boundary rather than in the leaf, because there is nothing
+ *  sensible the leaf could do with it either. */
+export const DisplayExpiresAtSchema = z
+  .string()
+  .datetime({ offset: true })
+  .refine((iso) => new Date(iso).getTime() > Date.now(), {
+    message: 'expiresAt must be in the future.',
+  })
+
 export const AddDisplayWidgetRequestSchema = z.object({
   scope: DisplayScopeSchema,
   title: DisplayWidgetTitleSchema,
   content: DisplayWidgetContentSchema,
   slot: DisplayWidgetSlotSchema.optional(),
   size: DisplayWidgetSizeSchema.optional(),
+  expiresAt: DisplayExpiresAtSchema.optional(),
 })
 
 // Patch semantics: only the fields present change. `scope` is absent by
 // design — a widget cannot move between boards; remove it and add it there.
+// `expiresAt` can be SET or moved, never cleared: the leaf takes null for that,
+// but "this card stays forever after all" has no caller yet.
 export const UpdateDisplayWidgetRequestSchema = z.object({
   title: DisplayWidgetTitleSchema.optional(),
   content: DisplayWidgetContentSchema.optional(),
   slot: DisplayWidgetSlotSchema.optional(),
   size: DisplayWidgetSizeSchema.optional(),
+  expiresAt: DisplayExpiresAtSchema.optional(),
 })
 
 export const ClearDisplayRequestSchema = z.object({ scope: DisplayScopeSchema })

@@ -48,6 +48,7 @@ import {
 } from '@vynel/contracts/network/port-file'
 import { loadEnv } from './env.js'
 import { createApp } from './app.js'
+import { sweepExpiredDisplayWidgetsAtBoot } from './boot-display-sweep.js'
 import { resolveServerPayloadArchive } from './server-payload-archive.js'
 import { createGatewayApp } from './gateway.js'
 import {
@@ -352,6 +353,10 @@ export async function boot(): Promise<void> {
   } catch (err) {
     logger.error({ err }, 'boot checkpoint-survivor pass failed')
   }
+  // The Display's expiry pass — a card timed out while the app was closed has
+  // to be gone before the first window reads its board (it carries its own
+  // try/catch; see boot-display-sweep.ts).
+  sweepExpiredDisplayWidgetsAtBoot(db, { logger })
 
   // Warm the model roster from the ENGINE (2026-08-17). Fire-and-forget: the
   // picker's list is account-scoped and used to arrive only as a side-effect

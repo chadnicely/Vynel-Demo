@@ -223,6 +223,59 @@ describe('display routes', () => {
     })
   })
 
+  // A self-cleaning card: the tool says WHEN it should go, and the sweep (on
+  // every read, and once at boot) is what makes that happen.
+  it('takes an expiry on both writes, and only one that is still ahead', async () => {
+    await withTestDatabase(async (db) => {
+      const app = createApp({ db, logger: silentLogger })
+      const tomorrow = new Date(Date.now() + 86_400_000).toISOString()
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString()
+
+      const added = await addWidget(app, {
+        scope: 'global',
+        title: 'Today',
+        content: markdown(),
+        expiresAt: tomorrow,
+      })
+      expect(added.status).toBe(201)
+      const widget = (await added.json()) as DisplayWidgetView
+      expect(widget.expiresAt).toBe(tomorrow)
+
+      const later = new Date(Date.now() + 172_800_000).toISOString()
+      const patched = await app.request(
+        `/display/widgets/${widget.id}`,
+        jsonBody('PATCH', { expiresAt: later }),
+      )
+      expect(patched.status).toBe(200)
+      expect(((await patched.json()) as DisplayWidgetView).expiresAt).toBe(later)
+
+      // An expiry already past would delete the card on the next read — the
+      // write would look like it silently did nothing.
+      const backdated = await addWidget(app, {
+        scope: 'global',
+        title: 'Gone already',
+        content: markdown(),
+        expiresAt: yesterday,
+      })
+      expect(backdated.status).toBe(400)
+      expect(await backdated.text()).toContain('future')
+
+      const backdatedPatch = await app.request(
+        `/display/widgets/${widget.id}`,
+        jsonBody('PATCH', { expiresAt: yesterday }),
+      )
+      expect(backdatedPatch.status).toBe(400)
+
+      const notATimestamp = await addWidget(app, {
+        scope: 'global',
+        title: 'Whenever',
+        content: markdown(),
+        expiresAt: 'tomorrow',
+      })
+      expect(notATimestamp.status).toBe(400)
+    })
+  })
+
   it('holds twelve per scope — the thirteenth evicts the oldest, never an error', async () => {
     await withTestDatabase(async (db) => {
       const app = createApp({ db, logger: silentLogger })

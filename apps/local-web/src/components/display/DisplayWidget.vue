@@ -67,7 +67,14 @@ function remove(): void {
         v-else-if="props.widget.content.kind === 'metric'"
         :content="props.widget.content"
       />
-      <DisplayChartWidget v-else :content="props.widget.content" />
+      <DisplayChartWidget
+        v-else-if="props.widget.content.kind === 'chart'"
+        :content="props.widget.content"
+      />
+      <!-- Named, never assumed: a kind this build does not know (a newer
+           engine, a kind still landing) must say so rather than be handed to
+           the last renderer in the chain and drawn as a broken chart. -->
+      <p v-else class="unsupported">Unsupported widget</p>
     </div>
   </section>
 </template>
@@ -134,6 +141,12 @@ header {
 
 .remove.failed {
   color: var(--display-attention, #ffc46b);
+}
+
+.unsupported {
+  margin: 0;
+  font-size: 11px;
+  color: var(--display-accent-dim, rgba(79, 216, 255, 0.45));
 }
 
 /* Size is a HEIGHT budget: a card gets the room its author asked for and

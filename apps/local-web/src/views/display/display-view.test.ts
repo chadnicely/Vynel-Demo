@@ -14,6 +14,7 @@ import type { LiveChannelServerFrame } from "@vynel/contracts/chat/live-channel"
 import type { DisplayWidgetView } from "@vynel/contracts/display/display-widget";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { DisplayBoardChange } from "../../composables/display/use-display-widgets.js";
+import type { SessionScope } from "../../composables/chat/session-scope.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import {
   installFakeLiveSocket,
@@ -208,7 +209,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function mountDisplay(prepare?: (ui: ReturnType<typeof useUiStore>) => void) {
+async function mountDisplay(
+  prepare?: (ui: ReturnType<typeof useUiStore>) => void,
+  scope: SessionScope = { kind: "global" },
+) {
   voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
   voice.failure.value = null;
   voice.start.mockClear();
@@ -221,6 +225,7 @@ async function mountDisplay(prepare?: (ui: ReturnType<typeof useUiStore>) => voi
   prepare?.(useUiStore());
 
   const wrapper = mount(DisplayView, {
+    props: { scope },
     global: {
       plugins: [
         pinia,
@@ -487,10 +492,21 @@ describe("DisplayView — the board", () => {
     );
   }
 
-  it("reads the global board — the Display's scope today", async () => {
+  // The surface decides the scope: the same room reads a different board
+  // depending on where it was opened, named exactly as the tools name it.
+  it("reads the board of the surface it was opened on", async () => {
     await mountDisplay();
-
     expect(board.scope).toBe("global");
+
+    await mountDisplay(undefined, { kind: "workspace", workspaceId: "ws-7" });
+    expect(board.scope).toBe("ws-7");
+  });
+
+  // One machine, one microphone — a workspace room is still the room you talk
+  // to, so it takes the session exactly like the global one.
+  it("keeps the microphone whichever board it shows", async () => {
+    await mountDisplay(undefined, { kind: "workspace", workspaceId: "ws-7" });
+    expect(voice.start).toHaveBeenCalledTimes(1);
   });
 
   it("puts every widget in the slot it belongs to", async () => {

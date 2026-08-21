@@ -31,6 +31,13 @@ Alternative: keep all internal identifiers, rename only the visible title — le
 
 ## Slices
 
+**Carried over from P2 — re-advertise the `dock` slot.** P2 shipped the slot in the schema, the contracts and
+the leaf, but took `'dock'` out of the `display_add_widget` tool DESCRIPTION (a card sent somewhere nothing
+renders is a card the user never sees). P3a must put it back in that sentence
+(`apps/local-api/src/routes/display/index.ts`) and regenerate — otherwise the dock ships with no way for Claude
+to fill it. The census test in `apps/mcp/src/generated/api-tools.test.ts` pins the current state and must flip
+with it.
+
 | | Owns | Delivers |
 |---|---|---|
 | **P3a dock mode** | `views/DisplayDockView.vue` (the renamed voice window view), `composables/display/use-display-dock-parking.ts`, `tauri-overlay-window.ts` (a `park: 'bottom-right'` with a stacking offset), `windows.rs` size/label, capabilities file | two parking spots: **center** on wake (today's behaviour, for the wake conversation) and **mini bottom-right** (≈ 380×140: small orb + last caption + mic pill + the `dock` slot widgets from `use-display-widgets`) whenever a voice session is live and the app's Display is NOT active; stacked ABOVE the desktop-control window when that one is visible — same rule, one home: the dock subscribes `activity` and reuses `isDesktopOverlayVisible` to pick the offset. Rule: the in-app Display active → the dock hides (the room owns the orb); the user leaves the Display mid-session → the dock reveals mini. |

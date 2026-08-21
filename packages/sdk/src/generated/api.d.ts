@@ -12848,6 +12848,8 @@ export interface operations {
                     slot?: "left" | "stage" | "right" | "dock";
                     /** @enum {string} */
                     size?: "sm" | "md" | "lg";
+                    /** Format: date-time */
+                    expiresAt?: string;
                 };
             };
         };
@@ -12971,6 +12973,8 @@ export interface operations {
                     slot?: "left" | "stage" | "right" | "dock";
                     /** @enum {string} */
                     size?: "sm" | "md" | "lg";
+                    /** Format: date-time */
+                    expiresAt?: string;
                 };
             };
         };

@@ -80,6 +80,13 @@ const CONTENT_STEER =
   "{kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} " +
   '(≤4 series, ≤60 points each). Serialized content is capped at 32 KB. '
 
+/** Self-cleaning boards. Offered on both writes because the moment a card
+ *  becomes temporary is often the SECOND time Claude touches it ("this is just
+ *  for today after all"). */
+const EXPIRY_STEER =
+  'expiresAt is optional (ISO-8601, and in the future) — for a card that should clean itself ' +
+  "up, e.g. a 'today' panel. Leave it out for a card that stays until someone removes it. "
+
 /** `'global'`, or a workspace id the caller owns. Ownership goes through
  *  `getWorkspaceById` rather than a hand-rolled repo read + compare — that op
  *  already owns the rule (and the deliberate not-found-equals-not-owned 404
@@ -172,8 +179,14 @@ export const displayApp = factory
           'over adding a near-duplicate. ' +
           SCOPE_STEER +
           CONTENT_STEER +
-          "slot is 'left' | 'stage' | 'right' | 'dock' (default 'stage', the widest region) and " +
-          "size is 'sm' | 'md' | 'lg' (default 'md'). The board holds 12 per scope: a 13th " +
+          // 'dock' is deliberately NOT advertised: the leaf and the contracts
+          // accept it (P3 draws the dock), but no surface renders it today, so
+          // a card sent there would vanish from the user's point of view. Put
+          // it back in this sentence the day the dock lands.
+          "slot is 'left' | 'stage' | 'right' (default 'stage', the widest region) and " +
+          "size is 'sm' | 'md' | 'lg' (default 'md'). " +
+          EXPIRY_STEER +
+          'The board holds 12 per scope: a 13th ' +
           'quietly evicts the oldest, so this never fails for being full.',
       },
     }),
@@ -194,6 +207,7 @@ export const displayApp = factory
           content: body.content,
           ...(body.slot !== undefined ? { slot: body.slot } : {}),
           ...(body.size !== undefined ? { size: body.size } : {}),
+          ...(body.expiresAt !== undefined ? { expiresAt: new Date(body.expiresAt) } : {}),
         },
         displayOpDeps(c.var.displayLiveSink),
       )
@@ -227,6 +241,7 @@ export const displayApp = factory
           'number, a table gaining rows, a status changing. Find widgetId via ' +
           'display_list_widgets. Only the fields you pass change. ' +
           CONTENT_STEER +
+          EXPIRY_STEER +
           'A widget cannot move between boards; to put it elsewhere, remove it and add it there.',
       },
     }),
@@ -244,6 +259,7 @@ export const displayApp = factory
           ...(body.content !== undefined ? { content: body.content } : {}),
           ...(body.slot !== undefined ? { slot: body.slot } : {}),
           ...(body.size !== undefined ? { size: body.size } : {}),
+          ...(body.expiresAt !== undefined ? { expiresAt: new Date(body.expiresAt) } : {}),
         },
         displayOpDeps(c.var.displayLiveSink),
       )

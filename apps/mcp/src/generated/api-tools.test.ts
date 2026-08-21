@@ -389,6 +389,40 @@ describe('create_my_schedule (the first union-body tool)', () => {
   })
 })
 
+// What the Display's two write tools ADVERTISE, as opposed to what they accept.
+// The gap is deliberate in one place and must not open anywhere else.
+describe('the Display write tools', () => {
+  type ToolDefinition = { description: string; inputSchema: Record<string, unknown> }
+
+  function definitionOf(name: string): ToolDefinition {
+    const factory = generatedRoutingMcpTools.find((f) => f.name === name)!
+    return factory(
+      { db: {} as never, userId: 'user-1' },
+      () => new Response('{}', { status: 200 }),
+    ) as ToolDefinition
+  }
+
+  const add = definitionOf('displayAddWidget')
+  const update = definitionOf('displayUpdateWidget')
+
+  // 'dock' is a real slot the leaf stores and the contracts accept — but NO
+  // surface draws it until P3, so a card sent there is a card the user never
+  // sees. The schema keeps taking it (P3 needs no migration); the description
+  // stops offering it.
+  it('offers only the three slots anything actually renders', () => {
+    expect(add.description).toContain("slot is 'left' | 'stage' | 'right' (default 'stage'")
+    expect(add.description).not.toContain('dock')
+    expect(update.description).not.toContain('dock')
+  })
+
+  it('offers the self-cleaning expiry on both writes, schema and words in step', () => {
+    for (const definition of [add, update]) {
+      expect(definition.inputSchema['expiresAt']).toBeDefined()
+      expect(definition.description).toContain('expiresAt is optional')
+    }
+  })
+})
+
 describe('generatedWorkspaceInteractiveMcpTools (Slice ④b)', () => {
   it('exposes exactly the session-spawning tools (by name)', () => {
     expect(generatedWorkspaceInteractiveMcpTools).toHaveLength(

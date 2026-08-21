@@ -11,6 +11,7 @@ import {
 } from "../../components/voice/voice-stage-view.js";
 import { useDisplayStatus } from "../../composables/display/use-display-status.js";
 import { useDisplayWidgets } from "../../composables/display/use-display-widgets.js";
+import type { SessionScope } from "../../composables/chat/session-scope.js";
 import {
   displayOrbState,
   useSpokenClauseSpike,
@@ -31,6 +32,17 @@ import DisplayWidgetSlot from "../../components/display/DisplayWidgetSlot.vue";
 // is the window's only `voice:app` subscriber, so without this the wake word
 // would have nowhere to land and a relayed `speak` (a schedule, the typed
 // chat, another producer) would be dropped for as long as the room is up.
+//
+// The BOARD follows the surface (house rule: the surface decides the scope) —
+// the global chat's room shows the global board, a workspace room shows that
+// workspace's. The microphone does not: there is one, it belongs to whichever
+// room is on screen, and the status panels stay app-wide because the app is.
+
+const props = defineProps<{
+  /** Whose board this room shows. Required on purpose: a defaulted 'global'
+   *  would put a workspace conversation's cards where nobody is looking. */
+  scope: SessionScope;
+}>();
 
 const ui = useUiStore();
 const isMuted = ref(false);
@@ -61,12 +73,13 @@ function handleWake(command: string, turnWatchdogMs?: number): void {
 const { status, telemetry, clock, noteBoardChange } = useDisplayStatus();
 const spikeKey = useSpokenClauseSpike();
 
-// The board Claude puts things on. The Display is a GLOBAL canvas view today
-// (docs/module-notes/display-p1.md), so it reads the global scope — expressed
-// as a GETTER because that is the seam: the day a workspace grows its own
-// Display, this returns the active workspace's id and the board, the frames,
-// the telemetry and Clear all follow it with no other change here.
-const boardScope = computed<string>(() => "global");
+// The board Claude puts things on, named the way the `display_*` tools name
+// it: 'global', or the workspace's own id. A GETTER, so retargeting the tab
+// this room sits in moves the board, the frames, the telemetry and Clear
+// together.
+const boardScope = computed<string>(() =>
+  props.scope.kind === "global" ? "global" : props.scope.workspaceId,
+);
 // ONE `display` subscription for the whole room: the log narrates the board
 // through this tap rather than opening a second one. (`bySlot.dock` stays
 // typed and unread — the dock is P3.)

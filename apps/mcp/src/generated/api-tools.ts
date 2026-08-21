@@ -1023,20 +1023,21 @@ export const discoverInstalledSkillsForProvider: McpToolFactory = (scope, app) =
 export const displayAddWidget: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'display_add_widget',
-    "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Call display_list_widgets first and prefer display_update_widget on a matching card over adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. slot is 'left' | 'stage' | 'right' | 'dock' (default 'stage', the widest region) and size is 'sm' | 'md' | 'lg' (default 'md'). The board holds 12 per scope: a 13th quietly evicts the oldest, so this never fails for being full.",
+    "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Call display_list_widgets first and prefer display_update_widget on a matching card over adding a near-duplicate. scope is 'global' in the global conversation, or this workspace's id in a workspace conversation (whoami reports it). content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. slot is 'left' | 'stage' | 'right' (default 'stage', the widest region) and size is 'sm' | 'md' | 'lg' (default 'md'). expiresAt is optional (ISO-8601, and in the future) — for a card that should clean itself up, e.g. a 'today' panel. Leave it out for a card that stays until someone removes it. The board holds 12 per scope: a 13th quietly evicts the oldest, so this never fails for being full.",
     {
     scope: z.string(),
     title: z.string(),
     content: z.any(),
     slot: z.enum(['left', 'stage', 'right', 'dock']).optional(),
     size: z.enum(['sm', 'md', 'lg']).optional(),
+    expiresAt: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
         const pathStr = '/display/widgets'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['scope', 'title', 'content', 'slot', 'size']) {
+        for (const k of ['scope', 'title', 'content', 'slot', 'size', 'expiresAt']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -1169,13 +1170,14 @@ export const displayRemoveWidget: McpToolFactory = (scope, app) =>
 export const displayUpdateWidget: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'display_update_widget',
-    "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Update the card already showing this thing instead of adding another one — a live number, a table gaining rows, a status changing. Find widgetId via display_list_widgets. Only the fields you pass change. content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. A widget cannot move between boards; to put it elsewhere, remove it and add it there.",
+    "The Display is a glanceable board beside the conversation. Use it when the answer is a report, a table, numbers, or anything the user will keep looking at after this turn — especially on voice, where the reply is heard and not read. NEVER instead of answering: say the takeaway in your reply too. Update the card already showing this thing instead of adding another one — a live number, a table gaining rows, a status changing. Find widgetId via display_list_widgets. Only the fields you pass change. content is one of four kinds: {kind:'markdown', body} · {kind:'table', columns:[string], rows:[[string]], caption?} (≤12 columns, ≤200 rows, every row exactly as long as columns) · {kind:'metric', value, label, delta?, tone?:'default'|'attention'|'live'|'muted'} · {kind:'chart', type:'bar'|'line'|'donut', series:[{name, points:[{label, value}]}]} (≤4 series, ≤60 points each). Serialized content is capped at 32 KB. expiresAt is optional (ISO-8601, and in the future) — for a card that should clean itself up, e.g. a 'today' panel. Leave it out for a card that stays until someone removes it. A widget cannot move between boards; to put it elsewhere, remove it and add it there.",
     {
     widgetId: z.string(),
     title: z.string().optional(),
     content: z.any().optional(),
     slot: z.enum(['left', 'stage', 'right', 'dock']).optional(),
     size: z.enum(['sm', 'md', 'lg']).optional(),
+    expiresAt: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -1183,7 +1185,7 @@ export const displayUpdateWidget: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{widgetId}', encodeURIComponent(String(args['widgetId'] ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['title', 'content', 'slot', 'size']) {
+        for (const k of ['title', 'content', 'slot', 'size', 'expiresAt']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)

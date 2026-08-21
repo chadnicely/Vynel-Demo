@@ -103,6 +103,21 @@ describe("DisplayWidget", () => {
     expect(chart.findComponent(DisplayChartWidget).exists()).toBe(true);
   });
 
+  // A kind this build does not know (a newer engine, a kind still landing)
+  // used to fall through to the chart renderer and draw as an empty chart —
+  // a card that lies about what it holds is worse than a card that says it
+  // cannot show it.
+  it("names a kind it cannot draw instead of drawing it as a chart", () => {
+    const { wrapper } = mountWidget(
+      makeWidget({
+        content: { kind: "timeline", events: [] },
+      } as unknown as Partial<DisplayWidgetView>),
+    );
+
+    expect(wrapper.find(".unsupported").text()).toBe("Unsupported widget");
+    expect(wrapper.findComponent(DisplayChartWidget).exists()).toBe(false);
+  });
+
   // The card leaves on the CLICK, not on the live frame that follows: with the
   // socket down the POST still succeeds and nothing else would ever move it.
   it("asks the API to remove the widget when × is clicked, and takes it off the board", async () => {
