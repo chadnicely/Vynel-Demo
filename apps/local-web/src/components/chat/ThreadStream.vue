@@ -64,6 +64,10 @@ const props = withDefaults(
     /** Workspace name → id (the host's list) — unlocks the delivered-row
      *  workspace chip's customized icon + accent. Omitted = name-derived look. */
     workspacesByName?: Record<string, string> | undefined;
+    /** The room this thread belongs to (a workspace view), null for the global
+     *  thread. A manager row whose label names no workspace IS this room's
+     *  manager speaking at home — its face comes from here. */
+    workspaceId?: string | null;
     /** The displayed session's model — names the model in the per-turn
      *  run-stats card (messages don't carry one). Null/omitted = "default". */
     sessionModel?: string | null;
@@ -85,6 +89,7 @@ const props = withDefaults(
     pointersByTraceId: undefined,
     scrollToTraceId: undefined,
     workspacesByName: undefined,
+    workspaceId: null,
     sessionModel: null,
     workspaceStatus: null,
     reauthorizable: true,
@@ -191,11 +196,17 @@ function authorPersonaFor(message: ChatMessageResponse) {
     message.sourceLabel != null;
   if (!isPersonaRow) return null;
   // The label's workspace segment keys the host map — a resolved id unlocks
-  // the workspace's customized persona image, the same face the live cards
-  // and the surface's own assistant rows wear.
-  const { workspace } = splitSourceLabel(message.sourceLabel!);
+  // the workspace's customized face, the same one the live cards and the
+  // surface's own assistant rows wear. A label with NO workspace segment is a
+  // manager speaking at home ("letterman", not "letterman · letterman"): its
+  // persona name is the workspace's by default, and failing that the room
+  // this thread belongs to is the answer — never a monogram beside a logo.
+  const { persona, workspace } = splitSourceLabel(message.sourceLabel!);
   const workspaceId =
-    workspace !== null ? (props.workspacesByName?.[workspace] ?? null) : null;
+    (workspace !== null ? props.workspacesByName?.[workspace] : undefined) ??
+    props.workspacesByName?.[persona] ??
+    props.workspaceId ??
+    null;
   return resolvePersona({ name: message.sourceLabel!, workspaceId });
 }
 

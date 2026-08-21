@@ -444,6 +444,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
         :assistant-icon-url="assistantIconUrl"
         :pointers-by-trace-id="threadPointers"
         :workspaces-by-name="workspacesByName"
+        :workspace-id="tab.workspaceId"
         :session-model="sessionModel"
         :workspace-status="statusView?.status ?? null"
         @decide-approval="onDecideApproval"

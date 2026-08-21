@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import { mount } from "@vue/test-utils";
-import { createPinia } from "pinia";
+import { createPinia, setActivePinia } from "pinia";
 import { MessageRow } from "@vynel/ui";
+import { useCustomizeStore } from "../../stores/customize-store.js";
 import type {
   ChatMessageResponse,
   ChatToolCallResponse,
@@ -691,6 +692,57 @@ describe("ThreadStream", () => {
     expect(
       wrapper.getComponent(MessageRow).props("authorPersona"),
     ).toMatchObject({ accent: expect.stringMatching(/^var\(--ws-\d+\)$/) });
+  });
+
+  // A manager speaking AT HOME carries a bare label ("letterman", no " · "
+  // workspace segment). Its face still has to be the workspace's logo (Kafi,
+  // 2026-08-22): by the persona name when the host map knows it, else by the
+  // room this thread belongs to — never "LE" beside the logo in the tree.
+  it("a manager row with a bare label resolves its workspace's logo, by name or by the room", () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const customize = useCustomizeStore();
+    customize.setWorkspaceImage("ws-letterman", "data:image/png;base64,LOGO");
+    const messages: ChatMessageResponse[] = [
+      {
+        ...makeMessage(1),
+        id: "a1",
+        role: "assistant",
+        sourceKind: "workspace-manager",
+        sourceLabel: "letterman",
+        body: "Status update.",
+      },
+    ];
+
+    const byName = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        workspacesByName: { letterman: "ws-letterman" },
+      },
+      global: { plugins: [pinia] },
+    });
+    expect(byName.getComponent(MessageRow).props("authorPersona")).toMatchObject({
+      imageUrl: "data:image/png;base64,LOGO",
+    });
+
+    // A renamed manager ("Dana" in the letterman room): the name is unknown
+    // to the map, the room itself answers.
+    const byRoom = mount(ThreadStream, {
+      props: {
+        messages: [{ ...messages[0]!, sourceLabel: "Dana" }],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        workspacesByName: { letterman: "ws-letterman" },
+        workspaceId: "ws-letterman",
+      },
+      global: { plugins: [pinia] },
+    });
+    expect(byRoom.getComponent(MessageRow).props("authorPersona")).toMatchObject({
+      imageUrl: "data:image/png;base64,LOGO",
+      monogram: "DA",
+    });
   });
 
   // 2026-08-09 parity pass: the workspace chat renders exactly like Global —
