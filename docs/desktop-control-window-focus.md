@@ -172,9 +172,13 @@ comes free — libnut's `focusWindow` already does `SW_RESTORE` when `IsIconic` 
 ### ⚠ Raising a window must not silently un-maximize it
 
 **`SW_SHOWNOACTIVATE` (4) restores a window to its *normal* size, discarding the maximized state.**
-Demonstrated live and unintentionally during this research: qBittorrent started maximized, the
-harness used `SW_SHOWNOACTIVATE` to park it behind the fixture, and it came back as a 686×796
-window. Kafi noticed from the screen before the harness noticed from the data.
+Demonstrated live and unintentionally during this research, on **more than one of Kafi's windows**:
+the harness used `SW_SHOWNOACTIVATE` to park each target behind the fixture, and every maximized
+target came back merely *restored* — qBittorrent as a 686×796 window, and Chrome the same way.
+Kafi noticed both from the screen; the harness never noticed either, because nothing it recorded
+was wrong. That is the point worth keeping: **the damage is invisible to the caller.** The focus
+call reports success, the window is genuinely in front, and the only thing that changed is a piece
+of the user's layout no return value mentions.
 
 `SW_RESTORE` (9) is the safe one — on a maximized-then-minimized window it correctly returns to
 **maximized**, which is exactly why `restoreIfMinimized` already uses it, and why libnut's
