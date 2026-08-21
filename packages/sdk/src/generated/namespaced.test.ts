@@ -267,6 +267,12 @@ describe('makeNamespaced — shape', () => {
       // added `dashboardWorkspace` (GET /workspaces/:id/dashboard/usage, the
       // per-workspace dashboard twin).
       'dashboardWorkspace',
+
+      // test: correct expectation — the Display arc (2026-08-21) added `display`
+
+      // (/display/widgets — the widgets board Claude writes to).
+
+      'display',
       // test: correct expectation — `desktopAccess` REMOVED (2026-08-13). The
       // per-app grant model it fronted (GET/DELETE /desktop/access) is retired:
       // the turn's approved plan is the only authority for acting, and looking
