@@ -3,7 +3,32 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-21 (latest) THE DISPLAY — P3 PRESENCE MERGED, ARC COMPLETE (all worktrees down)
+## 🟡 2026-08-22 (latest) VIEW SWITCH + SETTINGS → EMBEDDING / VOICE — on `feature/view-modes` (worktree `view-modes`, band 18950), NOT merged
+
+Two arcs on one branch (Kafi). **(1) View switch + full view** (`fae86105`): a chamfered Nodes | Display |
+Normal plate in the title bar before the Claude mark; full view (separate sticky-per-session expander) hides
+menus + sidebar + strip and floats the corner cluster over the view's own strip; the Display segment IS the
+voice switch (Broadcast glyph + the `Nodes` word retired); note `docs/module-notes/view-modes.md`.
+**(2) Settings → Embedding / Voice** (`d88dd2be` → `a18768e5`, note `docs/module-notes/settings-models.md`):
+one local-model catalog in `@vynel/contracts/models/local-model-catalog` + a new `@vynel/models` leaf
+(probe/stamp/fetch with byte progress/`tar` extract/one in-memory download job per model); `/models`
+routes (list · download · cancel · remove, no x-mcp) with `localModels` deps built in boot;
+`VYNEL_VOICE_MODELS_DIR` (api env + `daemon.rs`); voice pick in `user_preferences`
+(`voiceTtsModelId`/`voiceSpeakerId`/`voiceSttModelId`); Settings group in the global sidebar (Embedding ·
+Voice · Where Vynel runs · Application; Account standalone), `EmbeddingSection` + `VoiceSettingsSection`
+over one `LocalModelCard`; the daemon reads the pick from the API (env fallback), holds engines in
+`voice-engines.ts`, applies the speaker in the ONE shared synth lane, swaps on `POST /reload`
+(`POST /voice/reload` relays); Voice screen saves → reloads → "Applied." + Preview.
+**ROOT CAUSE found (pre-existing):** transformers.js never cached/downloaded the embedding weights inside
+local-api (`@hono/node-server` replaces `globalThis.Response` → its `instanceof Response` check fails), so
+the engine could never fetch the model — fixed by `@vynel/models` fetching Hub files itself,
+`allowRemoteModels=false`, typed `EmbeddingModelNotInstalledError`, and `downloadEmbeddingModelOnce` off the
+indexing ticks (never auto-retried after a failure). Verified live: VAD + embedding download through the UI.
+**Owed by Kafi:** Tauri smoke of full view (drag by the strip, controls over the Display); `pnpm dev:voice`
+smoke (pick speaker → Preview → switch to Piper → hear the swap). **Parked (own arc):** shipping the voice
+daemon as a second installer sidecar; the embedding model picker (384-dim lock → migration + re-embed).
+
+## ✅ 2026-08-21 THE DISPLAY — P3 PRESENCE MERGED, ARC COMPLETE (all worktrees down)
 
 **Rename (Kafi: "go"):** the wake window is the **display dock** — Tauri label `display-dock` + `--dock-only`, route
 `/display-dock` + `DisplayDockView.vue`, title "Vynel Display", daemon launcher `display-dock-window.ts`, env
