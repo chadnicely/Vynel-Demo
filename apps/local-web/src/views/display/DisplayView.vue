@@ -4,6 +4,7 @@ import { DisplayOrb, DisplayPanel, DisplayStrip } from "@vynel/ui";
 import type { DisplayPanelRow } from "@vynel/ui";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import { useDisplayStatus } from "../../composables/display/use-display-status.js";
+import { TELEMETRY_CAP } from "../../composables/display/display-status-rows.js";
 import { useDisplayWidgets } from "../../composables/display/use-display-widgets.js";
 import type { SessionScope } from "../../composables/chat/session-scope.js";
 import {
@@ -165,7 +166,7 @@ const WIDGET_HINT = "Claude can put reports here";
     <div class="display-body">
       <aside class="column" data-testid="display-column-left">
         <DisplayPanel title="System" :rows="status.systemRows" />
-        <DisplayPanel title="Telemetry" :rows="telemetry">
+        <DisplayPanel title="Telemetry" :rows="telemetry" :lines="TELEMETRY_CAP">
           <p v-if="telemetry.length === 0" class="quiet">nothing yet</p>
         </DisplayPanel>
         <DisplayWidgetSlot name="left" :widgets="bySlot.left" :hint="WIDGET_HINT" />
