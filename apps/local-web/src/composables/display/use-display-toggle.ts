@@ -1,6 +1,8 @@
-import { computed, type ComputedRef } from "vue";
+import { computed, onScopeDispose, watch, type ComputedRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUiStore, type ChatMainView, type ShellTab } from "../../stores/ui-store.js";
+import { useLiveChannelStore } from "../../stores/live-channel-store.js";
+import { useVynel } from "../use-vynel.js";
 
 // The title bar's Display switch, and the ONE answer to "is the room on
 // screen right now" — the glyph, the voice overlay's suppression and the
@@ -32,6 +34,7 @@ export function useDisplayToggle(): DisplayToggle {
   const ui = useUiStore();
   const route = useRoute();
   const router = useRouter();
+  const live = useLiveChannelStore();
 
   // Exactly where the canvas renders the room: the active tab, on that tab's
   // own route, pointed at the Display. A looser reading (the tab's view alone)
@@ -42,6 +45,33 @@ export function useDisplayToggle(): DisplayToggle {
       route.name === canvasRouteName(ui.activeTab) &&
       ui.activeTab.shell.mainView === "display",
   );
+
+  // The display dock is the Display's OTHER form, in another window — it hides
+  // while this one has the room, so one conversation never shows two orbs.
+  // Announced off the computed above rather than from `toggleDisplay`, so
+  // leaving by a menu row or Home counts exactly as much as the switch, and
+  // `immediate` because a window can boot with the room already on screen (the
+  // tab strip persists its view).
+  const vynel = useVynel();
+  function announceDisplayActive(active: boolean): void {
+    // Presence, not state: a lost call costs the dock one wrong shape until
+    // the next change, never the room. (The web app has no logger seam and the
+    // house rule bans console output — `notifySessionEnd` is the precedent.)
+    void vynel.voice.setDisplayActive({ active }).catch(() => {});
+  }
+  watch(isDisplayActive, announceDisplayActive, { immediate: true });
+  // An engine restart empties the hub's memo of this, and nothing about the
+  // room changed to announce it again — so a reconnect says it over. Off the
+  // socket coming back rather than a retry: the dock is on the other end of
+  // that same socket and could not have heard anything while it was down.
+  watch(
+    () => live.status,
+    (status) => {
+      if (status === "open") announceDisplayActive(isDisplayActive.value);
+    },
+  );
+  // The window is going away and the room with it.
+  onScopeDispose(() => announceDisplayActive(false));
 
   /** Where each tab was before the Display took its canvas. Per tab, because
    *  every tab carries its own canvas state — restoring one tab's chat over

@@ -390,7 +390,9 @@ describe('create_my_schedule (the first union-body tool)', () => {
 })
 
 // What the Display's two write tools ADVERTISE, as opposed to what they accept.
-// The gap is deliberate in one place and must not open anywhere else.
+// The two must agree: a slot the schema takes but the words never offer is a
+// surface Claude cannot reach, and one the words offer before anything draws it
+// is a card the user never sees.
 describe('the Display write tools', () => {
   type ToolDefinition = { description: string; inputSchema: Record<string, unknown> }
 
@@ -405,13 +407,15 @@ describe('the Display write tools', () => {
   const add = definitionOf('displayAddWidget')
   const update = definitionOf('displayUpdateWidget')
 
-  // 'dock' is a real slot the leaf stores and the contracts accept — but NO
-  // surface draws it until P3, so a card sent there is a card the user never
-  // sees. The schema keeps taking it (P3 needs no migration); the description
-  // stops offering it.
-  it('offers only the three slots anything actually renders', () => {
-    expect(add.description).toContain("slot is 'left' | 'stage' | 'right' (default 'stage'")
-    expect(add.description).not.toContain('dock')
+  // All four slots are offered now that P3a draws the dock — and `add` says
+  // what fits in a one-row window, because a table sent to a corner is as
+  // unseen as a card sent nowhere. Only `add` carries the slot sentence:
+  // `update` deliberately cannot move a card between boards.
+  it('offers every slot something actually renders, dock included', () => {
+    expect(add.description).toContain(
+      "slot is 'left' | 'stage' | 'right' | 'dock' (default 'stage'",
+    )
+    expect(add.description).toContain('single number or one line')
     expect(update.description).not.toContain('dock')
   })
 

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "display-dock-window",
-  "description": "The display dock controls its own window: show on wake, hide on session end, park bottom-right, drag to move.",
+  "description": "The display dock controls its own window: show on wake, hide when the app's Display takes the room or the session ends, and resize + park between its two shapes (the wake stage in the middle of the screen, the mini row above the desktop-control overlay). Drag to move.",
   "windows": ["display-dock"],
   "permissions": [
     "core:default",
@@ -9,6 +9,7 @@
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "core:window:allow-set-position",
+    "core:window:allow-set-size",
     "core:window:allow-start-dragging"
   ]
 }

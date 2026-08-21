@@ -2,9 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
+import type { VynelClient } from "@vynel/sdk";
 import { createAppRouter } from "../../router.js";
+import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
+import { useLiveChannelStore } from "../../stores/live-channel-store.js";
 import { useDisplayToggle, type DisplayToggle } from "./use-display-toggle.js";
+
+/** Every `setDisplayActive` the toggle announced, in order — what the display
+ *  dock hears (it hides while the room is on screen). */
+let displayActiveCalls: boolean[];
+
+function announcingClient(): VynelClient {
+  return {
+    voice: {
+      setDisplayActive: async ({ active }: { active: boolean }) => {
+        displayActiveCalls.push(active);
+        return {};
+      },
+    },
+  } as unknown as VynelClient;
+}
 
 async function mountToggle(startPath = "/chat") {
   const pinia = createPinia();
@@ -19,15 +37,27 @@ async function mountToggle(startPath = "/chat") {
         return () => h("div");
       },
     }),
-    { global: { plugins: [router, pinia] } },
+    {
+      global: {
+        plugins: [router, pinia],
+        provide: { [vynelClientKey as symbol]: announcingClient() },
+      },
+    },
   );
-  return { wrapper, router, toggle: () => toggle, ui: useUiStore() };
+  return {
+    wrapper,
+    router,
+    toggle: () => toggle,
+    ui: useUiStore(),
+    live: useLiveChannelStore(),
+  };
 }
 
 // The tab strip persists itself, active tab included — so a case that opens a
 // workspace tab would hand the NEXT case a workspace tab already in front.
 beforeEach(() => {
   localStorage.clear();
+  displayActiveCalls = [];
 });
 
 describe("useDisplayToggle", () => {
@@ -118,6 +148,61 @@ describe("useDisplayToggle", () => {
 
     toggle().toggleDisplay();
     expect(workspaceTab.shell.mainView).toBe("chat");
+  });
+
+  // The display dock is the same Display in another window: it hides while
+  // this one has the room, and it only knows because the toggle says so.
+  it("tells the dock when the room comes and goes", async () => {
+    const { toggle } = await mountToggle();
+    // A window that boots outside the room still has to say so — the dock
+    // would otherwise sit hidden waiting for a change that never comes.
+    expect(displayActiveCalls).toEqual([false]);
+
+    toggle().toggleDisplay();
+    await flushPromises();
+    expect(displayActiveCalls).toEqual([false, true]);
+
+    toggle().toggleDisplay();
+    await flushPromises();
+    expect(displayActiveCalls).toEqual([false, true, false]);
+  });
+
+  // An engine restart empties the hub's memo of the room's state, and nothing
+  // about the room changes to announce it again — so the socket coming back
+  // says it over, or the dock spends the rest of the session in the wrong shape.
+  it("says it again when the socket comes back", async () => {
+    const { toggle, live } = await mountToggle();
+    toggle().toggleDisplay();
+    await flushPromises();
+    expect(displayActiveCalls).toEqual([false, true]);
+
+    live.status = "reconnecting";
+    await flushPromises();
+    expect(displayActiveCalls).toEqual([false, true]);
+
+    live.status = "open";
+    await flushPromises();
+    expect(displayActiveCalls).toEqual([false, true, true]);
+  });
+
+  it("says the room is gone however it was left", async () => {
+    const { toggle, router, wrapper } = await mountToggle();
+    toggle().toggleDisplay();
+    await flushPromises();
+    expect(displayActiveCalls.at(-1)).toBe(true);
+
+    // Not the switch — a menu row, taking the canvas somewhere else.
+    await router.push("/home");
+    await flushPromises();
+    expect(displayActiveCalls.at(-1)).toBe(false);
+
+    // And the window itself going away.
+    await router.push("/chat");
+    await flushPromises();
+    expect(displayActiveCalls.at(-1)).toBe(true);
+    wrapper.unmount();
+    await flushPromises();
+    expect(displayActiveCalls.at(-1)).toBe(false);
   });
 
   it("remembers where each tab was, not where the last one was", async () => {
