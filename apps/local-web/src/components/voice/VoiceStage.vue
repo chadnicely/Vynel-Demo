@@ -4,8 +4,8 @@ import { PhMicrophone as Mic, PhMicrophoneSlash as MicOff, PhX as X } from "@pho
 import { IconButton, VoiceOrb } from "@vynel/ui";
 import type { VoiceOrbState } from "@vynel/ui";
 
-// The Jarvis stage — orb, caption, status line, mute/close. Pure presentation,
-// shared by the in-app VoiceOverlay and the floating /jarvis window; each
+// The voice stage — orb, caption, status line, mute/close. Pure presentation,
+// shared by the in-app VoiceOverlay and the /display-dock window; each
 // owner supplies the state and handles the controls. The orb has one state,
 // but the session listens THROUGH its reply (voice-realtime VR2): while it
 // thinks or speaks with the mic open, a listening ring + hint say so.

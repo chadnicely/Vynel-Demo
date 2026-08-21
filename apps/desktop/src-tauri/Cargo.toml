@@ -1,5 +1,5 @@
-# The Vynel desktop shell — today a single always-on-top Jarvis overlay window
-# rendering local-web's /jarvis route (WebView2 has full Web Speech; probed live
+# The Vynel desktop shell — today a single always-on-top display-dock overlay window
+# rendering local-web's /display-dock route (WebView2 has full Web Speech; probed live
 # 2026-07-07, see docs/module-notes/voice-engine.md).
 [package]
 name = "vynel-desktop"

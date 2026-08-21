@@ -67,7 +67,7 @@ export const voiceApp = factory
     '/speak',
     describeRoute({
       tags: ['voice'],
-      summary: "Speak text aloud through the user's voice (the Jarvis speaker) or into a live call.",
+      summary: "Speak text aloud through the user's voice (the voice daemon's speaker) or into a live call.",
       'x-sdk-name': 'voice.speak',
       responses: {
         200: {

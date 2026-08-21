@@ -37,7 +37,7 @@ export const SESSION_SWAPPED_EVENT_TYPE = 'session.swapped'
 export type SessionSwappedEventPayload = {
   primarySessionId: string
   userId: string
-  // The continuing-session KIND (voice-jarvis piece 1) — 'workspace' | 'global' |
+  // The continuing-session KIND (voice-continuity piece 1) — 'workspace' | 'global' |
   // 'voice'. Lets the monitor attribute a swap to any kind, not just primaries.
   scope: PrimarySessionScope
   // NULL for the global primary (Slice 3b) + the voice session — neither has a

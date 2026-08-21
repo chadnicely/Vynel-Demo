@@ -398,7 +398,7 @@ export const useUiStore = defineStore("ui", () => {
   // clears it, so the user reviews before sending.
   const composerSeed = ref<string | null>(null);
 
-  // The Jarvis voice overlay — opens on the daemon's wake event or the mic button.
+  // The in-app voice overlay — opens on the daemon's wake event or the mic button.
   const isVoiceOverlayOpen = ref(false);
 
   // The same bell for the Display's own microphone. "Start voice" belongs to

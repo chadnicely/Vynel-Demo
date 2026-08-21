@@ -1,6 +1,6 @@
 // The browser command STT — the Web Speech API (Chrome/Edge → Google's
 // recognizer). This is the accurate half of the hybrid: the daemon's local
-// Moonshine model only ever hears the wake phrase; once the Jarvis view owns
+// Moonshine model only ever hears the wake phrase; once the voice view owns
 // the session, commands are transcribed HERE with interim results + Google's
 // own endpointing (a non-continuous recognition finalizes on a natural pause).
 //

@@ -22,8 +22,8 @@ never imports a `packages/<feature>` runtime directly.
 |---|---|
 | ► `index.html` | Vite HTML entry — `<div id="app">` + `/src/main.ts`; inline `background:#0f1115` avoids a white flash before tokens load |
 | ► `src/main.ts` | app bootstrap — `createApp(App)`, install Pinia + router + VueQuery, provide the SDK client, mount `#app`; wires the query-cache 412 hook into the onboarding store |
-| `src/App.vue` | root component — the shell layout (`TitleBar` / `RouterView` / `SessionViewerPanel` / `ApprovalNotifier` / `VoiceOverlay`); switches to bare-Jarvis or the onboarding wizard by route/state |
-| `src/router.ts` | `createAppRouter()` — 4 routes: `/` → `home`, `/chat`, `/workspace`, `/jarvis` (`meta.bare`); all views lazy-loaded |
+| `src/App.vue` | root component — the shell layout (`TitleBar` / `RouterView` / `SessionViewerPanel` / `ApprovalNotifier` / `VoiceOverlay`); switches to bare display-dock or the onboarding wizard by route/state |
+| `src/router.ts` | `createAppRouter()` — 4 routes: `/` → `home`, `/chat`, `/workspace`, `/display-dock` (`meta.bare`); all views lazy-loaded |
 | `src/plugins/vynel-client.ts` | `createLocalVynelClient()` (baseUrl `/api`) + the `vynelClientKey` inject symbol |
 | `src/plugins/vue-query.ts` | `createAppQueryClient()` — one `QueryClient`; caches carry the global `onOnboardingRequired` (412) hook; `staleTime 30s`, `retry 1`, refetch-on-focus |
 | `src/composables/use-vynel.ts` | `useVynel()` — the only sanctioned SDK access point (`inject(vynelClientKey)`, throws if unprovided) |
@@ -34,12 +34,12 @@ never imports a `packages/<feature>` runtime directly.
 | `src/views/HomeView.vue` | the dashboard tab — greeting + recent sessions / workspaces / upcoming schedules / approvals cards (reads `useDashboardOverview`) |
 | `src/views/GlobalChatView.vue` | the global "one brain" chat surface — menu + history + canvas; hosts the global feature sections |
 | `src/views/WorkspaceView.vue` | the per-workspace room — same chat shell scoped to a workspace; hosts workspace sections + files panel + file editor |
-| `src/views/JarvisView.vue` | the floating voice overlay window (`meta.bare` — no app shell); Tauri transparent window or `chrome --app` |
+| `src/views/DisplayDockView.vue` | the floating voice overlay window (`meta.bare` — no app shell); Tauri transparent window or `chrome --app` |
 | **Shell chrome** | |
 | `src/components/shell/TitleBar.vue` | the 40px top bar — 3-tab nav, menu/history toggles, workspace switcher, presence dot, voice + theme buttons |
 | `src/components/shell/MenuPanel.vue` | the persistent left menu panel — generic `items` list, emits `select` (shell decides the view) |
 | `src/components/shell/ApprovalNotifier.vue` | bottom-right approval toasts — polls pending approvals, decidable from any view |
-| `src/components/voice/VoiceOverlay.vue` | in-app Jarvis overlay (teleported to body); reads `ui.isVoiceOverlayOpen` |
+| `src/components/voice/VoiceOverlay.vue` | in-app Display dock (teleported to body); reads `ui.isVoiceOverlayOpen` |
 | `src/components/session-viewer/SessionViewerPanel.vue` | right-side delegation-trace viewer, driven by `session-viewer-store` |
 | `src/components/workspace/workspace-sections.ts` | the **section catalog** — `WorkspaceSectionId` union + `WORKSPACE_SECTIONS` meta list |
 | `src/components/workspace/WorkspaceSectionPanel.vue` | dispatches a `WorkspaceSectionId` → its section component (with tier gating) |
@@ -89,12 +89,12 @@ individual view should handle.
 | `/home` | `home` | `HomeView.vue` | the dashboard |
 | `/chat` | `chat` | `GlobalChatView.vue` | the global brain |
 | `/workspace` | `workspace` | `WorkspaceView.vue` | active workspace from `ui.activeWorkspaceId` |
-| `/jarvis` | `jarvis` | `JarvisView.vue` | `meta.bare: true` — renders alone, **no shell, no VoiceOverlay** (two daemon links in one window would double the voice session) |
+| `/display-dock` | `display-dock` | `DisplayDockView.vue` | `meta.bare: true` — renders alone, **no shell, no VoiceOverlay** (two daemon links in one window would double the voice session) |
 
 `App.vue` reads `route.meta.bare` to pick one of three top-level shapes:
 
 ```
-route.meta.bare === true          → <RouterView/>              (bare Jarvis window)
+route.meta.bare === true          → <RouterView/>              (bare dock window)
 onboardingStore.isRequired        → <OnboardingWizard/>        (first-launch takeover)
 otherwise                         → .app-shell (TitleBar + <main><RouterView/></main>
                                      + SessionViewerPanel + ApprovalNotifier + VoiceOverlay)
@@ -112,7 +112,7 @@ internal state (which panel/section/file is shown) lives in `ui-store`'s `ChatSh
 | `TitleBar.vue` | 3-tab nav (`SegmentedTabs`); on chat surfaces: menu + history toggles; on workspace: `WorkspaceSwitcher` + create-workspace `+`; always: presence dot, voice button, theme toggle | `ui-store`, `activity-store`, `usePendingApprovals`, `useWorkspaceList` |
 | `MenuPanel.vue` | the persistent left panel — dumb: takes `{ title, items, activeId }`, emits `select`; each host view maps the id to a `mainView` | props only |
 | `ApprovalNotifier.vue` | bottom-right toast stack (max 3 visible + "+N more"), `TransitionGroup`; approve/deny inline via `useDecideApproval` | `usePendingApprovals`, `useWorkspaceList` |
-| `VoiceOverlay.vue` | in-app Jarvis stage, teleported to `body`, gated on `ui.isVoiceOverlayOpen`; bridges the voice daemon link + session | `ui-store`, voice composables |
+| `VoiceOverlay.vue` | in-app voice stage, teleported to `body`, gated on `ui.isVoiceOverlayOpen`; bridges the voice daemon link + session | `ui-store`, voice composables |
 | `SessionViewerPanel.vue` | right-side delegation-trace viewer | `session-viewer-store` |
 
 The **presence dot** is the shell's one liveness signal (gold = the assistant's signature color, tokens
@@ -222,7 +222,7 @@ flowchart TD
     D --> E["provide(vynelClientKey, createLocalVynelClient '/api')"]
     E --> F["app.mount('#app')"]
     F --> G{route.meta.bare?}
-    G -- yes --> H[JarvisView alone]
+    G -- yes --> H[DisplayDockView alone]
     G -- no --> I{onboardingStore.isRequired?}
     I -- yes / 412 --> J[OnboardingWizard takes the window]
     I -- no --> K[.app-shell: TitleBar + RouterView + notifiers]
@@ -252,11 +252,11 @@ reaches all backend state through the generated SDK over `/api`; nothing imports
 | `@vynel/ui` | out | import | shell + feature components, tokens css, workspace color/monogram helpers |
 | `@vynel/contracts` | out | type import | `ChatTurnEvent`, `ChatSessionResponse`, `WorkspaceResponse`, `DEFAULT_CHAT_MODEL`, … |
 | `@vynel/session` | out | import | `SessionMode`, `DEFAULT_SESSION_MODE` (composer mode vocabulary) |
-| `@vynel/voice` | out | import | voice session/daemon primitives used by the overlay + Jarvis |
+| `@vynel/voice` | out | import | voice session/daemon primitives used by the overlay + the dock |
 | `@vynel/approvals` | out | import | approval types for the notifier/cards |
 | local-api | out | HTTP `/api` (SDK) | every read/write; the SSE turn stream; the first-launch 412 gate |
 | voice daemon (`apps/voice`) | out | HTTP `/voice` (SSE) | wake/state/session-end overlay events |
-| Tauri desktop shell (`apps/desktop`) | in (host) | window host | hosts this build; drives the bare `/jarvis` transparent window |
+| Tauri desktop shell (`apps/desktop`) | in (host) | window host | hosts this build; drives the bare `/display-dock` transparent window |
 
 **Events consumed:** the live `ChatTurnEvent` SSE stream (chat/root turn + delegation trace) and the
 voice daemon overlay SSE channel. **Events published:** none — a UI leaf.
@@ -278,7 +278,7 @@ flowchart LR
   *query/mutation cache* `onError`, not by any view — so it must be wired at boot with an explicit pinia
   handle (`main.ts:23` resolves the store outside component context). When set, the shell **unmounts**
   (`App.vue` v-else-if) so nothing keeps polling into the closed gate.
-- **`meta.bare` drops the shell *and* the VoiceOverlay.** The floating Jarvis window renders the view
+- **`meta.bare` drops the shell *and* the VoiceOverlay.** The display dock renders the view
   alone on purpose — a second daemon link + voice session in a shelled window would double the mic.
 - **Chat internal state is not routed.** Which panel/section/file a chat surface shows lives in
   `ui-store`'s `ChatShellState`, keyed per surface (`globalChat` vs `workspaceChat`) — reloading returns

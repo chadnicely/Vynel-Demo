@@ -21,7 +21,7 @@ import type {
   VoiceTurnEvent,
 } from "./voice-command-session-types.js";
 
-// Binds one browser voice-command session to Vue state for the Jarvis overlay:
+// Binds one browser voice-command session to Vue state for the voice overlay:
 // Web Speech STT in, a voice-thread `/root/turn` per utterance on the voice
 // tier, the reply's streamed text spoken in the browser sentence by sentence,
 // and a barge-in that stops the server turn by its own id.

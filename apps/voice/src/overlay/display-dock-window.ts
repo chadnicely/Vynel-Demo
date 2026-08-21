@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import type { Logger } from 'pino'
 
-// Launch/focus the floating Jarvis window. Preferred: the Tauri overlay app
-// (transparent always-on-top, apps/desktop) when its executable exists;
-// fallback: a chromeless Chrome/Edge app-window on local-web's /jarvis route.
+// Launch/focus the display dock — the Display's mini window. Preferred: the
+// Tauri overlay app (transparent always-on-top, apps/desktop) when its exe exists;
+// fallback: a chromeless Chrome/Edge app-window on local-web's /display-dock route.
 // The daemon opens one on wake when no window is connected, and pulls an
 // existing one to the front otherwise. All best-effort native shell calls: if
 // they fail the wake stays pending on the overlay channel and the handoff
@@ -16,25 +16,25 @@ import type { Logger } from 'pino'
 // showed a window, so open() falls back to the browser and the pending wake
 // still gets answered.
 
-// AppActivate matches by window title — keep in sync with JarvisView.vue.
-const WINDOW_TITLE = 'Vynel Jarvis'
+// AppActivate matches by window title — keep in sync with DisplayDockView.vue.
+const WINDOW_TITLE = 'Vynel Display'
 const WINDOW_SIZE = '420,560'
 // An exe gone this fast either crashed at boot or single-instance-routed into
 // a resident shell that is NOT connected to the daemon (a healthy resident
 // would have made this wake a focus(), not an open()). Both mean no window.
 const APP_EARLY_EXIT_MS = 3000
 
-export interface JarvisWindowCommand {
+export interface DisplayDockCommand {
   readonly command: string
   readonly args: readonly string[]
 }
 
 /** Pure: the platform-specific launch invocation (tested; spawn is not). */
-export function buildJarvisLaunchCommand(
+export function buildDisplayDockLaunchCommand(
   browser: 'chrome' | 'msedge',
   url: string,
   platform: NodeJS.Platform,
-): JarvisWindowCommand {
+): DisplayDockCommand {
   const appArgs = [`--app=${url}`, `--window-size=${WINDOW_SIZE}`]
   if (platform === 'win32') {
     // `start` resolves chrome/msedge via the App Paths registry — they are
@@ -67,15 +67,15 @@ const spawnDetached: CommandSpawner = (command, args) => {
   }
 }
 
-export interface JarvisWindow {
-  /** Open a new Jarvis window (returns immediately; a dying launch is watched
+export interface DisplayDockWindow {
+  /** Open a new dock window (returns immediately; a dying launch is watched
    *  and falls back to the browser). */
   open(): void
   /** Bring an already-open window to the front (Windows only; no-op elsewhere). */
   focus(): void
 }
 
-export function createJarvisWindow(
+export function createDisplayDockWindow(
   config: {
     readonly browser: 'chrome' | 'msedge'
     readonly url: string
@@ -84,16 +84,16 @@ export function createJarvisWindow(
   },
   logger: Logger,
   spawnCommand: CommandSpawner = spawnDetached,
-): JarvisWindow {
-  const run = (invocation: JarvisWindowCommand, action: string): void => {
+): DisplayDockWindow {
+  const run = (invocation: DisplayDockCommand, action: string): void => {
     spawnCommand(invocation.command, invocation.args).onError((error) => {
-      logger.warn({ action, error: error.message }, 'jarvis window shell call failed')
+      logger.warn({ action, error: error.message }, 'display dock shell call failed')
     })
   }
 
   const openBrowserWindow = (): void => {
-    logger.info({ url: config.url, browser: config.browser }, 'opening jarvis browser window')
-    run(buildJarvisLaunchCommand(config.browser, config.url, process.platform), 'open')
+    logger.info({ url: config.url, browser: config.browser }, 'opening the display dock browser window')
+    run(buildDisplayDockLaunchCommand(config.browser, config.url, process.platform), 'open')
   }
 
   return {
@@ -102,10 +102,10 @@ export function createJarvisWindow(
         openBrowserWindow()
         return
       }
-      logger.info({ app: config.appPath }, 'opening jarvis overlay app')
-      // A wake opens ONLY the overlay — --jarvis-only tells the shell to
+      logger.info({ app: config.appPath }, 'opening the display dock overlay app')
+      // A wake opens ONLY the overlay — --dock-only tells the shell to
       // skip its main app window (apps/desktop src/main.rs).
-      const child = spawnCommand(config.appPath, ['--jarvis-only'])
+      const child = spawnCommand(config.appPath, ['--dock-only'])
       const startedAt = Date.now()
       // error + exit can both fire for one failed launch — fall back once.
       let fellBack = false
@@ -114,7 +114,7 @@ export function createJarvisWindow(
         fellBack = true
         logger.warn(
           { app: config.appPath, reason },
-          'jarvis overlay app never came up — opening the browser window instead; rebuild the overlay with `pnpm dev:desktop`',
+          'the display dock overlay app never came up — opening the browser window instead; rebuild the overlay with `pnpm dev:desktop`',
         )
         openBrowserWindow()
       }

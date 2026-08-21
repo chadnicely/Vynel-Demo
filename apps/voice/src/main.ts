@@ -37,14 +37,14 @@ import { createCallConversationHost } from './call/call-conversation-host.js'
 import { createCallSessionClient } from './call/call-session-client.js'
 import { serializeAsync } from './call/serialize-async.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
-import { createJarvisWindow } from './overlay/jarvis-window.js'
+import { createDisplayDockWindow } from './overlay/display-dock-window.js'
 import { VoiceSessionDriver } from './loop/voice-session-driver.js'
 import type { VoiceSessionIo } from './loop/voice-session-types.js'
 
-// If a launched Jarvis window never connects (Chrome missing, web app down),
+// If a launched display dock never connects (Chrome missing, web app down),
 // give up the handoff and resume wake-listening — a failed launch must not
 // leave the daemon deaf.
-const JARVIS_CONNECT_TIMEOUT_MS = 10_000
+const DOCK_CONNECT_TIMEOUT_MS = 10_000
 
 async function main(): Promise<void> {
   const env = loadEnv()
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
     findCallSink: (callId) => callRegistry.findCallSink(callId),
   })
   callRegistry.bindCallLoop(callConversations)
-  const jarvisEnabled = env.VYNEL_VOICE_JARVIS_WINDOW === '1'
+  const dockEnabled = env.VYNEL_VOICE_DOCK_WINDOW === '1'
   const overlay = startOverlayChannel(
     env.VYNEL_VOICE_DAEMON_PORT,
     {
@@ -170,17 +170,17 @@ async function main(): Promise<void> {
       },
     },
     logger,
-    // With the floating window on, ONLY it runs wake sessions — app tabs keep
+    // With the dock window on, ONLY it runs wake sessions — app tabs keep
     // their state events + manual mic sessions but never race it for a wake.
-    // With it OFF the jarvis surface is never a target either: the desktop
-    // shell keeps its hidden jarvis webview connected whatever the flag says,
+    // With it OFF the dock surface is never a target either: the desktop
+    // shell keeps its hidden dock webview connected whatever the flag says,
     // and a wake handed to it would vanish into a window nobody sees — so
     // 0 = native unless a wake-capable BROWSER tab is connected (an 'app'
     // subscriber that declared it can run a session). The watchdog rides
     // every wake so the browser leg is bounded by the same knob as the native
     // leg (one home: env).
     {
-      wakeSurface: jarvisEnabled ? 'jarvis' : 'app',
+      wakeSurface: dockEnabled ? 'dock' : 'app',
       turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
       routes: [{ path: '/calls', app: createCallEndpoints(callRegistry, callConversations, logger) }],
     },
@@ -193,19 +193,19 @@ async function main(): Promise<void> {
     )
     audioShell.stop()
     driver.stop()
-    // eslint-disable-next-line n/no-process-exit -- fail fast: without the channel the Jarvis window can never connect
+    // eslint-disable-next-line n/no-process-exit -- fail fast: without the channel the display dock can never connect
     process.exit(1)
   })
-  const jarvisWindow = createJarvisWindow(
+  const dockWindow = createDisplayDockWindow(
     {
-      browser: env.VYNEL_VOICE_JARVIS_BROWSER,
-      url: env.VYNEL_VOICE_JARVIS_URL,
-      appPath: env.VYNEL_VOICE_JARVIS_APP,
+      browser: env.VYNEL_VOICE_DOCK_BROWSER,
+      url: env.VYNEL_VOICE_DOCK_URL,
+      appPath: env.VYNEL_VOICE_DOCK_APP,
     },
     logger,
   )
-  let jarvisConnectWatchdog: ReturnType<typeof setTimeout> | null = null
-  // Mirror every state change to the browser Jarvis view alongside the log line.
+  let dockConnectWatchdog: ReturnType<typeof setTimeout> | null = null
+  // Mirror every state change to the browser voice view alongside the log line.
   const io: VoiceSessionIo = {
     setState: (state) => {
       audioShell.io.setState(state)
@@ -234,7 +234,7 @@ async function main(): Promise<void> {
           'turn watchdog fired — the room is back; the turn streams on and its answer is spoken when it lands',
         ),
       // The browser owns the command session (Web Speech STT + spoken reply
-      // run there). Jarvis mode: every wake hands off — the floating window is
+      // run there). Dock mode: every wake hands off — the dock window is
       // opened/focused, and the held wake replays once it connects. Otherwise:
       // hand off only to a connected client that declared it can RUN a
       // session — the desktop shell's windows never do (its main window is
@@ -242,23 +242,23 @@ async function main(): Promise<void> {
       // the wake), a browser tab does only with Web Speech; with no capable
       // client the native leg answers.
       wakeHandoff: {
-        shouldHandOff: () => jarvisEnabled || overlay.hasWakeTarget,
+        shouldHandOff: () => dockEnabled || overlay.hasWakeTarget,
         publishWake: (command) => {
           overlay.publishWake(command)
-          if (!jarvisEnabled) return
+          if (!dockEnabled) return
           if (overlay.hasWakeTarget) {
-            jarvisWindow.focus()
+            dockWindow.focus()
             return
           }
-          jarvisWindow.open()
-          if (jarvisConnectWatchdog !== null) clearTimeout(jarvisConnectWatchdog)
-          jarvisConnectWatchdog = setTimeout(() => {
-            jarvisConnectWatchdog = null
+          dockWindow.open()
+          if (dockConnectWatchdog !== null) clearTimeout(dockConnectWatchdog)
+          dockConnectWatchdog = setTimeout(() => {
+            dockConnectWatchdog = null
             if (!overlay.hasWakeTarget) {
-              logger.warn('jarvis window never connected — resuming wake listening')
+              logger.warn('the display dock never connected — resuming wake listening')
               driver.endHandoff()
             }
-          }, JARVIS_CONNECT_TIMEOUT_MS)
+          }, DOCK_CONNECT_TIMEOUT_MS)
         },
       },
     },
@@ -276,7 +276,7 @@ async function main(): Promise<void> {
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'voice daemon shutting down')
-    if (jarvisConnectWatchdog !== null) clearTimeout(jarvisConnectWatchdog)
+    if (dockConnectWatchdog !== null) clearTimeout(dockConnectWatchdog)
     callRegistry.stopAll()
     audioShell.stop()
     overlay.stop()

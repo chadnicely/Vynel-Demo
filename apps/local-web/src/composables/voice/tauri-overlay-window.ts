@@ -1,4 +1,4 @@
-// Typed access to the Tauri window API for the floating overlays (/jarvis, the
+// Typed access to the Tauri window API for the floating windows (/display-dock, the
 // desktop-control overlay) — via the `withGlobalTauri` global, so the web app
 // takes NO Tauri npm dependency and every call is a no-op outside the desktop
 // shell (Chrome app-window, tabs).
@@ -29,11 +29,11 @@ export function isTauriShell(): boolean {
 
 export interface OverlayWindowOptions {
   /** The window's fixed footprint — mirror the inner_size in
-   *  apps/desktop/src-tauri/src/windows.rs. Default: the jarvis 420×560. */
+   *  apps/desktop/src-tauri/src/windows.rs. Default: the dock's 420×560. */
   width?: number;
   height?: number;
   /** Where park() puts the window. 'center' reads as "the assistant is here"
-   *  (jarvis); 'bottom-right' reads as a corner status widget (the
+   *  (the dock on wake); 'bottom-right' reads as a corner status widget (the
    *  desktop-control overlay, the ApprovalNotifier position). */
   park?: "center" | "bottom-right";
   /** Whether reveal() also takes keyboard focus. The desktop-control overlay
@@ -77,7 +77,7 @@ export interface OverlayWindowControls {
   dismiss(): void;
   /** Park the window at its configured spot (center / bottom-right). */
   park(): void;
-  /** Back-compat alias for the jarvis call sites — parks at the configured spot. */
+  /** Back-compat alias for the dock call sites — parks at the configured spot. */
   parkCenter(): void;
 }
 

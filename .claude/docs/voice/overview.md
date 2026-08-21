@@ -1,6 +1,6 @@
 # Voice — Overview
 
-> The headless brain of Vynel's spoken assistant ("Jarvis"): the pure decisions that turn an always-listening mic and a streaming answer into a natural back-and-forth conversation — hearing its name, knowing when to speak, and saying results aloud instead of showing them.
+> The headless brain of Vynel's spoken assistant: the pure decisions that turn an always-listening mic and a streaming answer into a natural back-and-forth conversation — hearing its name, knowing when to speak, and saying results aloud instead of showing them.
 >
 > **Status:** shipped (pure core, fully tested) · **Depends on:** [providers](../providers/overview.md) (the normalized session-event shape only) · **Code map:** [structure.md](./structure.md)
 
@@ -14,7 +14,7 @@ It splits into two concerns. **Turn-taking** governs the listening side: catchin
 
 ## What it can do
 
-- **Hear its name** — decide whether an utterance opens with the wake phrase ("hey jarvis", "hey claude", "hey vynel") and, if so, peel off the command that follows. Deliberately tolerant of how a small speech model mishears an uncommon name.
+- **Hear its name** — decide whether an utterance opens with the wake phrase ("hey vynel", "hey claude") and, if so, peel off the command that follows. Deliberately tolerant of how a small speech model mishears an uncommon name.
 - **Carve speech into utterances** — consume a stream of raw audio samples and emit one complete segment each time speech is followed by a gap of silence, so the wake path transcribes whole natural phrases rather than fixed windows (no clipped first word, no transcribing dead air).
 - **Pick an instant acknowledgment** — match the user's request to a short, contextual first line by keyword ("Checking your schedules.") with zero model call, so the assistant can confirm it heard *what* was asked before any real work starts.
 - **Speak an answer as it streams** — buffer a streaming reply and release it one complete sentence at a time, so speech begins on the first finished sentence instead of after the whole reply, and sentences never overlap or arrive out of order.
@@ -41,7 +41,7 @@ It splits into two concerns. **Turn-taking** governs the listening side: catchin
 |---|---|
 | **Turn-taking** | The listening-side concern: knowing when the user is addressing the assistant and when an utterance is complete, and keeping the mic shut while the assistant holds the floor. |
 | **Relay** | The speaking-side concern: turning a streaming answer — including one from a backgrounded task — into spoken lines. |
-| **Wake phrase** | The greeting-plus-name opener ("hey jarvis", "hey claude", "hey vynel") that tells the always-listening service the utterance is meant for it. Matched tolerantly against a list of common mishearings. |
+| **Wake phrase** | The greeting-plus-name opener ("hey vynel", "hey claude") that tells the always-listening service the utterance is meant for it. Matched tolerantly against a list of common mishearings. |
 | **Command** | Whatever the user said *after* the wake phrase — the actual request, with its original casing preserved. |
 | **Speech segment** | One complete utterance carved out of the raw audio stream: speech bracketed by silence, with a little audio kept before the first sound so the opening phoneme isn't clipped. |
 | **Acknowledgment (ack)** | The instant, contextual first line spoken back — a cheap keyword match, not understanding, chosen to add zero latency before real work begins. |
@@ -86,7 +86,7 @@ stateDiagram-v2
 
 ## Where it sits in the bigger picture
 
-Voice is the middle of three siblings that make Jarvis work, and it is the only pure one. Beneath it, [voice-engine](../voice-engine/overview.md) supplies the speech-to-text, text-to-speech, and voice-activity models. Around it, the [apps/voice](../_apps/voice/overview.md) daemon owns the microphone, the speaker, the audio stream, and the HTTP connection to the brain, and drives this package's decisions in its always-listening loop: it segments the mic feed and asks *is this the wake word?*, plays an ack, streams the answer through the sentence buffer and markup stripper, registers delegated tasks with the notifier, and consults the barge-in rule and the mic gate to decide when to speak and when to listen. The brain those turns reach is the ordinary Vynel session ([session](../session/overview.md)) over the [providers](../providers/overview.md) stack — voice reads only the normalized event shape that stack streams, and never the runtime behind it. In short: voice-engine is the ears and mouth, apps/voice is the nervous system, and this package is the reflexes.
+Voice is the middle of three siblings that make the spoken assistant work, and it is the only pure one. Beneath it, [voice-engine](../voice-engine/overview.md) supplies the speech-to-text, text-to-speech, and voice-activity models. Around it, the [apps/voice](../_apps/voice/overview.md) daemon owns the microphone, the speaker, the audio stream, and the HTTP connection to the brain, and drives this package's decisions in its always-listening loop: it segments the mic feed and asks *is this the wake word?*, plays an ack, streams the answer through the sentence buffer and markup stripper, registers delegated tasks with the notifier, and consults the barge-in rule and the mic gate to decide when to speak and when to listen. The brain those turns reach is the ordinary Vynel session ([session](../session/overview.md)) over the [providers](../providers/overview.md) stack — voice reads only the normalized event shape that stack streams, and never the runtime behind it. In short: voice-engine is the ears and mouth, apps/voice is the nervous system, and this package is the reflexes.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

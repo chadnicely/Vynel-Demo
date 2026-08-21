@@ -54,7 +54,7 @@ house style from a reference scaffold; the accessibility engine is `xa11y`
   shutdown. Starting a poller per chat session would leak processes.
 - **The MCP tool is a thin reader.** `buildDesktopMcpServer({ reader })` returns a
   `createSdkMcpServer` (server name `desktop` → tools are `mcp__desktop__*`),
-  wired into the **global "hey jarvis" brain**'s turn alongside the routing
+  wired into the **global "hey Vynel" brain**'s turn alongside the routing
   server, so the always-on assistant can answer "what notifications came in?".
 
 ## Notifications backend

@@ -10,25 +10,25 @@ import {
 } from "../components/voice/voice-stage-view.js";
 import VoiceStage from "../components/voice/VoiceStage.vue";
 
-// The floating Jarvis overlay — this view fills either the Tauri desktop
-// shell's transparent always-on-top window (apps/desktop) or a chromeless
-// Chrome app-window the daemon launches (`chrome --app=/jarvis`). Same
+// The display dock — the Display's mini form. This view fills either the Tauri
+// desktop shell's transparent always-on-top window (apps/desktop) or a chromeless
+// Chrome app-window the daemon launches (`chrome --app=/display-dock`). Same
 // composables as the in-app overlay; the whole window is the stage. It
-// identifies itself as the 'jarvis' surface so the daemon prefers it for wake
+// identifies itself as the 'dock' surface so the daemon prefers it for wake
 // delivery over any regular app tabs. Closing it mid-reply ends the session,
 // which stops the running turn by its own session id (round-2 R2-E) — never
 // the global head.
 
 // The daemon focuses the Chrome variant by title (AppActivate) — keep in sync
-// with apps/voice `jarvis-window.ts`.
-const WINDOW_TITLE = "Vynel Jarvis";
+// with apps/voice `display-dock-window.ts`.
+const WINDOW_TITLE = "Vynel Display";
 
 const overlayWindow = createOverlayWindowControls();
 const isMuted = ref(false);
 
 const voice = useVoiceSession({ onEnded: handleSessionEnded });
 const daemon = useVoiceDaemonLink({
-  surface: "jarvis",
+  surface: "dock",
   onWake: handleWake,
   ownLiveSessionId: voice.currentSessionId,
   speakThroughSession: voice.speakExternal,
@@ -86,7 +86,7 @@ const statusLine = computed(() =>
 </script>
 
 <template>
-  <div class="jarvis-window" :class="{ 'is-tauri': overlayWindow.isTauri }">
+  <div class="display-dock-window" :class="{ 'is-tauri': overlayWindow.isTauri }">
     <div class="stage-card" data-tauri-drag-region>
       <VoiceStage
         :orb-state="orbState"
@@ -102,7 +102,7 @@ const statusLine = computed(() =>
 </template>
 
 <style scoped>
-.jarvis-window {
+.display-dock-window {
   height: 100vh;
   display: grid;
   place-items: center;
@@ -114,7 +114,7 @@ const statusLine = computed(() =>
    desktop shows through. (backdrop-filter can't frost what's BEHIND a
    transparent Tauri window — the webview can only blur its own content — so
    translucency without blur is the honest look.) */
-.jarvis-window.is-tauri {
+.display-dock-window.is-tauri {
   background: transparent;
 }
 

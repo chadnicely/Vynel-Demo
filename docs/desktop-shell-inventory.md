@@ -29,7 +29,7 @@ system." What styling system and how far to push the shell are the two calls to 
 |---|---|
 | Framework | Vue 3, `<script setup lang="ts">`, Composition API only |
 | Build | Vite 5, `@vitejs/plugin-vue`; `/api` + `/voice` dev proxies |
-| Routing | `vue-router` — 4 routes: `home`, `chat`, `workspace`, `jarvis` (bare) |
+| Routing | `vue-router` — 4 routes: `home`, `chat`, `workspace`, `display-dock` (bare) |
 | State | Pinia (`ui-store`, `activity-store`, `live-sessions-store`, `session-viewer-store`, `onboarding-store`) + `@tanstack/vue-query` for server state |
 | **Styling** | **NOT Tailwind.** CSS custom properties in `@vynel/ui/styles/tokens.css` + per-component `<style scoped>` vanilla CSS. No `tailwind.config`, no utility classes, no `tailwind` dependency anywhere. |
 | Icons | `lucide-vue-next` in the app; **inline SVG** in `@vynel/ui` (deliberately icon-library-free) |
@@ -55,13 +55,13 @@ variables, not a Tailwind theme.
 
 ```
 apps/local-web/src/
-├── App.vue ······················ shell root: grid(40px titlebar / 1fr body); routes bare Jarvis,
+├── App.vue ······················ shell root: grid(40px titlebar / 1fr body); routes bare dock,
 │                                   swaps in OnboardingWizard on first-launch 412, else the shell
 ├── views/
 │   ├── HomeView.vue ·············· dashboard (greeting, recent-conversations/workspaces/coming-up/approvals cards)
 │   ├── GlobalChatView.vue ········ global "one brain" chat; hosts MenuPanel + SessionsPanel + canvas (chat|section)
 │   ├── WorkspaceView.vue ········· per-workspace room; MenuPanel + SessionsPanel + FilesPanel + canvas
-│   └── JarvisView.vue ············ bare floating voice window (no shell)
+│   └── DisplayDockView.vue ······ bare floating voice window (no shell)
 ├── components/
 │   ├── shell/
 │   │   ├── TitleBar.vue ·········· 40px top bar: menu/history toggles · WorkspaceSwitcher · SegmentedTabs (Home/Chat/Workspace) · presence · voice · theme

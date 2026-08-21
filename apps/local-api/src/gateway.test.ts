@@ -80,11 +80,11 @@ describe('createGatewayApp', () => {
       ...baseGatewayOptions(),
       fetchVoiceDaemon,
     })
-    const response = await gateway.request('/voice/events?surface=jarvis')
+    const response = await gateway.request('/voice/events?surface=dock')
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('daemon-says-hi')
     const target = fetchVoiceDaemon.mock.calls[0]?.[0] as URL
-    expect(target.href).toBe('http://127.0.0.1:8997/events?surface=jarvis')
+    expect(target.href).toBe('http://127.0.0.1:8997/events?surface=dock')
   })
 
   it('answers 502 with an actionable message when the voice daemon is down', async () => {
@@ -117,7 +117,7 @@ describe('createGatewayApp', () => {
       ...baseGatewayOptions(),
       webUiDistDir: distDir,
     })
-    const response = await gateway.request('/jarvis', {
+    const response = await gateway.request('/display-dock', {
       headers: { accept: 'text/html,application/xhtml+xml' },
     })
     expect(await response.text()).toBe('<html>vynel shell</html>')

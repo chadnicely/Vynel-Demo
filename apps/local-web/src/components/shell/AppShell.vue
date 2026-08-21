@@ -82,7 +82,7 @@ import { foldGlobalAreaStatus } from "./global-area-status.js";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 
 // The reinvented desktop shell — mounted only for real surfaces (App.vue keeps
-// bare routes and the onboarding wizard out of here, so the /jarvis overlay
+// bare routes and the onboarding wizard out of here, so the /display-dock window
 // never pays for the shell's data hooks). Navigation writes the shared ui-store
 // + route; the routed view reacts.
 const route = useRoute();

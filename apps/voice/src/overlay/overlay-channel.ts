@@ -5,14 +5,14 @@ import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
 import type { VoiceSessionState } from '../loop/voice-session-types.js'
 
-// The daemon↔browser channel for the Jarvis view. The daemon stays the local,
+// The daemon↔browser channel for the voice views. The daemon stays the local,
 // private WAKE layer; browser surfaces subscribe here (SSE) and, on a wake
 // event, own the command session (Web Speech STT + spoken reply). One small
 // loopback HTTP surface:
 //
-//   GET  /events?surface=app|jarvis&wake=1|0 — SSE: state replay on connect,
+//   GET  /events?surface=app|dock&wake=1|0 — SSE: state replay on connect,
 //        then {kind:'state'|'wake'|'speak', ...}. `wake` declares whether the
-//        client can RUN a command session (the jarvis window always can; an app
+//        client can RUN a command session (the display dock always can; an app
 //        tab only with Web Speech). Wake and speak events go to ONE client
 //        (never all — two sessions would answer twice, two speakers would
 //        echo): wake to the newest CAPABLE eligible client; speak to the
@@ -26,7 +26,7 @@ import type { VoiceSessionState } from '../loop/voice-session-types.js'
 //        voice as the native loop), played by the overlay's own audio element.
 //
 // An undelivered wake is held (`pendingWake`) and replayed to the next
-// eligible connect — that is how the same-breath command survives the Jarvis
+// eligible connect — that is how the same-breath command survives the dock
 // window's launch time, and how a wake lost to a dying socket recovers.
 //
 // CORS is open because the server binds loopback only — the browser may connect
@@ -41,7 +41,7 @@ export type OverlayEvent =
   // null when the producer is unknown (a caller without a turn session).
   | { readonly kind: 'speak'; readonly text: string; readonly sessionId: string | null }
 
-export type OverlaySurface = 'app' | 'jarvis'
+export type OverlaySurface = 'app' | 'dock'
 
 export interface OverlayChannelHooks {
   /** The overlay posted /session/end — its command session is over. */
@@ -58,10 +58,10 @@ export interface OverlayChannelHooks {
 }
 
 export interface OverlayChannelOptions {
-  /** Which surface's capable clients may take a wake: 'jarvis' = only the
-   *  floating window (app tabs still get state events + manual sessions);
+  /** Which surface's capable clients may take a wake: 'dock' = only the
+   *  display dock (app tabs still get state events + manual sessions);
    *  'app' = only a capable app tab — the window feature is off, and the
-   *  desktop shell's hidden jarvis webview (connected regardless) must not
+   *  desktop shell's hidden dock webview (connected regardless) must not
    *  swallow the wake; 'any' = the newest capable client of either. */
   readonly wakeSurface: OverlaySurface | 'any'
   /** The daemon's per-turn watchdog, carried on every wake event. */
@@ -99,8 +99,8 @@ interface Subscriber {
 const HEARTBEAT_MS = 15_000
 
 function parseSubscriber(surfaceQuery: string | undefined, wakeQuery: string | undefined): Subscriber {
-  const surface: OverlaySurface = surfaceQuery === 'jarvis' ? 'jarvis' : 'app'
-  return { surface, wakeCapable: surface === 'jarvis' || wakeQuery === '1' }
+  const surface: OverlaySurface = surfaceQuery === 'dock' ? 'dock' : 'app'
+  return { surface, wakeCapable: surface === 'dock' || wakeQuery === '1' }
 }
 
 export function startOverlayChannel(

@@ -1,8 +1,8 @@
 // The VOICE DAEMON RELAY — the api's one link per subscriber kind to the
-// daemon's overlay channel (`GET /events?surface=app|jarvis&wake=1|0`, SSE),
+// daemon's overlay channel (`GET /events?surface=app|dock&wake=1|0`, SSE),
 // fanned to every window subscribed to that `voice:<surface>[:wake]` key on
 // the live channel. Before this each window held its own EventSource to the
-// daemon — an HTTP-pool connection per window (main app + Jarvis = two of the
+// daemon — an HTTP-pool connection per window (main app + dock = two of the
 // browser's six). Now the windows ride their live socket and the api holds ONE
 // upstream per (surface, wake-capable), opened when the first window
 // subscribes and closed when the last leaves.
@@ -21,7 +21,7 @@
 //   - `speak` is SINGLE delivery too — the daemon routes it to the upstream
 //     that owns the handoff (else its newest), the relay hands it to the
 //     window that took the wake while it is still subscribed, else the newest
-//     — so a line produced during a Jarvis conversation plays in THAT window;
+//     — so a line produced during a dock conversation plays in THAT window;
 //   - the daemon replays its state on connect and holds an undelivered wake
 //     for the next connect — the relay reconnects (backoff) while anyone
 //     listens, and replays the last known state + link to a NEW listener so a

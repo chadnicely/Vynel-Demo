@@ -9,7 +9,7 @@ import {
 // help for people who'd rather talk than type, nothing more. It never opens
 // the voice overlay and never sends; the user reads what was heard and
 // presses Send themselves. (Talking WITH the assistant is the top-bar mic's
-// job — that one opens the Jarvis overlay.)
+// job — that one opens the voice overlay.)
 
 export interface UseDictationOptions {
   /** Test seams — default to the real Web Speech recognizer. */

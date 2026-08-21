@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The Jarvis presence — one orb, six states. Pure CSS (no canvas/WebGL) so it
+// The assistant's presence — one orb, six states. Pure CSS (no canvas/WebGL) so it
 // runs identically in the web view and the future transparent Tauri overlay
 // window. Gold IS the assistant (tokens.css contract); muted drains the color.
 export type VoiceOrbState =

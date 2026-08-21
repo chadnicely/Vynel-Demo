@@ -10,7 +10,7 @@
   exists because the old base _felt_ unmaintainable; the UI carries the new foundation "for some
   years".)
 - **Shell: Tauri v2 — LOCKED** (resolves vision §9's open call). Main window (frameless, custom
-  titlebar) + a transparent always-on-top **Jarvis overlay** window. Old v1 shipped only a Tauri
+  titlebar) + a transparent always-on-top **voice overlay** window (today the display dock). Old v1 shipped only a Tauri
   voice pill; the main UI ran in browser chrome — that's the "looks like a web view" problem v2
   fixes by wrapping the SPA in a native frameless window.
 - **Desktop-app look**: the VS Code / Copilot-sessions screenshot is the design reference — dense
@@ -30,7 +30,7 @@
   marketplace/knowledge/approvals) are wired from day one; missing surfaces (workspaces, sessions,
   chat streaming) get hand-written demo namespaces **typed by `@vynel/contracts`** and attached to
   the same client object — swap = regen SDK + delete `src/demo/`, composables unchanged.
-- **Voice is separate**: Jarvis wake + animations while talking/working, mutable like v1. Overlay
+- **Voice is separate**: wake word + animations while talking/working, mutable like v1. Overlay
   UI ships first with a demo event simulator; the voice-engine module + sidecar wiring come later.
 
 ## Post-approval corrections (Chad, 2026-07-05 — supersede the plan file where they differ)
@@ -100,7 +100,7 @@
   lists typed by contracts; memory/agents honest empty states), Home dashboard (recent
   conversations across scopes · workspaces with manager personas · upcoming schedules · approvals
   note) over a demo `dashboard.getOverview()` aggregate (a plausible future real route), and the
-  **Jarvis voice demo** — `VoiceOrb` (pure-CSS, 6 states, gold) driven by a scripted beat loop in
+  **voice demo** — `VoiceOrb` (pure-CSS, 6 states, gold) driven by a scripted beat loop in
   `VoiceOverlayDemo` (mic button in the titlebar; mute; "engine plugs in later" note). Reviewer
   CLEAN; should-fixes applied (switcher outside-click close, `activeWorkspaceId` persistence
   tests, `workspace-sections.ts` extraction). 48 tests.

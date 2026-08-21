@@ -44,17 +44,17 @@ function toVoiceDaemonState(state: string): VoiceDaemonState {
 }
 
 /** Can THIS window run a wake session? A HOST declaration, not a feature
- *  detect: the floating Jarvis window always declares it (it exists for
+ *  detect: the display dock always declares it (it exists for
  *  wakes); the desktop shell's app window NEVER does — WebView2 ships Web
  *  Speech, so a detect would make the main window a wake target and the wake
- *  would land in the app (or the shell's hidden jarvis webview) instead of
+ *  would land in the app (or the shell's hidden dock webview) instead of
  *  the native leg when the window feature is off; a plain browser tab keeps
  *  the pre-window behavior and takes a wake only with Web Speech (a tab
  *  without it that took one would swallow it while the daemon waits, deaf). */
 function describeVoiceSubscriber(surface: VoiceSurface): VoiceSubscriber {
   return {
     surface,
-    wake: surface === "jarvis" || (!isTauriShell() && isWebSpeechAvailable()),
+    wake: surface === "dock" || (!isTauriShell() && isWebSpeechAvailable()),
   };
 }
 
@@ -63,7 +63,7 @@ export function useVoiceDaemonLink(options: {
    *  bare), `turnWatchdogMs` = the daemon's silence bound for the session's
    *  turns (undefined from an older daemon — the session uses its default). */
   onWake: (command: string, turnWatchdogMs?: number) => void;
-  /** 'jarvis' = the floating window — the daemon prefers it for wake delivery. */
+  /** 'dock' = the display dock window — the daemon prefers it for wake delivery. */
   surface?: VoiceSurface;
   /** The chat session THIS window's own overlay turn is running on right now
    *  (null when none). A relayed 'speak' produced by that very session is our

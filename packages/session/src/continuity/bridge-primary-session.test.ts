@@ -122,7 +122,7 @@ describe('bridgePrimarySession', () => {
       // The event carries the tenant (data-standard — outbox payloads carry userId + workspaceId).
       expect(payload.userId).toBe(user.id)
       expect(payload.workspaceId).toBe(workspace.id)
-      // The swap event carries the continuing-session kind (voice-jarvis piece 1).
+      // The swap event carries the continuing-session kind (voice-continuity piece 1).
       expect(payload.scope).toBe('workspace')
     })
   })
@@ -130,7 +130,7 @@ describe('bridgePrimarySession', () => {
   it('carries scope on the swap event when bridging a non-primary (voice) continuing-session', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
-      // A voice continuing-session: scope 'voice', no workspace (voice-jarvis piece 1).
+      // A voice continuing-session: scope 'voice', no workspace (voice-continuity piece 1).
       const now = new Date()
       const voice = insertPrimarySession(db, {
         id: randomUUID(),

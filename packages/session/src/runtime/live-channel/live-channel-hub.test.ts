@@ -390,20 +390,20 @@ describe('LiveChannelHub', () => {
     const socket = fakeSocket()
     const connection = hub.connect({ userId: USER, transport: socket.transport })
     socket.take()
-    connection.handleMessage(subscribeMessage('voice:jarvis:wake'))
+    connection.handleMessage(subscribeMessage('voice:dock:wake'))
     expect(socket.take()).toEqual([
-      { kind: 'subscribed', channel: 'voice:jarvis:wake' },
-      { kind: 'event', channel: 'voice:jarvis:wake', event: { kind: 'daemon-link', connected: true } },
+      { kind: 'subscribed', channel: 'voice:dock:wake' },
+      { kind: 'event', channel: 'voice:dock:wake', event: { kind: 'daemon-link', connected: true } },
     ])
-    // The capability is a distinct subscriber kind at the source — never folded into plain jarvis.
-    expect(listeners.get(keyOf({ surface: 'jarvis', wake: true }))?.size).toBe(1)
-    expect(listeners.get(keyOf({ surface: 'jarvis', wake: false }))).toBeUndefined()
-    const wakeListeners = listeners.get(keyOf({ surface: 'jarvis', wake: true })) ?? []
+    // The capability is a distinct subscriber kind at the source — never folded into plain dock.
+    expect(listeners.get(keyOf({ surface: 'dock', wake: true }))?.size).toBe(1)
+    expect(listeners.get(keyOf({ surface: 'dock', wake: false }))).toBeUndefined()
+    const wakeListeners = listeners.get(keyOf({ surface: 'dock', wake: true })) ?? []
     for (const listener of wakeListeners) listener({ kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 })
     expect(socket.take()).toEqual([
       {
         kind: 'event',
-        channel: 'voice:jarvis:wake',
+        channel: 'voice:dock:wake',
         event: { kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 },
       },
     ])
@@ -415,8 +415,8 @@ describe('LiveChannelHub', () => {
     const socket = fakeSocket()
     const connection = hub.connect({ userId: USER, transport: socket.transport })
     socket.take()
-    connection.handleMessage(subscribeMessage('voice:jarvis'))
-    expect(socket.take()).toMatchObject([{ kind: 'error', code: 'not_found', channel: 'voice:jarvis' }])
+    connection.handleMessage(subscribeMessage('voice:dock'))
+    expect(socket.take()).toMatchObject([{ kind: 'error', code: 'not_found', channel: 'voice:dock' }])
     hub.dispose()
   })
 

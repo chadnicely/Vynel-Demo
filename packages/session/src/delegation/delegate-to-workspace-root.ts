@@ -1,6 +1,6 @@
 // `delegateToWorkspaceRoot` — the session-tier composition for routing a task INTO a
 // workspace's CONTINUING PRIMARY conversation (brain-tree Phase 1). Resumes the
-// workspace's OWN brain (its primary session, with its context), so "hey jarvis, in
+// workspace's OWN brain (its primary session, with its context), so "hey Vynel, in
 // Acme, summarize the notes" reaches Acme's actual conversation.
 //
 // THE ROUTED TURN RUNS THROUGH THE ONE SHARED PIPELINE (`consumeSessionEventStream`)

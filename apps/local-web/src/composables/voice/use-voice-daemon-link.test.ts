@@ -53,7 +53,7 @@ function installTauriShell(): void {
 }
 
 function mountLink(
-  surface: "app" | "jarvis" = "app",
+  surface: "app" | "dock" = "app",
   ownLiveSessionId?: () => string | null,
   speakThroughSession?: (text: string) => boolean,
 ) {
@@ -85,14 +85,14 @@ const speak = (channel: string, text: string, sessionId?: string | null) =>
   }) as LiveChannelServerFrame;
 
 describe("useVoiceDaemonLink (live channel)", () => {
-  it("the Jarvis window always subscribes wake-capable and follows the relay's link light", () => {
-    const { link, socket } = mountLink("jarvis");
-    expect(socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:jarvis:wake"] }]);
+  it("the display dock always subscribes wake-capable and follows the relay's link light", () => {
+    const { link, socket } = mountLink("dock");
+    expect(socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:dock:wake"] }]);
     expect(link().isDaemonConnected.value).toBe(false);
-    socket.serverAcks("voice:jarvis:wake");
+    socket.serverAcks("voice:dock:wake");
     socket.serverSends({
       kind: "event",
-      channel: "voice:jarvis:wake",
+      channel: "voice:dock:wake",
       event: { kind: "daemon-link", connected: true },
     });
     expect(link().isDaemonConnected.value).toBe(true);
@@ -116,9 +116,9 @@ describe("useVoiceDaemonLink (live channel)", () => {
   });
 
   it("the desktop shell's app window NEVER declares it — even though WebView2 ships Web Speech", () => {
-    // A host declaration, not a feature detect: with the jarvis window feature
+    // A host declaration, not a feature detect: with the dock window feature
     // off, a wake must reach the native leg — not land in the main window (or
-    // the shell's hidden jarvis webview) where nobody would hear it.
+    // the shell's hidden dock webview) where nobody would hear it.
     installTauriShell();
     installWebSpeech();
     const { socket } = mountLink("app");
@@ -126,9 +126,9 @@ describe("useVoiceDaemonLink (live channel)", () => {
     wrapper!.unmount();
     wrapper = null;
 
-    // The shell's jarvis webview itself still does — it exists for wakes.
-    const jarvis = mountLink("jarvis");
-    expect(jarvis.socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:jarvis:wake"] }]);
+    // The shell's dock webview itself still does — it exists for wakes.
+    const dock = mountLink("dock");
+    expect(dock.socket.takeSent()).toEqual([{ op: "subscribe", channels: ["voice:dock:wake"] }]);
   });
 
   it("routes wake (with the daemon's watchdog bound), speaking state and delegated speech", () => {
@@ -159,14 +159,14 @@ describe("useVoiceDaemonLink (live channel)", () => {
   // The Display's orb mirrors the WHOLE daemon conversation, not just its
   // voice — so the phase itself is what the link carries.
   it("carries every daemon phase, and forgets it when the daemon goes", () => {
-    const { link, socket } = mountLink("jarvis");
-    socket.serverAcks("voice:jarvis:wake");
+    const { link, socket } = mountLink("dock");
+    socket.serverAcks("voice:dock:wake");
     expect(link().daemonState.value).toBe("idle");
 
     const state = (value: string) =>
       socket.serverSends({
         kind: "event",
-        channel: "voice:jarvis:wake",
+        channel: "voice:dock:wake",
         event: { kind: "state", state: value },
       });
     for (const phase of ["wake", "listening", "thinking", "speaking"]) {
@@ -183,7 +183,7 @@ describe("useVoiceDaemonLink (live channel)", () => {
     state("listening");
     socket.serverSends({
       kind: "event",
-      channel: "voice:jarvis:wake",
+      channel: "voice:dock:wake",
       event: { kind: "daemon-link", connected: false },
     });
     expect(link().daemonState.value).toBe("idle");
@@ -227,17 +227,17 @@ describe("useVoiceDaemonLink (live channel)", () => {
       takenBySession.push(text);
       return true;
     });
-    const { socket } = mountLink("jarvis", () => "voice-seg-7", speakThroughSession);
-    socket.serverAcks("voice:jarvis:wake");
-    socket.serverSends(speak("voice:jarvis:wake", "your build is green", "sched-1"));
+    const { socket } = mountLink("dock", () => "voice-seg-7", speakThroughSession);
+    socket.serverAcks("voice:dock:wake");
+    socket.serverSends(speak("voice:dock:wake", "your build is green", "sched-1"));
     expect(takenBySession).toEqual(["your build is green"]);
     expect(played).toEqual([]);
     // Our own turn's copy is still dropped BEFORE the session is even asked.
-    socket.serverSends(speak("voice:jarvis:wake", "own turn line", "voice-seg-7"));
+    socket.serverSends(speak("voice:dock:wake", "own turn line", "voice-seg-7"));
     expect(speakThroughSession).toHaveBeenCalledTimes(1);
     // No turn in flight → the session declines → the side player, as before.
     turnInFlight = false;
-    socket.serverSends(speak("voice:jarvis:wake", "lunch in five", null));
+    socket.serverSends(speak("voice:dock:wake", "lunch in five", null));
     await vi.waitFor(() => expect(played).toEqual(["lunch in five"]));
     expect(takenBySession).toEqual(["your build is green"]);
   });

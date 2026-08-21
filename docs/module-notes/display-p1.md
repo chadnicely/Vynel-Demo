@@ -7,7 +7,7 @@ Display. No schema, no tools, no widgets yet (empty slots where they will land).
 
 ## Locked for P1
 
-- **Name:** Display (tab/toggle label "Display"; the menu may read "Display Console"). Never "HUD"/"Jarvis" in code.
+- **Name:** Display (tab/toggle label "Display"; the menu may read "Display Console"). Never "HUD" or a borrowed hero name in code.
 - **Dark-only surface.** The orb's additive (`lighter`) glow defines the look; the Display paints its own dark ground
   and its own four-colour palette exposed as CSS variables (`--display-accent`, `--display-accent-dim`,
   `--display-accent-faint`, `--display-text`) so re-tokening is one place. Everything outside the Display keeps both

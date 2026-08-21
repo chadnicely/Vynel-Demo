@@ -53,7 +53,7 @@ sub-section under the file map.
 | `packages/ui/src/components/ThinkingBlock.vue` | collapsible reasoning trace, open while streaming |
 | `packages/ui/src/components/ClaudeMark.vue` | the assistant's identity glyph — Claude's coral starburst spark (identity only) |
 | `packages/ui/src/components/PresenceDot.vue` | the signature mark — gold = the assistant is alive here |
-| `packages/ui/src/components/VoiceOrb.vue` | the Jarvis presence orb — 6 states, pure CSS; exports `VoiceOrbState` |
+| `packages/ui/src/components/VoiceOrb.vue` | the assistant’s presence orb — 6 states, pure CSS; exports `VoiceOrbState` |
 | `packages/ui/src/components/AttachmentChips.vue` | the "what rode along" strip on a sent message — one chip per attachment |
 | `packages/ui/src/components/SegmentedTabs.vue` | segmented tab control; exports `SegmentedTab` |
 | `packages/ui/src/components/SelectChip.vue` | compact inline selector (model/mode picker); exports `SelectChipOption` |

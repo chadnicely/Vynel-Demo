@@ -63,7 +63,7 @@ function makeHarness() {
 
 const APP = { surface: 'app', wake: false } as const
 const APP_WAKE = { surface: 'app', wake: true } as const
-const JARVIS = { surface: 'jarvis', wake: true } as const
+const DOCK = { surface: 'dock', wake: true } as const
 
 describe('voice daemon relay', () => {
   it('opens ONE upstream per subscriber kind on the first listener, closes it after the last', async () => {
@@ -80,10 +80,10 @@ describe('voice daemon relay', () => {
 
     // Another surface is its own upstream — declared wake-capable to the daemon.
     const j = h.listen()
-    const releaseJ = h.relay.subscribe(JARVIS, j.listener)
+    const releaseJ = h.relay.subscribe(DOCK, j.listener)
     await h.settle()
     expect(h.fetchDaemon).toHaveBeenCalledTimes(2)
-    expect(h.streams[1]!.url).toBe('http://127.0.0.1:18893/events?surface=jarvis&wake=1')
+    expect(h.streams[1]!.url).toBe('http://127.0.0.1:18893/events?surface=dock&wake=1')
 
     // The same surface with the other capability is a THIRD upstream: the
     // daemon must be able to hand a wake to the capable one alone.
@@ -145,9 +145,9 @@ describe('voice daemon relay', () => {
     const h = makeHarness()
     const older = h.listen()
     const owner = h.listen()
-    h.relay.subscribe(JARVIS, older.listener)
+    h.relay.subscribe(DOCK, older.listener)
     await h.settle()
-    const releaseOwner = h.relay.subscribe(JARVIS, owner.listener)
+    const releaseOwner = h.relay.subscribe(DOCK, owner.listener)
     await h.settle()
     // The wake lands on the newest (the daemon's rule) — it now OWNS the handoff.
     h.streams[0]!.emit({ kind: 'wake', command: '' })
@@ -156,7 +156,7 @@ describe('voice daemon relay', () => {
 
     // A window joining later does NOT take the conversation's lines away.
     const latest = h.listen()
-    h.relay.subscribe(JARVIS, latest.listener)
+    h.relay.subscribe(DOCK, latest.listener)
     await h.settle()
     h.streams[0]!.emit({ kind: 'speak', text: 'your build is green', sessionId: 'sched-1' })
     await h.settle()
@@ -184,9 +184,9 @@ describe('voice daemon relay', () => {
     const h = makeHarness()
     const sibling = h.listen()
     const owner = h.listen()
-    h.relay.subscribe(JARVIS, sibling.listener)
+    h.relay.subscribe(DOCK, sibling.listener)
     await h.settle()
-    const releaseOwner = h.relay.subscribe(JARVIS, owner.listener)
+    const releaseOwner = h.relay.subscribe(DOCK, owner.listener)
     await h.settle()
     h.streams[0]!.emit({ kind: 'wake', command: 'open mail', turnWatchdogMs: 300_000 })
     await h.settle()
@@ -195,7 +195,7 @@ describe('voice daemon relay', () => {
 
     // A NON-owner leaving never cycles the link — nothing changed for the daemon.
     const bystander = h.listen()
-    const releaseBystander = h.relay.subscribe(JARVIS, bystander.listener)
+    const releaseBystander = h.relay.subscribe(DOCK, bystander.listener)
     await h.settle()
     releaseBystander()
     await h.settle()
@@ -208,8 +208,8 @@ describe('voice daemon relay', () => {
     await h.settle()
     expect(h.streams[0]!.aborted).toBe(true)
     expect(h.fetchDaemon).toHaveBeenCalledTimes(2)
-    expect(h.streams[1]!.url).toBe('http://127.0.0.1:18893/events?surface=jarvis&wake=1')
-    expect(h.relay.isConnected(JARVIS)).toBe(true)
+    expect(h.streams[1]!.url).toBe('http://127.0.0.1:18893/events?surface=dock&wake=1')
+    expect(h.relay.isConnected(DOCK)).toBe(true)
     // The light never blinked off for the sibling — the link was down for a
     // beat by design, not by failure.
     expect(sibling.events.filter((event) => event.kind === 'daemon-link')).toEqual([])
@@ -225,9 +225,9 @@ describe('voice daemon relay', () => {
     const h = makeHarness()
     const sibling = h.listen()
     const owner = h.listen()
-    h.relay.subscribe(JARVIS, sibling.listener)
+    h.relay.subscribe(DOCK, sibling.listener)
     await h.settle()
-    const releaseOwner = h.relay.subscribe(JARVIS, owner.listener)
+    const releaseOwner = h.relay.subscribe(DOCK, owner.listener)
     await h.settle()
     h.streams[0]!.emit({ kind: 'wake', command: '' })
     await h.settle()
@@ -241,7 +241,7 @@ describe('voice daemon relay', () => {
     h.timers[0]!.callback()
     await h.settle()
     expect(h.fetchDaemon).toHaveBeenCalledTimes(2)
-    expect(h.relay.isConnected(JARVIS)).toBe(true)
+    expect(h.relay.isConnected(DOCK)).toBe(true)
     h.relay.dispose()
   })
 
@@ -249,9 +249,9 @@ describe('voice daemon relay', () => {
     const h = makeHarness()
     const sibling = h.listen()
     const owner = h.listen()
-    h.relay.subscribe(JARVIS, sibling.listener)
+    h.relay.subscribe(DOCK, sibling.listener)
     await h.settle()
-    const releaseOwner = h.relay.subscribe(JARVIS, owner.listener)
+    const releaseOwner = h.relay.subscribe(DOCK, owner.listener)
     await h.settle()
     h.streams[0]!.emit({ kind: 'wake', command: '' })
     await h.settle()
@@ -263,19 +263,19 @@ describe('voice daemon relay', () => {
     releaseOwner()
     await h.settle()
     expect(sibling.events).toEqual([{ kind: 'daemon-link', connected: false }])
-    expect(h.relay.isConnected(JARVIS)).toBe(false)
+    expect(h.relay.isConnected(DOCK)).toBe(false)
     expect(h.timers.map((timer) => timer.delayMs)).toEqual([1_000])
     h.relay.dispose()
   })
 
   it('a listener joining late gets the last known state at once (the daemon replay, one hop later)', async () => {
     const h = makeHarness()
-    h.relay.subscribe(JARVIS, h.listen().listener)
+    h.relay.subscribe(DOCK, h.listen().listener)
     await h.settle()
     h.streams[0]!.emit({ kind: 'state', state: 'wake' })
     await h.settle()
     const late = h.listen()
-    h.relay.subscribe(JARVIS, late.listener)
+    h.relay.subscribe(DOCK, late.listener)
     expect(late.events).toEqual([
       { kind: 'daemon-link', connected: true },
       { kind: 'state', state: 'wake' },
@@ -356,7 +356,7 @@ describe('voice daemon relay', () => {
         return { cancel: () => clearTimeout(handle) }
       },
     })
-    relay.subscribe(JARVIS, () => {})
+    relay.subscribe(DOCK, () => {})
     await new Promise((resolve) => setTimeout(resolve, 30))
     relay.dispose()
     expect(warn).toHaveBeenCalledTimes(1)

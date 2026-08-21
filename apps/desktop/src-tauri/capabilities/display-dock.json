@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "jarvis-window",
-  "description": "The Jarvis overlay controls its own window: show on wake, hide on session end, park bottom-right, drag to move.",
-  "windows": ["jarvis"],
+  "identifier": "display-dock-window",
+  "description": "The display dock controls its own window: show on wake, hide on session end, park bottom-right, drag to move.",
+  "windows": ["display-dock"],
   "permissions": [
     "core:default",
     "core:window:allow-show",

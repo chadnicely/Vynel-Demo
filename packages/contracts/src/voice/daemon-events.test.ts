@@ -50,7 +50,7 @@ describe('voice daemon events', () => {
 
   it('knows the two surfaces', () => {
     expect(isVoiceSurface('app')).toBe(true)
-    expect(isVoiceSurface('jarvis')).toBe(true)
+    expect(isVoiceSurface('dock')).toBe(true)
     expect(isVoiceSurface('tv')).toBe(false)
   })
 })

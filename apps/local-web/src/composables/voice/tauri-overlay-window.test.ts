@@ -4,7 +4,7 @@ import { overlayPosition } from "./tauri-overlay-window.js";
 const SCREEN = { width: 1920, height: 1040 };
 
 describe("overlayPosition", () => {
-  it("centers for the jarvis park", () => {
+  it("centers for the dock park", () => {
     expect(overlayPosition("center", { width: 420, height: 560 }, SCREEN)).toEqual({
       x: 750,
       y: 240,

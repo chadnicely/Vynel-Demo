@@ -311,7 +311,7 @@ describe('primary-sessions repository', () => {
     })
   })
 
-  // ── Voice continuing-session (voice-jarvis piece 1) ─────────────────
+  // ── Voice continuing-session (voice-continuity piece 1) ─────────────────
 
   it('resolves the live voice session by (user, scope) — workspaceId is NULL', async () => {
     await withTestDatabase((db) => {

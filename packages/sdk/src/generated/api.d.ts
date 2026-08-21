@@ -3736,7 +3736,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Speak text aloud through the user's voice (the Jarvis speaker) or into a live call. */
+        /** Speak text aloud through the user's voice (the voice daemon's speaker) or into a live call. */
         post: operations["postVoiceSpeak"];
         delete?: never;
         options?: never;

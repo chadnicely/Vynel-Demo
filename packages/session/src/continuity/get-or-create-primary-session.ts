@@ -1,5 +1,5 @@
 // `getOrCreatePrimarySession` — the primary wrapper over the generic
-// `getOrCreateContinuingSession` (voice-jarvis piece 1). Primaries are the manager
+// `getOrCreateContinuingSession` (voice-continuity piece 1). Primaries are the manager
 // identities; scope is derived from `workspaceId` (null = the single GLOBAL primary,
 // a workspace id = that workspace's primary). Creation, idempotency, and the
 // partial-unique race retry live in the generic op; this wrapper only maps the

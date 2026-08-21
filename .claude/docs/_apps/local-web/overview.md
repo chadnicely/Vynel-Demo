@@ -22,7 +22,7 @@ The core experience is deliberately **chrome-light**. There is no dashboard of b
 - **Reach every feature section** — a persistent menu opens Memory, Knowledge, Skills, Agents, Marketplace, Schedules, Channels, and the Notebook for a workspace, plus Application settings and the Account panel globally.
 - **Edit workspace files** — click a file to open it on the canvas in direct-edit mode, with syntax highlighting and a Code/Preview toggle for markdown.
 - **Compose richly** — a multiline draft with model and mode pickers, a voice mic, and file attachments.
-- **Talk to it** — a floating always-on-top **Jarvis overlay** shows the assistant listening and working; voice is a separate window that drops the app shell entirely.
+- **Talk to it** — a floating always-on-top **display dock** shows the assistant listening and working; voice is a separate window that drops the app shell entirely.
 - **Onboard on first launch** — a full-window wizard walks a brand-new user through naming their assistant, seeding identity, and first setup before the main shell ever appears.
 - **Switch theme** — dark by default, light on toggle, remembered across relaunches.
 
@@ -55,7 +55,7 @@ The core experience is deliberately **chrome-light**. There is no dashboard of b
 | **Session viewer** | A side panel that plays a delegated child session's live stream — the "one brain, many hands" story made watchable. |
 | **Approval notification** | A pending irreversible action shown as a floating, decidable card from any view, mirrored by the titlebar status light. |
 | **ClaudeMark** | The assistant's identity: it is named **Claude** and wears one coral spark. Gold is reserved for presence/liveness, never identity. |
-| **Jarvis overlay** | The floating, always-on-top voice window that renders alone, without the app shell. |
+| **Display dock** | The floating, always-on-top voice window that renders alone, without the app shell. |
 | **Onboarding gate** | The first-launch signal (the API refuses normal calls until setup is done) that hands the whole window to the setup wizard. |
 
 ## Rules & invariants
@@ -68,7 +68,7 @@ The core experience is deliberately **chrome-light**. There is no dashboard of b
 - **The onboarding gate takes the whole window.** Until first-launch setup completes, the main shell does not mount and nothing keeps polling into the closed gate; when it opens, the app refetches the world.
 - **The browser never talks to the API directly.** Calls ride a same-origin `/api` path proxied to the loopback-only local API — the desktop runs no cross-origin traffic.
 - **Theme changes atomically.** The document's theme attribute flips in the same synchronous beat as the toggle, so there is never a wrong-theme frame, and the choice survives relaunch.
-- **The voice window is bare.** The floating Jarvis view drops the shell entirely — two shell-linked voice surfaces in one window would double the voice session.
+- **The voice window is bare.** The display dock drops the shell entirely — two shell-linked voice surfaces in one window would double the voice session.
 
 ## Lifecycle
 
@@ -83,13 +83,13 @@ stateDiagram-v2
     LiveTurn --> AwaitingApproval: turn hits an irreversible action
     AwaitingApproval --> LiveTurn: user approves / denies
     LiveTurn --> Shell: turn ends → invalidate & re-read
-    Shell --> Jarvis: open the voice overlay (bare window)
-    Jarvis --> Shell: close voice
+    Shell --> Dock: open the display dock (bare window)
+    Dock --> Shell: close voice
 ```
 
 ## Where it sits in the bigger picture
 
-local-web is the top of the stack and imports downward only — it never appears in any package. It renders the shared component library ([ui](../../_platform/primitives/overview.md)) into a live app, and reaches the entire backend through one typed client ([sdk](../../_platform/contracts-and-sdk/overview.md)) generated from the API's contracts ([contracts](../../_platform/contracts-and-sdk/overview.md)), speaking only to the local API on loopback ([local-api](../local-api/overview.md)). It shows the user's [memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), [skills](../../skills/overview.md), [agents](../../agents/overview.md), [marketplace](../../marketplace/overview.md), [schedules](../../schedules/overview.md), [channels](../../channels/overview.md), and [notebook](../../notebook/overview.md) — but owns none of them; each is a feature package it merely opens a window onto. It surfaces [approvals](../../approvals/overview.md) and hosts the [voice](../../voice/overview.md) overlay without owning their logic, borrows the mode vocabulary from [session](../../session/overview.md), and is itself wrapped by the native [desktop](../desktop/overview.md) shell that gives it a frameless window, the Jarvis overlay, and its background processes. In one line: local-web is where Vynel becomes something a person can see and trust — every other module is what it makes visible.
+local-web is the top of the stack and imports downward only — it never appears in any package. It renders the shared component library ([ui](../../_platform/primitives/overview.md)) into a live app, and reaches the entire backend through one typed client ([sdk](../../_platform/contracts-and-sdk/overview.md)) generated from the API's contracts ([contracts](../../_platform/contracts-and-sdk/overview.md)), speaking only to the local API on loopback ([local-api](../local-api/overview.md)). It shows the user's [memory](../../memory/overview.md), [knowledge](../../knowledge/overview.md), [skills](../../skills/overview.md), [agents](../../agents/overview.md), [marketplace](../../marketplace/overview.md), [schedules](../../schedules/overview.md), [channels](../../channels/overview.md), and [notebook](../../notebook/overview.md) — but owns none of them; each is a feature package it merely opens a window onto. It surfaces [approvals](../../approvals/overview.md) and hosts the [voice](../../voice/overview.md) overlay without owning their logic, borrows the mode vocabulary from [session](../../session/overview.md), and is itself wrapped by the native [desktop](../desktop/overview.md) shell that gives it a frameless window, the display dock, and its background processes. In one line: local-web is where Vynel becomes something a person can see and trust — every other module is what it makes visible.
 
 ---
 *Mapped from the code on disk, 2026-07-14. If you change this module, update this file and [structure.md](./structure.md).*

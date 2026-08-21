@@ -4,18 +4,18 @@
 // whether the api currently holds a live link to the daemon for that surface —
 // the browser end reads it as its "daemon connected" light.
 
-/** Which window a voice subscriber is — the daemon prefers 'jarvis' for wake
+/** Which window a voice subscriber is — the daemon prefers 'dock' for wake
  *  delivery; 'app' tabs get state + play delegated speech. */
-export type VoiceSurface = 'app' | 'jarvis'
+export type VoiceSurface = 'app' | 'dock'
 
-export const VOICE_SURFACES: readonly VoiceSurface[] = ['app', 'jarvis']
+export const VOICE_SURFACES: readonly VoiceSurface[] = ['app', 'dock']
 
 export function isVoiceSurface(value: unknown): value is VoiceSurface {
-  return value === 'app' || value === 'jarvis'
+  return value === 'app' || value === 'dock'
 }
 
 /** What a voice subscriber declares when it joins: which window it is, and
- *  whether it may RUN a wake session — a host declaration (the jarvis window
+ *  whether it may RUN a wake session — a host declaration (the display dock
  *  always; a browser tab only with Web Speech; the desktop shell's main window
  *  never), not a feature detect. The daemon hands a wake only to a capable
  *  client — one that took a wake it cannot answer would swallow it silently. */

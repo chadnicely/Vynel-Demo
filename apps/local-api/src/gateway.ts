@@ -146,7 +146,7 @@ export function createGatewayApp(options: CreateGatewayAppOptions): Hono {
       const filePath = resolveWebUiFilePath(webUiDistDir, requestPath)
       if (filePath !== null) return respondWithWebUiFile(webUiDistDir, filePath)
       // SPA fallback: a browser navigation (html-accepting GET) to a UI route
-      // like /jarvis gets the shell; api-shaped GETs fall through to the api.
+      // like /display-dock gets the shell; api-shaped GETs fall through to the api.
       if (c.req.header('accept')?.includes('text/html') === true) {
         const indexPath = resolveWebUiFilePath(webUiDistDir, '/index.html')
         if (indexPath !== null) return respondWithWebUiFile(webUiDistDir, indexPath)

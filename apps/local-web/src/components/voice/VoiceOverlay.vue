@@ -10,14 +10,14 @@ import {
 } from "./voice-stage-view.js";
 import VoiceStage from "./VoiceStage.vue";
 
-// The in-app Jarvis view: the daemon hears "Hey Vynel" locally and hands the
+// The in-app voice view: the daemon hears "Hey Vynel" locally and hands the
 // session here — Web Speech (Google STT) transcribes commands with a live
 // interim caption, the brain answers over /root/turn on the spoken thread, and
 // the reply's streamed text is spoken in the browser a sentence at a time while
 // the mic stays open (talk over it to interrupt). Also opens from the mic
 // button with no daemon. Closing it by any route ends the session — which
 // stops a running turn by its own session id (round-2 R2-E), never the global
-// head. (The floating desktop variant of this surface is views/JarvisView.vue.)
+// head. (The floating desktop variant of this surface is views/DisplayDockView.vue.)
 
 const ui = useUiStore();
 const isMuted = ref(false);

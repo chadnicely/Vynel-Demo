@@ -1,31 +1,31 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import pino from 'pino'
-import { buildJarvisLaunchCommand, createJarvisWindow } from './jarvis-window.js'
-import type { CommandSpawner, SpawnedCommand } from './jarvis-window.js'
+import { buildDisplayDockLaunchCommand, createDisplayDockWindow } from './display-dock-window.js'
+import type { CommandSpawner, SpawnedCommand } from './display-dock-window.js'
 
 // The spawn side is a fire-and-forget shell call (smoke-verified live); the
 // invocation building and the failed-launch fallback are the parts worth
 // pinning — a broken overlay exe once swallowed every wake without a trace.
 
-describe('buildJarvisLaunchCommand', () => {
+describe('buildDisplayDockLaunchCommand', () => {
   it('uses `start` on Windows so the browser resolves via App Paths, not PATH', () => {
-    expect(buildJarvisLaunchCommand('chrome', 'http://localhost:8999/jarvis', 'win32')).toEqual({
+    expect(buildDisplayDockLaunchCommand('chrome', 'http://localhost:8999/display-dock', 'win32')).toEqual({
       command: 'cmd',
-      args: ['/c', 'start', '', 'chrome', '--app=http://localhost:8999/jarvis', '--window-size=420,560'],
+      args: ['/c', 'start', '', 'chrome', '--app=http://localhost:8999/display-dock', '--window-size=420,560'],
     })
   })
 
   it('maps msedge to its macOS app name', () => {
-    expect(buildJarvisLaunchCommand('msedge', 'http://localhost:8999/jarvis', 'darwin')).toEqual({
+    expect(buildDisplayDockLaunchCommand('msedge', 'http://localhost:8999/display-dock', 'darwin')).toEqual({
       command: 'open',
-      args: ['-na', 'Microsoft Edge', '--args', '--app=http://localhost:8999/jarvis', '--window-size=420,560'],
+      args: ['-na', 'Microsoft Edge', '--args', '--app=http://localhost:8999/display-dock', '--window-size=420,560'],
     })
   })
 
   it('calls the browser binary directly on linux', () => {
-    expect(buildJarvisLaunchCommand('chrome', 'http://localhost:8999/jarvis', 'linux')).toEqual({
+    expect(buildDisplayDockLaunchCommand('chrome', 'http://localhost:8999/display-dock', 'linux')).toEqual({
       command: 'google-chrome',
-      args: ['--app=http://localhost:8999/jarvis', '--window-size=420,560'],
+      args: ['--app=http://localhost:8999/display-dock', '--window-size=420,560'],
     })
   })
 })
@@ -59,30 +59,30 @@ function createSpawnRecorder(): {
   return { calls, spawner }
 }
 
-const JARVIS_URL = 'http://localhost:18894/jarvis'
+const DOCK_URL = 'http://localhost:18894/display-dock'
 const logger = pino({ level: 'silent' })
 
 // process.execPath: a real file on every machine — the appPath existsSync gate
 // must pass for the overlay-preferred branch to run at all.
 function createOverlayWindow(recorder: ReturnType<typeof createSpawnRecorder>) {
-  return createJarvisWindow(
-    { browser: 'chrome', url: JARVIS_URL, appPath: process.execPath },
+  return createDisplayDockWindow(
+    { browser: 'chrome', url: DOCK_URL, appPath: process.execPath },
     logger,
     recorder.spawner,
   )
 }
 
-describe('createJarvisWindow open()', () => {
+describe('createDisplayDockWindow open()', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
 
   it('opens the browser window directly when no overlay exe exists', () => {
     const recorder = createSpawnRecorder()
-    const window = createJarvisWindow({ browser: 'chrome', url: JARVIS_URL }, logger, recorder.spawner)
+    const window = createDisplayDockWindow({ browser: 'chrome', url: DOCK_URL }, logger, recorder.spawner)
     window.open()
     expect(recorder.calls).toHaveLength(1)
-    expect(recorder.calls[0]?.args).toContain(`--app=${JARVIS_URL}`)
+    expect(recorder.calls[0]?.args).toContain(`--app=${DOCK_URL}`)
   })
 
   it('prefers the overlay exe and leaves the browser closed while it stays up', () => {
@@ -90,7 +90,7 @@ describe('createJarvisWindow open()', () => {
     createOverlayWindow(recorder).open()
     expect(recorder.calls).toHaveLength(1)
     expect(recorder.calls[0]?.command).toBe(process.execPath)
-    expect(recorder.calls[0]?.args).toEqual(['--jarvis-only'])
+    expect(recorder.calls[0]?.args).toEqual(['--dock-only'])
   })
 
   it('falls back to the browser window when the overlay exe exits immediately', () => {
@@ -98,7 +98,7 @@ describe('createJarvisWindow open()', () => {
     createOverlayWindow(recorder).open()
     recorder.calls[0]?.handle.emitExit()
     expect(recorder.calls).toHaveLength(2)
-    expect(recorder.calls[1]?.args).toContain(`--app=${JARVIS_URL}`)
+    expect(recorder.calls[1]?.args).toContain(`--app=${DOCK_URL}`)
   })
 
   it('treats a late exit as a closed window, not a failed launch', () => {
