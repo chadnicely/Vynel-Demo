@@ -1,18 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
-import type { VoiceCommandSessionView } from "../voice/voice-command-session-types.js";
+import type { VoiceDaemonState } from "../voice/use-voice-daemon-link.js";
+import type {
+  VoiceCommandSessionState,
+  VoiceCommandSessionView,
+} from "../voice/voice-command-session-types.js";
 import { createSpokenAudioPlayer } from "../voice/spoken-audio-player.js";
 import {
   activityEnergy,
   displayOrbState,
   useSpokenClauseSpike,
+  type DisplayDaemonLeg,
 } from "./display-orb-state.js";
 
 function view(
   overrides: Partial<VoiceCommandSessionView> = {},
 ): VoiceCommandSessionView {
   return { state: "ended", transcript: "", spokenText: "", notice: "", ...overrides };
+}
+
+function daemonLeg(
+  state: VoiceDaemonState,
+  isPlayingRelayedLine = false,
+): DisplayDaemonLeg {
+  return { state, isPlayingRelayedLine };
+}
+
+/** The energies the room's OWN leg burns, read off the mapping rather than
+ *  restated — the daemon leg has to land on exactly the same numbers. */
+function speakingEnergy(): number {
+  return displayOrbState(view({ state: "speaking" }), 0, false).energy;
+}
+
+function thinkingEnergy(): number {
+  return displayOrbState(view({ state: "thinking" }), 0, false).energy;
 }
 
 describe("activityEnergy", () => {
@@ -74,18 +96,139 @@ describe("displayOrbState", () => {
   // A schedule's line relayed to this window, or the daemon's own speaker: the
   // assistant IS talking, with no turn of ours behind it.
   it("speaks for another producer's line with no session of its own", () => {
-    const relayed = displayOrbState(view(), activityEnergy("idle"), false, true);
+    const relayed = displayOrbState(
+      view(),
+      activityEnergy("idle"),
+      false,
+      daemonLeg("idle", true),
+    );
     expect(relayed.speaking).toBe(true);
     expect(relayed.energy).toBeGreaterThan(activityEnergy("idle"));
   });
 
   // Mute closes the MICROPHONE — it does not stop the assistant from talking.
   it("still speaks another producer's line while the mic is muted", () => {
-    expect(displayOrbState(view(), activityEnergy("idle"), true, true)).toEqual({
-      energy: displayOrbState(view({ state: "speaking" }), 0, false).energy,
+    expect(
+      displayOrbState(view(), activityEnergy("idle"), true, daemonLeg("idle", true)),
+    ).toEqual({
+      energy: speakingEnergy(),
       listening: false,
       speaking: true,
     });
+  });
+});
+
+// The daemon leg: a wake answered natively, or one handed to the wake window
+// while this room stayed open. Every combination of the two legs, spelled out —
+// the precedence rule is the whole point, so nothing here is derived from it.
+type OrbCase = [
+  own: VoiceCommandSessionState,
+  daemon: VoiceDaemonState,
+  relayed: boolean,
+  muted: boolean,
+  listening: boolean,
+  speaking: boolean,
+];
+
+const ORB_CASES: OrbCase[] = [
+  // The room's own session holds the microphone — the daemon never adds a
+  // second "listening" to it, whatever it is doing.
+  ["listening", "idle", false, false, true, false],
+  ["listening", "idle", true, false, true, true],
+  ["listening", "listening", false, false, true, false],
+  ["listening", "listening", true, false, true, true],
+  ["listening", "speaking", false, false, true, true],
+  ["listening", "speaking", true, false, true, true],
+  // Muted: the room's microphone is closed, so the daemon's leg takes the orb.
+  ["listening", "idle", false, true, false, false],
+  ["listening", "idle", true, true, false, true],
+  ["listening", "listening", false, true, true, false],
+  ["listening", "listening", true, true, true, true],
+  ["listening", "speaking", false, true, true, true],
+  ["listening", "speaking", true, true, true, true],
+  // The room speaking its own reply — its mic stays open through it.
+  ["speaking", "idle", false, false, true, true],
+  ["speaking", "idle", true, false, true, true],
+  ["speaking", "listening", false, false, true, true],
+  ["speaking", "listening", true, false, true, true],
+  ["speaking", "speaking", false, false, true, true],
+  ["speaking", "speaking", true, false, true, true],
+  ["speaking", "idle", false, true, false, false],
+  ["speaking", "idle", true, true, false, true],
+  ["speaking", "listening", false, true, true, false],
+  ["speaking", "listening", true, true, true, true],
+  ["speaking", "speaking", false, true, true, true],
+  ["speaking", "speaking", true, true, true, true],
+  // No session of the room's own: the daemon leg is all the orb has.
+  ["ended", "idle", false, false, false, false],
+  ["ended", "idle", true, false, false, true],
+  ["ended", "listening", false, false, true, false],
+  ["ended", "listening", true, false, true, true],
+  ["ended", "speaking", false, false, true, true],
+  ["ended", "speaking", true, false, true, true],
+  ["ended", "idle", false, true, false, false],
+  ["ended", "idle", true, true, false, true],
+  ["ended", "listening", false, true, true, false],
+  ["ended", "listening", true, true, true, true],
+  ["ended", "speaking", false, true, true, true],
+  ["ended", "speaking", true, true, true, true],
+];
+
+describe("displayOrbState — the daemon leg", () => {
+  it.each(ORB_CASES)(
+    "own %s · daemon %s · relayed %s · muted %s → listening %s, speaking %s",
+    (own, state, relayed, muted, listening, speaking) => {
+      const orb = displayOrbState(
+        view({ state: own }),
+        activityEnergy("idle"),
+        muted,
+        daemonLeg(state, relayed),
+      );
+      expect([orb.listening, orb.speaking]).toEqual([listening, speaking]);
+    },
+  );
+
+  // A handed-off conversation parks the daemon at 'wake' for its whole life —
+  // that ONE phase is what mirrors the wake window into this room.
+  it("mirrors a handed-off conversation, which never leaves 'wake'", () => {
+    const orb = displayOrbState(view(), activityEnergy("idle"), false, daemonLeg("wake"));
+    expect([orb.listening, orb.speaking]).toEqual([true, false]);
+    // Awake and silent burns no more than the fleet does — nothing is running yet.
+    expect(orb.energy).toBe(activityEnergy("idle"));
+  });
+
+  it("burns for the daemon's work at the same levels as the room's own", () => {
+    const idle = activityEnergy("idle");
+    expect(displayOrbState(view(), idle, false, daemonLeg("thinking")).energy).toBe(
+      thinkingEnergy(),
+    );
+    expect(displayOrbState(view(), idle, false, daemonLeg("speaking")).energy).toBe(
+      speakingEnergy(),
+    );
+    // Muted or not: the daemon's speaker is not this room's microphone.
+    expect(displayOrbState(view(), idle, true, daemonLeg("speaking")).energy).toBe(
+      speakingEnergy(),
+    );
+  });
+
+  // Precedence again, on the energy dial: while the room owns the conversation
+  // the daemon's phase is stale by definition and must not brighten anything.
+  it("does not lift the orb for the daemon while the room owns the conversation", () => {
+    expect(
+      displayOrbState(
+        view({ state: "listening" }),
+        activityEnergy("idle"),
+        false,
+        daemonLeg("thinking"),
+      ).energy,
+    ).toBe(activityEnergy("idle"));
+  });
+
+  // A working fleet still outranks a quiet daemon — the resting floor holds.
+  it("never dims below the resting energy for a silent daemon", () => {
+    expect(
+      displayOrbState(view(), activityEnergy("working"), false, daemonLeg("listening")).energy,
+    ).toBe(activityEnergy("working"));
   });
 });
 

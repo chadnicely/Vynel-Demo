@@ -430,6 +430,42 @@ describe("DisplayView — the daemon link", () => {
     restoreSocket();
   });
 
+  // A wake answered on the DAEMON's leg — natively, or handed to the wake
+  // window while this room stayed open. The conversation is the assistant's
+  // either way, so the room's orb mirrors it — but only once the room's own
+  // microphone is out of the way. Two legs, never two "listening" sources.
+  it("mirrors the daemon's conversation once the room's own session lets go", async () => {
+    const restoreSocket = installFakeLiveSocket();
+    const wrapper = await mountDisplay();
+    const socket = latestFakeLiveSocket();
+    socket.serverOpens();
+    const channel = voiceChannelOf(socket);
+    socket.serverAcks(channel);
+    const orb = () => wrapper.getComponent(DisplayOrb);
+    const daemonState = (state: string) =>
+      socket.serverSends({ kind: "event", channel, event: { kind: "state", state } } as LiveChannelServerFrame);
+
+    // The room's own session, with a quiet daemon behind it.
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, false]);
+
+    // Idle silence ends it — with neither leg live the orb goes deaf.
+    idleTimeout();
+    await wrapper.vm.$nextTick();
+    expect(orb().props("listening")).toBe(false);
+
+    // The daemon takes the conversation: the room's orb mirrors it anyway.
+    daemonState("listening");
+    await wrapper.vm.$nextTick();
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, false]);
+
+    daemonState("speaking");
+    await wrapper.vm.$nextTick();
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, true]);
+
+    wrapper.unmount();
+    restoreSocket();
+  });
+
   it("gives the microphone back to the daemon when the session ends", async () => {
     await mountDisplay();
     expect(posted).toEqual([]);

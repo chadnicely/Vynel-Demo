@@ -15,6 +15,7 @@ import type { SessionScope } from "../../composables/chat/session-scope.js";
 import {
   displayOrbState,
   useSpokenClauseSpike,
+  type DisplayDaemonLeg,
 } from "../../composables/display/display-orb-state.js";
 import DisplayWidgetSlot from "../../components/display/DisplayWidgetSlot.vue";
 
@@ -120,19 +121,17 @@ watch(
   },
 );
 
-// The assistant talking without a turn of ours — a schedule's line relayed to
-// this window, or the daemon's own speaker. The orb glows for it either way.
-const isProducerSpeaking = computed(
-  () => daemon.isPlayingRelayedLine.value || daemon.isDaemonSpeaking.value,
-);
+// The OTHER leg: a wake the daemon answered natively, or one it handed to the
+// wake window while this room stayed open. The conversation is the assistant's
+// either way, so the room's orb mirrors it — behind its own session, which
+// always wins the microphone (see `displayOrbState`).
+const daemonLeg = computed<DisplayDaemonLeg>(() => ({
+  state: daemon.daemonState.value,
+  isPlayingRelayedLine: daemon.isPlayingRelayedLine.value,
+}));
 
 const orb = computed(() =>
-  displayOrbState(
-    voice.view.value,
-    status.value.orbEnergy,
-    isMuted.value,
-    isProducerSpeaking.value,
-  ),
+  displayOrbState(voice.view.value, status.value.orbEnergy, isMuted.value, daemonLeg.value),
 );
 const caption = computed(() =>
   voiceStageCaption(voice.view.value, isMuted.value, voice.failure.value),

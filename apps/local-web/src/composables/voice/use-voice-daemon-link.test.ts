@@ -156,6 +156,42 @@ describe("useVoiceDaemonLink (live channel)", () => {
     expect(played).toEqual(["good morning"]);
   });
 
+  // The Display's orb mirrors the WHOLE daemon conversation, not just its
+  // voice — so the phase itself is what the link carries.
+  it("carries every daemon phase, and forgets it when the daemon goes", () => {
+    const { link, socket } = mountLink("jarvis");
+    socket.serverAcks("voice:jarvis:wake");
+    expect(link().daemonState.value).toBe("idle");
+
+    const state = (value: string) =>
+      socket.serverSends({
+        kind: "event",
+        channel: "voice:jarvis:wake",
+        event: { kind: "state", state: value },
+      });
+    for (const phase of ["wake", "listening", "thinking", "speaking"]) {
+      state(phase);
+      expect(link().daemonState.value).toBe(phase);
+    }
+    // A phase a newer daemon invented reads as 'idle' — never a surface parked
+    // in something it cannot interpret.
+    state("rehearsing");
+    expect(link().daemonState.value).toBe("idle");
+
+    // The daemon is gone: a stale phase would leave the room's orb listening
+    // for a conversation that no longer exists.
+    state("listening");
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:jarvis:wake",
+      event: { kind: "daemon-link", connected: false },
+    });
+    expect(link().daemonState.value).toBe("idle");
+    state("listening");
+    socket.serverDrops();
+    expect(link().daemonState.value).toBe("idle");
+  });
+
   it("drops a relayed line only when it was produced by this window's own live turn", async () => {
     // The overlay speaks its own turn off its own stream; the daemon relays
     // every speak it receives, so a copy from OUR session would double-play —

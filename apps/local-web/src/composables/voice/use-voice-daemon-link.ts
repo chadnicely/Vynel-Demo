@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { liveChannelKeys } from "@vynel/contracts/chat/live-channel";
 import type {
   VoiceRelayEvent,
@@ -29,6 +29,19 @@ import { isTauriShell } from "./tauri-overlay-window.js";
 // never talk over each other. Single delivery survives the relay: the daemon
 // picks its owner (else newest) upstream, the api picks the window that took
 // the wake (else the surface's newest).
+
+/** The daemon's own conversation phase, as its `state` frames publish it. The
+ *  wire carries a bare string, so an unknown phase from a newer daemon reads as
+ *  `idle` rather than parking a surface in something it cannot interpret.
+ *  `wake` is where a HANDED-OFF conversation sits: the daemon publishes it as
+ *  the wake lands and says nothing more until the handoff ends. */
+const VOICE_DAEMON_STATES = ["idle", "wake", "listening", "thinking", "speaking"] as const;
+
+export type VoiceDaemonState = (typeof VOICE_DAEMON_STATES)[number];
+
+function toVoiceDaemonState(state: string): VoiceDaemonState {
+  return VOICE_DAEMON_STATES.find((known) => known === state) ?? "idle";
+}
 
 /** Can THIS window run a wake session? A HOST declaration, not a feature
  *  detect: the floating Jarvis window always declares it (it exists for
@@ -68,10 +81,14 @@ export function useVoiceDaemonLink(options: {
 }) {
   const live = useLiveChannelStore();
   const isDaemonConnected = ref(false);
-  // True while the daemon speaker is playing a `speak` reply — the overlay gates
-  // its Web Speech mic on this so it never hears the daemon (cross-process, no
-  // echo cancellation). The daemon publishes 'speaking' then 'idle' when done.
-  const isDaemonSpeaking = ref(false);
+  // The daemon leg's phase — a wake it answered natively, or one it handed to
+  // the wake window. A surface with an orb (the Display) mirrors the whole
+  // conversation off it, not just its voice.
+  const daemonState = ref<VoiceDaemonState>("idle");
+  // The one phase a surface may care about on its own: the daemon's speaker is
+  // busy, so a Web Speech mic opened here would hear it (cross-process, no echo
+  // cancellation). Derived, never stored twice.
+  const isDaemonSpeaking = computed(() => daemonState.value === "speaking");
   let release: (() => void) | null = null;
 
   // Daemon-delegated playback ('speak' events): one player, drained in order.
@@ -104,12 +121,13 @@ export function useVoiceDaemonLink(options: {
     const event = raw as VoiceRelayEvent;
     if (event.kind === "daemon-link") {
       isDaemonConnected.value = event.connected;
-      // No link = no speaker to hear; a stale "speaking" would keep the mic gated.
-      if (!event.connected) isDaemonSpeaking.value = false;
+      // No link = no conversation to mirror; a stale phase would keep the mic
+      // gated and the Display's orb lit for a daemon that is gone.
+      if (!event.connected) daemonState.value = "idle";
     } else if (event.kind === "wake") {
       options.onWake(event.command ?? "", event.turnWatchdogMs);
     } else if (event.kind === "state") {
-      isDaemonSpeaking.value = event.state === "speaking";
+      daemonState.value = toVoiceDaemonState(event.state);
     } else if (event.kind === "speak" && event.text) {
       // An older relay omits the producer: unknown is never "ours".
       if (isOwnVoice(event.sessionId ?? null)) return;
@@ -127,7 +145,7 @@ export function useVoiceDaemonLink(options: {
       // says otherwise on the re-ack.
       onDetached: () => {
         isDaemonConnected.value = false;
-        isDaemonSpeaking.value = false;
+        daemonState.value = "idle";
       },
     });
   });
@@ -149,5 +167,11 @@ export function useVoiceDaemonLink(options: {
     void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
   }
 
-  return { isDaemonConnected, isDaemonSpeaking, isPlayingRelayedLine, notifySessionEnd };
+  return {
+    isDaemonConnected,
+    daemonState,
+    isDaemonSpeaking,
+    isPlayingRelayedLine,
+    notifySessionEnd,
+  };
 }
