@@ -24,7 +24,12 @@ import {
   evictEmbeddingModelCache,
   warmEmbeddingModel,
 } from '@vynel/embeddings'
-import { ModelDownloadRunner, type LocalModelsDeps } from '@vynel/models'
+import {
+  ModelDownloadRunner,
+  installModelFromSource,
+  type LocalModelsDeps,
+} from '@vynel/models'
+import { LOCAL_EMBEDDING_MODEL } from '@vynel/contracts/models/local-model-catalog'
 import { expireAskRequests, PendingAskRegistry } from '@vynel/asks'
 import { recoverStalePendingApprovals } from '@vynel/approvals'
 import { reapAllStartedChatToolCalls } from '@vynel/chat'
@@ -263,17 +268,36 @@ export async function boot(): Promise<void> {
 
   const serverPayloadArchive = resolveServerPayloadArchive(env.VYNEL_SERVER_PAYLOAD_ARCHIVE, logger)
 
-  // The local models (Settings → Embedding / Voice): the embedding model lives
-  // in transformers.js' cache and is fetched by it, so `@vynel/embeddings` lends
-  // the hf-hub installer (its progress) and the remover (which also forgets the
-  // warm pipeline); every voice model is an archive the runner fetches itself.
+  // The local models (Settings → Embedding / Voice). The runner fetches every
+  // kind itself — transformers.js' own download never worked inside this
+  // process (see @vynel/embeddings) — and the embedding model is validated by
+  // loading it once after its files land, so a corrupt file fails here, not on
+  // the first search. Its remover also forgets the warm pipeline.
   const localModels: LocalModelsDeps = {
     baseDirFor: (entry) =>
       entry.kind === 'embedding' ? env.VYNEL_EMBEDDINGS_CACHE_DIR : env.VYNEL_VOICE_MODELS_DIR,
     runner: new ModelDownloadRunner({
-      installers: { 'hf-hub': ({ onProgress }) => warmEmbeddingModel(onProgress) },
+      installers: {
+        'hf-hub': async ({ entry, baseDir, onProgress, signal }) => {
+          await installModelFromSource(baseDir, entry, { onProgress, signal })
+          await warmEmbeddingModel()
+        },
+      },
     }),
     removers: { 'hf-hub': () => evictEmbeddingModelCache() },
+  }
+  // First use still installs the embedding model by itself — through the same
+  // runner, so the download shows in Settings. Never re-tried after a failure
+  // (offline, say): the screen shows "Try again"; a silent retry every minute
+  // would hide exactly that.
+  const downloadEmbeddingModelOnce = (): void => {
+    if (localModels.runner.get(LOCAL_EMBEDDING_MODEL.id) !== null) return
+    try {
+      localModels.runner.start(LOCAL_EMBEDDING_MODEL, env.VYNEL_EMBEDDINGS_CACHE_DIR)
+      logger.info('embedding model missing — downloading it (Settings → Embedding shows progress)')
+    } catch (error) {
+      logger.warn({ err: error }, 'embedding model download could not start')
+    }
   }
 
   const askWaiters = new PendingAskRegistry()
@@ -418,9 +442,18 @@ export async function boot(): Promise<void> {
   })
   // Watcher restore + catch-up scan for every registered knowledge source, plus
   // the in-process embeddings tick (the desktop app runs no apps/worker).
-  const knowledgeIndexingService = startKnowledgeIndexingService({ db, logger, fileWatcher })
+  const knowledgeIndexingService = startKnowledgeIndexingService({
+    db,
+    logger,
+    fileWatcher,
+    onEmbeddingModelMissing: downloadEmbeddingModelOnce,
+  })
   // Memory's embeddings + retention purge — same in-process reasoning.
-  const memoryMaintenanceService = startMemoryMaintenanceService({ db, logger })
+  const memoryMaintenanceService = startMemoryMaintenanceService({
+    db,
+    logger,
+    onEmbeddingModelMissing: downloadEmbeddingModelOnce,
+  })
   // The channel poll(5s) / process(1s) / deliver(2s) loops — fetch inbound messages
   // from each enabled channel's adapter and persist them; run a global-root turn per
   // pending inbound message and queue the answer; send queued outbound messages.

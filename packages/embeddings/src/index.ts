@@ -2,47 +2,44 @@
 // search. Phase 1 model: `all-MiniLM-L6-v2` (quantized q8, ~23 MB) via
 // `@huggingface/transformers` (384-dim Float32). Memory + knowledge consume it.
 // WHICH model, and its files on disk, is the catalog's say
-// (`@vynel/contracts/models/local-model-catalog`) — the Settings screen and
-// the probe read the same entry this loads.
+// (`@vynel/contracts/models/local-model-catalog`) — the Settings screen, the
+// downloader (`@vynel/models`) and this loader read the same entry.
+//
+// THE FILES ARRIVE THROUGH `@vynel/models`, NEVER THROUGH transformers.js
+// (`env.allowRemoteModels = false`). Its own download-and-cache silently never
+// engaged inside the engine: it only caches when `response instanceof Response`,
+// and the HTTP server replaces that global — so the weights never reached the
+// disk and every load failed with "Unable to get model file path or buffer"
+// (found 2026-08-22). A model that is not on the disk fails FAST here with a
+// typed error the indexing ticks turn into a download, and the Settings →
+// Embedding screen shows; a 120 s wait on a download that cannot happen is not
+// an answer.
 //
 // Lazy first-use cached singleton (per knowledge decisions D23): the
 // model loads on the first `generateEmbedding()` call across the
 // entire process — whichever service tick fires first triggers the
 // load. `Promise<Pipeline>` dedupe handles concurrent first-callers.
 // Subsequent calls reuse the warm instance. App boot stays fast
-// (~23 MB model + ~1 s warm-up cost is one-time per process).
+// (~1 s warm-up cost is one-time per process).
 //
 // CACHE LOCATION: transformers.js defaults to a cache INSIDE
-// node_modules — wiped by reinstalls, and a process killed mid-first-
-// download leaves a TRUNCATED model file it then trusts forever
-// ("Protobuf parsing failed" on every load — seen live 2026-07-11).
-// Two defenses:
-//   1. `configureEmbeddingsCacheDir(dir)` — each app's boot points the
-//      cache at a stable dir OUTSIDE node_modules (`.models/embeddings`
-//      by default, the voice-models precedent). Must run before the
-//      first generateEmbedding().
-//   2. Corrupt-cache self-healing: a load failing with a protobuf
-//      parse error evicts the cached model dir and retries ONCE — an
-//      interrupted first download heals on the next tick instead of
-//      failing forever.
+// node_modules — wiped by reinstalls. `configureEmbeddingsCacheDir(dir)` —
+// each app's boot points it at a stable dir OUTSIDE node_modules
+// (`.models/embeddings` by default, the voice-models precedent). Must run
+// before the first `generateEmbedding()`. A load failing with a protobuf
+// parse error (a truncated file) evicts the model dir and reports it missing,
+// so the next download starts clean.
 //
 // Tests use `@vynel/embeddings/test-support` (the deterministic fake)
 // via `vi.mock(...)`.
-//
-// Phase 2 considerations: the model location resolution + warm-up
-// strategy may shift if Tauri ships with a bundled model file
-// (avoids the first-run HF Hub download). The seam (single async
-// `generateEmbedding` function) remains stable.
 
-import { rm } from 'node:fs/promises'
+import { access, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { env, pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers'
 import {
-  env,
-  pipeline,
-  type FeatureExtractionPipeline,
-  type ProgressInfo,
-} from '@huggingface/transformers'
-import { LOCAL_EMBEDDING_MODEL } from '@vynel/contracts/models/local-model-catalog'
+  LOCAL_EMBEDDING_MODEL,
+  requiredModelFiles,
+} from '@vynel/contracts/models/local-model-catalog'
 
 export const EMBEDDING_DIMENSIONS = 384
 export const EMBEDDING_BYTES = EMBEDDING_DIMENSIONS * 4 // 1536 bytes (384 × float32)
@@ -60,17 +57,42 @@ export const EMBEDDING_MODEL_VERSION = 'all-MiniLM-L6-v2/v1'
 
 const EMBEDDING_MODEL_ID = LOCAL_EMBEDDING_MODEL.source.hfModelId
 
+// Loads come from the disk only — see the header.
+env.allowRemoteModels = false
+
 /** Point the model cache at a stable directory outside node_modules.
  *  Call once at app boot, BEFORE the first `generateEmbedding()`. */
 export function configureEmbeddingsCacheDir(cacheDir: string): void {
   env.cacheDir = cacheDir
 }
 
-/** Bytes fetched so far across the model's files; `total` once every file has
- *  announced its size, null before. */
-export interface EmbeddingModelProgress {
-  readonly bytes: number
-  readonly total: number | null
+/** The model is not on this computer. The indexing ticks start the download
+ *  on seeing this; a caller with a person behind it says where to look. */
+export class EmbeddingModelNotInstalledError extends Error {
+  constructor() {
+    super(
+      'The embedding model is not installed on this computer — download it in Settings → Embedding.',
+    )
+    this.name = 'EmbeddingModelNotInstalledError'
+  }
+}
+
+function modelDir(): string {
+  return join(String(env.cacheDir), ...LOCAL_EMBEDDING_MODEL.folder.split('/'))
+}
+
+/** Every file the catalog lists for the model is on the disk. The same check
+ *  `@vynel/models` makes — the list of files has one home, the catalog. */
+export async function isEmbeddingModelInstalled(): Promise<boolean> {
+  const dir = modelDir()
+  for (const relative of requiredModelFiles(LOCAL_EMBEDDING_MODEL)) {
+    try {
+      await access(join(dir, ...relative.split('/')))
+    } catch {
+      return false
+    }
+  }
+  return true
 }
 
 // Module-level Promise dedupes concurrent first-callers — JS
@@ -78,33 +100,12 @@ export interface EmbeddingModelProgress {
 // is needed.
 let pipelinePromise: Promise<FeatureExtractionPipeline> | null = null
 
-// transformers.js reports per FILE; the screen wants one bar. Sum what each
-// file has said so far — a file that is already cached never reports, which is
-// exactly right: nothing to download there.
-function aggregateProgress(onProgress: (progress: EmbeddingModelProgress) => void) {
-  const byFile = new Map<string, { loaded: number; total: number }>()
-  return (info: ProgressInfo): void => {
-    if (info.status !== 'progress') return
-    byFile.set(info.file, { loaded: info.loaded, total: info.total })
-    let bytes = 0
-    let total = 0
-    for (const file of byFile.values()) {
-      bytes += file.loaded
-      total += file.total
-    }
-    onProgress({ bytes, total: total > 0 ? total : null })
-  }
-}
-
-function loadPipeline(
-  onProgress?: (progress: EmbeddingModelProgress) => void,
-): Promise<FeatureExtractionPipeline> {
+function loadPipeline(): Promise<FeatureExtractionPipeline> {
   // q8: ~4× smaller download + faster CPU inference than fp32, with
   // near-identical retrieval quality — the right default for a
   // non-technical user's first run.
   return pipeline('feature-extraction', EMBEDDING_MODEL_ID, {
     dtype: 'q8',
-    ...(onProgress ? { progress_callback: aggregateProgress(onProgress) } : {}),
   }) as Promise<FeatureExtractionPipeline>
 }
 
@@ -113,22 +114,21 @@ function isCorruptModelCacheError(error: unknown): boolean {
 }
 
 async function evictCachedModel(): Promise<void> {
-  const modelCacheDir = join(String(env.cacheDir), EMBEDDING_MODEL_ID)
-  await rm(modelCacheDir, { recursive: true, force: true }).catch(() => undefined)
+  await rm(modelDir(), { recursive: true, force: true }).catch(() => undefined)
 }
 
-function getEmbeddingPipeline(
-  onProgress?: (progress: EmbeddingModelProgress) => void,
-): Promise<FeatureExtractionPipeline> {
+function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
+      if (!(await isEmbeddingModelInstalled())) throw new EmbeddingModelNotInstalledError()
       try {
-        return await loadPipeline(onProgress)
+        return await loadPipeline()
       } catch (error) {
         if (!isCorruptModelCacheError(error)) throw error
-        // A truncated download poisoned the cache — evict + retry once.
+        // A truncated file poisoned the cache — evict it, so the next download
+        // starts clean, and say the model is missing (it is, now).
         await evictCachedModel()
-        return await loadPipeline(onProgress)
+        throw new EmbeddingModelNotInstalledError()
       }
     })()
     // A failed load must not poison every future call with the same
@@ -140,34 +140,28 @@ function getEmbeddingPipeline(
   return pipelinePromise
 }
 
-/** Download (if needed) and load the model now, reporting bytes as they land —
- *  the Settings screen's Download. A load already in flight (a service tick got
- *  there first) is joined as-is: its bytes are not observable, only its end. */
-export async function warmEmbeddingModel(
-  onProgress?: (progress: EmbeddingModelProgress) => void,
-): Promise<void> {
-  await getEmbeddingPipeline(onProgress)
+/** Load the model now — the validation step after a download (a corrupt file
+ *  fails here, evicted, rather than on the first search), and a warm-up. */
+export async function warmEmbeddingModel(): Promise<void> {
+  await getEmbeddingPipeline()
 }
 
-/** Drop the cached model files and forget the warm instance — the Settings
- *  screen's Remove. The next `generateEmbedding()` downloads again. */
+/** Drop the model files and forget the warm instance — the Settings screen's
+ *  Remove. The next `generateEmbedding()` reports the model missing. */
 export async function evictEmbeddingModelCache(): Promise<void> {
   pipelinePromise = null
   await evictCachedModel()
 }
 
-// The first `generateEmbedding()` of a process DOWNLOADS the model (~23 MB from
-// the HF Hub). A stalled download never rejects, so without this bound the
-// caller waits forever — and the callers are MCP tools (`search_knowledge`,
-// `search_memory`, `add_to_knowledge`, `add_memory_from_file`), which means a
-// parked agent with no card, no error, and nothing for the user to act on.
+// The first `generateEmbedding()` of a process LOADS the model (~1 s). The
+// callers are MCP tools (`search_knowledge`, `search_memory`, `add_to_knowledge`,
+// `add_memory_from_file`) — a parked agent with no card, no error, and nothing
+// for the user to act on is the worst outcome, so the wait is bounded.
 const MODEL_LOAD_TIMEOUT_MS = 120_000
 
-// Bound the WAIT, never the load. `pipeline()` takes no AbortSignal, and
-// abandoning a half-written model file is exactly the truncated-cache failure
-// documented above — worse, a retry would start a SECOND download over the same
-// path. So the in-flight promise keeps running (the next call attaches to it and
-// may well find it warm); only this caller gives up.
+// Bound the WAIT, never the load. `pipeline()` takes no AbortSignal; the
+// in-flight promise keeps running (the next call attaches to it and may well
+// find it warm); only this caller gives up.
 async function awaitEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
   let timer: NodeJS.Timeout | undefined
   const deadline = new Promise<never>((_resolve, reject) => {
@@ -175,8 +169,7 @@ async function awaitEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
       () =>
         reject(
           new Error(
-            `@vynel/embeddings: the embedding model did not finish loading within ${MODEL_LOAD_TIMEOUT_MS}ms. ` +
-              'It downloads on first use — check the network connection and try again; the download continues in the background.',
+            `@vynel/embeddings: the embedding model did not finish loading within ${MODEL_LOAD_TIMEOUT_MS}ms — try again; the load continues in the background.`,
           ),
         ),
       MODEL_LOAD_TIMEOUT_MS,

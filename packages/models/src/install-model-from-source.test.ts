@@ -14,6 +14,8 @@ import {
 
 const VAD_BYTES = Buffer.from('silero-onnx-bytes')
 const ARCHIVE_BYTES = Buffer.from('pretend-this-is-a-tar-bz2-archive')
+const ONNX_BYTES = Buffer.from('quantized-minilm-weights')
+const HUB_PREFIX = '/Xenova/all-MiniLM-L6-v2/resolve/main'
 
 let server: LocalModelServer
 beforeAll(async () => {
@@ -21,6 +23,10 @@ beforeAll(async () => {
     '/fake-vad.onnx': VAD_BYTES,
     '/fake-tts.tar.bz2': ARCHIVE_BYTES,
     '/broken.tar.bz2': ARCHIVE_BYTES,
+    [`${HUB_PREFIX}/config.json`]: Buffer.from('{}'),
+    [`${HUB_PREFIX}/tokenizer.json`]: Buffer.from('{}'),
+    [`${HUB_PREFIX}/tokenizer_config.json`]: Buffer.from('{}'),
+    [`${HUB_PREFIX}/onnx/model_quantized.onnx`]: ONNX_BYTES,
   })
 })
 afterAll(() => server.close())
@@ -101,11 +107,27 @@ describe('installModelFromSource', () => {
     })
   })
 
-  it('refuses an hf-hub model — transformers.js owns that download', async () => {
+  // The embedding model's files come from the Hub one by one, into exactly the
+  // layout transformers.js reads back — so it never has to download anything
+  // itself (its own cache never engaged inside the engine).
+  it('fetches a Hub model file by file into transformers.js’ cache layout, with one bar', async () => {
     await withTempModelsDir(async (baseDir) => {
-      await expect(installModelFromSource(baseDir, LOCAL_EMBEDDING_MODEL)).rejects.toThrow(
-        /hf-hub installer/,
-      )
+      const ticks: number[] = []
+      await installModelFromSource(baseDir, LOCAL_EMBEDDING_MODEL, {
+        hfHubBaseUrl: server.baseUrl,
+        onProgress: ({ bytes, total }) => {
+          ticks.push(bytes)
+          expect(total).toBeNull()
+        },
+      })
+      const dir = modelInstallDir(baseDir, LOCAL_EMBEDDING_MODEL)
+      expect(await readFile(join(dir, 'onnx', 'model_quantized.onnx'))).toEqual(ONNX_BYTES)
+      expect((await probeInstalledModel(baseDir, LOCAL_EMBEDDING_MODEL)).installed).toBe(true)
+      // Bytes accumulate across files and never run backwards.
+      expect(ticks.at(-1)).toBe(2 + 2 + 2 + ONNX_BYTES.length)
+      for (let index = 1; index < ticks.length; index += 1) {
+        expect(ticks[index]!).toBeGreaterThanOrEqual(ticks[index - 1]!)
+      }
     })
   })
 })

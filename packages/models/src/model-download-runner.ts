@@ -27,9 +27,9 @@ export interface ModelInstallRequest {
 export type ModelInstaller = (request: ModelInstallRequest) => Promise<void>
 
 export interface ModelDownloadRunnerOptions {
-  /** Per source format. Archive + file default to the URL installer; `hf-hub`
-   *  has no default — transformers.js owns that download, so the embeddings
-   *  package lends its own. */
+  /** Per source format; every format defaults to the URL installer. An app
+   *  overrides one to add a step — the engine validates the embedding model
+   *  by loading it once after the files land. */
   readonly installers?: Partial<Record<LocalModelSource['format'], ModelInstaller>>
   readonly now?: () => Date
 }
@@ -60,7 +60,12 @@ export class ModelDownloadRunner {
   readonly #now: () => Date
 
   constructor(options: ModelDownloadRunnerOptions = {}) {
-    this.#installers = { archive: urlInstaller, file: urlInstaller, ...options.installers }
+    this.#installers = {
+      archive: urlInstaller,
+      file: urlInstaller,
+      'hf-hub': urlInstaller,
+      ...options.installers,
+    }
     this.#now = options.now ?? (() => new Date())
   }
 

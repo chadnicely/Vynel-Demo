@@ -8,6 +8,7 @@
 // per day — it's a retention sweep, not a hot path.
 
 import { generateMemoryEmbeddings, purgeSoftDeletedMemoryEntries } from '@vynel/memory'
+import { EmbeddingModelNotInstalledError } from '@vynel/embeddings'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 
@@ -19,6 +20,10 @@ export interface MemoryMaintenanceServiceOptions {
   logger: Logger
   /** Test seam — production uses the defaults. */
   embeddingIntervalMs?: number
+  /** The tick found work but no model on the disk — boot answers by starting
+   *  the download, so first use still installs the model (now visibly, in
+   *  Settings → Embedding) instead of failing every minute. */
+  onEmbeddingModelMissing?: () => void
 }
 
 export function startMemoryMaintenanceService(
@@ -32,7 +37,14 @@ export function startMemoryMaintenanceService(
     if (embeddingInFlight) return
     embeddingInFlight = true
     generateMemoryEmbeddings(db, {}, { logger })
-      .catch((err) => logger.error({ err }, 'memory embedding tick failed'))
+      .catch((err: unknown) => {
+        if (err instanceof EmbeddingModelNotInstalledError) {
+          logger.warn('memory embedding tick: the embedding model is not installed yet')
+          options.onEmbeddingModelMissing?.()
+          return
+        }
+        logger.error({ err }, 'memory embedding tick failed')
+      })
       .finally(() => {
         embeddingInFlight = false
       })

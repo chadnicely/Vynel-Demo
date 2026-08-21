@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Settings → Embedding and Settings → Voice.** A Settings group in the global menu now
+  holds the models that run on this computer. Embedding shows the search model behind
+  memory and knowledge — downloaded or not, with a Download button and a progress bar —
+  and Voice shows every speaking and hearing model the same way, lets you pick which
+  installed voice Vynel speaks with (and which of Kokoro's eleven speakers) and which
+  model it hears with. Downloads run in the background and stay where they land;
+  Remove never takes the last voice in use.
 - **A view switch in the top bar, and a full view.** Three icons just before the Claude
   mark — Nodes, Display, Normal — take you between the project constellation, the orb
   room and the everyday chat. On Nodes or the Display a fourth icon expands to **full
@@ -137,6 +144,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **The embedding model could never download inside the engine.** Memory and knowledge
+  search-by-meaning silently stayed off on a fresh install because the model's own
+  downloader never wrote the weights to disk from within Vynel's server process. Vynel
+  now fetches the model itself (the same files, the same place), starts that download
+  the first time something needs it — visible in Settings → Embedding — and says
+  plainly when the model is missing instead of waiting two minutes.
 - **Adding a Display widget no longer fails on the first try** — Claude now sees the real
   shape of a widget's content (and a pasted JSON string is accepted too).
 - **A missed schedule now tells you.** If Vynel was not running when a schedule was due

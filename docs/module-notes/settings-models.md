@@ -82,7 +82,34 @@ sherpa-onnx-node's native binaries through `prune-payload` / `verify-payload`, a
 first-run "download the voice + embedding models" step. Until then the screens are honest: a
 packaged install shows voice as "not available in this build".
 
-## Forks (recommendation first) — see the session transcript for Kafi's answers
+## Status (2026-08-22)
+
+| Slice | Commit | Notes |
+|---|---|---|
+| 1 catalog + runner | `d88dd2be` | `@vynel/contracts/models/local-model-catalog` · `@vynel/models` (probe, fetch w/ progress, extract, stamp, runner) · embeddings `warmEmbeddingModel`/`evictEmbeddingModelCache` · voice-engine `resolveTtsConfig`/`resolveSttConfig`/`resolveVadConfig` · daemon + scripts read the catalog (`scripts/src/voice/voice-models.ts` deleted; `moonshine` id → `moonshine-tiny`). Stamp is metadata, not proof: a hand-fetched `.models/` keeps working. |
+| 2 API | `09fee7e3` | `GET /models`, `POST /models/:id/download`, `POST /models/:id/cancel`, `DELETE /models/:id` (no x-mcp); `localModels` app dep built in boot (hf-hub installer/remover lent by embeddings); `VYNEL_VOICE_MODELS_DIR` in api env + `daemon.rs`; `user_preferences` keys `voiceTtsModelId` / `voiceSpeakerId` / `voiceSttModelId`; artifacts regenerated, parity green. |
+| 3 Web | `90d92c0f` | Settings group (Embedding · Voice · Where Vynel runs · Application; Account standalone); `EmbeddingSection`, `VoiceSettingsSection`, shared `LocalModelCard` + `describeLocalModelState`; `use-local-models` (1 s poll while downloading), `use-local-model-actions`, `use-user-preferences`. |
+| 4 take effect | next | daemon reads the preference (API) with env fallback; `/synthesize` honours a per-request `voiceId`; reload endpoint for a model change; Preview button. |
+| 5 ship | parked | own arc on the distribution branch. |
+
+## Found on the way: the engine could never download the embedding model (pre-existing)
+
+The first live test of Settings → Embedding failed inside the API with transformers.js'
+"Unable to get model file path or buffer", while the identical call in a standalone process
+succeeded. Probe: `cacheDir` / `useFSCache` / `allowRemoteModels` were all right. Cause:
+`getModelFile` only caches a download when `response instanceof Response` — and
+`@hono/node-server` replaces `globalThis.Response` in the engine process, so undici's Response
+fails the check, the ONNX weights are never written, and `return_path` has nothing to hand back.
+The small JSON files "worked" because they are returned as buffers. So on a fresh machine the
+memory/knowledge embedding ticks could never succeed (the Jul-11 cache in the main checkout came
+from somewhere else). **Fix (this arc):** `@vynel/models` fetches the Hub files itself into
+transformers.js' cache layout (same URLs), `@vynel/embeddings` sets `allowRemoteModels = false`
+and throws a typed `EmbeddingModelNotInstalledError` fast when the files are absent, the indexing
+ticks hand that to boot's `downloadEmbeddingModelOnce` (through the same runner, visible in
+Settings, never auto-retried after a failure), and the hf-hub installer validates by loading
+the model once after the files land.
+
+## Forks (recommendation first) — Kafi took every recommendation (2026-08-22)
 
 1. Settings group membership — Embedding · Voice **+ Where Vynel runs + Application** under it,
    Account stays standalone (identity, not a setting); `Ctrl+,` keeps pointing at Application.

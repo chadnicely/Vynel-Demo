@@ -99,12 +99,14 @@ describe('ModelDownloadRunner', () => {
     expect(runner.cancel('fake-tts')).toBe(false)
   })
 
-  // transformers.js owns the embedding download; without the lent installer the
-  // runner must say so rather than fetch from a URL that does not exist.
-  it('has no default installer for hf-hub models', () => {
-    const runner = new ModelDownloadRunner()
-    expect(() => runner.start(LOCAL_EMBEDDING_MODEL, '/models')).toThrow(/no installer for "hf-hub"/)
-    expect(runner.get(LOCAL_EMBEDDING_MODEL.id)).toBeNull()
+  // An app can wrap a format's installer to add a step (the engine loads the
+  // embedding model once after its files land, as validation).
+  it('lets an app override one format’s installer', async () => {
+    const hub = deferredInstaller()
+    const runner = new ModelDownloadRunner({ installers: { 'hf-hub': hub.installer } })
+    runner.start(LOCAL_EMBEDDING_MODEL, '/models')
+    hub.finish()
+    expect((await runner.whenSettled(LOCAL_EMBEDDING_MODEL.id)).status).toBe('installed')
   })
 
   it('answers null for a model it never started', () => {

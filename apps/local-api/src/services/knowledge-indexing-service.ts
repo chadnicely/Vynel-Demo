@@ -17,6 +17,7 @@ import {
   listAllKnowledgeSources,
   type FileWatcherService,
 } from '@vynel/knowledge'
+import { EmbeddingModelNotInstalledError } from '@vynel/embeddings'
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
 
@@ -28,6 +29,10 @@ export interface KnowledgeIndexingServiceOptions {
   fileWatcher: FileWatcherService
   /** Test seam — production uses the 60 s default. */
   embeddingIntervalMs?: number
+  /** The tick found chunks to embed but no model on the disk — boot answers by
+   *  starting the download, so first use still installs the model (visibly,
+   *  in Settings → Embedding) instead of failing every minute. */
+  onEmbeddingModelMissing?: () => void
 }
 
 export function startKnowledgeIndexingService(
@@ -43,7 +48,14 @@ export function startKnowledgeIndexingService(
     if (inFlight) return
     inFlight = true
     generateKnowledgeEmbeddings(db, {}, { logger })
-      .catch((err) => logger.error({ err }, 'knowledge embedding tick failed'))
+      .catch((err: unknown) => {
+        if (err instanceof EmbeddingModelNotInstalledError) {
+          logger.warn('knowledge embedding tick: the embedding model is not installed yet')
+          options.onEmbeddingModelMissing?.()
+          return
+        }
+        logger.error({ err }, 'knowledge embedding tick failed')
+      })
       .finally(() => {
         inFlight = false
       })
