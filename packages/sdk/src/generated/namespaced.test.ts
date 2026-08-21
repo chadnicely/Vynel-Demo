@@ -292,6 +292,9 @@ describe('makeNamespaced — shape', () => {
       // GLOBAL menus read (only null-workspace rows; the workspace routes
       // keep their fusion).
       'knowledgeUser',
+      // test: correct expectation — Settings → Embedding / Voice (2026-08-22)
+      // added the local-models surface (status / download / cancel / remove).
+      'localModels',
       'marketplace',
       // test: correct expectation — the marketplace-sources move
       // (2026-08-09) added the sources management surface (user-registered

@@ -338,9 +338,10 @@ describe("app shell", () => {
 
     expect(router.currentRoute.value.name).toBe("home");
     // The workspace tab survives on the strip; the sidebar is the GLOBAL menu
-    // ("Application" only exists there).
+    // ("Account" only exists there — the machine-level rows moved to the title
+    // bar's Settings menu on 2026-08-22).
     expect(stripTabNames(wrapper)).toEqual(["Global", "Marketing"]);
-    expect(menuItem(wrapper, "Application")).toBeDefined();
+    expect(menuItem(wrapper, "Account")).toBeDefined();
   });
 
   it("switching tabs restores each tab's last route", async () => {
