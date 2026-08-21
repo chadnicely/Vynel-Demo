@@ -1027,7 +1027,36 @@ export const displayAddWidget: McpToolFactory = (scope, app) =>
     {
     scope: z.string(),
     title: z.string(),
-    content: z.any(),
+    content: z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.enum(['markdown']),
+        body: z.string(),
+      }),
+      z.object({
+        kind: z.enum(['table']),
+        columns: z.array(z.string()),
+        rows: z.array(z.array(z.string())),
+        caption: z.string().optional(),
+      }),
+      z.object({
+        kind: z.enum(['metric']),
+        value: z.string(),
+        label: z.string(),
+        delta: z.string().optional(),
+        tone: z.enum(['default', 'attention', 'live', 'muted']).optional(),
+      }),
+      z.object({
+        kind: z.enum(['chart']),
+        type: z.enum(['bar', 'line', 'donut']),
+        series: z.array(z.object({
+          name: z.string(),
+          points: z.array(z.object({
+            label: z.string(),
+            value: z.number(),
+          })),
+        })),
+      }),
+    ]),
     slot: z.enum(['left', 'stage', 'right', 'dock']).optional(),
     size: z.enum(['sm', 'md', 'lg']).optional(),
     expiresAt: z.string().optional(),
@@ -1174,7 +1203,36 @@ export const displayUpdateWidget: McpToolFactory = (scope, app) =>
     {
     widgetId: z.string(),
     title: z.string().optional(),
-    content: z.any().optional(),
+    content: z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.enum(['markdown']),
+        body: z.string(),
+      }),
+      z.object({
+        kind: z.enum(['table']),
+        columns: z.array(z.string()),
+        rows: z.array(z.array(z.string())),
+        caption: z.string().optional(),
+      }),
+      z.object({
+        kind: z.enum(['metric']),
+        value: z.string(),
+        label: z.string(),
+        delta: z.string().optional(),
+        tone: z.enum(['default', 'attention', 'live', 'muted']).optional(),
+      }),
+      z.object({
+        kind: z.enum(['chart']),
+        type: z.enum(['bar', 'line', 'donut']),
+        series: z.array(z.object({
+          name: z.string(),
+          points: z.array(z.object({
+            label: z.string(),
+            value: z.number(),
+          })),
+        })),
+      }),
+    ]).optional(),
     slot: z.enum(['left', 'stage', 'right', 'dock']).optional(),
     size: z.enum(['sm', 'md', 'lg']).optional(),
     expiresAt: z.string().optional(),
@@ -3742,7 +3800,10 @@ export const setTaskSteps: McpToolFactory = (scope, app) =>
     {
     taskId: z.string(),
     workspaceId: z.string(),
-    steps: z.array(z.record(z.unknown())),
+    steps: z.array(z.object({
+      title: z.string(),
+      status: z.enum(['open', 'in-progress', 'done']),
+    })),
     planId: z.string().nullable().optional(),
   },
     async (args: Record<string, unknown>) => {
@@ -3781,7 +3842,10 @@ export const setTodos: McpToolFactory = (scope, app) =>
     'set_todos',
     "Keep the working-step list the user watches under the chat while you work — the same discipline as your built-in todo list, except these steps are VISIBLE to the user. Send your COMPLETE current list every time: `todos` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in the order you will work them. The list is REPLACED wholesale — omit a step and it disappears; send an empty array when the work is finished and the dock should clear. Exactly one step should be \"in-progress\" at a time: mark it the moment you start it and \"done\" the moment it is actually finished, then send the list again. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Do not narrate this bookkeeping in your reply. Only works on a turn the user is watching; if it says there is no active session, simply carry on without it.",
     {
-    todos: z.array(z.record(z.unknown())),
+    todos: z.array(z.object({
+      title: z.string(),
+      status: z.enum(['open', 'in-progress', 'done']),
+    })),
   },
     async (args: Record<string, unknown>) => {
       try {

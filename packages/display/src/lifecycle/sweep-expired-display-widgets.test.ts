@@ -8,9 +8,14 @@ import { listDisplayWidgetsForScope } from '../repositories/index.js'
 import { createRecordingSink, markdownContent, seedUser } from '../test-support.js'
 import type { Database } from '@vynel/db'
 
-const PAST = new Date('2026-08-21T09:00:00.000Z')
-const FUTURE = new Date('2026-08-21T11:00:00.000Z')
-const NOW = new Date('2026-08-21T10:00:00.000Z')
+// Anchored to the REAL clock: addDisplayWidget sweeps its scope on new Date(), so a
+// row that is already expired in wall time would vanish before the boot pass could
+// count it (the fixed 2026-08-21 dates did exactly that once the day passed). The
+// rows expire a minute from now; the boot pass runs "two minutes later".
+const CLOCK = Date.now()
+const PAST = new Date(CLOCK + 60_000)
+const FUTURE = new Date(CLOCK + 3_600_000)
+const NOW = new Date(CLOCK + 120_000)
 
 function place(db: Database, userId: string, scopeKey: string, title: string, expiresAt: Date | null) {
   return addDisplayWidget(db, { userId, scopeKey, title, content: markdownContent(), expiresAt })
