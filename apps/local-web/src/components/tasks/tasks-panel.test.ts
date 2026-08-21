@@ -420,6 +420,38 @@ describe("TasksPanel (work rail)", () => {
     expect(wrapper.findAll(".task-meta.is-live")).toHaveLength(1);
   });
 
+  // Delete from the row (Kafi, 2026-08-22): a compact trash just before the
+  // caret — two clicks (arm, then confirm), never one.
+  it("a row's trash arms on the first click and deletes on the second", async () => {
+    const deleted: string[] = [];
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [makeTask({ id: "t-9", title: "Tidy the inbox", stepsDone: 0, stepsTotal: 2 })],
+        listSteps: async () => [],
+        delete: async (taskId: string) => {
+          deleted.push(taskId);
+          return { ok: true };
+        },
+      },
+    });
+    const wrapper = mountPanel(client);
+    await flushPromises();
+
+    const trash = wrapper.get(".task-delete");
+    // It sits just before the step caret in the row's trailing cluster.
+    expect(trash.element.nextElementSibling?.classList.contains("step-toggle")).toBe(true);
+    expect(trash.attributes("aria-label")).toBe("Delete task");
+
+    await trash.trigger("click");
+    expect(trash.attributes("aria-pressed")).toBe("true");
+    expect(trash.text()).toContain("Delete?");
+    expect(deleted).toEqual([]);
+
+    await trash.trigger("click");
+    await flushPromises();
+    expect(deleted).toEqual(["t-9"]);
+  });
+
   it("an expanded task with an assigned session shows the Plan/Session doors", async () => {
     const client = makeClient({
       tasksUser: {

@@ -43,3 +43,26 @@ describe("ConfirmButton", () => {
     expect(wrapper.emitted("confirm")).toBeUndefined();
   });
 });
+
+// The compact form (a hover-row trash): icon alone, named for assistive tech,
+// the confirm label appearing only while armed — the same two clicks.
+describe("ConfirmButton compact", () => {
+  it("shows no text until armed, then the confirm label, and names itself either way", async () => {
+    const wrapper = mount(ConfirmButton, {
+      props: { label: "Delete task", confirmLabel: "Delete?", compact: true, danger: true },
+    });
+    const button = wrapper.get("button");
+    expect(button.text()).toBe("");
+    expect(button.attributes("aria-label")).toBe("Delete task");
+    expect(button.attributes("title")).toBe("Delete task");
+
+    await button.trigger("click");
+    expect(button.text()).toBe("Delete?");
+    expect(button.attributes("aria-label")).toBe("Delete?");
+    expect(wrapper.emitted("confirm")).toBeUndefined();
+
+    await button.trigger("click");
+    expect(wrapper.emitted("confirm")).toHaveLength(1);
+    expect(button.text()).toBe("");
+  });
+});

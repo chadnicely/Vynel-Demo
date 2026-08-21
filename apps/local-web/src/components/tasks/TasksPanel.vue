@@ -12,11 +12,13 @@ import {
   PhMonitor as Monitor,
   PhPlus as Plus,
   PhStopCircle as StopCircle,
+  PhTrash as Trash,
 } from "@phosphor-icons/vue";
-import { EmptyState } from "@vynel/ui";
+import { ConfirmButton, EmptyState } from "@vynel/ui";
 import type { TaskResponse, TaskStatus } from "@vynel/contracts/tasks/task-http";
 import type { TaskStepStatus } from "@vynel/contracts/tasks/task-step-http";
 import { useCreateTask } from "../../composables/tasks/use-create-task.js";
+import { useDeleteTask } from "../../composables/tasks/use-delete-task.js";
 import { useTasksInScope } from "../../composables/tasks/use-tasks-in-scope.js";
 import { useUpdateTask } from "../../composables/tasks/use-update-task.js";
 import { useTaskSteps } from "../../composables/tasks/use-task-steps.js";
@@ -243,6 +245,15 @@ const expandedTaskId = ref<string | null>(null);
 const expandedStepsQuery = useTaskSteps(expandedTaskId);
 const expandedSteps = computed(() => expandedStepsQuery.data.value ?? []);
 const updateStepStatus = useUpdateStepStatus();
+
+// Delete from the row (Kafi, 2026-08-22): a compact arm-then-confirm trash
+// that appears on hover, just before the step caret — the same two clicks
+// the sections use, on the queue's footprint.
+const deleteTask = useDeleteTask();
+function removeTask(task: TaskResponse) {
+  if (expandedTaskId.value === task.id) expandedTaskId.value = null;
+  deleteTask.mutate({ taskId: task.id });
+}
 
 // The expanded task's PLAN + SESSION doors (the sketch's icon row): the plan
 // icon opens the shared review dialog on either relation (the day-plan link
@@ -529,6 +540,18 @@ function completedAtLabel(task: TaskResponse): string {
           >
             now
           </span>
+          <!-- Delete, on hover, just before the caret: arm, then confirm. -->
+          <ConfirmButton
+            class="task-delete"
+            compact
+            danger
+            label="Delete task"
+            confirm-label="Delete?"
+            :busy="deleteTask.isPending.value && deleteTask.variables.value?.taskId === task.id"
+            @confirm="removeTask(task)"
+          >
+            <template #icon><Trash :size="11" /></template>
+          </ConfirmButton>
           <!-- The step expander — only tasks that HAVE steps get the fold.
                The active row keeps the caret alone; its sub-line carries the
                count. -->
@@ -1157,6 +1180,22 @@ function completedAtLabel(task: TaskResponse): string {
 .step-toggle:hover {
   background: var(--row-hover);
   color: var(--ink-1);
+}
+
+/* The trash shows itself only when the row is hovered or holds focus, and
+   stays while armed — a destructive control never sits in plain view on a
+   list you scan. `visibility` keeps it out of the tab order until then. */
+.task-delete {
+  flex: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--t-fast) var(--ease-out);
+}
+.task-row:hover .task-delete,
+.task-row:focus-within .task-delete,
+.task-delete[aria-pressed="true"] {
+  opacity: 1;
+  visibility: visible;
 }
 
 .step-count {
