@@ -44,8 +44,9 @@ The repo's product-level channel naming went with it: "Voice/Jarvis" → "Voice"
 
 **One deliberate residue, awaiting a product call:** the retired spellings in `WAKE_NAME`
 (`packages/voice/src/turn-taking/wake-word.ts:25`) still let a user who says the old name be *heard*.
-Dropping them is a behaviour change, not a rename, so it was left for Kafi — and the wake-word tests
-now exercise "hey vynel"/"hey claude" only, so that alternation is currently unpinned.
+Dropping them is a behaviour change, not a rename, so it was left for Kafi — and `wake-word.test.ts`
+now PINS that alternation ("still hears the retired name…") so nobody tidies it away by accident:
+deleting the spellings means deleting that case, which makes the removal a visible decision.
 
 ## Slices
 
@@ -83,6 +84,15 @@ rather than speech, and both exist because the app window and the display dock c
   memo is now per user **per kind**, and `releaseVoiceControlIfAppGone` retracts each fact that is
   still on (`active: false` / `live: false`). The mini row also gained a keyboard-reachable **×**:
   it ENDS a conversation the dock owns, and only dismisses a mirror until the next session starts.
+  The caption is CLAMPED to its tail at the producer — `DISPLAY_SESSION_CAPTION_MAX_LENGTH` (280) is
+  exported from contracts beside `DISPLAY_SESSION_PHASES` and the route's Zod schema reads the same
+  const. The room's caption is the whole reply so far and grows without bound; un-clamped, a long
+  reply was rejected by the route and the failure swallowed by the announcer's `.catch(() => {})`,
+  so the dock's row froze for the rest of it. The tail is what was just said, which is what a corner
+  row is for.
+  `DisplayDockView` also draws **nothing** for `mode === 'hidden'` (a `v-else-if="mode === 'wake'"`,
+  not a `v-else`): `hide()` is a no-op in the Chrome fallback, so falling through to the full stage
+  painted a second orb beside the room's for a conversation the room already owned.
 
 - **`POST /voice/display-active { active }`** → `{ published }` — user-scoped, `x-sdk-name:
   voice.setDisplayActive`, **no `x-mcp`** (a window talking to the user's other windows is not a
@@ -98,10 +108,12 @@ rather than speech, and both exist because the app window and the display dock c
   subscription any more — never on unsubscribe, because inside the app window the voice link moves
   between `VoiceOverlay` and `DisplayView` as the Display opens, and that swap must stay invisible.
   `isAppDisplayActive` is deliberately NOT reset when a socket drops (unlike `daemonState`, which
-  gates a microphone): a blip would flash the dock open and shut.
-  **Residual:** an api restart empties the memo while the app window has nothing new to announce —
-  the dock keeps its last value until the next toggle. Closing it needs the app to re-announce on
-  live-channel `status === 'open'` (three lines in `use-display-toggle`, P3a's file).
+  gates a microphone): a blip would flash the dock open and shut. Both announcers also re-announce
+  on live-channel `status === 'open'` (`use-display-toggle`, `use-display-session-announce`), which
+  is what closes the api-restart hole: the memo comes back empty, and the app says it over.
+  **Multi-window:** the memo is per user per KIND, so with two app windows open the last one to
+  announce wins that kind. That is the honest reading — the dock mirrors *a* conversation, and only
+  one window holds a microphone at a time — but two rooms racing is not modelled.
 - **`handed-off` is the channel's own phase, not the driver's.** The driver publishes `wake` and
   then goes silent for the whole handoff, so a dock conversation parked at `wake` for its entire
   life and no surface could tell "a wake just fired" from "the dock is holding the room".
@@ -116,15 +128,46 @@ rather than speech, and both exist because the app window and the display dock c
 - **What a wake now does to the screen** lives in `apps/voice/src/overlay/wake-handoff.ts`
   (`createWakeHandoff`) instead of inline in `main.ts` — the app leg (`dockWindow.openApp()` +
   `overlay.publishShowDisplay()`) runs on EVERY wake, BEFORE the dock's already-connected `focus()`
-  shortcut returns, because the dock may be resident while the app is not. `openApp()` spawns the
-  same exe ARGLESS (the shell's single-instance handler surfaces the main window) with no browser
-  fallback and no early-exit watchdog — for this call a fast exit is the healthy case.
+  shortcut returns, because the dock may be resident while the app is not.
+- **ONE launch per cold wake (fixed).** `openApp()` spawns the exe ARGLESS, and that single process
+  builds the main window AND the `display-dock` webview (`windows.rs` `create_windows`) — so it is
+  the dock's launch too. Also spawning `--dock-only` (as the first cut did) made a second process
+  that lost the single-instance race, exited 0 inside the early-exit window, and read as a dead
+  launch: every cold wake ended with a stray Chrome dock beside the real one. `open()` and its
+  early-exit watchdog are gone with it; `DisplayDockWindow` is now `hasApp` / `openApp()` /
+  `openBrowser()` / `focus()`. `--dock-only` stays a flag the desktop shell honours — it simply has
+  no producer any more.
+- **The connect watchdog is the only verdict.** Whether a dock came up is answered by a dock
+  CONNECTING, so `wake-handoff` owns the whole ladder: argless launch (or the browser straight away
+  on a machine with no desktop app) → one connect window → the browser window → a second connect
+  window → `abandonHandoff()`. **Residual:** a wake into a completely broken desk leaves the daemon
+  handed-off and deaf for up to 2 × `DOCK_CONNECT_TIMEOUT_MS` (20 s). Abandoning at the first fire
+  would be worse — `endHandoff` publishes `idle`, which nulls the pending wake, so the browser
+  window would open onto a conversation nobody could hand it.
 
 **Hand-over honesty.** The wake session stays in the **dock window's leg until it ends**. There is no
 mid-turn migration of a Web Speech session across windows — the room MIRRORS it (P3c: the orb reads
 `daemonState`/`isDaemonSpeaking`) and its own microphone stays shut until the dock posts
 `/session/end`, at which point the daemon returns to `idle` and the room's session takes over. So
 `show-display` is a request to LOOK at the room, never to move the conversation into it.
+
+**The gate that enforces it** is `isVoiceHeldElsewhere` in `use-display-voice` — `daemonState !== 'idle'
+&& !voice.isActive` — and it holds both `start()` and the unmute branch of `toggleMute()` shut; the mic
+pill reads **"Dock is listening"** meanwhile. `voice.isActive` is load-bearing, not decoration: when the
+wake landed in THIS window the daemon also sits `handed-off` for the whole session, and that one is ours.
+`handleWake` goes STRAIGHT to `beginSession()` for the same reason — the driver publishes `wake` before
+it delivers the wake event, so a gate on the daemon's phase alone would swallow the wake it just handed
+us. Two knock-ons, both correct: the title-bar switch's `start()` and DisplayView's "Voice on" pill are
+no-ops while the dock holds the room (the room still OPENS — `showDisplay()` runs first, which is exactly
+"a request to look"), and "Dock is listening" is imprecise for a native-daemon leg with no dock window
+at all (dock off, no browser wake target) — Chad's wording call, not a second label. One accepted
+transient: muting a session the daemon handed to THIS window reads "Dock is listening" for the round
+trip until `/session/end` lands and the daemon publishes `idle`. Adding `&& !isMuted` would close it and
+reopen a PERSISTENT hole — mute, walk away, say the wake word, and the room would offer to unmute over
+the dock's conversation — so the self-correcting transient is the better trade.
+
+**Still open (pre-existing on main, deliberately untouched):** the room's `/session/end` POST is
+per-window and unscoped, so the daemon's session seam is the wider job the gate does not close.
 
 ## P3d — the voice outlives the room (2026-08-21, Kafi)
 
@@ -141,6 +184,10 @@ switch is the real voice on/off now**, and the session belongs to the WINDOW:
   the shell, so the window can never hold two links (two players, every relayed line spoken twice).
   `isRoomOnScreen` is pushed by `use-display-toggle`'s sync watcher — the toggle is the one reading of "the room
   is on screen", and the store must not depend on the toggle back.
+- `start()` closes `VoiceOverlay` and opens its own recognizer in the SAME tick, so that overlay's
+  `ui.isVoiceOverlayOpen` watcher is `{ flush: 'sync' }` (the idiom `use-display-toggle` and the daemon link
+  already use). Queued, the order inverted — the store's recognizer opened and only then was the overlay's
+  ended, leaving two Web Speech sessions in one window for a tick.
 - The switch: **on** → `start()` + show the active tab's Display; **off** → `end()` from wherever you are,
   restoring the tab's previous view only if the room was what you were looking at. `showDisplay()` is a
   separate door for the wake path (`show-display` must never turn the conversation it announced off).

@@ -59,6 +59,13 @@ export const DISPLAY_SESSION_PHASES = [
 
 export type DisplaySessionPhase = (typeof DISPLAY_SESSION_PHASES)[number]
 
+/** How much of the conversation's last line the wire carries. A reply grows
+ *  sentence by sentence with no bound of its own, and the dock draws ONE corner
+ *  row — so the producer clamps to the TAIL (the words just said) and the api's
+ *  schema reads the same number, or a long reply is rejected at the boundary
+ *  and the dock's caption freezes on whatever landed last. */
+export const DISPLAY_SESSION_CAPTION_MAX_LENGTH = 280
+
 /** What one of the user's windows tells the others over the voice channel —
  *  produced by a route in the api, never by the daemon.
  *
@@ -74,7 +81,8 @@ export type VoiceControlEvent =
       kind: 'display-session'
       live: boolean
       phase: DisplaySessionPhase
-      /** The last line of the conversation, one sentence of it. */
+      /** The last line of the conversation, clamped to its final
+       *  `DISPLAY_SESSION_CAPTION_MAX_LENGTH` characters by the producer. */
       caption: string
     }
 

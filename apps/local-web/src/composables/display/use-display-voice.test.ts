@@ -142,6 +142,15 @@ function voiceTraffic(socket: FakeLiveSocket): string[] {
   );
 }
 
+/** The daemon's own phase, as the relay carries it. */
+function daemonSays(socket: FakeLiveSocket, channel: string, state: string): void {
+  socket.serverSends({
+    kind: "event",
+    channel,
+    event: { kind: "state", state },
+  } as LiveChannelServerFrame);
+}
+
 function openChannel(): { socket: FakeLiveSocket; channel: string } {
   const socket = latestFakeLiveSocket();
   socket.serverOpens();
@@ -252,6 +261,32 @@ describe("useDisplayVoice — the switch", () => {
     expect(voice.start).toHaveBeenCalledTimes(2);
   });
 
+  // The real `end()` is ASYNC — it aborts capture and the session's own loop
+  // publishes `ended` a tick later — so a fast second click lands while the
+  // recognizer is still winding down. Unmuting there must still leave the
+  // conversation un-muted and on, never wedged mid-way.
+  it("unmutes cleanly while the recognizer is still winding down", () => {
+    const { store } = mountVoice();
+    store.start();
+
+    // Mute, WITHOUT the view settling: the old session is still `isActive`.
+    store.toggleMute();
+    voice.view.value = { state: "listening", transcript: "", spokenText: "", notice: "" };
+    expect(store.isMuted).toBe(true);
+    expect(store.isActive).toBe(true);
+
+    store.toggleMute();
+    expect(store.isMuted).toBe(false);
+    expect(store.isLive).toBe(true);
+
+    // It settles; the room offers to resume, and that click opens a recognizer.
+    voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
+    voice.fireEnded();
+    expect(store.isMuted).toBe(false);
+    store.toggleMute();
+    expect(store.isActive).toBe(true);
+  });
+
   // Muting what is already silent would leave the room's two pills
   // contradicting each other and cost the user a second click.
   it("restarts rather than mutes a session the idle timer already ended", () => {
@@ -287,6 +322,53 @@ describe("useDisplayVoice — the daemon's frames", () => {
     // Walking away now keeps the conversation and the link that carries it.
     store.setRoomOnScreen(false);
     expect(voiceTraffic(socket)).toEqual(["subscribe voice:app"]);
+  });
+
+  // The hand-over is honest: a Web Speech session cannot move between windows,
+  // so while the dock holds the wake conversation the room REPORTS it. A second
+  // recognizer here would talk straight over it.
+  it("refuses the microphone while the other leg holds the conversation", () => {
+    const { store } = mountVoice();
+    store.setRoomOnScreen(true);
+    const { socket, channel } = openChannel();
+    daemonSays(socket, channel, "handed-off");
+
+    expect(store.isVoiceHeldElsewhere).toBe(true);
+    store.start();
+    expect(voice.start).not.toHaveBeenCalled();
+    expect(store.isLive).toBe(false);
+
+    // The mic pill is the same door — including the unmute branch, which used
+    // to reach `voice.start()` directly.
+    store.toggleMute();
+    expect(voice.start).not.toHaveBeenCalled();
+
+    // The dock gave it back: the room may take the microphone again.
+    daemonSays(socket, channel, "idle");
+    expect(store.isVoiceHeldElsewhere).toBe(false);
+    store.start();
+    expect(voice.start).toHaveBeenCalledTimes(1);
+  });
+
+  // The gate exists to keep the room off SOMEBODY ELSE's conversation. When the
+  // daemon hands the wake to this very window it publishes `wake` first, so a
+  // gate on the daemon's phase alone would swallow the wake it just delivered.
+  it("still answers a wake handed to this window, daemon phase and all", () => {
+    const { store } = mountVoice();
+    store.setRoomOnScreen(true);
+    const { socket, channel } = openChannel();
+    daemonSays(socket, channel, "wake");
+
+    socket.serverSends({
+      kind: "event",
+      channel,
+      event: { kind: "wake", command: "what is up" },
+    } as LiveChannelServerFrame);
+
+    expect(voice.start).toHaveBeenCalledWith("what is up", undefined);
+    expect(store.isLive).toBe(true);
+    // Our own session, so the room says "Listening", not "Dock is listening".
+    expect(store.isVoiceHeldElsewhere).toBe(false);
   });
 
   // The store cannot open the room — that is the switch's job — so it rings.

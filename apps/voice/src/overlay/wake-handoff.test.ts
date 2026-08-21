@@ -9,22 +9,29 @@ import type { DisplayDockWindow } from './display-dock-window.js'
 
 const logger = pino({ level: 'silent' })
 
-function createRecordingDockWindow(): DisplayDockWindow & { calls: string[] } {
+function createRecordingDockWindow(hasApp: boolean): DisplayDockWindow & { calls: string[] } {
   const calls: string[] = []
   return {
     calls,
-    open: () => calls.push('open'),
+    hasApp,
     focus: () => calls.push('focus'),
     openApp: () => calls.push('openApp'),
+    openBrowser: () => calls.push('openBrowser'),
   }
 }
 
-function buildHandoff(input: { dockEnabled: boolean; hasWakeTarget: boolean }) {
+function buildHandoff(input: {
+  dockEnabled: boolean
+  hasWakeTarget: boolean
+  /** Default: the machine has the desktop shell — the cold-start shape. */
+  hasApp?: boolean
+}) {
   const published: string[] = []
   let showDisplayCount = 0
   let abandoned = 0
+  let hasWakeTarget = input.hasWakeTarget
   const timers: Array<() => void> = []
-  const dockWindow = createRecordingDockWindow()
+  const dockWindow = createRecordingDockWindow(input.hasApp ?? true)
   const policy = createWakeHandoff({
     overlay: {
       publishWake: (command) => published.push(command),
@@ -32,7 +39,7 @@ function buildHandoff(input: { dockEnabled: boolean; hasWakeTarget: boolean }) {
         showDisplayCount += 1
       },
       get hasWakeTarget() {
-        return input.hasWakeTarget
+        return hasWakeTarget
       },
     },
     dockWindow,
@@ -52,25 +59,44 @@ function buildHandoff(input: { dockEnabled: boolean; hasWakeTarget: boolean }) {
     dockWindow,
     published,
     timers,
+    /** The dock subscribed (or dropped) after the wake was published. */
+    hasWakeTarget: (present: boolean) => {
+      hasWakeTarget = present
+    },
     showDisplayCount: () => showDisplayCount,
     abandoned: () => abandoned,
   }
 }
 
 describe('createWakeHandoff with the dock window on', () => {
-  it('opens the app ONCE per wake, alongside opening the dock', () => {
+  // ONE spawn on a cold wake: the argless launch builds the main window and the
+  // dock webview in the same process. A second `--dock-only` spawn lost the
+  // single-instance race, exited 0, and left a stray browser window behind it.
+  it('launches the shell ONCE per wake, argless, and opens no browser', () => {
     const t = buildHandoff({ dockEnabled: true, hasWakeTarget: false })
     t.policy.handoff.publishWake('what is the time')
 
     expect(t.published).toEqual(['what is the time'])
-    // Argless launch (the shell's single-instance handler surfaces the main
-    // window) + the event that points that window at the Display + the dock.
-    expect(t.dockWindow.calls).toEqual(['openApp', 'open'])
+    expect(t.dockWindow.calls).toEqual(['openApp'])
     expect(t.showDisplayCount()).toBe(1)
+    // The launch is on the clock instead: only a dock that CONNECTS proves it.
+    expect(t.timers).toHaveLength(1)
 
     t.policy.handoff.publishWake('and the date')
-    expect(t.dockWindow.calls.filter((call) => call === 'openApp')).toHaveLength(2)
+    expect(t.dockWindow.calls).toEqual(['openApp', 'openApp'])
     expect(t.showDisplayCount()).toBe(2)
+  })
+
+  // The pending wake replays to the dock the moment it subscribes, so a
+  // connected target is the whole proof — the watchdog steps aside on its own.
+  it('leaves a connected dock alone when the watchdog fires', () => {
+    const t = buildHandoff({ dockEnabled: true, hasWakeTarget: false })
+    t.policy.handoff.publishWake('')
+    t.hasWakeTarget(true)
+
+    t.timers[0]!()
+    expect(t.dockWindow.calls).toEqual(['openApp'])
+    expect(t.abandoned()).toBe(0)
   })
 
   it('still brings the app forward when the dock is already resident', () => {
@@ -85,11 +111,32 @@ describe('createWakeHandoff with the dock window on', () => {
     expect(t.timers).toHaveLength(0)
   })
 
-  it('hands the microphone back when a launched dock never connects', () => {
+  // The recovery ladder: the exe gets one connect window, the browser it opens
+  // gets its own, and only then does the daemon take its microphone back.
+  it('falls back to the browser once, then hands the microphone back', () => {
     const t = buildHandoff({ dockEnabled: true, hasWakeTarget: false })
     t.policy.handoff.publishWake('')
+
+    t.timers[0]!()
+    expect(t.dockWindow.calls).toEqual(['openApp', 'openBrowser'])
+    expect(t.abandoned()).toBe(0)
+
+    expect(t.timers).toHaveLength(2)
+    t.timers[1]!()
+    expect(t.dockWindow.calls).toEqual(['openApp', 'openBrowser'])
+    expect(t.abandoned()).toBe(1)
+  })
+
+  // No desktop app on this machine: the browser window IS the dock, so there is
+  // nothing to wait out before opening it.
+  it('opens the browser immediately when the machine has no desktop app', () => {
+    const t = buildHandoff({ dockEnabled: true, hasWakeTarget: false, hasApp: false })
+    t.policy.handoff.publishWake('')
+
+    expect(t.dockWindow.calls).toEqual(['openApp', 'openBrowser'])
     expect(t.timers).toHaveLength(1)
     t.timers[0]!()
+    expect(t.dockWindow.calls).toEqual(['openApp', 'openBrowser'])
     expect(t.abandoned()).toBe(1)
   })
 

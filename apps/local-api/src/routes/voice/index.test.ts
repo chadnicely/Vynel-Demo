@@ -11,7 +11,10 @@ import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { listAllChatSessionsForUser } from '@vynel/chat/repositories'
-import type { VoiceControlEvent } from '@vynel/contracts/voice/daemon-events'
+import {
+  DISPLAY_SESSION_CAPTION_MAX_LENGTH,
+  type VoiceControlEvent,
+} from '@vynel/contracts/voice/daemon-events'
 import { createApp } from '../../app.js'
 import { TURN_SESSION_HEADER } from '../../sessions/turn-session-header.js'
 
@@ -276,6 +279,28 @@ describe('POST /voice/display-session', () => {
         body: JSON.stringify({ live: true, phase: 'wake', caption: '' }),
       })
       expect(bad.status).toBe(400)
+    })
+  })
+
+  // The producer clamps to this very number, so the longest caption it can
+  // ever send is the longest one this route accepts — one shared const, no
+  // silent 400 that would freeze the dock's row mid-reply.
+  it('accepts a caption of exactly the contract’s cap, and refuses one past it', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const app = createApp({ db, logger: silentLogger })
+      const post = (caption: string) =>
+        app.request('/voice/display-session', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ live: true, phase: 'speaking', caption }),
+        })
+
+      const atCap = await post('x'.repeat(DISPLAY_SESSION_CAPTION_MAX_LENGTH))
+      expect(atCap.status).toBe(200)
+
+      const overCap = await post('x'.repeat(DISPLAY_SESSION_CAPTION_MAX_LENGTH + 1))
+      expect(overCap.status).toBe(400)
     })
   })
 })

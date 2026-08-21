@@ -1,11 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import pino from 'pino'
 import { buildDisplayDockLaunchCommand, createDisplayDockWindow } from './display-dock-window.js'
 import type { CommandSpawner, SpawnedCommand } from './display-dock-window.js'
 
 // The spawn side is a fire-and-forget shell call (smoke-verified live); the
-// invocation building and the failed-launch fallback are the parts worth
-// pinning — a broken overlay exe once swallowed every wake without a trace.
+// invocation building and WHICH exe/args each door spawns are the parts worth
+// pinning. Whether a launch actually produced a dock is not decided here — it
+// is decided by a dock connecting, which `wake-handoff.test.ts` covers.
 
 describe('buildDisplayDockLaunchCommand', () => {
   it('uses `start` on Windows so the browser resolves via App Paths, not PATH', () => {
@@ -32,17 +33,13 @@ describe('buildDisplayDockLaunchCommand', () => {
 
 interface FakeSpawnedCommand extends SpawnedCommand {
   emitError(error: Error): void
-  emitExit(code?: number | null): void
 }
 
 function createFakeSpawnedCommand(): FakeSpawnedCommand {
   let errorListener: ((error: Error) => void) | undefined
-  let exitListener: ((code: number | null) => void) | undefined
   return {
     onError: (listener) => (errorListener = listener),
-    onExit: (listener) => (exitListener = listener),
     emitError: (error) => errorListener?.(error),
-    emitExit: (code = 1) => exitListener?.(code),
   }
 }
 
@@ -63,7 +60,7 @@ const DOCK_URL = 'http://localhost:18894/display-dock'
 const logger = pino({ level: 'silent' })
 
 // process.execPath: a real file on every machine — the appPath existsSync gate
-// must pass for the overlay-preferred branch to run at all.
+// must pass for the desktop-shell branch to run at all.
 function createOverlayWindow(recorder: ReturnType<typeof createSpawnRecorder>) {
   return createDisplayDockWindow(
     { browser: 'chrome', url: DOCK_URL, appPath: process.execPath },
@@ -72,55 +69,21 @@ function createOverlayWindow(recorder: ReturnType<typeof createSpawnRecorder>) {
   )
 }
 
-describe('createDisplayDockWindow open()', () => {
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('opens the browser window directly when no overlay exe exists', () => {
+describe('createDisplayDockWindow hasApp', () => {
+  it('answers whether the desktop shell is on this machine', () => {
     const recorder = createSpawnRecorder()
-    const window = createDisplayDockWindow({ browser: 'chrome', url: DOCK_URL }, logger, recorder.spawner)
-    window.open()
-    expect(recorder.calls).toHaveLength(1)
-    expect(recorder.calls[0]?.args).toContain(`--app=${DOCK_URL}`)
-  })
-
-  it('prefers the overlay exe and leaves the browser closed while it stays up', () => {
-    const recorder = createSpawnRecorder()
-    createOverlayWindow(recorder).open()
-    expect(recorder.calls).toHaveLength(1)
-    expect(recorder.calls[0]?.command).toBe(process.execPath)
-    expect(recorder.calls[0]?.args).toEqual(['--dock-only'])
-  })
-
-  it('falls back to the browser window when the overlay exe exits immediately', () => {
-    const recorder = createSpawnRecorder()
-    createOverlayWindow(recorder).open()
-    recorder.calls[0]?.handle.emitExit()
-    expect(recorder.calls).toHaveLength(2)
-    expect(recorder.calls[1]?.args).toContain(`--app=${DOCK_URL}`)
-  })
-
-  it('treats a late exit as a closed window, not a failed launch', () => {
-    vi.useFakeTimers()
-    const recorder = createSpawnRecorder()
-    createOverlayWindow(recorder).open()
-    vi.setSystemTime(Date.now() + 10_000)
-    recorder.calls[0]?.handle.emitExit()
-    expect(recorder.calls).toHaveLength(1)
-  })
-
-  it('falls back only once when error and exit both fire for one launch', () => {
-    const recorder = createSpawnRecorder()
-    createOverlayWindow(recorder).open()
-    recorder.calls[0]?.handle.emitError(new Error('spawn failed'))
-    recorder.calls[0]?.handle.emitExit()
-    expect(recorder.calls).toHaveLength(2)
+    expect(createOverlayWindow(recorder).hasApp).toBe(true)
+    expect(
+      createDisplayDockWindow({ browser: 'chrome', url: DOCK_URL }, logger, recorder.spawner).hasApp,
+    ).toBe(false)
   })
 })
 
 describe('createDisplayDockWindow openApp()', () => {
-  it('launches the same exe with NO args — the shell surfaces its main window', () => {
+  // ARGLESS is the whole point: one process builds the main window and the
+  // dock webview together, so this is the dock's launch as much as the app's.
+  // `--dock-only` would be a second process racing the first for the shell.
+  it('launches the exe with NO args — one shell, both windows', () => {
     const recorder = createSpawnRecorder()
     createOverlayWindow(recorder).openApp()
     expect(recorder.calls).toEqual([
@@ -128,16 +91,32 @@ describe('createDisplayDockWindow openApp()', () => {
     ])
   })
 
-  it('never falls back to the browser — an immediate exit is single-instance routing, not a crash', () => {
-    const recorder = createSpawnRecorder()
-    createOverlayWindow(recorder).openApp()
-    recorder.calls[0]?.handle.emitExit(0)
-    expect(recorder.calls).toHaveLength(1)
-  })
-
   it('does nothing at all without a desktop app on this machine', () => {
     const recorder = createSpawnRecorder()
     createDisplayDockWindow({ browser: 'chrome', url: DOCK_URL }, logger, recorder.spawner).openApp()
     expect(recorder.calls).toHaveLength(0)
+  })
+})
+
+describe('createDisplayDockWindow openBrowser()', () => {
+  it('opens the chromeless window on the dock route', () => {
+    const recorder = createSpawnRecorder()
+    createDisplayDockWindow({ browser: 'chrome', url: DOCK_URL }, logger, recorder.spawner).openBrowser()
+    expect(recorder.calls).toHaveLength(1)
+    expect(recorder.calls[0]?.args).toContain(`--app=${DOCK_URL}`)
+  })
+
+  // The handoff calls this after its own connect window, so a machine WITH a
+  // desktop app still reaches the browser when that app never came up.
+  it('opens the browser even with a desktop app present', () => {
+    const recorder = createSpawnRecorder()
+    createOverlayWindow(recorder).openBrowser()
+    expect(recorder.calls[0]?.args).toContain(`--app=${DOCK_URL}`)
+  })
+
+  it('logs rather than throws when the shell call cannot start', () => {
+    const recorder = createSpawnRecorder()
+    createDisplayDockWindow({ browser: 'chrome', url: DOCK_URL }, logger, recorder.spawner).openBrowser()
+    expect(() => recorder.calls[0]?.handle.emitError(new Error('spawn failed'))).not.toThrow()
   })
 })

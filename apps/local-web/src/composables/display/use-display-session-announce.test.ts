@@ -8,6 +8,7 @@ import { defineComponent, h, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import type { VynelClient } from "@vynel/sdk";
+import { DISPLAY_SESSION_CAPTION_MAX_LENGTH } from "@vynel/contracts/voice/daemon-events";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { useLiveChannelStore } from "../../stores/live-channel-store.js";
 import {
@@ -151,6 +152,24 @@ describe("useDisplaySessionAnnounce", () => {
     vi.advanceTimersByTime(1_000);
     await flushPromises();
     expect(announced.at(-1)).toEqual(IDLE);
+  });
+
+  // The room's caption is the whole reply so far and grows without bound; the
+  // wire caps it. Un-clamped, a long reply was rejected at the route and the
+  // failure swallowed — the dock's row froze on the last short caption.
+  it("sends the TAIL of a caption longer than the wire's cap", async () => {
+    const reply = "abcdefghij".repeat(100);
+    const session = ref<DisplaySessionAnnouncement>({
+      live: true,
+      phase: "speaking",
+      caption: reply,
+    });
+    mountAnnounce(session);
+    const sent = announced.at(-1)!.caption;
+    expect(sent).toHaveLength(DISPLAY_SESSION_CAPTION_MAX_LENGTH);
+    // The tail: the words just said, not the ones the user already heard.
+    expect(sent).toBe(reply.slice(-DISPLAY_SESSION_CAPTION_MAX_LENGTH));
+    expect(reply.endsWith(sent)).toBe(true);
   });
 
   // An engine restart empties the hub's memo, and nothing about the

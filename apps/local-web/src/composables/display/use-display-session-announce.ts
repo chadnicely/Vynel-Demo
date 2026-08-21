@@ -1,5 +1,8 @@
 import { onScopeDispose, toValue, watch, type MaybeRefOrGetter } from "vue";
-import type { DisplaySessionPhase } from "@vynel/contracts/voice/daemon-events";
+import {
+  DISPLAY_SESSION_CAPTION_MAX_LENGTH,
+  type DisplaySessionPhase,
+} from "@vynel/contracts/voice/daemon-events";
 import { useLiveChannelStore } from "../../stores/live-channel-store.js";
 import { useVynel } from "../use-vynel.js";
 
@@ -59,7 +62,17 @@ export function useDisplaySessionAnnounce(
   function announce(next: DisplaySessionAnnouncement): void {
     // A snapshot: the caller may hand back a reactive object, and comparing the
     // next value against one that mutates underneath us would skip changes.
-    pending = { live: next.live, phase: next.phase, caption: next.caption };
+    // The caption is clamped to its TAIL here, the one place every announcement
+    // goes through: the room's caption is the whole reply so far and grows
+    // without bound, while the wire caps it — an over-long one was rejected at
+    // the route and swallowed by the catch, freezing the dock's row for the
+    // rest of a long reply. The tail is what was just said, which is what a
+    // corner row is for.
+    pending = {
+      live: next.live,
+      phase: next.phase,
+      caption: next.caption.slice(-DISPLAY_SESSION_CAPTION_MAX_LENGTH),
+    };
     const changesTheShape =
       sent === null || next.live !== sent.live || next.phase !== sent.phase;
     const waitMs = changesTheShape

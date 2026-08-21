@@ -9,17 +9,29 @@ import type { OverlayChannel } from './overlay-channel.js'
 // With the dock window feature on, one wake moves three things:
 //   1. the wake itself is published (held on the channel until a capable client
 //      confirms it — that is what survives the dock window's launch time);
-//   2. the DOCK opens (or is pulled to the front) to run the conversation;
-//   3. the desktop APP is launched argless, so its single-instance handler
-//      surfaces the main window, and every app surface is told to show the
-//      Display — the room mirrors the conversation the dock is holding.
+//   2. the desktop shell is launched ARGLESS, which surfaces the main window
+//      AND builds the `display-dock` webview in the same process, and every app
+//      surface is told to show the Display — the room mirrors the conversation
+//      the dock is holding;
+//   3. a dock that is ALREADY connected is simply pulled to the front instead.
 //
-// Steps 2 and 3 are independent: the dock may already be resident (focus, no
-// launch) while the app is not, so the app leg runs on EVERY wake, before the
-// dock's own already-connected shortcut returns.
+// ONE launch, deliberately. The argless launch already carries the dock
+// (apps/desktop `create_windows`), so also spawning `--dock-only` made a second
+// process that lost the single-instance race, exited 0, and read as a dead
+// launch — every cold wake ended with a stray browser window beside the real
+// dock. The app leg still runs on EVERY wake, before the already-connected
+// shortcut returns, because the dock may be resident while the app is not.
 //
-// If the dock never connects, the handoff is abandoned and the daemon resumes
-// wake-listening — a failed launch must not leave it deaf.
+// WHETHER a dock came up is answered by one thing only: a dock CONNECTING.
+// So the connect watchdog owns the whole recovery ladder — first the browser
+// window (a machine with no desktop app skips straight to it), then, if that
+// does not connect either, the handoff is abandoned and the daemon resumes
+// wake-listening. A failed launch must not leave it deaf. The cost is stated
+// plainly: the exe gets one connect window and the browser it opened gets its
+// own, so a wake into a broken desk is deaf for at most twice
+// `connectTimeoutMs`. Abandoning at the first fire instead would be worse —
+// `endHandoff` publishes `idle`, which NULLS the pending wake, so the browser
+// window would open onto a conversation nobody could hand it.
 
 export interface WakeHandoffOptions {
   readonly overlay: Pick<OverlayChannel, 'publishWake' | 'publishShowDisplay' | 'hasWakeTarget'>
@@ -49,12 +61,27 @@ export function createWakeHandoff(options: WakeHandoffOptions): WakeHandoffPolic
       return { cancel: () => clearTimeout(handle) }
     })
   let connectWatchdog: { cancel: () => void } | null = null
+  /** One browser window per wake — the ladder's middle rung, not a retry. */
+  let browserOpened = false
+
+  const openBrowserDock = (): void => {
+    browserOpened = true
+    options.dockWindow.openBrowser()
+  }
 
   const armConnectWatchdog = (): void => {
     connectWatchdog?.cancel()
     connectWatchdog = setTimer(() => {
       connectWatchdog = null
       if (options.overlay.hasWakeTarget) return
+      if (!browserOpened) {
+        options.logger.warn(
+          'the display dock overlay never connected — opening the browser window instead; rebuild the overlay with `pnpm dev:desktop`',
+        )
+        openBrowserDock()
+        armConnectWatchdog()
+        return
+      }
       options.logger.warn('the display dock never connected — resuming wake listening')
       options.abandonHandoff()
     }, options.connectTimeoutMs)
@@ -70,11 +97,15 @@ export function createWakeHandoff(options: WakeHandoffOptions): WakeHandoffPolic
         if (!options.dockEnabled) return
         options.dockWindow.openApp()
         options.overlay.publishShowDisplay()
+        // Already there: nothing to launch, so nothing to wait on.
         if (options.overlay.hasWakeTarget) {
           options.dockWindow.focus()
           return
         }
-        options.dockWindow.open()
+        // The argless launch above IS the dock's launch when the app exists;
+        // the pending wake replays the moment it connects.
+        browserOpened = false
+        if (!options.dockWindow.hasApp) openBrowserDock()
         armConnectWatchdog()
       },
     },

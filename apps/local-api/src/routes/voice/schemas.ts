@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { DISPLAY_SESSION_PHASES } from '@vynel/contracts/voice/daemon-events'
+import {
+  DISPLAY_SESSION_CAPTION_MAX_LENGTH,
+  DISPLAY_SESSION_PHASES,
+} from '@vynel/contracts/voice/daemon-events'
 
 // The `speak` tool's wire contract. `text` is SPOKEN aloud, so it must be plain
 // spoken-style prose — the description steers the model; the daemon speaks it
@@ -41,11 +44,13 @@ export const DisplayActiveResponseSchema = z.object({
 // The other half of the same seam: the conversation the app window's Display
 // room is HOLDING, so the display dock can mirror a session that lives in
 // another window. `caption` is the last line of it, capped at a sentence or
-// two — the mini row shows one line and the room carries the whole reply.
+// two — the mini row shows one line and the room carries the whole reply. The
+// cap is the contract's own number, not a second opinion: the producer clamps
+// to the same one, so a reply long enough to trip this can never reach here.
 export const DisplaySessionRequestSchema = z.object({
   live: z.boolean(),
   phase: z.enum(DISPLAY_SESSION_PHASES),
-  caption: z.string().max(280),
+  caption: z.string().max(DISPLAY_SESSION_CAPTION_MAX_LENGTH),
 })
 
 export const DisplaySessionResponseSchema = z.object({

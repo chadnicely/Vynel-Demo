@@ -56,6 +56,12 @@ function handleWake(command: string, turnWatchdogMs?: number): void {
 
 // The manual path: mic button opens the overlay → start listening; closing it
 // by any route ends the session.
+//
+// SYNC, like the daemon link's own gate: `use-display-voice.start()` closes
+// this overlay and then opens its recognizer in the same tick, counting on this
+// watcher to have ended ours first. Queued, the order inverts — the store's
+// recognizer opens and only THEN is ours closed, so the window holds two Web
+// Speech sessions for a tick, which is a fight neither wins.
 watch(
   () => ui.isVoiceOverlayOpen,
   (isOpen) => {
@@ -66,6 +72,7 @@ watch(
       voice.end();
     }
   },
+  { flush: "sync" },
 );
 
 function toggleMute() {

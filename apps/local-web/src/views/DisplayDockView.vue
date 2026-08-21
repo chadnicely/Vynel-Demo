@@ -232,7 +232,16 @@ const isMiniListening = computed(() =>
       @close="closeMiniRow"
     />
 
-    <div v-else class="stage-card" data-testid="display-dock-stage" data-tauri-drag-region>
+    <!-- `hidden` draws NOTHING. The mode owns the window, but `hide()` is a
+         no-op outside Tauri (a browser dock stays on screen), so falling
+         through to the full stage put a second orb beside the room's for a
+         conversation the room already owns. -->
+    <div
+      v-else-if="mode === 'wake'"
+      class="stage-card"
+      data-testid="display-dock-stage"
+      data-tauri-drag-region
+    >
       <VoiceStage
         :orb-state="orbState"
         :caption="caption"

@@ -75,23 +75,47 @@ export const useDisplayVoice = defineStore("display-voice", () => {
     daemon.notifySessionEnd();
   }
 
+  // A wake the daemon handed to THIS window: it is already non-idle when this
+  // lands (it publishes `wake` before the event), so the wake goes straight to
+  // the session rather than through the gate that exists to keep the room off
+  // somebody else's conversation. Refusing it here would swallow the wake.
   function handleWake(command: string, turnWatchdogMs?: number): void {
-    start(command || undefined, turnWatchdogMs);
+    beginSession(command || undefined, turnWatchdogMs);
   }
 
-  /** Voice ON. The ONE door to a live recognizer (bar the unmute below): every
-   *  other entry point — the switch, the room's pills, the palette, a wake —
-   *  comes through here, so a running session always has `isLive` behind it.
-   *  A session started any other way would be released by `ownsVoice` going
-   *  false the moment the user left the room, mid-sentence. */
-  function start(initialCommand?: string, turnWatchdogMs?: number): void {
-    // The overlay is this window's OTHER voice. Closing it first ends its
-    // session synchronously (its own watcher) — two Web Speech recognizers in
-    // one window is a fight neither wins.
+  /** The ONE door to a live recognizer: every entry point — the switch, the
+   *  room's pills, the palette, a wake — comes through here, so a running
+   *  session always has `isLive` behind it. A session started any other way
+   *  would be released by `ownsVoice` going false the moment the user left the
+   *  room, mid-sentence. */
+  function beginSession(initialCommand?: string, turnWatchdogMs?: number): void {
+    // The overlay is this window's OTHER voice. Closing it ends its session
+    // right here — its watcher is `flush: 'sync'` for exactly this line — so
+    // the recognizer below never opens beside a second one.
     ui.isVoiceOverlayOpen = false;
     isLive.value = true;
     isMuted.value = false;
     if (!voice.isActive.value) voice.start(initialCommand, turnWatchdogMs);
+  }
+
+  /** Voice ON, when the room may take the microphone at all.
+   *
+   *  It may not while the OTHER leg holds the conversation — a wake the daemon
+   *  answered natively, or one it handed to the display dock. That session
+   *  cannot migrate into this window (no mid-turn move of a Web Speech
+   *  session), so a second recognizer here would only talk over it. The room
+   *  mirrors it instead and its pill says who is listening.
+   *
+   *  The daemon's phase alone is not the test: when the wake landed in THIS
+   *  window the daemon also sits non-idle (`handed-off`) for the whole session
+   *  — and that one IS ours, which `voice.isActive` is exactly the proof of. */
+  const isVoiceHeldElsewhere = computed(
+    () => daemon.daemonState.value !== "idle" && !voice.isActive.value,
+  );
+
+  function start(): void {
+    if (isVoiceHeldElsewhere.value) return;
+    beginSession();
   }
 
   /** Voice OFF — from the room or from anywhere else. */
@@ -101,17 +125,19 @@ export const useDisplayVoice = defineStore("display-voice", () => {
     voice.end();
   }
 
-  /** The microphone switch. On a session the idle timer ended, the first click
-   *  must bring the mic BACK — muting what is already silent would leave the
-   *  pills contradicting each other and cost the user a second click. */
+  /** The microphone switch. Muting always works; taking the microphone BACK
+   *  goes through `start()`, so an unmute can no more talk over the dock's
+   *  conversation than a fresh start can. On a session the idle timer ended the
+   *  first click brings the mic back too — muting what is already silent would
+   *  leave the pills contradicting each other and cost the user a second
+   *  click. */
   function toggleMute(): void {
-    if (!voice.isActive.value) {
+    if (isMuted.value || !voice.isActive.value) {
       start();
       return;
     }
-    isMuted.value = !isMuted.value;
-    if (isMuted.value) voice.end();
-    else voice.start();
+    isMuted.value = true;
+    voice.end();
   }
 
   function setRoomOnScreen(onScreen: boolean): void {
@@ -157,6 +183,7 @@ export const useDisplayVoice = defineStore("display-voice", () => {
     isMuted,
     isLive,
     ownsVoice,
+    isVoiceHeldElsewhere,
     daemonLeg,
     caption,
     isListening,

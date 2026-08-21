@@ -573,6 +573,47 @@ describe("DisplayView — the daemon link", () => {
 
     expect(posted).toEqual([["/voice/session/end", { method: "POST" }]]);
   });
+
+  // Hand-over honesty (P3b): the wake session stays in the dock's window until
+  // it ends. The room can SEE it — the orb mirrors it — but it may not take the
+  // microphone, so its pill reports who is listening instead of offering a
+  // click that would open a second recognizer over the top.
+  it("says who is listening, and refuses the mic, while the dock holds the room", async () => {
+    const restoreSocket = installFakeLiveSocket();
+    const wrapper = await mountDisplay({ voiceOn: false });
+    const socket = latestFakeLiveSocket();
+    socket.serverOpens();
+    const channel = voiceChannelOf(socket);
+    socket.serverAcks(channel);
+    const pill = wrapper.get('[data-testid="display-listening-pill"]');
+    expect(pill.text()).toBe("Start");
+
+    socket.serverSends({
+      kind: "event",
+      channel,
+      event: { kind: "state", state: "handed-off" },
+    } as LiveChannelServerFrame);
+    await wrapper.vm.$nextTick();
+    expect(pill.text()).toBe("Dock is listening");
+
+    await pill.trigger("click");
+    expect(voice.start).not.toHaveBeenCalled();
+
+    // The dock gave it back — the room is a room you can talk in again.
+    socket.serverSends({
+      kind: "event",
+      channel,
+      event: { kind: "state", state: "idle" },
+    } as LiveChannelServerFrame);
+    await wrapper.vm.$nextTick();
+    expect(pill.text()).toBe("Start");
+
+    await pill.trigger("click");
+    expect(voice.start).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+    restoreSocket();
+  });
 });
 
 // The display dock is this room in another window, and cannot see this screen.

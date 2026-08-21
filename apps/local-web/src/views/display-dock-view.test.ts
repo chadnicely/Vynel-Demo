@@ -230,6 +230,10 @@ describe("DisplayDockView", () => {
     // live session with it.
     expect(overlay.dismiss).not.toHaveBeenCalled();
     expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+    // And the PAGE draws nothing either. `hide()` is a no-op in the Chrome
+    // fallback, so a hidden mode that fell through to the full stage left a
+    // second orb burning beside the room's for the same conversation.
+    expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(false);
   });
 
   it("comes back as a mini row with the caption and the dock board", async () => {
@@ -290,7 +294,7 @@ describe("DisplayDockView", () => {
   });
 
   it("puts the window away when the conversation settles", async () => {
-    await mountDock();
+    const wrapper = await mountDock();
     daemon.wake();
     await flushPromises();
 
@@ -300,6 +304,7 @@ describe("DisplayDockView", () => {
 
     expect(daemon.notifySessionEnd).toHaveBeenCalled();
     expect(overlay.dismiss).toHaveBeenCalledTimes(1);
+    expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(false);
   });
 
   // Today's rule, kept: muting ends the session on purpose and the window

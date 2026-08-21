@@ -2,29 +2,31 @@ import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import type { Logger } from 'pino'
 
-// Launch/focus the display dock — the Display's mini window. Preferred: the
-// Tauri overlay app (transparent always-on-top, apps/desktop) when its exe exists;
-// fallback: a chromeless Chrome/Edge app-window on local-web's /display-dock route.
-// The daemon opens one on wake when no window is connected, and pulls an
-// existing one to the front otherwise. `openApp()` is the third call: the same
-// exe with NO args, which brings the full desktop app forward beside the dock.
-// All best-effort native shell calls: if
-// they fail the wake stays pending on the overlay channel and the handoff
-// watchdog returns the daemon to sleep.
+// Launch/focus the display dock — the Display's mini window. Two ways in, and
+// the wake path picks between them on `hasApp`:
 //
-// The overlay exe is a compiled artifact that can be silently broken (a stale
-// build panicking at boot, a config drift) — existsSync alone proved a wake
-// could die without a trace. An exe that exits within APP_EARLY_EXIT_MS never
-// showed a window, so open() falls back to the browser and the pending wake
-// still gets answered.
+//   * `openApp()` — the Tauri desktop shell (apps/desktop), spawned ARGLESS.
+//     One process, both windows: `create_windows` builds the main window AND
+//     the transparent always-on-top `display-dock` webview, so this single
+//     launch is the dock's launch too. A second argless launch routes into the
+//     resident shell's single-instance handler and exits at once, which is the
+//     HEALTHY case — it surfaced the window that was already there.
+//   * `openBrowser()` — a chromeless Chrome/Edge app-window on local-web's
+//     /display-dock route, for a machine with no desktop app (and for an exe
+//     that is present but silently broken: a stale build panicking at boot).
+//
+// Nothing here judges a launch: the exe is a compiled artifact that can die
+// without a trace, but the honest verdict is "did a dock ever CONNECT", which
+// only the overlay channel knows. `wake-handoff` owns that watchdog and calls
+// `openBrowser()` when it fires — spawning both up front raced the shell's
+// single-instance handler and left a stray browser window on every cold wake.
+//
+// All best-effort native shell calls: if they fail the wake stays pending on
+// the overlay channel and the handoff watchdog returns the daemon to sleep.
 
 // AppActivate matches by window title — keep in sync with DisplayDockView.vue.
 const WINDOW_TITLE = 'Vynel Display'
 const WINDOW_SIZE = '420,560'
-// An exe gone this fast either crashed at boot or single-instance-routed into
-// a resident shell that is NOT connected to the daemon (a healthy resident
-// would have made this wake a focus(), not an open()). Both mean no window.
-const APP_EARLY_EXIT_MS = 3000
 
 export interface DisplayDockCommand {
   readonly command: string
@@ -51,36 +53,42 @@ export function buildDisplayDockLaunchCommand(
   return { command: binary, args: appArgs }
 }
 
-/** The one detached child the seam exposes — enough to observe a launch dying. */
+/** The one detached child the seam exposes — enough to log a shell call that
+ *  never started. A launch that starts and then dies is NOT diagnosed here:
+ *  the honest signal is a dock failing to connect, which `wake-handoff` owns. */
 export interface SpawnedCommand {
   onError(listener: (error: Error) => void): void
-  onExit(listener: (code: number | null) => void): void
 }
 
-/** Injected so the open()/fallback flow is unit-testable without real spawns. */
+/** Injected so the launch/fallback flow is unit-testable without real spawns. */
 export type CommandSpawner = (command: string, args: readonly string[]) => SpawnedCommand
 
 const spawnDetached: CommandSpawner = (command, args) => {
   const child = spawn(command, [...args], { detached: true, stdio: 'ignore' })
   child.unref()
-  return {
-    onError: (listener) => child.on('error', listener),
-    onExit: (listener) => child.on('exit', (code) => listener(code)),
-  }
+  return { onError: (listener) => child.on('error', listener) }
 }
 
 export interface DisplayDockWindow {
-  /** Open a new dock window (returns immediately; a dying launch is watched
-   *  and falls back to the browser). */
-  open(): void
-  /** Bring an already-open window to the front (Windows only; no-op elsewhere). */
+  /** Is the desktop shell installed on this machine? False = the browser
+   *  window is the only dock there is, so the wake path opens it straight
+   *  away instead of waiting on a launch that cannot happen. */
+  readonly hasApp: boolean
+  /** Bring an already-open dock window to the front (Windows only; no-op
+   *  elsewhere). */
   focus(): void
-  /** Launch the desktop app ITSELF — the same exe, ARGLESS. A first launch
-   *  opens the main window; a second routes into the resident shell's
-   *  single-instance handler, which surfaces the window that is already there
-   *  (apps/desktop src/main.rs). No browser fallback: this asks for the app, and
-   *  a machine without it simply has no app to bring forward. */
+  /** Launch the desktop shell — the exe, ARGLESS. This opens the dock TOO: one
+   *  process builds the main window and the `display-dock` webview together
+   *  (apps/desktop windows.rs `create_windows`). A second launch routes into
+   *  the resident shell's single-instance handler and exits at once, which
+   *  surfaces the window that is already there. No fallback here: whether a
+   *  dock actually came up is answered by a dock CONNECTING, which only the
+   *  overlay channel can see (`wake-handoff`). */
   openApp(): void
+  /** The fallback dock: a chromeless browser window on the /display-dock
+   *  route. For a machine with no desktop app, and for an app that never
+   *  connected within the handoff's connect window. */
+  openBrowser(): void
 }
 
 export function createDisplayDockWindow(
@@ -99,50 +107,21 @@ export function createDisplayDockWindow(
     })
   }
 
-  const openBrowserWindow = (): void => {
-    logger.info({ url: config.url, browser: config.browser }, 'opening the display dock browser window')
-    run(buildDisplayDockLaunchCommand(config.browser, config.url, process.platform), 'open')
-  }
-
   return {
-    open(): void {
-      if (config.appPath === undefined || !existsSync(config.appPath)) {
-        openBrowserWindow()
-        return
-      }
-      logger.info({ app: config.appPath }, 'opening the display dock overlay app')
-      // A wake opens ONLY the overlay — --dock-only tells the shell to
-      // skip its main app window (apps/desktop src/main.rs).
-      const child = spawnCommand(config.appPath, ['--dock-only'])
-      const startedAt = Date.now()
-      // error + exit can both fire for one failed launch — fall back once.
-      let fellBack = false
-      const fallBack = (reason: string): void => {
-        if (fellBack) return
-        fellBack = true
-        logger.warn(
-          { app: config.appPath, reason },
-          'the display dock overlay app never came up — opening the browser window instead; rebuild the overlay with `pnpm dev:desktop`',
-        )
-        openBrowserWindow()
-      }
-      child.onError((error) => fallBack(error.message))
-      child.onExit((code) => {
-        // code 0 usually means single-instance routed into a resident shell
-        // (which open() implies is NOT connected); non-zero means a crash.
-        if (Date.now() - startedAt <= APP_EARLY_EXIT_MS) fallBack(`exited immediately (code ${code})`)
-      })
+    get hasApp(): boolean {
+      return config.appPath !== undefined && existsSync(config.appPath)
     },
     openApp(): void {
       if (config.appPath === undefined || !existsSync(config.appPath)) {
-        logger.debug({ app: config.appPath }, 'no desktop app on this machine — the wake stays in the dock')
+        logger.debug({ app: config.appPath }, 'no desktop app on this machine — the browser window is the dock')
         return
       }
-      logger.info({ app: config.appPath }, 'bringing the desktop app forward for a wake')
-      // Deliberately NOT open()'s early-exit watchdog: here a fast exit is the
-      // HEALTHY case — single-instance routed the launch into the resident
-      // shell, which surfaced its own window.
+      logger.info({ app: config.appPath }, 'launching the desktop shell for a wake — app window and dock together')
       run({ command: config.appPath, args: [] }, 'open-app')
+    },
+    openBrowser(): void {
+      logger.info({ url: config.url, browser: config.browser }, 'opening the display dock browser window')
+      run(buildDisplayDockLaunchCommand(config.browser, config.url, process.platform), 'open-browser')
     },
     focus(): void {
       if (process.platform !== 'win32') return

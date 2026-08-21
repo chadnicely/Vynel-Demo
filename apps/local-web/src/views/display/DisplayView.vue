@@ -71,11 +71,15 @@ const orb = computed(() =>
   displayOrbState(voice.view, status.value.orbEnergy, voice.isMuted, voice.daemonLeg),
 );
 
-// Four honest states, not two. Voice off is its OWN state — there is no
-// session to mute and none to resume, so the pill offers to start one. And a
-// session the idle timer ended is not "Muted": nobody muted it, and the click
-// that follows restarts it.
+// Five honest states, not two. The first is the one the room does not own: the
+// OTHER leg is holding the conversation — a wake the display dock took, or one
+// the daemon answered natively — and that session cannot move into this window,
+// so the pill reports rather than offers a microphone the click cannot get.
+// Voice off is its own state too — nothing to mute and nothing to resume, so
+// the pill offers to start one. And a session the idle timer ended is not
+// "Muted": nobody muted it, and the click that follows restarts it.
 const micPillLabel = computed(() => {
+  if (voice.isVoiceHeldElsewhere) return "Dock is listening";
   if (!voice.isLive) return "Start";
   if (voice.isMuted) return "Muted";
   return voice.isActive ? "Listening" : "Resume";

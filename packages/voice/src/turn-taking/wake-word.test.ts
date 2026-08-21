@@ -41,6 +41,19 @@ describe('detectWakeWord', () => {
     expect(detectWakeWord('hi clawed whats up').detected).toBe(true)
   })
 
+  // The retired name is DELIBERATE residue, not a leftover: the P3 rename moved
+  // every surface off it, but dropping it from the ear is a behaviour change —
+  // an early user who still says it would simply stop being heard — so it waits
+  // on Kafi's product call. Pinned so nobody "tidies" it away by accident, and
+  // so removing it is a visible decision (delete this case with the spellings).
+  it('still hears the retired name, kept until the product call lands', () => {
+    expect(detectWakeWord('hey jarvis what time is it')).toEqual({
+      detected: true,
+      command: 'what time is it',
+    })
+    expect(detectWakeWord('hey jervis').detected).toBe(true)
+  })
+
   it('does not fire without the wake phrase', () => {
     expect(detectWakeWord('what time is it')).toEqual({ detected: false, command: '' })
     expect(detectWakeWord('hey there how are you')).toEqual({ detected: false, command: '' })
