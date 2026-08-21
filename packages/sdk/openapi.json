@@ -37862,6 +37862,9 @@
                           "items": {
                             "type": "string"
                           }
+                        },
+                        "ready": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -37870,7 +37873,8 @@
                         "sttModelId",
                         "speakerId",
                         "changed",
-                        "missing"
+                        "missing",
+                        "ready"
                       ]
                     },
                     {

@@ -2,25 +2,20 @@
 // mic, wakes on "Hey Vynel", runs a multi-turn conversation against the brain
 // (local-api `/root/turn`), speaks the answers, and falls back asleep on silence.
 // Everything on the CPU, no Python. Run with local-api up: `pnpm --filter
-// @vynel/voice-daemon dev`.
+// @vynel/voice-daemon dev`; the installed app spawns it beside the engine.
+//
+// It boots with or without a voice (Kafi, 2026-08-22): an installed app has no
+// voice models until Settings → Voice downloads them, so the overlay channel
+// always comes up, synthesis says "no voice yet" until then, and the first
+// `/reload` after a download fills the engines and starts the microphone leg
+// — no restart.
 
 import pino from 'pino'
 import { SherpaVoiceActivityDetector } from '@vynel/voice-engine'
-import type {
-  PcmAudio,
-  SpeechRecognizer,
-  SynthesizeOptions,
-  VoiceActivityDetector,
-  VoiceEngine,
-} from '@vynel/voice-engine'
-import type { Logger } from 'pino'
+import type { PcmAudio, SpeechRecognizer, SynthesizeOptions, VoiceEngine } from '@vynel/voice-engine'
 import { loadEnv } from './env.js'
-import { VoiceEngines, VoiceModelMissingError } from './voice-engines.js'
+import { VoiceEngineSlot } from './voice-engine-slot.js'
 import { readVoiceSelection } from './voice-selection.js'
-import { createBrainClient } from './brain/run-brain-turn.js'
-import { createAudioShell } from './audio/audio-shell.js'
-import { cpal } from './audio/cpal.js'
-import { resolveAudioDevices } from './audio/device-selection.js'
 import { encodeWav } from './audio/wav-encode.js'
 import { CallRegistry } from './call/call-registry.js'
 import {
@@ -35,8 +30,7 @@ import { serializeAsync } from './call/serialize-async.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
 import { createDisplayDockWindow } from './overlay/display-dock-window.js'
 import { createWakeHandoff } from './overlay/wake-handoff.js'
-import { VoiceSessionDriver } from './loop/voice-session-driver.js'
-import type { VoiceSessionIo } from './loop/voice-session-types.js'
+import { startNativeLeg, type NativeLeg } from './native-leg.js'
 
 // If a launched display dock never connects (Chrome missing, web app down),
 // give up the handoff and resume wake-listening — a failed launch must not
@@ -58,61 +52,27 @@ async function main(): Promise<void> {
     readVoiceSelection({ apiUrl: env.VYNEL_API_URL, fallback: envSelection })
   const selection = await readSelection()
 
-  // A pick whose files are gone (removed by hand, a fresh models dir) must not
-  // keep the daemon from starting: fall back to the env models, say which
-  // pick is missing, and let the reload bring the pick back once it is
-  // downloaded.
-  const loadEngines = (candidate: typeof selection): VoiceEngines => {
-    logger.info({ tts: candidate.ttsModelId, stt: candidate.sttModelId }, 'loading voice models on CPU…')
-    return VoiceEngines.load(env.VYNEL_VOICE_MODELS_DIR, candidate, logger)
+  // The pick first; a pick whose files are gone falls back to the env models
+  // (the slot owns that order, at boot and on every reload); nothing on the
+  // disk at all = no voice yet, and the daemon still comes up.
+  const slot = new VoiceEngineSlot(logger, { modelsDir: env.VYNEL_VOICE_MODELS_DIR, fallback: envSelection })
+  if (!slot.tryLoad(selection)) {
+    logger.warn('no voice model installed yet — download one in Settings → Voice (the daemon waits)')
   }
-  let engines: VoiceEngines
-  try {
-    engines = loadEngines(selection)
-  } catch (error) {
-    if (!(error instanceof VoiceModelMissingError)) throw error
-    logger.warn({ missing: error.missingPath }, 'the picked voice model is not on the disk — falling back to the env models')
-    try {
-      engines = loadEngines({ ...envSelection, speakerId: selection.speakerId })
-    } catch (fallbackError) {
-      if (!(fallbackError instanceof VoiceModelMissingError)) throw fallbackError
-      logger.error(
-        { missing: fallbackError.missingPath },
-        'voice model file missing — download it in Settings → Voice, or run `pnpm voice:fetch-models <model>` for each of kokoro, moonshine-base, silero-vad',
-      )
-      process.exitCode = 1
-      return
-    }
-  }
-  const vadConfig = engines.vadConfig
-  const vad = new SherpaVoiceActivityDetector({ vad: vadConfig })
-  logger.info(
-    { voices: engines.synthesizer.voiceCount, sampleRate: engines.synthesizer.sampleRate },
-    'models loaded',
-  )
 
   // The native STT/TTS engines are SINGLE instances shared by the wake line
   // and every call loop — serialize them so concurrent turns can't race the
   // sherpa addon (each call gets its own VAD; those are per-stream state).
-  // Both lanes read the HOLDER at call time, so a reload's swap lands between
-  // calls. The speaker is injected HERE — the one place the pick is applied —
-  // unless a caller chose one deliberately.
-  const sharedTranscribe = serializeAsync((audio: PcmAudio) => engines.recognizer.transcribe(audio))
+  // Both lanes read the SLOT at call time, so a reload's swap (or its first
+  // fill) lands between calls. The speaker is injected HERE — the one place
+  // the pick is applied — unless a caller chose one deliberately.
+  const sharedTranscribe = serializeAsync((audio: PcmAudio) => slot.engines.recognizer.transcribe(audio))
   const sharedSynthesize = serializeAsync((text: string, options?: SynthesizeOptions) =>
-    engines.synthesizer.synthesize(text, { voiceId: engines.selection.speakerId, ...options }),
+    slot.engines.synthesizer.synthesize(text, { voiceId: slot.engines.selection.speakerId, ...options }),
   )
   const serializedRecognizer: SpeechRecognizer = { transcribe: sharedTranscribe }
   const serializedSynthesizer: VoiceEngine = { synthesize: sharedSynthesize }
 
-  // audioShell + overlay need driver callbacks, and the driver needs both of
-  // them — so build them first with a late-bound driver reference.
-  let driver!: VoiceSessionDriver
-  const audioDevices = resolveAudioDevices(
-    logger,
-    { inputName: env.VYNEL_VOICE_INPUT_DEVICE, outputName: env.VYNEL_VOICE_OUTPUT_DEVICE },
-    () => cpal.getDevices(),
-  )
-  const audioShell = createAudioShell(logger, () => driver.notifyPlaybackDrained(), audioDevices)
   // The env cable-pair inventory — env's superRefine guarantees each pair is
   // whole, so presence of one end means the pair exists.
   const envCallCablePairs = [
@@ -144,22 +104,31 @@ async function main(): Promise<void> {
     assistantName: 'Vynel',
     sessionClient: createCallSessionClient(env.VYNEL_API_URL),
     turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
-    createVad: () => new SherpaVoiceActivityDetector({ vad: vadConfig }),
+    createVad: () => new SherpaVoiceActivityDetector({ vad: slot.engines.vadConfig }),
     transcribe: sharedTranscribe,
     synthesize: (sentence) => sharedSynthesize(sentence),
     findCallSink: (callId) => callRegistry.findCallSink(callId),
   })
   callRegistry.bindCallLoop(callConversations)
+
+  // The microphone leg — started once there is a voice AND a device; null
+  // until then (the overlay hooks below answer for both cases).
+  let nativeLeg: NativeLeg | null = null
   const dockEnabled = env.VYNEL_VOICE_DOCK_WINDOW === '1'
   const overlay = startOverlayChannel(
     env.VYNEL_VOICE_DAEMON_PORT,
     {
-      onSessionEnd: () => driver.endHandoff(),
-      onClientsGone: () => driver.endHandoff(),
+      onSessionEnd: () => nativeLeg?.driver.endHandoff(),
+      onClientsGone: () => nativeLeg?.driver.endHandoff(),
       // The overlay speaks with the daemon's own voice — one voice everywhere.
       onSynthesize: async (text) => encodeWav(await sharedSynthesize(text)),
-      // Settings → Voice saved: re-read the pick and swap what changed.
-      onReload: async () => engines.apply(await readSelection()),
+      // Settings → Voice saved (or a download landed): re-read the pick, fill
+      // or swap the engines, and start the microphone leg if it is not up.
+      onReload: async () => {
+        const outcome = slot.apply(await readSelection())
+        if (outcome.ready && nativeLeg === null) nativeLeg = startMicrophoneLeg()
+        return outcome
+      },
       // The `speak` MCP tool — any session's voice output. Route it to whoever
       // can actually play it:
       //   - while an overlay owns the command session (handed-off) it is
@@ -171,25 +140,29 @@ async function main(): Promise<void> {
       //   - otherwise a connected-but-idle client is ASKED to play it (typed
       //     chat, scheduled tasks — the browser owns reliable playback while
       //     an overlay window holds the audio device);
-      //   - no client at all → the daemon's native speaker queue.
+      //   - no client at all → the daemon's native speaker queue — or, with no
+      //     microphone leg, nowhere: logged, never thrown.
       // Accept + hand off → resolves immediately.
       onSpeak: (text, sessionId) => {
         const preview = text.slice(0, 80)
-        if (driver.isHandedOff) {
+        const driver = nativeLeg?.driver ?? null
+        if (driver?.isHandedOff) {
           if (overlay.publishSpeak(text, sessionId)) {
             logger.info({ text: preview, sessionId }, 'speak — handed to the overlay that owns the session')
           } else {
             logger.info({ text: preview }, 'speak — overlay client gone mid-handoff, speaking natively')
             driver.speak(text)
           }
-        } else if (!driver.isAwake && overlay.publishSpeak(text, sessionId)) {
+        } else if ((driver === null || !driver.isAwake) && overlay.publishSpeak(text, sessionId)) {
           // Delegate only while the native loop is IDLE: a client playing audio
           // mid native conversation would be heard by the open daemon mic (the
           // echo defense only guards the daemon's own speaker path).
           logger.info({ text: preview, sessionId }, 'speak — delivered to a connected overlay client')
-        } else {
+        } else if (driver !== null) {
           logger.info({ text: preview }, 'speak requested (native)')
           driver.speak(text)
+        } else {
+          logger.warn({ text: preview }, 'speak — no voice and no connected client; nothing was heard')
         }
         return Promise.resolve()
       },
@@ -216,8 +189,7 @@ async function main(): Promise<void> {
       'overlay channel failed to start — is another voice daemon already running? ' +
         'Stop it, or set VYNEL_VOICE_DAEMON_PORT to a free port.',
     )
-    audioShell.stop()
-    driver.stop()
+    nativeLeg?.stop()
     // eslint-disable-next-line n/no-process-exit -- fail fast: without the channel the display dock can never connect
     process.exit(1)
   })
@@ -235,64 +207,32 @@ async function main(): Promise<void> {
     dockEnabled,
     logger,
     connectTimeoutMs: DOCK_CONNECT_TIMEOUT_MS,
-    abandonHandoff: () => driver.endHandoff(),
+    abandonHandoff: () => nativeLeg?.driver.endHandoff(),
   })
-  // Mirror every state change to the browser voice view alongside the log line.
-  const io: VoiceSessionIo = {
-    setState: (state) => {
-      audioShell.io.setState(state)
-      overlay.publishState(state)
-    },
-    emitAudio: (audio) => audioShell.io.emitAudio(audio),
-    endSpeech: () => audioShell.io.endSpeech(),
-    cutPlayback: () => audioShell.io.cutPlayback(),
-  }
-  driver = new VoiceSessionDriver(
-    {
-      logger,
-      vad: traceVad(vad, logger),
-      recognizer: traceRecognizer(serializedRecognizer, logger),
-      synthesizer: serializedSynthesizer,
-      brain: createBrainClient(env.VYNEL_API_URL),
-      io,
-      onSpeakError: (error, text) =>
-        logger.error(
-          { error: error instanceof Error ? error.message : String(error), text: text.slice(0, 80) },
-          'speak failed — nothing was heard for this line',
-        ),
-      onTurnWatchdog: (utterance) =>
-        logger.warn(
-          { utterance: utterance.slice(0, 80), watchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS },
-          'turn watchdog fired — the room is back; the turn streams on and its answer is spoken when it lands',
-        ),
-      // The browser owns the command session (Web Speech STT + spoken reply
-      // run there). What a wake does to the screen lives in `wake-handoff.ts`;
-      // without the dock feature it is simply "hand off to a connected client
-      // that declared it can RUN a session" — the desktop shell's windows never
-      // do (its main window is connected for state events + the mic button, and
-      // must not swallow the wake), a browser tab does only with Web Speech;
-      // with no capable client the native leg answers.
-      wakeHandoff: wakeHandoff.handoff,
-    },
-    {
-      idleTimeoutMs: env.VYNEL_VOICE_IDLE_TIMEOUT_MS,
-      turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
-      // No voiceId here: the shared synthesize lane applies the user's pick.
-    },
-  )
 
-  audioShell.start((audio) => {
-    void driver.pushAudio(audio)
-  })
-  logger.info({ apiUrl: env.VYNEL_API_URL }, 'voice daemon listening — say "Hey Vynel"')
+  function startMicrophoneLeg(): NativeLeg | null {
+    return startNativeLeg({
+      env,
+      logger,
+      slot,
+      overlay,
+      recognizer: serializedRecognizer,
+      synthesizer: serializedSynthesizer,
+      wakeHandoff: wakeHandoff.handoff,
+    })
+  }
+  if (slot.isReady) nativeLeg = startMicrophoneLeg()
+  logger.info(
+    { apiUrl: env.VYNEL_API_URL, voice: slot.isReady, microphone: nativeLeg !== null },
+    'voice daemon up',
+  )
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'voice daemon shutting down')
     wakeHandoff.stop()
     callRegistry.stopAll()
-    audioShell.stop()
+    nativeLeg?.stop()
     overlay.stop()
-    driver.stop()
     const exitNow = (): void => {
       // eslint-disable-next-line n/no-process-exit -- explicit exit at the end of a graceful shutdown
       process.exit(0)
@@ -310,31 +250,6 @@ async function main(): Promise<void> {
   }
   process.on('SIGINT', shutdown)
   process.on('SIGTERM', shutdown)
-}
-
-// Diagnostic wrappers (LOG_LEVEL=debug): surface VAD segments + every transcript
-// so a silent loop can be traced to the exact stage it stalls.
-function traceVad(vad: VoiceActivityDetector, logger: Logger): VoiceActivityDetector {
-  return {
-    push(audio) {
-      const segments = vad.push(audio)
-      for (const segment of segments) {
-        logger.debug({ seconds: Number((segment.samples.length / segment.sampleRate).toFixed(2)) }, 'vad segment')
-      }
-      return segments
-    },
-    flush: () => vad.flush(),
-  }
-}
-
-function traceRecognizer(recognizer: SpeechRecognizer, logger: Logger): SpeechRecognizer {
-  return {
-    async transcribe(audio) {
-      const text = await recognizer.transcribe(audio)
-      logger.debug({ transcript: text }, 'stt')
-      return text
-    },
-  }
 }
 
 main().catch((error: unknown) => {

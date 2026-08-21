@@ -297,6 +297,12 @@ whether recognition needs network (Azure-backed — assume yes, same as Chrome's
 - Native addon + **pnpm** hoisting: `sherpa-onnx-node` is NOT hoisted to the repo root (it's only a dep of
   `@vynel/voice-engine`) — it resolves from the package's own `node_modules` (verified loading under pnpm at
   Increment 1). A root-level `require('sherpa-onnx-node')` will fail; always reach it through the package.
+- **Packaged (2026-08-22):** in the installed app the daemon is `resources\engine\dist\voice.mjs`, run by the
+  pinned runtime beside the engine; the payload's flat `node_modules` holds `sherpa-onnx-node` +
+  `sherpa-onnx-win-x64` (the addon dlopens its DLLs from beside itself — no PATH edit) and `node-cpal` with
+  only `bin/win32-x64`. `verify-payload` loads both natives with the staged runtime. The daemon boots with
+  an EMPTY engine slot (`apps/voice/src/voice-engine-slot.ts`) when no model is on disk and fills it on
+  `/reload` — a fresh install never crash-loops on `VoiceModelMissingError`.
 - SSE/WS **buffering through the Vite dev proxy** (the M7 live-boot risk) applies to the audio WS too — watch
   for incremental audio, not one dump at the end.
 - `node --watch` (not `tsx watch`) for any turbo dev server on Windows — already the repo standard; the voice

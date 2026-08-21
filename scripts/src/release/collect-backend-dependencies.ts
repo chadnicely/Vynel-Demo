@@ -31,12 +31,19 @@ function indexWorkspaceManifests(repoRoot: string): Map<string, PackageManifest>
   return manifests
 }
 
-export function collectBackendThirdPartyDependencies(repoRoot: string): Record<string, string> {
+/** The third-party ranges the payload's `node_modules` must satisfy — the
+ *  union over every workspace package reachable from `seeds` (the apps the
+ *  payload bundles; `@vynel/local-api` alone for a server, plus the voice
+ *  daemon for the desktop). */
+export function collectBackendThirdPartyDependencies(
+  repoRoot: string,
+  seeds: readonly string[] = ['@vynel/local-api'],
+): Record<string, string> {
   const manifests = indexWorkspaceManifests(repoRoot)
   const ranges = new Map<string, string>()
   const conflicts: string[] = []
   const visited = new Set<string>()
-  const queue = ['@vynel/local-api']
+  const queue = [...seeds]
 
   while (queue.length > 0) {
     const packageName = queue.shift()!

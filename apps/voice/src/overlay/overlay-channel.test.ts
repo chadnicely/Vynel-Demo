@@ -53,6 +53,7 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
           speakerId: 0,
           changed: ['tts'],
           missing: [],
+          ready: true,
         })
       },
     },
@@ -75,6 +76,7 @@ describe('POST /reload', () => {
         speakerId: 0,
         changed: ['tts'],
         missing: [],
+        ready: true,
       })
       expect(hooks.reloads).toBe(1)
     } finally {

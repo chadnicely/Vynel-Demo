@@ -15,7 +15,7 @@ describe('reloadVoiceThroughDaemon', () => {
       calls.push(url)
       return Promise.resolve(
         new Response(
-          JSON.stringify({ ttsModelId: 'piper-lessac', sttModelId: 'moonshine-base', speakerId: 0, changed: ['tts'], missing: [] }),
+          JSON.stringify({ ttsModelId: 'piper-lessac', sttModelId: 'moonshine-base', speakerId: 0, changed: ['tts'], missing: [], ready: true }),
           { status: 200 },
         ),
       )
@@ -29,6 +29,7 @@ describe('reloadVoiceThroughDaemon', () => {
       speakerId: 0,
       changed: ['tts'],
       missing: [],
+      ready: true,
     })
   })
 

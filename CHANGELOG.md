@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Voice ships in the desktop app.** The installed app now starts Vynel's voice alongside
+  the engine — no dev checkout, no separate command. A fresh install has no voice yet:
+  Settings → Voice shows the speaking and hearing models, and the moment a download lands
+  the voice comes alive by itself (the Voice screen says so), no restart needed. Until
+  then the Display's microphone stays off and a preview answers "no voice model is
+  installed yet" instead of failing. Adds about 22 MB to the installer (the speech
+  engine's native pieces); call cables are not part of the installer.
 - **Settings → Embedding and Settings → Voice.** A Settings menu in the top bar (between
   Vynel and View) now holds this computer's screens — Embedding, Voice, Where Vynel runs,
   Application — starting with the models that run on this computer. Embedding shows the search model behind

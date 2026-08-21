@@ -5,6 +5,7 @@ import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
 import type { VoiceReloadOutcome } from '@vynel/contracts/voice/voice-reload'
 import type { VoiceSessionState } from '../loop/voice-session-types.js'
+import { VoiceNotReadyError } from '../voice-engine-slot.js'
 
 // The daemon↔browser channel for the voice views. The daemon stays the local,
 // private WAKE layer; browser surfaces subscribe here (SSE) and, on a wake
@@ -272,6 +273,9 @@ export function startOverlayChannel(
         const wav = await hooks.onSynthesize(text)
         return c.body(wav.slice().buffer, 200, { 'content-type': 'audio/wav' })
       } catch (error) {
+        // Not a failure: the daemon is up and simply has no voice model yet.
+        // 503 (not 500) — the player stays quiet, nothing is logged as broken.
+        if (error instanceof VoiceNotReadyError) return c.json({ error: error.message }, 503)
         logger.error(
           { error: error instanceof Error ? error.message : String(error) },
           'overlay synthesize failed',

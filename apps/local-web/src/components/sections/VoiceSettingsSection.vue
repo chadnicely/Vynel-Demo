@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { PhPlay as Play, PhSpeakerHigh as SpeakerHigh } from "@phosphor-icons/vue";
 import type { VoiceReloadResponse } from "@vynel/contracts/voice/voice-reload";
 import { useReloadVoice } from "../../composables/voice/use-reload-voice.js";
@@ -88,9 +88,26 @@ const applyNote = computed(() => {
   const outcome = lastReload.value;
   if (outcome === null) return "A new pick is used from the next voice conversation on.";
   if (!outcome.reloaded) return `Saved. It applies when the voice starts — ${outcome.reason}.`;
+  if (!outcome.ready)
+    return "Saved. Vynel has no voice yet — download a speaking and a hearing model above and it starts by itself.";
   if (outcome.missing.length > 0)
     return `Saved. ${outcome.missing.join(", ")} is not downloaded yet, so the previous one stays in use for now.`;
   return "Applied.";
+});
+
+// A download that just finished is the moment a waiting daemon can start its
+// voice (or a picked-but-missing model can take over): ask it to reload once
+// per model that turns installed — the daemon decides what that means.
+let installedIds: Set<string> | null = null;
+watch(models, (rows) => {
+  if (modelsQuery.isPending.value) return;
+  const nowInstalled = new Set(rows.filter((row) => row.state === "installed").map((row) => row.id));
+  // The first answered reading is the baseline — what was installed before
+  // this screen opened is not news to the daemon.
+  const newlyInstalled = installedIds === null ? [] : [...nowInstalled].filter((id) => !installedIds!.has(id));
+  installedIds = nowInstalled;
+  if (newlyInstalled.length > 0)
+    reloadVoice.mutate(undefined, { onSuccess: (outcome) => (lastReload.value = outcome) });
 });
 
 function chooseTts(modelId: string) {

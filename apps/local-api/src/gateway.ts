@@ -131,7 +131,7 @@ export function createGatewayApp(options: CreateGatewayAppOptions): Hono {
       return c.json(
         {
           code: 'voice_daemon_unreachable',
-          message: `The voice daemon isn't reachable at ${options.voiceDaemonUrl}. Start it with \`pnpm dev:voice\` — or ignore this if you aren't using voice.`,
+          message: `The voice daemon isn't reachable at ${options.voiceDaemonUrl}. In the desktop app it starts with Vynel — restart Vynel; in a dev checkout run \`pnpm dev:voice\`. Ignore this if you aren't using voice.`,
         },
         502,
       )

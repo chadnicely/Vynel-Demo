@@ -67,9 +67,9 @@ export class VoiceEngines {
 
   /** Apply a new pick. A model that is not on the disk is reported missing and
    *  the engine in use stays — the daemon never goes mute over a pick. */
-  apply(next: VoiceSelection): VoiceReloadOutcome {
+  apply(next: VoiceSelection): Omit<VoiceReloadOutcome, 'ready'> {
     const plan = planVoiceReload(this.#selection, next, (modelId) =>
-      findMissingModelFile(this.#modelsDir, [getLocalModelOrThrow(modelId)]) === null,
+      isVoiceModelInstalled(this.#modelsDir, modelId),
     )
     const changed: string[] = []
     if (plan.swapTts || plan.swapStt) {
@@ -100,4 +100,10 @@ export class VoiceModelMissingError extends Error {
     super(`voice model file missing: ${missingPath}`)
     this.name = 'VoiceModelMissingError'
   }
+}
+
+/** Every file of one catalog model is on the disk — the reload planner's and
+ *  the slot's one answer to "can this pick load". */
+export function isVoiceModelInstalled(modelsDir: string, modelId: string): boolean {
+  return findMissingModelFile(modelsDir, [getLocalModelOrThrow(modelId)]) === null
 }

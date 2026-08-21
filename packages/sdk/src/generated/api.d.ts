@@ -18361,6 +18361,7 @@ export interface operations {
                         speakerId: number;
                         changed: string[];
                         missing: string[];
+                        ready: boolean;
                     } | {
                         /** @constant */
                         reloaded: false;

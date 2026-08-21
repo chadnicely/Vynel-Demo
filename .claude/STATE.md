@@ -3,7 +3,25 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-22 (latest) VIEW SWITCH + SETTINGS → EMBEDDING / VOICE + UI FIXES — MERGED TO MAIN + PUSHED (`8ce95035`), reviewed, full gate green (984 files / 6713 tests)
+## ✅ 2026-08-22 (latest) VOICE DAEMON SHIPS IN THE DESKTOP BUILD (win-x64 second sidecar)
+
+Kafi: "publish the voice in the display so that we can start testing by installing" — decisions: **boot
+idle, load on download** + accept ~22 MB. Daemon: `VoiceEngineSlot` (`apps/voice/src/voice-engine-slot.ts`)
+holds the engines or `VoiceNotReadyError`; `native-leg.ts` owns the microphone leg and starts only when the
+slot is ready (also from `onReload` once a download fills it); `/synthesize` answers 503 while empty;
+`VoiceReloadOutcome.ready` rides the API (`POST /voice/reload`) and the Voice screen auto-reloads when a
+newly-installed model appears. Release: `build-payload` bundles `voice.mjs` (win32 only, `{in,out}`
+entries — esbuild's outbase trap) + seeds `@vynel/voice-daemon`'s deps; `prune-payload` 4d keeps
+`node-cpal/bin/win32-x64` + `sherpa-onnx-win-x64`; `verify-payload` asserts the files + a native
+require-probe with the staged runtime. Shell: `sidecar.rs` (shared supervise/stop/pinned-runtime builder —
+daemon.rs now rides it), `voice_sidecar.rs` (env: daemon port, `VYNEL_API_URL`, models dir, dock = this exe
++ `/display-dock` on the gateway), `choose_voice_port(engine_port)` allocated BEFORE the engine spawns
+(engine reads `VYNEL_VOICE_DAEMON_URL` at boot), `CANONICAL_VOICE_PORT` pinned by check-port-parity.
+Bundled launches only (attach/repo/remote never spawn it). **Owed by Kafi:** install-test the next
+release (fresh install → Settings → Voice → download → Display mic live; `voice.log` in the data home).
+Call cables stay out of the installer.
+
+## ✅ 2026-08-22 VIEW SWITCH + SETTINGS → EMBEDDING / VOICE + UI FIXES — MERGED TO MAIN + PUSHED (`8ce95035`), reviewed, full gate green (984 files / 6713 tests)
 
 Also landed after the main merge (Kafi's live feedback, each reviewed): Settings is a TITLE-BAR MENU
 between Vynel and View (not a sidebar group); a workspace's logo is its persona's face everywhere
@@ -33,9 +51,9 @@ the engine could never fetch the model — fixed by `@vynel/models` fetching Hub
 `allowRemoteModels=false`, typed `EmbeddingModelNotInstalledError`, and `downloadEmbeddingModelOnce` off the
 indexing ticks (never auto-retried after a failure). Verified live: VAD + embedding download through the UI.
 **Owed by Kafi:** Tauri smoke of full view (drag by the strip, controls over the Display); `pnpm dev:voice`
-smoke (pick speaker → Preview → switch to Piper → hear the swap). **Parked (own arc):** shipping the voice
-daemon as a second installer sidecar; the embedding model picker (384-dim lock → migration + re-embed).
-## ✅ 2026-08-22 (latest) CHANNELS — workspace routing · report protocol · never silent (merged to main)
+smoke (pick speaker → Preview → switch to Piper → hear the swap). **Parked (own arc):** the embedding model picker (384-dim lock → migration + re-embed). (The voice sidecar
+shipped — block above.)
+## ✅ 2026-08-22 CHANNELS — workspace routing · report protocol · never silent (merged to main)
 
 Kafi's three: (1) "all Telegram channels talk to global" — the inbound path never read the channel's `workspace_id`
 (`route-as-chat-turn.ts` called the root runner unconditionally). Now `resolve-channel-turn-scope` picks the runner: a

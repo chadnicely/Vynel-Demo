@@ -82,6 +82,7 @@ const VoiceReloadResponseSchema = z.union([
     speakerId: z.number().int(),
     changed: z.array(z.string()),
     missing: z.array(z.string()),
+    ready: z.boolean(),
   }),
   z.object({ reloaded: z.literal(false), reason: z.string() }),
 ])

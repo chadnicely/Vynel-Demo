@@ -13,7 +13,9 @@ mod engine_config;
 mod engine_port;
 mod job_object;
 mod launch_plan;
+mod sidecar;
 mod updater;
+mod voice_sidecar;
 mod windows;
 
 fn main() {

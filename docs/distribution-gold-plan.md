@@ -186,7 +186,9 @@ GitHub releases (hub redirects), so bandwidth stays free.
 - **Velopack replatform** — deltas + 2s applies are real, but it swaps out the proven
   NSIS+minisign pipeline for an unproven seam. Revisit on signal.
 - **MSIX / Microsoft Store** — the only true tamper-proof channel; heavyweight; someday, not now.
-- **Voice packaging** — still out of scope (separate module per release-plan).
+- ~~**Voice packaging** — still out of scope~~ — SHIPPED 2026-08-22 as a second sidecar of the
+  win-x64 payload (`dist/voice.mjs` + sherpa-onnx/node-cpal natives, ~22 MB; `voice_sidecar.rs`,
+  boots idle until Settings → Voice downloads a model). Call cables stay out of the installer.
 
 ## 6 · Phases
 

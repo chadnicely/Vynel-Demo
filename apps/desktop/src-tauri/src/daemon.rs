@@ -9,40 +9,25 @@
 // ALLOCATED per boot (canonical first, never assumed) — an end-user machine
 // may have any port taken.
 //
-// Shutdown is a hard kill (TerminateProcess): SQLite in WAL mode survives it,
-// and the kill-on-close Job Object (job_object.rs) reaps the whole daemon
-// tree on ANY shell death; a graceful signal handshake remains a possible
-// later refinement. If another process already serves the port (e.g.
-// `pnpm dev`), we attach to it instead of spawning. Shell diagnostics go
-// through the log plugin: stdout when a terminal is attached, and the
-// platform log dir always.
+// If another process already serves the port (e.g. `pnpm dev`), we attach to
+// it instead of spawning. A bundled launch also brings up the voice daemon
+// (voice_sidecar.rs) once the engine answers. Supervision + shutdown
+// semantics live in sidecar.rs. Shell diagnostics go through the log plugin:
+// stdout when a terminal is attached, and the platform log dir always.
 
 use crate::engine_port::{
-    choose_engine_port, discover_running_engine, port_is_listening, CANONICAL_ENGINE_PORT,
+    choose_engine_port, choose_voice_port, discover_running_engine, port_is_listening,
+    CANONICAL_ENGINE_PORT,
 };
 use crate::launch_plan::{resolve_launch_plan, BundledLaunch, LaunchPlan};
+use crate::sidecar::{self, SidecarState};
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
 
-const SPAWN_ATTEMPTS: u32 = 3;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 
-struct DaemonState {
-    child: Option<Child>,
-    stopping: bool,
-    // Set when the supervisor gives up (no repo root, spawn attempts
-    // exhausted) so the window-open path stops waiting for a port that will
-    // never bind — the user gets a window (with a visible connection error)
-    // in seconds, not after the full startup timeout.
-    abandoned: bool,
-}
-
-static DAEMON: Mutex<DaemonState> = Mutex::new(DaemonState {
-    child: None,
-    stopping: false,
-    abandoned: false,
-});
+static DAEMON: Mutex<SidecarState> = Mutex::new(SidecarState::new());
 
 /// Release-mode entry: make sure a daemon serves the port, then open the
 /// windows on the main thread. Runs off-thread so setup() returns immediately
@@ -52,12 +37,19 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, dock_only: bool
     // AppHandle for app_data_dir + the packaged version.
     let plan = resolve_launch_plan(&handle);
     std::thread::spawn(move || {
-        let expected_port = match discover_running_engine() {
+        // The voice daemon rides a BUNDLED launch only: an engine we attach
+        // to (pnpm dev) belongs to a checkout with its own voice arrangement,
+        // and a remote engine's gateway cannot reach a daemon on this machine.
+        let voice_launch = match &plan {
+            Some(LaunchPlan::Bundled(bundled)) => Some(bundled.clone()),
+            _ => None,
+        };
+        let (expected_port, voice_port) = match discover_running_engine() {
             // A live engine already advertises a port (pnpm dev, a previous
             // shell, a shifted worktree band) — attach, never rival it.
             Some(port) => {
                 log::info!("attaching to the engine already listening on 127.0.0.1:{port}");
-                port
+                (port, None)
             }
             None => {
                 // Repo mode: the checkout's .env owns PORT — spawn portless
@@ -67,8 +59,14 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, dock_only: bool
                     Some(LaunchPlan::Repo(_)) | None => None,
                     Some(_) => Some(choose_engine_port()),
                 };
-                supervise_daemon(plan, spawn_port);
-                spawn_port.unwrap_or(CANONICAL_ENGINE_PORT)
+                // Allocated BEFORE the engine spawns — the engine reads
+                // VYNEL_VOICE_DAEMON_URL at boot and never again.
+                let voice_port = match (&voice_launch, spawn_port) {
+                    (Some(_), Some(engine_port)) => Some(choose_voice_port(engine_port)),
+                    _ => None,
+                };
+                supervise_daemon(plan, spawn_port, voice_port);
+                (spawn_port.unwrap_or(CANONICAL_ENGINE_PORT), voice_port)
             }
         };
         let engine_port = match wait_for_engine(expected_port, STARTUP_TIMEOUT) {
@@ -80,6 +78,17 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, dock_only: bool
                 expected_port
             }
         };
+        // Started even when the engine is still booting past the timeout (a
+        // first boot behind Defender's scan of the fresh payload): the engine
+        // supervisor keeps it coming, and the voice daemon's engine relay
+        // reconnects with backoff. Only an abandoned engine has no voice.
+        if let (Some(bundled), Some(voice_port)) = (voice_launch, voice_port) {
+            if sidecar::lock(&DAEMON).abandoned {
+                log::warn!("engine abandoned — the voice daemon stays down with it");
+            } else {
+                crate::voice_sidecar::start(bundled, engine_port, voice_port);
+            }
+        }
         crate::windows::set_engine_port(engine_port);
         let handle_for_windows = handle.clone();
         let created = handle.run_on_main_thread(move || {
@@ -93,37 +102,23 @@ pub fn ensure_daemon_then_open_windows(handle: tauri::AppHandle, dock_only: bool
     });
 }
 
-/// Kill the sidecar on app exit. Safe to call when nothing was spawned.
+/// Kill both sidecars on app exit — the voice daemon first (it talks to the
+/// engine). Safe to call when nothing was spawned.
 pub fn stop() {
-    let mut daemon = lock_daemon();
-    daemon.stopping = true;
-    if let Some(mut child) = daemon.child.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
+    crate::voice_sidecar::stop();
+    sidecar::stop(&DAEMON);
 }
 
-fn lock_daemon() -> std::sync::MutexGuard<'static, DaemonState> {
-    DAEMON.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-/// Spawn the daemon and keep it alive: an unexpected exit respawns with
-/// backoff, capped at SPAWN_ATTEMPTS total spawns (a daemon that can't hold
-/// the port — node missing, port stolen, crash loop — should not burn CPU
-/// forever; the window's connection error is the visible symptom).
-fn supervise_daemon(plan: Option<LaunchPlan>, spawn_port: Option<u16>) {
+fn supervise_daemon(plan: Option<LaunchPlan>, spawn_port: Option<u16>, voice_port: Option<u16>) {
     std::thread::spawn(move || {
         let Some(plan) = plan else {
             log::error!(
                 "no bundled payload beside the exe and no repo root found — set VYNEL_DESKTOP_REPO_ROOT or run the daemon yourself (`pnpm dev`)"
             );
-            lock_daemon().abandoned = true;
+            sidecar::lock(&DAEMON).abandoned = true;
             return;
         };
-        for attempt in 1..=SPAWN_ATTEMPTS {
-            if lock_daemon().stopping {
-                return;
-            }
+        sidecar::supervise(&DAEMON, "daemon", "daemon.log", |attempt| {
             // Re-choose on retries: the first pick may have lost the
             // probe-then-bind race — respawning onto the same taken port
             // would burn every remaining attempt. The port file reports the
@@ -133,74 +128,16 @@ fn supervise_daemon(plan: Option<LaunchPlan>, spawn_port: Option<u16>) {
             } else {
                 spawn_port.map(|_| choose_engine_port())
             };
-            match spawn_daemon(&plan, attempt_port) {
-                Ok(mut child) => {
-                    log::info!("daemon spawned (pid {})", child.id());
-                    #[cfg(windows)]
-                    crate::job_object::assign_daemon_to_kill_on_close_job(&child);
-                    // ONE lock acquisition for the stopping-check + store:
-                    // stop() may have run while spawn_daemon was in flight,
-                    // and a check-then-store as two acquisitions would let
-                    // the fresh child slip past the kill (orphaned node
-                    // holding the port after "exit"). The residual sliver —
-                    // exit mid-CreateProcess — is covered by the
-                    // kill-on-close Job Object assigned above.
-                    {
-                        let mut daemon = lock_daemon();
-                        if daemon.stopping {
-                            let _ = child.kill();
-                            let _ = child.wait();
-                            return;
-                        }
-                        daemon.child = Some(child);
-                    }
-                    watch_until_exit();
-                    if lock_daemon().stopping {
-                        return;
-                    }
-                    log::warn!("daemon exited unexpectedly (attempt {attempt}/{SPAWN_ATTEMPTS})");
-                }
-                Err(error) => {
-                    log::warn!("daemon spawn failed (attempt {attempt}/{SPAWN_ATTEMPTS}): {error}");
-                }
-            }
-            std::thread::sleep(Duration::from_millis(500 * u64::from(attempt)));
-        }
-        log::error!(
-            "giving up on the daemon after {SPAWN_ATTEMPTS} attempts — is node on PATH, and does the engine boot cleanly (logs\\daemon.log)?"
-        );
-        lock_daemon().abandoned = true;
+            spawn_daemon(&plan, attempt_port, voice_port)
+        });
     });
 }
 
-/// Block until the supervised child exits (poll try_wait; the Child lives in
-/// the mutex so stop() can kill it from the exit handler at any moment).
-fn watch_until_exit() {
-    loop {
-        std::thread::sleep(Duration::from_millis(500));
-        let mut daemon = lock_daemon();
-        if daemon.stopping {
-            return;
-        }
-        let Some(child) = daemon.child.as_mut() else {
-            return;
-        };
-        match child.try_wait() {
-            Ok(Some(_status)) => {
-                daemon.child = None;
-                return;
-            }
-            Ok(None) => {}
-            Err(error) => {
-                log::warn!("lost track of the daemon process: {error}");
-                daemon.child = None;
-                return;
-            }
-        }
-    }
-}
-
-fn spawn_daemon(plan: &LaunchPlan, spawn_port: Option<u16>) -> std::io::Result<Child> {
+fn spawn_daemon(
+    plan: &LaunchPlan,
+    spawn_port: Option<u16>,
+    voice_port: Option<u16>,
+) -> std::io::Result<Child> {
     let mut command = match plan {
         LaunchPlan::Bundled(bundled) => bundled_daemon_command(bundled, "dist/server.mjs")?,
         // Remote mode: the tunnel child supervises identically — same port,
@@ -228,62 +165,23 @@ fn spawn_daemon(plan: &LaunchPlan, spawn_port: Option<u16>) -> std::io::Result<C
     if let Some(port) = spawn_port {
         command.env("PORT", port.to_string());
     }
-    #[cfg(windows)]
-    {
-        // CREATE_NO_WINDOW: the shell is a GUI app; the spawned engine process
-        // would otherwise flash a console window on the user's desktop.
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000);
+    if let Some(port) = voice_port {
+        command.env("VYNEL_VOICE_DAEMON_URL", format!("http://127.0.0.1:{port}"));
     }
+    sidecar::hide_console_window(&mut command);
     command.spawn()
 }
 
-/// The installed app's daemon: the pinned vynel-engine.exe (in
-/// resources\engine, beside the bundle it runs) executes the compiled
-/// bundle with every runtime path pinned ABSOLUTE into app_data
-/// (env.ts passes absolute values through untouched). release.env carries the
-/// baked hub endpoint; the user's config.env may override it; real env set
-/// here always wins over both (node --env-file never overrides existing env).
-///
-/// The daemon's pino output lands in <app_data>\logs\daemon.log — a windowed
-/// shell has no console, and an installed-app failure must be diagnosable
-/// from disk. Naive size rotation at boot keeps it bounded.
+/// The engine's command: the shared pinned-runtime builder plus every
+/// runtime path pinned ABSOLUTE into app_data (env.ts passes absolute values
+/// through untouched).
 fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Result<Command> {
     let data_dir = bundled.app_data_dir.join("data");
     std::fs::create_dir_all(&data_dir)?;
     std::fs::create_dir_all(bundled.app_data_dir.join("models"))?;
 
-    let logs_dir = bundled.app_data_dir.join("logs");
-    std::fs::create_dir_all(&logs_dir)?;
-    let daemon_log_path = logs_dir.join("daemon.log");
-    const MAX_DAEMON_LOG_BYTES: u64 = 10 * 1024 * 1024;
-    if let Ok(metadata) = std::fs::metadata(&daemon_log_path) {
-        if metadata.len() > MAX_DAEMON_LOG_BYTES {
-            if let Err(error) = std::fs::rename(&daemon_log_path, logs_dir.join("daemon.log.1")) {
-                log::warn!("daemon.log rotation failed (log will keep growing): {error}");
-            }
-        }
-    }
-    let daemon_log = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&daemon_log_path)?;
-
-    let mut command = Command::new(bundled.engine_dir.join("vynel-engine.exe"));
+    let mut command = sidecar::bundled_runtime_command(bundled, entry, "daemon.log")?;
     command
-        .stdout(daemon_log.try_clone()?)
-        .stderr(daemon_log);
-    command
-        .arg(format!(
-            "--env-file-if-exists={}",
-            bundled.engine_dir.join("config").join("release.env").display()
-        ))
-        .arg(format!(
-            "--env-file-if-exists={}",
-            bundled.app_data_dir.join("config.env").display()
-        ))
-        .arg(entry)
-        .current_dir(&bundled.engine_dir)
         .env("DB_PATH", data_dir.join("vynel.db"))
         .env("VYNEL_ASSETS_DIR", bundled.engine_dir.join("assets"))
         .env("VYNEL_WEB_UI_DIST", &bundled.web_dir)
@@ -292,7 +190,7 @@ fn bundled_daemon_command(bundled: &BundledLaunch, entry: &str) -> std::io::Resu
             bundled.app_data_dir.join("models").join("embeddings"),
         )
         // The voice models' home beside the embeddings' — Settings → Voice
-        // downloads here, and the voice daemon (when it ships) reads here.
+        // downloads here, and the voice sidecar reads here.
         .env(
             "VYNEL_VOICE_MODELS_DIR",
             bundled.app_data_dir.join("models").join("voice"),
@@ -313,7 +211,7 @@ fn wait_for_engine(expected_port: u16, timeout: Duration) -> Option<u16> {
         if port_is_listening(expected_port) {
             return Some(expected_port);
         }
-        if lock_daemon().abandoned {
+        if sidecar::lock(&DAEMON).abandoned {
             return None;
         }
         std::thread::sleep(Duration::from_millis(500));

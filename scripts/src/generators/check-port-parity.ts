@@ -1,8 +1,9 @@
 // Port-parity guard. The ports' ONE home is
 // `packages/contracts/src/network/ports.ts`; every TypeScript consumer
 // derives from it. Copies live where TypeScript can't reach — the Tauri
-// shell's CANONICAL_ENGINE_PORT + PORT_SCAN_STRIDE (engine_port.rs, the
-// preferred first candidate + stride of its per-boot allocation) and
+// shell's CANONICAL_ENGINE_PORT / CANONICAL_VOICE_PORT + PORT_SCAN_STRIDE
+// (engine_port.rs, the preferred first candidates + stride of its per-boot
+// allocation) and
 // `tauri.conf.json`'s frontendDist/devUrl — so this check fails `pnpm test`
 // the moment they drift. Changing a canonical port = edit the contracts
 // literals, chase the failures this check names.
@@ -30,6 +31,7 @@ const contractsSource = readFileSync(
 )
 const enginePort = extract(/VYNEL_ENGINE_PORT = (\d+)/, contractsSource, 'contracts ports.ts')
 const localWebPort = extract(/VYNEL_LOCAL_WEB_PORT = (\d+)/, contractsSource, 'contracts ports.ts')
+const voicePort = extract(/VYNEL_VOICE_DAEMON_PORT = (\d+)/, contractsSource, 'contracts ports.ts')
 const bandStride = extract(/VYNEL_PORT_BAND_STRIDE = (\d+)/, contractsSource, 'contracts ports.ts')
 
 const enginePortRs = readFileSync(
@@ -43,6 +45,11 @@ const copies = [
     label: 'engine_port.rs CANONICAL_ENGINE_PORT',
     expected: enginePort,
     value: extract(/CANONICAL_ENGINE_PORT: u16 = (\d+)/, enginePortRs, 'engine_port.rs CANONICAL_ENGINE_PORT'),
+  },
+  {
+    label: 'engine_port.rs CANONICAL_VOICE_PORT',
+    expected: voicePort,
+    value: extract(/CANONICAL_VOICE_PORT: u16 = (\d+)/, enginePortRs, 'engine_port.rs CANONICAL_VOICE_PORT'),
   },
   {
     label: 'engine_port.rs PORT_SCAN_STRIDE',
@@ -64,11 +71,11 @@ const copies = [
 const drifted = copies.filter((copy) => copy.value !== copy.expected)
 if (drifted.length > 0) {
   console.error(
-    `check-port-parity: FAILED — contracts says engine ${enginePort} / local-web ${localWebPort} but:\n` +
+    `check-port-parity: FAILED — contracts says engine ${enginePort} / voice ${voicePort} / local-web ${localWebPort} but:\n` +
       drifted.map((copy) => ` - ${copy.label} says ${copy.value} (expected ${copy.expected})`).join('\n'),
   )
   process.exit(1)
 }
 console.log(
-  `check-port-parity: OK — engine ${enginePort} + local-web ${localWebPort} consistent across contracts, daemon.rs, tauri.conf.json.`,
+  `check-port-parity: OK — engine ${enginePort} + voice ${voicePort} + local-web ${localWebPort} consistent across contracts, engine_port.rs, tauri.conf.json.`,
 )

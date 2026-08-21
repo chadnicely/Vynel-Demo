@@ -11,6 +11,7 @@
 // `--dir=<path>` verifies a payload COPIED OUTSIDE the repo — the honest form
 // of the green bar (nothing on a user's machine has the repo to fall back to).
 
+import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -123,6 +124,22 @@ function runStaticAsserts(payloadDir: string, target: PayloadTarget): void {
     existsSync(join(nodeModulesDir, '@huggingface', 'transformers', 'dist', 'transformers.node.mjs')),
     'transformers.node.mjs missing (over-pruned?)',
   )
+  // The voice daemon rides the desktop payload only: its bundle, sherpa's
+  // addon with the DLLs it dlopens from beside itself, and node-cpal's addon
+  // for this platform (the rest of bin/ is pruned).
+  if (target.os === 'win32') {
+    assertThat(existsSync(join(backendDir, 'dist', 'voice.mjs')), 'backend/dist/voice.mjs missing (the voice daemon)')
+    const sherpaDir = join(nodeModulesDir, `sherpa-onnx-win-${target.cpu}`)
+    for (const file of ['sherpa-onnx.node', 'onnxruntime.dll', 'sherpa-onnx-c-api.dll']) {
+      assertThat(existsSync(join(sherpaDir, file)), `sherpa-onnx-win-${target.cpu}/${file} missing`)
+    }
+    assertThat(
+      existsSync(join(nodeModulesDir, 'node-cpal', 'bin', `${target.os}-${target.cpu}`, 'index.node')),
+      `node-cpal addon for ${target.os}-${target.cpu} missing (over-pruned?)`,
+    )
+  } else {
+    assertThat(!existsSync(join(backendDir, 'dist', 'voice.mjs')), 'voice.mjs must not ride a server payload')
+  }
   // The SDK spawns its native per-platform claude binary from the optional
   // dep pnpm's supportedArchitectures selected for the target.
   const sdkPlatformPackage = `claude-agent-sdk-${target.os}-${target.cpu}`
@@ -157,6 +174,29 @@ function runBinaryFormatAsserts(payloadDir: string, target: PayloadTarget, sdkBi
   })
 }
 
+/** Load the voice daemon's native addons with the staged runtime, from the
+ *  pruned tree, with the same bare environment the smoke boot uses. */
+function probeVoiceNatives(payloadDir: string, stagedNodePath: string): string[] {
+  const backendDir = join(payloadDir, 'backend')
+  const probe = spawnSync(
+    stagedNodePath,
+    ['-e', "require('sherpa-onnx-node'); require('node-cpal'); console.log('voice natives ok')"],
+    {
+      cwd: backendDir,
+      env: { SystemRoot: process.env['SystemRoot'] ?? '', PATH: dirname(stagedNodePath) },
+      encoding: 'utf8',
+      timeout: 30_000,
+    },
+  )
+  if (probe.status !== 0) {
+    return [
+      `voice natives failed to load from the payload (exit ${probe.status ?? 'signal'}):\n${probe.stdout}${probe.stderr}`,
+    ]
+  }
+  console.log('verify-payload: voice natives (sherpa-onnx, node-cpal) load from the payload')
+  return []
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
   const target = resolvePayloadTarget(args.find((arg) => !arg.startsWith('--')))
@@ -169,6 +209,12 @@ async function main(): Promise<void> {
   runStaticAsserts(payloadDir, target)
 
   if (failures.length === 0 && target.os === 'win32' && process.platform === 'win32') {
+    // The voice daemon cannot smoke-boot here (its models download at runtime,
+    // and CI has no microphone) — but its two native addons can be loaded by
+    // the staged runtime from the pruned tree, which is what actually settles
+    // "does sherpa find its DLLs beside the addon" and "does the hoisted
+    // sibling require resolve".
+    failures.push(...probeVoiceNatives(payloadDir, join(payloadDir, target.stagedNodeName)))
     failures.push(...(await smokeBootNative(payloadDir, join(payloadDir, target.stagedNodeName))))
   } else if (failures.length === 0 && target.os === 'linux' && process.platform === 'win32') {
     const distro = detectWslDistro(args.find((arg) => arg.startsWith('--wsl='))?.slice('--wsl='.length))

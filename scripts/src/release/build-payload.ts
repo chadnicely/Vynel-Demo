@@ -71,13 +71,21 @@ async function bundleBackend(
   target: PayloadTarget,
 ): Promise<void> {
   const distDir = join(backendDir, "dist");
+  // Three entries, one bundle pass: the engine (server.mjs), the remote-mode
+  // tunnel (tunnel.mjs) the shell spawns instead of it (Phase D3), and — on
+  // the desktop target — the voice daemon (voice.mjs) the shell spawns beside
+  // the engine. Named outputs: a bare entry list from two apps would move
+  // esbuild's implicit outbase up to apps/ and rename server.mjs out from
+  // under the shell.
+  const entries = [
+    { in: join(repoRoot, "apps", "local-api", "src", "server.ts"), out: "server" },
+    { in: join(repoRoot, "apps", "local-api", "src", "tunnel.ts"), out: "tunnel" },
+    ...(target.os === "win32"
+      ? [{ in: join(repoRoot, "apps", "voice", "src", "main.ts"), out: "voice" }]
+      : []),
+  ];
   await build({
-    // Two entries, one bundle pass: the daemon (server.mjs) and the remote-
-    // mode tunnel (tunnel.mjs) the shell spawns instead of it (Phase D3).
-    entryPoints: [
-      join(repoRoot, "apps", "local-api", "src", "server.ts"),
-      join(repoRoot, "apps", "local-api", "src", "tunnel.ts"),
-    ],
+    entryPoints: entries,
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     bundle: true,
@@ -106,7 +114,7 @@ async function bundleBackend(
     ],
   });
   mkdirSync(sourcemapDir, { recursive: true });
-  for (const entryName of ["server", "tunnel"]) {
+  for (const entryName of entries.map((entry) => entry.out)) {
     renameSync(
       join(distDir, `${entryName}.mjs.map`),
       join(sourcemapDir, `${entryName}.mjs.map`),
@@ -135,7 +143,13 @@ function installThirdPartyDependencies(
   backendDir: string,
   target: PayloadTarget,
 ): void {
-  const dependencies = collectBackendThirdPartyDependencies(repoRoot);
+  // The desktop payload carries the voice daemon's deps (sherpa-onnx,
+  // node-cpal); a headless server has no microphone or speaker, so the linux
+  // payloads stay engine-only.
+  const dependencies = collectBackendThirdPartyDependencies(repoRoot, [
+    "@vynel/local-api",
+    ...(target.os === "win32" ? ["@vynel/voice-daemon"] : []),
+  ]);
   writeFileSync(
     join(backendDir, "package.json"),
     `${JSON.stringify(

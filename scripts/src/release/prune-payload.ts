@@ -128,6 +128,22 @@ export function prunePayloadNodeModules(backendDir: string, target: PayloadTarge
     report,
   )
 
+  // 4d. The voice daemon's natives (desktop payload only — absent elsewhere,
+  //     which keepOnly treats as nothing to do). node-cpal is the
+  //     onnxruntime-node shape: one package, every platform under bin/, picked
+  //     at runtime by os.platform() — so `win32-x64` stays. sherpa-onnx-node's
+  //     platform packages are optional deps with os/cpu fields, so
+  //     supportedArchitectures already drops the foreign ones — this keepOnly
+  //     is the belt to that suspender (its names say `win`, not `win32`).
+  keepOnly(join(nodeModulesDir, 'node-cpal', 'bin'), (name) => name === `${target.os}-${target.cpu}`, report)
+  const sherpaOs = target.os === 'win32' ? 'win' : target.os
+  keepOnly(
+    nodeModulesDir,
+    (name) =>
+      !name.startsWith('sherpa-onnx-') || name === 'sherpa-onnx-node' || name === `sherpa-onnx-${sherpaOs}-${target.cpu}`,
+    report,
+  )
+
   // 5. Types packages and shipped TS source nothing compiles at runtime.
   remove(join(nodeModulesDir, '@types'), report)
   remove(join(nodeModulesDir, 'zod', 'src'), report)

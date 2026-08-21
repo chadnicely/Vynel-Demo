@@ -28,6 +28,7 @@ pub struct RemoteLaunch {
     pub install_id: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct BundledLaunch {
     /// resources\engine — the daemon's cwd; vynel-engine.exe and
     /// dist\server.mjs inside it.

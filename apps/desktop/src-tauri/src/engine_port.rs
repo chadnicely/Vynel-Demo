@@ -10,11 +10,40 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 pub const CANONICAL_ENGINE_PORT: u16 = 18892;
+// The voice daemon's slot in the band (contracts VYNEL_VOICE_DAEMON_PORT =
+// engine + 1) — the preferred first candidate for the voice sidecar.
+pub const CANONICAL_VOICE_PORT: u16 = 18893;
 // Fallback scanning steps by the band stride (contracts
 // VYNEL_PORT_BAND_STRIDE) so a chosen port never lands on another Vynel
 // component's slot.
 const PORT_SCAN_STRIDE: u16 = 10;
 const PORT_SCAN_ATTEMPTS: u16 = 100;
+
+/// Allocate the voice daemon's port: the slot beside the engine's actual port
+/// when that is free (the band's shape, coherent on the stride path), else a
+/// band-stride scan from the canonical voice slot, else the OS. Chosen BEFORE
+/// the engine spawns — the engine reads `VYNEL_VOICE_DAEMON_URL` at boot.
+pub fn choose_voice_port(engine_port: u16) -> u16 {
+    let beside_engine = engine_port.saturating_add(1);
+    if port_is_free(beside_engine) {
+        return beside_engine;
+    }
+    let mut candidate = CANONICAL_VOICE_PORT;
+    for _ in 0..PORT_SCAN_ATTEMPTS {
+        if candidate != beside_engine && port_is_free(candidate) {
+            log::info!("voice slot beside the engine busy — allocated 127.0.0.1:{candidate} instead");
+            return candidate;
+        }
+        candidate = candidate.saturating_add(PORT_SCAN_STRIDE);
+    }
+    match ephemeral_port() {
+        Some(port) => {
+            log::warn!("voice port scan exhausted — using OS-assigned 127.0.0.1:{port}");
+            port
+        }
+        None => CANONICAL_VOICE_PORT,
+    }
+}
 
 /// Allocate the port a bundled/remote spawn binds: explicit env override
 /// (the WSL/Docker escape hatch) → the canonical port when free → a

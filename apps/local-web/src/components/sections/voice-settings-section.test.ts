@@ -8,6 +8,7 @@ import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import type { VynelClient } from "@vynel/sdk";
 import type { LocalModelStatusResponse } from "@vynel/contracts/models/local-models-http";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
+import { localModelKeys } from "../../composables/models/local-model-keys.js";
 import VoiceSettingsSection from "./VoiceSettingsSection.vue";
 
 function model(overrides: Partial<LocalModelStatusResponse>): LocalModelStatusResponse {
@@ -52,13 +53,16 @@ const DEFAULT_PREFERENCES = {
 function harness(
   models: LocalModelStatusResponse[],
   preferences = DEFAULT_PREFERENCES,
-  reloadAnswer: unknown = { reloaded: true, ttsModelId: "kokoro", sttModelId: "moonshine-base", speakerId: 5, changed: [], missing: [] },
+  reloadAnswer: unknown = { reloaded: true, ttsModelId: "kokoro", sttModelId: "moonshine-base", speakerId: 5, changed: [], missing: [], ready: true },
+  /** Later answers to the models list, one per refetch (the poll). */
+  laterModels: LocalModelStatusResponse[][] = [],
 ) {
   const updatePreferences = vi.fn(async (patch: Record<string, unknown>) => ({ ...preferences, ...patch }));
   const reload = vi.fn(async () => reloadAnswer);
+  const answers = [models, ...laterModels];
   const client = {
     localModels: {
-      list: async () => ({ models }),
+      list: async () => ({ models: answers.length > 1 ? answers.shift()! : answers[0]! }),
       download: vi.fn(async () => models[0]),
       cancelDownload: vi.fn(async () => ({ cancelled: true })),
       remove: vi.fn(async () => models[0]),
@@ -66,18 +70,14 @@ function harness(
     users: { getPreferences: async () => preferences, updatePreferences },
     voice: { reload },
   } as unknown as VynelClient;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = mount(VoiceSettingsSection, {
     global: {
-      plugins: [
-        [
-          VueQueryPlugin,
-          { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
-        ] as [typeof VueQueryPlugin, unknown],
-      ],
+      plugins: [[VueQueryPlugin, { queryClient }] as [typeof VueQueryPlugin, unknown]],
       provide: { [vynelClientKey as symbol]: client },
     },
   });
-  return { wrapper, updatePreferences, reload };
+  return { wrapper, updatePreferences, reload, queryClient };
 }
 
 describe("VoiceSettingsSection", () => {
@@ -168,6 +168,7 @@ describe("VoiceSettingsSection", () => {
       speakerId: 0,
       changed: [],
       missing: ["piper-lessac"],
+      ready: true,
     });
     await flushPromises();
     await missing.wrapper.get(".speaker-pick select").setValue("5");
@@ -181,5 +182,25 @@ describe("VoiceSettingsSection", () => {
     const cards = wrapper.findAll(".model-card");
     expect(cards[0]!.find(".preview-button").exists()).toBe(true);
     expect(cards[1]!.find(".preview-button").exists()).toBe(false);
+  });
+
+  // An installed app boots its daemon with no voice; the download that lands
+  // the first models is the moment to tell it — the screen reloads once per
+  // model that turns installed, never for what was already there on open.
+  it("asks the daemon to reload when a download finishes, and says when it still has no voice", async () => {
+    const missingKokoro = { ...KOKORO, state: "missing" as const };
+    const { wrapper, reload, queryClient } = harness(
+      [missingKokoro, MOONSHINE_BASE, VAD],
+      DEFAULT_PREFERENCES,
+      { reloaded: true, ttsModelId: "kokoro", sttModelId: "moonshine-base", speakerId: 0, changed: [], missing: ["kokoro"], ready: false },
+      [[KOKORO, MOONSHINE_BASE, VAD]],
+    );
+    await flushPromises();
+    expect(reload).not.toHaveBeenCalled();
+
+    await queryClient.invalidateQueries({ queryKey: localModelKeys.all });
+    await flushPromises();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(wrapper.get(".apply-note").text()).toContain("no voice yet");
   });
 });

@@ -10,6 +10,9 @@ export interface VoiceReloadOutcome {
   changed: string[]
   /** Picked models that are not on the disk — the old engine stays for those. */
   missing: string[]
+  /** The daemon has a voice now. False = it is up but every model is still
+   *  to be downloaded (an installed app before Settings → Voice). */
+  ready: boolean
 }
 
 export type VoiceReloadResponse =
