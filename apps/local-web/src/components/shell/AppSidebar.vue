@@ -38,6 +38,9 @@ const props = defineProps<{
    *  chip + name + the live status line. Null = the plain section title. */
   workspaceCard?: {
     name: string;
+    /** The workspace's uploaded logo (data URL) — the same face the tree
+     *  shows; null = the monogram. */
+    imageUrl: string | null;
     initials: string;
     statusLine: string;
     /** The status vocabulary key — colours the meta line (one status one
@@ -144,10 +147,19 @@ watch(
         class="mb-[8.4px] mt-0.5 flex items-center gap-[9px] rounded-sm bg-[var(--color-accent-900)] px-[11.2px] py-[7px]"
         data-testid="sidebar-workspace-card"
       >
+        <!-- The logo as-is (no tint behind it, like the tree row), else the
+             monogram on the accent. -->
         <span
-          class="grid size-5 shrink-0 place-items-center rounded-[4px] bg-[var(--color-accent-600)] text-[9px] text-[var(--color-accent-100)]"
+          class="workspace-card-face grid size-5 shrink-0 place-items-center overflow-hidden rounded-[4px] text-[9px] text-[var(--color-accent-100)]"
+          :class="{ 'bg-[var(--color-accent-600)]': !props.workspaceCard.imageUrl }"
         >
-          {{ props.workspaceCard.initials }}
+          <img
+            v-if="props.workspaceCard.imageUrl"
+            :src="props.workspaceCard.imageUrl"
+            alt=""
+            class="size-full object-contain"
+          />
+          <template v-else>{{ props.workspaceCard.initials }}</template>
         </span>
         <span class="flex min-w-0 flex-col gap-px">
           <span class="truncate text-[13px] leading-tight text-[var(--color-accent-100)]">

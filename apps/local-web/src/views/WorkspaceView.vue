@@ -40,6 +40,7 @@ import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.j
 import type { ComposerSettings } from "../composables/chat/use-session-settings.js";
 import { useUiStore } from "../stores/ui-store.js";
 import { useCustomizeStore } from "../stores/customize-store.js";
+import { personaFaceOf } from "../utils/persona-face.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
 
@@ -306,11 +307,12 @@ const activeSection = computed<WorkspaceSectionId | null>(() =>
 const isCustomizeOpen = computed(() => shell.mainView === "customize");
 const isDisplayOpen = computed(() => shell.mainView === "display");
 
-// The Customize section's conversation icon (null = the Claude mark).
+// The persona's face: its conversation icon, else the workspace's own logo
+// (null = the Claude mark).
 const customizeStore = useCustomizeStore();
 const assistantIconUrl = computed(() =>
   tab.workspaceId !== null
-    ? customizeStore.customizationFor(tab.workspaceId).personaImage
+    ? personaFaceOf(customizeStore.customizationFor(tab.workspaceId))
     : null,
 );
 

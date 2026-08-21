@@ -15,6 +15,7 @@ import {
   GLOBAL_SCOPE_KEY,
   useCustomizeStore,
 } from "../stores/customize-store.js";
+import { personaFaceOf } from "../utils/persona-face.js";
 import AccountSection from "../components/sections/AccountSection.vue";
 import AgentsSection from "../components/sections/AgentsSection.vue";
 import ChannelsSection from "../components/sections/ChannelsSection.vue";
@@ -72,10 +73,11 @@ const GLOBAL_SCOPE = { kind: "global" } as const;
 // Claude — the product never brands over it. One constant today; a
 // configurable persona later.
 const ASSISTANT_NAME = "Claude";
-// The Customize section's conversation icon (null = the Claude mark).
+// The persona's face: its conversation icon, else the scope's own logo (null
+// = the Claude mark).
 const customizeStore = useCustomizeStore();
-const assistantIconUrl = computed(
-  () => customizeStore.customizationFor(GLOBAL_SCOPE_KEY).personaImage,
+const assistantIconUrl = computed(() =>
+  personaFaceOf(customizeStore.customizationFor(GLOBAL_SCOPE_KEY)),
 );
 
 /** The global menu items that render a feature section on the canvas.

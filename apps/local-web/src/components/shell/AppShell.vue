@@ -381,6 +381,8 @@ const sidebarWorkspaceCard = computed(() => {
             : "Nothing running";
   return {
     name,
+    // The workspace's own face — the logo the tree shows, else its monogram.
+    imageUrl: customize.customizationFor(workspaceId).workspaceImage,
     initials: workspaceMonogram(name),
     statusLine,
     statusTone: status,

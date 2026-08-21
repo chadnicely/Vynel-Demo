@@ -270,3 +270,35 @@ describe("AppSidebar", () => {
     });
   });
 });
+
+// The drilled workspace card wears the workspace's own logo when one was
+// uploaded — the same face the tree row shows — and its monogram otherwise
+// (Kafi, 2026-08-22: one logo everywhere).
+describe("AppSidebar workspace card face", () => {
+  const card = {
+    name: "letterman",
+    statusLine: "Nothing running",
+    statusTone: "not_running" as const,
+    initials: "LE",
+  };
+
+  it("shows the logo as-is when the workspace has one", () => {
+    const wrapper = mountSidebar({
+      sectionItems: PLAIN_SECTIONS,
+      workspaceCard: { ...card, imageUrl: "data:image/png;base64,AAAA" },
+    });
+    const face = wrapper.get(".workspace-card-face");
+    expect(face.find("img").attributes("src")).toBe("data:image/png;base64,AAAA");
+    expect(face.text()).toBe("");
+  });
+
+  it("falls back to the monogram on the accent", () => {
+    const wrapper = mountSidebar({
+      sectionItems: PLAIN_SECTIONS,
+      workspaceCard: { ...card, imageUrl: null },
+    });
+    const face = wrapper.get(".workspace-card-face");
+    expect(face.find("img").exists()).toBe(false);
+    expect(face.text()).toBe("LE");
+  });
+});

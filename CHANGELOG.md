@@ -145,6 +145,9 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A workspace's logo shows everywhere, not just in the tree.** The drilled sidebar
+  card and the workspace's own replies in chat now wear the uploaded logo (a persona icon
+  set on purpose still wins) instead of falling back to the two-letter monogram.
 - **The embedding model could never download inside the engine.** Memory and knowledge
   search-by-meaning silently stayed off on a fresh install because the model's own
   downloader never wrote the weights to disk from within Vynel's server process. Vynel

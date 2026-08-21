@@ -9,11 +9,13 @@ import {
   workspaceMonogram,
 } from "@vynel/ui";
 import { useCustomizeStore } from "../../stores/customize-store.js";
+import { personaFaceOf } from "../../utils/persona-face.js";
 import { personaAccentCss } from "../../utils/workspace-accent.js";
 
 export interface ResolvedPersona {
   name: string;
-  /** The user's customized persona image for the workspace — null = monogram. */
+  /** The persona's face for the workspace — its persona icon, else the
+   *  workspace's own logo (`personaFaceOf`); null = monogram. */
   imageUrl: string | null;
   monogram: string;
   /** A CSS colour — a palette reference (`var(--ws-3)`) or a hand-picked
@@ -33,7 +35,7 @@ export function usePersonaResolver() {
   }): ResolvedPersona {
     const imageUrl =
       typeof input.workspaceId === "string"
-        ? customize.customizationFor(input.workspaceId).personaImage
+        ? personaFaceOf(customize.customizationFor(input.workspaceId))
         : null;
     return {
       name: input.name,
