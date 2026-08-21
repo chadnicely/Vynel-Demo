@@ -26,16 +26,42 @@ turn enqueues — same as a channel root turn; the chain still terminates at the
 
 **4. Failsafe.** ONE home: a report-delivery row that fails TERMINALLY with an origin ships its body
 (trimmed to 4096) to the channel. No re-distill — the path fires when the system is already failing.
-`summarizeReport` is now unwired everywhere (left in the provider).
+`summarizeReport` is now unwired everywhere (left in the provider). "Terminally" is EARNED, not
+assumed: the fail CAS must win (a row the lease sweeper already handed back belongs to the requeued
+attempt, which will answer) and a user STOP settles the row silently. What ships is the SENDER-FACING
+half of the body — `extractSenderFacingReport` drops a leading `AUTO_REPORT_MARKER` line and
+everything under `REPORT_ASSISTANT_NOTES_MARKER`, so no person reads "Tell the user it failed, and
+re-send it with send_message" or a raw `<error>`. Every ENGINE-authored report body — the give-up
+push, the orphan sweep's, and the empty auto-report — composes both halves in one home
+(`composeReportWithAssistantNotes`); a CHILD's own report is prose for both audiences and needs none.
+
+**4b. The notify turn's zero-reply net.** A notify turn can COMPLETE and still never call
+`reply_to_channel` — the requester absorbs the report, writes chat text, and the sender is left with
+the interim ack and nothing since. That is the inbound runners' silent-turn shape, so it takes their
+net unchanged: `shipSilentChannelTurnFallback` is now the ONE home for both call sites (the model's
+final text if any, else the fixed line). Gated on the completion CAS, for the failsafe's reason.
+
+**4c. Correlated windows, not time windows.** "Did this turn reply?" used to be (channel, chat,
+enqueuedAt ≥ turnStartedAt). Inbound messages run CONCURRENTLY, so a sibling turn's reply in the same
+chat suppressed this turn's line and the sender heard NOTHING. Every reply a turn queues through
+`reply_to_channel` now carries a `turnCorrelationId` — the inbound row's id for a channel turn, the
+delivery job's id for a notify turn — riding the ambient origin header exactly like
+`externalMessageId` (header-only, never a column, job enqueues ignore it) and landing in the outbound
+row's `messageStructure` blob. The count still uses the time window; correlation only DISQUALIFIES a
+reply provably owned by another turn. An unstamped reply (a proactive `send_to_channel`, a row from
+before the field) still counts — a dropped key degrades to today's silence, never to a duplicate.
+Group rooms narrow further on `externalRecipientId`.
 
 **5. Silent channel turn (agent B's GAP 3).** NARROWS the 2026-07-27 tool-only rule to "the model's
 text is never auto-shipped WHILE it has replied via the tool". A turn ending with zero
 `chat-stream-final` rows for its chat context ships one line: its final text, else
-`I couldn't do that from here — it needs your OK in the app.` ⚠ Two calls for Kafi, both pinned by
+`I couldn't do that from here — it needs your OK in the app.` ⚠ Three calls for Kafi, all pinned by
 tests: (a) that fixed line assumes blocked/denied — a wordless turn with nothing blocked gets it too;
 (b) on the MAIN flow (Telegram → root delegates → root ends without replying) it ships the root's
 closing text as an interim ack, and the report answers properly later — two messages, the first
-unreviewed model text.
+unreviewed model text; (c) §4b puts the SAME line on the notify turn, so a wordless notify turn tells
+the sender it "needs your OK in the app" even when nothing was blocked — and on the main flow that
+line is the sender's SECOND message after the interim ack.
 
 **6. Workspace channel `ask_user`** gains the global runner's bound + turn-end cleanup from the same
 `CHANNEL_ASK_TIMEOUT_MS`. The nudge needs nothing: `consumeAskCreatedEvent` already resolves the

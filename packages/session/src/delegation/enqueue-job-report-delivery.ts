@@ -31,6 +31,38 @@ const TASK_PREVIEW_LIMIT = 160
  *  through the tool") and the fallback never stamps it. */
 export const AUTO_REPORT_MARKER = '(auto-report: the task ended without reporting)'
 
+/** The line under which a job report turns MODEL-DIRECTED. A report is written
+ *  for the requester's assistant — "Tell the user it failed, and re-send it
+ *  with send_message" is an instruction, and `<error>` payloads are raw
+ *  machinery. Normally no person ever sees either: the assistant reads the
+ *  report and writes its own answer. The channel FAILSAFE is the exception —
+ *  it ships a report body verbatim to whoever is waiting on Telegram — so the
+ *  sender-facing half goes above this line and the failsafe cuts here. */
+export const REPORT_ASSISTANT_NOTES_MARKER = '--- for the assistant ---'
+
+/** Compose a report the ENGINE writes as its two audiences: what the person who
+ *  asked would read, and what the requester's assistant must do about it. ONE
+ *  home for the sender-facing sentence — the failsafe has no other source for
+ *  it, and a hand-rolled one per call site would drift. Every engine-authored
+ *  report body that carries an instruction or an error payload goes through
+ *  here; a CHILD's own report is prose for both audiences and needs none. */
+export function composeReportWithAssistantNotes(input: {
+  senderSentence: string
+  assistantNotes: string
+}): string {
+  return `${input.senderSentence}\n\n${REPORT_ASSISTANT_NOTES_MARKER}\n${input.assistantNotes}`
+}
+
+/** The part of a report body a PERSON may read — what the channel failsafe
+ *  ships. Drops a leading auto-report marker line (it explains the relay to the
+ *  assistant, not to the sender) and everything from the assistant-notes marker
+ *  down. A plain report (a child's own words) passes through untouched. */
+export function extractSenderFacingReport(reportBody: string): string {
+  const lines = reportBody.split('\n')
+  const body = lines[0]?.trim() === AUTO_REPORT_MARKER ? lines.slice(1).join('\n') : reportBody
+  return (body.split(REPORT_ASSISTANT_NOTES_MARKER)[0] ?? '').trim()
+}
+
 /** The requester a job's reports address: its recorded originating-chat
  *  workspace when it still exists, else the global root. */
 export function resolveJobReportRequester(
@@ -97,8 +129,15 @@ export function enqueueAutoReportDelivery(
     job,
     `${AUTO_REPORT_MARKER}\n\n${
       body === ''
-        ? `The task "${previewTaskText(job.taskText)}" finished, but its turn produced no closing ` +
-          'text at all — there is no result to relay. Check with the user before treating it as done.'
+        ? composeReportWithAssistantNotes({
+            senderSentence:
+              `Sorry — "${previewTaskText(job.taskText)}" finished without producing anything ` +
+              'I can pass on.',
+            assistantNotes:
+              `The task "${previewTaskText(job.taskText)}" finished, but its turn produced no ` +
+              'closing text at all — there is no result to relay. Check with the user before ' +
+              'treating it as done.',
+          })
         : body
     }`,
   )

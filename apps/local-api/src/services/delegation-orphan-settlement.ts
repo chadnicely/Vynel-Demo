@@ -23,6 +23,7 @@ import {
   type OrphanedClaimScope,
 } from '@vynel/orchestration'
 import {
+  composeReportWithAssistantNotes,
   enqueueJobFailureDelivery,
   previewTaskText,
   jobRetryHint,
@@ -56,9 +57,15 @@ export function settleOrphanedDelegationClaims(
       enqueueJobFailureDelivery(
         db,
         orphan,
-        `The background task "${previewTaskText(orphan.taskText)}" was interrupted ` +
-          `${cause === 'boot' ? 'by a restart' : 'when its run stopped responding'} and did not finish. ` +
-          `Tell the user, and ${jobRetryHint(orphan)}`,
+        composeReportWithAssistantNotes({
+          senderSentence:
+            `Sorry — "${previewTaskText(orphan.taskText)}" was interrupted and didn't finish. ` +
+            'The details are in the app.',
+          assistantNotes:
+            `The background task "${previewTaskText(orphan.taskText)}" was interrupted ` +
+            `${cause === 'boot' ? 'by a restart' : 'when its run stopped responding'} and did not finish. ` +
+            `Tell the user, and ${jobRetryHint(orphan)}`,
+        }),
       )
     } catch (err) {
       logger.error(

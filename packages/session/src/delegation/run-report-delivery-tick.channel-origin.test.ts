@@ -14,16 +14,25 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import {
   enqueueReportDelivery,
+  enqueueWorkspaceDelegation,
   failDelegationJob,
   findDelegationJobById,
+  requeueDelegationJob,
   type DelegationOrigin,
 } from '@vynel/orchestration'
+import { enqueueChannelReply, SILENT_CHANNEL_TURN_FALLBACK } from '@vynel/channels'
 import { insertChannel, listOutboundMessagesForChannel } from '@vynel/channels/test-support'
 import { listChatMessagesForSession } from '@vynel/chat/repositories'
 import { FakeAiAgentProvider } from '../runtime/test-support/fake-ai-agent-provider.js'
 import { SessionActivityFeed } from '../runtime/session-activity-feed.js'
+import { DelegationCancelRegistry } from './delegation-cancel-registry.js'
 import { runDelegationClaimAndRunTick } from './run-delegation-claim-and-run-tick.js'
 import { deliverReportFailsafeToChannel } from './deliver-report-failsafe-to-channel.js'
+import {
+  AUTO_REPORT_MARKER,
+  composeReportWithAssistantNotes,
+  enqueueAutoReportDelivery,
+} from './enqueue-job-report-delivery.js'
 
 const silentLogger = { info() {}, warn() {}, error() {}, debug() {} } as unknown as Logger
 
@@ -92,7 +101,7 @@ describe('a channel-origin report delivery — the GLOBAL requester', () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const channel = seedTelegramChannel(db, user.id, null)
-      enqueueReportDelivery(db, {
+      const jobId = enqueueReportDelivery(db, {
         userId: user.id,
         reporterSessionId: 'child-sdk-1',
         reporterLabel: 'Mark · Acme',
@@ -114,8 +123,10 @@ describe('a channel-origin report delivery — the GLOBAL requester', () => {
 
       expect(calls).toHaveLength(1)
       // The ADDRESS is ambient — the turn's `reply_to_channel` reads it from
-      // the server, never from anything the model chose.
-      expect(calls[0]?.origin).toEqual(originFor(channel.id))
+      // the server, never from anything the model chose. It carries THIS
+      // delivery row's id as the turn key, so a reply this turn queues can be
+      // told from a concurrent inbound turn's in the same chat.
+      expect(calls[0]?.origin).toEqual({ ...originFor(channel.id), turnCorrelationId: jobId })
       // The marker says a person is waiting and how to answer — and it rides
       // PROVIDER input only. The report BODY (which becomes the user's
       // transcript row) must stay clean: they are not its audience.
@@ -188,7 +199,7 @@ describe('a channel-origin report delivery — the WORKSPACE requester', () => {
       const user = insertUser(db, makeUser())
       const requester = insertWorkspace(db, makeWorkspace(user.id, 'Asker'))
       const channel = seedTelegramChannel(db, user.id, requester.id)
-      enqueueReportDelivery(db, {
+      const jobId = enqueueReportDelivery(db, {
         userId: user.id,
         reporterSessionId: 'child-sdk-1',
         reporterLabel: 'Acme research',
@@ -225,7 +236,10 @@ describe('a channel-origin report delivery — the WORKSPACE requester', () => {
 
       expect(composerInputs).toHaveLength(1)
       expect(composerInputs[0]?.target).toBe('workspace-root')
-      expect(composerInputs[0]?.origin).toEqual(originFor(channel.id))
+      expect(composerInputs[0]?.origin).toEqual({
+        ...originFor(channel.id),
+        turnCorrelationId: jobId,
+      })
       // The turn's PROVIDER input carries the answer marker — the workspace is
       // the one who talks to the person, exactly like the root would…
       expect(startInputs[0]?.userMessageText).toContain('reply_to_channel')
@@ -314,6 +328,291 @@ describe('the last-resort failsafe — report delivery itself died', () => {
           logger: silentLogger,
         }),
       ).toBe(false)
+      expect(listOutboundMessagesForChannel(db, channel.id)).toEqual([])
+    })
+  })
+})
+
+describe('the failsafe ships what a PERSON can read, never model-directed text', () => {
+  it('drops the auto-report marker line — the sender gets the result, not the relay note', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const channel = seedTelegramChannel(db, user.id, null)
+      const jobId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'child-sdk-1',
+        reporterLabel: 'Mark · Acme',
+        reportBody: `${AUTO_REPORT_MARKER}\n\nThree docs, all current.`,
+        requester: { kind: 'global-root' },
+        origin: originFor(channel.id),
+      })
+      failDelegationJob(db, jobId, 'the notify turn never completed', new Date())
+
+      deliverReportFailsafeToChannel(db, findDelegationJobById(db, jobId)!, {
+        logger: silentLogger,
+      })
+      expect(listOutboundMessagesForChannel(db, channel.id).map((m) => m.messageBody)).toEqual([
+        'Three docs, all current.',
+      ])
+    })
+  })
+
+  it('an EMPTY auto-report ships its sender sentence, not the assistant’s next step', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const channel = seedTelegramChannel(db, user.id, null)
+      // The engine's own stand-in for a channel-driven task that finished
+      // wordlessly — the one auto-report body written entirely FOR a model.
+      const workJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'root-sdk-1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'file the receipts',
+        origin: originFor(channel.id),
+      })
+      const deliveryId = enqueueAutoReportDelivery(db, findDelegationJobById(db, workJobId)!, '   ')
+      failDelegationJob(db, deliveryId, 'the notify turn never completed', new Date())
+
+      deliverReportFailsafeToChannel(db, findDelegationJobById(db, deliveryId)!, {
+        logger: silentLogger,
+      })
+      const [shipped] = listOutboundMessagesForChannel(db, channel.id)
+      expect(shipped?.messageBody).toBe(
+        'Sorry — "file the receipts" finished without producing anything I can pass on.',
+      )
+      expect(shipped?.messageBody).not.toContain('Check with the user')
+    })
+  })
+
+  it('ships the failure sentence only — no retry instruction, no raw <error>', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const channel = seedTelegramChannel(db, user.id, null)
+      const jobId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'child-sdk-1',
+        reporterLabel: 'Mark · Acme',
+        reportBody: composeReportWithAssistantNotes({
+          senderSentence: "Sorry — I couldn't finish \"file the receipts\". The details are in the app.",
+          assistantNotes:
+            'The background task "file the receipts" failed after 2 attempts: ' +
+            '<error>ENOENT: no such file</error>. Tell the user it failed, and re-send it ' +
+            'with send_message if it should run again.',
+        }),
+        requester: { kind: 'global-root' },
+        origin: originFor(channel.id),
+      })
+      failDelegationJob(db, jobId, 'the notify turn never completed', new Date())
+
+      deliverReportFailsafeToChannel(db, findDelegationJobById(db, jobId)!, {
+        logger: silentLogger,
+      })
+      const [shipped] = listOutboundMessagesForChannel(db, channel.id)
+      expect(shipped?.messageBody).toBe(
+        "Sorry — I couldn't finish \"file the receipts\". The details are in the app.",
+      )
+      expect(shipped?.messageBody).not.toContain('<error>')
+      expect(shipped?.messageBody).not.toContain('send_message')
+    })
+  })
+})
+
+describe('the failsafe fires only when THIS run really owns the terminal failure', () => {
+  it('stands down when the claim was settled elsewhere — no second copy of one answer', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const channel = seedTelegramChannel(db, user.id, null)
+      const jobId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'child-sdk-1',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'Three docs, all current.',
+        requester: { kind: 'global-root' },
+        origin: originFor(channel.id),
+      })
+
+      // Heartbeat starvation, exactly: the lease sweeper hands the row back to
+      // pending mid-run, then this run dies. Its fail CAS no-ops — and the
+      // requeued attempt is the one that will answer the channel.
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: async () => {
+          requeueDelegationJob(db, jobId, {
+            errorMessage: 'lease expired',
+            errorCode: null,
+            attemptCount: 0,
+            nextAttemptAt: new Date(),
+          })
+          throw new Error('the run stopped responding')
+        },
+      })
+
+      expect(findDelegationJobById(db, jobId)?.status).toBe('pending')
+      expect(listOutboundMessagesForChannel(db, channel.id)).toEqual([])
+    })
+  })
+
+  it('a user STOP settles the row and says nothing to the channel', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const channel = seedTelegramChannel(db, user.id, null)
+      const jobId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'child-sdk-1',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'Three docs, all current.',
+        requester: { kind: 'global-root' },
+        origin: originFor(channel.id),
+      })
+      const partialSessionId = findDelegationJobById(db, jobId)!.partialSessionId!
+      const cancelRegistry = new DelegationCancelRegistry()
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        cancelRegistry,
+        runGlobalRootReportTurn: async () => {
+          cancelRegistry.requestCancel(partialSessionId)
+          throw new Error('interrupted')
+        },
+      })
+
+      expect(findDelegationJobById(db, jobId)?.errorMessage).toBe('stopped by the user')
+      expect(listOutboundMessagesForChannel(db, channel.id)).toEqual([])
+    })
+  })
+})
+
+describe('the notify turn owes the sender a word too — the zero-reply net', () => {
+  function seedChannelDelivery(db: Database, reportBody = 'Three docs, all current.') {
+    const user = insertUser(db, makeUser())
+    const channel = seedTelegramChannel(db, user.id, null)
+    const jobId = enqueueReportDelivery(db, {
+      userId: user.id,
+      reporterSessionId: 'child-sdk-1',
+      reporterLabel: 'Mark · Acme',
+      reportBody,
+      requester: { kind: 'global-root' },
+      origin: originFor(channel.id),
+    })
+    return { channel, jobId }
+  }
+
+  it('stays out of the way when the turn answered through reply_to_channel', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel, jobId } = seedChannelDelivery(db)
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: async () => {
+          // What the tool leaves behind, stamped with this turn's key.
+          enqueueChannelReply(db, {
+            channel,
+            message: { externalSenderId: 'tg-42', externalChatContextId: 'chat-7' },
+            body: 'All three are current.',
+            turnCorrelationId: jobId,
+          })
+          return { sessionId: 'root-sdk-1', resultText: 'internal notes nobody should receive' }
+        },
+      })
+
+      expect(listOutboundMessagesForChannel(db, channel.id).map((m) => m.messageBody)).toEqual([
+        'All three are current.',
+      ])
+    })
+  })
+
+  it('ships the turn’s own closing text when it completed without replying', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelDelivery(db)
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: async () => ({
+          sessionId: 'root-sdk-1',
+          resultText: 'All three docs are current.',
+        }),
+      })
+
+      expect(listOutboundMessagesForChannel(db, channel.id).map((m) => m.messageBody)).toEqual([
+        'All three docs are current.',
+      ])
+    })
+  })
+
+  it('ships the fixed line when the turn completed wordlessly', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelDelivery(db)
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: async () => ({ sessionId: 'root-sdk-1', resultText: '   ' }),
+      })
+
+      expect(listOutboundMessagesForChannel(db, channel.id).map((m) => m.messageBody)).toEqual([
+        SILENT_CHANNEL_TURN_FALLBACK,
+      ])
+    })
+  })
+
+  it('a SIBLING turn’s reply in the same chat does not silence this one', async () => {
+    await withTestDatabase(async (db) => {
+      const { channel } = seedChannelDelivery(db)
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: async () => {
+          // A concurrent inbound turn answering its OWN message, same chat.
+          enqueueChannelReply(db, {
+            channel,
+            message: { externalSenderId: 'tg-42', externalChatContextId: 'chat-7' },
+            body: 'Sure, on it.',
+            turnCorrelationId: 'another-turn',
+          })
+          return { sessionId: 'root-sdk-1', resultText: 'All three docs are current.' }
+        },
+      })
+
+      expect(listOutboundMessagesForChannel(db, channel.id).map((m) => m.messageBody)).toEqual([
+        'Sure, on it.',
+        'All three docs are current.',
+      ])
+    })
+  })
+
+  it('says nothing when no channel is waiting — the chat path, unchanged', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const channel = seedTelegramChannel(db, user.id, null)
+      enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'child-sdk-1',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'Three docs, all current.',
+        requester: { kind: 'global-root' },
+      })
+
+      await runDelegationClaimAndRunTick(db, {
+        provider: new FakeAiAgentProvider({ resultText: 'unused' }),
+        logger: silentLogger,
+        activityFeed: new SessionActivityFeed(),
+        runGlobalRootReportTurn: async () => ({ sessionId: 'root-sdk-1', resultText: '' }),
+      })
+
       expect(listOutboundMessagesForChannel(db, channel.id)).toEqual([])
     })
   })

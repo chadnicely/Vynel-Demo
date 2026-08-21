@@ -24,7 +24,11 @@ import {
   type DelegationJob,
 } from '@vynel/orchestration'
 import { extractEmbeddedErrorCode, requeueIfRecoverable } from './classify-turn-failure.js'
-import { enqueueJobFailureDelivery, previewTaskText } from './enqueue-job-report-delivery.js'
+import {
+  composeReportWithAssistantNotes,
+  enqueueJobFailureDelivery,
+  previewTaskText,
+} from './enqueue-job-report-delivery.js'
 
 /** Fresh-read whether this WORK job's turn already SPOKE its final report —
  *  the claim-time snapshot predates the mid-run `reportedAt` stamp
@@ -83,7 +87,9 @@ export interface SettleFailedDelegationAttemptDeps {
 
 /** A failed (non-stopped) attempt: requeue if recoverable, else fail the row
  *  terminally and push a failure report to the requester. `retryHint` finishes
- *  the sentence "…it failed: <error>. Tell the user it failed, and <hint>".
+ *  the report's ASSISTANT notes — "…it failed: <error>. Tell the user it
+ *  failed, and <hint>" (the sender-facing sentence above them is what the
+ *  channel failsafe would ship; `composeReportWithAssistantNotes` owns both).
  *  A turn that already SPOKE its final report settles terminally with neither
  *  — the requester has the result. */
 export function settleFailedDelegationAttempt(
@@ -158,9 +164,15 @@ export function settleFailedDelegationAttempt(
       enqueueJobFailureDelivery(
         tx,
         claimed,
-        `The background task "${previewTaskText(claimed.taskText)}" failed` +
-          `${attemptCount > 1 ? ` after ${attemptCount} attempts` : ''}: ${errorMessage}. ` +
-          `Tell the user it failed, and ${deps.retryHint}`,
+        composeReportWithAssistantNotes({
+          senderSentence:
+            `Sorry — I couldn't finish "${previewTaskText(claimed.taskText)}". ` +
+            'Nothing was completed, and the details are in the app.',
+          assistantNotes:
+            `The background task "${previewTaskText(claimed.taskText)}" failed` +
+            `${attemptCount > 1 ? ` after ${attemptCount} attempts` : ''}: ${errorMessage}. ` +
+            `Tell the user it failed, and ${deps.retryHint}`,
+        }),
       )
       markDelegationsSurfacedToRoot(tx, [claimed.id], new Date())
     })

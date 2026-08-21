@@ -12,7 +12,9 @@
 // DELIBERATELY NOT DISTILLED. Task completion used to run a `summarizeReport`
 // call before shipping to the channel; this path fires when the machinery is
 // already failing, and a provider round trip is one more thing to fail. The
-// report body goes out as written, trimmed to the tightest channel limit.
+// report body goes out as the child wrote it, trimmed to the tightest channel
+// limit — minus the halves addressed to a MODEL rather than a person, which
+// come off with no provider call at all (`extractSenderFacingReport`).
 //
 // Fires ONLY on a TERMINAL failure of a delivery row that carries an origin
 // channel — never on a requeue (the next attempt may well succeed, and two
@@ -23,6 +25,7 @@ import type { StructuralLogger } from '@vynel/logger'
 import type { DelegationJob } from '@vynel/orchestration'
 import { enqueueChannelReply } from '@vynel/channels'
 import { resolveDeliverableOrigin } from './resolve-task-target.js'
+import { extractSenderFacingReport } from './enqueue-job-report-delivery.js'
 
 // Telegram rejects a message over 4096 characters outright; no adapter splits
 // today, so the failsafe stays inside the tightest limit rather than trading
@@ -38,6 +41,9 @@ export function deliverReportFailsafeToChannel(
   deps: { logger: StructuralLogger },
 ): boolean {
   if (claimed.originChannelId === null) return false
+  // Re-read at FAILURE time, never at enqueue time: a channel the user
+  // disabled (or handed away) mid-turn must not receive one last message
+  // because the row remembers it.
   const origin = resolveDeliverableOrigin(db, claimed)
   if (origin === null) {
     deps.logger.warn(
@@ -46,7 +52,11 @@ export function deliverReportFailsafeToChannel(
     )
     return false
   }
-  const body = claimed.taskText.trim()
+  // A report body is written for the requester's ASSISTANT; this is the one
+  // path where a person reads one raw, so the model-directed halves come off
+  // (the auto-report marker line, the assistant notes, the `<error>` payloads
+  // under them) — one home with the composer that wrote them.
+  const body = extractSenderFacingReport(claimed.taskText)
   if (body === '') return false
   try {
     enqueueChannelReply(db, {

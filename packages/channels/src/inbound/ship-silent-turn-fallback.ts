@@ -18,6 +18,11 @@
 // "Replied" is measured on the OUTBOUND QUEUE, not on the runner's return: it
 // catches `send_to_channel` to the same conversation as well as
 // `reply_to_channel`, and it cannot drift from what the sender actually receives.
+//
+// TWO CALLERS, ONE DECISION (channel report protocol, 2026-08-22): the inbound
+// channel turn, and the REQUESTER's notify turn — the one that answers the
+// channel once a delegated task reports back. Both can complete having said
+// nothing to the sender, and the sender is owed the same one line either way.
 
 import { enqueueChannelReply } from '../delivery/enqueue-channel-reply.js'
 import { countChannelRepliesSince } from '../repositories/index.js'
@@ -45,16 +50,21 @@ function trimToChannelLimit(text: string): string {
 
 export interface SilentChannelTurnFallbackInput {
   channel: Channel
-  message: Pick<
-    ChannelInboundMessage,
-    'externalSenderId' | 'externalChatContextId' | 'externalMessageId'
-  >
+  message: Pick<ChannelInboundMessage, 'externalSenderId' | 'externalChatContextId'> & {
+    /** Group rooms only — a notify turn has no asking message to thread onto. */
+    externalMessageId?: string
+  }
   /** The turn's own drained chat text — shipped when the turn said nothing else. */
   resultText: string
   /** The moment the turn began. A reply queued at or after it answers this turn. */
   turnStartedAt: Date
-  /** Group rooms thread the line onto the asking message, like a tool reply. */
-  isGroupOrigin: boolean
+  /** THIS turn's key, stamped on whatever it queued through `reply_to_channel`.
+   *  Without it the window alone decides, and a sibling turn's reply in the
+   *  same chat silences this turn. */
+  turnCorrelationId?: string
+  /** Group rooms thread the line onto the asking message, like a tool reply.
+   *  Default false — a notify turn answers a chat, not a message. */
+  isGroupOrigin?: boolean
 }
 
 /** Ship ONE honest line when the turn replied nothing. Returns true if it did.
@@ -68,6 +78,14 @@ export function shipSilentChannelTurnFallback(
     channelId: input.channel.id,
     externalChatContextId: input.message.externalChatContextId,
     since: input.turnStartedAt,
+    // A room carries many conversations at once; only what went back to the
+    // asker can answer for them.
+    ...(input.isGroupOrigin === true
+      ? { externalRecipientId: input.message.externalSenderId }
+      : {}),
+    ...(input.turnCorrelationId !== undefined
+      ? { turnCorrelationId: input.turnCorrelationId }
+      : {}),
   })
   if (repliesSent > 0) return false
 
@@ -77,8 +95,11 @@ export function shipSilentChannelTurnFallback(
     channel: input.channel,
     message: input.message,
     body,
-    ...(input.isGroupOrigin
+    ...(input.isGroupOrigin === true && input.message.externalMessageId !== undefined
       ? { replyToExternalMessageId: input.message.externalMessageId }
+      : {}),
+    ...(input.turnCorrelationId !== undefined
+      ? { turnCorrelationId: input.turnCorrelationId }
       : {}),
   })
   deps.logger?.warn(

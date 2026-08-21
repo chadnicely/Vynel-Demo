@@ -68,10 +68,14 @@ export async function routeAsChatTurn(
   // reply_to_channel tool) + any delegation report come back to who asked, in
   // the conversation they asked from. Group messages carry the asking
   // message's id so the tool reply threads onto it.
+  // The inbound row's id IS this turn's key: every reply the turn queues is
+  // stamped with it, so the zero-reply check below counts only its own answers
+  // — a concurrent message in the same chat can no longer silence this one.
   const origin = {
     channelId: input.channel.id,
     externalSenderId: input.message.externalSenderId,
     externalChatContextId: input.message.externalChatContextId,
+    turnCorrelationId: input.message.id,
     ...(isGroupOrigin ? { externalMessageId: input.message.externalMessageId } : {}),
   }
 
@@ -177,6 +181,7 @@ export async function routeAsChatTurn(
           message: input.message,
           resultText: turnResult.resultText,
           turnStartedAt,
+          turnCorrelationId: input.message.id,
           isGroupOrigin,
         },
         deps.logger !== undefined ? { logger: deps.logger } : {},

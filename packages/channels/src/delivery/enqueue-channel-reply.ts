@@ -12,6 +12,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { insertOutboundMessage } from '../repositories/index.js'
+import { buildOutboundMessageStructure } from '../schema/channel-message-queue.js'
 import type { Database } from '@vynel/db'
 import type { Channel, ChannelInboundMessage } from '../repositories/index.js'
 
@@ -23,6 +24,10 @@ export interface EnqueueChannelReplyInput {
   /** Thread the reply onto this message (group rooms — the answer must
    *  visibly attach to whoever asked). Absent = a plain send (DMs). */
   replyToExternalMessageId?: string
+  /** The TURN this reply answers for (channel report protocol) — recorded on
+   *  the row so the zero-reply fallback counts only its own turn's replies.
+   *  Absent for a queue outside a turn (a proactive push, a failsafe). */
+  turnCorrelationId?: string
 }
 
 export function enqueueChannelReply(db: Database, input: EnqueueChannelReplyInput): void {
@@ -32,10 +37,15 @@ export function enqueueChannelReply(db: Database, input: EnqueueChannelReplyInpu
     externalRecipientId: input.message.externalSenderId,
     externalChatContextId: input.message.externalChatContextId,
     messageBody: input.body,
-    messageStructure:
-      input.replyToExternalMessageId !== undefined
-        ? JSON.stringify({ replyToExternalMessageId: input.replyToExternalMessageId })
-        : '{}', // plain text — no buttons/parseMode
+    // Plain text — no buttons/parseMode; the blob carries only routing facts.
+    messageStructure: buildOutboundMessageStructure({
+      ...(input.replyToExternalMessageId !== undefined
+        ? { replyToExternalMessageId: input.replyToExternalMessageId }
+        : {}),
+      ...(input.turnCorrelationId !== undefined
+        ? { turnCorrelationId: input.turnCorrelationId }
+        : {}),
+    }),
     payloadKind: 'chat-stream-final',
     status: 'pending',
     statusMessage: null,

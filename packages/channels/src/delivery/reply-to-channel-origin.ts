@@ -23,6 +23,9 @@ export interface ReplyToChannelOriginInput {
     externalChatContextId: string
     /** Present for GROUP messages — the reply threads onto the asking message. */
     externalMessageId?: string
+    /** The turn this reply belongs to — recorded on the outbound row so the
+     *  zero-reply fallback can tell it from a sibling turn's reply. */
+    turnCorrelationId?: string
   }
   body: string
 }
@@ -48,6 +51,9 @@ export function replyToChannelOrigin(db: Database, input: ReplyToChannelOriginIn
     body: input.body,
     ...(input.origin.externalMessageId !== undefined
       ? { replyToExternalMessageId: input.origin.externalMessageId }
+      : {}),
+    ...(input.origin.turnCorrelationId !== undefined
+      ? { turnCorrelationId: input.origin.turnCorrelationId }
       : {}),
   })
   return channel.displayName

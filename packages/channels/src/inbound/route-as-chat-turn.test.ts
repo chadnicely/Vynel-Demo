@@ -58,6 +58,9 @@ describe('routeAsChatTurn — the channel decides the scope', () => {
         channelId: channel.id,
         externalSenderId: message.externalSenderId,
         externalChatContextId: message.externalChatContextId,
+        // The inbound row IS the turn key: replies this turn queues carry it,
+        // so a concurrent message in the same chat cannot silence its fallback.
+        turnCorrelationId: message.id,
       })
       expect(call.originChannel).toBe('telegram')
       expect(call.channelReplyMarker).toContain('reply_to_channel')

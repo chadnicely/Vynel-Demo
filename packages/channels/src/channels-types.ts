@@ -37,6 +37,10 @@ export interface ChannelTurnRequest {
     externalChatContextId: string
     /** GROUP messages only — reply_to_channel threads onto the asking message. */
     externalMessageId?: string
+    /** The turn that owns whatever `reply_to_channel` queues through this
+     *  origin — the zero-reply fallback counts by it, so a sibling turn
+     *  answering in the same chat cannot silence this one. */
+    turnCorrelationId?: string
   }
   /** The inbound channel's kind — stamped on the persisted user row so the
    *  transcript shows HOW the message arrived ("via Telegram"). Every inbound

@@ -31,6 +31,9 @@ export {
   enqueueJobFailureDelivery,
   enqueueAutoReportDelivery,
   AUTO_REPORT_MARKER,
+  REPORT_ASSISTANT_NOTES_MARKER,
+  composeReportWithAssistantNotes,
+  extractSenderFacingReport,
   previewTaskText,
   jobRetryHint,
 } from './enqueue-job-report-delivery.js'

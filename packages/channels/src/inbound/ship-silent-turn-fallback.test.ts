@@ -135,6 +135,64 @@ describe('shipSilentChannelTurnFallback — a channel turn never ends in silence
     })
   })
 
+  it('a SIBLING turn’s reply in the same chat does not silence this turn', async () => {
+    await withTestDatabase((db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      const message = insertPendingChatTurnMessage(db, channel.id)
+      // Inbound messages run concurrently: another turn answered ITS message in
+      // the same conversation, inside this turn's window. Before correlation
+      // that reply suppressed this turn's line and the sender heard nothing.
+      enqueueChannelReply(db, {
+        channel,
+        message,
+        body: 'answering the other message',
+        turnCorrelationId: 'a-sibling-turn',
+      })
+
+      const shipped = shipSilentChannelTurnFallback(db, {
+        channel,
+        message,
+        resultText: 'and here is yours',
+        turnStartedAt: new Date(Date.now() - 1000),
+        turnCorrelationId: message.id,
+        isGroupOrigin: false,
+      })
+
+      expect(shipped).toBe(true)
+      expect(listOutboundMessagesForChannel(db, channel.id).map((m) => m.messageBody)).toEqual([
+        'answering the other message',
+        'and here is yours',
+      ])
+    })
+  })
+
+  it('THIS turn’s own reply still silences it — the tool answered, byte for byte', async () => {
+    await withTestDatabase((db) => {
+      const { channel } = seedChannelWithAllowedSender(db)
+      const message = insertPendingChatTurnMessage(db, channel.id)
+      enqueueChannelReply(db, {
+        channel,
+        message,
+        body: 'Prices are up 4%.',
+        turnCorrelationId: message.id,
+      })
+
+      const shipped = shipSilentChannelTurnFallback(db, {
+        channel,
+        message,
+        resultText: 'Long internal reasoning the sender must never receive.',
+        turnStartedAt: new Date(Date.now() - 1000),
+        turnCorrelationId: message.id,
+        isGroupOrigin: false,
+      })
+
+      expect(shipped).toBe(false)
+      expect(listOutboundMessagesForChannel(db, channel.id).map((m) => m.messageBody)).toEqual([
+        'Prices are up 4%.',
+      ])
+    })
+  })
+
   it('trims a reply past the tightest channel limit rather than losing the delivery', async () => {
     await withTestDatabase((db) => {
       const { channel } = seedChannelWithAllowedSender(db)
