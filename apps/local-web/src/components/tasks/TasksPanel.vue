@@ -25,6 +25,7 @@ import { usePlanForTask } from "../../composables/plans/use-plan-for-task.js";
 import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
 import { matchTurnToIdentity } from "../../composables/activity/match-turn-to-identity.js";
 import TaskViewDialog from "./TaskViewDialog.vue";
+import LiveStepLine from "./LiveStepLine.vue";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
 import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
@@ -243,23 +244,6 @@ const expandedStepsQuery = useTaskSteps(expandedTaskId);
 const expandedSteps = computed(() => expandedStepsQuery.data.value ?? []);
 const updateStepStatus = useUpdateStepStatus();
 
-// THE ACTIVE TASK'S CURRENT STEP (Kafi's sketch, 2026-08-18): the in-progress
-// task carries a live sub-line under its collapsed row — the step being
-// worked right now, breathing like the chat's working pill — so the queue
-// answers "what is happening" without expanding. Its steps stay fetched while
-// a task is live (one bounded query; vue-query dedupes with the expander's).
-const liveTaskStepsQuery = useTaskSteps(() => liveTask.value?.id ?? null);
-const liveCurrentStep = computed(() => {
-  const steps = liveTaskStepsQuery.data.value ?? [];
-  const index = (() => {
-    const working = steps.findIndex((step) => step.status === "in-progress");
-    if (working !== -1) return working;
-    return steps.findIndex((step) => step.status === "open");
-  })();
-  if (index === -1) return null;
-  return { number: index + 1, title: steps[index]!.title };
-});
-
 // The expanded task's PLAN + SESSION doors (the sketch's icon row): the plan
 // icon opens the shared review dialog on either relation (the day-plan link
 // or the execution plan whose taskId points here); the session icon opens the
@@ -317,12 +301,14 @@ function stepCountLabel(task: TaskResponse): string | null {
 // The active task's collapsed row hands its meta to the SUB-LINE (the
 // sketch): while the current step breathes underneath, the row itself keeps
 // only the caret — "now" and the n/m would say the same thing twice.
+// EVERY in-progress task with a plan wears its current-step sub-line (Kafi,
+// 2026-08-22 — not only the first); a task with no steps keeps the plain
+// "now" on its row, and an expanded task shows the full list instead.
 function showsLiveSubline(task: TaskResponse): boolean {
   return (
     task.status === "in-progress" &&
-    task.id === liveTask.value?.id &&
     expandedTaskId.value !== task.id &&
-    liveCurrentStep.value !== null
+    stepCountLabel(task) !== null
   );
 }
 
@@ -565,25 +551,13 @@ function completedAtLabel(task: TaskResponse): string {
           </button>
         </div>
         <!-- The live sub-line — the sketch's "2. fixing …  (2/5)": the step
-             being worked RIGHT NOW breathes under the active task's collapsed
-             row; expanding replaces it with the full list. -->
-        <div
-          v-if="
-            task.status === 'in-progress' &&
-            task.id === liveTask?.id &&
-            expandedTaskId !== task.id &&
-            liveCurrentStep
-          "
-          class="live-step-line"
-        >
-          <span class="live-step-dot" aria-hidden="true" />
-          <span class="live-step-title" :title="liveCurrentStep.title">
-            {{ liveCurrentStep.number }}. {{ liveCurrentStep.title }}
-          </span>
-          <span v-if="stepCountLabel(task)" class="live-step-count">
-            {{ stepCountLabel(task) }}
-          </span>
-        </div>
+             being worked RIGHT NOW breathes under EVERY in-progress task's
+             collapsed row; expanding replaces it with the full list. -->
+        <LiveStepLine
+          v-if="showsLiveSubline(task)"
+          :task-id="task.id"
+          :count-label="stepCountLabel(task)"
+        />
         <ul v-if="expandedTaskId === task.id" class="step-list">
           <!-- The sketch's icon row: the task's plan + its working session,
                one click each, sitting above the steps. -->
@@ -1164,43 +1138,6 @@ function completedAtLabel(task: TaskResponse): string {
   .task-row.is-live :deep(.status-control svg) {
     animation: none;
   }
-}
-
-.live-step-line {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 0 2px 13px;
-  padding: 3px 8px 5px 13px;
-  border-left: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
-  min-width: 0;
-}
-
-.live-step-dot {
-  flex: none;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--gold);
-  box-shadow: 0 0 7px color-mix(in srgb, var(--gold) 60%, transparent);
-  animation: rail-dot-pulse 1.4s ease-in-out infinite;
-}
-
-.live-step-title {
-  min-width: 0;
-  flex: 1;
-  color: var(--gold-bright);
-  font: 400 11.5px/1.5 var(--font-ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.live-step-count {
-  flex: none;
-  color: var(--ink-3);
-  font: 400 10px/1.5 var(--font-ui);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── The step expander — the count is the affordance; the caret confirms. ── */

@@ -389,6 +389,37 @@ describe("TasksPanel (work rail)", () => {
     expect(wrapper.findAll(".step-row")).toHaveLength(5);
   });
 
+  // Kafi, 2026-08-22: EVERY in-progress task breathes its own current step —
+  // not only the first — each from its own plan; one without steps keeps the
+  // plain "now".
+  it("every in-progress task carries its own current-step sub-line", async () => {
+    const stepsByTask: Record<string, ReturnType<typeof makeStep>[]> = {
+      "t-1": [makeStep({ status: "done" }), makeStep({ id: "s2", orderIndex: 1, title: "Draft the outline", status: "in-progress" })],
+      "t-2": [makeStep({ title: "Pull the first fifty rows", status: "open" })],
+    };
+    const client = makeClient({
+      tasksUser: {
+        list: async () => [
+          makeTask({ id: "t-1", title: "First", status: "in-progress", stepsDone: 1, stepsTotal: 2 }),
+          makeTask({ id: "t-2", title: "Second", status: "in-progress", stepsDone: 0, stepsTotal: 1 }),
+          makeTask({ id: "t-3", title: "Third", status: "in-progress", stepsDone: 0, stepsTotal: 0 }),
+        ],
+        listSteps: async (taskId: string) => stepsByTask[taskId] ?? [],
+      },
+    });
+
+    const wrapper = mountPanel(client);
+    await flushPromises();
+
+    const sublines = wrapper.findAll(".live-step-line");
+    expect(sublines.map((line) => line.text())).toEqual([
+      expect.stringContaining("2. Draft the outline"),
+      expect.stringContaining("1. Pull the first fifty rows"),
+    ]);
+    // The stepless third task still says "now" on its row.
+    expect(wrapper.findAll(".task-meta.is-live")).toHaveLength(1);
+  });
+
   it("an expanded task with an assigned session shows the Plan/Session doors", async () => {
     const client = makeClient({
       tasksUser: {
