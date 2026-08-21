@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 // A Display readout: corner-ticked chrome, small-caps labels, one value per
 // row. Data-blind — the host decides what a row says and how loud it is.
 export type DisplayPanelTone = "default" | "attention" | "live" | "muted";
@@ -12,7 +13,17 @@ export interface DisplayPanelRow {
 const props = defineProps<{
   title: string;
   rows: ReadonlyArray<DisplayPanelRow>;
+  /** Fix the readout to this many rows. A log that grows with every event
+   *  pushes the panels below it around the room; a fixed window keeps the
+   *  layout still and shows only what just happened. */
+  lines?: number | undefined;
 }>();
+
+const rowsStyle = computed(() =>
+  props.lines === undefined
+    ? undefined
+    : { height: `calc(${props.lines} * 1.75em)`, overflow: "hidden" },
+);
 </script>
 
 <template>
@@ -22,15 +33,17 @@ const props = defineProps<{
     <span class="tick bl" aria-hidden="true" />
     <span class="tick br" aria-hidden="true" />
     <h4 class="panel-title">{{ props.title }}</h4>
-    <div
-      v-for="(row, index) in props.rows"
-      :key="`${index}-${row.label}`"
-      class="panel-row"
-    >
-      <span class="row-label">{{ row.label }}</span>
-      <span class="row-value" :class="`is-${row.tone ?? 'default'}`">{{
-        row.value
-      }}</span>
+    <div class="panel-rows" :style="rowsStyle" data-testid="panel-rows">
+      <div
+        v-for="(row, index) in props.rows"
+        :key="`${index}-${row.label}`"
+        class="panel-row"
+      >
+        <span class="row-label">{{ row.label }}</span>
+        <span class="row-value" :class="`is-${row.tone ?? 'default'}`">{{
+          row.value
+        }}</span>
+      </div>
     </div>
     <slot />
   </section>
@@ -108,7 +121,14 @@ const props = defineProps<{
   color: var(--display-accent-dim, rgba(79, 216, 255, 0.45));
 }
 
+/* Values never wrap: a long line truncates so one event is always one row. */
 .row-value {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 72%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--display-text, #cdf3ff);
   text-shadow: 0 0 8px rgba(79, 216, 255, 0.6);
 }

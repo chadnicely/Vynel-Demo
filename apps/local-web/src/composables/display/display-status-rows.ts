@@ -19,9 +19,10 @@ export interface DisplayStatusRow {
   readonly tone?: DisplayRowTone;
 }
 
-/** The telemetry log's length. Longer is a scrollback nobody reads at a
- *  glance; the room is for what just happened. */
-export const TELEMETRY_CAP = 14;
+/** The telemetry log's length — also the panel's fixed height in rows. Longer
+ *  is a scrollback nobody reads at a glance, and a growing panel shoves the
+ *  widgets below it around the room; the room is for what just happened. */
+export const TELEMETRY_CAP = 6;
 
 /** What the whole derivation needs — flat, so it tests without a single query. */
 export interface DisplayStatusFacts {
