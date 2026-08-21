@@ -8,12 +8,15 @@ function answering(body: unknown, status = 200): typeof fetch {
 }
 
 describe('readVoiceSelection', () => {
-  it('takes the user’s pick from the engine', async () => {
-    const selection = await readVoiceSelection({
-      apiUrl: 'http://engine',
-      fallback: FALLBACK,
-      fetch: answering({ voiceTtsModelId: 'piper-lessac', voiceSttModelId: 'moonshine-tiny', voiceSpeakerId: 3 }),
-    })
+  it('takes the user’s pick from the engine’s preferences door', async () => {
+    const urls: string[] = []
+    const answer = answering({ voiceTtsModelId: 'piper-lessac', voiceSttModelId: 'moonshine-tiny', voiceSpeakerId: 3 })
+    const recording = ((url: string, init?: RequestInit) => {
+      urls.push(url)
+      return answer(url, init)
+    }) as unknown as typeof fetch
+    const selection = await readVoiceSelection({ apiUrl: 'http://engine', fallback: FALLBACK, fetch: recording })
+    expect(urls).toEqual(['http://engine/users/me/preferences'])
     expect(selection).toEqual({ ttsModelId: 'piper-lessac', sttModelId: 'moonshine-tiny', speakerId: 3 })
   })
 

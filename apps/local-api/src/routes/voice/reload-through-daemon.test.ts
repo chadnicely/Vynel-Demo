@@ -32,6 +32,14 @@ describe('reloadVoiceThroughDaemon', () => {
     })
   })
 
+  it('tells a slow model load apart from a missing daemon', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new DOMException('timed out', 'TimeoutError')))
+    expect(await reloadVoiceThroughDaemon('http://127.0.0.1:8997')).toEqual({
+      reloaded: false,
+      reason: 'the voice daemon is still loading the new model',
+    })
+  })
+
   it('reports reloaded:false (not a throw) when the daemon is unreachable or errors', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new Error('ECONNREFUSED')))
     expect(await reloadVoiceThroughDaemon('http://127.0.0.1:8997')).toEqual({

@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^3.0.0",
-    "@vynel/contracts": "workspace:*"
+    "@vynel/contracts": "workspace:*",
+    "@vynel/errors": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

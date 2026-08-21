@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rename, rm } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
@@ -18,9 +18,16 @@ export interface DownloadToFileOptions {
   readonly fetch?: typeof fetch
 }
 
+/** The in-flight name: the final path only ever holds a complete file. */
+export function partialPathFor(destinationPath: string): string {
+  return `${destinationPath}.part`
+}
+
 // Stream a URL to disk, counting bytes as they land so a long fetch can show
-// where it is. The caller owns the destination's lifetime — a failed stream
-// leaves a partial file for it to wipe.
+// where it is. The bytes go to `<destination>.part` and are renamed into place
+// only once the stream ended cleanly — so a process killed mid-download (the
+// app quit) can never leave a full-named truncated file that a probe counts as
+// installed and a native loader chokes on. A failed stream removes its part.
 export async function downloadToFile(
   url: string,
   destinationPath: string,
@@ -43,11 +50,18 @@ export async function downloadToFile(
     },
   })
 
+  const partialPath = partialPathFor(destinationPath)
   await mkdir(dirname(destinationPath), { recursive: true })
-  await pipeline(
-    Readable.fromWeb(response.body as WebReadableStream),
-    count,
-    createWriteStream(destinationPath),
-    options.signal ? { signal: options.signal } : {},
-  )
+  try {
+    await pipeline(
+      Readable.fromWeb(response.body as WebReadableStream),
+      count,
+      createWriteStream(partialPath),
+      options.signal ? { signal: options.signal } : {},
+    )
+    await rename(partialPath, destinationPath)
+  } catch (error) {
+    await rm(partialPath, { force: true })
+    throw error
+  }
 }

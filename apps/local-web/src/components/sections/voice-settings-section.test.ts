@@ -121,9 +121,10 @@ describe("VoiceSettingsSection", () => {
     expect(updatePreferences).toHaveBeenCalledWith({ voiceTtsModelId: "piper-lessac", voiceSpeakerId: 0 });
   });
 
-  // Removing the voice in use with nothing else installed would leave Vynel
-  // mute — the card keeps its Remove away in that one case.
-  it("keeps Remove away from the only installed voice in use", async () => {
+  // The daemon boots on the pick: removing the model in use would leave Vynel
+  // unable to start its voice — so the picked one is never removable, even
+  // with another installed; the other installed one is.
+  it("never offers Remove on the model in use, only on the others", async () => {
     const { wrapper } = harness([KOKORO, PIPER, MOONSHINE_BASE, MOONSHINE_TINY, VAD]);
     await flushPromises();
     const cards = wrapper.findAll(".model-card");
@@ -132,7 +133,9 @@ describe("VoiceSettingsSection", () => {
 
     const withTwo = harness([KOKORO, { ...PIPER, state: "installed" }, MOONSHINE_BASE, VAD]);
     await flushPromises();
-    expect(withTwo.wrapper.findAll(".model-card")[0]!.find(".remove-button").exists()).toBe(true);
+    const twoCards = withTwo.wrapper.findAll(".model-card");
+    expect(twoCards[0]!.find(".remove-button").exists()).toBe(false);
+    expect(twoCards[1]!.find(".remove-button").exists()).toBe(true);
   });
 
   // Saved first, applied second: a pick is never lost to a dead daemon, and the

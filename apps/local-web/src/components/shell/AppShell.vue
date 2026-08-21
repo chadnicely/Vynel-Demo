@@ -193,19 +193,19 @@ const SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
 };
 // Apps needs a running project — it has no global surface.
 const GLOBAL_HIDDEN_SECTION_IDS = new Set<string>(["apps"]);
-// The system rows that aren't features at all — global menu only, after the
-// catalog. The machine-level screens sit under one Settings group (Kafi,
-// 2026-08-22: Embedding · Voice · Where Vynel runs · Application); Account is
-// the person, not a setting, so it stays a row of its own. Pinned, never
-// customizable — exactly as these rows always were.
-const SETTINGS_GROUP = { id: "settings", label: "Settings" };
-const GLOBAL_SYSTEM_ITEMS: SidebarItem[] = [
-  { id: "embedding", label: "Embedding", icon: Graph, group: SETTINGS_GROUP },
-  { id: "voice-settings", label: "Voice", icon: SpeakerHigh, group: SETTINGS_GROUP },
-  { id: "engine", label: "Where Vynel runs", icon: Cpu, group: SETTINGS_GROUP },
-  { id: "application", label: "Application", icon: Settings2, group: SETTINGS_GROUP },
-  { id: "account", label: "Account", icon: UserRound },
+// The machine-level screens — this computer's, never a room's. They live in
+// the title bar's Settings MENU (Kafi, 2026-08-22: Embedding · Voice · Where
+// Vynel runs · Application), not the sidebar; they stay in the palette's
+// Open group and route like any global section.
+const GLOBAL_SETTINGS_ITEMS: SidebarItem[] = [
+  { id: "embedding", label: "Embedding", icon: Graph },
+  { id: "voice-settings", label: "Voice", icon: SpeakerHigh },
+  { id: "engine", label: "Where Vynel runs", icon: Cpu },
+  { id: "application", label: "Application", icon: Settings2 },
 ];
+// The one system row left in the sidebar — Account is the person, not a
+// setting. Pinned, never customizable.
+const GLOBAL_SYSTEM_ITEMS: SidebarItem[] = [{ id: "account", label: "Account", icon: UserRound }];
 const WORKSPACE_SECTION_IDS = new Set<string>(
   WORKSPACE_SECTIONS.map((s) => s.id),
 );
@@ -277,6 +277,7 @@ function customizedMenuItems(scopeKey: string): SidebarItem[] {
 // customization: hidden sections stay reachable there by design).
 const GLOBAL_MENU_ITEMS: SidebarItem[] = [
   ...catalogItems("global"),
+  ...GLOBAL_SETTINGS_ITEMS,
   ...GLOBAL_SYSTEM_ITEMS,
   CUSTOMIZE_ITEM,
 ];

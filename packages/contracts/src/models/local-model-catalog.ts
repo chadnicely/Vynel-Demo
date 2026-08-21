@@ -17,9 +17,9 @@ export interface LocalModelSpeaker {
   readonly gender: 'female' | 'male'
 }
 
-/** How the files reach the disk. `hf-hub` models are fetched by transformers.js
- *  itself into its own cache layout; archives and single files are fetched by
- *  `@vynel/models`. */
+/** How the files reach the disk — every format is fetched by `@vynel/models`
+ *  (never by a loader). `hf-hub` files land in transformers.js' own cache
+ *  layout (`<cacheDir>/<hfModelId>/<file>`) so it loads them from the disk. */
 export type LocalModelSource =
   | { readonly format: 'hf-hub'; readonly hfModelId: string }
   | { readonly format: 'archive'; readonly url: string }

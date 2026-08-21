@@ -18,7 +18,12 @@ export async function reloadVoiceThroughDaemon(daemonUrl: string): Promise<Voice
     }
     const outcome = (await response.json()) as VoiceReloadOutcome
     return { reloaded: true, ...outcome }
-  } catch {
+  } catch (error) {
+    // A model load that outran the timeout is not a missing daemon — the
+    // pick may well land a moment later.
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return { reloaded: false, reason: 'the voice daemon is still loading the new model' }
+    }
     return { reloaded: false, reason: 'the voice daemon is not running' }
   }
 }

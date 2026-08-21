@@ -88,6 +88,21 @@ describe('installModelFromSource', () => {
     })
   })
 
+  // The real abort chain: cancel → the fetch/pipeline aborts → the part file and
+  // the folder are gone. The app's Cancel button rides exactly this.
+  it('an abort mid-download leaves nothing behind', async () => {
+    await withTempModelsDir(async (baseDir) => {
+      const entry = fakeFileModel(server.baseUrl)
+      const controller = new AbortController()
+      const install = installModelFromSource(baseDir, entry, {
+        signal: controller.signal,
+        onProgress: () => controller.abort(),
+      })
+      await expect(install).rejects.toThrow()
+      expect(await readdir(baseDir)).toEqual([])
+    })
+  })
+
   it('leaves nothing behind when the download fails', async () => {
     await withTempModelsDir(async (baseDir) => {
       const entry = { ...fakeFileModel(server.baseUrl, 'nope'), folder: 'nope' }

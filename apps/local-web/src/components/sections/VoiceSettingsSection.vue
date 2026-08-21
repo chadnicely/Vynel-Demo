@@ -53,13 +53,11 @@ const failure = computed(
     null,
 );
 
-// The last installed model of a kind keeps its Remove — taking it away would
-// leave the voice with nothing to speak (or hear) with.
+// The model in use is never removable — the daemon boots on the pick, so
+// taking its files away would leave the voice with nothing to speak (or
+// hear) with. Pick another first; then this one can go.
 function isRemovable(model: LocalModelStatusResponse): boolean {
-  const installedOfKind = models.value.filter(
-    (row) => row.kind === model.kind && row.state === "installed",
-  );
-  return installedOfKind.length > 1 || model.id !== preferences.value?.[preferenceKeyFor(model)];
+  return model.id !== preferences.value?.[preferenceKeyFor(model)];
 }
 
 function preferenceKeyFor(model: LocalModelStatusResponse): "voiceTtsModelId" | "voiceSttModelId" {

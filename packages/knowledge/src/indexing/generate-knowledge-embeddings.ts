@@ -22,7 +22,11 @@ import {
   updateKnowledgeChunkEmbedding,
   upsertVectorIndexForChunk,
 } from '../repositories/index.js'
-import { EMBEDDING_MODEL_VERSION, generateEmbedding } from '@vynel/embeddings'
+import {
+  EMBEDDING_MODEL_VERSION,
+  EmbeddingModelNotInstalledError,
+  generateEmbedding,
+} from '@vynel/embeddings'
 import type { StructuralLogger } from '../knowledge-types.js'
 
 export type GenerateKnowledgeEmbeddingsResult = {
@@ -59,11 +63,14 @@ export async function generateKnowledgeEmbeddings(
       succeeded += 1
     } catch (err) {
       failed += 1
-      // A failure before ANY success is the MODEL (load/download), not this
-      // chunk — every remaining chunk would fail identically, spamming a
-      // stack trace per chunk per tick. One actionable error, abort the
-      // batch; the next tick retries fresh (and a corrupt model cache
-      // self-heals — @vynel/embeddings).
+      // No model on the disk is not a chunk's failure and not a retry-next-
+      // tick matter — it is the caller's to act on (the engine starts the
+      // download), so it propagates as the typed error.
+      if (err instanceof EmbeddingModelNotInstalledError) throw err
+      // A failure before ANY success is the MODEL (load), not this chunk —
+      // every remaining chunk would fail identically, spamming a stack trace
+      // per chunk per tick. One actionable error, abort the batch; the next
+      // tick retries fresh (a corrupt model file is evicted — @vynel/embeddings).
       if (succeeded === 0) {
         deps.logger?.error(
           { err, chunkId: chunk.id },

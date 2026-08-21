@@ -12,7 +12,11 @@
 import { withTransaction, type Database } from '@vynel/db'
 import { findEntriesNeedingEmbedding, updateEntryEmbedding } from '../repositories/index.js'
 import { upsertVectorIndex } from '../repositories/index.js'
-import { EMBEDDING_MODEL_VERSION, generateEmbedding } from '@vynel/embeddings'
+import {
+  EMBEDDING_MODEL_VERSION,
+  EmbeddingModelNotInstalledError,
+  generateEmbedding,
+} from '@vynel/embeddings'
 import type { StructuralLogger } from '../memory-types.js'
 
 export type GenerateMemoryEmbeddingsResult = {
@@ -50,9 +54,13 @@ export async function generateMemoryEmbeddings(
       succeeded += 1
     } catch (err) {
       failed += 1
-      // A failure before ANY success is the MODEL (load/download), not this
-      // entry — abort with ONE actionable error instead of a stack trace per
-      // entry; the next tick retries fresh (corrupt cache self-heals —
+      // No model on the disk is not an entry's failure and not a retry-next-
+      // tick matter — it is the caller's to act on (the engine starts the
+      // download), so it propagates as the typed error.
+      if (err instanceof EmbeddingModelNotInstalledError) throw err
+      // A failure before ANY success is the MODEL (load), not this entry —
+      // abort with ONE actionable error instead of a stack trace per entry;
+      // the next tick retries fresh (a corrupt model file is evicted —
       // @vynel/embeddings).
       if (succeeded === 0) {
         deps.logger?.error(

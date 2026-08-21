@@ -28,11 +28,22 @@ function inlineFakeEmbedding(text: string): Promise<Buffer> {
   return Promise.resolve(Buffer.from(f.buffer))
 }
 
+// `modelMissing` flips the fake into "no model on the disk" — the typed error
+// the service must hand to its hook instead of logging an error every tick.
+const embeddingsFake = vi.hoisted(() => {
+  class EmbeddingModelNotInstalledError extends Error {}
+  return { modelMissing: false, EmbeddingModelNotInstalledError }
+})
+
 vi.mock('@vynel/embeddings', () => ({
   EMBEDDING_DIMENSIONS: 384,
   EMBEDDING_BYTES: 1536,
   EMBEDDING_MODEL_VERSION: 'all-MiniLM-L6-v2/v1',
-  generateEmbedding: (text: string) => inlineFakeEmbedding(text),
+  EmbeddingModelNotInstalledError: embeddingsFake.EmbeddingModelNotInstalledError,
+  generateEmbedding: (text: string) =>
+    embeddingsFake.modelMissing
+      ? Promise.reject(new embeddingsFake.EmbeddingModelNotInstalledError())
+      : inlineFakeEmbedding(text),
 }))
 
 import { withTestDatabase } from '@vynel/testing'
@@ -119,6 +130,67 @@ describe('startKnowledgeIndexingService', () => {
         }
       })
     } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  // With chunks to embed and no model on the disk, the tick hands the fact to
+  // boot's hook (which starts the download) and leaves the chunks pending —
+  // it does not fail the tick or log an error every minute.
+  it('rings the missing-model hook instead of failing the tick', { timeout: 20000 }, async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'vynel-kis-missing-'))
+    embeddingsFake.modelMissing = true
+    try {
+      await writeFile(path.join(dir, 'note.md'), '# Needs embedding.', 'utf8')
+      await withTestDatabase(async (db) => {
+        const now = new Date()
+        const user = insertUser(db, {
+          id: randomUUID(),
+          displayName: 'T',
+          locale: 'en-US',
+          timezone: 'UTC',
+          hasCompletedOnboarding: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        insertWorkspace(db, {
+          id: 'ws1',
+          userId: user.id,
+          name: 'W',
+          path: dir,
+          kind: 'custom',
+          isArchived: false,
+          lastAccessedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+        insertKnowledgeSource(db, {
+          id: 'src1',
+          userId: user.id,
+          workspaceId: 'ws1',
+          scope: 'workspace',
+          absolutePath: dir,
+          sourceKind: 'directory',
+          createdAt: now,
+          updatedAt: now,
+        })
+        const onEmbeddingModelMissing = vi.fn()
+        const service = startKnowledgeIndexingService({
+          db,
+          logger: silentLogger,
+          fileWatcher: { startWatchingSource: vi.fn() } as unknown as FileWatcherService,
+          embeddingIntervalMs: 200,
+          onEmbeddingModelMissing,
+        })
+        try {
+          await waitFor(() => onEmbeddingModelMissing.mock.calls.length > 0)
+          expect(listKnowledgeChunksNeedingEmbedding(db, { limit: 1 }).length).toBeGreaterThan(0)
+        } finally {
+          service.stop()
+        }
+      })
+    } finally {
+      embeddingsFake.modelMissing = false
       await rm(dir, { recursive: true, force: true })
     }
   })

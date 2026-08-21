@@ -37,13 +37,14 @@ function viewMenuItems(wrapper: ReturnType<typeof mountTitleBar>): MenuItemModel
 // territory) and Go died (the tab strip + sidebar are the navigation).
 describe("AppTitleBar", () => {
   // test: correct expectation — the Nodes word (2026-08-15) left the menu row
-  // again on 2026-08-22: the view switch's Nodes segment is its one door.
-  it("renders the two menus and the window controls", () => {
+  // on 2026-08-22 (the view switch's Nodes segment is its one door) and the
+  // Settings menu joined, between Vynel and View (Kafi).
+  it("renders the three menus and the window controls", () => {
     const wrapper = mountTitleBar();
     const menuLabels = wrapper
       .findAll("nav button")
       .map((b) => b.text());
-    expect(menuLabels).toEqual(["Vynel", "View"]);
+    expect(menuLabels).toEqual(["Vynel", "Settings", "View"]);
 
     for (const label of ["Minimize", "Maximize", "Close"]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true);
@@ -58,8 +59,8 @@ describe("AppTitleBar", () => {
     // Only the menu row carries text — nothing else. The bar names no scope:
     // the chat header and the tree already say where you are.
     // test: correct expectation — was "VynelViewNodes" until the Nodes word
-    // became the switch's icon (2026-08-22).
-    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelView");
+    // became the switch's icon and Settings joined (2026-08-22).
+    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelSettingsView");
   });
 
   // The view switch (Kafi, 2026-08-22): Nodes | Display | Normal, just before
@@ -142,6 +143,27 @@ describe("AppTitleBar", () => {
     const wrapper = mountTitleBar();
     await wrapper.get('[aria-label="Claude account"]').trigger("click");
     expect(wrapper.emitted("command")).toEqual([["claude-account"]]);
+  });
+
+  // The Settings menu (Kafi, 2026-08-22): this computer's four machine-level
+  // screens, moved here from the sidebar, each row a section id the shell
+  // routes like any global section. Application keeps the Ctrl+, hint.
+  it("the Settings menu carries the four machine-level screens in order", async () => {
+    const wrapper = mountTitleBar();
+    const settings = wrapper
+      .findAllComponents(DropdownMenu)
+      .find((menu) => menu.text().includes("Settings"))!;
+    const items: MenuItemModel[] = settings.props("items");
+    expect(items.filter((item) => item.kind !== "separator").map((item) => [item.id, item.label])).toEqual([
+      ["embedding", "Embedding"],
+      ["voice-settings", "Voice"],
+      ["engine", "Where Vynel runs"],
+      ["application", "Application"],
+    ]);
+
+    settings.vm.$emit("select", "voice-settings");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted("command")).toEqual([["voice-settings"]]);
   });
 
   // The navigation pick lives in the View menu now (Kafi, 2026-08-21) — both

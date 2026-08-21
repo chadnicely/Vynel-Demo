@@ -949,6 +949,9 @@ importers:
       '@vynel/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
     devDependencies:
       typescript:
         specifier: ^5.6.0

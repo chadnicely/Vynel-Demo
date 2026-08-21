@@ -3,8 +3,10 @@ import { computed, ref } from "vue";
 import {
   PhBrowsers as Browsers,
   PhCommand as Command,
+  PhCpu as Cpu,
   PhDiamondsFour as DiamondsFour,
   PhFolderPlus as FolderPlus,
+  PhGraph as Graph,
   PhList as List,
   PhListChecks as ListChecks,
   PhMinus as Minus,
@@ -12,6 +14,7 @@ import {
   PhSidebarSimple as PanelLeft,
   PhPower as Power,
   PhGearFine as Settings2,
+  PhSpeakerHigh as SpeakerHigh,
   PhSquare as Square,
   PhSun as Sun,
   PhUser as UserRound,
@@ -76,8 +79,10 @@ function onMenuOpenChange(open: boolean) {
   emit("menus-open", openMenuCount.value > 0);
 }
 
-// Two menus only (Chad's cleanup, 2026-07-24): Vynel = the app (create,
-// settings, account, quit); View = how the window looks, each row wearing an
+// Three menus (Chad's cleanup, 2026-07-24, + Settings on 2026-08-22): Vynel =
+// the app (create, account, quit); Settings = this computer's machine-level
+// screens (Kafi: Embedding · Voice · Where Vynel runs · Application — moved
+// here from the sidebar); View = how the window looks, each row wearing an
 // icon of what it changes. Navigation rows (Sessions, tasks) left the bar —
 // the tab strip + sidebar ARE the navigation, and the tasks dock has its own
 // title-bar button. The Nodes word left too (2026-08-22): the view switch's
@@ -93,7 +98,6 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
         icon: FolderPlus,
       },
       { id: "sep-1", kind: "separator" },
-      { id: "settings", label: "Settings", shortcut: shortcutHint(","), icon: Settings2 },
       { id: "account", label: "Account", icon: UserRound },
       { id: "sep-2", kind: "separator" },
       {
@@ -102,6 +106,21 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
         shortcut: shortcutHint("Q"),
         icon: Power,
         danger: true,
+      },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { id: "embedding", label: "Embedding", icon: Graph },
+      { id: "voice-settings", label: "Voice", icon: SpeakerHigh },
+      { id: "sep-settings", kind: "separator" },
+      { id: "engine", label: "Where Vynel runs", icon: Cpu },
+      {
+        id: "application",
+        label: "Application",
+        shortcut: shortcutHint(","),
+        icon: Settings2,
       },
     ],
   },

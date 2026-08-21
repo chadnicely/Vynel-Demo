@@ -18,6 +18,7 @@ export { installModelFromSource, type InstallModelOptions } from './install-mode
 export {
   cancelLocalModelDownload,
   describeLocalModel,
+  getLocalModelEntryOrThrow,
   listLocalModelStatuses,
   removeLocalModel,
   startLocalModelDownload,

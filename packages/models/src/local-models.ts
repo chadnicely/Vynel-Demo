@@ -28,7 +28,7 @@ function catalogOf(deps: LocalModelsDeps): readonly LocalModelEntry[] {
   return deps.catalog ?? LOCAL_MODELS
 }
 
-function getCatalogEntryOrThrow(deps: LocalModelsDeps, modelId: string): LocalModelEntry {
+export function getLocalModelEntryOrThrow(deps: LocalModelsDeps, modelId: string): LocalModelEntry {
   const entry = catalogOf(deps).find((row) => row.id === modelId)
   if (entry === undefined) throw new NotFoundError('local-model', modelId)
   return entry
@@ -80,17 +80,17 @@ export async function listLocalModelStatuses(
 
 /** Start fetching one model; the runner refuses a second start while one runs. */
 export function startLocalModelDownload(deps: LocalModelsDeps, modelId: string): ModelDownloadJob {
-  const entry = getCatalogEntryOrThrow(deps, modelId)
+  const entry = getLocalModelEntryOrThrow(deps, modelId)
   return deps.runner.start(entry, deps.baseDirFor(entry))
 }
 
 export function cancelLocalModelDownload(deps: LocalModelsDeps, modelId: string): boolean {
-  getCatalogEntryOrThrow(deps, modelId)
+  getLocalModelEntryOrThrow(deps, modelId)
   return deps.runner.cancel(modelId)
 }
 
 export async function removeLocalModel(deps: LocalModelsDeps, modelId: string): Promise<void> {
-  const entry = getCatalogEntryOrThrow(deps, modelId)
+  const entry = getLocalModelEntryOrThrow(deps, modelId)
   if (deps.runner.get(modelId)?.status === 'downloading') {
     throw new ConflictError(`"${entry.label}" is downloading — cancel the download first.`)
   }

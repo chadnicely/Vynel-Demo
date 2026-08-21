@@ -9,8 +9,9 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
-- **Settings → Embedding and Settings → Voice.** A Settings group in the global menu now
-  holds the models that run on this computer. Embedding shows the search model behind
+- **Settings → Embedding and Settings → Voice.** A Settings menu in the top bar (between
+  Vynel and View) now holds this computer's screens — Embedding, Voice, Where Vynel runs,
+  Application — starting with the models that run on this computer. Embedding shows the search model behind
   memory and knowledge — downloaded or not, with a Download button and a progress bar —
   and Voice shows every speaking and hearing model the same way, lets you pick which
   installed voice Vynel speaks with (and which of Kokoro's eleven speakers) and which

@@ -1,4 +1,4 @@
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { LocalModelEntry } from '@vynel/contracts/models/local-model-catalog'
 import { requiredModelFiles } from '@vynel/contracts/models/local-model-catalog'
@@ -51,13 +51,21 @@ export async function installModelFromSource(
   try {
     if (source.format === 'archive') {
       // The archive unpacks to a top-level folder named like `entry.folder`.
-      const archiveName = `${entry.folder.split('/').at(-1)}.tar.bz2`
-      const archivePath = join(baseDir, archiveName)
+      // It is extracted in a staging dir and renamed into place whole, so a
+      // process killed mid-extract never leaves a half-populated model folder
+      // that happens to contain the files the probe checks.
+      const folderName = entry.folder.split('/').at(-1)!
+      const archiveName = `${folderName}.tar.bz2`
+      const stagingDir = join(baseDir, `.extracting-${folderName}`)
+      await rm(stagingDir, { recursive: true, force: true })
+      await mkdir(stagingDir, { recursive: true })
       try {
-        await downloadToFile(source.url, archivePath, downloadOptions(options))
-        await extract(archiveName, baseDir)
+        await downloadToFile(source.url, join(stagingDir, archiveName), downloadOptions(options))
+        await extract(archiveName, stagingDir)
+        await rm(join(stagingDir, archiveName), { force: true })
+        await rename(join(stagingDir, folderName), dir)
       } finally {
-        await rm(archivePath, { force: true })
+        await rm(stagingDir, { recursive: true, force: true })
       }
     } else if (source.format === 'file') {
       const [onlyFile] = requiredModelFiles(entry)

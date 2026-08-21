@@ -48,8 +48,11 @@ Nothing in the repo streams byte/percent progress; the closest job precedent is 
 - `routes/models/`: `GET /models` (every catalog entry with `installed | missing | downloading
   {bytes,total} | failed {message}`), `POST /models/:id/download`, `DELETE /models/:id`. **No
   `x-mcp`** — the user's door, not an agent tool (the `server-install` stance). Progress = in-memory
-  job on the runner, polled at 1 s while downloading; no table (a one-step job; a dead process
-  leaves an unstamped dir that the probe reports as missing and the next download wipes).
+  job on the runner, polled at 1 s while downloading; no table (a one-step job). A process killed
+  mid-download can never leave a full-named truncated file: every file streams to `<name>.part`
+  and is renamed in only when the stream ended cleanly, and an archive is extracted in a staging
+  dir and renamed into place whole — so the existence-only probe (the stamp is metadata; a
+  hand-fetched `.models/` keeps working) stays honest.
 - Voice choice → `user_preferences` keys `voiceTtsModelId`, `voiceSpeakerId`, `voiceSttModelId`
   (schemaless KV, no migration; extend the closed `ResolvedUserPreferences` resolver + Zod).
 - `VYNEL_VOICE_MODELS_DIR` joins `apps/local-api/src/env.ts` (same default as the daemon's);
@@ -88,7 +91,7 @@ packaged install shows voice as "not available in this build".
 |---|---|---|
 | 1 catalog + runner | `d88dd2be` | `@vynel/contracts/models/local-model-catalog` · `@vynel/models` (probe, fetch w/ progress, extract, stamp, runner) · embeddings `warmEmbeddingModel`/`evictEmbeddingModelCache` · voice-engine `resolveTtsConfig`/`resolveSttConfig`/`resolveVadConfig` · daemon + scripts read the catalog (`scripts/src/voice/voice-models.ts` deleted; `moonshine` id → `moonshine-tiny`). Stamp is metadata, not proof: a hand-fetched `.models/` keeps working. |
 | 2 API | `09fee7e3` | `GET /models`, `POST /models/:id/download`, `POST /models/:id/cancel`, `DELETE /models/:id` (no x-mcp); `localModels` app dep built in boot (hf-hub installer/remover lent by embeddings); `VYNEL_VOICE_MODELS_DIR` in api env + `daemon.rs`; `user_preferences` keys `voiceTtsModelId` / `voiceSpeakerId` / `voiceSttModelId`; artifacts regenerated, parity green. |
-| 3 Web | `90d92c0f` | Settings group (Embedding · Voice · Where Vynel runs · Application; Account standalone); `EmbeddingSection`, `VoiceSettingsSection`, shared `LocalModelCard` + `describeLocalModelState`; `use-local-models` (1 s poll while downloading), `use-local-model-actions`, `use-user-preferences`. |
+| 3 Web | `90d92c0f` (+ the title-bar move) | Settings MENU in the title bar (Embedding · Voice · Where Vynel runs · Application; Account stays a sidebar row); `EmbeddingSection`, `VoiceSettingsSection`, shared `LocalModelCard` + `describeLocalModelState`; `use-local-models` (1 s poll while downloading), `use-local-model-actions`, `use-user-preferences`. |
 | 4 take effect | shipped | the daemon reads the pick from `GET /users/me/preferences` at boot (env fallback, `voice-selection.ts`); engines live in one holder (`voice-engines.ts`) and the shared synth lane injects the speaker — the ONE place the pick is applied (no `voiceId` threaded through driver/host/overlay any more); daemon `POST /reload` → `engines.apply()` swaps only what changed and is installed; api `POST /voice/reload` relays (best-effort, no x-mcp); the Voice screen saves then reloads and says "Applied." / "applies when the voice starts" / "<model> is not downloaded yet"; Preview plays a sample through the normal player. **Owed by Kafi:** `pnpm dev:voice` smoke — pick a speaker, Preview, switch to Piper, hear the swap. |
 | 5 ship | parked | own arc on the distribution branch. |
 
@@ -111,8 +114,10 @@ the model once after the files land.
 
 ## Forks (recommendation first) — Kafi took every recommendation (2026-08-22)
 
-1. Settings group membership — Embedding · Voice **+ Where Vynel runs + Application** under it,
-   Account stays standalone (identity, not a setting); `Ctrl+,` keeps pointing at Application.
+1. Settings placement — **a `Settings` MENU in the title bar between Vynel and View** (Kafi's
+   correction after the first cut landed it as a sidebar group): Embedding · Voice · Where Vynel
+   runs · Application. The sidebar keeps only Account among the system rows; the Vynel menu's old
+   single "Settings" row is gone; `Ctrl+,` still opens Application.
 2. Embedding picker in v1 — **status + download only** (the 384 lock); a curated 384-dim picker
    with a re-embed op is a follow-up.
 3. Voice choice home — **`user_preferences`** (per-user, migration-free, API door exists).

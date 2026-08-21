@@ -40,6 +40,7 @@ import {
   LOCAL_EMBEDDING_MODEL,
   requiredModelFiles,
 } from '@vynel/contracts/models/local-model-catalog'
+import { VynelError } from '@vynel/errors'
 
 export const EMBEDDING_DIMENSIONS = 384
 export const EMBEDDING_BYTES = EMBEDDING_DIMENSIONS * 4 // 1536 bytes (384 × float32)
@@ -67,13 +68,17 @@ export function configureEmbeddingsCacheDir(cacheDir: string): void {
 }
 
 /** The model is not on this computer. The indexing ticks start the download
- *  on seeing this; a caller with a person behind it says where to look. */
-export class EmbeddingModelNotInstalledError extends Error {
+ *  on seeing this; a route carries the message to the person (or to Claude
+ *  through an MCP tool) as a 409 — "can't take the request right now, here is
+ *  the fix" — instead of a blank 500. */
+export class EmbeddingModelNotInstalledError extends VynelError {
+  readonly code = 'embedding_model_not_installed'
+  readonly httpStatus = 409
+
   constructor() {
     super(
       'The embedding model is not installed on this computer — download it in Settings → Embedding.',
     )
-    this.name = 'EmbeddingModelNotInstalledError'
   }
 }
 

@@ -20,12 +20,12 @@ import { ConflictError } from '@vynel/errors'
 import {
   cancelLocalModelDownload,
   describeLocalModel,
+  getLocalModelEntryOrThrow,
   listLocalModelStatuses,
   removeLocalModel,
   startLocalModelDownload,
   type LocalModelsDeps,
 } from '@vynel/models'
-import { LOCAL_MODELS } from '@vynel/contracts/models/local-model-catalog'
 import type { LocalModelStatusResponse } from '@vynel/contracts/models/local-models-http'
 import type { AppEnv } from '../../factory.js'
 import { factory } from '../../factory.js'
@@ -50,9 +50,8 @@ function requireLocalModels(c: Context<AppEnv>): LocalModelsDeps {
   return deps
 }
 
-async function describeOne(deps: LocalModelsDeps, modelId: string): Promise<LocalModelStatusResponse> {
-  const entry = (deps.catalog ?? LOCAL_MODELS).find((row) => row.id === modelId)!
-  return describeLocalModel(deps, entry)
+function describeOne(deps: LocalModelsDeps, modelId: string): Promise<LocalModelStatusResponse> {
+  return describeLocalModel(deps, getLocalModelEntryOrThrow(deps, modelId))
 }
 
 export const modelsApp = factory

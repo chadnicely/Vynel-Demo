@@ -49,29 +49,40 @@ async function main(): Promise<void> {
 
   // The user's voice pick (Settings → Voice) — env is the fallback for a daemon
   // that boots before the engine, or a dev box with no pick saved.
+  const envSelection = {
+    ttsModelId: env.VYNEL_VOICE_TTS,
+    sttModelId: env.VYNEL_VOICE_STT,
+    speakerId: env.VYNEL_VOICE_ID,
+  }
   const readSelection = () =>
-    readVoiceSelection({
-      apiUrl: env.VYNEL_API_URL,
-      fallback: {
-        ttsModelId: env.VYNEL_VOICE_TTS,
-        sttModelId: env.VYNEL_VOICE_STT,
-        speakerId: env.VYNEL_VOICE_ID,
-      },
-    })
+    readVoiceSelection({ apiUrl: env.VYNEL_API_URL, fallback: envSelection })
   const selection = await readSelection()
 
-  logger.info({ tts: selection.ttsModelId, stt: selection.sttModelId }, 'loading voice models on CPU…')
+  // A pick whose files are gone (removed by hand, a fresh models dir) must not
+  // keep the daemon from starting: fall back to the env models, say which
+  // pick is missing, and let the reload bring the pick back once it is
+  // downloaded.
+  const loadEngines = (candidate: typeof selection): VoiceEngines => {
+    logger.info({ tts: candidate.ttsModelId, stt: candidate.sttModelId }, 'loading voice models on CPU…')
+    return VoiceEngines.load(env.VYNEL_VOICE_MODELS_DIR, candidate, logger)
+  }
   let engines: VoiceEngines
   try {
-    engines = VoiceEngines.load(env.VYNEL_VOICE_MODELS_DIR, selection, logger)
+    engines = loadEngines(selection)
   } catch (error) {
     if (!(error instanceof VoiceModelMissingError)) throw error
-    logger.error(
-      { missing: error.missingPath },
-      'voice model file missing — download it in Settings → Voice, or run `pnpm voice:fetch-models <model>` for each of kokoro, moonshine-base, silero-vad',
-    )
-    process.exitCode = 1
-    return
+    logger.warn({ missing: error.missingPath }, 'the picked voice model is not on the disk — falling back to the env models')
+    try {
+      engines = loadEngines({ ...envSelection, speakerId: selection.speakerId })
+    } catch (fallbackError) {
+      if (!(fallbackError instanceof VoiceModelMissingError)) throw fallbackError
+      logger.error(
+        { missing: fallbackError.missingPath },
+        'voice model file missing — download it in Settings → Voice, or run `pnpm voice:fetch-models <model>` for each of kokoro, moonshine-base, silero-vad',
+      )
+      process.exitCode = 1
+      return
+    }
   }
   const vadConfig = engines.vadConfig
   const vad = new SherpaVoiceActivityDetector({ vad: vadConfig })

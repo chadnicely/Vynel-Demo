@@ -38,6 +38,7 @@ vi.mock('@vynel/embeddings', () => ({
   EMBEDDING_DIMENSIONS: 384,
   EMBEDDING_BYTES: 1536,
   EMBEDDING_MODEL_VERSION: 'all-MiniLM-L6-v2/v1',
+  EmbeddingModelNotInstalledError: class extends Error {},
   generateEmbedding: inlineFakeEmbedding,
 }))
 
