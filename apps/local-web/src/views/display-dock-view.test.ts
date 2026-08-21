@@ -11,6 +11,7 @@ import { createPinia, setActivePinia } from "pinia";
 import type { DisplayWidgetView } from "@vynel/contracts/display/display-widget";
 import type { DisplayWidgetContent } from "@vynel/contracts/display/display-widget-content";
 import type { VoiceCommandSessionView } from "../composables/voice/voice-command-session-types.js";
+import type { AppDisplaySession } from "../composables/voice/use-voice-daemon-link.js";
 import type * as overlayWindowModule from "../composables/voice/tauri-overlay-window.js";
 import type { OverlayLayout } from "../composables/voice/tauri-overlay-window.js";
 import VoiceStage from "../components/voice/VoiceStage.vue";
@@ -65,6 +66,7 @@ vi.mock("../composables/voice/use-voice-session.js", async () => {
 
 interface DaemonStub {
   isAppDisplayActive: Ref<boolean>;
+  appDisplaySession: Ref<AppDisplaySession | null>;
   notifySessionEnd: ReturnType<typeof vi.fn>;
   /** The daemon heard the wake word. */
   wake: () => void;
@@ -73,10 +75,12 @@ interface DaemonStub {
 const daemon = vi.hoisted(() => ({}) as DaemonStub);
 
 // P3b's contract, standing in for the real link: `isAppDisplayActive` rides a
-// `display-active` frame from the app window.
+// `display-active` frame from the app window, `appDisplaySession` a
+// `display-session` one.
 vi.mock("../composables/voice/use-voice-daemon-link.js", async () => {
   const { ref: makeRef } = await import("vue");
   daemon.isAppDisplayActive = makeRef(false);
+  daemon.appDisplaySession = makeRef<AppDisplaySession | null>(null);
   daemon.notifySessionEnd = vi.fn();
   return {
     useVoiceDaemonLink: (options: { onWake: (command: string) => void }) => {
@@ -87,6 +91,7 @@ vi.mock("../composables/voice/use-voice-daemon-link.js", async () => {
         isDaemonSpeaking: makeRef(false),
         isPlayingRelayedLine: makeRef(false),
         isAppDisplayActive: daemon.isAppDisplayActive,
+        appDisplaySession: daemon.appDisplaySession,
         notifySessionEnd: daemon.notifySessionEnd,
       };
     },
@@ -181,6 +186,7 @@ beforeEach(() => {
   voice.start.mockClear();
   voice.end.mockClear();
   daemon.isAppDisplayActive.value = false;
+  daemon.appDisplaySession.value = null;
   board.dock = [];
   overlay.layouts.length = 0;
   overlay.reveal.mockClear();
@@ -309,5 +315,123 @@ describe("DisplayDockView", () => {
 
     expect(overlay.dismiss).not.toHaveBeenCalled();
     expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(true);
+  });
+
+  // The X on the corner row is the way out of a conversation this window owns.
+  it("ends its own conversation from the mini row's X", async () => {
+    const wrapper = await mountDock();
+    daemon.wake();
+    daemon.isAppDisplayActive.value = true;
+    await flushPromises();
+    daemon.isAppDisplayActive.value = false;
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(true);
+
+    await wrapper.find("[data-testid='display-dock-close']").trigger("click");
+    await flushPromises();
+    expect(voice.end).toHaveBeenCalled();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+    expect(overlay.dismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Kafi's ask, the primary path: the conversation started in the ROOM. It never
+// leaves that window — a Web Speech session cannot migrate — so the dock shows
+// it in the corner and reports it without a microphone of its own.
+describe("DisplayDockView — mirroring the app's session", () => {
+  function roomIsTalking(
+    overrides: Partial<AppDisplaySession> = {},
+  ): AppDisplaySession {
+    return { live: true, phase: "speaking", caption: "Two builds are green", ...overrides };
+  }
+
+  it("shows the room's conversation in the corner once the Display is left", async () => {
+    const wrapper = await mountDock();
+    // The user is IN the room: it draws its own orb, the dock stays away.
+    daemon.isAppDisplayActive.value = true;
+    daemon.appDisplaySession.value = roomIsTalking();
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+
+    // …and switches to a workspace mid-conversation.
+    daemon.isAppDisplayActive.value = false;
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='display-dock-caption']").text()).toBe(
+      "Two builds are green",
+    );
+    expect(overlay.layouts.at(-1)).toEqual({
+      park: "bottom-right",
+      width: 380,
+      height: 150,
+    });
+    // A corner widget never takes the keyboard, mirrored or not.
+    expect(overlay.reveal).toHaveBeenLastCalledWith({ focus: false });
+    // The mic lives in the app window: this pill reports, it does not switch.
+    const mic = wrapper.find("[data-testid='display-dock-mic']");
+    expect(mic.element.tagName).toBe("SPAN");
+    expect(mic.text()).toBe("Listening");
+    expect(voice.start).not.toHaveBeenCalled();
+  });
+
+  it("says Muted for a muted room, and never offers to Resume it", async () => {
+    const wrapper = await mountDock();
+    daemon.appDisplaySession.value = roomIsTalking({ phase: "muted", caption: "Muted" });
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mic']").text()).toBe("Muted");
+  });
+
+  // The room keeps talking — the X only puts the REPORT away.
+  it("dismisses the mirror without touching the room, and takes it back on the next session", async () => {
+    const wrapper = await mountDock();
+    daemon.appDisplaySession.value = roomIsTalking();
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(true);
+
+    await wrapper.find("[data-testid='display-dock-close']").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+    expect(voice.end).not.toHaveBeenCalled();
+    // Never closed: the window has to be there for the next glance away —
+    // outside Tauri `dismiss()` closes it for good.
+    expect(overlay.dismiss).not.toHaveBeenCalled();
+    expect(overlay.hide).toHaveBeenCalled();
+
+    // The room goes on saying things — still dismissed, this conversation.
+    daemon.appDisplaySession.value = roomIsTalking({ caption: "One more thing" });
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+
+    // A NEW conversation starts: the row is back.
+    daemon.appDisplaySession.value = { live: false, phase: "idle", caption: "" };
+    await flushPromises();
+    daemon.appDisplaySession.value = roomIsTalking({ caption: "Deploying now" });
+    await flushPromises();
+    const mini = wrapper.find("[data-testid='display-dock-mini']");
+    expect(mini.exists()).toBe(true);
+    expect(wrapper.find("[data-testid='display-dock-caption']").text()).toBe("Deploying now");
+  });
+
+  // The dock has a microphone in THIS window; a mirror is only a report.
+  it("keeps its own conversation in front of a mirror", async () => {
+    const wrapper = await mountDock();
+    daemon.appDisplaySession.value = roomIsTalking();
+    await flushPromises();
+    daemon.wake();
+    await flushPromises();
+
+    expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+  });
+
+  it("puts the window away once the room's conversation is over", async () => {
+    const wrapper = await mountDock();
+    daemon.appDisplaySession.value = roomIsTalking();
+    await flushPromises();
+
+    daemon.appDisplaySession.value = { live: false, phase: "idle", caption: "" };
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+    expect(overlay.dismiss).toHaveBeenCalledTimes(1);
   });
 });

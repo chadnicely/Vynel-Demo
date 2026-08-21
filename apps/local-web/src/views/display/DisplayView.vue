@@ -2,13 +2,16 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { DisplayOrb, DisplayPanel, DisplayStrip } from "@vynel/ui";
 import type { DisplayPanelRow } from "@vynel/ui";
+import type { DisplaySessionPhase } from "@vynel/contracts/voice/daemon-events";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useVoiceSession } from "../../composables/voice/use-voice-session.js";
 import { useVoiceDaemonLink } from "../../composables/voice/use-voice-daemon-link.js";
 import {
   voiceStageCaption,
   voiceStageIsListening,
+  voiceStageOrbState,
 } from "../../components/voice/voice-stage-view.js";
+import { useDisplaySessionAnnounce } from "../../composables/display/use-display-session-announce.js";
 import { useDisplayStatus } from "../../composables/display/use-display-status.js";
 import { useDisplayWidgets } from "../../composables/display/use-display-widgets.js";
 import type { SessionScope } from "../../composables/chat/session-scope.js";
@@ -137,6 +140,25 @@ const caption = computed(() =>
   voiceStageCaption(voice.view.value, isMuted.value, voice.failure.value),
 );
 const isListening = computed(() => voiceStageIsListening(voice.view.value, isMuted.value));
+
+// The display dock is this room in another window. It cannot see this screen,
+// and a Web Speech session cannot move between windows — so the room ANNOUNCES
+// the conversation it holds and the dock mirrors it in the corner while the
+// user works somewhere else. Muted counts as live: a muted room is a paused
+// conversation, not an ended one, and the row says so.
+//
+// The stage's orb vocabulary is the wire's plus `wake`, which belongs to the
+// daemon leg and never comes out of the room's own session — so the phase reads
+// the one mapping rather than keeping a second copy of it.
+const sessionPhase = computed<DisplaySessionPhase>(() => {
+  const orb = voiceStageOrbState(voice.view.value, isMuted.value);
+  return orb === "wake" ? "listening" : orb;
+});
+useDisplaySessionAnnounce(() => ({
+  live: voice.isActive.value || isMuted.value,
+  phase: sessionPhase.value,
+  caption: caption.value,
+}));
 
 // Three honest states, not two: a session the idle timer ended is not "Muted"
 // — nobody muted it — and the click that follows restarts it.

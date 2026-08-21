@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isVoiceSurface, parseVoiceDaemonEvent } from './daemon-events.js'
+import {
+  isVoiceSurface,
+  parseVoiceControlEvent,
+  parseVoiceDaemonEvent,
+} from './daemon-events.js'
 
 describe('voice daemon events', () => {
   it('parses the daemon kinds and drops the rest', () => {
@@ -55,11 +59,56 @@ describe('voice daemon events', () => {
     // channel; a daemon claiming them is not a daemon event.
     expect(parseVoiceDaemonEvent({ kind: 'display-active', active: true })).toBeNull()
     expect(parseVoiceDaemonEvent({ kind: 'daemon-link', connected: true })).toBeNull()
+    // The mirror frame is the api's word too — the daemon never holds a room.
+    expect(
+      parseVoiceDaemonEvent({ kind: 'display-session', live: true, phase: 'listening', caption: '' }),
+    ).toBeNull()
   })
 
   it('knows the two surfaces', () => {
     expect(isVoiceSurface('app')).toBe(true)
     expect(isVoiceSurface('dock')).toBe(true)
     expect(isVoiceSurface('tv')).toBe(false)
+  })
+})
+
+describe('voice control events', () => {
+  it('parses what one window tells the others, and nothing else', () => {
+    expect(parseVoiceControlEvent({ kind: 'display-active', active: true })).toEqual({
+      kind: 'display-active',
+      active: true,
+    })
+    expect(
+      parseVoiceControlEvent({
+        kind: 'display-session',
+        live: true,
+        phase: 'speaking',
+        caption: 'Two builds are green',
+      }),
+    ).toEqual({
+      kind: 'display-session',
+      live: true,
+      phase: 'speaking',
+      caption: 'Two builds are green',
+    })
+    // The daemon's own vocabulary goes the other way, through
+    // parseVoiceDaemonEvent — this door only knows the api's words.
+    expect(parseVoiceControlEvent({ kind: 'state', state: 'listening' })).toBeNull()
+    expect(parseVoiceControlEvent({ kind: 'daemon-link', connected: true })).toBeNull()
+    expect(parseVoiceControlEvent('nope')).toBeNull()
+    expect(parseVoiceControlEvent(null)).toBeNull()
+  })
+
+  it('refuses a frame it cannot believe, and tolerates a phase it has not heard of', () => {
+    // A non-boolean `active` is DROPPED rather than coerced: a window reading
+    // "yes" as true would hide the dock on a frame nobody meant to send.
+    expect(parseVoiceControlEvent({ kind: 'display-active', active: 'yes' })).toBeNull()
+    expect(parseVoiceControlEvent({ kind: 'display-session', live: 'yes', caption: '' })).toBeNull()
+    expect(parseVoiceControlEvent({ kind: 'display-session', live: true, phase: 'idle' })).toBeNull()
+    // Version skew: a newer window's phase must not park an older dock's orb
+    // in something it cannot interpret.
+    expect(
+      parseVoiceControlEvent({ kind: 'display-session', live: true, phase: 'dreaming', caption: 'hi' }),
+    ).toEqual({ kind: 'display-session', live: true, phase: 'idle', caption: 'hi' })
   })
 })

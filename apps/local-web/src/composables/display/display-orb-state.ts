@@ -1,4 +1,5 @@
 import { onUnmounted, ref, type Ref } from "vue";
+import type { DisplaySessionPhase } from "@vynel/contracts/voice/daemon-events";
 import { voiceStageIsListening } from "../../components/voice/voice-stage-view.js";
 import { observeSpokenSentenceStart } from "../voice/spoken-audio-player.js";
 import type { VoiceDaemonState } from "../voice/use-voice-daemon-link.js";
@@ -47,10 +48,30 @@ export function activityEnergy(activity: DisplayActivity): number {
 const SPEAKING_ENERGY = 0.95;
 const THINKING_ENERGY = 0.7;
 
-function phaseEnergy(phase: VoiceCommandSessionState | VoiceDaemonState): number {
+function phaseEnergy(
+  phase: VoiceCommandSessionState | VoiceDaemonState | DisplaySessionPhase,
+): number {
   if (phase === "speaking") return SPEAKING_ENERGY;
   if (phase === "thinking") return THINKING_ENERGY;
   return 0;
+}
+
+/** The orb for a conversation this window only MIRRORS — the app's Display
+ *  room announced its phase and nothing else. There is no session view to read
+ *  and no player to hear here: the mic and the speaker are in the other window,
+ *  so the phase alone drives all three dials. */
+export function mirroredOrbState(
+  phase: DisplaySessionPhase,
+  restingEnergy: number,
+): DisplayOrbState {
+  const isMuted = phase === "muted";
+  return {
+    energy: Math.max(restingEnergy, isMuted ? 0 : phaseEnergy(phase)),
+    // The room listens THROUGH its own reply, exactly as the local session
+    // does — every phase but the two silent ones keeps the mic open.
+    listening: !isMuted && phase !== "idle",
+    speaking: phase === "speaking",
+  };
 }
 
 /** The daemon leg as the room sees it: the wake daemon's own phase (its `state`

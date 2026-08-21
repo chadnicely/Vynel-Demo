@@ -71,6 +71,18 @@ rather than speech, and both exist because the app window and the display dock c
 |---|---|---|
 | `{ kind: 'show-display' }` | daemon → **app surfaces only** | a `VoiceDaemonEvent` (parsed by `parseVoiceDaemonEvent`, relayed like `state`) |
 | `{ kind: 'display-active', active }` | app window → every `voice:*` of that user | a `VoiceControlEvent` — the API's own word, a sibling of `daemon-link`, never parsed as a daemon event |
+| `{ kind: 'display-session', live, phase, caption }` | app window → every `voice:*` of that user | the second `VoiceControlEvent` — the conversation the ROOM is holding, so the dock can MIRROR a session it does not own |
+
+- **The mirror (`display-session`).** Most conversations start in the room, not on a wake, and a Web
+  Speech session cannot migrate across windows — so `DisplayView` announces its phase/caption
+  (`use-display-session-announce.ts`, one home; liveness + phase immediate, caption throttled to
+  ≥ 250 ms, `live: false` on end/unmount, re-announced on live-channel `status === 'open'`) via
+  **`POST /voice/display-session`** (`x-sdk-name: voice.setDisplaySession`, **no `x-mcp`**), and the dock
+  shows it as `mini` with `isMirror: true`: same park/stack rules, a read-only mic pill (Muted /
+  Listening — the microphone stays in the app), and the dock's OWN session always winning. The hub
+  memo is now per user **per kind**, and `releaseVoiceControlIfAppGone` retracts each fact that is
+  still on (`active: false` / `live: false`). The mini row also gained a keyboard-reachable **×**:
+  it ENDS a conversation the dock owns, and only dismisses a mirror until the next session starts.
 
 - **`POST /voice/display-active { active }`** → `{ published }` — user-scoped, `x-sdk-name:
   voice.setDisplayActive`, **no `x-mcp`** (a window talking to the user's other windows is not a

@@ -1,6 +1,9 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { liveChannelKeys } from "@vynel/contracts/chat/live-channel";
+import { parseVoiceControlEvent } from "@vynel/contracts/voice/daemon-events";
 import type {
+  DisplaySessionPhase,
+  VoiceControlEvent,
   VoiceRelayEvent,
   VoiceSubscriber,
   VoiceSurface,
@@ -30,12 +33,13 @@ import { isTauriShell } from "./tauri-overlay-window.js";
 // picks its owner (else newest) upstream, the api picks the window that took
 // the wake (else the surface's newest).
 //
-// Two frames on this channel are about WINDOWS rather than speech, and both
+// Three frames on this channel are about WINDOWS rather than speech, and all
 // exist because the app window and the display dock cannot see each other:
 // 'show-display' is the daemon asking the app to come forward on the Display
-// (a wake landed, the dock is taking it), and 'display-active' is the app
+// (a wake landed, the dock is taking it), 'display-active' is the app
 // answering whether the room is on screen — which is how the dock knows to get
-// out of its way.
+// out of its way — and 'display-session' is the conversation the room is
+// HOLDING, which is how the dock mirrors a session it does not own.
 
 /** The daemon's own conversation phase, as its `state` frames publish it. The
  *  wire carries a bare string, so an unknown phase from a newer daemon reads as
@@ -55,6 +59,15 @@ const VOICE_DAEMON_STATES = [
 ] as const;
 
 export type VoiceDaemonState = (typeof VOICE_DAEMON_STATES)[number];
+
+/** The conversation another window (the app's Display room) is holding — what
+ *  a mirroring surface draws when it has none of its own. */
+export interface AppDisplaySession {
+  readonly live: boolean;
+  readonly phase: DisplaySessionPhase;
+  /** The last line of it, as the room's own caption reads. */
+  readonly caption: string;
+}
 
 function toVoiceDaemonState(state: string): VoiceDaemonState {
   return VOICE_DAEMON_STATES.find((known) => known === state) ?? "idle";
@@ -121,6 +134,13 @@ export function useVoiceDaemonLink(options: {
   // orb — and the api replays the last value on re-subscribe, so a blip that
   // reset it would flash the dock open and shut for nothing.
   const isAppDisplayActive = ref(false);
+  // The conversation the APP window's room is holding, as it announced it —
+  // null until it says anything. The dock MIRRORS this when it has no
+  // conversation of its own: a session started in the room is the primary path,
+  // and a Web Speech session cannot migrate across windows, so the dock shows
+  // it rather than taking it. Not reset on a socket blip, for the same reason
+  // `isAppDisplayActive` isn't: the api replays the last value on re-subscribe.
+  const appDisplaySession = ref<AppDisplaySession | null>(null);
   let release: (() => void) | null = null;
 
   // Daemon-delegated playback ('speak' events): one player, drained in order.
@@ -149,7 +169,26 @@ export function useVoiceDaemonLink(options: {
     return producerSessionId !== null && producerSessionId === options.ownLiveSessionId?.();
   }
 
+  function applyControl(control: VoiceControlEvent): void {
+    if (control.kind === "display-active") {
+      isAppDisplayActive.value = control.active;
+      return;
+    }
+    appDisplaySession.value = {
+      live: control.live,
+      phase: control.phase,
+      caption: control.caption,
+    };
+  }
+
   function onEvent(raw: unknown): void {
+    // The api's own words go through their own door — a malformed control frame
+    // is ignored rather than coerced into a window state nobody announced.
+    const control = parseVoiceControlEvent(raw);
+    if (control !== null) {
+      applyControl(control);
+      return;
+    }
     const event = raw as VoiceRelayEvent;
     if (event.kind === "daemon-link") {
       isDaemonConnected.value = event.connected;
@@ -160,8 +199,6 @@ export function useVoiceDaemonLink(options: {
       options.onWake(event.command ?? "", event.turnWatchdogMs);
     } else if (event.kind === "state") {
       daemonState.value = toVoiceDaemonState(event.state);
-    } else if (event.kind === "display-active") {
-      isAppDisplayActive.value = event.active;
     } else if (event.kind === "show-display") {
       options.onShowDisplay?.();
     } else if (event.kind === "speak" && event.text) {
@@ -208,6 +245,7 @@ export function useVoiceDaemonLink(options: {
     daemonState,
     isDaemonSpeaking,
     isAppDisplayActive,
+    appDisplaySession,
     isPlayingRelayedLine,
     notifySessionEnd,
   };

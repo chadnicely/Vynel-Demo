@@ -16,6 +16,7 @@ import { useDisplayDockMode } from "../composables/display/use-display-dock-mode
 import {
   activityEnergy,
   displayOrbState,
+  mirroredOrbState,
   useSpokenClauseSpike,
 } from "../composables/display/display-orb-state.js";
 
@@ -33,6 +34,12 @@ import {
 // the app's Display has taken the conversation over and been left again. The
 // mode owns the window itself — where it parks, how big it is, and whether it
 // is on screen at all — so visibility can never disagree with what is drawn.
+//
+// The mini row has TWO owners. Usually it is this window's own conversation.
+// But most conversations start in the ROOM, and a Web Speech session cannot
+// move between windows — so when this window holds nothing and the app
+// announces a live session, the row MIRRORS it: same corner, the room's phase
+// and caption, and a mic pill that reports rather than switches.
 
 // The daemon focuses the Chrome variant by title (AppActivate) — keep in sync
 // with apps/voice `display-dock-window.ts`.
@@ -59,11 +66,23 @@ const isConversationInHand = ref(false);
 // is for a conversation that ended on its own.
 let closedByUser = false;
 
+// The mirror is somebody else's conversation, so dismissing it can only ever be
+// "not this one" — it comes back with the NEXT session rather than needing to
+// be turned on again.
+const isMirrorDismissed = ref(false);
+const mirroredSession = computed(() => daemon.appDisplaySession.value);
+const isMirrorAvailable = computed(() => mirroredSession.value?.live === true);
+watch(isMirrorAvailable, (available, wasAvailable) => {
+  if (available && !wasAvailable) isMirrorDismissed.value = false;
+});
+
 const dock = useDisplayDockMode({
   isConversationInHand,
   isAppDisplayActive: daemon.isAppDisplayActive,
+  isAppSessionLive: () => isMirrorAvailable.value && !isMirrorDismissed.value,
 });
 const mode = computed(() => dock.value.mode);
+const isMirror = computed(() => dock.value.isMirror);
 
 // The board Claude fills for the dock. Global: this window has no workspace to
 // be in — the wake word answers the global conversation.
@@ -100,7 +119,20 @@ function toggleMute(): void {
 function close(): void {
   closedByUser = true;
   isConversationInHand.value = false;
+  // Whatever the X was pointed at, the user asked for the window to go away —
+  // letting a mirror slide into the vacancy would answer the opposite.
+  isMirrorDismissed.value = true;
   if (voice.isActive.value) voice.end();
+}
+
+/** The mini row's X. A conversation this window owns ends; a mirror is only
+ *  put away — the room keeps talking, and the next session brings it back. */
+function closeMiniRow(): void {
+  if (isMirror.value) {
+    isMirrorDismissed.value = true;
+    return;
+  }
+  close();
 }
 
 // The window follows the mode, and only the mode. Both sources are primitives,
@@ -114,10 +146,12 @@ watch([mode, () => dock.value.stackAboveDesktopControl], ([next]) => {
     overlayWindow.reveal({ focus: next === "wake" });
     return;
   }
-  // Still holding the conversation = the app's Display took the room: step
-  // aside, never dismiss — outside Tauri that closes the window, and the live
-  // session would go with it.
-  if (isConversationInHand.value) overlayWindow.hide();
+  // Something can still bring the row back — our own conversation (the app's
+  // Display took the room) or the app's, which we only mirror. Step aside
+  // rather than dismiss: outside Tauri dismiss() CLOSES the window, taking a
+  // live session with it, and closing on every trip into the Display would
+  // leave nothing to mirror with on the way out.
+  if (isConversationInHand.value || isMirrorAvailable.value) overlayWindow.hide();
   else overlayWindow.dismiss();
 });
 
@@ -147,20 +181,37 @@ const statusLine = computed(() =>
 
 // The mini row's orb, off the same derivation the room uses. Its resting
 // energy is the idle one: the dock is a conversation in a corner, not the
-// status board — the fleet's own numbers live in the room.
+// status board — the fleet's own numbers live in the room. Mirrored, the
+// room's phase is ALL this window has: no session view, no player, no mic.
 const spikeKey = useSpokenClauseSpike();
 const miniOrb = computed(() =>
-  displayOrbState(voice.view.value, activityEnergy("idle"), isMuted.value, {
-    state: daemon.daemonState.value,
-    isPlayingRelayedLine: daemon.isPlayingRelayedLine.value,
-  }),
+  isMirror.value
+    ? mirroredOrbState(mirroredSession.value?.phase ?? "idle", activityEnergy("idle"))
+    : displayOrbState(voice.view.value, activityEnergy("idle"), isMuted.value, {
+        state: daemon.daemonState.value,
+        isPlayingRelayedLine: daemon.isPlayingRelayedLine.value,
+      }),
 );
 
 // Three honest states, not two: a session the idle timer ended is not "Muted".
+// A mirror has only two — "Resume" would offer a microphone this window cannot
+// open, since the session it reports lives in the app.
 const micLabel = computed(() => {
+  if (isMirror.value) {
+    return mirroredSession.value?.phase === "muted" ? "Muted" : "Listening";
+  }
   if (isMuted.value) return "Muted";
   return voice.isActive.value ? "Listening" : "Resume";
 });
+
+// What the corner row says, and whether its pill reads as live — the mirror
+// answers off the room's frame, everything else off this window's session.
+const miniCaption = computed(() =>
+  isMirror.value ? (mirroredSession.value?.caption ?? "") : caption.value,
+);
+const isMiniListening = computed(() =>
+  isMirror.value ? miniOrb.value.listening : isListening.value,
+);
 </script>
 
 <template>
@@ -172,11 +223,13 @@ const micLabel = computed(() => {
       v-if="mode === 'mini'"
       :orb="miniOrb"
       :spike-key="spikeKey"
-      :caption="caption"
+      :caption="miniCaption"
       :cards="dockCards"
       :mic-label="micLabel"
-      :is-listening="isListening"
+      :is-listening="isMiniListening"
+      :is-mirror="isMirror"
       @toggle-mute="toggleMute"
+      @close="closeMiniRow"
     />
 
     <div v-else class="stage-card" data-testid="display-dock-stage" data-tauri-drag-region>

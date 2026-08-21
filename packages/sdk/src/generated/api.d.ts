@@ -3761,6 +3761,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/display-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report the voice conversation the app window's Display is holding, so the dock can mirror it. */
+        post: operations["postVoiceDisplay-session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/calls": {
         parameters: {
             query?: never;
@@ -18025,6 +18042,37 @@ export interface operations {
             content: {
                 "application/json": {
                     active: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description { published } — false when this engine has no live channel to fan it over. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        published: boolean;
+                    };
+                };
+            };
+        };
+    };
+    "postVoiceDisplay-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    live: boolean;
+                    /** @enum {string} */
+                    phase: "idle" | "listening" | "thinking" | "speaking" | "muted";
+                    caption: string;
                 };
             };
         };

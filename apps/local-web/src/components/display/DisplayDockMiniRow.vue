@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DisplayOrb } from "@vynel/ui";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { DisplayDockCard } from "../../composables/display/display-dock-cards.js";
 
 // The mini dock: the Display's room squeezed into one row over the corner of
@@ -11,19 +11,33 @@ import type { DisplayDockCard } from "../../composables/display/display-dock-car
 //
 // It carries `.display-root` itself (the Display's ground and palette) so it
 // reads as the same surface as the room, at a tenth of the size.
-defineProps<{
+//
+// MIRROR MODE draws a conversation that lives in the APP window. The mic pill
+// then REPORTS instead of switching: a Web Speech session belongs to the window
+// that opened it and cannot migrate across windows, so a mic button here could
+// only lie — either doing nothing, or opening a second microphone beside the
+// one already listening in the room.
+const props = defineProps<{
   /** The orb's three dials, from the room's own derivation. */
   orb: { energy: number; listening: boolean; speaking: boolean };
   /** Bumps once per spoken clause. */
   spikeKey: number;
   caption: string;
   cards: ReadonlyArray<DisplayDockCard>;
-  /** "Listening" · "Muted" · "Resume". */
+  /** "Listening" · "Muted" · "Resume" (mirrored: "Listening" · "Muted"). */
   micLabel: string;
   isListening: boolean;
+  /** The conversation belongs to the app window — report it, never drive it. */
+  isMirror?: boolean;
 }>();
 
-defineEmits<{ toggleMute: [] }>();
+defineEmits<{ toggleMute: []; close: [] }>();
+
+// The X means two different things, and says so: it ENDS a conversation this
+// window owns, and only puts away a mirror of somebody else's.
+const closeLabel = computed(() =>
+  props.isMirror ? "Hide the voice status" : "End the voice conversation",
+);
 
 // A machine without canvas 2D loses the orb, not the row.
 const hasOrb = ref(true);
@@ -58,7 +72,16 @@ const hasOrb = ref(true);
         </span>
       </div>
     </div>
+    <span
+      v-if="isMirror"
+      class="mini-mic is-readonly"
+      :class="{ on: isListening }"
+      data-testid="display-dock-mic"
+    >
+      {{ micLabel }}
+    </span>
     <button
+      v-else
       type="button"
       class="mini-mic"
       :class="{ on: isListening }"
@@ -67,6 +90,16 @@ const hasOrb = ref(true);
       @click="$emit('toggleMute')"
     >
       {{ micLabel }}
+    </button>
+    <button
+      type="button"
+      class="mini-close"
+      :aria-label="closeLabel"
+      :title="closeLabel"
+      data-testid="display-dock-close"
+      @click="$emit('close')"
+    >
+      ×
     </button>
   </div>
 </template>
@@ -157,6 +190,34 @@ const hasOrb = ref(true);
 
 .mini-mic.on {
   border-color: var(--display-accent, #4fd8ff);
+  color: var(--display-text, #cdf3ff);
+}
+
+/* Mirrored: a label, not a switch — nothing to click, so nothing that looks
+   clickable. */
+.mini-mic.is-readonly {
+  cursor: default;
+}
+
+/* The way out of the corner. Small and quiet — the row is a status widget over
+   someone else's work, not a dialog. */
+.mini-close {
+  flex: none;
+  align-self: flex-start;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--display-accent-dim, rgba(79, 216, 255, 0.45));
+  cursor: pointer;
+}
+
+.mini-close:hover,
+.mini-close:focus-visible {
   color: var(--display-text, #cdf3ff);
 }
 </style>

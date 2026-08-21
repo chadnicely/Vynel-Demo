@@ -6,7 +6,8 @@
 // that surface — the browser end reads it as its "daemon connected" light) and
 // `VoiceControlEvent` (what one window tells the others, fanned by the hub).
 // They never pass through `parseVoiceDaemonEvent`: it parses what the daemon
-// can say, and a daemon that said `display-active` would be lying.
+// can say, and a daemon that said `display-active` would be lying —
+// `parseVoiceControlEvent` is the api vocabulary's own door.
 
 /** Which window a voice subscriber is — the daemon prefers 'dock' for wake
  *  delivery; 'app' tabs get state + play delegated speech. */
@@ -44,12 +45,38 @@ export type VoiceDaemonEvent =
    *  wake target has a conversation to run, not a view to switch. */
   | { kind: 'show-display' }
 
+/** A voice conversation's phase as one window reports it to the others — the
+ *  same five the orb has, minus the daemon's own `wake`, which never belongs to
+ *  a window's session. A tuple so the api's Zod schema and this parser read the
+ *  vocabulary from ONE place. */
+export const DISPLAY_SESSION_PHASES = [
+  'idle',
+  'listening',
+  'thinking',
+  'speaking',
+  'muted',
+] as const
+
+export type DisplaySessionPhase = (typeof DISPLAY_SESSION_PHASES)[number]
+
 /** What one of the user's windows tells the others over the voice channel —
- *  produced by a route in the api, never by the daemon. `display-active` is the
- *  app window's answer to "is the in-app Display on screen right now", which is
- *  the one thing the dock cannot see for itself and the whole basis of its
- *  hide/reveal rule. */
-export type VoiceControlEvent = { kind: 'display-active'; active: boolean }
+ *  produced by a route in the api, never by the daemon.
+ *
+ *  `display-active` is the app window's answer to "is the in-app Display on
+ *  screen right now", which is the one thing the dock cannot see for itself and
+ *  the whole basis of its hide/reveal rule. `display-session` is the other half:
+ *  the conversation the ROOM is holding, so the dock can MIRROR a session that
+ *  lives in the app window — the primary path, since most conversations start
+ *  in the room rather than on a wake. */
+export type VoiceControlEvent =
+  | { kind: 'display-active'; active: boolean }
+  | {
+      kind: 'display-session'
+      live: boolean
+      phase: DisplaySessionPhase
+      /** The last line of the conversation, one sentence of it. */
+      caption: string
+    }
 
 export type VoiceRelayEvent =
   | VoiceDaemonEvent
@@ -85,4 +112,39 @@ export function parseVoiceDaemonEvent(raw: unknown): VoiceDaemonEvent | null {
     default:
       return null
   }
+}
+
+/** Parse one CONTROL frame off the voice channel; null = not one (the caller
+ *  falls through to the daemon vocabulary).
+ *
+ *  The producer is a Zod-validated route in this repo, so this is not input
+ *  validation — it is version skew: a newer app window can announce a phase an
+ *  older dock has never heard of, and a dock that parked its orb in it would be
+ *  stuck there. Unknown phases read as `idle`, the same tolerance
+ *  `toVoiceDaemonState` gives the daemon's own `state`. */
+export function parseVoiceControlEvent(raw: unknown): VoiceControlEvent | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const candidate = raw as Record<string, unknown>
+  switch (candidate['kind']) {
+    case 'display-active':
+      return typeof candidate['active'] === 'boolean'
+        ? { kind: 'display-active', active: candidate['active'] }
+        : null
+    case 'display-session':
+      return typeof candidate['live'] === 'boolean' && typeof candidate['caption'] === 'string'
+        ? {
+            kind: 'display-session',
+            live: candidate['live'],
+            phase: toDisplaySessionPhase(candidate['phase']),
+            caption: candidate['caption'],
+          }
+        : null
+    default:
+      return null
+  }
+}
+
+function toDisplaySessionPhase(value: unknown): DisplaySessionPhase {
+  if (typeof value !== 'string') return 'idle'
+  return DISPLAY_SESSION_PHASES.find((known) => known === value) ?? 'idle'
 }

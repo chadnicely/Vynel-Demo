@@ -10,6 +10,7 @@ import { createSpokenAudioPlayer } from "../voice/spoken-audio-player.js";
 import {
   activityEnergy,
   displayOrbState,
+  mirroredOrbState,
   useSpokenClauseSpike,
   type DisplayDaemonLeg,
 } from "./display-orb-state.js";
@@ -229,6 +230,42 @@ describe("displayOrbState — the daemon leg", () => {
     expect(
       displayOrbState(view(), activityEnergy("working"), false, daemonLeg("listening")).energy,
     ).toBe(activityEnergy("working"));
+  });
+});
+
+// The mirrored orb: the app window's room announced a phase and nothing else —
+// there is no session view here and no player to hear, so the phase alone
+// drives all three dials.
+describe("mirroredOrbState", () => {
+  it("lights the dials off the mirrored phase alone", () => {
+    expect(mirroredOrbState("speaking", activityEnergy("idle"))).toEqual({
+      energy: 0.95,
+      listening: true,
+      speaking: true,
+    });
+    // The room listens THROUGH its own reply — thinking keeps the mic open.
+    expect(mirroredOrbState("thinking", activityEnergy("idle"))).toEqual({
+      energy: 0.7,
+      listening: true,
+      speaking: false,
+    });
+    expect(mirroredOrbState("listening", activityEnergy("idle"))).toEqual({
+      energy: activityEnergy("idle"),
+      listening: true,
+      speaking: false,
+    });
+  });
+
+  it("goes quiet for the two silent phases, and never dims below its resting floor", () => {
+    expect(mirroredOrbState("idle", activityEnergy("idle"))).toEqual({
+      energy: activityEnergy("idle"),
+      listening: false,
+      speaking: false,
+    });
+    expect(mirroredOrbState("muted", activityEnergy("idle")).listening).toBe(false);
+    expect(mirroredOrbState("muted", activityEnergy("working")).energy).toBe(
+      activityEnergy("working"),
+    );
   });
 });
 

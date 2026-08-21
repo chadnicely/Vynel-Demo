@@ -2,14 +2,15 @@
 //
 //   POST   /voice/speak           -> speak (rootSurface; callId retargets into a call)
 //   POST   /voice/display-active  -> the app window's screen state (NOT a tool)
+//   POST   /voice/display-session -> the room's live conversation, mirrored (NOT a tool)
 //   POST   /voice/calls           -> start_call (rootSurface, CARDS in ask mode)
 //   GET    /voice/calls           -> list_calls (rootSurface, read-only)
 //   DELETE /voice/calls/:callId   -> end_call (rootSurface, auto-approved)
 //
-// `display-active` is the one door here that carries no `x-mcp`: it is a
-// WINDOW talking to the user's other windows, not a capability the model may
-// reach for. Claude deciding to hide the dock would be a control the user never
-// asked for.
+// `display-active` and `display-session` are the two doors here that carry no
+// `x-mcp`: they are a WINDOW talking to the user's other windows, not a
+// capability the model may reach for. Claude deciding to hide the dock — or to
+// claim the room is talking — would be a control the user never asked for.
 //
 // `speak` lets ANY global session emit voice: the light voice-triage session, the
 // global root answering a voice request, a scheduled task's morning briefing.
@@ -55,6 +56,8 @@ import {
 import {
   DisplayActiveRequestSchema,
   DisplayActiveResponseSchema,
+  DisplaySessionRequestSchema,
+  DisplaySessionResponseSchema,
   EndCallResponseSchema,
   ListCallsResponseSchema,
   SpeakRequestSchema,
@@ -134,6 +137,29 @@ export const voiceApp = factory
       const { active } = c.req.valid('json')
       const sink = c.var.voiceControlSink
       sink?.publish(c.var.user.id, { kind: 'display-active', active })
+      return c.json({ published: sink !== undefined })
+    },
+  )
+  .post(
+    '/display-session',
+    describeRoute({
+      tags: ['voice'],
+      summary:
+        "Report the voice conversation the app window's Display is holding, so the dock can mirror it.",
+      'x-sdk-name': 'voice.setDisplaySession',
+      responses: {
+        200: {
+          description: '{ published } — false when this engine has no live channel to fan it over.',
+          content: { 'application/json': { schema: resolver(DisplaySessionResponseSchema) } },
+        },
+      },
+    }),
+    validator('json', DisplaySessionRequestSchema),
+    ...userScoped,
+    (c) => {
+      const { live, phase, caption } = c.req.valid('json')
+      const sink = c.var.voiceControlSink
+      sink?.publish(c.var.user.id, { kind: 'display-session', live, phase, caption })
       return c.json({ published: sink !== undefined })
     },
   )

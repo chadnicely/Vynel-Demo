@@ -128,10 +128,16 @@ interface ConnectionState {
 
 export class LiveChannelHub {
   private readonly connections = new Map<string, ConnectionState>()
-  /** The last voice-control frame each user's app window published — replayed
-   *  to a voice subscriber that joins after it (the dock reconnecting, or
-   *  opening while the room is already on screen). */
-  private readonly lastVoiceControl = new Map<string, VoiceControlEvent>()
+  /** The last voice-control frame of EACH kind that each user's app window
+   *  published — replayed to a voice subscriber that joins after them (the dock
+   *  reconnecting, or opening while the room is already on screen). Per kind
+   *  because the two facts are independent: "the room is on screen" and "the
+   *  room is holding a conversation" arrive separately and neither replaces
+   *  the other. */
+  private readonly lastVoiceControl = new Map<
+    string,
+    Map<VoiceControlEvent['kind'], VoiceControlEvent>
+  >()
   private readonly limits: LiveChannelLimits
   private readonly now: () => number
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
@@ -212,7 +218,10 @@ export class LiveChannelHub {
    *  fact again. `closeConnection` drops the memo when the last window that
    *  could be showing a Display goes away. */
   publishVoiceControl(userId: string, frame: VoiceControlEvent): void {
-    this.lastVoiceControl.set(userId, frame)
+    const remembered =
+      this.lastVoiceControl.get(userId) ?? new Map<VoiceControlEvent['kind'], VoiceControlEvent>()
+    remembered.set(frame.kind, frame)
+    this.lastVoiceControl.set(userId, remembered)
     this.sendToVoiceSubscriptions(userId, frame)
   }
 
@@ -417,10 +426,11 @@ export class LiveChannelHub {
         })
         if (detached) handle()
         else unsubscribe = handle
-        // After the daemon's own replay, so the window reads the two facts in
-        // the order they were established.
-        const control = this.lastVoiceControl.get(state.userId)
-        if (control !== undefined) this.send(state, { kind: 'event', channel, event: control })
+        // After the daemon's own replay, so the window reads the facts in the
+        // order they were established.
+        for (const control of this.lastVoiceControl.get(state.userId)?.values() ?? []) {
+          this.send(state, { kind: 'event', channel, event: control })
+        }
       },
     }
   }
@@ -482,15 +492,18 @@ export class LiveChannelHub {
     if (this.connections.size === 0) this.stopHeartbeat()
   }
 
-  /** The last window that could be showing a Display just closed — retract the
-   *  fact instead of leaving the dock hidden behind a `true` nobody is left to
-   *  take back. */
+  /** The last window that could be showing a Display just closed — retract
+   *  every fact it announced instead of leaving the dock hidden behind a `true`
+   *  (or mirroring a room that is gone) nobody is left to take back. The app
+   *  window is the sole producer of BOTH kinds, so one liveness check answers
+   *  for both; the dock's own subscription deliberately does not count. */
   private releaseVoiceControlIfAppGone(userId: string): void {
-    const control = this.lastVoiceControl.get(userId)
-    if (control === undefined || this.hasAppVoiceSubscription(userId)) return
+    const remembered = this.lastVoiceControl.get(userId)
+    if (remembered === undefined || this.hasAppVoiceSubscription(userId)) return
     this.lastVoiceControl.delete(userId)
-    if (control.active) {
-      this.sendToVoiceSubscriptions(userId, { kind: 'display-active', active: false })
+    for (const control of remembered.values()) {
+      const retraction = retractVoiceControl(control)
+      if (retraction !== null) this.sendToVoiceSubscriptions(userId, retraction)
     }
   }
 
@@ -521,6 +534,16 @@ export class LiveChannelHub {
       this.send(state, { kind: 'ping' })
     }
   }
+}
+
+/** How a fact is taken back when the window that announced it is gone — null
+ *  for a fact that is already off, which nobody is holding and nobody needs to
+ *  hear denied. */
+function retractVoiceControl(frame: VoiceControlEvent): VoiceControlEvent | null {
+  if (frame.kind === 'display-active') {
+    return frame.active ? { kind: 'display-active', active: false } : null
+  }
+  return frame.live ? { kind: 'display-session', live: false, phase: 'idle', caption: '' } : null
 }
 
 function broadcasterKeyFor(parsed: ParsedLiveChannelKey): string {

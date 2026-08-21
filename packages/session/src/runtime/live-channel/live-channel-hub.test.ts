@@ -506,6 +506,89 @@ describe('LiveChannelHub', () => {
     hub.dispose()
   })
 
+  // The two control facts are independent — "the room is on screen" and "the
+  // room is holding a conversation" arrive separately, and a dock that heard
+  // only the newer one would mirror a session it cannot place.
+  it('remembers each control kind and replays them all to a late window', () => {
+    const { voice } = fakeVoiceSource()
+    const { hub } = buildHub({ voice })
+    const app = fakeSocket()
+    const appConnection = hub.connect({ userId: USER, transport: app.transport })
+    appConnection.handleMessage(subscribeMessage('voice:app'))
+    app.take()
+    hub.publishVoiceControl(USER, { kind: 'display-active', active: false })
+    hub.publishVoiceControl(USER, {
+      kind: 'display-session',
+      live: true,
+      phase: 'listening',
+      caption: 'Listening…',
+    })
+    // A newer caption REPLACES the older one rather than piling up.
+    hub.publishVoiceControl(USER, {
+      kind: 'display-session',
+      live: true,
+      phase: 'speaking',
+      caption: 'Two builds are green',
+    })
+    app.take()
+
+    const dock = fakeSocket()
+    const dockConnection = hub.connect({ userId: USER, transport: dock.transport })
+    dock.take()
+    dockConnection.handleMessage(subscribeMessage('voice:dock'))
+    const replayed = dock.take()
+    expect(replayed).toContainEqual({
+      kind: 'event',
+      channel: 'voice:dock',
+      event: { kind: 'display-active', active: false },
+    })
+    expect(replayed).toContainEqual({
+      kind: 'event',
+      channel: 'voice:dock',
+      event: {
+        kind: 'display-session',
+        live: true,
+        phase: 'speaking',
+        caption: 'Two builds are green',
+      },
+    })
+    // One frame per kind, plus the subscribe ack and the daemon's own replay.
+    expect(replayed).toHaveLength(4)
+    hub.dispose()
+  })
+
+  it('retracts a live mirrored session when the app window closes, and nothing that was already off', () => {
+    const { voice } = fakeVoiceSource()
+    const { hub } = buildHub({ voice })
+    const app = fakeSocket()
+    const dock = fakeSocket()
+    const appConnection = hub.connect({ userId: USER, transport: app.transport })
+    const dockConnection = hub.connect({ userId: USER, transport: dock.transport })
+    appConnection.handleMessage(subscribeMessage('voice:app'))
+    dockConnection.handleMessage(subscribeMessage('voice:dock'))
+    // The room was never on screen (the user talked to it, then switched away)
+    // — so there is no `display-active: true` to take back, only the session.
+    hub.publishVoiceControl(USER, { kind: 'display-active', active: false })
+    hub.publishVoiceControl(USER, {
+      kind: 'display-session',
+      live: true,
+      phase: 'thinking',
+      caption: 'Thinking…',
+    })
+    app.take()
+    dock.take()
+
+    appConnection.close()
+    expect(dock.take()).toEqual([
+      {
+        kind: 'event',
+        channel: 'voice:dock',
+        event: { kind: 'display-session', live: false, phase: 'idle', caption: '' },
+      },
+    ])
+    hub.dispose()
+  })
+
   it('without a voice source a voice subscribe answers not_found', () => {
     const { hub } = buildHub()
     const socket = fakeSocket()

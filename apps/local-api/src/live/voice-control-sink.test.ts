@@ -60,6 +60,32 @@ describe('createHubVoiceControlSink', () => {
     hub.dispose()
   })
 
+  // The mirror frame rides the same seam — the sink knows only "one window's
+  // news", never which of the two facts it carries.
+  it('carries the room’s live conversation over the same path', () => {
+    const hub = buildHub()
+    const sink = createHubVoiceControlSink(hub)
+    const ownerDock = fakeTransport()
+    hub.connect({ userId: OWNER, transport: ownerDock.transport }).handleMessage(subscribeToDock)
+    ownerDock.take()
+
+    sink.publish(OWNER, {
+      kind: 'display-session',
+      live: true,
+      phase: 'listening',
+      caption: 'Listening…',
+    })
+
+    expect(ownerDock.take()).toEqual([
+      {
+        kind: 'event',
+        channel: 'voice:dock:wake',
+        event: { kind: 'display-session', live: true, phase: 'listening', caption: 'Listening…' },
+      },
+    ])
+    hub.dispose()
+  })
+
   it('never throws back at the window that spoke, however broken the listener is', () => {
     const hub = buildHub()
     const sink = createHubVoiceControlSink(hub)

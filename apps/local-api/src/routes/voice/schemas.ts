@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DISPLAY_SESSION_PHASES } from '@vynel/contracts/voice/daemon-events'
 
 // The `speak` tool's wire contract. `text` is SPOKEN aloud, so it must be plain
 // spoken-style prose — the description steers the model; the daemon speaks it
@@ -33,6 +34,21 @@ export const DisplayActiveRequestSchema = z.object({
 })
 
 export const DisplayActiveResponseSchema = z.object({
+  /** `false` = no live channel on this engine, so no window heard it. */
+  published: z.boolean(),
+})
+
+// The other half of the same seam: the conversation the app window's Display
+// room is HOLDING, so the display dock can mirror a session that lives in
+// another window. `caption` is the last line of it, capped at a sentence or
+// two — the mini row shows one line and the room carries the whole reply.
+export const DisplaySessionRequestSchema = z.object({
+  live: z.boolean(),
+  phase: z.enum(DISPLAY_SESSION_PHASES),
+  caption: z.string().max(280),
+})
+
+export const DisplaySessionResponseSchema = z.object({
   /** `false` = no live channel on this engine, so no window heard it. */
   published: z.boolean(),
 })

@@ -291,6 +291,44 @@ describe("what the two windows tell each other", () => {
     expect(link().isAppDisplayActive.value).toBe(true);
   });
 
+  // The other half: the conversation the ROOM is holding, which the dock
+  // mirrors in its corner while the user works somewhere else.
+  it("reads the app window's live conversation, and keeps it across a socket drop", () => {
+    const { link, socket } = mountLink("dock");
+    socket.serverAcks("voice:dock:wake");
+    expect(link().appDisplaySession.value).toBeNull();
+
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:dock:wake",
+      event: {
+        kind: "display-session",
+        live: true,
+        phase: "speaking",
+        caption: "Two builds are green",
+      },
+    } as unknown as LiveChannelServerFrame);
+    expect(link().appDisplaySession.value).toEqual({
+      live: true,
+      phase: "speaking",
+      caption: "Two builds are green",
+    });
+
+    // A phase a newer app window invented reads as 'idle' rather than parking
+    // the mirrored orb in something this one cannot interpret.
+    socket.serverSends({
+      kind: "event",
+      channel: "voice:dock:wake",
+      event: { kind: "display-session", live: true, phase: "dreaming", caption: "hm" },
+    } as unknown as LiveChannelServerFrame);
+    expect(link().appDisplaySession.value?.phase).toBe("idle");
+
+    // Same reason as `display-active`: a blip would flash the corner row open
+    // and shut, and the api replays the fact on re-subscribe anyway.
+    socket.serverDrops();
+    expect(link().appDisplaySession.value?.live).toBe(true);
+  });
+
   it("hands show-display to the surface that can act on it", () => {
     const { onShowDisplay, socket } = mountLink("app");
     socket.serverAcks("voice:app");

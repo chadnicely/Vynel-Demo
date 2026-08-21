@@ -31,6 +31,14 @@ import {
 // middle of the screen behind it. That latch is the only thing separating
 // `wake` from `mini`, both of which are otherwise "a conversation in hand with
 // the room off screen".
+//
+// A mini row has TWO possible owners, and that is the other axis. Usually the
+// dock's own session is what it draws. But most conversations start in the
+// ROOM, not on a wake — and a Web Speech session cannot migrate across windows
+// — so when the dock holds nothing and the app announces a live session, the
+// dock shows that one as a MIRROR: same corner, same size, same stacking, but
+// the mic lives in the app and this row only reports it. The dock's own
+// session always wins; a mirror never competes with a conversation in hand.
 
 export type DisplayDockMode = "hidden" | "wake" | "mini";
 
@@ -53,12 +61,18 @@ export interface DisplayDockPresence {
   /** The room has already had this conversation once — the dock is a corner
    *  widget for the rest of it. */
   readonly wasTakenOverByTheRoom: boolean;
+  /** The APP window's own voice session is live (its `display-session` frame),
+   *  and the user has not dismissed the mirror of it. */
+  readonly isAppSessionLive: boolean;
   /** The desktop-control attention overlay is on screen, in the same corner. */
   readonly isDesktopOverlayVisible: boolean;
 }
 
 export interface DisplayDockLayoutState {
   readonly mode: DisplayDockMode;
+  /** The row on screen belongs to the APP window: it reports that session and
+   *  never drives it. Only ever true alongside `mini`. */
+  readonly isMirror: boolean;
   readonly park: OverlayPark;
   /** The mini dock sits above the desktop-control overlay rather than on it. */
   readonly stackAboveDesktopControl: boolean;
@@ -69,12 +83,13 @@ export interface DisplayDockLayoutState {
 
 /** The whole rule, pure. */
 export function displayDockLayout(presence: DisplayDockPresence): DisplayDockLayoutState {
-  const mode = dockMode(presence);
+  const { mode, isMirror } = dockShape(presence);
   const stackAboveDesktopControl = mode === "mini" && presence.isDesktopOverlayVisible;
   const park: OverlayPark = mode === "mini" ? "bottom-right" : "center";
   const size = mode === "mini" ? DISPLAY_DOCK_MINI_SIZE : DISPLAY_DOCK_WAKE_SIZE;
   return {
     mode,
+    isMirror,
     park,
     stackAboveDesktopControl,
     layout: {
@@ -88,12 +103,27 @@ export function displayDockLayout(presence: DisplayDockPresence): DisplayDockLay
   };
 }
 
-function dockMode(presence: DisplayDockPresence): DisplayDockMode {
-  if (!presence.isConversationInHand) return "hidden";
-  // The room owns the orb whenever it is on screen: two orbs for one
-  // conversation would read as two assistants.
-  if (presence.isAppDisplayActive) return "hidden";
-  return presence.wasTakenOverByTheRoom ? "mini" : "wake";
+function dockShape(presence: DisplayDockPresence): {
+  mode: DisplayDockMode;
+  isMirror: boolean;
+} {
+  // The dock's OWN conversation comes first — it has a microphone in this
+  // window, and a mirror of somebody else's session must never displace it.
+  if (presence.isConversationInHand) {
+    // The room owns the orb whenever it is on screen: two orbs for one
+    // conversation would read as two assistants.
+    if (presence.isAppDisplayActive) return { mode: "hidden", isMirror: false };
+    return {
+      mode: presence.wasTakenOverByTheRoom ? "mini" : "wake",
+      isMirror: false,
+    };
+  }
+  // Nothing of our own, and the app is talking off screen: mirror it. The same
+  // one-orb rule applies — while the room is up, the room draws it.
+  if (presence.isAppSessionLive && !presence.isAppDisplayActive) {
+    return { mode: "mini", isMirror: true };
+  }
+  return { mode: "hidden", isMirror: false };
 }
 
 /** How often the desktop overlay's linger rule is re-read. It hides a fixed
@@ -105,6 +135,9 @@ export interface DisplayDockModeInputs {
   isConversationInHand: MaybeRefOrGetter<boolean>;
   /** The main window's Display is active (the daemon link's `display-active`). */
   isAppDisplayActive: MaybeRefOrGetter<boolean>;
+  /** There is a session in the app window worth mirroring (the daemon link's
+   *  `display-session`, minus any dismissal the user made of it). */
+  isAppSessionLive: MaybeRefOrGetter<boolean>;
 }
 
 /** The dock's mode as it changes. Mounts the window's own `activity`
@@ -147,6 +180,7 @@ export function useDisplayDockMode(
       isConversationInHand: toValue(inputs.isConversationInHand),
       isAppDisplayActive: toValue(inputs.isAppDisplayActive),
       wasTakenOverByTheRoom: wasTakenOverByTheRoom.value,
+      isAppSessionLive: toValue(inputs.isAppSessionLive),
       isDesktopOverlayVisible: isDesktopOverlayVisible(desktopActivity.state, nowMs.value),
     }),
   );

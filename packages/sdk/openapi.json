@@ -37278,6 +37278,70 @@
         }
       }
     },
+    "/voice/display-session": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ published } — false when this engine has no live channel to fan it over.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "published": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "published"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceDisplay-session",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Report the voice conversation the app window's Display is holding, so the dock can mirror it.",
+        "x-sdk-name": "voice.setDisplaySession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "live": {
+                    "type": "boolean"
+                  },
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "idle",
+                      "listening",
+                      "thinking",
+                      "speaking",
+                      "muted"
+                    ]
+                  },
+                  "caption": {
+                    "type": "string",
+                    "maxLength": 280
+                  }
+                },
+                "required": [
+                  "live",
+                  "phase",
+                  "caption"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/voice/calls": {
       "post": {
         "responses": {

@@ -14,6 +14,7 @@ import type { LiveChannelServerFrame } from "@vynel/contracts/chat/live-channel"
 import type { DisplayWidgetView } from "@vynel/contracts/display/display-widget";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { DisplayBoardChange } from "../../composables/display/use-display-widgets.js";
+import type { DisplaySessionAnnouncement } from "../../composables/display/use-display-session-announce.js";
 import type { SessionScope } from "../../composables/chat/session-scope.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import {
@@ -187,14 +188,27 @@ function quietClient(): VynelClient {
       }),
     },
     sessions: { overview: async () => [] },
+    // The room announces the conversation it holds so the display dock (another
+    // window) can mirror it — every phase change, every mount.
+    voice: {
+      setDisplaySession: async (announcement: DisplaySessionAnnouncement) => {
+        announcedSessions.push(announcement);
+        return { published: false };
+      },
+    },
   } as unknown as VynelClient;
 }
 
 /** POSTs the room makes on its own — only the daemon's session hand-back. */
 let posted: Array<[string, RequestInit | undefined]>;
+/** Every `setDisplaySession` the room announced, in order — what the display
+ *  dock mirrors while the user is looking somewhere else. */
+let announcedSessions: DisplaySessionAnnouncement[];
+let mounted: ReturnType<typeof mount> | null = null;
 
 beforeEach(() => {
   posted = [];
+  announcedSessions = [];
   board.widgets.value = [];
   vi.stubGlobal("fetch", (url: string, init?: RequestInit) => {
     posted.push([url, init]);
@@ -205,7 +219,12 @@ beforeEach(() => {
   vi.stubGlobal("WebSocket", undefined);
 });
 
+// One room at a time: the voice stub is a module singleton, so a view left
+// mounted by an earlier case would answer this one's session changes too — and
+// announce them to the dock a second time.
 afterEach(() => {
+  mounted?.unmount();
+  mounted = null;
   vi.unstubAllGlobals();
 });
 
@@ -234,6 +253,7 @@ async function mountDisplay(
       provide: { [vynelClientKey as symbol]: quietClient() },
     },
   });
+  mounted = wrapper;
   await flushPromises();
   return wrapper;
 }
@@ -473,6 +493,51 @@ describe("DisplayView — the daemon link", () => {
     idleTimeout();
 
     expect(posted).toEqual([["/voice/session/end", { method: "POST" }]]);
+  });
+});
+
+// The display dock is this room in another window, and cannot see this screen.
+// A Web Speech session cannot move between windows either — so the room says
+// what it is holding and the dock MIRRORS it in the corner.
+describe("DisplayView — announcing the conversation to the dock", () => {
+  it("announces the phase the moment it changes, and stops on unmount", async () => {
+    const wrapper = await mountDisplay();
+    await flushPromises();
+    // `voice.start()` runs on mount, so the room opens already listening.
+    expect(announcedSessions.at(-1)).toEqual({
+      live: true,
+      phase: "listening",
+      caption: "Listening…",
+    });
+
+    voice.view.value = { state: "thinking", transcript: "", spokenText: "", notice: "" };
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toMatchObject({ live: true, phase: "thinking" });
+
+    // The room going away takes the mirror with it.
+    wrapper.unmount();
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toEqual({ live: false, phase: "idle", caption: "" });
+  });
+
+  // Muted is a PAUSED conversation, not an ended one — the corner row says so
+  // rather than disappearing and stranding the user's own mute.
+  it("keeps a muted room live, and reports it as muted", async () => {
+    const wrapper = await mountDisplay();
+    await wrapper.find("[data-testid='display-listening-pill']").trigger("click");
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toEqual({
+      live: true,
+      phase: "muted",
+      caption: "Muted — Vynel isn't listening",
+    });
+  });
+
+  it("says the conversation is over when the idle timer ends it", async () => {
+    await mountDisplay();
+    idleTimeout();
+    await flushPromises();
+    expect(announcedSessions.at(-1)).toMatchObject({ live: false, phase: "idle" });
   });
 });
 
