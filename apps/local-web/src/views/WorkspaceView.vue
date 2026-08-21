@@ -38,7 +38,7 @@ import { useDecideApproval } from "../composables/approvals/use-decide-approval.
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import type { ComposerSettings } from "../composables/chat/use-session-settings.js";
-import { useUiStore } from "../stores/ui-store.js";
+import { isTasksPanelSurface, useUiStore } from "../stores/ui-store.js";
 import { useCustomizeStore } from "../stores/customize-store.js";
 import { personaFaceOf } from "../utils/persona-face.js";
 import { useActivityStore } from "../stores/activity-store.js";
@@ -408,6 +408,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
              (Kafi, 2026-08-15) — both open a side pane on THIS room, so they
              belong to the same cluster. -->
         <IconButton
+          v-if="isTasksPanelSurface(shell.mainView)"
           label="Toggle tasks"
           :active="ui.isTasksPanelOpen"
           @click="ui.isTasksPanelOpen = !ui.isTasksPanelOpen"
@@ -492,7 +493,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
          the app theme is, and a lit rail glued to its edge reads as breakage
          (the same call GlobalChatView makes). -->
     <TasksPanel
-      v-if="ui.isTasksPanelOpen && !isDisplayOpen"
+      v-if="ui.isTasksPanelOpen && isTasksPanelSurface(shell.mainView)"
       :scope="scope"
       :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
     />

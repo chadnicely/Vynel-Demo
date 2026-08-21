@@ -57,7 +57,9 @@ describe("GlobalChatView — the Display branch", () => {
     expect(wrapper.findComponent(DisplayView).exists()).toBe(true);
   });
 
-  it("keeps the tasks rail off the room, and beside every other canvas", async () => {
+  // The tasks rail is the CHAT's (Kafi, 2026-08-22): open there by default,
+  // off the room and off every section.
+  it("keeps the tasks rail beside the chat only — not the room, not a section", async () => {
     const { wrapper, ui } = await mountCanvas("display");
     expect(ui.isTasksPanelOpen).toBe(true); // the rail opens by default
     expect(wrapper.findComponent(TasksPanel).exists()).toBe(false);
@@ -65,6 +67,14 @@ describe("GlobalChatView — the Display branch", () => {
     ui.globalTab.shell.mainView = "chat";
     await wrapper.vm.$nextTick();
     expect(wrapper.findComponent(DisplayView).exists()).toBe(false);
+    expect(wrapper.findComponent(TasksPanel).exists()).toBe(true);
+
+    ui.globalTab.shell.mainView = "tasks";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent(TasksPanel).exists()).toBe(false);
+    // The preference survives the detour: back on the chat, the rail is back.
+    ui.globalTab.shell.mainView = "chat";
+    await wrapper.vm.$nextTick();
     expect(wrapper.findComponent(TasksPanel).exists()).toBe(true);
   });
 });

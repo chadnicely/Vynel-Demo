@@ -77,7 +77,9 @@ describe("WorkspaceView — the Display branch", () => {
     expect(room.props("scope")).toEqual({ kind: "workspace", workspaceId: "ws-7" });
   });
 
-  it("keeps the tasks rail off the room, and beside every other canvas", async () => {
+  // The tasks rail is the CHAT's (Kafi, 2026-08-22): open there by default,
+  // off the room and off every section — and its toggle goes with it.
+  it("keeps the tasks rail beside the chat only — not the room, not a section", async () => {
     const { wrapper, ui, setView } = await mountCanvas("display");
     expect(ui.isTasksPanelOpen).toBe(true); // the rail opens by default
     expect(wrapper.findComponent(TasksPanel).exists()).toBe(false);
@@ -86,6 +88,12 @@ describe("WorkspaceView — the Display branch", () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.findComponent(DisplayView).exists()).toBe(false);
     expect(wrapper.findComponent(TasksPanel).exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Toggle tasks"]').exists()).toBe(true);
+
+    setView("tasks");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent(TasksPanel).exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Toggle tasks"]').exists()).toBe(false);
   });
 
   it("keeps the files panel off it too, without forgetting it was open", async () => {

@@ -139,6 +139,13 @@ function readStoredAutoBuildout(): boolean {
   return localStorage.getItem(COMPOSER_AUTO_BUILDOUT_STORAGE_KEY) === "on";
 }
 
+/** The tasks panel belongs to the CHAT canvas (Kafi, 2026-08-22): open there
+ *  by default and closable, never shown beside a section, a file, the Display
+ *  or the spoken thread. One rule, read by both canvases and the toggles. */
+export function isTasksPanelSurface(view: ChatMainView): boolean {
+  return view === "chat";
+}
+
 function freshShell(): ChatShellState {
   return { mainView: "chat", target: "continuous" };
 }

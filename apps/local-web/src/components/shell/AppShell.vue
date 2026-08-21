@@ -58,7 +58,7 @@ import {
   MENU_GROUP_LABELS,
   WORKSPACE_SECTIONS,
 } from "../workspace/workspace-sections.js";
-import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
+import { GLOBAL_TAB_ID, isTasksPanelSurface, useUiStore } from "../../stores/ui-store.js";
 import {
   GLOBAL_SCOPE_KEY,
   useCustomizeStore,
@@ -772,7 +772,7 @@ onBeforeUnmount(() => {
       :nav-mode="ui.navMode"
       :sidebar-open="isSidebarOpen"
       :tasks-open="ui.isTasksPanelOpen"
-      :shows-tasks-toggle="!inWorkspaceScope"
+      :shows-tasks-toggle="!inWorkspaceScope && isTasksPanelSurface(ui.activeTab.shell.mainView)"
       :display-on="displayVoice.ownsVoice"
       :view-mode="viewMode"
       :full-view="isFullView"

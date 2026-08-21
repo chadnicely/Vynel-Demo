@@ -59,7 +59,7 @@ import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.j
 import type { ComposerSettings } from "../composables/chat/use-session-settings.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
-import { useUiStore } from "../stores/ui-store.js";
+import { isTasksPanelSurface, useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { firstNameOf } from "../utils/greeting.js";
 import { formatSdkError } from "../utils/format-sdk-error.js";
@@ -517,7 +517,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
          the app theme is, and a lit rail glued to its edge reads as breakage.
          Every other canvas here is app-themed, so the rail belongs there. -->
     <TasksPanel
-      v-if="ui.isTasksPanelOpen && shell.mainView !== 'display'"
+      v-if="ui.isTasksPanelOpen && isTasksPanelSurface(shell.mainView)"
       :scope="{ kind: 'global' }"
       :assistant-name="ASSISTANT_NAME"
     />
