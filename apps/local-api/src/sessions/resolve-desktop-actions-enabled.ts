@@ -1,6 +1,10 @@
-// May Vynel ACT on this desktop (click, type, press keys) — resolved PER TURN,
+// May Vynel ACT on this desktop — resolved PER TURN,
 // at the moment a turn composes its MCP servers, so flipping the Settings
 // toggle takes effect on the next turn without restarting the engine.
+//
+// "Act" is the WHOLE act toolset, not just click/type: acting in apps, launching
+// apps, opening links, the three window tools, volume, and BOTH clipboard tools
+// — the clipboard READ included, since it can surface a just-copied password.
 //
 // LOOKING (screenshots, window lists, notifications) is never gated by this —
 // the read-only desktop tools ride every turn the listener is up for. This

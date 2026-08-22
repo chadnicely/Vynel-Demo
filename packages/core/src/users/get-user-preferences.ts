@@ -92,6 +92,11 @@ export function getUserPreferences(db: Database, userId: string): ResolvedUserPr
         if (isSttModelId(parsed)) resolved.voiceSttModelId = parsed
         break
       case 'desktopActionsEnabled':
+        // The fail-closed `false` this falls back to is the ROW default — what
+        // a user who has never touched the toggle reads back. It is NOT the
+        // engine's effective value: a turn resolves acting through
+        // `resolveDesktopActionsEnabled` (apps/local-api), which falls through
+        // an untouched row to the `VYNEL_DESKTOP_ACT_ENABLED` dev seed.
         if (typeof parsed === 'boolean') {
           resolved.desktopActionsEnabled = parsed
         }

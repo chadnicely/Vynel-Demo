@@ -16,9 +16,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
-import { insertUser } from '@vynel/db/repositories/users'
+import { insertUser, upsertPreferenceForUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
+import type * as DesktopControl from '@vynel/desktop-control'
 import type {
   AiAgentProvider,
   NormalizedSessionEvent,
@@ -36,21 +37,28 @@ let usageTokensForTurn: number | null = null
 let nextTurnHangs = false
 const startChatSessionInputs: StartChatSessionInput[] = []
 let summarizeSessionCalls = 0
-const { interruptChatSessionMock, hangResolvers, wrapAppRequestWithModeSpy, envOverrides } =
-  vi.hoisted(() => {
-    const hangResolvers = new Map<string, () => void>()
-    return {
-      hangResolvers,
-      // A REAL interrupt ends the hung fake turn — the way the SDK runtime ends
-      // a session the provider interrupts.
-      interruptChatSessionMock: vi.fn(async (sessionId: string) => {
-        hangResolvers.get(sessionId)?.()
-        hangResolvers.delete(sessionId)
-      }),
-      wrapAppRequestWithModeSpy: vi.fn(),
-      envOverrides: { current: {} as Record<string, unknown> },
-    }
-  })
+const {
+  interruptChatSessionMock,
+  hangResolvers,
+  wrapAppRequestWithModeSpy,
+  desktopBuildContexts,
+  envOverrides,
+} = vi.hoisted(() => {
+  const hangResolvers = new Map<string, () => void>()
+  return {
+    hangResolvers,
+    // Every acting value this stream hands the desktop descriptor, in turn order.
+    desktopBuildContexts: [] as Array<{ enableDesktopActions: boolean | undefined }>,
+    // A REAL interrupt ends the hung fake turn — the way the SDK runtime ends
+    // a session the provider interrupts.
+    interruptChatSessionMock: vi.fn(async (sessionId: string) => {
+      hangResolvers.get(sessionId)?.()
+      hangResolvers.delete(sessionId)
+    }),
+    wrapAppRequestWithModeSpy: vi.fn(),
+    envOverrides: { current: {} as Record<string, unknown> },
+  }
+})
 function fakeStartChatSession(input: StartChatSessionInput): AsyncIterable<NormalizedSessionEvent> {
   startChatSessionInputs.push(input)
   const sessionId = swapToSessionId ?? input.resumeSessionId ?? `sdk-${randomUUID()}`
@@ -125,6 +133,23 @@ vi.mock('../sessions/delegation-mode-header.js', async () => {
     },
   }
 })
+// The REAL desktop descriptor, with the acting value this stream resolves per
+// turn recorded. Deliberately a pass-through: the real `build` still returns
+// null with no `desktopReader` wired, so the composed toolset is unchanged for
+// every other case in this file — only the seam value is observed.
+vi.mock('@vynel/desktop-control', async (importOriginal) => {
+  const actual = await importOriginal<typeof DesktopControl>()
+  return {
+    ...actual,
+    desktopFeatureDescriptor: {
+      ...actual.desktopFeatureDescriptor,
+      build: (context: Parameters<typeof actual.desktopFeatureDescriptor.build>[0]) => {
+        desktopBuildContexts.push({ enableDesktopActions: context.enableDesktopActions })
+        return actual.desktopFeatureDescriptor.build(context)
+      },
+    },
+  }
+})
 // The bounds knobs, per test — everything else stays the real parsed env.
 vi.mock('../env.js', async () => {
   const actual = await vi.importActual<typeof import('../env.js')>('../env.js')
@@ -165,6 +190,7 @@ beforeEach(() => {
   startChatSessionInputs.length = 0
   interruptChatSessionMock.mockClear()
   wrapAppRequestWithModeSpy.mockClear()
+  desktopBuildContexts.length = 0
   hangResolvers.clear()
   envOverrides.current = {}
 })
@@ -839,6 +865,37 @@ describe('POST /sessions/:sessionId/turn — a non-lock failure before the acqui
         expect(frames).toContain('event: turn-stream-ended')
         // It really never started — the frame is the failure, not a turn's own.
         expect(startChatSessionInputs).toHaveLength(0)
+      })
+    })
+  })
+})
+
+describe('POST /sessions/:sessionId/turn — Settings → Desktop control', () => {
+  // The seam at `session-turn.ts` (`enableDesktopActions:
+  // resolveDesktopActionsEnabled(...)`) had no binding test: nothing proved a
+  // spawned turn hands the descriptor the RESOLVED preference rather than a
+  // constant. Both legs are asserted against a seeded row — never the
+  // never-touched fallthrough, which would read the ambient env seed. A
+  // SPAWNED (not agent) session is used on purpose: the agent scope composes
+  // no desktop server at all.
+  it('hands the desktop descriptor the resolved preference, and the NEXT turn sees a flip', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-desktop-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-desktop')
+        const app = createApp({ db, logger: silentLogger })
+
+        upsertPreferenceForUser(db, user.id, 'desktopActionsEnabled', JSON.stringify(false))
+        await (await postTurn(app, spawned.sessionId, { userMessageText: 'before' })).text()
+        expect(desktopBuildContexts).toHaveLength(1)
+        expect(desktopBuildContexts[0]!.enableDesktopActions).toBe(false)
+
+        // No restart, no new app — the very next turn re-resolves.
+        upsertPreferenceForUser(db, user.id, 'desktopActionsEnabled', JSON.stringify(true))
+        await (await postTurn(app, spawned.sessionId, { userMessageText: 'after' })).text()
+        expect(desktopBuildContexts).toHaveLength(2)
+        expect(desktopBuildContexts[1]!.enableDesktopActions).toBe(true)
       })
     })
   })

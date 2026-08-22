@@ -18,8 +18,9 @@ import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { withTestDatabase } from '@vynel/testing'
 import { VynelError } from '@vynel/errors'
-import { insertUser } from '@vynel/db/repositories/users'
+import { insertUser, upsertPreferenceForUser } from '@vynel/db/repositories/users'
 import type { Database } from '@vynel/db'
+import type * as DesktopControl from '@vynel/desktop-control'
 import type { NormalizedSessionEvent, StartChatSessionInput } from '@vynel/providers'
 import type { SessionActivityEvent } from '@vynel/contracts/chat/session-activity'
 
@@ -27,11 +28,14 @@ const {
   interruptChatSessionMock,
   hangResolvers,
   buildAskFeatureDescriptorSpy,
+  desktopBuildContexts,
   envOverrides,
 } = vi.hoisted(() => {
   const hangResolvers = new Map<string, () => void>()
   return {
     hangResolvers,
+    // Every acting value this route hands the desktop descriptor, in turn order.
+    desktopBuildContexts: [] as Array<{ enableDesktopActions: boolean | undefined }>,
     // A REAL interrupt ends the hung fake turn — the way the SDK runtime ends a
     // session the provider interrupts.
     interruptChatSessionMock: vi.fn(async (sessionId: string) => {
@@ -103,6 +107,23 @@ vi.mock('@vynel/asks/mcp', async () => {
     },
   }
 })
+// The REAL desktop descriptor, with the acting value this route resolves per
+// turn recorded. Deliberately a pass-through: the real `build` still returns
+// null with no `desktopReader` wired, so the composed toolset is unchanged for
+// every other case in this file — only the seam value is observed.
+vi.mock('@vynel/desktop-control', async (importOriginal) => {
+  const actual = await importOriginal<typeof DesktopControl>()
+  return {
+    ...actual,
+    desktopFeatureDescriptor: {
+      ...actual.desktopFeatureDescriptor,
+      build: (context: Parameters<typeof actual.desktopFeatureDescriptor.build>[0]) => {
+        desktopBuildContexts.push({ enableDesktopActions: context.enableDesktopActions })
+        return actual.desktopFeatureDescriptor.build(context)
+      },
+    },
+  }
+})
 // The bounds knobs, per test — everything else stays the real parsed env.
 vi.mock('../env.js', async () => {
   const actual = await vi.importActual<typeof import('../env.js')>('../env.js')
@@ -127,6 +148,7 @@ beforeEach(() => {
   startChatSessionInputs.length = 0
   interruptChatSessionMock.mockClear()
   buildAskFeatureDescriptorSpy.mockClear()
+  desktopBuildContexts.length = 0
   hangResolvers.clear()
   envOverrides.current = {}
 })
@@ -500,6 +522,35 @@ describe('streamGlobalRootTurn — a give-up in the lock QUEUE is not a failed t
       } finally {
         unsubscribe()
       }
+    })
+  })
+})
+
+describe('streamGlobalRootTurn — Settings → Desktop control', () => {
+  // The seam at `global-root-turn.ts` (`enableDesktopActions:
+  // resolveDesktopActionsEnabled(...)`) had no binding test: nothing proved the
+  // route hands the descriptor the RESOLVED preference rather than a constant.
+  // Both legs are asserted against a seeded row — never the never-touched
+  // fallthrough, which would read the ambient `VYNEL_DESKTOP_ACT_ENABLED`.
+  it('hands the desktop descriptor the resolved preference, and the NEXT turn sees a flip', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const app = makeHarness(db)
+
+      upsertPreferenceForUser(db, user.id, 'desktopActionsEnabled', JSON.stringify(false))
+      await withDataDir(async () => {
+        await (await postTurn(app, { userMessageText: 'before the flip' })).text()
+      })
+      expect(desktopBuildContexts).toHaveLength(1)
+      expect(desktopBuildContexts[0]!.enableDesktopActions).toBe(false)
+
+      // No restart, no new app — the very next turn re-resolves.
+      upsertPreferenceForUser(db, user.id, 'desktopActionsEnabled', JSON.stringify(true))
+      await withDataDir(async () => {
+        await (await postTurn(app, { userMessageText: 'after the flip' })).text()
+      })
+      expect(desktopBuildContexts).toHaveLength(2)
+      expect(desktopBuildContexts[1]!.enableDesktopActions).toBe(true)
     })
   })
 })

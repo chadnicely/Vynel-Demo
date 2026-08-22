@@ -108,10 +108,16 @@ function buildEnvSchema(portBase: number) {
   // never-touched state: set `=1`/`=true` and a user who has never touched the
   // toggle acts by default; the moment the user sets it either way, the
   // preference wins and this is ignored. Kept as a dev convenience.
-  // Gates the MUTATING desktop tools (click / type) only — LOOKING
-  // (screenshots, window lists) is never gated. Every act is written to the
-  // append-only `desktop_actions` record. Background:
-  // `docs/module-notes/desktop-control-plan-approval.md:216`.
+  // Gates every ACT tool, not just click/type: `act_on_app` /
+  // `act_on_desktop`, `launch_app`, `open_url`, `set_window_state` /
+  // `focus_window` / `set_window_bounds`, `set_volume`, and BOTH clipboard
+  // tools — the READ included, because it can surface a password the user
+  // copied moments ago — plus `propose_desktop_plan`, which authorizes them
+  // (see `build-desktop-mcp-server.ts`). LOOKING (screenshots, window lists)
+  // is never gated. Every act is written to the append-only
+  // `desktop_actions` record. Background:
+  // `docs/module-notes/desktop-control-plan-approval.md`,
+  // § "Deliberately NOT in this arc" (records the toggle shipping 2026-08-22).
   VYNEL_DESKTOP_ACT_ENABLED: z
     .string()
     .default('0')

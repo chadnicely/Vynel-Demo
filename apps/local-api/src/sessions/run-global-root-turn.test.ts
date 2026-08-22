@@ -109,9 +109,12 @@ vi.mock("@vynel/orchestration", async () => {
 // and these tests drive the stub `{}` one. The resolver itself is covered by
 // `get-or-create-primary-session.test.ts`. Per-test overridable (the D1
 // settings tests point it at a head segment).
-// Not the seam under test. The acting toggle has its own table test
-// (resolve-desktop-actions-enabled.test.ts) and its composition-seam coverage
-// in build-workspace-background-mcp.test.ts; these deps carry no real database.
+// Not the seam under test — these deps carry a stub `{}` database the real
+// resolver cannot read. THIS runner's composition seam is bound on a real
+// database in `run-global-root-turn.desktop-actions.test.ts`; the resolver's
+// own precedence table is `resolve-desktop-actions-enabled.test.ts`.
+// (`build-workspace-background-mcp.test.ts` binds the DELEGATED composer — a
+// different call site, and never this one.)
 vi.mock("./resolve-desktop-actions-enabled.js", () => ({
   resolveDesktopActionsEnabled: () => false,
 }));
