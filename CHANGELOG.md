@@ -139,6 +139,8 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- Settings → Voice now says who hears you: the local hearing models catch the wake word and open
+  the window; from then on web speech recognition hears you.
 - The wake window is now the **display dock** everywhere (window, route, settings
   `VYNEL_VOICE_DOCK_*` — the old `VYNEL_VOICE_JARVIS_*` names still work for one release).
 - **The workspace tree is what you open into.** The app now starts in Menu view —
