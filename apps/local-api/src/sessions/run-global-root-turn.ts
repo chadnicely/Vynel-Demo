@@ -71,6 +71,7 @@ import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
 import { wrapAppRequestWithMode } from './delegation-mode-header.js'
 import { loadEnv } from '../env.js'
+import { resolveDesktopActionsEnabled } from './resolve-desktop-actions-enabled.js'
 
 // How long a channel turn's ask_user form waits before expiring — matched to
 // the approvals reaper's ~10-minute real-world bound, the app's standing
@@ -103,8 +104,6 @@ export interface RunGlobalRootTurnDeps {
   /** The process-wide desktop-notification reader — absent off-Windows/tests
    *  (the desktop descriptor then excludes itself from the composition). */
   desktopReader?: unknown
-  /** Whether the mutating desktop `act_on_app` tool is enabled (env flag). */
-  enableDesktopActions?: boolean
 }
 
 export interface RunGlobalRootTurnInput {
@@ -426,7 +425,9 @@ export async function runGlobalRootTurn(
       resolveChatSessionId: turnSession.current,
       appRequest,
       desktopReader: deps.desktopReader,
-      enableDesktopActions: deps.enableDesktopActions ?? false,
+      // Resolved PER TURN (Settings → Desktop control) — a channel or
+      // schedule turn honours the toggle the same way the web chat does.
+      enableDesktopActions: resolveDesktopActionsEnabled(deps.db, input.userId),
       // The SAME resolved mode the turn runs under (D1) — the desktop plan
       // envelope and the approval floor never disagree about what this turn
       // may do. Under the default `auto` this is standing consent: anyone who

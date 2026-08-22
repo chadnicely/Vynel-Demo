@@ -38,6 +38,7 @@ import { findPrimaryConversation } from '@vynel/session/continuity'
 import type { DelegationOrigin } from '@vynel/orchestration'
 import { wrapAppRequestWithOrigin } from './run-global-root-turn.js'
 import { loadEnv } from '../env.js'
+import { resolveDesktopActionsEnabled } from './resolve-desktop-actions-enabled.js'
 
 export type WorkspaceBackgroundMcpComposer = (input: {
   db: Database
@@ -136,7 +137,6 @@ export const DESKTOP_CAPABLE_DELEGATED_TARGETS: ReadonlySet<DelegatedTurnTarget>
 export interface DelegatedTurnDesktopContext {
   /** `unknown` per the descriptor contract — desktop-control casts it at its own boundary. */
   readonly desktopReader?: unknown
-  readonly enableDesktopActions?: boolean
 }
 
 export type DelegatedTurnMcpComposer = (input: {
@@ -296,9 +296,9 @@ export async function buildDelegatedTurnMcpComposer(
             ...(desktop.desktopReader !== undefined
               ? { desktopReader: desktop.desktopReader }
               : {}),
-            ...(desktop.enableDesktopActions !== undefined
-              ? { enableDesktopActions: desktop.enableDesktopActions }
-              : {}),
+            // Resolved PER TURN (Settings → Desktop control) from THIS
+            // turn's user, never a value frozen at boot.
+            enableDesktopActions: resolveDesktopActionsEnabled(db, userId),
             // The action record's task key — the spawned primary this delegated
             // turn resumes (Vynel's stable id; the SDK id swaps on compaction).
             ...(targetPrimarySessionId !== undefined

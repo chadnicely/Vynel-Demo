@@ -16,6 +16,7 @@ import {
   PhListChecks as ListChecks,
   PhChatCircle as MessageCircle,
   PhMicrophone as Microphone,
+  PhMonitor as Monitor,
   PhNotePencil as NotebookPen,
   PhBroadcast as Radio,
   PhScroll as ScrollText,
@@ -200,6 +201,7 @@ const GLOBAL_HIDDEN_SECTION_IDS = new Set<string>(["apps"]);
 const GLOBAL_SETTINGS_ITEMS: SidebarItem[] = [
   { id: "embedding", label: "Embedding", icon: Graph },
   { id: "voice-settings", label: "Voice", icon: SpeakerHigh },
+  { id: "desktop-control", label: "Desktop control", icon: Monitor },
   { id: "engine", label: "Where Vynel runs", icon: Cpu },
   { id: "application", label: "Application", icon: Settings2 },
 ];

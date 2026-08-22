@@ -10,6 +10,7 @@ import {
   PhList as List,
   PhListChecks as ListChecks,
   PhMinus as Minus,
+  PhMonitor as Monitor,
   PhMoon as Moon,
   PhSidebarSimple as PanelLeft,
   PhPower as Power,
@@ -114,6 +115,7 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
     items: [
       { id: "embedding", label: "Embedding", icon: Graph },
       { id: "voice-settings", label: "Voice", icon: SpeakerHigh },
+      { id: "desktop-control", label: "Desktop control", icon: Monitor },
       { id: "sep-settings", kind: "separator" },
       { id: "engine", label: "Where Vynel runs", icon: Cpu },
       {

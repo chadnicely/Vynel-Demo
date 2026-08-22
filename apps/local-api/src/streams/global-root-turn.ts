@@ -77,6 +77,7 @@ import { writeSseSafely } from './write-sse-safely.js'
 import { buildTurnLockWait, requestAbortSignal, writeLockWaitGiveUp } from './turn-queue-wait.js'
 import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
 import { loadEnv, resolveLockWaitMaxMs } from '../env.js'
+import { resolveDesktopActionsEnabled } from '../sessions/resolve-desktop-actions-enabled.js'
 import { isPrimarySwapping } from '@vynel/session/continuity'
 import {
   resolveGlobalRootConversationTarget,
@@ -327,7 +328,9 @@ export async function streamGlobalRootTurn(
       resolveChatSessionId: turnSession.current,
       appRequest,
       desktopReader: c.var.desktopNotifications,
-      enableDesktopActions: c.var.desktopActionsEnabled,
+      // Resolved PER TURN (Settings → Desktop control), so flipping the
+      // toggle takes effect on the next turn with no restart.
+      enableDesktopActions: resolveDesktopActionsEnabled(c.var.db, c.var.user.id),
       // Plan-level approval: the turn's mode decides what an approved desktop
       // plan may authorize (ask = the card; auto/bypass = standing consent).
       desktopPlanConsent: deriveDesktopPlanConsent(permissionMode),

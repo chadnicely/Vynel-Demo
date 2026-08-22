@@ -34,6 +34,7 @@ import ToolPolicySection from "../components/sections/ToolPolicySection.vue";
 import EngineSection from "../components/sections/EngineSection.vue";
 import EmbeddingSection from "../components/sections/EmbeddingSection.vue";
 import VoiceSettingsSection from "../components/sections/VoiceSettingsSection.vue";
+import DesktopControlSection from "../components/sections/DesktopControlSection.vue";
 import TasksSection from "../components/sections/TasksSection.vue";
 import PlansSection from "../components/sections/PlansSection.vue";
 import JournalSection from "../components/sections/JournalSection.vue";
@@ -92,6 +93,7 @@ const GLOBAL_SECTION_IDS = [
   "engine",
   "embedding",
   "voice-settings",
+  "desktop-control",
   "knowledge",
   "memory",
   "notebook",
@@ -408,6 +410,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
         <EngineSection v-else-if="shell.mainView === 'engine'" />
         <EmbeddingSection v-else-if="shell.mainView === 'embedding'" />
         <VoiceSettingsSection v-else-if="shell.mainView === 'voice-settings'" />
+        <DesktopControlSection v-else-if="shell.mainView === 'desktop-control'" />
         <template v-else-if="shell.mainView === 'knowledge'">
           <LockedFeatureCard
             v-if="isLocked('knowledge')"

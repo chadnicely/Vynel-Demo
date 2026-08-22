@@ -48,8 +48,10 @@ export type ChatMainView =
   // `voice-settings`, not `voice`: `voice-chat` is the spoken thread's window.
   | "embedding"
   | "voice-settings"
-  // Machine-level, global-only: which desktop apps Claude may see/control
-  // (the per-app access grants) is a property of this computer.
+  // Machine-level, global-only (Settings): whether Vynel may ACT on this
+  // desktop — click and type. Looking is never gated. A property of this
+  // computer, never of a workspace.
+  | "desktop-control"
   // Workspace-only: the Customize canvas (persona, color, menu layout). Not a
   // catalog section — it edits the catalog's rendering, so it can never be
   // hidden by it.

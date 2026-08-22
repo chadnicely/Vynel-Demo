@@ -143,10 +143,12 @@ describe("AppTitleBar", () => {
     expect(wrapper.emitted("command")).toEqual([["claude-account"]]);
   });
 
-  // The Settings menu (Kafi, 2026-08-22): this computer's four machine-level
+  // The Settings menu (Kafi, 2026-08-22): this computer's machine-level
   // screens, moved here from the sidebar, each row a section id the shell
   // routes like any global section. Application keeps the Ctrl+, hint.
-  it("the Settings menu carries the four machine-level screens in order", async () => {
+  // Desktop control joined the local-machine group (2026-08-23) — it decides
+  // whether Vynel may act on THIS computer, so it sits with Embedding/Voice.
+  it("the Settings menu carries the machine-level screens in order", async () => {
     const wrapper = mountTitleBar();
     const settings = wrapper
       .findAllComponents(DropdownMenu)
@@ -155,6 +157,7 @@ describe("AppTitleBar", () => {
     expect(items.filter((item) => item.kind !== "separator").map((item) => [item.id, item.label])).toEqual([
       ["embedding", "Embedding"],
       ["voice-settings", "Voice"],
+      ["desktop-control", "Desktop control"],
       ["engine", "Where Vynel runs"],
       ["application", "Application"],
     ]);
@@ -162,6 +165,16 @@ describe("AppTitleBar", () => {
     settings.vm.$emit("select", "voice-settings");
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("command")).toEqual([["voice-settings"]]);
+  });
+
+  it("choosing Desktop control emits it as a shell command", async () => {
+    const wrapper = mountTitleBar();
+    const settings = wrapper
+      .findAllComponents(DropdownMenu)
+      .find((menu) => menu.text().includes("Settings"))!;
+    settings.vm.$emit("select", "desktop-control");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted("command")).toEqual([["desktop-control"]]);
   });
 
   // The navigation pick lives in the View menu now (Kafi, 2026-08-21) — both

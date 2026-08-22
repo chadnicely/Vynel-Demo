@@ -30306,6 +30306,9 @@
                         "moonshine-tiny",
                         "moonshine-base"
                       ]
+                    },
+                    "desktopActionsEnabled": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -30315,7 +30318,8 @@
                     "reducedMotion",
                     "voiceTtsModelId",
                     "voiceSpeakerId",
-                    "voiceSttModelId"
+                    "voiceSttModelId",
+                    "desktopActionsEnabled"
                   ]
                 }
               }
@@ -30332,7 +30336,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "get_user_preferences",
-          "description": "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion, the voice: TTS model, speaker, STT model). Defaults fill any keys the user has not explicitly set."
+          "description": "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion, the voice: TTS model, speaker, STT model, and whether Vynel may act on the desktop). Defaults fill any keys the user has not explicitly set."
         }
       },
       "patch": {
@@ -30380,6 +30384,9 @@
                         "moonshine-tiny",
                         "moonshine-base"
                       ]
+                    },
+                    "desktopActionsEnabled": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -30389,7 +30396,8 @@
                     "reducedMotion",
                     "voiceTtsModelId",
                     "voiceSpeakerId",
-                    "voiceSttModelId"
+                    "voiceSttModelId",
+                    "desktopActionsEnabled"
                   ]
                 }
               }
@@ -30446,6 +30454,9 @@
                       "moonshine-tiny",
                       "moonshine-base"
                     ]
+                  },
+                  "desktopActionsEnabled": {
+                    "type": "boolean"
                   }
                 }
               }

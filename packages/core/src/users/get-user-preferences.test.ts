@@ -45,7 +45,26 @@ describe('getUserPreferences', () => {
         voiceTtsModelId: 'kokoro',
         voiceSpeakerId: 0,
         voiceSttModelId: 'moonshine-base',
+        desktopActionsEnabled: false,
       })
+    })
+  })
+
+  // Settings → Desktop control. Fail-closed by default; the boolean guard
+  // means a corrupt row can never read as a silent yes.
+  it('resolves the desktop acting toggle, and defaults it OFF', async () => {
+    await withTestDatabase((db) => {
+      const user = getOrCreateLocalUser(db)
+      expect(getUserPreferences(db, user.id).desktopActionsEnabled).toBe(false)
+
+      upsertPreferenceForUser(db, user.id, 'desktopActionsEnabled', JSON.stringify(true))
+      expect(getUserPreferences(db, user.id).desktopActionsEnabled).toBe(true)
+
+      upsertPreferenceForUser(db, user.id, 'desktopActionsEnabled', JSON.stringify(false))
+      expect(getUserPreferences(db, user.id).desktopActionsEnabled).toBe(false)
+
+      upsertPreferenceForUser(db, user.id, 'desktopActionsEnabled', JSON.stringify('yes'))
+      expect(getUserPreferences(db, user.id).desktopActionsEnabled).toBe(false)
     })
   })
 

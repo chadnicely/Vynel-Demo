@@ -85,6 +85,7 @@ import { writeSseSafely } from './write-sse-safely.js'
 import { buildTurnLockWait, requestAbortSignal, writeLockWaitGiveUp } from './turn-queue-wait.js'
 import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
 import { loadEnv, resolveLockWaitMaxMs } from '../env.js'
+import { resolveDesktopActionsEnabled } from '../sessions/resolve-desktop-actions-enabled.js'
 import type { StartSessionTurnRequestSchema } from '../routes/sessions/schemas.js'
 
 type StartSessionTurnInput = z.infer<typeof StartSessionTurnRequestSchema>
@@ -223,9 +224,9 @@ export async function streamSpawnedSessionTurn(
           ...(c.var.desktopNotifications !== undefined
             ? { desktopReader: c.var.desktopNotifications }
             : {}),
-          ...(c.var.desktopActionsEnabled !== undefined
-            ? { enableDesktopActions: c.var.desktopActionsEnabled }
-            : {}),
+          // Resolved PER TURN (Settings → Desktop control) — always a
+          // boolean, so no conditional spread is needed here.
+          enableDesktopActions: resolveDesktopActionsEnabled(db, userId),
           // The user IS here on this path — typing into the session, or
           // speaking on a live call — so the turn's own mode decides plan
           // authority, exactly as it does on the global-root chat.

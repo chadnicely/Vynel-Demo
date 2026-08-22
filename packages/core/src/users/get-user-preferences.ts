@@ -25,6 +25,11 @@ export interface ResolvedUserPreferences {
   voiceTtsModelId: LocalTtsModelId
   voiceSpeakerId: number
   voiceSttModelId: LocalSttModelId
+  // Settings → Desktop control (2026-08-23): may Vynel CLICK and TYPE on this
+  // desktop? Looking (screenshots, window lists) is never gated. Fail-closed
+  // default; `VYNEL_DESKTOP_ACT_ENABLED` seeds it only while the user has
+  // never touched the toggle — see `resolveDesktopActionsEnabled` in local-api.
+  desktopActionsEnabled: boolean
 }
 
 export const DEFAULT_PREFERENCES: ResolvedUserPreferences = {
@@ -35,6 +40,7 @@ export const DEFAULT_PREFERENCES: ResolvedUserPreferences = {
   voiceTtsModelId: DEFAULT_TTS_MODEL_ID,
   voiceSpeakerId: 0,
   voiceSttModelId: DEFAULT_STT_MODEL_ID,
+  desktopActionsEnabled: false,
 }
 
 function isTtsModelId(value: unknown): value is LocalTtsModelId {
@@ -84,6 +90,11 @@ export function getUserPreferences(db: Database, userId: string): ResolvedUserPr
         break
       case 'voiceSttModelId':
         if (isSttModelId(parsed)) resolved.voiceSttModelId = parsed
+        break
+      case 'desktopActionsEnabled':
+        if (typeof parsed === 'boolean') {
+          resolved.desktopActionsEnabled = parsed
+        }
         break
       // Unknown keys: silently ignored (forward-compat).
     }

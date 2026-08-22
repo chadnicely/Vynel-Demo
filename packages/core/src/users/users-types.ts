@@ -21,4 +21,5 @@ export interface ResolvedUserPreferences {
   voiceTtsModelId: LocalTtsModelId
   voiceSpeakerId: number
   voiceSttModelId: LocalSttModelId
+  desktopActionsEnabled: boolean
 }

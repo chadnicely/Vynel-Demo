@@ -233,7 +233,7 @@ export async function boot(): Promise<void> {
     desktopNotifications = createDesktopNotificationListener({ logger })
     await desktopNotifications.start()
     logger.info(
-      { actionsEnabled: env.VYNEL_DESKTOP_ACT_ENABLED },
+      { actingDefaultWhenUnset: env.VYNEL_DESKTOP_ACT_ENABLED },
       'api boot: desktop-control enabled (windows)',
     )
   }
@@ -337,7 +337,6 @@ export async function boot(): Promise<void> {
     processRunner,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
     sshMasterKeyBase64: sshMasterKey,
-    desktopActionsEnabled: env.VYNEL_DESKTOP_ACT_ENABLED,
     remoteEngine: env.VYNEL_REMOTE_ENGINE,
     appVersion,
     ...(serverPayloadArchive !== null ? { serverPayloadArchive } : {}),
@@ -466,7 +465,6 @@ export async function boot(): Promise<void> {
     activityFeed,
     turnEvents,
     desktopReader: desktopNotifications,
-    enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
     readEnabledFeatureKeys,
     askWaiters,
     // A channel bound to a WORKSPACE runs on that workspace's continuing
@@ -489,10 +487,7 @@ export async function boot(): Promise<void> {
   // global-root turn holds the per-user root lock for its whole duration.
   const composeWorkspaceMcpServers = await buildDelegatedTurnMcpComposer(
     appRequest,
-    {
-      desktopReader: desktopNotifications,
-      enableDesktopActions: env.VYNEL_DESKTOP_ACT_ENABLED,
-    },
+    { desktopReader: desktopNotifications },
     readEnabledFeatureKeys,
   )
   // The GLOBAL-root notify runner (session-comms): a completed delegation's

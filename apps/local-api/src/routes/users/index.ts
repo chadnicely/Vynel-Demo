@@ -32,6 +32,20 @@ import {
   UserPreferencesResponseSchema,
 } from './schemas.js'
 import { serializeUserForResponse } from './serializers.js'
+import { resolveDesktopActionsEnabled } from '../../sessions/resolve-desktop-actions-enabled.js'
+import type { Database } from '@vynel/db'
+
+// Response shaping, not policy: `desktopActionsEnabled` has ONE home for its
+// precedence rule (`resolveDesktopActionsEnabled` — the preference row, else
+// the `VYNEL_DESKTOP_ACT_ENABLED` dev seed), and the Settings screen must show
+// what the NEXT turn will actually do. Core fills a fail-closed `false` for a
+// never-touched row, which would under-report while the dev seed is on.
+function readEffectivePreferences(db: Database, userId: string) {
+  return {
+    ...getUserPreferences(db, userId),
+    desktopActionsEnabled: resolveDesktopActionsEnabled(db, userId),
+  }
+}
 
 export const usersApp = factory
   .createApp()
@@ -98,13 +112,12 @@ export const usersApp = factory
         exposed: true,
         name: 'get_user_preferences',
         description:
-          "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion, the voice: TTS model, speaker, STT model). Defaults fill any keys the user has not explicitly set.",
+          "Get the current user's resolved preferences (theme, default workspace, chat streaming, reduced motion, the voice: TTS model, speaker, STT model, and whether Vynel may act on the desktop). Defaults fill any keys the user has not explicitly set.",
       },
     }),
     ...userScoped,
     (c) => {
-      const preferences = getUserPreferences(c.var.db, c.var.user.id)
-      return c.json(preferences)
+      return c.json(readEffectivePreferences(c.var.db, c.var.user.id))
     },
   )
   .patch(
@@ -126,7 +139,6 @@ export const usersApp = factory
     (c) => {
       const input = c.req.valid('json')
       setUserPreferences(c.var.db, c.var.user.id, input)
-      const preferences = getUserPreferences(c.var.db, c.var.user.id)
-      return c.json(preferences)
+      return c.json(readEffectivePreferences(c.var.db, c.var.user.id))
     },
   )
