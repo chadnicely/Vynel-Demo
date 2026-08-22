@@ -22,6 +22,9 @@ import { useDisplayVoice } from "../../composables/display/use-display-voice.js"
 import AppShell from "./AppShell.vue";
 import AppTitleBar from "./AppTitleBar.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
+import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
+import WorkspaceWizard from "../workspace/wizard/WorkspaceWizard.vue";
+import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 
 /** Every read the shell makes, answering empty. */
 const quietClient = new Proxy(
@@ -307,4 +310,66 @@ describe("AppShell — the view switch", () => {
     expect(titleBar(wrapper).viewMode).toBe("normal");
   });
 
+});
+
+// Adding a workspace starts at the door: every entry point opens the fork,
+// the pick opens ONE of the two paths, the wizard's Back returns to the door,
+// and "Open my workspace" opens the new workspace with the stored brief seeded
+// — after the tab switch, so it reaches the new chat's composer.
+describe("AppShell — the new-workspace door", () => {
+  it("the Vynel menu's New workspace opens the door, not a dialog", async () => {
+    const { wrapper } = await mountShell();
+    expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(false);
+
+    wrapper.getComponent(AppTitleBar).vm.$emit("command", "new-workspace");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(true);
+    expect(wrapper.getComponent(CreateWorkspaceDialog).props("open")).toBe(false);
+    expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(false);
+  });
+
+  it("each door opens its own path, and the wizard's Back returns to the door", async () => {
+    const { wrapper } = await mountShell();
+    wrapper.getComponent(AppTitleBar).vm.$emit("command", "new-workspace");
+    await wrapper.vm.$nextTick();
+
+    wrapper.getComponent(NewWorkspaceDialog).vm.$emit("pick", "folder");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(false);
+    expect(wrapper.getComponent(CreateWorkspaceDialog).props("open")).toBe(true);
+    wrapper.getComponent(CreateWorkspaceDialog).vm.$emit("close");
+    await wrapper.vm.$nextTick();
+
+    wrapper.getComponent(AppTitleBar).vm.$emit("command", "new-workspace");
+    await wrapper.vm.$nextTick();
+    wrapper.getComponent(NewWorkspaceDialog).vm.$emit("pick", "wizard");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(false);
+    expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(true);
+
+    wrapper.getComponent(WorkspaceWizard).vm.$emit("back");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(false);
+    expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(true);
+  });
+
+  it("Open my workspace opens the new workspace's tab and seeds the STORED brief into its composer", async () => {
+    const { wrapper, ui } = await mountShell();
+    wrapper.getComponent(AppTitleBar).vm.$emit("command", "new-workspace");
+    await wrapper.vm.$nextTick();
+    wrapper.getComponent(NewWorkspaceDialog).vm.$emit("pick", "wizard");
+    await wrapper.vm.$nextTick();
+
+    wrapper.getComponent(WorkspaceWizard).vm.$emit("created", {
+      workspace: { id: "ws-new", name: "Front of House" },
+      brief: "Build Front of House — the MVP first.",
+    });
+    await flushPromises();
+
+    expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(false);
+    expect(ui.activeTabId).not.toBe(GLOBAL_TAB_ID);
+    expect(ui.activeTab.workspaceId).toBe("ws-new");
+    expect(ui.composerSeed).toBe("Build Front of House — the MVP first.");
+  });
 });

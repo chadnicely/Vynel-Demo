@@ -9,6 +9,20 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **New workspace now opens a door, and one of the doors is a guided setup.** Adding a
+  workspace asks one question first — start something new, or bring in what you have. "Pull
+  from a folder" is the dialog you know. "Walk me through it" is new: twelve short screens
+  that take an idea to an approved plan. You pick the folder it will live in first (your
+  own folder, wherever you like — nothing gets moved), describe the idea in your own words,
+  answer five quick questions, optionally name a website like it (Vynel lists what that
+  site does from what it already knows — it says so plainly — and you tick what you want),
+  read the plan and score it out of ten until it is right, approve the MVP and the build
+  sessions, and Finish. Finish makes the folder, a README with the stack, a first commit,
+  and the workspace itself — and keeps the plan you approved with the workspace, where a
+  later session can read it back. "Open my workspace" opens its chat with the brief already
+  typed in; you press send, so building starts under your eyes, never on its own. The
+  account step just checks you are signed in to Claude — accounts belong to Vynel as a
+  whole, not to one workspace.
 - **Desktop control is a switch in Settings.** Settings → Desktop control lets you allow Vynel
   to do things on your desktop, not just look: act in apps (click, type, keys), open apps and
   links, arrange windows and volume, and read or write your clipboard. Screenshots and window

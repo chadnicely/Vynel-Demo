@@ -32,6 +32,44 @@ describe("Modal", () => {
     expect(document.body.textContent).not.toContain("Body content");
   });
 
+  // Escape is Reka's own dismiss path; `persistent` is the one switch that
+  // keeps a long form (the workspace wizard) from vanishing on a stray key.
+  it("closes on Escape by default, but a persistent modal stays", async () => {
+    const plain = mount(Modal, {
+      props: { open: true, title: "Plain" },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await flushPromises();
+    expect(plain.emitted("update:open")?.at(-1)).toEqual([false]);
+    plain.unmount();
+    document.body.innerHTML = "";
+
+    const persistent = mount(Modal, {
+      props: { open: true, title: "Wizard", persistent: true },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await flushPromises();
+    expect(persistent.emitted("update:open")).toBeUndefined();
+    expect(document.body.textContent).toContain("Wizard");
+    persistent.unmount();
+  });
+
   // The registry is module-global (that's the point) — assert DELTAS so the
   // test holds regardless of what else ran in this file.
   it("reports open state to the shared registry, balancing on close and unmount", async () => {

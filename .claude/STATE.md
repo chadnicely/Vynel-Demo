@@ -27,11 +27,27 @@ removed on any failure); `POST /workspaces/wizard/scaffold` (SDK `workspaces.sca
 `GET /workspaces/:id/brief` [x-mcp `get_workspace_brief`, read-only, `{ brief: null }` when not wizard-made —
 the durable half of "feed the plan to the primary session"; the composer seed is the live half];
 `serialize-workspace.ts` extracted from the workspaces route. Reviewed; fixes in.
-**Next:** Slice 3 the wizard UI (`components/workspace/wizard/`, `Modal` + a `persistent` prop, Tailwind,
-**place first**: place → idea → q1 → q2 → rivals → wants → plan → goals → stack → account (global
-pre-flight) → care → sessions → done; helpers ported verbatim), Slice 4 the door + kickoff (`addTab` +
-`ui.composerSeed = brief`), Slice 5 clone. Not taken from the branch: two-level workspaces, setup stamps,
-group removal, per-workspace accounts, Codex/Kimi, Nocturne, `WizardModal`, `prototype/`.
+**Slices 3 + 4 landed (same day):** the wizard UI in `apps/local-web/src/components/workspace/wizard/` —
+`wizard-steps.ts` (13 ids, **place first**, gate takes `{ isSignedIn }`, `toBriefAnswers` = the one conversion
+to the contract), `derive-stack` / `derive-fallback-plan` / `wizard-study` ported verbatim, `wizard-classes.ts`
++ `WizardChip` shared looks, twelve `Step*.vue` in Tailwind over the tokens + phosphor icons,
+`WorkspaceWizard.vue` on `@vynel/ui` `Modal` (new `persistent` prop: Esc/backdrop blocked via
+preventDefault on reka's DialogContent events — jsdom needs `cancelable: true` to test it); the draft is
+PROVIDED (`wizard-answers.ts` → `useWizardAnswers()`, never a mutated prop); the plan state + race guards live
+in `use-wizard-plan.ts` (a reply lands only on the plan screen while unscored; a failed synthesis is SAID);
+`toBriefAnswers` folds non-default advanced picks into `advancedNotes`; `use-too-broad-folder.ts` is the one
+drive-root/home guard (register dialog + wizard); Place = name + `FileSystemBrowser` parent pick (drive root / home refused); Account =
+global Claude pre-flight (`useClaudeAuthStatus`, sign-in door emits to the shell) + dimmed GitHub line;
+Done shows the path + the git outcome. The door `NewWorkspaceDialog` (two doors only — wizard / folder; clone
++ Quick Create join when they exist) sits on every `openCreateWorkspace` entry; `onWorkspaceScaffolded` =
+close → `addTab` → `nextTick` → `ui.composerSeed = brief` (after the tab switch renders, so the NEW chat's
+composer takes it). Tests: step machine (11), wizard end-to-end with a fake client (9, incl. the deferred-
+synthesis races), door (2), shell routing (3), Modal persistent (1).
+**Next:** Slice 5 clone (`clone-repository-workspace` + `POST /workspaces/wizard/clone` + the dialog + the
+third door); later Quick Create, GitHub as a global Settings connection, draft persistence. **Owed by
+Kafi:** the live smoke — New workspace → Walk me through it → a real synthesis on sonnet-5 → Finish in a
+real folder → the seeded brief in the new chat. Not taken from the branch: two-level workspaces, setup
+stamps, group removal, per-workspace accounts, Codex/Kimi, Nocturne, `WizardModal`, `prototype/`.
 
 ## ✅ 2026-08-22 DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)
 
