@@ -20,6 +20,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Talking in the Display no longer wakes Vynel underneath you.** While you speak to the app (or the
+  dock), the background listener stands down, so your words — and Vynel's own replies through the
+  speakers — are heard once, by the web recognizer. If no speaking voice is downloaded yet, the
+  room says so instead of playing silence.
 - **Apps now come to the front reliably, instead of sometimes.** Discord (and any app
   like it) would come forward on one request and stay stubbornly behind on the next, with
   nothing different about the request — it depended on invisible state left behind by
