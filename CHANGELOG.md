@@ -23,6 +23,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   typed in; you press send, so building starts under your eyes, never on its own. The
   account step just checks you are signed in to Claude — accounts belong to Vynel as a
   whole, not to one workspace.
+- **A workspace can be created from a repository.** The third door: paste a git address
+  (https or ssh), pick the folder it should live in, name it, and Vynel clones it into a new
+  folder there and opens it as a workspace. If the clone fails, you see git's own reason and
+  can try again — nothing you already have is touched.
 - **Desktop control is a switch in Settings.** Settings → Desktop control lets you allow Vynel
   to do things on your desktop, not just look: act in apps (click, type, keys), open apps and
   links, arrange windows and volume, and read or write your clipboard. Screenshots and window

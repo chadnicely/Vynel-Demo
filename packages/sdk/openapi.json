@@ -1029,6 +1029,177 @@
         }
       }
     },
+    "/workspaces/wizard/clone": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The registered workspace row for the cloned repository.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "managerName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "small-business",
+                            "personal",
+                            "project",
+                            "custom"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "isArchived": {
+                          "type": "boolean"
+                        },
+                        "continueEnabled": {
+                          "type": "boolean"
+                        },
+                        "groupId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "completed",
+                            "problem",
+                            "needs_input",
+                            null
+                          ]
+                        },
+                        "statusNote": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "statusSetAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "lastAccessedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "name",
+                        "managerName",
+                        "kind",
+                        "path",
+                        "isArchived",
+                        "continueEnabled",
+                        "groupId",
+                        "status",
+                        "statusNote",
+                        "statusSetAt",
+                        "createdAt",
+                        "updatedAt",
+                        "lastAccessedAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "workspace"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, a bad repository address, a missing chosen folder, or the clone failing."
+          },
+          "404": {
+            "description": "No such group owned by this user."
+          },
+          "409": {
+            "description": "A folder with that name is already in the chosen folder."
+          }
+        },
+        "operationId": "postWorkspacesWizardClone",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Clone a git repository into a new folder and register it as a workspace.",
+        "x-sdk-name": "workspaces.clone",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "repositoryUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "folderName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "groupId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "name",
+                  "parentPath",
+                  "repositoryUrl"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/knowledge/documents": {
       "get": {
         "responses": {

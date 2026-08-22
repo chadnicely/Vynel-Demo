@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import { PhArrowRight, PhFolderOpen, PhListChecks } from "@phosphor-icons/vue";
+import {
+  PhArrowRight,
+  PhFolderOpen,
+  PhGitBranch,
+  PhListChecks,
+} from "@phosphor-icons/vue";
 import { Modal } from "@vynel/ui";
 
 // The fork that opens before any workspace is added, ported from Chad's
-// design branch (start.html → AddProjectDialog). Two answers, and they are
-// genuinely different journeys: something new gets planned and built for
-// you; something you already have gets looked after where it already sits —
-// nothing moves. THE CARDS ARE THE SCREEN (Chad, 2026-08-10): two tall doors,
-// not two small boxes in a void.
+// design branch (start.html → AddProjectDialog). The answers are genuinely
+// different journeys: something new gets planned and built for you; something
+// you already have gets looked after where it already sits — nothing moves.
+// THE CARDS ARE THE SCREEN (Chad, 2026-08-10): tall doors, not small boxes in
+// a void.
 //
-// Only doors that exist are offered — no dead buttons (Chad's rule). "Create
-// from a repository" joins when the clone slice lands; "Set it up instantly"
-// when Quick Create does.
+// Only doors that exist are offered — no dead buttons (Chad's rule). "Set it
+// up instantly" joins when Quick Create does.
 defineProps<{ open: boolean }>();
 
 const emit = defineEmits<{
   close: [];
-  pick: [choice: "wizard" | "folder"];
+  pick: [choice: "wizard" | "folder" | "clone"];
 }>();
 
 const DOORS = [
@@ -36,6 +40,14 @@ const DOORS = [
     kicker: "A project already on this computer",
     note: "Point at a folder anywhere on this computer. It stays exactly where it is — nothing gets moved.",
   },
+  {
+    pick: "clone" as const,
+    icon: PhGitBranch,
+    group: "Bring in what you have",
+    title: "Create from a repository",
+    kicker: "Clone from a git address",
+    note: "Paste the address of a repository you already have. It is cloned into a new folder you choose.",
+  },
 ];
 
 function onOpenChange(open: boolean) {
@@ -48,10 +60,10 @@ function onOpenChange(open: boolean) {
     :open="open"
     title="What are we adding?"
     description="Nothing you already have is ever moved."
-    size="lg"
+    size="xl"
     @update:open="onOpenChange"
   >
-    <div class="grid gap-3 py-2 sm:grid-cols-2">
+    <div class="grid gap-3 py-2 sm:grid-cols-3">
       <button
         v-for="door in DOORS"
         :key="door.pick"

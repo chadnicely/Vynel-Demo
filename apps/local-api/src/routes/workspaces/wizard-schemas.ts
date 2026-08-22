@@ -109,3 +109,17 @@ export const ScaffoldWorkspaceResponseSchema = z.object({
 export const GetWorkspaceBriefResponseSchema = z.object({
   brief: WorkspaceBriefResponseSchema.nullable(),
 })
+
+// "Create from a repository": clone into a fresh folder inside the chosen one.
+export const CloneRepositoryRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  parentPath: ParentPathSchema,
+  /** An https / ssh git address — the op refuses anything else before git sees it. */
+  repositoryUrl: z.string().trim().min(1).max(2_000),
+  folderName: z.string().trim().min(1).max(120).optional(),
+  groupId: z.string().min(1).optional(),
+})
+
+export const CloneRepositoryResponseSchema = z.object({
+  workspace: WorkspaceResponseSchema,
+})

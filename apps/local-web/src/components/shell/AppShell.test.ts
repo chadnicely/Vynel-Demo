@@ -25,6 +25,7 @@ import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
 import WorkspaceWizard from "../workspace/wizard/WorkspaceWizard.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
+import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
 
 /** Every read the shell makes, answering empty. */
 const quietClient = new Proxy(
@@ -352,6 +353,32 @@ describe("AppShell — the new-workspace door", () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(false);
     expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(true);
+
+    wrapper.getComponent(NewWorkspaceDialog).vm.$emit("pick", "clone");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(CloneRepositoryDialog).props("open")).toBe(true);
+    wrapper.getComponent(CloneRepositoryDialog).vm.$emit("back");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(CloneRepositoryDialog).props("open")).toBe(false);
+    expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(true);
+  });
+
+  it("a cloned repository opens as a tab like any registered workspace", async () => {
+    const { wrapper, ui } = await mountShell();
+    wrapper.getComponent(AppTitleBar).vm.$emit("command", "new-workspace");
+    await wrapper.vm.$nextTick();
+    wrapper.getComponent(NewWorkspaceDialog).vm.$emit("pick", "clone");
+    await wrapper.vm.$nextTick();
+
+    wrapper.getComponent(CloneRepositoryDialog).vm.$emit("created", {
+      id: "ws-cloned",
+      name: "Pricing",
+    });
+    await flushPromises();
+
+    expect(wrapper.getComponent(CloneRepositoryDialog).props("open")).toBe(false);
+    expect(ui.activeTab.workspaceId).toBe("ws-cloned");
+    expect(ui.composerSeed).toBeNull();
   });
 
   it("Open my workspace opens the new workspace's tab and seeds the STORED brief into its composer", async () => {

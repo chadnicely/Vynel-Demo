@@ -1,11 +1,13 @@
 // The workspace wizard's HTTP surface — mounted at `/workspaces/wizard` from
-// `apps/local-api/src/app.ts`. The wizard's two one-shot AI reads:
+// `apps/local-api/src/app.ts`: the two one-shot AI reads, Finish, and the
+// repository door.
 //
 //   POST /study-rival -> what a named site does / leave out / magic   (no x-mcp)
 //   POST /plan        -> every wizard answer distilled into the plan  (no x-mcp)
 //   POST /scaffold    -> Finish: folder, README, git, the row, the brief (no x-mcp)
+//   POST /clone       -> "Create from a repository": git clone + the row (no x-mcp)
 //
-// Both go through the provider seam's best-effort one-shots (toolless, the
+// The two reads go through the provider seam's best-effort one-shots (toolless, the
 // capable model — plan quality is the product) via `c.var.aiProvider` (a
 // fake in tests, the providers-route precedent). Null — the provider can't,
 // or the dispatch failed — answers as `{ study: null }` / `{ plan: null }`:
@@ -20,13 +22,19 @@
 // settings / CLAUDE.md still load, exactly as they would for any workspace.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { resolveExistingDirectory, scaffoldWorkspace } from '@vynel/workspaces'
+import {
+  cloneRepositoryWorkspace,
+  resolveExistingDirectory,
+  scaffoldWorkspace,
+} from '@vynel/workspaces'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { serializeWorkspaceBrief } from './brief.js'
 import { serializeWorkspaceForResponse } from './serialize-workspace.js'
 import {
+  CloneRepositoryRequestSchema,
+  CloneRepositoryResponseSchema,
   ScaffoldWorkspaceRequestSchema,
   ScaffoldWorkspaceResponseSchema,
   StudyRivalSiteRequestSchema,
@@ -148,5 +156,46 @@ export const workspaceWizardApp = factory
         },
         201,
       )
+    },
+  )
+  // The second door under "bring in what you have": clone a repository the
+  // user already owns into a fresh folder inside the folder they chose, then
+  // register it. No brief — the repository IS the history.
+  .post(
+    '/clone',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Clone a git repository into a new folder and register it as a workspace.',
+      'x-sdk-name': 'workspaces.clone',
+      responses: {
+        201: {
+          description: 'The registered workspace row for the cloned repository.',
+          content: { 'application/json': { schema: resolver(CloneRepositoryResponseSchema) } },
+        },
+        400: {
+          description:
+            'Validation error, a bad repository address, a missing chosen folder, or the clone failing.',
+        },
+        404: { description: 'No such group owned by this user.' },
+        409: { description: 'A folder with that name is already in the chosen folder.' },
+      },
+    }),
+    validator('json', CloneRepositoryRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { name, parentPath, repositoryUrl, folderName, groupId } = c.req.valid('json')
+      const made = await cloneRepositoryWorkspace(
+        c.var.db,
+        {
+          userId: c.var.user.id,
+          name,
+          parentPath,
+          repositoryUrl,
+          ...(folderName === undefined ? {} : { folderName }),
+          ...(groupId === undefined ? {} : { groupId }),
+        },
+        { logger: c.var.logger },
+      )
+      return c.json({ workspace: serializeWorkspaceForResponse(made.workspace) }, 201)
     },
   )

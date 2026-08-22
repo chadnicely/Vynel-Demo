@@ -1,5 +1,5 @@
-// The fork before any workspace is added — two real doors, each a genuinely
-// different journey, and nothing that does not exist yet.
+// The fork before any workspace is added — three real doors, each a
+// genuinely different journey, and nothing that does not exist yet.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
@@ -29,15 +29,16 @@ function door(pick: string): HTMLButtonElement {
 }
 
 describe("NewWorkspaceDialog", () => {
-  it("offers the two doors that exist — the wizard and a folder — and nothing dead", async () => {
+  it("offers the three doors that exist — the wizard, a folder, a repository — and nothing dead", async () => {
     await mountDialog();
     const text = document.body.textContent ?? "";
     expect(text).toContain("What are we adding?");
     expect(text).toContain("Walk me through it");
     expect(text).toContain("Pull from a folder");
+    expect(text).toContain("Create from a repository");
     expect(text).toContain("nothing gets moved");
-    expect(document.body.querySelectorAll("button.door")).toHaveLength(2);
-    expect(text).not.toContain("repository");
+    expect(document.body.querySelectorAll("button.door")).toHaveLength(3);
+    expect(text).not.toContain("Set it up instantly");
   });
 
   it("each door reports its pick", async () => {
@@ -46,6 +47,12 @@ describe("NewWorkspaceDialog", () => {
     await flushPromises();
     door("folder").click();
     await flushPromises();
-    expect(wrapper.emitted("pick")).toEqual([["wizard"], ["folder"]]);
+    door("clone").click();
+    await flushPromises();
+    expect(wrapper.emitted("pick")).toEqual([
+      ["wizard"],
+      ["folder"],
+      ["clone"],
+    ]);
   });
 });

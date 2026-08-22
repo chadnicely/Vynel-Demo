@@ -43,10 +43,14 @@ Done shows the path + the git outcome. The door `NewWorkspaceDialog` (two doors 
 close → `addTab` → `nextTick` → `ui.composerSeed = brief` (after the tab switch renders, so the NEW chat's
 composer takes it). Tests: step machine (11), wizard end-to-end with a fake client (9, incl. the deferred-
 synthesis races), door (2), shell routing (3), Modal persistent (1).
-**Next:** Slice 5 clone (`clone-repository-workspace` + `POST /workspaces/wizard/clone` + the dialog + the
-third door); later Quick Create, GitHub as a global Settings connection, draft persistence. **Owed by
-Kafi:** the live smoke — New workspace → Walk me through it → a real synthesis on sonnet-5 → Finish in a
-real folder → the seeded brief in the new chat. Not taken from the branch: two-level workspaces, setup
+**Slice 5 landed (same day):** `cloneRepositoryWorkspace` (remote-only URL guard, `protocol.ext.allow=never`
++ `--`, cleanup + git's own reason on failure, `createWorkspace`+group; no brief — the repository IS the
+history) + `POST /workspaces/wizard/clone` (SDK `workspaces.clone`) + `CloneRepositoryDialog` (address →
+name follows the repo base name → the user's own folder pick via `useTooBroadFolder` → Clone it; git's reason
+in a role=alert) + the third door. Commits: `4e59d700` · `92c58dbd` · `75bcc1d5` · Slice 5.
+**Next:** Quick Create ("Set it up instantly"), GitHub as a global Settings connection, draft persistence.
+**Owed by Kafi:** the live smoke — New workspace → Walk me through it → a real synthesis on sonnet-5 →
+Finish in a real folder → the seeded brief in the new chat; and Create from a repository on a real URL. Not taken from the branch: two-level workspaces, setup
 stamps, group removal, per-workspace accounts, Codex/Kimi, Nocturne, `WizardModal`, `prototype/`.
 
 ## ✅ 2026-08-22 DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)

@@ -62,6 +62,8 @@ export type {
   ScaffoldGitOutcome,
   GitRunner,
 } from './lifecycle/scaffold-workspace.js'
+export { cloneRepositoryWorkspace } from './lifecycle/clone-repository-workspace.js'
+export type { CloneRepositoryWorkspaceInput } from './lifecycle/clone-repository-workspace.js'
 export { findWorkspaceBrief, toWorkspaceBrief } from './brief/workspace-brief.js'
 export type { WorkspaceBrief } from './brief/workspace-brief.js'
 

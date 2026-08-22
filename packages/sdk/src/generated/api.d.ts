@@ -50,6 +50,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/wizard/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clone a git repository into a new folder and register it as a workspace. */
+        post: operations["postWorkspacesWizardClone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/knowledge/documents": {
         parameters: {
             query?: never;
@@ -4700,6 +4717,77 @@ export interface operations {
                 };
             };
             /** @description Validation error, or the chosen folder does not exist. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such group owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A folder with that name is already in the chosen folder. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesWizardClone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name: string;
+                    parentPath: string;
+                    repositoryUrl: string;
+                    folderName?: string;
+                    groupId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The registered workspace row for the cloned repository. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        workspace: {
+                            id: string;
+                            userId: string;
+                            name: string;
+                            managerName: string | null;
+                            /** @enum {string} */
+                            kind: "small-business" | "personal" | "project" | "custom";
+                            path: string;
+                            isArchived: boolean;
+                            continueEnabled: boolean;
+                            groupId: string | null;
+                            /** @enum {string|null} */
+                            status: "completed" | "problem" | "needs_input" | null;
+                            statusNote: string | null;
+                            statusSetAt: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                            lastAccessedAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error, a bad repository address, a missing chosen folder, or the clone failing. */
             400: {
                 headers: {
                     [name: string]: unknown;

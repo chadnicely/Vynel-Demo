@@ -52,6 +52,7 @@ import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
 import WorkingRail from "../rail/WorkingRail.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
+import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
 import WorkspaceWizard from "../workspace/wizard/WorkspaceWizard.vue";
 import ClaudeAccountDialog from "../providers/ClaudeAccountDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
@@ -498,20 +499,23 @@ const isPaletteOpen = ref(false);
 const isNewWorkspaceDoorOpen = ref(false);
 const isCreateWorkspaceOpen = ref(false);
 const isWorkspaceWizardOpen = ref(false);
+const isCloneRepositoryOpen = ref(false);
 // The group a "+" was clicked on — the starting Group; null = root.
 const createWorkspaceGroupId = ref<string | null>(null);
 function openCreateWorkspace(groupId: string | null = null) {
   createWorkspaceGroupId.value = groupId;
   isNewWorkspaceDoorOpen.value = true;
 }
-function onNewWorkspacePick(choice: "wizard" | "folder") {
+function onNewWorkspacePick(choice: "wizard" | "folder" | "clone") {
   isNewWorkspaceDoorOpen.value = false;
   if (choice === "wizard") isWorkspaceWizardOpen.value = true;
+  else if (choice === "clone") isCloneRepositoryOpen.value = true;
   else isCreateWorkspaceOpen.value = true;
 }
-// Back from the wizard's first screen returns to the door.
-function onWizardBack() {
+// Back from a path's first screen returns to the door.
+function returnToDoor() {
   isWorkspaceWizardOpen.value = false;
+  isCloneRepositoryOpen.value = false;
   isNewWorkspaceDoorOpen.value = true;
 }
 // The strip's stack-plus: one create in flight at a time (a double-click must
@@ -609,6 +613,7 @@ watch(
 
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
   isCreateWorkspaceOpen.value = false;
+  isCloneRepositoryOpen.value = false;
   addTab(workspace.id);
 }
 
@@ -927,11 +932,18 @@ onBeforeUnmount(() => {
       @close="isCreateWorkspaceOpen = false"
       @created="onWorkspaceCreated"
     />
+    <CloneRepositoryDialog
+      :open="isCloneRepositoryOpen"
+      :group-id="createWorkspaceGroupId"
+      @close="isCloneRepositoryOpen = false"
+      @back="returnToDoor"
+      @created="onWorkspaceCreated"
+    />
     <WorkspaceWizard
       :open="isWorkspaceWizardOpen"
       :group-id="createWorkspaceGroupId"
       @close="isWorkspaceWizardOpen = false"
-      @back="onWizardBack"
+      @back="returnToDoor"
       @sign-in="isClaudeAccountOpen = true"
       @created="onWorkspaceScaffolded"
     />
