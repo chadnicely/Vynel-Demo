@@ -23,6 +23,9 @@ import { VoiceNotReadyError } from '../voice-engine-slot.js'
 //        echo): wake to the newest CAPABLE eligible client; speak to the
 //        HANDOFF OWNER (the client that took the wake and still runs the
 //        session — its speaker has the room), else to the newest of any.
+//   POST /session/start — a browser surface took the microphone WITHOUT a wake
+//        (the Display switch, the mic button). The daemon hands the room over so
+//        its native STT stops transcribing speech the web recognizer owns.
 //   POST /session/end — the overlay's command session finished; daemon resumes.
 //   POST /speak {text, sessionId?} — a session's spoken line, routed by the
 //        daemon (main.ts); `sessionId` = the producing chat session, carried
@@ -59,6 +62,9 @@ export type OverlayEvent =
 export type OverlaySurface = 'app' | 'dock'
 
 export interface OverlayChannelHooks {
+  /** The overlay posted /session/start — a web recognizer now owns the mic,
+   *  with no wake to have handed it over. */
+  onSessionStart(): void
   /** The overlay posted /session/end — its command session is over. */
   onSessionEnd(): void
   /** The client running the handed-off session disconnected — or the last one
@@ -237,6 +243,10 @@ export function startOverlayChannel(
         await closed
         if (heartbeat !== null) clearInterval(heartbeat)
       })
+    })
+    .post('/session/start', (c) => {
+      hooks.onSessionStart()
+      return c.json({ ok: true })
     })
     .post('/session/end', (c) => {
       handoffOwner = null

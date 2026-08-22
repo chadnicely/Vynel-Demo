@@ -28,9 +28,13 @@ import type { VoiceSessionDriverDeps, VoiceSessionDriverOptions } from './voice-
 //              session, the watchdog/failure lines). The mic is closed for it
 //              and the prior state restored after — a proactive line never
 //              opens a conversation or takes an utterance it cannot answer.
-//   HANDED-OFF — a connected browser overlay claimed the wake and owns the
-//              command session (Web Speech STT + spoken reply run THERE). The
-//              daemon ignores all audio until `endHandoff()` returns it to ASLEEP.
+//   HANDED-OFF — a browser surface owns the command session (Web Speech STT +
+//              spoken reply run THERE), because it claimed a wake OR because it
+//              announced its own start (`beginHandoff()` — the Display switch,
+//              the mic button). The daemon ignores all audio until
+//              `endHandoff()` returns it to ASLEEP: web recognition wins the
+//              microphone whenever a web surface is live, and the native STT is
+//              left to wake-word detection and the no-browser cases.
 //
 // Every dependency is injected so the whole flow is unit-tested with fakes; the
 // audio device + models + brain client are wired in the shell.
@@ -179,6 +183,32 @@ export class VoiceSessionDriver {
   /** The shell finished playing all queued TTS. */
   notifyPlaybackDrained(): void {
     this.#speaker.notifyPlaybackDrained()
+  }
+
+  /** A browser voice session STARTED without a wake — the Display switch, the
+   *  mic button, the dock's own start. The web recognizer (Web Speech) owns the
+   *  microphone from here, so the daemon must stop transcribing the same room:
+   *  without this seam it stayed ASLEEP with an open mic, ran every utterance
+   *  through the native STT to test the wake phrase, and could wake mid-
+   *  conversation — on the user's own words, or on the assistant's reply coming
+   *  back off the speakers (the browser plays it, so the echo filter, which only
+   *  knows the daemon's own speaker, never heard of it). Idempotent: a wake
+   *  handoff already put us here, and the client announces its start anyway. */
+  beginHandoff(): void {
+    if (this.#state === 'handed-off') return
+    void this.#abandonRunningTurn()
+    // A stale pending end would make the drain's finally sleep us right back
+    // out of the handoff we are taking.
+    this.#endHandoffPending = false
+    this.#clearIdleTimer()
+    if (this.#drainingSpeakQueue) {
+      // A relay line is playing: the drain owns the state, so only its restore
+      // target moves — reopening the mic under live audio is what that guards.
+      this.#drainPriorState = 'handed-off'
+      return
+    }
+    this.#state = 'handed-off'
+    this.#deps.io.setState('idle')
   }
 
   /** The overlay's command session ended (or its client disconnected) — the

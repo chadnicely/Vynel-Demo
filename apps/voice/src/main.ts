@@ -118,6 +118,9 @@ async function main(): Promise<void> {
   const overlay = startOverlayChannel(
     env.VYNEL_VOICE_DAEMON_PORT,
     {
+      // A web surface took the microphone (wake or not) — the native STT must
+      // not transcribe the same room underneath it.
+      onSessionStart: () => nativeLeg?.driver.beginHandoff(),
       onSessionEnd: () => nativeLeg?.driver.endHandoff(),
       onClientsGone: () => nativeLeg?.driver.endHandoff(),
       // The overlay speaks with the daemon's own voice — one voice everywhere.

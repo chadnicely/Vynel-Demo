@@ -32,6 +32,8 @@ interface VoiceStub {
   speakExternal: ReturnType<typeof vi.fn>;
   /** The store's own `onEnded`, so a case can play the idle timer. */
   fireEnded: () => void;
+  /** The store's own `onStarted` — the real composable fires it from start(). */
+  fireStarted: (() => void) | undefined;
 }
 
 const voice = vi.hoisted(() => ({}) as VoiceStub);
@@ -55,6 +57,9 @@ vi.mock("../voice/use-voice-session.js", async () => {
       spokenText: "",
       notice: "",
     };
+    // Faithful to the real composable: a recognizer that actually began
+    // announces itself.
+    voice.fireStarted?.();
   });
   voice.end = vi.fn(() => {
     voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
@@ -62,8 +67,9 @@ vi.mock("../voice/use-voice-session.js", async () => {
   voice.currentSessionId = vi.fn(() => null);
   voice.speakExternal = vi.fn(() => true);
   return {
-    useVoiceSession: (options: { onEnded: () => void }) => {
+    useVoiceSession: (options: { onEnded: () => void; onStarted?: () => void }) => {
       voice.fireEnded = options.onEnded;
+      voice.fireStarted = options.onStarted;
       onScopeDispose(() => voice.end());
       return voice;
     },
@@ -244,7 +250,38 @@ describe("useDisplayVoice — the switch", () => {
 
     expect(store.isLive).toBe(true);
     expect(store.isActive).toBe(false);
-    expect(posted).toEqual([["/voice/session/end", { method: "POST" }]]);
+    expect(posted).toEqual([
+      ["/voice/session/start", { method: "POST" }],
+      ["/voice/session/end", { method: "POST" }],
+    ]);
+  });
+
+  // THE REGRESSION (Kafi, 2026-08-23): the Display switch starts a Web Speech
+  // session with no wake behind it, so before `/session/start` the daemon never
+  // learned of it — it stayed asleep with its mic open and ran the same speech
+  // through its own local STT, waking mid-conversation on the wake phrase.
+  it("tells the daemon a web recognizer took the microphone", () => {
+    const { store } = mountVoice();
+    store.start();
+
+    expect(posted).toEqual([["/voice/session/start", { method: "POST" }]]);
+  });
+
+  // Idle silence hands the mic back so the wake word works again; resuming
+  // has to take it BACK, or the daemon transcribes under the live session.
+  it("re-announces the session when the user resumes after idle silence", () => {
+    const { store } = mountVoice();
+    store.start();
+    voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
+    voice.fireEnded();
+
+    store.toggleMute(); // the room's "Resume" pill
+
+    expect(posted).toEqual([
+      ["/voice/session/start", { method: "POST" }],
+      ["/voice/session/end", { method: "POST" }],
+      ["/voice/session/start", { method: "POST" }],
+    ]);
   });
 
   it("mute pauses the session and unmute takes it back", () => {

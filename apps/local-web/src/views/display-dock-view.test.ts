@@ -27,6 +27,8 @@ interface VoiceStub {
   speakExternal: ReturnType<typeof vi.fn>;
   /** The view's own `onEnded` — the idle timer, played by hand. */
   fireEnded: () => void;
+  /** The view's own `onStarted` — the real composable fires it from start(). */
+  fireStarted: (() => void) | undefined;
 }
 
 const voice = vi.hoisted(() => ({}) as VoiceStub);
@@ -50,6 +52,7 @@ vi.mock("../composables/voice/use-voice-session.js", async () => {
       spokenText: "Two builds are green",
       notice: "",
     };
+    voice.fireStarted?.();
   });
   voice.end = vi.fn(() => {
     voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
@@ -57,8 +60,9 @@ vi.mock("../composables/voice/use-voice-session.js", async () => {
   voice.currentSessionId = vi.fn(() => null);
   voice.speakExternal = vi.fn(() => true);
   return {
-    useVoiceSession: (options: { onEnded: () => void }) => {
+    useVoiceSession: (options: { onEnded: () => void; onStarted?: () => void }) => {
       voice.fireEnded = options.onEnded;
+      voice.fireStarted = options.onStarted;
       return voice;
     },
   };
@@ -68,6 +72,7 @@ interface DaemonStub {
   isAppDisplayActive: Ref<boolean>;
   appDisplaySession: Ref<AppDisplaySession | null>;
   notifySessionEnd: ReturnType<typeof vi.fn>;
+  notifySessionStart: ReturnType<typeof vi.fn>;
   /** The daemon heard the wake word. */
   wake: () => void;
 }
@@ -82,6 +87,7 @@ vi.mock("../composables/voice/use-voice-daemon-link.js", async () => {
   daemon.isAppDisplayActive = makeRef(false);
   daemon.appDisplaySession = makeRef<AppDisplaySession | null>(null);
   daemon.notifySessionEnd = vi.fn();
+  daemon.notifySessionStart = vi.fn();
   return {
     useVoiceDaemonLink: (options: { onWake: (command: string) => void }) => {
       daemon.wake = () => options.onWake("");
@@ -93,6 +99,7 @@ vi.mock("../composables/voice/use-voice-daemon-link.js", async () => {
         isAppDisplayActive: daemon.isAppDisplayActive,
         appDisplaySession: daemon.appDisplaySession,
         notifySessionEnd: daemon.notifySessionEnd,
+        notifySessionStart: daemon.notifySessionStart,
       };
     },
   };
@@ -185,6 +192,8 @@ beforeEach(() => {
   voice.failure.value = null;
   voice.start.mockClear();
   voice.end.mockClear();
+  daemon.notifySessionStart.mockClear();
+  daemon.notifySessionEnd.mockClear();
   daemon.isAppDisplayActive.value = false;
   daemon.appDisplaySession.value = null;
   board.dock = [];
@@ -211,6 +220,9 @@ describe("DisplayDockView", () => {
     await flushPromises();
 
     expect(voice.start).toHaveBeenCalled();
+    // The dock's recognizer owns the mic now — the daemon has to be told, or
+    // its native STT keeps transcribing the same room underneath it.
+    expect(daemon.notifySessionStart).toHaveBeenCalled();
     expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(true);
     // The user just said the wake word — the keyboard is theirs to give.
     expect(overlay.reveal).toHaveBeenCalledWith({ focus: true });

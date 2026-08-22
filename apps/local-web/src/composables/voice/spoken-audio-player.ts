@@ -156,7 +156,19 @@ export function observeSpokenSentenceStart(
   };
 }
 
-export function createSpokenAudioPlayer(): SpokenAudioPlayer {
+/** Options for the browser player. */
+export interface SpokenAudioPlayerOptions {
+  /** The daemon has no speaking model loaded (503 from /voice/synthesize) —
+   *  every sentence will be silent until one is downloaded. Reported so the
+   *  surface can SAY that instead of just going quiet. Only 503: a transient
+   *  500, an abort or an unreachable daemon must not paint a persistent
+   *  'no voice model' message. */
+  onVoiceUnavailable?: () => void;
+}
+
+export function createSpokenAudioPlayer(
+  options: SpokenAudioPlayerOptions = {},
+): SpokenAudioPlayer {
   let playing: HTMLAudioElement | null = null;
   // The in-flight playback's resolver — stopPlayback() must settle it: pause()
   // fires neither onended nor onerror, so without this a cancel mid-playback
@@ -172,6 +184,11 @@ export function createSpokenAudioPlayer(): SpokenAudioPlayer {
         body: JSON.stringify({ text }),
         signal,
       });
+      if (response.status === 503) {
+        // The daemon is up but has no voice loaded — a fixable, persistent state.
+        options.onVoiceUnavailable?.();
+        return null;
+      }
       if (!response.ok) return null; // daemon down / synth failed — stay silent, don't throw
       return await response.blob();
     } catch {

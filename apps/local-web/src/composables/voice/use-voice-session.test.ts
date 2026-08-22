@@ -15,11 +15,11 @@ import { useVoiceSession } from "./use-voice-session.js";
 // is what releases the daemon's handed-off state via POST /session/end. A
 // start that can't begin is an ended session, not a silent no-op.
 
-function mountVoiceSession(onEnded: () => void) {
+function mountVoiceSession(onEnded: () => void, onStarted?: () => void) {
   let session!: ReturnType<typeof useVoiceSession>;
   const Harness = defineComponent({
     setup() {
-      session = useVoiceSession({ onEnded });
+      session = useVoiceSession({ onEnded, ...(onStarted ? { onStarted } : {}) });
       return () => null;
     },
   });
@@ -45,6 +45,24 @@ describe("useVoiceSession", () => {
     expect(endedCount).toBe(1);
     expect(session.failure.value).toContain("Chrome or Edge");
     expect(session.isActive.value).toBe(false);
+    wrapper.unmount();
+  });
+
+  // The mirror of the case above: announcing a session that never began would
+  // hand the daemon a handoff with nothing alive to release it — deaf until
+  // the tab closes.
+  it("does NOT announce a start that could not begin", () => {
+    let startedCount = 0;
+    const { session, wrapper } = mountVoiceSession(
+      () => {},
+      () => {
+        startedCount += 1;
+      },
+    );
+
+    session.start(); // happy-dom has no Web Speech
+
+    expect(startedCount).toBe(0);
     wrapper.unmount();
   });
 });

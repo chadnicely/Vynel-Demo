@@ -55,7 +55,7 @@ export const useDisplayVoice = defineStore("display-voice", () => {
 
   // Hoisted handlers so the two composables can reference each other's owners —
   // both callbacks only ever fire after setup completes.
-  const voice = useVoiceSession({ onEnded: handleSessionEnded });
+  const voice = useVoiceSession({ onEnded: handleSessionEnded, onStarted: handleSessionStarted });
   const daemon = useVoiceDaemonLink({
     onWake: handleWake,
     ownLiveSessionId: voice.currentSessionId,
@@ -73,6 +73,13 @@ export const useDisplayVoice = defineStore("display-voice", () => {
   // clearing `isMuted` here would undo the mute they just asked for.)
   function handleSessionEnded(): void {
     daemon.notifySessionEnd();
+  }
+
+  // The room's recognizer has the microphone now — the daemon must stop running
+  // its native STT over the same speech (it only ever knew about sessions its
+  // own wake handed over).
+  function handleSessionStarted(): void {
+    daemon.notifySessionStart();
   }
 
   // A wake the daemon handed to THIS window: it is already non-idle when this

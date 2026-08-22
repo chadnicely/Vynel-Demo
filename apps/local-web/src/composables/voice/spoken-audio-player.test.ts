@@ -203,6 +203,20 @@ describe("createSpokenAudioPlayer", () => {
     await expect(done).resolves.toBeUndefined();
   });
 
+  // A fresh install has no speaking model, so the daemon answers 503 and every
+  // sentence is dropped. Silence reads as a broken app — say the fixable thing.
+  it("reports 503 as a voice that is not ready — and nothing else does", async () => {
+    const unavailable = vi.fn();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    await createSpokenAudioPlayer({ onVoiceUnavailable: unavailable }).play("Hello.");
+    expect(unavailable).toHaveBeenCalled();
+
+    const transient = vi.fn();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await createSpokenAudioPlayer({ onVoiceUnavailable: transient }).play("Hello.");
+    expect(transient).not.toHaveBeenCalled();
+  });
+
   it("synthesizes through the daemon proxy once per sentence and stays silent when it is down", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503 });
     vi.stubGlobal("fetch", fetchMock);
