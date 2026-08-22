@@ -5,6 +5,33 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Added
+
+- **Vynel can bring a window to the front.** There was no way to ask for this before —
+  windows only ever came forward as a side effect of Vynel reading or clicking something,
+  so "put Discord in front of me" was not a thing it could do. Now it is. If an app has
+  several windows open — three Chrome windows, two Explorer windows — you can say which
+  one, and Vynel tells you which it raised and what the alternatives were, so a wrong
+  guess takes one word to correct. Bringing a window forward never resizes it: a
+  minimized window comes back exactly the size it was, and a maximized one stays
+  maximized.
+
+### Fixed
+
+- **Apps now come to the front reliably, instead of sometimes.** Discord (and any app
+  like it) would come forward on one request and stay stubbornly behind on the next, with
+  nothing different about the request — it depended on invisible state left behind by
+  Vynel's own earlier actions. Both routes now bring the window forward, so the same ask
+  gets the same result.
+- **Vynel targets the right window when an app has several.** It used to address a whole
+  program rather than a window, so with three Chrome windows open it could act on
+  whichever one the system happened to name first — and it could not see apps tucked in
+  the system tray at all.
+- **Bringing a window forward is much faster** — roughly a second of waiting per attempt
+  is gone.
+
 ## [0.3.4] — 2026-08-22
 
 ### Added

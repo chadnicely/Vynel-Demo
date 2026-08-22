@@ -172,6 +172,30 @@ works — every single time.
 Inside the 12 s Electron wake deadline, `ensureForeground` runs up to twice — so **~2.5 s of a cold
 Discord wake is PowerShell process startup**, before any accessibility work begins.
 
+## SHIPPED — `ee716012`, 2026-08-22
+
+All four items below landed in one move, full gate green (987 files / 6753 tests):
+
+| # | What | Where |
+|---|---|---|
+| 0 | Both resolution paths focus; new `focus_window` tool | `a11y/electron-wake.ts`, `mcp/focus-window-tool.ts` |
+| 1 | Real-HWND targeting + window ranking | `a11y/desktop-windows.ts` |
+| 2 | In-process focus (Shift → settle → raise → verify) | `a11y/window-focus.ts` |
+| 3 | Per-window rows in the roster | `mcp/list-open-apps-tool.ts` |
+| 4 | Geometry-neutrality regression test | `a11y/window-focus.test.ts` |
+
+**Live smoke of the shipped path**, against the armed-lock fixture:
+
+```
+qBittorrent (minimized)  focusWindowHandle -> true in 454ms · restored to MAXIMIZED (correct)
+Chrome      (maximized)  focused · maximized true  -> true   PRESERVED
+Terminal    (normal)     focused · maximized false -> false  PRESERVED (never promoted)
+```
+
+Still owed by Kafi: the same three cases through the actual **tool** on a live turn —
+notably an Electron app (Discord) and a UWP app, which the in-process port has not been
+exercised against. The ladder covered those classes; the port did not.
+
 ## The recommended fix — verified end to end
 
 Everything below uses libraries `@vynel/desktop-control` **already depends on**. No new install
