@@ -12,6 +12,12 @@ import type {
   DiscoveredProviderModel,
 } from './start-chat-session-input.js'
 import type { DiscoverModelsInput } from './discover-models-input.js'
+import type {
+  WorkspacePlan,
+  WorkspacePlanInput,
+  RivalSiteStudy,
+  RivalSiteStudyInput,
+} from './workspace-plan.js'
 import type { GetContextReportInput } from './get-context-report-input.js'
 import type { SummarizeSessionInput } from './summarize-session-input.js'
 import type { SummarizeReportInput } from './summarize-report-input.js'
@@ -129,6 +135,29 @@ export abstract class AiAgentProvider {
    * supported, the `summarizeSession` shape.
    */
   discoverModels(_input: DiscoverModelsInput): Promise<DiscoveredProviderModel[] | null> {
+    return Promise.resolve(null)
+  }
+
+  /**
+   * The new-workspace wizard's "Is there one like it already?" — what a named site
+   * does, what to leave out, and what would make the user's version better,
+   * from the provider's own knowledge (no live read; the UI labels it so).
+   * Returns `null` if this provider can't study; the screen reports it
+   * plainly. Best-effort; never throws. Default: not supported, the
+   * `summarizeReport` shape.
+   */
+  studyRivalSite(_input: RivalSiteStudyInput): Promise<RivalSiteStudy | null> {
+    return Promise.resolve(null)
+  }
+
+  /**
+   * Distills the wizard's answers into the plan the user rates — one-liner,
+   * build list, MVP nutshell, goals, and build sessions. Returns `null` if
+   * this provider can't synthesize; the wizard falls back to its own
+   * mechanical derivation. Best-effort; never throws. Default: not
+   * supported, the `summarizeReport` shape.
+   */
+  synthesizeWorkspacePlan(_input: WorkspacePlanInput): Promise<WorkspacePlan | null> {
     return Promise.resolve(null)
   }
 }

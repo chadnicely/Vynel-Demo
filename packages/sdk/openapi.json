@@ -6,6 +6,1200 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/workspaces/wizard/study-rival": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ study } — null when the provider could not study the site; say so plainly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "study": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "whatTheyDo": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "leaveOut": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "magic": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "why": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "title",
+                              "why"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "whatTheyDo",
+                        "leaveOut",
+                        "magic"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "study"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or the chosen folder does not exist."
+          }
+        },
+        "operationId": "postWorkspacesWizardStudy-rival",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "List what a named site does, from the provider's own knowledge (no live read).",
+        "x-sdk-name": "workspaces.studyRival",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "site": {
+                    "type": "string",
+                    "minLength": 4,
+                    "maxLength": 200
+                  },
+                  "idea": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "site",
+                  "idea",
+                  "parentPath"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/wizard/plan": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ plan } — null when no synthesis could be made; the wizard falls back to its own derivation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plan": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "oneLine": {
+                          "type": "string"
+                        },
+                        "build": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "text": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "text",
+                              "source"
+                            ]
+                          }
+                        },
+                        "remembers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "leftOut": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "mvpNutshell": {
+                          "type": "string"
+                        },
+                        "goals": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "bullets": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "title",
+                              "bullets"
+                            ]
+                          }
+                        },
+                        "sessions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "mvp": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "items",
+                              "mvp"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "oneLine",
+                        "build",
+                        "remembers",
+                        "leftOut",
+                        "mvpNutshell",
+                        "goals",
+                        "sessions"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "plan"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or the chosen folder does not exist."
+          }
+        },
+        "operationId": "postWorkspacesWizardPlan",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Distill the wizard's answers into the plan the user rates.",
+        "x-sdk-name": "workspaces.synthesizePlan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idea": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "audience": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "firstThing": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "signIn": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "where": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "remembers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "maxItems": 20
+                  },
+                  "wants": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "from": {
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "from"
+                      ]
+                    },
+                    "maxItems": 80
+                  },
+                  "leftOut": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "maxItems": 40
+                  },
+                  "changeRequests": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "maxItems": 20
+                  },
+                  "goalNotes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "maxItems": 20
+                  },
+                  "stack": {
+                    "type": "object",
+                    "properties": {
+                      "front": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "back": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "database": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "front",
+                      "back",
+                      "database"
+                    ]
+                  },
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "idea",
+                  "audience",
+                  "firstThing",
+                  "signIn",
+                  "where",
+                  "remembers",
+                  "wants",
+                  "leftOut",
+                  "changeRequests",
+                  "goalNotes",
+                  "stack",
+                  "parentPath"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/wizard/scaffold": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The workspace row, what actually happened with git (initialized / skipped), and the stored brief.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "managerName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "small-business",
+                            "personal",
+                            "project",
+                            "custom"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "isArchived": {
+                          "type": "boolean"
+                        },
+                        "continueEnabled": {
+                          "type": "boolean"
+                        },
+                        "groupId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "completed",
+                            "problem",
+                            "needs_input",
+                            null
+                          ]
+                        },
+                        "statusNote": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "statusSetAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "lastAccessedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "name",
+                        "managerName",
+                        "kind",
+                        "path",
+                        "isArchived",
+                        "continueEnabled",
+                        "groupId",
+                        "status",
+                        "statusNote",
+                        "statusSetAt",
+                        "createdAt",
+                        "updatedAt",
+                        "lastAccessedAt"
+                      ]
+                    },
+                    "git": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "initialized"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "skipped"
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "reason"
+                          ]
+                        }
+                      ]
+                    },
+                    "brief": {
+                      "type": "object",
+                      "properties": {
+                        "workspaceId": {
+                          "type": "string"
+                        },
+                        "answers": {
+                          "type": "object",
+                          "properties": {
+                            "idea": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 5000
+                            },
+                            "audience": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "firstThing": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "signIn": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "where": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "remembers": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "maxItems": 20
+                            },
+                            "wants": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "text": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "from": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "from"
+                                ]
+                              },
+                              "maxItems": 80
+                            },
+                            "leftOut": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              "maxItems": 40
+                            },
+                            "changeRequests": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "maxItems": 20
+                            },
+                            "goalNotes": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "maxItems": 20
+                            },
+                            "stack": {
+                              "type": "object",
+                              "properties": {
+                                "front": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "back": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "database": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                }
+                              },
+                              "required": [
+                                "front",
+                                "back",
+                                "database"
+                              ]
+                            },
+                            "advancedNotes": {
+                              "type": "string",
+                              "maxLength": 2000
+                            }
+                          },
+                          "required": [
+                            "idea",
+                            "audience",
+                            "firstThing",
+                            "signIn",
+                            "where",
+                            "remembers",
+                            "wants",
+                            "leftOut",
+                            "changeRequests",
+                            "goalNotes",
+                            "stack"
+                          ]
+                        },
+                        "plan": {
+                          "type": "object",
+                          "properties": {
+                            "oneLine": {
+                              "type": "string"
+                            },
+                            "build": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "source"
+                                ]
+                              }
+                            },
+                            "remembers": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "leftOut": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "mvpNutshell": {
+                              "type": "string"
+                            },
+                            "goals": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "bullets": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "title",
+                                  "bullets"
+                                ]
+                              }
+                            },
+                            "sessions": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "mvp": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "items",
+                                  "mvp"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "oneLine",
+                            "build",
+                            "remembers",
+                            "leftOut",
+                            "mvpNutshell",
+                            "goals",
+                            "sessions"
+                          ]
+                        },
+                        "brief": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "workspaceId",
+                        "answers",
+                        "plan",
+                        "brief",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "workspace",
+                    "git",
+                    "brief"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or the chosen folder does not exist."
+          },
+          "404": {
+            "description": "No such group owned by this user."
+          },
+          "409": {
+            "description": "A folder with that name is already in the chosen folder."
+          }
+        },
+        "operationId": "postWorkspacesWizardScaffold",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Make the wizard's workspace: folder, README, git, the row, the stored brief.",
+        "x-sdk-name": "workspaces.scaffold",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "folderName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "groupId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "answers": {
+                    "type": "object",
+                    "properties": {
+                      "idea": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 5000
+                      },
+                      "audience": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "firstThing": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      "signIn": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "where": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "remembers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "maxItems": 20
+                      },
+                      "wants": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "maxLength": 500
+                            },
+                            "from": {
+                              "type": "string",
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "text",
+                            "from"
+                          ]
+                        },
+                        "maxItems": 80
+                      },
+                      "leftOut": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "maxItems": 40
+                      },
+                      "changeRequests": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "maxItems": 20
+                      },
+                      "goalNotes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "maxItems": 20
+                      },
+                      "stack": {
+                        "type": "object",
+                        "properties": {
+                          "front": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "back": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "database": {
+                            "type": "string",
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "front",
+                          "back",
+                          "database"
+                        ]
+                      },
+                      "advancedNotes": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "idea",
+                      "audience",
+                      "firstThing",
+                      "signIn",
+                      "where",
+                      "remembers",
+                      "wants",
+                      "leftOut",
+                      "changeRequests",
+                      "goalNotes",
+                      "stack"
+                    ]
+                  },
+                  "plan": {
+                    "type": "object",
+                    "properties": {
+                      "oneLine": {
+                        "type": "string"
+                      },
+                      "build": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "text",
+                            "source"
+                          ]
+                        }
+                      },
+                      "remembers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "leftOut": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "mvpNutshell": {
+                        "type": "string"
+                      },
+                      "goals": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "bullets": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "bullets"
+                          ]
+                        }
+                      },
+                      "sessions": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "mvp": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "items",
+                            "mvp"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "oneLine",
+                      "build",
+                      "remembers",
+                      "leftOut",
+                      "mvpNutshell",
+                      "goals",
+                      "sessions"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "parentPath",
+                  "answers",
+                  "plan"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/wizard/clone": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The registered workspace row for the cloned repository.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "userId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "managerName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "small-business",
+                            "personal",
+                            "project",
+                            "custom"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "isArchived": {
+                          "type": "boolean"
+                        },
+                        "continueEnabled": {
+                          "type": "boolean"
+                        },
+                        "groupId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "completed",
+                            "problem",
+                            "needs_input",
+                            null
+                          ]
+                        },
+                        "statusNote": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "statusSetAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "lastAccessedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "userId",
+                        "name",
+                        "managerName",
+                        "kind",
+                        "path",
+                        "isArchived",
+                        "continueEnabled",
+                        "groupId",
+                        "status",
+                        "statusNote",
+                        "statusSetAt",
+                        "createdAt",
+                        "updatedAt",
+                        "lastAccessedAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "workspace"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, a bad repository address, a missing chosen folder, or the clone failing."
+          },
+          "404": {
+            "description": "No such group owned by this user."
+          },
+          "409": {
+            "description": "A folder with that name is already in the chosen folder."
+          }
+        },
+        "operationId": "postWorkspacesWizardClone",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Clone a git repository into a new folder and register it as a workspace.",
+        "x-sdk-name": "workspaces.clone",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "repositoryUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "folderName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "groupId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "name",
+                  "parentPath",
+                  "repositoryUrl"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/knowledge/documents": {
       "get": {
         "responses": {
@@ -16131,6 +17325,293 @@
         ],
         "summary": "Get one workspace's token-usage statistics per model per day.",
         "x-sdk-name": "dashboardWorkspace.getUsage"
+      }
+    },
+    "/workspaces/{workspaceId}/brief": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ brief } — null when the workspace was not made by the wizard.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "brief": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "workspaceId": {
+                          "type": "string"
+                        },
+                        "answers": {
+                          "type": "object",
+                          "properties": {
+                            "idea": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 5000
+                            },
+                            "audience": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "firstThing": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "signIn": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "where": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "remembers": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              "maxItems": 20
+                            },
+                            "wants": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "text": {
+                                    "type": "string",
+                                    "maxLength": 500
+                                  },
+                                  "from": {
+                                    "type": "string",
+                                    "maxLength": 200
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "from"
+                                ]
+                              },
+                              "maxItems": 80
+                            },
+                            "leftOut": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              "maxItems": 40
+                            },
+                            "changeRequests": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "maxItems": 20
+                            },
+                            "goalNotes": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "maxItems": 20
+                            },
+                            "stack": {
+                              "type": "object",
+                              "properties": {
+                                "front": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "back": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                },
+                                "database": {
+                                  "type": "string",
+                                  "maxLength": 200
+                                }
+                              },
+                              "required": [
+                                "front",
+                                "back",
+                                "database"
+                              ]
+                            },
+                            "advancedNotes": {
+                              "type": "string",
+                              "maxLength": 2000
+                            }
+                          },
+                          "required": [
+                            "idea",
+                            "audience",
+                            "firstThing",
+                            "signIn",
+                            "where",
+                            "remembers",
+                            "wants",
+                            "leftOut",
+                            "changeRequests",
+                            "goalNotes",
+                            "stack"
+                          ]
+                        },
+                        "plan": {
+                          "type": "object",
+                          "properties": {
+                            "oneLine": {
+                              "type": "string"
+                            },
+                            "build": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "source"
+                                ]
+                              }
+                            },
+                            "remembers": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "leftOut": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "mvpNutshell": {
+                              "type": "string"
+                            },
+                            "goals": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "bullets": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "title",
+                                  "bullets"
+                                ]
+                              }
+                            },
+                            "sessions": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "mvp": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "items",
+                                  "mvp"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "oneLine",
+                            "build",
+                            "remembers",
+                            "leftOut",
+                            "mvpNutshell",
+                            "goals",
+                            "sessions"
+                          ]
+                        },
+                        "brief": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "workspaceId",
+                        "answers",
+                        "plan",
+                        "brief",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "brief"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdBrief",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "The new-workspace wizard's approved plan for this workspace, if it was made by the wizard.",
+        "x-sdk-name": "workspaces.getBrief",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_workspace_brief",
+          "description": "Read this workspace's brief — what the user agreed to when they set it up with the new-workspace wizard: the answers they gave (the idea, who it is for, what it keeps track of, the wish list with where each item came from, the stack), the plan they approved (the one-liner, what to build, the MVP in a nutshell, the goals, and the build sessions IN ORDER with `mvp: false` marking what comes after the MVP), and the brief text they sent as the first message. `brief` is null when the workspace was not made by the wizard (pulled in from a folder or a repository). Read it before planning or resuming the build so the work stays the plan the user approved. Read-only."
+        }
       }
     },
     "/workspaces/{workspaceId}/section-counts": {

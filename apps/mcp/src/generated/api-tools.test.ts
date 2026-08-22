@@ -78,6 +78,9 @@ import {
 //     deliberately NOT exposed (history stays the user's).
 //   - the monitors module (2026-07-26): list_monitors + create_monitor +
 //     stop_monitor (mutatingApproved — a monitor is Claude's own bookkeeping).
+//   - the new-workspace wizard (2026-08-23): get_workspace_brief (read) — the
+//     plan the user approved at setup, stored in the DB; a resumed build
+//     re-reads what was agreed instead of guessing from the folder.
 //     Every op is DOUBLED on the routing array under a global-flavored name,
 //     because the two surfaces are mutually exclusive and a turn that can arm
 //     a watch must be able to stop it. There is no watchable-events tool: the
@@ -142,6 +145,7 @@ const EXPECTED_TOOL_NAMES = [
   'get_phase',
   'get_user_preferences',
   'get_workspace',
+  'get_workspace_brief',
   'list_agents',
   'list_ai_agent_providers',
   'list_allowed_senders',

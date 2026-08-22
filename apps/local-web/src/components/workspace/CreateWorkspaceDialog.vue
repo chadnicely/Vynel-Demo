@@ -3,10 +3,9 @@ import { computed, ref, watch } from "vue";
 import { Modal } from "@vynel/ui";
 import type { WorkspaceResponse } from "@vynel/contracts/workspaces/workspace-http";
 import FileSystemBrowser from "../filesystem/FileSystemBrowser.vue";
-import { isDriveRootPath } from "../filesystem/file-system-path.js";
 import type { FileSystemSelection } from "../filesystem/file-system-selection.js";
-import { useDirectoryListing } from "../../composables/workspaces/use-directory-listing.js";
 import { useRegisterWorkspace } from "../../composables/workspaces/use-register-workspace.js";
+import { useTooBroadFolder } from "../../composables/workspaces/use-too-broad-folder.js";
 import {
   useWorkspaceGroupMutations,
   useWorkspaceGroups,
@@ -34,9 +33,8 @@ const name = ref("");
 const nameEdited = ref(false);
 
 const isOpen = computed(() => props.open);
-// The same home read the browser opens with (shared query cache) — it carries
-// the known places, and Home is the one folder a workspace must not swallow.
-const homeListing = useDirectoryListing(ref(null), isOpen);
+// A whole drive or the home folder isn't a room — it's the whole house.
+const { isTooBroad, reason: tooBroadReason } = useTooBroadFolder(selection, isOpen);
 const registerWorkspace = useRegisterWorkspace();
 const groupsQuery = useWorkspaceGroups();
 const groupMutations = useWorkspaceGroupMutations();
@@ -90,16 +88,6 @@ watch(
     }
   },
   { immediate: true },
-);
-
-const homePath = computed(
-  () => homeListing.data.value?.places.find((place) => place.kind === "home")?.path ?? null,
-);
-// A whole drive or the home folder isn't a room — it's the whole house.
-const isTooBroad = computed(
-  () =>
-    selection.value !== null &&
-    (isDriveRootPath(selection.value.path) || selection.value.path === homePath.value),
 );
 
 // The name the folder suggests — nothing while the pick is too broad to be one.
@@ -162,9 +150,9 @@ function onOpenChange(open: boolean) {
       <div class="grid gap-1.5">
         <span class="text-[11.5px] font-semibold text-ink-2">Folder</span>
         <FileSystemBrowser v-model="selection" mode="folder" :active="props.open" />
-        <span v-if="isTooBroad" class="text-[11px] text-needs-input">
-          That's your whole {{ selection && isDriveRootPath(selection.path) ? "drive" : "home folder" }} —
-          open it and pick the folder this workspace should live in.
+        <span v-if="tooBroadReason" class="text-[11px] text-needs-input">
+          That's your whole {{ tooBroadReason }} — open it and pick the folder this workspace
+          should live in.
         </span>
         <span v-else class="text-[11px] text-ink-3">
           Click a folder to choose it, double-click to open it. The chosen folder is

@@ -5,3 +5,4 @@
 
 export * from './workspaces.js'
 export * from './workspace-groups.js'
+export * from './workspace-briefs.js'

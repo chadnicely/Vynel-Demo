@@ -54,6 +54,18 @@ export type { SetWorkspaceGroupInput } from './groups/set-workspace-group.js'
 
 export { createWorkspace } from './lifecycle/create-workspace.js'
 export type { CreateWorkspaceInput, CreateWorkspaceDependencies } from './lifecycle/create-workspace.js'
+export { scaffoldWorkspace } from './lifecycle/scaffold-workspace.js'
+export type {
+  ScaffoldWorkspaceInput,
+  ScaffoldWorkspaceDependencies,
+  ScaffoldedWorkspace,
+  ScaffoldGitOutcome,
+  GitRunner,
+} from './lifecycle/scaffold-workspace.js'
+export { cloneRepositoryWorkspace } from './lifecycle/clone-repository-workspace.js'
+export type { CloneRepositoryWorkspaceInput } from './lifecycle/clone-repository-workspace.js'
+export { findWorkspaceBrief, toWorkspaceBrief } from './brief/workspace-brief.js'
+export type { WorkspaceBrief } from './brief/workspace-brief.js'
 
 // Manager persona naming (brain-tree Ch5) — the default-name picker + the resolver.
 export { formatManagerLabel, hasDistinctManagerName, resolveManagerName } from './manager-name.js'
@@ -72,6 +84,7 @@ export { makeDefaultWorkspaceParentDirectory } from './directory/make-default-wo
 export { sanitizeFolderName } from './directory/sanitize-folder-name.js'
 export { listChildDirectories } from './directory/list-child-directories.js'
 export { createChildDirectory } from './directory/create-child-directory.js'
+export { resolveExistingDirectory } from './directory/resolve-existing-directory.js'
 export type { DirectoryListing, DirectoryEntry } from './directory/list-child-directories.js'
 export type { DriveRoot, DriveKind } from './directory/list-drive-roots.js'
 export type { KnownPlace, KnownPlaceKind } from './directory/list-known-places.js'

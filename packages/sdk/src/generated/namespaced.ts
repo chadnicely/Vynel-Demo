@@ -2232,6 +2232,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  clone: async (input: NonNullable<paths["/workspaces/wizard/clone"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/wizard/clone", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   createDirectory: async (input: NonNullable<paths["/workspaces/directories"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/directories", {
       body: input,
@@ -2263,6 +2270,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   get: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getBrief: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/brief"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/brief", {
       params: { path: { workspaceId: workspaceId } },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -2307,6 +2321,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  scaffold: async (input: NonNullable<paths["/workspaces/wizard/scaffold"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/wizard/scaffold", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   setGroup: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/group"]["put"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/group"]["put"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/group", {
       params: { path: { workspaceId: workspaceId } },
@@ -2318,6 +2339,20 @@ export function makeNamespaced(client: Client<paths>) {
   setStatus: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/status"]["put"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/status"]["put"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PUT"]("/workspaces/{workspaceId}/status", {
       params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  studyRival: async (input: NonNullable<paths["/workspaces/wizard/study-rival"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/wizard/study-rival", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  synthesizePlan: async (input: NonNullable<paths["/workspaces/wizard/plan"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/wizard/plan", {
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

@@ -39,10 +39,7 @@
 // `instanceof VynelError` check per `error-handling.md` "Layering".
 
 import { resolver, validator } from 'hono-openapi/zod'
-import type {
-  WorkspaceGroupResponse,
-  WorkspaceResponse,
-} from '@vynel/contracts/workspaces/workspace-http'
+import type { WorkspaceGroupResponse } from '@vynel/contracts/workspaces/workspace-http'
 import type { WorkspaceStatusReport } from '@vynel/contracts/workspaces/workspace-status'
 import { listLatestWorkspaceTurnsForUser } from '@vynel/session/runtime'
 import { countTasksByWorkspace } from '@vynel/tasks'
@@ -50,6 +47,7 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
+import { serializeWorkspaceForResponse } from './serialize-workspace.js'
 import {
   createWorkspace,
   listWorkspacesForUser,
@@ -66,7 +64,7 @@ import {
   setWorkspaceGroup,
   setWorkspaceStatus,
 } from '@vynel/workspaces'
-import type { Workspace, WorkspaceGroup } from '@vynel/workspaces'
+import type { WorkspaceGroup } from '@vynel/workspaces'
 import {
   CreateWorkspaceRequestSchema,
   UpdateWorkspaceRequestSchema,
@@ -574,26 +572,6 @@ export const workspacesApp = factory
       return c.body(null, 204)
     },
   )
-
-function serializeWorkspaceForResponse(workspace: Workspace): WorkspaceResponse {
-  return {
-    id: workspace.id,
-    userId: workspace.userId,
-    name: workspace.name,
-    managerName: workspace.managerName,
-    kind: workspace.kind,
-    path: workspace.path,
-    isArchived: workspace.isArchived,
-    continueEnabled: workspace.continueEnabled,
-    groupId: workspace.groupId,
-    status: workspace.status,
-    statusNote: workspace.statusNote,
-    statusSetAt: workspace.statusSetAt?.toISOString() ?? null,
-    createdAt: workspace.createdAt.toISOString(),
-    updatedAt: workspace.updatedAt.toISOString(),
-    lastAccessedAt: workspace.lastAccessedAt.toISOString(),
-  }
-}
 
 function serializeWorkspaceGroupForResponse(group: WorkspaceGroup): WorkspaceGroupResponse {
   return {

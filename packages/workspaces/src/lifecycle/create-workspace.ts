@@ -49,6 +49,23 @@ export async function createWorkspace(
   input: CreateWorkspaceInput,
   deps: CreateWorkspaceDependencies = {},
 ): Promise<Workspace> {
+  const createdWorkspace = withTransaction(db, (tx) => createWorkspaceWithin(tx, input))
+
+  deps.logger?.info(
+    { workspaceId: createdWorkspace.id, kind: createdWorkspace.kind, path: createdWorkspace.path },
+    'workspace created',
+  )
+
+  return createdWorkspace
+}
+
+/**
+ * The body of `createWorkspace`, for a caller that co-commits more rows in
+ * the SAME transaction (the wizard's scaffold adds the workspace's brief) —
+ * invariant 5: one commit for the row, its event, and whatever rides with
+ * it. Sync, like every Phase-1 transaction body.
+ */
+export function createWorkspaceWithin(tx: Database, input: CreateWorkspaceInput): Workspace {
   assertExistingWritableDirectory(input.directory)
 
   // Canonical absolute path — resolves symlinks and (on case-insensitive
@@ -60,70 +77,61 @@ export async function createWorkspace(
   // A foreign or missing group 404s exactly like setWorkspaceGroup — before
   // anything is written.
   if (input.groupId !== undefined) {
-    getWorkspaceGroupForUserOrThrow(db, input.userId, input.groupId)
+    getWorkspaceGroupForUserOrThrow(tx, input.userId, input.groupId)
   }
 
-  const createdWorkspace = withTransaction(db, (tx) => {
-    // LOAD-BEARING dedup: the existing-directory model has no "folder must not
-    // already exist" guard, so this is the SOLE protection against adding the
-    // same directory twice. Case-insensitive (D3); spans archived workspaces
-    // (an archived workspace still owns its folder); unbounded indexed lookup.
-    const clash = workspacesRepository.findWorkspaceByNormalizedPath(
-      tx,
-      input.userId,
-      workspacePath,
+  // LOAD-BEARING dedup: the existing-directory model has no "folder must not
+  // already exist" guard, so this is the SOLE protection against adding the
+  // same directory twice. Case-insensitive (D3); spans archived workspaces
+  // (an archived workspace still owns its folder); unbounded indexed lookup.
+  const clash = workspacesRepository.findWorkspaceByNormalizedPath(
+    tx,
+    input.userId,
+    workspacePath,
+  )
+  if (clash) {
+    throw new ConflictError(
+      `${workspacePath} is already a workspace ("${clash.name}"). Pick a different directory.`,
     )
-    if (clash) {
-      throw new ConflictError(
-        `${workspacePath} is already a workspace ("${clash.name}"). Pick a different directory.`,
-      )
-    }
+  }
 
-    const workspaceId = crypto.randomUUID()
-    const newWorkspace = workspacesRepository.insertWorkspace(tx, {
-      id: workspaceId,
-      userId: input.userId,
-      name: input.name,
-      // The manager persona defaults to the workspace's own name (Kafi,
-      // 2026-08-19) — renameable later; a null row resolves the same way at read time.
-      managerName: input.name,
-      kind: input.kind ?? 'personal',
-      path: workspacePath,
-      groupId: input.groupId ?? null,
-      isArchived: false,
-      createdAt: now,
-      updatedAt: now,
-      lastAccessedAt: now,
-    })
-
-    // Minimal scaffold: the user's existing folder layout is left untouched —
-    // only Vynel's `.vynel/` metadata dir is created. Identity files are retired
-    // (A2); workspace context now lives in structured memory.
-    mkdirSync(path.join(workspacePath, '.vynel'), { recursive: true })
-
-    outboxRepository.insertOutboxEvent(tx, {
-      id: crypto.randomUUID(),
-      type: WORKSPACE_CREATED_EVENT,
-      payload: {
-        workspaceId: newWorkspace.id,
-        userId: newWorkspace.userId,
-        kind: newWorkspace.kind,
-        name: newWorkspace.name,
-        path: newWorkspace.path,
-        createdAt: newWorkspace.createdAt.toISOString(),
-      },
-      createdAt: now,
-    })
-
-    return newWorkspace
+  const workspaceId = crypto.randomUUID()
+  const newWorkspace = workspacesRepository.insertWorkspace(tx, {
+    id: workspaceId,
+    userId: input.userId,
+    name: input.name,
+    // The manager persona defaults to the workspace's own name (Kafi,
+    // 2026-08-19) — renameable later; a null row resolves the same way at read time.
+    managerName: input.name,
+    kind: input.kind ?? 'personal',
+    path: workspacePath,
+    groupId: input.groupId ?? null,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+    lastAccessedAt: now,
   })
 
-  deps.logger?.info(
-    { workspaceId: createdWorkspace.id, kind: createdWorkspace.kind, path: workspacePath },
-    'workspace created',
-  )
+  // Minimal scaffold: the user's existing folder layout is left untouched —
+  // only Vynel's `.vynel/` metadata dir is created. Identity files are retired
+  // (A2); workspace context now lives in structured memory.
+  mkdirSync(path.join(workspacePath, '.vynel'), { recursive: true })
 
-  return createdWorkspace
+  outboxRepository.insertOutboxEvent(tx, {
+    id: crypto.randomUUID(),
+    type: WORKSPACE_CREATED_EVENT,
+    payload: {
+      workspaceId: newWorkspace.id,
+      userId: newWorkspace.userId,
+      kind: newWorkspace.kind,
+      name: newWorkspace.name,
+      path: newWorkspace.path,
+      createdAt: newWorkspace.createdAt.toISOString(),
+    },
+    createdAt: now,
+  })
+
+  return newWorkspace
 }
 
 function assertExistingWritableDirectory(directory: string): void {

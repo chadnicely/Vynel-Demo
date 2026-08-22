@@ -3,7 +3,60 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-22 (latest) DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)
+## ✅ 2026-08-23 (latest) NEW-WORKSPACE WIZARD — all five slices, MERGED TO MAIN (not pushed)
+
+Chad's 13-screen "Walk me through it" wizard (design branch `5daf8ff6`/`40c5a5e8`) comes to main **screens
+and copy as drawn, plumbing rebuilt** — note `docs/module-notes/new-workspace-wizard.md` (read it first).
+Kafi's decisions 2026-08-23: it creates a **workspace** (flat row + group, never a sub-project); the user
+**chooses the folder first** (screen 1) and the one-shots dispatch from it — never the global space;
+**accounts are global** (screen 10 = read-only pre-flight, nothing stored per workspace); the approved plan
+**lives in the DB** (a `workspace_briefs` row, no `PLAN.md`) + the composer seed; "pull from git" is its own
+slice. Slice 1 landed: `@vynel/providers` `studyRivalSite` / `synthesizeWorkspacePlan` (default null;
+Claude = toolless sonnet-5 distills over `runClaudeDistillTurn`, `parseDistillJson` + `readList` readers),
+`POST /workspaces/wizard/{study-rival,plan}` (no x-mcp; `parentPath` → `resolveExistingDirectory`, extracted
+from `listChildDirectories`), SDK `workspaces.studyRival` / `.synthesizePlan`. Reviewed (code-reviewer:
+no blockers; fixes in). Gate: typecheck 112/112 · parity 5/5 · 995 files / 6822 tests. Commit `4e59d700`.
+**Slice 2 landed (same day):** the plan's shapes + `buildWorkspaceBrief` live in
+`@vynel/contracts/workspaces/workspace-brief` (providers derive `WorkspacePlanInput` from them); kernel table
+`workspace_briefs` (migration 0052; `answers`/`plan` opaque `json()` — `@vynel/db` stays free of `@vynel/*`
+deps, the workspaces leaf is the typed boundary `brief/workspace-brief.ts`); `scaffoldWorkspace`
+(`lifecycle/scaffold-workspace.ts`: group check → `createChildDirectory` → README + `.gitignore` (`.vynel/`)
+→ best-effort git init/add/commit with a self-signed identity, injectable runner → **one transaction** for
+the row + the brief via the new `createWorkspaceWithin(tx, …)` (reviewer's must-fix, invariant 5) → folder
+removed on any failure); `POST /workspaces/wizard/scaffold` (SDK `workspaces.scaffold`) +
+`GET /workspaces/:id/brief` [x-mcp `get_workspace_brief`, read-only, `{ brief: null }` when not wizard-made —
+the durable half of "feed the plan to the primary session"; the composer seed is the live half];
+`serialize-workspace.ts` extracted from the workspaces route. Reviewed; fixes in.
+**Slices 3 + 4 landed (same day):** the wizard UI in `apps/local-web/src/components/workspace/wizard/` —
+`wizard-steps.ts` (13 ids, **place first**, gate takes `{ isSignedIn }`, `toBriefAnswers` = the one conversion
+to the contract), `derive-stack` / `derive-fallback-plan` / `wizard-study` ported verbatim, `wizard-classes.ts`
++ `WizardChip` shared looks, twelve `Step*.vue` in Tailwind over the tokens + phosphor icons,
+`WorkspaceWizard.vue` on `@vynel/ui` `Modal` (new `persistent` prop: Esc/backdrop blocked via
+preventDefault on reka's DialogContent events — jsdom needs `cancelable: true` to test it); the draft is
+PROVIDED (`wizard-answers.ts` → `useWizardAnswers()`, never a mutated prop); the plan state + race guards live
+in `use-wizard-plan.ts` (a reply lands only on the plan screen while unscored; a failed synthesis is SAID);
+`toBriefAnswers` folds non-default advanced picks into `advancedNotes`; `use-too-broad-folder.ts` is the one
+drive-root/home guard (register dialog + wizard); Place = name + `FileSystemBrowser` parent pick (drive root / home refused); Account =
+global Claude pre-flight (`useClaudeAuthStatus`, sign-in door emits to the shell) + dimmed GitHub line;
+Done shows the path + the git outcome. The door `NewWorkspaceDialog` (two doors only — wizard / folder; clone
++ Quick Create join when they exist) sits on every `openCreateWorkspace` entry; `onWorkspaceScaffolded` =
+close → `addTab` → `nextTick` → `ui.composerSeed = brief` (after the tab switch renders, so the NEW chat's
+composer takes it). Tests: step machine (11), wizard end-to-end with a fake client (9, incl. the deferred-
+synthesis races), door (2), shell routing (3), Modal persistent (1).
+**Slice 5 landed (same day):** `cloneRepositoryWorkspace` (remote-only URL guard, `protocol.ext.allow=never`
++ `--`, cleanup + git's own reason on failure, `createWorkspace`+group; no brief — the repository IS the
+history) + `POST /workspaces/wizard/clone` (SDK `workspaces.clone`) + `CloneRepositoryDialog` (address →
+name follows the repo base name → the user's own folder pick via `useTooBroadFolder` → Clone it; git's reason
+in a role=alert) + the third door. Commits: `4e59d700` · `92c58dbd` · `75bcc1d5` · Slice 5 (see `git log`);
+branch `feature/new-workspace-wizard` merged to main with a merge commit — **not pushed** (Kafi's call).
+Every slice: code-reviewer pass + fixes + full gate green (final: typecheck 112/112 · parity 5/5 ·
+1007 files / 6884 tests).
+**Next:** Quick Create ("Set it up instantly"), GitHub as a global Settings connection, draft persistence.
+**Owed by Kafi:** the live smoke — New workspace → Walk me through it → a real synthesis on sonnet-5 →
+Finish in a real folder → the seeded brief in the new chat; and Create from a repository on a real URL. Not taken from the branch: two-level workspaces, setup
+stamps, group removal, per-workspace accounts, Codex/Kimi, Nocturne, `WizardModal`, `prototype/`.
+
+## ✅ 2026-08-22 DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)
 
 Kafi: acting on the desktop is enabled from Settings, not the env. Per-user preference `desktopActionsEnabled` (key-value
 `user_preferences`, default off, no migration) is the source of truth, read at EVERY composition seam by ONE resolver

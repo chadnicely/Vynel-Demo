@@ -21,9 +21,18 @@ const props = withDefaults(
     description?: string;
     size?: "sm" | "md" | "lg" | "xl";
     hideClose?: boolean;
+    /** Closes ONLY via the X (or the owner): a stray Escape or backdrop click
+     *  must not throw away a long form — the wizard lost a user's answers that
+     *  way once (Chad, 2026-08-11). Never pair with `hideClose`: that leaves
+     *  no way out but the owner's own button. */
+    persistent?: boolean;
   }>(),
-  { size: "md", hideClose: false },
+  { size: "md", hideClose: false, persistent: false },
 );
+
+function blockWhenPersistent(event: Event) {
+  if (props.persistent) event.preventDefault();
+}
 
 const open = defineModel<boolean>("open", { required: true });
 
@@ -68,6 +77,9 @@ function onOpenAutoFocus(event: Event) {
           sizeClass[props.size],
         ]"
         @open-auto-focus="onOpenAutoFocus"
+        @escape-key-down="blockWhenPersistent"
+        @pointer-down-outside="blockWhenPersistent"
+        @interact-outside="blockWhenPersistent"
       >
         <header
           v-if="props.title || props.description || $slots.title"

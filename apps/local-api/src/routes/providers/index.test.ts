@@ -73,6 +73,8 @@ function makeFakeProvider(receivedDiscoverInputs: DiscoverSkillsInput[] = []): A
     summarizeSession: async () => null,
     summarizeReport: async () => null,
     discoverModels: async () => null,
+    studyRivalSite: async () => null,
+    synthesizeWorkspacePlan: async () => null,
   } as AiAgentProvider
 }
 
