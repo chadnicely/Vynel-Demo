@@ -9,6 +9,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Desktop control is a switch in Settings.** Settings → Desktop control lets you allow Vynel
+  to act on your desktop (click, type, press keys) — looking is always allowed, acting is off
+  until you turn it on, every action is logged, and the change takes effect from the next
+  turn. No more editing an environment file.
 - **Vynel can bring a window to the front.** There was no way to ask for this before —
   windows only ever came forward as a side effect of Vynel reading or clicking something,
   so "put Discord in front of me" was not a thing it could do. Now it is. If an app has
