@@ -3,7 +3,21 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-22 (latest) VOICE — the web session owns the mic (session START seam, main 844d3808)
+## ✅ 2026-08-22 (latest) DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)
+
+Kafi: acting on the desktop is enabled from Settings, not the env. Per-user preference `desktopActionsEnabled` (key-value
+`user_preferences`, default off, no migration) is the source of truth, read at EVERY composition seam by ONE resolver
+(`apps/local-api/src/sessions/resolve-desktop-actions-enabled.ts`: a boolean row wins; else `VYNEL_DESKTOP_ACT_ENABLED`
+as a dev seed) — a flip takes effect on the next turn; the four boot-time threadings are gone. Settings → Desktop control:
+one switch whose copy names everything it grants (act in apps · open apps/links · arrange windows + volume · read/write
+clipboard — "reading your clipboard rides this switch too"); screenshots/window lists always allowed; a failed save
+rolls the checkbox back; GET/PATCH report the EFFECTIVE value. All four seams bound on a real DB (each inverted to prove
+the test bites). Gate: 112/112 · 5/5 · 990 files / 6796 tests. **Open residual (reviewer):** the loopback API is
+unauthenticated — a Bash-capable session could PATCH its own consent and act uncarded under auto; the port is not handed
+to the CLI today. Real fix = a local-API auth arc. **Owed by Kafi:** Settings → Desktop control → on → next turn can act;
+off → next turn cannot.
+
+## ✅ 2026-08-22 VOICE — the web session owns the mic (session START seam, main 844d3808)
 
 Kafi: "after the voice menu it always uses the local model" — LISTENING, not TTS. Not a regression: the daemon never had
 a model before the local-models arc. Root cause: the daemon learned about a web session only at its END, so while the
