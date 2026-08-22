@@ -18,6 +18,7 @@ import { makeReadClipboardTool, makeWriteClipboardTool } from './clipboard-tools
 import { makeLaunchAppTool } from './launch-app-tool.js'
 import { makeOpenUrlTool } from './open-url-tool.js'
 import { makeSetWindowStateTool } from './set-window-state-tool.js'
+import { makeFocusWindowTool } from './focus-window-tool.js'
 import { makeScreenshotDesktopTool } from './screenshot-desktop-tool.js'
 import { makeSendDesktopNotificationTool } from './send-desktop-notification-tool.js'
 import { makeSetVolumeTool } from './set-volume-tool.js'
@@ -161,6 +162,12 @@ export function desktopToolFactories(input: BuildDesktopMcpServerInput): unknown
     // Arranging a window (maximize / minimize / restore) is a click-class
     // action — same envelope, same authorizer.
     factories.push(makeSetWindowStateTool(envelope))
+    // RAISING a window is a different act from arranging one, and it had no
+    // tool at all until 2026-08-22 — focus only ever happened as a side effect
+    // of resolving an app to read or act on. `set_window_state: maximized` is
+    // not a substitute: under an armed foreground lock `ShowWindow` reports
+    // success while the foreground never moves.
+    factories.push(makeFocusWindowTool(envelope))
     // Moving/resizing is the same click-class change as arranging state, and the
     // correct primitive for "put this on my other screen" — dragging a title bar
     // across a monitor boundary is slow and fails invisibly.

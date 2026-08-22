@@ -43,6 +43,10 @@ type NativeWindow = {
   appName(): string
   title(): string
   isMinimized(): boolean
+  /** Whether the window is maximized. Read so focus/roster callers can PRESERVE
+   *  that state rather than silently normalizing a maximized window — the bug
+   *  the focus research shipped at Kafi before it was caught. */
+  isMaximized(): boolean
   isFocused(): boolean
   x(): number
   y(): number

@@ -18,6 +18,25 @@ export interface NutPoint {
   y: number
 }
 
+/**
+ * Real-HWND window operations, reached through nut.js's public
+ * `providerRegistry`.
+ *
+ * `focusWindow` is libnut's, and what it does matters: `ShowWindow(SW_RESTORE)`
+ * when the window is iconic, then `SetForegroundWindow`. `SW_RESTORE` is the
+ * SAFE restore — it returns a maximized-then-minimized window to MAXIMIZED and
+ * never promotes a normal window. (`SW_SHOWNOACTIVATE` does not: it drops the
+ * maximized state, which silently un-maximized two of Kafi's windows during the
+ * focus research.)
+ *
+ * ⚠ `focusWindow`'s boolean is `SetForegroundWindow`'s, and it LIES — measured
+ * refused-but-true. Never trust it; verify against the real foreground.
+ */
+export interface NutWindowProvider {
+  focusWindow(handle: number): Promise<boolean>
+  getActiveWindow(): Promise<number>
+}
+
 export interface NutModule {
   mouse: {
     config: { autoDelayMs: number }
@@ -59,6 +78,10 @@ export interface NutModule {
   Point: new (x: number, y: number) => NutPoint
   Button: { LEFT: number; MIDDLE: number; RIGHT: number }
   Key: Record<string, number>
+  /** nut.js's public provider registry — the supported route to the window
+   *  provider, rather than reaching past it into the platform-specific
+   *  `libnut-win32` binary (which is not a direct dependency of this package). */
+  providerRegistry: { getWindow(): NutWindowProvider }
 }
 
 let cachedModule: NutModule | undefined

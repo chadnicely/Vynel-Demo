@@ -1,4 +1,12 @@
-// App resolution + the Electron accessibility-tree wake. UIA ENUMERATION
+// App resolution + the Electron accessibility-tree wake.
+//
+// BOTH paths bring the app's window to the front, and that uniformity is
+// load-bearing rather than tidy: when only the wake path focused, an app came
+// forward or not depending on whether xa11y happened to enumerate it — which
+// for Chromium apps flips with the liveness of their accessibility tree. See
+// the fix note at the `App.find` early return.
+//
+// UIA ENUMERATION
 // (`App.find`) first — works for native + Qt apps (e.g. Telegram). If that
 // misses, an open-but-unenumerated app is the Electron/Chromium case (Discord,
 // Slack): reach it by pid and WAKE its renderer tree — set the screen-reader
@@ -179,12 +187,27 @@ export async function resolveAppWithFallback(
   }
   if (found !== null) {
     onResolvedIdentity?.(hooks.resolveIdentity(found.pid, found.name))
+    // THE INTERMITTENCY FIX (Kafi, 2026-08-22: "on Discord it was getting to
+    // the front — sometimes not").
+    //
+    // This path used to return here with `focusSucceeded: null`, having focused
+    // NOTHING. Only the wake path below focused, so which behaviour an app got
+    // depended on whether xa11y could enumerate it — and for a Chromium app
+    // that flips depending on whether its accessibility tree happens to be
+    // awake, which is a side effect of OUR OWN earlier calls (a previous wake,
+    // or the screen-reader flag still held). Same app, same tool, same
+    // arguments, opposite behaviour. It looked random; it was deterministic on
+    // state nothing surfaced.
+    //
+    // Focus AFTER `onResolvedIdentity` — enforcement precedes actuation, and
+    // raising a window is actuation.
+    const focusSucceeded = found.pid === null ? null : await hooks.ensureForeground(found.pid)
     return {
       app: found,
       dispose: NO_OP,
       viaElectronWake: false,
       wakeIncomplete: false,
-      focusSucceeded: null,
+      focusSucceeded,
     }
   }
   {

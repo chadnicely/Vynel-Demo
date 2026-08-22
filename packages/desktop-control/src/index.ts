@@ -54,6 +54,19 @@ export {
 } from './a11y/window-state.js'
 export type { WindowState } from './a11y/window-state.js'
 
+// Windows as ADDRESSABLE TARGETS — an app name is not a target (one app
+// commonly owns several windows), and raising one is its own operation.
+export {
+  listDesktopWindows,
+  selectWindow,
+  topWindowForPid,
+  findForegroundWindow,
+  compareWindowPreference,
+} from './a11y/desktop-windows.js'
+export type { DesktopWindow, WindowMatch } from './a11y/desktop-windows.js'
+export { focusWindowHandle, ensureForeground } from './a11y/window-focus.js'
+export type { FocusDeps } from './a11y/window-focus.js'
+
 export { actOnDesktop, DESKTOP_INPUT_ACTIONS } from './input/desktop-input.js'
 export { readClipboard, writeClipboard } from './input/clipboard.js'
 export type { ClipboardReadResult } from './input/clipboard.js'

@@ -5,10 +5,11 @@
 import type { ToolCatalogEntry } from '../tool-policy/catalog.js'
 
 /** Every tool the product composes, with its declared defaults — sorted by
- *  (serverName, toolName). 149 entries. */
+ *  (serverName, toolName). 150 entries. */
 export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__desktop__act_on_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__act_on_desktop","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
+  {"toolName":"mcp__desktop__focus_window","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__get_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__launch_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__list_desktop_notifications","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},

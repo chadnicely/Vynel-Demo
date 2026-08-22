@@ -92,7 +92,7 @@ function contributePrompt(context: SessionToolContext): string {
 // plan cards in ask mode above.
 export const desktopFeatureDescriptor: McpFeatureDescriptor = {
   serverName: 'desktop',
-  // The FULL declared surface (12 read + 10 act). A read-only context
+  // The FULL declared surface (12 read + 11 act). A read-only context
   // registers only the first 12 — the inventory is the legible policy/admin
   // surface; the built server stays the executable truth.
   toolNames: [
@@ -114,6 +114,7 @@ export const desktopFeatureDescriptor: McpFeatureDescriptor = {
     'mcp__desktop__launch_app',
     'mcp__desktop__open_url',
     'mcp__desktop__set_window_state',
+    'mcp__desktop__focus_window',
     'mcp__desktop__set_window_bounds',
     'mcp__desktop__read_clipboard',
     'mcp__desktop__write_clipboard',

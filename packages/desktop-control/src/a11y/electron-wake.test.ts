@@ -401,3 +401,74 @@ describe('a shadowed Store app is not in the system tray', () => {
     expect(message).not.toMatch(/Store app/i)
   })
 })
+
+// The ENUMERATED path — the one that used to focus nothing.
+//
+// Kafi, 2026-08-22: "on Discord it was getting to the front — sometimes not."
+// Root cause: only the byPid/wake path focused, so which behaviour an app got
+// depended on whether xa11y could enumerate it. For a Chromium app that flips
+// with the liveness of its accessibility tree, which is a side effect of our
+// OWN earlier calls — so the same tool with the same arguments behaved
+// differently minutes apart. Measured live: App.find succeeded for Discord,
+// qBittorrent and Telegram while all three were open.
+describe('resolveAppWithFallback (enumerated path)', () => {
+  function fakeEnumeratedApp(pid: number | null = 4242) {
+    const instance = { name: 'Discord', pid } as unknown as Xa11yAppInstance
+    return {
+      find: () => Promise.resolve(instance),
+      byPid: () => Promise.reject(new Error('byPid must not be used on the enumerated path')),
+    } as unknown as Xa11yModule['App']
+  }
+
+  it('brings an ENUMERATED app to the front too — the intermittency fix', async () => {
+    const focused: number[] = []
+    const { hooks } = resolveHooks({
+      ensureForeground: (pid: number) => {
+        focused.push(pid)
+        return Promise.resolve(true)
+      },
+    })
+    const resolved = await resolveAppWithFallback(fakeEnumeratedApp(), 'discord', 'act on', hooks)
+    expect(resolved.viaElectronWake).toBe(false)
+    expect(focused).toEqual([4242])
+    // No longer null: the caller can now tell "focused" from "never tried".
+    expect(resolved.focusSucceeded).toBe(true)
+  })
+
+  it('reports a REFUSED focus rather than silently claiming nothing happened', async () => {
+    const { hooks } = resolveHooks({ ensureForeground: () => Promise.resolve(false) })
+    const resolved = await resolveAppWithFallback(fakeEnumeratedApp(), 'discord', 'act on', hooks)
+    expect(resolved.focusSucceeded).toBe(false)
+  })
+
+  it('enforces identity BEFORE focusing — raising a window is actuation', async () => {
+    const order: string[] = []
+    const { hooks } = resolveHooks({
+      ensureForeground: () => {
+        order.push('focus')
+        return Promise.resolve(true)
+      },
+    })
+    await expect(
+      resolveAppWithFallback(fakeEnumeratedApp(), 'discord', 'act on', hooks, () => {
+        order.push('enforce')
+        throw new Error('denied')
+      }),
+    ).rejects.toThrow('denied')
+    // A denied app must never be raised.
+    expect(order).toEqual(['enforce'])
+  })
+
+  it('skips focus for a pid-less app instead of guessing a target', async () => {
+    const focused: number[] = []
+    const { hooks } = resolveHooks({
+      ensureForeground: (pid: number) => {
+        focused.push(pid)
+        return Promise.resolve(true)
+      },
+    })
+    const resolved = await resolveAppWithFallback(fakeEnumeratedApp(null), 'discord', 'read', hooks)
+    expect(focused).toEqual([])
+    expect(resolved.focusSucceeded).toBeNull()
+  })
+})
