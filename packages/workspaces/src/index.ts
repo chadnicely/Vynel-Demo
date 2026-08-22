@@ -54,6 +54,16 @@ export type { SetWorkspaceGroupInput } from './groups/set-workspace-group.js'
 
 export { createWorkspace } from './lifecycle/create-workspace.js'
 export type { CreateWorkspaceInput, CreateWorkspaceDependencies } from './lifecycle/create-workspace.js'
+export { scaffoldWorkspace } from './lifecycle/scaffold-workspace.js'
+export type {
+  ScaffoldWorkspaceInput,
+  ScaffoldWorkspaceDependencies,
+  ScaffoldedWorkspace,
+  ScaffoldGitOutcome,
+  GitRunner,
+} from './lifecycle/scaffold-workspace.js'
+export { findWorkspaceBrief, toWorkspaceBrief } from './brief/workspace-brief.js'
+export type { WorkspaceBrief } from './brief/workspace-brief.js'
 
 // Manager persona naming (brain-tree Ch5) — the default-name picker + the resolver.
 export { formatManagerLabel, hasDistinctManagerName, resolveManagerName } from './manager-name.js'

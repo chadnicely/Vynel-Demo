@@ -76,6 +76,7 @@ import { agentsApp } from './routes/agents/index.js'
 import { toolPoliciesApp } from './routes/tool-policies/index.js'
 import { providersApp } from './routes/providers/index.js'
 import { workspaceWizardApp } from './routes/workspaces/wizard.js'
+import { workspaceBriefApp } from './routes/workspaces/brief.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
 import {
@@ -394,6 +395,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/workspaces/:workspaceId/approval-rules', approvalRulesApp)
   // The per-workspace dashboard reads (usage statistics) — twin of `/dashboard`.
   app.route('/workspaces/:workspaceId/dashboard', dashboardWorkspaceApp)
+  app.route('/workspaces/:workspaceId/brief', workspaceBriefApp)
   // The drilled menu's per-section counts — twin of `/section-counts`.
   app.route('/workspaces/:workspaceId/section-counts', sectionCountsWorkspaceApp)
   // User-scoped (no workspace prefix) — GLOBAL (null-workspace) + cross-workspace

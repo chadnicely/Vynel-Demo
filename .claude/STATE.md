@@ -15,12 +15,23 @@ slice. Slice 1 landed: `@vynel/providers` `studyRivalSite` / `synthesizeWorkspac
 Claude = toolless sonnet-5 distills over `runClaudeDistillTurn`, `parseDistillJson` + `readList` readers),
 `POST /workspaces/wizard/{study-rival,plan}` (no x-mcp; `parentPath` → `resolveExistingDirectory`, extracted
 from `listChildDirectories`), SDK `workspaces.studyRival` / `.synthesizePlan`. Reviewed (code-reviewer:
-no blockers; fixes in). Gate: typecheck 112/112 · parity 5/5 · 995 files / 6822 tests.
-**Next:** Slice 2 — `scaffoldWorkspace` (folder via `createChildDirectory` → README → git init + first
-commit → `createWorkspace`+group) + the `workspace_briefs` table + `GET /workspaces/:id/brief` [x-mcp] +
-`POST /workspaces/scaffold`; then Slice 3 the wizard UI (Modal + `persistent`, Tailwind), Slice 4 the door
-+ kickoff (`addTab` + `ui.composerSeed`), Slice 5 clone. Not taken from the branch: two-level workspaces,
-setup stamps, group removal, per-workspace accounts, Codex/Kimi, Nocturne, `WizardModal`, `prototype/`.
+no blockers; fixes in). Gate: typecheck 112/112 · parity 5/5 · 995 files / 6822 tests. Commit `4e59d700`.
+**Slice 2 landed (same day):** the plan's shapes + `buildWorkspaceBrief` live in
+`@vynel/contracts/workspaces/workspace-brief` (providers derive `WorkspacePlanInput` from them); kernel table
+`workspace_briefs` (migration 0052; `answers`/`plan` opaque `json()` — `@vynel/db` stays free of `@vynel/*`
+deps, the workspaces leaf is the typed boundary `brief/workspace-brief.ts`); `scaffoldWorkspace`
+(`lifecycle/scaffold-workspace.ts`: group check → `createChildDirectory` → README + `.gitignore` (`.vynel/`)
+→ best-effort git init/add/commit with a self-signed identity, injectable runner → **one transaction** for
+the row + the brief via the new `createWorkspaceWithin(tx, …)` (reviewer's must-fix, invariant 5) → folder
+removed on any failure); `POST /workspaces/wizard/scaffold` (SDK `workspaces.scaffold`) +
+`GET /workspaces/:id/brief` [x-mcp `get_workspace_brief`, read-only, `{ brief: null }` when not wizard-made —
+the durable half of "feed the plan to the primary session"; the composer seed is the live half];
+`serialize-workspace.ts` extracted from the workspaces route. Reviewed; fixes in.
+**Next:** Slice 3 the wizard UI (`components/workspace/wizard/`, `Modal` + a `persistent` prop, Tailwind,
+**place first**: place → idea → q1 → q2 → rivals → wants → plan → goals → stack → account (global
+pre-flight) → care → sessions → done; helpers ported verbatim), Slice 4 the door + kickoff (`addTab` +
+`ui.composerSeed = brief`), Slice 5 clone. Not taken from the branch: two-level workspaces, setup stamps,
+group removal, per-workspace accounts, Codex/Kimi, Nocturne, `WizardModal`, `prototype/`.
 
 ## ✅ 2026-08-22 DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)
 

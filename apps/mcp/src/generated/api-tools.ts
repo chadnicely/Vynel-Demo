@@ -1849,6 +1849,39 @@ export const getWorkspace: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getWorkspaceBrief: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_workspace_brief',
+    "Read this workspace's brief — what the user agreed to when they set it up with the new-workspace wizard: the answers they gave (the idea, who it is for, what it keeps track of, the wish list with where each item came from, the stack), the plan they approved (the one-liner, what to build, the MVP in a nutshell, the goals, and the build sessions IN ORDER with `mvp: false` marking what comes after the MVP), and the brief text they sent as the first message. `brief` is null when the workspace was not made by the wizard (pulled in from a folder or a repository). Read it before planning or resuming the build so the work stays the plan the user approved. Read-only.",
+    {
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/brief'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const installCuratedAgent: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'install_curated_agent',
@@ -4649,6 +4682,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   getPhase,
   getUserPreferences,
   getWorkspace,
+  getWorkspaceBrief,
   installCuratedAgent,
   installMarketplaceItem,
   killBackgroundProcess,

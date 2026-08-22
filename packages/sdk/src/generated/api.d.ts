@@ -33,6 +33,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/wizard/scaffold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make the wizard's workspace: folder, README, git, the row, the stored brief. */
+        post: operations["postWorkspacesWizardScaffold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/knowledge/documents": {
         parameters: {
             query?: never;
@@ -1681,6 +1698,23 @@ export interface paths {
         };
         /** Get one workspace's token-usage statistics per model per day. */
         get: operations["getWorkspacesByWorkspaceIdDashboardUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspaceId}/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The new-workspace wizard's approved plan for this workspace, if it was made by the wizard. */
+        get: operations["getWorkspacesByWorkspaceIdBrief"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4518,6 +4552,169 @@ export interface operations {
             };
             /** @description Validation error, or the chosen folder does not exist. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesWizardScaffold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name: string;
+                    parentPath: string;
+                    folderName?: string;
+                    groupId?: string;
+                    answers: {
+                        idea: string;
+                        audience: string;
+                        firstThing: string;
+                        signIn: string;
+                        where: string;
+                        remembers: string[];
+                        wants: {
+                            text: string;
+                            from: string;
+                        }[];
+                        leftOut: string[];
+                        changeRequests: string[];
+                        goalNotes: string[];
+                        stack: {
+                            front: string;
+                            back: string;
+                            database: string;
+                        };
+                        advancedNotes?: string;
+                    };
+                    plan: {
+                        oneLine: string;
+                        build: {
+                            text: string;
+                            source: string;
+                        }[];
+                        remembers: string[];
+                        leftOut: string[];
+                        mvpNutshell: string;
+                        goals: {
+                            title: string;
+                            bullets: string[];
+                        }[];
+                        sessions: {
+                            name: string;
+                            items: string[];
+                            mvp: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The workspace row, what actually happened with git (initialized / skipped), and the stored brief. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        workspace: {
+                            id: string;
+                            userId: string;
+                            name: string;
+                            managerName: string | null;
+                            /** @enum {string} */
+                            kind: "small-business" | "personal" | "project" | "custom";
+                            path: string;
+                            isArchived: boolean;
+                            continueEnabled: boolean;
+                            groupId: string | null;
+                            /** @enum {string|null} */
+                            status: "completed" | "problem" | "needs_input" | null;
+                            statusNote: string | null;
+                            statusSetAt: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                            lastAccessedAt: string;
+                        };
+                        git: {
+                            /** @constant */
+                            kind: "initialized";
+                        } | {
+                            /** @constant */
+                            kind: "skipped";
+                            reason: string;
+                        };
+                        brief: {
+                            workspaceId: string;
+                            answers: {
+                                idea: string;
+                                audience: string;
+                                firstThing: string;
+                                signIn: string;
+                                where: string;
+                                remembers: string[];
+                                wants: {
+                                    text: string;
+                                    from: string;
+                                }[];
+                                leftOut: string[];
+                                changeRequests: string[];
+                                goalNotes: string[];
+                                stack: {
+                                    front: string;
+                                    back: string;
+                                    database: string;
+                                };
+                                advancedNotes?: string;
+                            };
+                            plan: {
+                                oneLine: string;
+                                build: {
+                                    text: string;
+                                    source: string;
+                                }[];
+                                remembers: string[];
+                                leftOut: string[];
+                                mvpNutshell: string;
+                                goals: {
+                                    title: string;
+                                    bullets: string[];
+                                }[];
+                                sessions: {
+                                    name: string;
+                                    items: string[];
+                                    mvp: boolean;
+                                }[];
+                            };
+                            brief: string;
+                            createdAt: string;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error, or the chosen folder does not exist. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such group owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A folder with that name is already in the chosen folder. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10704,6 +10901,81 @@ export interface operations {
                 };
             };
             /** @description No such workspace owned by this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdBrief: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { brief } — null when the workspace was not made by the wizard. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        brief: {
+                            workspaceId: string;
+                            answers: {
+                                idea: string;
+                                audience: string;
+                                firstThing: string;
+                                signIn: string;
+                                where: string;
+                                remembers: string[];
+                                wants: {
+                                    text: string;
+                                    from: string;
+                                }[];
+                                leftOut: string[];
+                                changeRequests: string[];
+                                goalNotes: string[];
+                                stack: {
+                                    front: string;
+                                    back: string;
+                                    database: string;
+                                };
+                                advancedNotes?: string;
+                            };
+                            plan: {
+                                oneLine: string;
+                                build: {
+                                    text: string;
+                                    source: string;
+                                }[];
+                                remembers: string[];
+                                leftOut: string[];
+                                mvpNutshell: string;
+                                goals: {
+                                    title: string;
+                                    bullets: string[];
+                                }[];
+                                sessions: {
+                                    name: string;
+                                    items: string[];
+                                    mvp: boolean;
+                                }[];
+                            };
+                            brief: string;
+                            createdAt: string;
+                        } | null;
+                    };
+                };
+            };
+            /** @description Workspace not found. */
             404: {
                 headers: {
                     [name: string]: unknown;

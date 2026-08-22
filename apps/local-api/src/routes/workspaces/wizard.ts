@@ -3,6 +3,7 @@
 //
 //   POST /study-rival -> what a named site does / leave out / magic   (no x-mcp)
 //   POST /plan        -> every wizard answer distilled into the plan  (no x-mcp)
+//   POST /scaffold    -> Finish: folder, README, git, the row, the brief (no x-mcp)
 //
 // Both go through the provider seam's best-effort one-shots (toolless, the
 // capable model — plan quality is the product) via `c.var.aiProvider` (a
@@ -19,11 +20,15 @@
 // settings / CLAUDE.md still load, exactly as they would for any workspace.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { resolveExistingDirectory } from '@vynel/workspaces'
+import { resolveExistingDirectory, scaffoldWorkspace } from '@vynel/workspaces'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { userScoped } from '../../handler-bundles/user-scoped.js'
+import { serializeWorkspaceBrief } from './brief.js'
+import { serializeWorkspaceForResponse } from './serialize-workspace.js'
 import {
+  ScaffoldWorkspaceRequestSchema,
+  ScaffoldWorkspaceResponseSchema,
   StudyRivalSiteRequestSchema,
   StudyRivalSiteResponseSchema,
   SynthesizeWorkspacePlanRequestSchema,
@@ -90,5 +95,58 @@ export const workspaceWizardApp = factory
         logger: c.var.logger,
       })
       return c.json({ plan })
+    },
+  )
+  // Finish. Does NOT start a build: the first session is the user pressing
+  // send on the brief seeded into the new workspace's chat. No x-mcp — the
+  // wizard's door, not an agent tool (register_workspace covers the agent).
+  .post(
+    '/scaffold',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: "Make the wizard's workspace: folder, README, git, the row, the stored brief.",
+      'x-sdk-name': 'workspaces.scaffold',
+      responses: {
+        201: {
+          description:
+            'The workspace row, what actually happened with git (initialized / skipped), and the stored brief.',
+          content: { 'application/json': { schema: resolver(ScaffoldWorkspaceResponseSchema) } },
+        },
+        400: { description: 'Validation error, or the chosen folder does not exist.' },
+        404: { description: 'No such group owned by this user.' },
+        409: { description: 'A folder with that name is already in the chosen folder.' },
+      },
+    }),
+    validator('json', ScaffoldWorkspaceRequestSchema),
+    ...userScoped,
+    async (c) => {
+      const { name, parentPath, folderName, groupId, answers, plan } = c.req.valid('json')
+      // Zod types an omitted optional as `undefined`; the contract (and the
+      // stored JSON) want the key absent.
+      const { advancedNotes, ...answerFields } = answers
+      const made = await scaffoldWorkspace(
+        c.var.db,
+        {
+          userId: c.var.user.id,
+          name,
+          parentPath,
+          ...(folderName === undefined ? {} : { folderName }),
+          ...(groupId === undefined ? {} : { groupId }),
+          answers: {
+            ...answerFields,
+            ...(advancedNotes === undefined ? {} : { advancedNotes }),
+          },
+          plan,
+        },
+        { logger: c.var.logger },
+      )
+      return c.json(
+        {
+          workspace: serializeWorkspaceForResponse(made.workspace),
+          git: made.git,
+          brief: serializeWorkspaceBrief(made.brief),
+        },
+        201,
+      )
     },
   )

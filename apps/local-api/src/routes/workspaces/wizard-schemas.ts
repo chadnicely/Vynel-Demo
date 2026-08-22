@@ -1,6 +1,7 @@
 // Zod schemas for the workspace wizard routes (api-internal — one consumer).
 
 import { z } from 'zod'
+import { WorkspaceResponseSchema } from './schemas.js'
 
 /** The folder the user chose as the app's home (screen 1) — its parent,
  *  since the app does not exist yet. It grounds the one-shot dispatch (the
@@ -27,7 +28,9 @@ export const StudyRivalSiteResponseSchema = z.object({
   study: RivalSiteStudySchema.nullable(),
 })
 
-export const SynthesizeWorkspacePlanRequestSchema = z.object({
+// The answers every plan-shaped call carries — the synthesis reads them, the
+// scaffold stores them (+ the stack screen's advanced notes, brief-only).
+const AnswerFields = {
   idea: z.string().min(1).max(5_000),
   audience: z.string().min(1).max(200),
   firstThing: z.string().min(1).max(1_000),
@@ -43,10 +46,19 @@ export const SynthesizeWorkspacePlanRequestSchema = z.object({
     back: z.string().max(200),
     database: z.string().max(200),
   }),
+}
+
+export const SynthesizeWorkspacePlanRequestSchema = z.object({
+  ...AnswerFields,
   parentPath: ParentPathSchema,
 })
 
-const WorkspacePlanSchema = z.object({
+export const WorkspaceBriefAnswersSchema = z.object({
+  ...AnswerFields,
+  advancedNotes: z.string().max(2_000).optional(),
+})
+
+export const WorkspacePlanSchema = z.object({
   oneLine: z.string(),
   build: z.array(z.object({ text: z.string(), source: z.string() })),
   remembers: z.array(z.string()),
@@ -62,4 +74,38 @@ const WorkspacePlanSchema = z.object({
 // mechanical derivation so the screen is never empty.
 export const SynthesizeWorkspacePlanResponseSchema = z.object({
   plan: WorkspacePlanSchema.nullable(),
+})
+
+// Finish: the folder inside the chosen one, README, git, the row, the brief.
+export const ScaffoldWorkspaceRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  parentPath: ParentPathSchema,
+  /** Folder name; omitted = the workspace name. */
+  folderName: z.string().trim().min(1).max(120).optional(),
+  /** The menu-tree group the wizard was opened from; omitted = the tree root. */
+  groupId: z.string().min(1).optional(),
+  answers: WorkspaceBriefAnswersSchema,
+  plan: WorkspacePlanSchema,
+})
+
+export const WorkspaceBriefResponseSchema = z.object({
+  workspaceId: z.string(),
+  answers: WorkspaceBriefAnswersSchema,
+  plan: WorkspacePlanSchema,
+  brief: z.string(),
+  createdAt: z.string(),
+})
+
+export const ScaffoldWorkspaceResponseSchema = z.object({
+  workspace: WorkspaceResponseSchema,
+  git: z.union([
+    z.object({ kind: z.literal('initialized') }),
+    z.object({ kind: z.literal('skipped'), reason: z.string() }),
+  ]),
+  brief: WorkspaceBriefResponseSchema,
+})
+
+// Null = the workspace was not made by the wizard.
+export const GetWorkspaceBriefResponseSchema = z.object({
+  brief: WorkspaceBriefResponseSchema.nullable(),
 })
