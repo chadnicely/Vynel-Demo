@@ -271,6 +271,24 @@ describe("useVoiceDaemonLink (live channel)", () => {
   });
 });
 
+describe("telling the daemon who has the microphone", () => {
+  it("posts /voice/session/start so the native STT stands down", async () => {
+    const posted: string[] = [];
+    vi.stubGlobal("fetch", (url: string) => {
+      posted.push(url);
+      return Promise.resolve({ ok: true } as Response);
+    });
+    const { link } = mountLink();
+
+    link().notifySessionStart();
+    link().notifySessionEnd();
+    await Promise.resolve();
+
+    expect(posted).toEqual(["/voice/session/start", "/voice/session/end"]);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("what the two windows tell each other", () => {
   it("reads the app window's Display state, and keeps it across a socket drop", () => {
     const { link, socket } = mountLink("dock");

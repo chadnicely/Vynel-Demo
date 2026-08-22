@@ -48,7 +48,7 @@ const WINDOW_TITLE = "Vynel Display";
 const overlayWindow = createOverlayWindowControls();
 const isMuted = ref(false);
 
-const voice = useVoiceSession({ onEnded: handleSessionEnded });
+const voice = useVoiceSession({ onEnded: handleSessionEnded, onStarted: handleSessionStarted });
 const daemon = useVoiceDaemonLink({
   surface: "dock",
   onWake: handleWake,
@@ -88,6 +88,13 @@ const isMirror = computed(() => dock.value.isMirror);
 // be in — the wake word answers the global conversation.
 const { bySlot } = useDisplayWidgets("global");
 const dockCards = computed(() => displayDockCards(bySlot.value.dock));
+
+// The dock's recognizer owns the microphone — the daemon stops its native STT
+// for the duration (a wake-started session is already handed off; this covers
+// the dock's own starts and resumes).
+function handleSessionStarted(): void {
+  daemon.notifySessionStart();
+}
 
 function handleSessionEnded(): void {
   daemon.notifySessionEnd();

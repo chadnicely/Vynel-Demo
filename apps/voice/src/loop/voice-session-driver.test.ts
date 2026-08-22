@@ -613,6 +613,103 @@ describe('VoiceSessionDriver — the overlay handoff', () => {
   })
 })
 
+// A browser voice session the user started HERSELF — the Display switch in the
+// title bar, the mic button — never went through a wake, so before the
+// `/session/start` seam the daemon knew nothing about it: it stayed ASLEEP with
+// its mic open and ran every utterance through the native STT to test the wake
+// phrase, under a Web Speech session that already owned the room.
+describe('VoiceSessionDriver — a web session that started without a wake', () => {
+  it('stops transcribing the room the web recognizer owns', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    const { driver, recognizer, synthesizer } = buildDriver(
+      ['hey vynel what is the time'],
+      () => brainSaying('never'),
+      { wakeHandoff },
+    )
+    driver.beginHandoff()
+    expect(driver.isHandedOff).toBe(true)
+
+    await driver.pushAudio(chunk())
+    // Not transcribed AT ALL: the native STT is left to wake-word detection
+    // and the no-browser cases. This is the whole bug — the utterance below
+    // carries the wake phrase, and asleep the daemon would have woken on it
+    // (the user's own words, or its reply coming back off the speakers, which
+    // the echo filter never hears about because the browser plays it).
+    expect(recognizer.calls).toBe(0)
+    expect(wakeHandoff.published).toEqual([])
+    expect(synthesizer.spoken).toEqual([])
+  })
+
+  it('gives the microphone back on endHandoff, and the wake word works again', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    const { driver, io, recognizer } = buildDriver(
+      ['hey vynel what is the time'],
+      () => brainSaying('never'),
+      { wakeHandoff },
+    )
+    driver.beginHandoff()
+    driver.endHandoff()
+    expect(driver.isAwake).toBe(false)
+    expect(io.states.at(-1)).toBe('idle')
+
+    await driver.pushAudio(chunk())
+    expect(recognizer.calls).toBe(1)
+    expect(wakeHandoff.published).toEqual(['what is the time'])
+  })
+
+  it('is a no-op when a wake already handed the room over', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    const { driver, recognizer } = buildDriver(['hey vynel'], () => brainSaying('never'), {
+      wakeHandoff,
+    })
+    await driver.pushAudio(chunk()) // wake → handed off
+    const callsAfterWake = recognizer.calls
+
+    // The client announces its start for EVERY session, wake-started or not.
+    driver.beginHandoff()
+    expect(driver.isHandedOff).toBe(true)
+    driver.endHandoff() // one end still releases it — no nesting to unwind
+    expect(driver.isAwake).toBe(false)
+    expect(recognizer.calls).toBe(callsAfterWake)
+  })
+
+  it('abandons a native turn the daemon was already running', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    wakeHandoff.handOff = false // no capable client yet — the daemon answered
+    const brain = controllableBrain()
+    const { driver } = buildDriver(['hey vynel slow one'], brain.runTurn, { wakeHandoff })
+    await driver.pushAudio(chunk())
+    brain.runs[0]!.emit({ kind: 'session', sessionId: 's-native' })
+    await settle()
+
+    // The user opened the Display mid-answer: the web session takes the room.
+    driver.beginHandoff()
+    await settle()
+    expect(driver.isHandedOff).toBe(true)
+    expect(brain.runs[0]!.signal.aborted).toBe(true)
+  })
+
+  it('keeps the handoff when it lands mid-speak (the drain restores it)', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    const { driver, recognizer } = buildDriver(['hey vynel'], () => brainSaying('unused'), {
+      wakeHandoff,
+      autoDrain: false,
+    })
+    driver.speak('A scheduled line is playing.')
+    await settle() // draining — the state is forced 'relaying'
+
+    driver.beginHandoff() // the Display switch, mid-line
+    expect(driver.isHandedOff).toBe(true)
+    driver.notifyPlaybackDrained()
+    await settle()
+
+    // The drain restored the HANDOFF, not sleep — otherwise the daemon would
+    // reopen its mic under a live web session the moment the line ended.
+    expect(driver.isHandedOff).toBe(true)
+    await driver.pushAudio(chunk())
+    expect(recognizer.calls).toBe(0)
+  })
+})
 describe('VoiceSessionDriver — external speak (the relay queue)', () => {
   it('speaks external text (the speak tool) sentence-by-sentence and stays asleep', async () => {
     const { driver, io, synthesizer } = buildDriver([], () => brainSaying('unused'))

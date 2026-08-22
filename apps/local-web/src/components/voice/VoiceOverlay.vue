@@ -32,7 +32,7 @@ const isMuted = ref(false);
 
 // Hoisted handlers so the two composables can reference each other's owners —
 // both callbacks only ever fire after setup completes.
-const voice = useVoiceSession({ onEnded: handleSessionEnded });
+const voice = useVoiceSession({ onEnded: handleSessionEnded, onStarted: handleSessionStarted });
 const daemon = useVoiceDaemonLink({
   onWake: handleWake,
   ownLiveSessionId: voice.currentSessionId,
@@ -43,6 +43,12 @@ const daemon = useVoiceDaemonLink({
 // The session settled (idle silence, close, or a start that couldn't begin):
 // give the mic back to the daemon, and put the overlay away — unless the user
 // muted it or there's a failure they need to read (mic denied, no Web Speech).
+// The mic button's session owns the microphone — tell the daemon so its native
+// STT does not transcribe the same room underneath it.
+function handleSessionStarted(): void {
+  daemon.notifySessionStart();
+}
+
 function handleSessionEnded(): void {
   daemon.notifySessionEnd();
   if (!isMuted.value && !voice.failure.value) ui.isVoiceOverlayOpen = false;

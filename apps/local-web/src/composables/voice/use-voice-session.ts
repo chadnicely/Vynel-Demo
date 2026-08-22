@@ -67,9 +67,22 @@ async function* runGlobalVoiceTurn(
 export function useVoiceSession(options: {
   /** Called once a session settles back to silence (idle timeout or end()). */
   onEnded: () => void;
+  /** A recognizer actually BEGAN — the surface tells the daemon, so its native
+   *  STT stops transcribing the room this session now owns. Deliberately not
+   *  called for a start that could not begin (no Web Speech): announcing a
+   *  session that never ran would deafen the daemon with nothing to release it. */
+  onStarted?: () => void;
 }) {
   const vynel = useVynel();
-  const player = createSpokenAudioPlayer();
+  const player = createSpokenAudioPlayer({
+    // The daemon answers 503 while it has no speaking model (a fresh install
+    // before Settings → Voice downloads one). Silence is indistinguishable
+    // from a broken app, so say the one thing that fixes it.
+    onVoiceUnavailable: () => {
+      failure.value =
+        'Vynel has no voice yet — download a speaking model in Settings → Voice.';
+    },
+  });
 
   const view = ref<VoiceCommandSessionView>(IDLE_VIEW);
   /** A user-actionable failure (mic denied, unsupported browser). */
@@ -123,6 +136,9 @@ export function useVoiceSession(options: {
       },
     );
     session = started;
+    // After the guard and the real start: this is the moment a web recognizer
+    // owns the microphone.
+    options.onStarted?.();
     started.done
       .catch((error: unknown) => {
         // The one rejecting path is a denied microphone — show it, don't retry.

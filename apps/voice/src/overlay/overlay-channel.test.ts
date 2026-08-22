@@ -22,6 +22,7 @@ interface RecordedHooks {
   sessionEnds: number
   clientsGone: number
   reloads: number
+  sessionStarts: number
   spoken: Array<{ text: string; sessionId: string | null }>
 }
 
@@ -29,10 +30,13 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
   channel: OverlayChannel
   hooks: RecordedHooks
 } {
-  const hooks: RecordedHooks = { sessionEnds: 0, clientsGone: 0, reloads: 0, spoken: [] }
+  const hooks: RecordedHooks = { sessionStarts: 0, sessionEnds: 0, clientsGone: 0, reloads: 0, spoken: [] }
   const channel = startOverlayChannel(
     0,
     {
+      onSessionStart: () => {
+        hooks.sessionStarts += 1
+      },
       onSessionEnd: () => {
         hooks.sessionEnds += 1
       },
@@ -184,6 +188,18 @@ describe('overlay channel', () => {
     expect(hooks.sessionEnds).toBe(1)
   })
 
+  // The seam the wake handoff never covered: a web surface that took the
+  // microphone on its own (the Display switch, the mic button) has to be able
+  // to say so, or the daemon keeps transcribing the same room natively.
+  it('fires onSessionStart for POST /session/start', async () => {
+    const { channel, hooks } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const response = await fetch(`http://127.0.0.1:${port}/session/start`, { method: 'POST' })
+    expect(response.ok).toBe(true)
+    expect(hooks.sessionStarts).toBe(1)
+  })
   it('fires onClientsGone when the last capable subscriber disconnects', async () => {
     const { channel, hooks } = buildChannel()
     activeChannel = channel
@@ -205,6 +221,7 @@ describe('overlay channel', () => {
     const second = startOverlayChannel(
       port,
       {
+        onSessionStart: () => {},
         onSessionEnd: () => {},
         onClientsGone: () => {},
         onSynthesize: () => Promise.resolve(new Uint8Array()),
@@ -261,6 +278,7 @@ describe('overlay channel', () => {
     const channel = startOverlayChannel(
       0,
       {
+        onSessionStart: () => {},
         onSessionEnd: () => {},
         onClientsGone: () => {},
         onSynthesize: () => Promise.reject(new Error('model exploded')),

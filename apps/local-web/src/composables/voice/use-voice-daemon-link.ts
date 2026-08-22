@@ -27,8 +27,10 @@ import { isTauriShell } from "./tauri-overlay-window.js";
 // kind to the daemon and relays its events, so a window no longer spends an
 // HTTP-pool connection on an EventSource. The daemon's replay of an undelivered
 // wake still lands: the relay reconnects for us and the wake replays through
-// it. When the session closes we POST /session/end so the daemon takes the mic
-// back. No daemon running is fine — the relay retries quietly and the overlay
+// it. When a session OPENS we POST /session/start and when it closes
+// /session/end, so the daemon knows a web recognizer owns the microphone and
+// stops running its own native STT over the same room (its wake handoff only
+// ever covered sessions IT started). No daemon running is fine — the relay retries quietly and the overlay
 // still works from its manual mic button.
 //
 // 'speak' events are the daemon delegating PLAYBACK: a `speak` tool call from
@@ -262,6 +264,15 @@ export function useVoiceDaemonLink(options: {
 
   onScopeDispose(detach);
 
+  /** Tell the daemon a web recognizer just took the microphone, so its native
+   *  STT stops transcribing the same speech (best-effort — no daemon, nothing
+   *  to hand over). Announced for EVERY session, wake-started or not: the
+   *  daemon's own handoff is idempotent, and a session the user started from
+   *  the Display switch has no wake to have announced it. */
+  function notifySessionStart(): void {
+    void fetch('/voice/session/start', { method: 'POST' }).catch(() => {});
+  }
+
   /** Tell the daemon the overlay's command session is over (best-effort — if
    *  the daemon is gone there is nothing to resume). */
   function notifySessionEnd(): void {
@@ -275,6 +286,7 @@ export function useVoiceDaemonLink(options: {
     isAppDisplayActive,
     appDisplaySession,
     isPlayingRelayedLine,
+    notifySessionStart,
     notifySessionEnd,
   };
 }
