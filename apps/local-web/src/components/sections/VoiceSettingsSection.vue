@@ -147,7 +147,7 @@ async function preview() {
     <SectionHeader
       :icon="SpeakerHigh"
       title="Voice"
-      subtitle="How Vynel speaks and hears. Everything runs on this computer — download a voice once and it stays."
+      subtitle="How Vynel speaks and hears. Speaking runs on this computer — download a voice once and it stays. While a Vynel window is listening, it hears you through web speech recognition; the hearing models below are for the wake word."
     />
 
     <p v-if="modelsQuery.error.value" class="m-0 text-xs text-danger" role="alert">
@@ -212,7 +212,13 @@ async function preview() {
       </section>
 
       <section class="flex flex-col gap-2">
-        <h3 class="m-0 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Hearing</h3>
+        <h3 class="m-0 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Hearing · wake word</h3>
+        <!-- The local recognizer only ever hears the wake word: once a Vynel window is
+             open it announces its session and the daemon stands down (Kafi 2026-08-22:
+             web recognition is the one that hears you; the engine needs internet anyway). -->
+        <p class="hearing-note m-0 text-xs text-ink-3">
+          Used to catch “hey Vynel” and open the window. From then on, web speech recognition hears you.
+        </p>
         <LocalModelCard
           v-for="model in sttModels"
           :key="model.id"
@@ -232,7 +238,7 @@ async function preview() {
               :disabled="model.state !== 'installed' || updatePreferences.isPending.value"
               @change="chooseStt(model.id)"
             />
-            Hear with this
+            Use for the wake word
             <span v-if="model.state !== 'installed'" class="text-ink-3">(download it first)</span>
           </label>
         </LocalModelCard>
@@ -242,7 +248,9 @@ async function preview() {
           :busy="isBusy"
           @download="actions.download.mutate"
           @cancel="actions.cancel.mutate"
-        />
+        >
+          <p class="vad-note m-0 text-xs text-ink-3">Always on — tells speech from silence for the wake word.</p>
+        </LocalModelCard>
       </section>
 
       <p class="apply-note m-0 text-xs text-ink-3" role="status">{{ applyNote }}</p>
