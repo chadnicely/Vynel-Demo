@@ -3,7 +3,20 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-22 (latest) VOICE DAEMON SHIPS IN THE DESKTOP BUILD (win-x64 second sidecar)
+## ✅ 2026-08-22 (latest) VOICE — the web session owns the mic (session START seam, main 844d3808)
+
+Kafi: "after the voice menu it always uses the local model" — LISTENING, not TTS. Not a regression: the daemon never had
+a model before the local-models arc. Root cause: the daemon learned about a web session only at its END, so while the
+user talked in the Display/dock the daemon's VAD+Moonshine transcribed the same room underneath — waking on the user's
+own words and on the browser-played reply (those lines never passed its echo filter). Fix: every web surface announces
+session START (`POST /voice/session/start` → `VoiceSessionDriver.beginHandoff()`, idempotent) — the daemon ignores
+audio while a web session is live; native STT = wake-word + no-browser cases only. A 503 from `/voice/synthesize` now
+says "no voice yet — download a speaking model" instead of silence. Known: `/session/start|end` are per-user, not
+per-client (one live web session per user by design); `onSynthesize` never feeds the echo filter (a relayed proactive
+line can still wake an asleep daemon — separate timing fix). Gate: 112/112 · 5/5 · 987 files / 6764 tests.
+**Owed by Kafi:** open the Display, talk — the daemon must never cut in (`LOG_LEVEL=debug`: no `stt` lines).
+
+## ✅ 2026-08-22 VOICE DAEMON SHIPS IN THE DESKTOP BUILD (win-x64 second sidecar)
 
 Kafi: "publish the voice in the display so that we can start testing by installing" — decisions: **boot
 idle, load on download** + accept ~22 MB. Daemon: `VoiceEngineSlot` (`apps/voice/src/voice-engine-slot.ts`)
