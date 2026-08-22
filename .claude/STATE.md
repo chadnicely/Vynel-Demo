@@ -3,7 +3,7 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔨 2026-08-23 (latest) NEW-WORKSPACE WIZARD — Slice 1 (the AI seam) on `feature/new-workspace-wizard`
+## ✅ 2026-08-23 (latest) NEW-WORKSPACE WIZARD — all five slices, MERGED TO MAIN (not pushed)
 
 Chad's 13-screen "Walk me through it" wizard (design branch `5daf8ff6`/`40c5a5e8`) comes to main **screens
 and copy as drawn, plumbing rebuilt** — note `docs/module-notes/new-workspace-wizard.md` (read it first).
@@ -47,7 +47,10 @@ synthesis races), door (2), shell routing (3), Modal persistent (1).
 + `--`, cleanup + git's own reason on failure, `createWorkspace`+group; no brief — the repository IS the
 history) + `POST /workspaces/wizard/clone` (SDK `workspaces.clone`) + `CloneRepositoryDialog` (address →
 name follows the repo base name → the user's own folder pick via `useTooBroadFolder` → Clone it; git's reason
-in a role=alert) + the third door. Commits: `4e59d700` · `92c58dbd` · `75bcc1d5` · Slice 5.
+in a role=alert) + the third door. Commits: `4e59d700` · `92c58dbd` · `75bcc1d5` · Slice 5 (see `git log`);
+branch `feature/new-workspace-wizard` merged to main with a merge commit — **not pushed** (Kafi's call).
+Every slice: code-reviewer pass + fixes + full gate green (final: typecheck 112/112 · parity 5/5 ·
+1007 files / 6884 tests).
 **Next:** Quick Create ("Set it up instantly"), GitHub as a global Settings connection, draft persistence.
 **Owed by Kafi:** the live smoke — New workspace → Walk me through it → a real synthesis on sonnet-5 →
 Finish in a real folder → the seeded brief in the new chat; and Create from a repository on a real URL. Not taken from the branch: two-level workspaces, setup
