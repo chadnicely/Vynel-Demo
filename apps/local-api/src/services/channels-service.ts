@@ -64,8 +64,6 @@ export interface ChannelsServiceOptions {
   /** The process-wide desktop-notification reader (server.ts, Windows only) —
    *  the channel root carries the brain's desktop senses too. */
   desktopReader?: unknown
-  /** Whether the mutating desktop `act_on_app` tool is enabled (env flag). */
-  enableDesktopActions?: boolean
   /** Per-composition entitlement read (tier filtering). Absent = fail-open. */
   readEnabledFeatureKeys?: ReadEnabledFeatureKeys
   /** The shared parked-ask registry — gives channel turns ask_user (bounded). */
@@ -87,7 +85,6 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
     activityFeed,
     turnEvents,
     desktopReader,
-    enableDesktopActions,
     readEnabledFeatureKeys,
     askWaiters,
     targetLocks,
@@ -142,7 +139,6 @@ export function startChannelsService(options: ChannelsServiceOptions): { stop: (
           activityFeed,
           ...(turnEvents !== undefined ? { turnEvents } : {}),
           desktopReader,
-          ...(enableDesktopActions !== undefined ? { enableDesktopActions } : {}),
           ...(readEnabledFeatureKeys !== undefined ? { readEnabledFeatureKeys } : {}),
           ...(askWaiters !== undefined ? { askWaiters } : {}),
         },

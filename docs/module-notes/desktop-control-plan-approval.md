@@ -214,4 +214,11 @@ auto-granting the post-launch identity (grants something the user never saw).
 - `list_installed_apps` / `launch_app` → Arc 3.
 - Input-method research note + `driving-the-desktop` notebook book → Arc 4.
 - A settings toggle replacing the `VYNEL_DESKTOP_ACT_ENABLED` env flag (with the full
-  isolated-machine acknowledgment) → future arc, flagged to Chad.
+  isolated-machine acknowledgment) → **SHIPPED 2026-08-22**, not a future arc any more. It is
+  Settings → Desktop control (`apps/local-web/src/components/sections/DesktopControlSection.vue`),
+  a per-user preference resolved on EVERY turn by
+  `apps/local-api/src/sessions/resolve-desktop-actions-enabled.ts` — so a flip lands on the next
+  turn with no restart. The env flag survives only as a DEV SEED for the never-touched state. The
+  isolated-machine acknowledgment did NOT ship with it; the screen instead names the whole grant
+  (acting, launching, opening links, the three window tools, volume, and both clipboard tools) and
+  keeps the always-allowed half honest: screenshots and window lists.

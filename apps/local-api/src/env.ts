@@ -102,11 +102,22 @@ function buildEnvSchema(portBase: number) {
   // its SDK cwd — like `.claude`, NOT a workspace folder. Absolute path; unset
   // defaults to `<home>/.vynel` (resolved in `sessions/global-root-workspace.ts`).
   VYNEL_USER_DATA_DIR: z.string().optional(),
-  // Enable the MUTATING desktop `act_on_app` tool (click / type). Default OFF —
-  // a deliberate off-switch so the agent can't act on the desktop unless the
-  // user opts in (`=1` or `=true`). The hard approval gate is a separate
-  // end-step; until then the real interim safety is an isolated environment +
-  // this flag, NOT the prompt. See `.claude/memory/decisions/desktop-control-mcp-server.md`.
+  // DEPRECATED for users — the real switch is Settings → Desktop control, a
+  // per-user preference resolved on EVERY turn (`sessions/
+  // resolve-desktop-actions-enabled.ts`). This env knob now only SEEDS the
+  // never-touched state: set `=1`/`=true` and a user who has never touched the
+  // toggle acts by default; the moment the user sets it either way, the
+  // preference wins and this is ignored. Kept as a dev convenience.
+  // Gates every ACT tool, not just click/type: `act_on_app` /
+  // `act_on_desktop`, `launch_app`, `open_url`, `set_window_state` /
+  // `focus_window` / `set_window_bounds`, `set_volume`, and BOTH clipboard
+  // tools — the READ included, because it can surface a password the user
+  // copied moments ago — plus `propose_desktop_plan`, which authorizes them
+  // (see `build-desktop-mcp-server.ts`). LOOKING (screenshots, window lists)
+  // is never gated. Every act is written to the append-only
+  // `desktop_actions` record. Background:
+  // `docs/module-notes/desktop-control-plan-approval.md`,
+  // § "Deliberately NOT in this arc" (records the toggle shipping 2026-08-22).
   VYNEL_DESKTOP_ACT_ENABLED: z
     .string()
     .default('0')

@@ -20,6 +20,7 @@ export const SetUserPreferencesRequestSchema = z.object({
   voiceTtsModelId: z.enum(LOCAL_TTS_MODEL_IDS).optional(),
   voiceSpeakerId: z.number().int().min(0).optional(),
   voiceSttModelId: z.enum(LOCAL_STT_MODEL_IDS).optional(),
+  desktopActionsEnabled: z.boolean().optional(),
 })
 
 export const UserResponseSchema = z.object({
@@ -41,6 +42,7 @@ export const UserPreferencesResponseSchema = z.object({
   voiceTtsModelId: z.enum(LOCAL_TTS_MODEL_IDS),
   voiceSpeakerId: z.number().int(),
   voiceSttModelId: z.enum(LOCAL_STT_MODEL_IDS),
+  desktopActionsEnabled: z.boolean(),
 })
 
 export type UpdateUserProfileRequest = z.infer<typeof UpdateUserProfileRequestSchema>

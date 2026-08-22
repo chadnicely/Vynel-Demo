@@ -15907,6 +15907,7 @@ export interface operations {
                         voiceSpeakerId: number;
                         /** @enum {string} */
                         voiceSttModelId: "moonshine-tiny" | "moonshine-base";
+                        desktopActionsEnabled: boolean;
                     };
                 };
             };
@@ -15932,6 +15933,7 @@ export interface operations {
                     voiceSpeakerId?: number;
                     /** @enum {string} */
                     voiceSttModelId?: "moonshine-tiny" | "moonshine-base";
+                    desktopActionsEnabled?: boolean;
                 };
             };
         };
@@ -15953,6 +15955,7 @@ export interface operations {
                         voiceSpeakerId: number;
                         /** @enum {string} */
                         voiceSttModelId: "moonshine-tiny" | "moonshine-base";
+                        desktopActionsEnabled: boolean;
                     };
                 };
             };

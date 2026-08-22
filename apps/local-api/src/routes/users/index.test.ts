@@ -11,6 +11,7 @@ import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { getOrCreateLocalUser, setUserPreferences } from '@vynel/core/users'
 import { createApp } from '../../app.js'
+import { resolveDesktopActionsEnabled } from '../../sessions/resolve-desktop-actions-enabled.js'
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -150,6 +151,71 @@ describe('PATCH /users/me/preferences', () => {
       getOrCreateLocalUser(db, { logger: silentLogger })
       const app = createApp({ db, logger: silentLogger })
       const res = await app.request('/users/me/preferences', jsonPatch({ theme: 'rainbow' }))
+      expect(res.status).toBe(400)
+    })
+  })
+})
+
+// Settings → Desktop control. The Zod property name IS the `user_preferences`
+// key (`setUserPreferences` upserts by property name), and the runtime reads
+// that key through its own resolver — three independent string literals that
+// must agree. Only a test that goes route → db → RESOLVER binds them; a
+// route→route round trip passes just as happily with a drifted literal.
+describe('the desktop acting toggle', () => {
+  it('round-trips through the route and is what the next turn resolves', async () => {
+    await withTestDatabase(async (db) => {
+      const user = getOrCreateLocalUser(db, { logger: silentLogger })
+      const app = createApp({ db, logger: silentLogger })
+
+      // Never touched: off, and the runtime agrees.
+      const before = (await (await app.request('/users/me/preferences')).json()) as {
+        desktopActionsEnabled: boolean
+      }
+      expect(before.desktopActionsEnabled).toBe(false)
+      expect(resolveDesktopActionsEnabled(db, user.id)).toBe(false)
+
+      const on = await app.request(
+        '/users/me/preferences',
+        jsonPatch({ desktopActionsEnabled: true }),
+      )
+      expect(on.status).toBe(200)
+      expect(((await on.json()) as { desktopActionsEnabled: boolean }).desktopActionsEnabled).toBe(
+        true,
+      )
+      // THE binding: the row the route wrote is the row the runtime reads.
+      expect(resolveDesktopActionsEnabled(db, user.id)).toBe(true)
+
+      const off = await app.request(
+        '/users/me/preferences',
+        jsonPatch({ desktopActionsEnabled: false }),
+      )
+      expect(((await off.json()) as { desktopActionsEnabled: boolean }).desktopActionsEnabled).toBe(
+        false,
+      )
+      expect(resolveDesktopActionsEnabled(db, user.id)).toBe(false)
+    })
+  })
+
+  it('survives a re-read (GET reports the stored choice, not the default)', async () => {
+    await withTestDatabase(async (db) => {
+      getOrCreateLocalUser(db, { logger: silentLogger })
+      const app = createApp({ db, logger: silentLogger })
+      await app.request('/users/me/preferences', jsonPatch({ desktopActionsEnabled: true }))
+      const res = await app.request('/users/me/preferences')
+      expect(((await res.json()) as { desktopActionsEnabled: boolean }).desktopActionsEnabled).toBe(
+        true,
+      )
+    })
+  })
+
+  it('returns 400 when it is not a boolean (Zod validation surface)', async () => {
+    await withTestDatabase(async (db) => {
+      getOrCreateLocalUser(db, { logger: silentLogger })
+      const app = createApp({ db, logger: silentLogger })
+      const res = await app.request(
+        '/users/me/preferences',
+        jsonPatch({ desktopActionsEnabled: 'yes' }),
+      )
       expect(res.status).toBe(400)
     })
   })

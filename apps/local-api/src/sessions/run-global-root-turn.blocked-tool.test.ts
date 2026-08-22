@@ -73,6 +73,11 @@ vi.mock('@vynel/capabilities', () => ({
   resolveEffectiveToolPolicies: () => new Map(),
   applyToolPolicyDefaultsToCatalog: (catalog: unknown) => catalog,
 }))
+// Not the seam under test (see resolve-desktop-actions-enabled.test.ts).
+vi.mock('./resolve-desktop-actions-enabled.js', () => ({
+  resolveDesktopActionsEnabled: () => false,
+}))
+
 vi.mock('./resolve-global-root-conversation.js', () => ({
   resolveGlobalRootConversationTarget: resolveTargetMock,
 }))
