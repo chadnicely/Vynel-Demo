@@ -203,4 +203,16 @@ describe("VoiceSettingsSection", () => {
     expect(reload).toHaveBeenCalledTimes(1);
     expect(wrapper.get(".apply-note").text()).toContain("no voice yet");
   });
+
+  it("tells the truth about who hears you: local models catch the wake word, web speech hears the rest", async () => {
+    const { wrapper } = harness([KOKORO, PIPER, MOONSHINE_BASE, VAD]);
+    await flushPromises();
+    const text = wrapper.text();
+    expect(text).toContain("Hearing · wake word");
+    expect(wrapper.get(".hearing-note").text()).toContain("web speech recognition hears you");
+    expect(text).toContain("Use for the wake word");
+    expect(text).not.toContain("Hear with this");
+    expect(text).not.toContain("Everything runs on this computer");
+    expect(wrapper.get(".vad-note").text()).toContain("Always on");
+  });
 });
