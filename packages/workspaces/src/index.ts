@@ -72,6 +72,7 @@ export { makeDefaultWorkspaceParentDirectory } from './directory/make-default-wo
 export { sanitizeFolderName } from './directory/sanitize-folder-name.js'
 export { listChildDirectories } from './directory/list-child-directories.js'
 export { createChildDirectory } from './directory/create-child-directory.js'
+export { resolveExistingDirectory } from './directory/resolve-existing-directory.js'
 export type { DirectoryListing, DirectoryEntry } from './directory/list-child-directories.js'
 export type { DriveRoot, DriveKind } from './directory/list-drive-roots.js'
 export type { KnownPlace, KnownPlaceKind } from './directory/list-known-places.js'

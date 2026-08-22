@@ -75,6 +75,7 @@ import { usersApp } from './routes/users/index.js'
 import { agentsApp } from './routes/agents/index.js'
 import { toolPoliciesApp } from './routes/tool-policies/index.js'
 import { providersApp } from './routes/providers/index.js'
+import { workspaceWizardApp } from './routes/workspaces/wizard.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
 import {
@@ -362,6 +363,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // after this still flatten correctly). Consumed by scripts/generators.
   app.get('/openapi.json', openAPISpecs(app, openApiInfo))
 
+  app.route('/workspaces/wizard', workspaceWizardApp)
   app.route('/workspaces/:workspaceId/knowledge', knowledgeApp)
   app.route('/workspaces/:workspaceId/skills', skillsApp)
   // Claude-config surfaces (rules / commands / mcp-servers): the workspace

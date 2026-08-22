@@ -1,4 +1,38 @@
 export interface paths {
+    "/workspaces/wizard/study-rival": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List what a named site does, from the provider's own knowledge (no live read). */
+        post: operations["postWorkspacesWizardStudy-rival"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/wizard/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Distill the wizard's answers into the plan the user rates. */
+        post: operations["postWorkspacesWizardPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/knowledge/documents": {
         parameters: {
             query?: never;
@@ -4376,6 +4410,121 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "postWorkspacesWizardStudy-rival": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    site: string;
+                    idea: string;
+                    parentPath: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { study } — null when the provider could not study the site; say so plainly. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        study: {
+                            whatTheyDo: string[];
+                            leaveOut: string[];
+                            magic: {
+                                title: string;
+                                why: string;
+                            }[];
+                        } | null;
+                    };
+                };
+            };
+            /** @description Validation error, or the chosen folder does not exist. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesWizardPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    idea: string;
+                    audience: string;
+                    firstThing: string;
+                    signIn: string;
+                    where: string;
+                    remembers: string[];
+                    wants: {
+                        text: string;
+                        from: string;
+                    }[];
+                    leftOut: string[];
+                    changeRequests: string[];
+                    goalNotes: string[];
+                    stack: {
+                        front: string;
+                        back: string;
+                        database: string;
+                    };
+                    parentPath: string;
+                };
+            };
+        };
+        responses: {
+            /** @description { plan } — null when no synthesis could be made; the wizard falls back to its own derivation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        plan: {
+                            oneLine: string;
+                            build: {
+                                text: string;
+                                source: string;
+                            }[];
+                            remembers: string[];
+                            leftOut: string[];
+                            mvpNutshell: string;
+                            goals: {
+                                title: string;
+                                bullets: string[];
+                            }[];
+                            sessions: {
+                                name: string;
+                                items: string[];
+                                mvp: boolean;
+                            }[];
+                        } | null;
+                    };
+                };
+            };
+            /** @description Validation error, or the chosen folder does not exist. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getWorkspacesByWorkspaceIdKnowledgeDocuments: {
         parameters: {
             query?: {

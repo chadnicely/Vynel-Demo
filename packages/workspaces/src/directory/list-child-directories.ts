@@ -19,13 +19,14 @@
 // → 500 (error-handling.md). Async (`node:fs/promises`) per coding-standard
 // "core ops are async" — it isn't inside a Phase-1 sync transaction.
 
-import { readdir, stat, realpath } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { ValidationError } from '@vynel/errors'
 import { isExplorerHiddenDirectory, isExplorerHiddenFile } from './explorer-hidden-names.js'
 import { listDriveRoots, type DriveRoot, type DriveRootsLogger } from './list-drive-roots.js'
 import { listKnownPlaces, type KnownPlace } from './list-known-places.js'
+import { resolveExistingDirectory } from './resolve-existing-directory.js'
 
 export type DirectoryEntry = {
   name: string
@@ -53,23 +54,7 @@ export async function listChildDirectories(
 ): Promise<DirectoryListing> {
   const requested = targetPath && targetPath.trim().length > 0 ? targetPath : homedir()
 
-  let resolved: string
-  try {
-    // realpath resolves symlinks + canonical casing AND validates existence.
-    resolved = await realpath(requested)
-  } catch {
-    throw new ValidationError(`Directory not found: ${requested}. Pick a folder that exists.`)
-  }
-
-  let stats
-  try {
-    stats = await stat(resolved)
-  } catch {
-    throw new ValidationError(`${resolved} is no longer accessible.`)
-  }
-  if (!stats.isDirectory()) {
-    throw new ValidationError(`${resolved} is not a directory.`)
-  }
+  const resolved = await resolveExistingDirectory(requested)
 
   let dirents
   try {

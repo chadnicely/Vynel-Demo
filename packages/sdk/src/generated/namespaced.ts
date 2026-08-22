@@ -2323,6 +2323,20 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  studyRival: async (input: NonNullable<paths["/workspaces/wizard/study-rival"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/wizard/study-rival", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  synthesizePlan: async (input: NonNullable<paths["/workspaces/wizard/plan"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/wizard/plan", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   unarchive: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/unarchive"]["post"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/unarchive", {
       params: { path: { workspaceId: workspaceId } },

@@ -3,7 +3,26 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-22 (latest) DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)
+## 🔨 2026-08-23 (latest) NEW-WORKSPACE WIZARD — Slice 1 (the AI seam) on `feature/new-workspace-wizard`
+
+Chad's 13-screen "Walk me through it" wizard (design branch `5daf8ff6`/`40c5a5e8`) comes to main **screens
+and copy as drawn, plumbing rebuilt** — note `docs/module-notes/new-workspace-wizard.md` (read it first).
+Kafi's decisions 2026-08-23: it creates a **workspace** (flat row + group, never a sub-project); the user
+**chooses the folder first** (screen 1) and the one-shots dispatch from it — never the global space;
+**accounts are global** (screen 10 = read-only pre-flight, nothing stored per workspace); the approved plan
+**lives in the DB** (a `workspace_briefs` row, no `PLAN.md`) + the composer seed; "pull from git" is its own
+slice. Slice 1 landed: `@vynel/providers` `studyRivalSite` / `synthesizeWorkspacePlan` (default null;
+Claude = toolless sonnet-5 distills over `runClaudeDistillTurn`, `parseDistillJson` + `readList` readers),
+`POST /workspaces/wizard/{study-rival,plan}` (no x-mcp; `parentPath` → `resolveExistingDirectory`, extracted
+from `listChildDirectories`), SDK `workspaces.studyRival` / `.synthesizePlan`. Reviewed (code-reviewer:
+no blockers; fixes in). Gate: typecheck 112/112 · parity 5/5 · 995 files / 6822 tests.
+**Next:** Slice 2 — `scaffoldWorkspace` (folder via `createChildDirectory` → README → git init + first
+commit → `createWorkspace`+group) + the `workspace_briefs` table + `GET /workspaces/:id/brief` [x-mcp] +
+`POST /workspaces/scaffold`; then Slice 3 the wizard UI (Modal + `persistent`, Tailwind), Slice 4 the door
++ kickoff (`addTab` + `ui.composerSeed`), Slice 5 clone. Not taken from the branch: two-level workspaces,
+setup stamps, group removal, per-workspace accounts, Codex/Kimi, Nocturne, `WizardModal`, `prototype/`.
+
+## ✅ 2026-08-22 DESKTOP CONTROL IS A SETTINGS TOGGLE (merged to main)
 
 Kafi: acting on the desktop is enabled from Settings, not the env. Per-user preference `desktopActionsEnabled` (key-value
 `user_preferences`, default off, no migration) is the source of truth, read at EVERY composition seam by ONE resolver

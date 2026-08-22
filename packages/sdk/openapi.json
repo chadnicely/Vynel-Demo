@@ -6,6 +6,371 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/workspaces/wizard/study-rival": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ study } — null when the provider could not study the site; say so plainly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "study": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "whatTheyDo": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "leaveOut": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "magic": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "why": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "title",
+                              "why"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "whatTheyDo",
+                        "leaveOut",
+                        "magic"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "study"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or the chosen folder does not exist."
+          }
+        },
+        "operationId": "postWorkspacesWizardStudy-rival",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "List what a named site does, from the provider's own knowledge (no live read).",
+        "x-sdk-name": "workspaces.studyRival",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "site": {
+                    "type": "string",
+                    "minLength": 4,
+                    "maxLength": 200
+                  },
+                  "idea": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "site",
+                  "idea",
+                  "parentPath"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/wizard/plan": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ plan } — null when no synthesis could be made; the wizard falls back to its own derivation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plan": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "oneLine": {
+                          "type": "string"
+                        },
+                        "build": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "text": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "text",
+                              "source"
+                            ]
+                          }
+                        },
+                        "remembers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "leftOut": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "mvpNutshell": {
+                          "type": "string"
+                        },
+                        "goals": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "bullets": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "title",
+                              "bullets"
+                            ]
+                          }
+                        },
+                        "sessions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "mvp": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "items",
+                              "mvp"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "oneLine",
+                        "build",
+                        "remembers",
+                        "leftOut",
+                        "mvpNutshell",
+                        "goals",
+                        "sessions"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "plan"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or the chosen folder does not exist."
+          }
+        },
+        "operationId": "postWorkspacesWizardPlan",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Distill the wizard's answers into the plan the user rates.",
+        "x-sdk-name": "workspaces.synthesizePlan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idea": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "audience": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "firstThing": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "signIn": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "where": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "remembers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "maxItems": 20
+                  },
+                  "wants": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "from": {
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "from"
+                      ]
+                    },
+                    "maxItems": 80
+                  },
+                  "leftOut": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "maxItems": 40
+                  },
+                  "changeRequests": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "maxItems": 20
+                  },
+                  "goalNotes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "maxItems": 20
+                  },
+                  "stack": {
+                    "type": "object",
+                    "properties": {
+                      "front": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "back": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "database": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "front",
+                      "back",
+                      "database"
+                    ]
+                  },
+                  "parentPath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "idea",
+                  "audience",
+                  "firstThing",
+                  "signIn",
+                  "where",
+                  "remembers",
+                  "wants",
+                  "leftOut",
+                  "changeRequests",
+                  "goalNotes",
+                  "stack",
+                  "parentPath"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/knowledge/documents": {
       "get": {
         "responses": {

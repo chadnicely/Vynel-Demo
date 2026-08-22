@@ -29,6 +29,12 @@ import type { DiscoverModelsInput } from '../shared/discover-models-input.js'
 import type { GetContextReportInput } from '../shared/get-context-report-input.js'
 import type { SummarizeSessionInput } from '../shared/summarize-session-input.js'
 import type { SummarizeReportInput } from '../shared/summarize-report-input.js'
+import type {
+  WorkspacePlan,
+  WorkspacePlanInput,
+  RivalSiteStudy,
+  RivalSiteStudyInput,
+} from '../shared/workspace-plan.js'
 import { discoverClaudeInstalledSkills } from './installation/discover-claude-installed-skills.js'
 import { fetchClaudePersistedSessionTranscript } from './history/fetch-claude-persisted-session-transcript.js'
 import { listClaudeConfiguredMcpServers } from './installation/list-claude-configured-mcp-servers.js'
@@ -38,6 +44,8 @@ import { runClaudeContextReport } from './session/run-claude-context-report.js'
 import { runClaudeSessionSummary } from './session/run-claude-session-summary.js'
 import { runClaudeReportSummary } from './session/run-claude-report-summary.js'
 import { runClaudeModelDiscovery } from './session/run-claude-model-discovery.js'
+import { runClaudeRivalSiteStudy } from './session/run-claude-rival-site-study.js'
+import { runClaudeWorkspacePlanSynthesis } from './session/run-claude-workspace-plan-synthesis.js'
 import { synchronizeClaudePersistedSessions } from './history/synchronize-claude-persisted-sessions.js'
 
 export class ClaudeAiAgentProvider extends AiAgentProvider {
@@ -104,5 +112,13 @@ export class ClaudeAiAgentProvider extends AiAgentProvider {
     input: DiscoverModelsInput,
   ): Promise<DiscoveredProviderModel[] | null> {
     return runClaudeModelDiscovery(input)
+  }
+
+  override async studyRivalSite(input: RivalSiteStudyInput): Promise<RivalSiteStudy | null> {
+    return runClaudeRivalSiteStudy(input)
+  }
+
+  override async synthesizeWorkspacePlan(input: WorkspacePlanInput): Promise<WorkspacePlan | null> {
+    return runClaudeWorkspacePlanSynthesis(input)
   }
 }
