@@ -1757,6 +1757,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/github/repository": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a GitHub repository for this workspace's folder and push it, through the app's GitHub sign-in. */
+        post: operations["postWorkspacesByWorkspaceIdGithubRepository"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/section-counts": {
         parameters: {
             query?: never;
@@ -11197,6 +11214,60 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postWorkspacesByWorkspaceIdGithubRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @enum {string} */
+                    visibility: "private" | "public";
+                };
+            };
+        };
+        responses: {
+            /** @description { outcome } — created (with the URL) or failed (with the reason: not signed in, name taken, no commits…). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        outcome: {
+                            /** @constant */
+                            kind: "created";
+                            url: string | null;
+                        } | {
+                            /** @constant */
+                            kind: "failed";
+                            reason: string;
+                        };
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Workspace not found. */
             404: {

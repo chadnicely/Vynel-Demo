@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import {
+  PhCheck,
   PhCheckCircle,
   PhGithubLogo,
   PhSignIn,
   PhWarningCircle,
 } from "@phosphor-icons/vue";
 import type { VynelClient } from "@vynel/sdk";
-import { CARD, HINT, PRIMARY_BUTTON } from "./wizard-classes.js";
+import GitHubRepositoryFields from "../../github/GitHubRepositoryFields.vue";
+import { useWizardAnswers } from "./wizard-answers.js";
+import {
+  CARD,
+  HINT,
+  PRIMARY_BUTTON,
+  TICK_BOX,
+  TICK_BOX_ON,
+} from "./wizard-classes.js";
 
 /** The wire shape of the account read — typed off the SDK, as every screen is. */
 type AuthenticationStatus = Awaited<
@@ -17,7 +26,8 @@ type AuthenticationStatus = Awaited<
 // 2026-08-23): one Claude account for the whole app, never a per-workspace
 // pick. So this is a read-only pre-flight — signed in? — with the sign-in
 // door when not; and GitHub shown dimmed until the global connection exists.
-// Nothing here is stored on the workspace.
+// The one thing chosen here: whether Finish also makes the GitHub repository
+// (name + visibility) — offered only when the global sign-in exists.
 defineProps<{
   status: AuthenticationStatus | null;
   loading: boolean;
@@ -26,6 +36,8 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{ signIn: [] }>();
+
+const answers = useWizardAnswers();
 </script>
 
 <template>
@@ -89,16 +101,42 @@ const emit = defineEmits<{ signIn: [] }>();
     </template>
   </div>
 
-  <div v-if="github" :class="CARD" class="flex items-center gap-3">
-    <PhGithubLogo :size="20" class="shrink-0 text-gold" />
-    <span class="grid min-w-0 flex-1 gap-0.5">
-      <span class="text-[13px] text-ink-1"
-        >GitHub — signed in as @{{ github.accountLabel }}</span
-      >
-      <span class="text-[11.5px] text-ink-3">
-        Your sessions create repositories and push through this account.
+  <div v-if="github" :class="CARD" class="grid gap-3">
+    <div class="flex items-center gap-3">
+      <PhGithubLogo :size="20" class="shrink-0 text-gold" />
+      <span class="grid min-w-0 flex-1 gap-0.5">
+        <span class="text-[13px] text-ink-1"
+          >GitHub — signed in as @{{ github.accountLabel }}</span
+        >
+        <span class="text-[11.5px] text-ink-3">
+          Your sessions push and open pull requests through this account.
+        </span>
       </span>
-    </span>
+    </div>
+    <button
+      type="button"
+      role="checkbox"
+      :aria-checked="answers.repository.create"
+      class="flex w-full cursor-default items-center gap-2.5 rounded-sm px-1 py-1 text-left text-[12.5px] text-ink-1 transition hover:bg-row-hover"
+      @click="answers.repository.create = !answers.repository.create"
+    >
+      <span :class="[TICK_BOX, answers.repository.create ? TICK_BOX_ON : '']">
+        <PhCheck v-if="answers.repository.create" :size="11" weight="bold" />
+      </span>
+      <span class="grid gap-0.5">
+        <span>Also create the repository on GitHub when I finish</span>
+        <span class="text-[11px] text-ink-3"
+          >The first commit is pushed; the sessions take it from there.</span
+        >
+      </span>
+    </button>
+    <GitHubRepositoryFields
+      v-if="answers.repository.create"
+      :name="answers.repository.name"
+      :visibility="answers.repository.visibility"
+      @update:name="answers.repository.name = $event"
+      @update:visibility="answers.repository.visibility = $event"
+    />
   </div>
   <div v-else :class="CARD" class="flex items-center gap-3 opacity-70">
     <PhGithubLogo :size="20" class="shrink-0 text-ink-3" />

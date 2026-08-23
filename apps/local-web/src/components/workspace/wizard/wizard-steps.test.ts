@@ -13,8 +13,9 @@ import {
 import { deriveFallbackPlan } from "./derive-fallback-plan.js";
 import { chosenStack, deriveStackRows } from "./derive-stack.js";
 
-const SIGNED_IN = { isSignedIn: true };
-const SIGNED_OUT = { isSignedIn: false };
+const SIGNED_IN = { isSignedIn: true, isGitHubSignedIn: false };
+const SIGNED_OUT = { isSignedIn: false, isGitHubSignedIn: false };
+const GITHUB_TOO = { isSignedIn: true, isGitHubSignedIn: true };
 
 function answeredThroughQ2(): WizardAnswers {
   return {
@@ -57,6 +58,33 @@ describe("the step machine", () => {
     const empty = makeEmptyAnswers();
     expect(wizardGate("account", empty, SIGNED_OUT)).toContain("Sign in");
     expect(wizardGate("account", empty, SIGNED_IN)).toBeNull();
+    // The repository offer gates on a name GitHub accepts — only when it is
+    // wanted AND the GitHub sign-in exists (signed out, the offer never shows).
+    expect(wizardGate("account", empty, GITHUB_TOO)).toContain("repository");
+    expect(
+      wizardGate(
+        "account",
+        {
+          ...empty,
+          repository: {
+            create: true,
+            name: "front-of-house",
+            visibility: "private",
+          },
+        },
+        GITHUB_TOO,
+      ),
+    ).toBeNull();
+    expect(
+      wizardGate(
+        "account",
+        {
+          ...empty,
+          repository: { create: false, name: "", visibility: "private" },
+        },
+        GITHUB_TOO,
+      ),
+    ).toBeNull();
   });
 
   it("the plan gate walks: score → tell-us-what-to-change → clear at 10", () => {

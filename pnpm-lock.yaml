@@ -1006,6 +1006,9 @@ importers:
 
   packages/github:
     dependencies:
+      '@vynel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@vynel/errors':
         specifier: workspace:*
         version: link:../errors

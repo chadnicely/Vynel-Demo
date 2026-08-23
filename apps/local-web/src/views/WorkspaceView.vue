@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import {
   PhTreeView as FolderTree,
   PhGitBranch as GitBranch,
@@ -12,6 +13,7 @@ import AppComposer from "../components/chat/AppComposer.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
 import TodoDock from "../components/chat/TodoDock.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
+import ConnectGitHubDialog from "../components/github/ConnectGitHubDialog.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import FileEditorView from "../components/workspace/FileEditorView.vue";
 import WorkspaceSectionPanel from "../components/workspace/WorkspaceSectionPanel.vue";
@@ -41,7 +43,7 @@ import { useDecideApproval } from "../composables/approvals/use-decide-approval.
 import type { SessionScope } from "../composables/chat/session-scope.js";
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import type { ComposerSettings } from "../composables/chat/use-session-settings.js";
-import { isTasksPanelSurface, useUiStore } from "../stores/ui-store.js";
+import { GLOBAL_TAB_ID, isTasksPanelSurface, useUiStore } from "../stores/ui-store.js";
 import { useCustomizeStore } from "../stores/customize-store.js";
 import { personaFaceOf } from "../utils/persona-face.js";
 import { useActivityStore } from "../stores/activity-store.js";
@@ -168,6 +170,20 @@ const gitBadge = computed(() =>
     ? null
     : describeGitFacts(gitQuery.data.value),
 );
+// "Connect to GitHub" — offered only when there is a repository with no
+// remote; the dialog runs the same create-and-push the wizard's Finish does.
+const canConnectGitHub = computed(() => {
+  const facts = gitQuery.data.value?.facts;
+  return facts?.kind === "repository" && facts.remoteUrl === null;
+});
+const isConnectGitHubOpen = ref(false);
+const router = useRouter();
+function openGitHubSettings() {
+  isConnectGitHubOpen.value = false;
+  ui.activateTab(GLOBAL_TAB_ID);
+  ui.globalTab.shell.mainView = "github";
+  void router.push({ name: "chat" });
+}
 // The canvas's header badge, worded per state ("Task 5 of 13" · "Waiting on
 // your answer" · "Stopped on an error" · "All N tasks done" · "Not running").
 const headerBadge = computed<{ label: string; status: string } | null>(() => {
@@ -421,6 +437,22 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
           <GitBranch :size="11" aria-hidden="true" />
           {{ gitBadge.label }}
         </span>
+        <button
+          v-if="canConnectGitHub && activeWorkspace"
+          type="button"
+          class="thread-connect"
+          @click="isConnectGitHubOpen = true"
+        >
+          Connect to GitHub
+        </button>
+        <ConnectGitHubDialog
+          v-if="activeWorkspace"
+          :open="isConnectGitHubOpen"
+          :workspace-id="activeWorkspace.id"
+          :workspace-path="activeWorkspace.path"
+          @close="isConnectGitHubOpen = false"
+          @open-settings="openGitHubSettings"
+        />
         <span class="thread-header-space" />
         <IconButton
           label="Toggle files"
@@ -605,6 +637,24 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
 
 .thread-git[data-tone="muted"] {
   color: var(--ink-3);
+}
+
+/* The header's one door — text-only, gold, the badge's size. */
+.thread-connect {
+  flex: none;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gold);
+  font: 500 11px/1.55 var(--font-ui);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.thread-connect:hover {
+  background: var(--row-hover);
 }
 
 .thread-git[data-tone="problem"] {

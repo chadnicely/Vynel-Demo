@@ -20,6 +20,7 @@ type FakeCalls = {
   studyRival: unknown[];
   synthesizePlan: unknown[];
   scaffold: unknown[];
+  createGitHubRepository: unknown[];
 };
 
 const STORED_BRIEF =
@@ -62,7 +63,12 @@ function makeFakeClient(
     githubSignedIn?: boolean;
   } = {},
 ) {
-  const calls: FakeCalls = { studyRival: [], synthesizePlan: [], scaffold: [] };
+  const calls: FakeCalls = {
+    studyRival: [],
+    synthesizePlan: [],
+    scaffold: [],
+    createGitHubRepository: [],
+  };
   const listings = makeListings();
   const client = {
     github: {
@@ -140,6 +146,18 @@ function makeFakeClient(
               },
               { name: "Photos", items: ["Drag one in"], mvp: false },
             ],
+          },
+        };
+      },
+      createGitHubRepository: async (
+        workspaceId: string,
+        input: { name: string; visibility: string },
+      ) => {
+        calls.createGitHubRepository.push({ workspaceId, ...input });
+        return {
+          outcome: {
+            kind: "created",
+            url: `https://github.com/chadnicely/${input.name}`,
           },
         };
       },
@@ -581,6 +599,15 @@ describe("WorkspaceWizard", () => {
     expect(bodyText()).toContain("Claude — signed in");
     expect(bodyText()).toContain("chad@x.dev");
     expect(bodyText()).toContain("GitHub — signed in as @chadnicely");
+    // The repository offer: on by default, its name following the workspace.
+    expect(bodyText()).toContain("Also create the repository on GitHub");
+    expect(
+      (
+        document.querySelector(
+          'input[placeholder="my-workspace"]',
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("front-of-house");
     await press("Continue"); // account
     expect(bodyText()).toContain("You don't need to be a security expert.");
     await press("Continue"); // care
@@ -608,6 +635,14 @@ describe("WorkspaceWizard", () => {
     expect(bodyText()).toContain("What happens from here");
     expect(bodyText()).toContain(PROJECTS);
     expect(bodyText()).toContain("first commit in");
+    // The repository was made AFTER the scaffold, for the new workspace, and
+    // Done links to it.
+    expect(calls.createGitHubRepository).toEqual([
+      { workspaceId: "ws-new", name: "front-of-house", visibility: "private" },
+    ]);
+    expect(bodyText()).toContain(
+      "https://github.com/chadnicely/front-of-house",
+    );
 
     await press("Open my workspace");
     const emitted = wrapper.emitted("created");
@@ -618,5 +653,80 @@ describe("WorkspaceWizard", () => {
     };
     expect(payload.workspace.id).toBe("ws-new");
     expect(payload.brief).toBe(STORED_BRIEF);
+  });
+
+  it("a repository gh could not make is a reported outcome on Done — the workspace is still handed over", async () => {
+    const { wrapper, calls, client } = await mountWizard({
+      githubSignedIn: true,
+    });
+    (
+      client as unknown as { workspaces: Record<string, unknown> }
+    ).workspaces.createGitHubRepository = async () => ({
+      outcome: {
+        kind: "failed",
+        reason: "Name already exists on this account.",
+      },
+    });
+    await answerThroughQuestions();
+    await press("Continue"); // rivals
+    await press("Continue"); // wants
+    await press("10");
+    await press("Looks right");
+    await press("Yes, that is it");
+    await press("Continue"); // goals → stack
+    await press("Continue"); // stack → account
+    await press("Continue"); // account → care
+    await press("Continue"); // care → sessions
+    await press("I approve the plan");
+    await press("Finish");
+
+    expect(calls.scaffold).toHaveLength(1);
+    expect(bodyText()).toContain(
+      "The GitHub repository was not created: Name already exists on this account.",
+    );
+    expect(bodyText()).toContain("The workspace is fine");
+
+    await press("Open my workspace");
+    expect(wrapper.emitted("created")).toHaveLength(1);
+  });
+
+  it("Finish stays busy through the push — a second click never scaffolds the folder twice", async () => {
+    const { calls, client } = await mountWizard({ githubSignedIn: true });
+    let finishPush: (outcome: unknown) => void = () => {};
+    (
+      client as unknown as { workspaces: Record<string, unknown> }
+    ).workspaces.createGitHubRepository = () =>
+      new Promise((resolve) => {
+        finishPush = (outcome) => resolve({ outcome });
+      });
+    await answerThroughQuestions();
+    await press("Continue"); // rivals
+    await press("Continue"); // wants
+    await press("10");
+    await press("Looks right");
+    await press("Yes, that is it");
+    await press("Continue"); // goals → stack
+    await press("Continue"); // stack → account
+    await press("Continue"); // account → care
+    await press("Continue"); // care → sessions
+    await press("I approve the plan");
+    await press("Finish");
+
+    expect(calls.scaffold).toHaveLength(1);
+    const busy = findButton("Pushing to GitHub…");
+    expect(busy.disabled).toBe(true);
+    busy.click();
+    await flushPromises();
+    expect(calls.scaffold).toHaveLength(1);
+
+    finishPush({
+      kind: "created",
+      url: "https://github.com/chadnicely/front-of-house",
+    });
+    await flushPromises();
+    expect(bodyText()).toContain("What happens from here");
+    expect(bodyText()).toContain(
+      "https://github.com/chadnicely/front-of-house",
+    );
   });
 });

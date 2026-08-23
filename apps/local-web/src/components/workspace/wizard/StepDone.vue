@@ -10,6 +10,7 @@ import {
   PhThumbsUp,
   PhWarning,
 } from "@phosphor-icons/vue";
+import type { GitHubRepositoryOutcome } from "../../../composables/github/use-github-repository.js";
 import { CARD, KICKER } from "./wizard-classes.js";
 
 // The Done screen — what happens from here: the Build → Test → Feedback →
@@ -23,6 +24,8 @@ defineProps<{
     | { kind: "existing" }
     | { kind: "skipped"; reason: string }
     | null;
+  /** What happened on GitHub — null when no repository was asked for. */
+  repository: GitHubRepositoryOutcome | null;
 }>();
 
 const LOOP = [
@@ -110,6 +113,40 @@ const FORGOTTEN = [
     >
       <PhWarning :size="14" class="mt-0.5 shrink-0" />
       <span>{{ git.reason }}</span>
+    </p>
+    <p
+      v-if="repository?.kind === 'created'"
+      class="m-0 flex items-start gap-2 text-[12.5px] text-ink-1"
+      data-testid="repository-created"
+    >
+      <PhCheckCircle
+        :size="14"
+        class="mt-0.5 shrink-0 text-gold"
+        weight="fill"
+      />
+      <span>
+        On GitHub too —
+        <a
+          v-if="repository.url"
+          :href="repository.url"
+          target="_blank"
+          rel="noreferrer"
+          class="text-gold underline-offset-2 hover:underline"
+          >{{ repository.url }}</a
+        >
+        <template v-else>the repository is created and pushed.</template>
+      </span>
+    </p>
+    <p
+      v-else-if="repository?.kind === 'failed'"
+      class="m-0 flex items-start gap-2 text-[12px] text-needs-input"
+      data-testid="repository-failed"
+    >
+      <PhWarning :size="14" class="mt-0.5 shrink-0" />
+      <span>
+        The GitHub repository was not created: {{ repository.reason }} The
+        workspace is fine — connect it later from its header.
+      </span>
     </p>
   </div>
 

@@ -31,6 +31,11 @@ import { useVynel } from "../../../composables/use-vynel.js";
 import { useClaudeAuthStatus } from "../../../composables/providers/use-claude-auth-status.js";
 import { useGitHubConnection } from "../../../composables/github/use-github-connection.js";
 import { useScaffoldWorkspace } from "../../../composables/workspaces/use-scaffold-workspace.js";
+import {
+  suggestRepositoryName,
+  useCreateGitHubRepository,
+  type GitHubRepositoryOutcome,
+} from "../../../composables/github/use-github-repository.js";
 import { formatSdkError } from "../../../utils/format-sdk-error.js";
 
 // The full-planning road behind New workspace → "Walk me through it": 12
@@ -58,6 +63,7 @@ const emit = defineEmits<{
 
 const vynel = useVynel();
 const scaffold = useScaffoldWorkspace();
+const createRepository = useCreateGitHubRepository();
 const isOpen = computed(() => props.open);
 const auth = useClaudeAuthStatus(() => props.open);
 const isSignedIn = computed(() => auth.data.value?.isAuthenticated === true);
@@ -88,6 +94,8 @@ const scaffolded = ref<{
     | { kind: "existing" }
     | { kind: "skipped"; reason: string };
   brief: string;
+  /** The GitHub repository Finish made — null when none was asked for. */
+  repository: GitHubRepositoryOutcome | null;
 } | null>(null);
 
 watch(
@@ -100,11 +108,28 @@ watch(
     scaffoldError.value = null;
     scaffolded.value = null;
     scaffold.reset();
+    createRepository.reset();
   },
 );
 
+// The repository name follows the workspace name until the person edits it —
+// seeded the first time the account step shows, never overwritten after.
+watch(stepId, (step) => {
+  if (step === "account" && answers.repository.name === "") {
+    answers.repository.name = suggestRepositoryName(answers.appName);
+  }
+});
+
 const gate = computed(() =>
-  wizardGate(stepId.value, answers, { isSignedIn: isSignedIn.value }),
+  wizardGate(stepId.value, answers, {
+    isSignedIn: isSignedIn.value,
+    isGitHubSignedIn: githubAccount.value !== null,
+  }),
+);
+// Finish is busy from the scaffold through the push — a second click must
+// never scaffold the same folder twice.
+const isFinishing = computed(
+  () => scaffold.isPending.value || createRepository.isPending.value,
 );
 
 async function finish() {
@@ -126,10 +151,37 @@ async function finish() {
       workspace: made.workspace as WorkspaceResponse,
       git: made.git,
       brief: made.brief.brief,
+      repository: await makeRepository(made.workspace.id, made.git.kind),
     };
     stepIndex.value = WIZARD_LAST;
   } catch (error) {
     scaffoldError.value = formatSdkError(error);
+  }
+}
+
+// After the scaffold, when asked and signed in: the repository + first push.
+// Its failure is an OUTCOME on the Done screen — the workspace is already
+// made and stays fine; a failed call (network, engine) is worded the same way.
+async function makeRepository(
+  workspaceId: string,
+  git: "initialized" | "existing" | "skipped",
+): Promise<GitHubRepositoryOutcome | null> {
+  if (!answers.repository.create || githubAccount.value === null) return null;
+  if (git === "skipped") {
+    return {
+      kind: "failed",
+      reason:
+        "git could not start in the folder, so there is nothing to push yet.",
+    };
+  }
+  try {
+    return await createRepository.mutateAsync({
+      workspaceId,
+      name: answers.repository.name.trim(),
+      visibility: answers.repository.visibility,
+    });
+  } catch (error) {
+    return { kind: "failed", reason: formatSdkError(error) };
   }
 }
 
@@ -149,15 +201,17 @@ const nextLabel = computed(() => {
   if (step === "plan" && answers.score !== null && answers.score < 10)
     return "Update the plan";
   if (step === "plan" && answers.score === 10) return "Looks right";
-  if (step === "sessions")
+  if (step === "sessions") {
+    if (createRepository.isPending.value) return "Pushing to GitHub…";
     return scaffold.isPending.value ? "Making it…" : "Finish";
+  }
   if (step === "done") return "Open my workspace";
   return "Continue";
 });
 
 const nextDisabled = computed(() => {
   if (stepId.value === "rivals" && hasSiteDraft.value) return false;
-  if (stepId.value === "sessions" && scaffold.isPending.value) return true;
+  if (stepId.value === "sessions" && isFinishing.value) return true;
   return gate.value !== null;
 });
 
@@ -281,6 +335,7 @@ function onOpenChange(open: boolean) {
         v-else
         :folder-path="scaffolded?.workspace.path ?? null"
         :git="scaffolded?.git ?? null"
+        :repository="scaffolded?.repository ?? null"
       />
     </div>
 
