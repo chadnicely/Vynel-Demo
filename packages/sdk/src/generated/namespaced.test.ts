@@ -281,6 +281,9 @@ describe('makeNamespaced — shape', () => {
       // added `phases` + `features` (agent-only workspace surfaces).
       'features',
       'files',
+      // test: correct expectation — the GitHub connection (2026-08-23) added
+      // `github` (/github/connection — the app's one sign-in over the gh CLI).
+      'github',
       'hub',
       // test: correct expectation — the plans + journal modules (2026-07-23)
       // added their two-door namespaces (agent + user surfaces each).

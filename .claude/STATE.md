@@ -3,7 +3,26 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-23 (latest) NEW-WORKSPACE WIZARD — all five slices, MERGED TO MAIN (not pushed)
+## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 1 (the connection) on `feature/github-connection`
+
+Kafi's plan after the wizard (note `docs/module-notes/github-connection.md`): **everything over the `gh` CLI**
+(no OAuth app, no API client, no token in Vynel — the sessions already have `git`/`gh` on Bash, so PRs and
+the rest are things Claude does); git transport = the machine's credential helper (GCM); the connection is
+GLOBAL (Settings → GitHub); worktrees at `.claude/worktrees/<slug>`; **the workspace manager orchestrates** who
+works where and when to merge — Vynel only keeps the state (Slice 4's `session_worktrees` + MCP tools
+`create_worktree` / `set_session_location` / `list_worktrees` / `remove_worktree`). Slice 1 landed:
+`@vynel/github` leaf (`readGitHubAuthStatus` — three honest answers; `GitHubSignInRelay` — `gh auth login
+--web` on a non-TTY spawn, the one-time code + device URL shown IN the app, exit code = verdict;
+`signGitHubOut`; one stateful `GitHubConnection` injected at `createApp`), `/github/connection` routes (SDK
+`github.*`, no x-mcp), Settings → **GitHub** section (CLI missing → install offer `winget install GitHub.cli`;
+signed out → the in-app sign-in; signed in → handle + sign out), the wizard's account step shows the real
+handle. **Next:** Slice 2 git home + facts (`read-git-facts` → `GET /workspaces/:id/git` [x-mcp]), Slice 3
+repo on Finish (`gh repo create … --source . --push`) + Connect an existing workspace, Slice 4 worktree
+state + tools. **Owed by Kafi:** the live smoke of the sign-in — does `gh auth login --web` print its code
+under a non-TTY spawn on this box (the relay's one assumption); if not, the terminal handoff from Chad's
+branch is the fallback.
+
+## ✅ 2026-08-23 NEW-WORKSPACE WIZARD — all five slices, MERGED TO MAIN + pushed
 
 Chad's 13-screen "Walk me through it" wizard (design branch `5daf8ff6`/`40c5a5e8`) comes to main **screens
 and copy as drawn, plumbing rebuilt** — note `docs/module-notes/new-workspace-wizard.md` (read it first).

@@ -25,6 +25,7 @@ import type { AppProcessSupervisor } from '@vynel/apps'
 import type { BackgroundProcessRunner } from '@vynel/processes'
 import type { ChatSession } from '@vynel/chat'
 import type { AiAgentProvider } from '@vynel/providers'
+import type { GitHubConnection } from '@vynel/github'
 import type { HubSession } from '@vynel/hub-account'
 import type { InstalledClaudePluginView, McpOauthCredentialStatus } from '@vynel/providers'
 import type { MarketplacePluginDelegate } from './services/marketplace-plugin-delegate.js'
@@ -66,6 +67,9 @@ export interface AppEnv {
     // `fileWatcher`, it always has a value (a real default), so the routes read
     // `c.var.aiProvider` instead of resolving a hardcoded id inline.
     aiProvider: AiAgentProvider
+    // The app's ONE GitHub connection (global) over the GitHub CLI — set once
+    // at construction; the real CLI in production, a fake-I/O one in tests.
+    githubConnection: GitHubConnection
     // The schedule fire path's injected deps (startChatTurn + MCP/capability
     // composition). Set ONLY when `createApp` is given an override — the
     // `fire-now` routes then use it instead of building the real deps, so a

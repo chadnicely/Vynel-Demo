@@ -158,6 +158,9 @@ describe("AppTitleBar", () => {
       ["embedding", "Embedding"],
       ["voice-settings", "Voice"],
       ["desktop-control", "Desktop control"],
+      // test: correct expectation — Settings → GitHub (2026-08-23), the app's
+      // one sign-in over the gh CLI.
+      ["github", "GitHub"],
       ["engine", "Where Vynel runs"],
       ["application", "Application"],
     ]);

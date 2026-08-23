@@ -33,6 +33,7 @@
     "@vynel/models": "workspace:*",
     "@vynel/errors": "workspace:*",
     "@vynel/features": "workspace:*",
+    "@vynel/github": "workspace:*",
     "@vynel/files": "workspace:*",
     "@vynel/hub-account": "workspace:*",
     "@vynel/instructions": "workspace:*",

@@ -33578,6 +33578,228 @@
         }
       }
     },
+    "/github/connection": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Installed? Signed in? As whom? — never an error for \"no\".",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "isInstalled": {
+                      "type": "boolean"
+                    },
+                    "isAuthenticated": {
+                      "type": "boolean"
+                    },
+                    "accountLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "inactiveReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "isInstalled",
+                    "isAuthenticated",
+                    "accountLabel",
+                    "inactiveReason"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getGithubConnection",
+        "tags": [
+          "github"
+        ],
+        "parameters": [],
+        "summary": "The GitHub sign-in state on this computer (gh auth status).",
+        "x-sdk-name": "github.getConnection"
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Signed out."
+          }
+        },
+        "operationId": "deleteGithubConnection",
+        "tags": [
+          "github"
+        ],
+        "parameters": [],
+        "summary": "Sign the CLI out of github.com.",
+        "x-sdk-name": "github.signOut"
+      }
+    },
+    "/github/connection/sign-in": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The sign-in state — `awaiting-browser` with the code and URL, or `failed` with the reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "loginId": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting-browser",
+                        "signed-in",
+                        "failed"
+                      ]
+                    },
+                    "userCode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "verificationUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "loginId",
+                    "phase",
+                    "userCode",
+                    "verificationUrl",
+                    "errorMessage"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postGithubConnectionSign-in",
+        "tags": [
+          "github"
+        ],
+        "parameters": [],
+        "summary": "Begin signing in: the CLI's one-time code + device URL, shown in the app.",
+        "x-sdk-name": "github.beginSignIn"
+      }
+    },
+    "/github/connection/sign-in/{loginId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The sign-in state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "loginId": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting-browser",
+                        "signed-in",
+                        "failed"
+                      ]
+                    },
+                    "userCode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "verificationUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "loginId",
+                    "phase",
+                    "userCode",
+                    "verificationUrl",
+                    "errorMessage"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such sign-in (finished, abandoned, or never begun)."
+          }
+        },
+        "operationId": "getGithubConnectionSign-inByLoginId",
+        "tags": [
+          "github"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "loginId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Where a sign-in stands — poll until signed-in or failed.",
+        "x-sdk-name": "github.getSignIn"
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Abandoned (or already gone)."
+          }
+        },
+        "operationId": "deleteGithubConnectionSign-inByLoginId",
+        "tags": [
+          "github"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "loginId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "Abandon a sign-in — the CLI process is stopped.",
+        "x-sdk-name": "github.cancelSignIn"
+      }
+    },
     "/agents": {
       "post": {
         "responses": {

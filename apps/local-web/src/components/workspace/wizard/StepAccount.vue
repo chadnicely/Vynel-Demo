@@ -18,7 +18,12 @@ type AuthenticationStatus = Awaited<
 // pick. So this is a read-only pre-flight — signed in? — with the sign-in
 // door when not; and GitHub shown dimmed until the global connection exists.
 // Nothing here is stored on the workspace.
-defineProps<{ status: AuthenticationStatus | null; loading: boolean }>();
+defineProps<{
+  status: AuthenticationStatus | null;
+  loading: boolean;
+  /** The global GitHub sign-in — the handle when signed in, null otherwise. */
+  github: { accountLabel: string } | null;
+}>();
 
 const emit = defineEmits<{ signIn: [] }>();
 </script>
@@ -84,13 +89,24 @@ const emit = defineEmits<{ signIn: [] }>();
     </template>
   </div>
 
-  <div :class="CARD" class="flex items-center gap-3 opacity-70">
+  <div v-if="github" :class="CARD" class="flex items-center gap-3">
+    <PhGithubLogo :size="20" class="shrink-0 text-gold" />
+    <span class="grid min-w-0 flex-1 gap-0.5">
+      <span class="text-[13px] text-ink-1"
+        >GitHub — signed in as @{{ github.accountLabel }}</span
+      >
+      <span class="text-[11.5px] text-ink-3">
+        Your sessions create repositories and push through this account.
+      </span>
+    </span>
+  </div>
+  <div v-else :class="CARD" class="flex items-center gap-3 opacity-70">
     <PhGithubLogo :size="20" class="shrink-0 text-ink-3" />
     <span class="grid min-w-0 flex-1 gap-0.5">
       <span class="text-[13px] text-ink-2">GitHub — not connected</span>
       <span class="text-[11.5px] text-ink-3">
-        Optional. Your workspace keeps its own history either way; a GitHub copy
-        can be connected later in Settings, for everything at once.
+        Optional. Your workspace keeps its own history either way; sign in under
+        Settings → GitHub for everything at once.
       </span>
     </span>
   </div>

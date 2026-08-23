@@ -692,6 +692,37 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  github: {
+  beginSignIn: async () => {
+    const { data, error, response } = await client["POST"]("/github/connection/sign-in")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  cancelSignIn: async (loginId: NonNullable<paths["/github/connection/sign-in/{loginId}"]["delete"]['parameters']>['path']["loginId"]) => {
+    const { error, response } = await client["DELETE"]("/github/connection/sign-in/{loginId}", {
+      params: { path: { loginId: loginId } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  getConnection: async () => {
+    const { data, error, response } = await client["GET"]("/github/connection")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  getSignIn: async (loginId: NonNullable<paths["/github/connection/sign-in/{loginId}"]["get"]['parameters']>['path']["loginId"]) => {
+    const { data, error, response } = await client["GET"]("/github/connection/sign-in/{loginId}", {
+      params: { path: { loginId: loginId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  signOut: async () => {
+    const { error, response } = await client["DELETE"]("/github/connection")
+    if (error) throw new SdkError(response, error)
+
+  },
+  },
   hub: {
   getSession: async () => {
     const { data, error, response } = await client["GET"]("/hub/session")

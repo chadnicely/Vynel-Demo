@@ -3385,6 +3385,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/github/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The GitHub sign-in state on this computer (gh auth status). */
+        get: operations["getGithubConnection"];
+        put?: never;
+        post?: never;
+        /** Sign the CLI out of github.com. */
+        delete: operations["deleteGithubConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/github/connection/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin signing in: the CLI's one-time code + device URL, shown in the app. */
+        post: operations["postGithubConnectionSign-in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/github/connection/sign-in/{loginId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where a sign-in stands — poll until signed-in or failed. */
+        get: operations["getGithubConnectionSign-inByLoginId"];
+        put?: never;
+        post?: never;
+        /** Abandon a sign-in — the CLI process is stopped. */
+        delete: operations["deleteGithubConnectionSign-inByLoginId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents": {
         parameters: {
             query?: never;
@@ -17104,6 +17157,132 @@ export interface operations {
             };
             /** @description Unsupported providerId. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getGithubConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Installed? Signed in? As whom? — never an error for "no". */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        isInstalled: boolean;
+                        isAuthenticated: boolean;
+                        accountLabel: string | null;
+                        inactiveReason: string | null;
+                    };
+                };
+            };
+        };
+    };
+    deleteGithubConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postGithubConnectionSign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sign-in state — `awaiting-browser` with the code and URL, or `failed` with the reason. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        loginId: string;
+                        /** @enum {string} */
+                        phase: "awaiting-browser" | "signed-in" | "failed";
+                        userCode: string | null;
+                        verificationUrl: string | null;
+                        errorMessage: string | null;
+                    };
+                };
+            };
+        };
+    };
+    "getGithubConnectionSign-inByLoginId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                loginId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sign-in state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        loginId: string;
+                        /** @enum {string} */
+                        phase: "awaiting-browser" | "signed-in" | "failed";
+                        userCode: string | null;
+                        verificationUrl: string | null;
+                        errorMessage: string | null;
+                    };
+                };
+            };
+            /** @description No such sign-in (finished, abandoned, or never begun). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "deleteGithubConnectionSign-inByLoginId": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                loginId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Abandoned (or already gone). */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
