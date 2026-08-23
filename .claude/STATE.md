@@ -3,7 +3,7 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 1 (the connection) MERGED TO MAIN `2eaf8e18` + pushed; Slices 2–4 next
+## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 2 (the git home + facts) MERGED TO MAIN `cab1dc88`; Slice 1 (the connection) MERGED `2eaf8e18`; Slices 3–4 next
 
 Kafi's plan after the wizard (note `docs/module-notes/github-connection.md`): **everything over the `gh` CLI**
 (no OAuth app, no API client, no token in Vynel — the sessions already have `git`/`gh` on Bash, so PRs and
@@ -20,6 +20,13 @@ handle. **Next:** Slice 2 git home + facts (`read-git-facts` → `GET /workspace
 repo on Finish (`gh repo create … --source . --push`) + Connect an existing workspace, Slice 4 worktree
 state + tools. **Live smoke (Kafi, 2026-08-23): sign out → sign in WORKED** — `gh auth login --web` prints its code under the
 non-TTY spawn and opens the browser itself; the relay's one assumption holds. No terminal fallback needed.
+
+**Slice 2 landed (2026-08-24):** ONE git home `packages/workspaces/src/git/` (runner with `protocol.ext.allow=never` +
+`--no-optional-locks`; scaffold + clone moved onto it; `read-git-facts` / `list-branches` / `list-worktrees`, real-git
+tests), `GET /workspaces/:id/git` [x-mcp `get_workspace_git_facts`], the chat-header badge "main · 3 uncommitted · ↑1 ↓2".
+Reviewer catch: `remoteUrl` is credential-redacted (a pasted `https://token@github.com/…` clone URL lives in .git/config).
+**Next: Slice 3** (repo on Finish via `gh repo create --source . --push` + "Connect to GitHub" on an existing workspace),
+then Slice 4 (session worktrees + the four tools).
 
 ## ✅ 2026-08-23 NEW-WORKSPACE WIZARD — all five slices, MERGED TO MAIN + pushed
 
