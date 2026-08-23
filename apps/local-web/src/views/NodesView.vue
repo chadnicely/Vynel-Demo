@@ -12,7 +12,8 @@ import {
   type NodeLevelStackEntry,
 } from "../composables/nodes/node-level.js";
 import { useActivityStore } from "../stores/activity-store.js";
-import { useUiStore } from "../stores/ui-store.js";
+import { useCustomizeStore } from "../stores/customize-store.js";
+import { GLOBAL_TAB_ID, useUiStore } from "../stores/ui-store.js";
 import NodesFleetBar from "../components/nodes/NodesFleetBar.vue";
 import NodesGrid from "../components/nodes/NodesGrid.vue";
 import NodesRace from "../components/nodes/NodesRace.vue";
@@ -41,6 +42,7 @@ import {
 const router = useRouter();
 const ui = useUiStore();
 const activity = useActivityStore();
+const customize = useCustomizeStore();
 
 const overviewQuery = useDashboardOverview(() =>
   activity.isTurnRunning ? 5000 : false,
@@ -90,11 +92,33 @@ function descend(ref: SceneNodeRef, label: string) {
 const edgesQuery = useMessageEdges(() => ui.nodesMode === "nodes");
 const edges = computed(() => edgesQuery.data.value?.edges ?? []);
 
+// The global surfaces live on the pinned Global tab: the centre's click out
+// on the fleet opens the BRAIN's continuing chat, and the voice moon opens
+// the Voice chat surface — its one door (the spoken thread lives behind its
+// own wall; no sidebar, no list).
+function openGlobalSurface(view: "chat" | "voice-chat") {
+  ui.activateTab(GLOBAL_TAB_ID);
+  ui.globalTab.shell.mainView = view;
+  if (view === "chat") ui.globalTab.shell.target = "continuous";
+  void router.push({ name: "chat" });
+}
+
 const fleetLevel = useFleetNodes({
   workspaces: fleetWorkspaces,
   workspacesAnswered: () => overviewQuery.data.value !== undefined,
   edges,
-  onPick: descend,
+  // The dot wears the room's customized face — the sidebar tree's rule.
+  imageOf: (workspaceId) =>
+    customize.customizationFor(workspaceId).workspaceImage,
+  // The voice moon opens its surface; a project node descends.
+  onPick: (ref, label) => {
+    if (ref.kind === "voice") {
+      openGlobalSurface("voice-chat");
+      return;
+    }
+    descend(ref, label);
+  },
+  onCorePick: () => openGlobalSurface("chat"),
 });
 
 const projectLevel = useProjectNodes({
@@ -102,8 +126,10 @@ const projectLevel = useProjectNodes({
   workspaceName: insideWorkspaceName,
   edges,
   // Inside a project every dot IS the room's work and the room's chat is where
-  // you act on it — one meaning, whichever kind was clicked.
+  // you act on it — one meaning, whichever kind was clicked. The centre (the
+  // room's own primary) opens the same chat.
   onPick: () => openDrilledProject(),
+  onCorePick: () => openDrilledProject(),
 });
 
 // Which level a drilled-into KIND opens. A third level — a session's spawned
@@ -172,9 +198,11 @@ function onNodeClick(nodeId: string) {
   level.value.onPick(ref, label);
 }
 
-// The centre orb wears the level's own name: out on the fleet everything
-// orbits Vynel itself, and once you have stepped inside, the project.
+// The centre orb wears the level's own name AND its primary's status: out on
+// the fleet everything orbits the global primary (Vynel itself); inside, the
+// room's own thread — clicking it opens that conversation.
 const coreLabel = computed(() => level.value.coreLabel.value);
+const coreStatus = computed(() => level.value.coreStatus.value);
 
 function mountScene() {
   if (scene || !stage.value) return;
@@ -182,8 +210,10 @@ function mountScene() {
     stage.value,
     [...displayNodes.value],
     onNodeClick,
+    () => level.value.onCorePick(),
   );
   scene.setCoreLabel(coreLabel.value);
+  scene.setCoreStatus(coreStatus.value);
   scene.setMessages([...sceneMessages.value]);
   scene.setLayout(layout.value);
 }
@@ -213,6 +243,7 @@ watch(
 watch(displayNodes, (next) => scene?.setNodes([...next]));
 watch(sceneMessages, (next) => scene?.setMessages([...next]));
 watch(coreLabel, (name) => scene?.setCoreLabel(name), { immediate: true });
+watch(coreStatus, (status) => scene?.setCoreStatus(status), { immediate: true });
 
 onBeforeUnmount(() => {
   scene?.destroy();

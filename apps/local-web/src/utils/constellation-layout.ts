@@ -43,6 +43,9 @@ export function buildSceneNodes(
   options: {
     isReady?: (workspaceId: string) => boolean;
     detailOf?: (workspaceId: string) => SceneNode["detail"];
+    /** The room's customized image (data URL) — the dot wears the same face
+     *  the sidebar tree does; null/absent keeps the initials. */
+    imageOf?: (workspaceId: string) => string | null;
   } = {},
 ): SceneNode[] {
   return workspaces
@@ -50,11 +53,13 @@ export function buildSceneNodes(
     .filter((workspace) => options.isReady?.(workspace.id) ?? true)
     .map((workspace) => {
       const detail = options.detailOf?.(workspace.id);
+      const imageUrl = options.imageOf?.(workspace.id) ?? null;
       return {
         id: sceneNodeId({ kind: "workspace", id: workspace.id }),
         name: workspace.name,
         initials: initialsOf(workspace.name),
         status: statusOf(workspace.id),
+        ...(imageUrl === null ? {} : { imageUrl }),
         ...(detail === undefined ? {} : { detail }),
       };
     });

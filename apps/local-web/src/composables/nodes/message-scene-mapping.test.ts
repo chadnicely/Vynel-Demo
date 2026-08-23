@@ -65,24 +65,24 @@ describe("fleetMessages", () => {
 });
 
 describe("projectMessages", () => {
-  // The build is on its second segment; the spawned session has swapped once
-  // and is drawn under its newest one.
+  // The spawned session has swapped once and is drawn under its newest
+  // segment. The room's OWN chain (segment-7, segment-8) is deliberately
+  // absent: the primary IS the centre (Kafi, 2026-08-24), and an unmapped
+  // endpoint anchors there.
   const input = {
-    projectId: "ws-acme",
     nodeIdBySegmentId: new Map([
-      ["segment-7", "workspace:ws-acme"],
       ["spawned-1-old", "session:spawned-1"],
       ["spawned-1", "session:spawned-1"],
     ]),
   };
 
-  it("the build handing work to a spawned session", () => {
+  it("the room's own thread handing work down draws from the CORE — the primary is the centre", () => {
     const [message] = projectMessages(
       [edge({ fromSessionId: "segment-7", toSessionId: "spawned-1" })],
       input,
     );
     expect(message).toMatchObject({
-      fromId: "workspace:ws-acme",
+      fromId: null,
       toId: "session:spawned-1",
       direction: "ask",
     });
@@ -97,12 +97,12 @@ describe("projectMessages", () => {
       input,
     );
     expect(message).toMatchObject({
-      fromId: "workspace:ws-acme",
+      fromId: null,
       toId: "session:spawned-1",
     });
   });
 
-  it("a reply with no target session goes to the build — that IS the requester", () => {
+  it("a reply with no target session comes home to the core — the centre IS the requester's thread", () => {
     const [message] = projectMessages(
       [
         edge({
@@ -116,31 +116,24 @@ describe("projectMessages", () => {
     );
     expect(message).toMatchObject({
       fromId: "session:spawned-1",
-      toId: "workspace:ws-acme",
+      toId: null,
       direction: "reply",
     });
-  });
-
-  it("a reply addressed to a DIFFERENT room is not this project's build", () => {
-    // The workspace-target shortcut must not fire for someone else's room.
-    const [message] = projectMessages(
-      [
-        edge({
-          direction: "reply",
-          fromSessionId: "spawned-1",
-          toSessionId: null,
-          toWorkspaceId: "ws-elsewhere",
-        }),
-      ],
-      input,
-    );
-    expect(message).toMatchObject({ fromId: "session:spawned-1", toId: null });
   });
 
   it("never draws a conversation talking to its own earlier segment", () => {
     expect(
       projectMessages(
         [edge({ fromSessionId: "spawned-1-old", toSessionId: "spawned-1" })],
+        input,
+      ),
+    ).toEqual([]);
+  });
+
+  it("the primary's own segment-to-segment chatter stays off the stage — both ends are the core", () => {
+    expect(
+      projectMessages(
+        [edge({ fromSessionId: "segment-7", toSessionId: "segment-8" })],
         input,
       ),
     ).toEqual([]);

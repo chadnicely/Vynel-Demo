@@ -47,6 +47,13 @@ export interface SceneNode {
   initials: string;
   /** Drives colour, glow and the orbiters — the five fleet states. */
   status: "building" | "waiting" | "problem" | "done" | "idle";
+  /** `"moon"` = a close satellite of the CORE (the voice thread — "like moon
+   *  for earth", Kafi 2026-08-24): it rides a tight first orbit in every
+   *  layout and draws smaller, instead of taking a ring slot. */
+  role?: "moon";
+  /** The node's own face — a customized workspace image (data URL). Drawn
+   *  clipped inside the disc once loaded; the initials until then / without. */
+  imageUrl?: string | null;
   detail?: SceneNodeDetail;
 }
 
@@ -140,6 +147,10 @@ export interface SceneHandle {
   setLayout(layout: SceneLayout): void;
   /** The centre carries the WORKSPACE's name — "NICELY MEDIA", not a brand. */
   setCoreLabel(label: string): void;
+  /** The centre IS a conversation now (the global primary out on the fleet,
+   *  the room's own thread inside one — Kafi 2026-08-24), so it wears the
+   *  same five states a dot does: ring, glow and dash-spin say "working". */
+  setCoreStatus(status: SceneNode["status"]): void;
   /** Index under the pointer, or -1 — the view drives its own tooltip. */
   hitTest(clientX: number, clientY: number): number;
   destroy(): void;
@@ -149,6 +160,9 @@ export function startConstellationScene(
   host: HTMLElement,
   initialNodes: SceneNode[],
   onPick: (id: string) => void,
+  /** The centre's click — the primary conversation it stands for. Absent =
+   *  the core is furniture, as before. */
+  onCorePick?: () => void,
 ): SceneHandle {
   const bgCv = document.createElement("canvas"); // starfield + nebula
   const fxCv = document.createElement("canvas"); // additive trails
@@ -171,6 +185,7 @@ export function startConstellationScene(
       setMessages() {},
       setLayout() {},
       setCoreLabel() {},
+      setCoreStatus() {},
       hitTest: () => -1,
       destroy() {},
     };
@@ -182,6 +197,20 @@ export function startConstellationScene(
 
   let nodes = initialNodes;
   let coreLabel = "VYNEL";
+  let coreStatus: SceneNode["status"] = "idle";
+  // The node faces — one Image per url, started on first sight, drawn from
+  // the frame it finishes. A failed load stays in the map as "tried" so the
+  // loop never re-fetches a broken data URL sixty times a second.
+  const nodeImages = new Map<string, HTMLImageElement>();
+  function imageFor(url: string): HTMLImageElement | null {
+    let image = nodeImages.get(url);
+    if (image === undefined) {
+      image = new Image();
+      image.src = url;
+      nodeImages.set(url, image);
+    }
+    return image.complete && image.naturalWidth > 0 ? image : null;
+  }
   let W = 0;
   let H = 0;
   let dpr = 1;
@@ -205,6 +234,11 @@ export function startConstellationScene(
    *  `anchorOf` used to `findIndex` twice per message per frame at 60fps
    *  (2026-08-19 audit, agent-4 §5a). */
   let slotById = new Map<string, number>();
+  /** Each slot's index among the RING nodes (-1 for a moon), so the three
+   *  arrangements place only the ring and never leave a gap where a moon's
+   *  consumed slot would have been. Rebuilt with `slotById`. */
+  let ringIndexBySlot: number[] = [];
+  let ringCount = 0;
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, x), 3);
@@ -218,6 +252,10 @@ export function startConstellationScene(
 
   function indexNodes() {
     slotById = new Map(nodes.map((node, i) => [node.id, i]));
+    ringCount = 0;
+    ringIndexBySlot = nodes.map((node) =>
+      node.role === "moon" ? -1 : ringCount++,
+    );
   }
   spawnAcc = nodes.map(() => 0);
   orbiters = nodes.map(freshOrbiters);
@@ -252,18 +290,19 @@ export function startConstellationScene(
    *  like the same fleet rearranging itself. */
   function layout(t: number, dt: number) {
     const k = ease(introT);
-    const n = nodes.length;
     let target: { x: number; y: number };
     const wanted: Array<{ x: number; y: number }> = [];
 
     if (layoutMode === "orbit") {
       target = { x: W / 2, y: H / 2 + 6 };
       nodes.forEach((node, i) => {
-        const lane = orbitLane(orbitLaneIndex(i));
+        if (node.role === "moon") return;
+        const ri = ringIndexBySlot[i]!;
+        const lane = orbitLane(orbitLaneIndex(ri));
         // Anything working laps the core faster — motion IS the status here.
         const ang =
-          i * 2.39996 +
-          t * 0.00005 * (1.7 - i * 0.13) * (isLive(node) ? 2.1 : 0.7);
+          ri * 2.39996 +
+          t * 0.00005 * (1.7 - ri * 0.13) * (isLive(node) ? 2.1 : 0.7);
         wanted[i] = {
           x: target.x + Math.cos(ang) * lane * k,
           y: target.y + Math.sin(ang) * lane * 0.82 * k,
@@ -274,39 +313,56 @@ export function startConstellationScene(
       // (Chad, 2026-08-11: nodes were sitting on the selectors).
       target = { x: W / 2, y: H - 200 };
       const { y0, y1 } = riseBand();
-      const step = riseStep(n, W);
+      const step = riseStep(ringCount, W);
       nodes.forEach((node, i) => {
+        if (node.role === "moon") return;
+        const ri = ringIndexBySlot[i]!;
         const x = Math.min(
           W - 80,
-          Math.max(80, W * 0.5 + (i - (n - 1) / 2) * step),
+          Math.max(80, W * 0.5 + (ri - (ringCount - 1) / 2) * step),
         );
         // Height = how far along it is. Nothing reports progress yet, so a
         // working node floats mid-band and everything else sits on the floor.
         const frac = isLive(node) ? 0.5 : 0;
         wanted[i] = {
-          x: x + Math.sin(t / 1700 + i * 2.1) * 6,
-          y: y0 - (y0 - y1) * frac * k + Math.cos(t / 1400 + i * 1.3) * 5,
+          x: x + Math.sin(t / 1700 + ri * 2.1) * 6,
+          y: y0 - (y0 - y1) * frac * k + Math.cos(t / 1400 + ri * 1.3) * 5,
         };
       });
     } else {
       target = { x: W / 2, y: H / 2 + 6 };
       const rx = Math.max(180, Math.min(W * 0.37, 520)) * k;
       const ry = Math.max(130, Math.min(H * 0.36, 300)) * k;
-      const slots = constellationSlots(n);
-      nodes.forEach((_, i) => {
-        const slot = slots[i]!;
+      const slots = constellationSlots(ringCount);
+      nodes.forEach((node, i) => {
+        if (node.role === "moon") return;
+        const ri = ringIndexBySlot[i]!;
+        const slot = slots[ri]!;
         wanted[i] = {
           x:
             target.x +
             Math.cos(slot.angle) * rx * slot.radiusScale +
-            Math.sin(t / 1700 + i * 2.1) * 7,
+            Math.sin(t / 1700 + ri * 2.1) * 7,
           y:
             target.y +
             Math.sin(slot.angle) * ry * slot.radiusScale +
-            Math.cos(t / 1400 + i * 1.3) * 6,
+            Math.cos(t / 1400 + ri * 1.3) * 6,
         };
       });
     }
+
+    // Moons ignore the arrangement: whatever the fleet is doing, a moon rides
+    // its own tight first orbit around the core — the one relation all three
+    // layouts share ("like moon for earth", Kafi 2026-08-24).
+    nodes.forEach((node, i) => {
+      if (node.role !== "moon") return;
+      const ang = t * 0.00022 + i * 2.1;
+      const lane = 96 * k;
+      wanted[i] = {
+        x: target.x + Math.cos(ang) * lane,
+        y: target.y + Math.sin(ang) * lane * 0.82,
+      };
+    });
 
     if (core.x === 0 && core.y === 0) {
       core.x = target.x;
@@ -348,10 +404,13 @@ export function startConstellationScene(
       // ONE ellipse per LANE, not per node: past the lane cap several nodes
       // share a lane, and stroking it once each would quietly darken it.
       // A lane is lit when anything on it is working.
-      for (let laneIndex = 0; laneIndex < orbitLaneCount(nodes.length); laneIndex += 1) {
+      for (let laneIndex = 0; laneIndex < orbitLaneCount(ringCount); laneIndex += 1) {
         const lane = orbitLane(laneIndex);
         const lit = nodes.some(
-          (node, i) => orbitLaneIndex(i) === laneIndex && isLive(node),
+          (node, i) =>
+            node.role !== "moon" &&
+            orbitLaneIndex(ringIndexBySlot[i]!) === laneIndex &&
+            isLive(node),
         );
         nd.beginPath();
         nd.ellipse(core.x, core.y, lane, lane * 0.82, 0, 0, Math.PI * 2);
@@ -531,6 +590,13 @@ export function startConstellationScene(
   }
 
   function drawCore(t: number) {
+    // The centre is a CONVERSATION (the global primary / the room's own
+    // thread), so its ring wears the one-status-one-colour palette; idle
+    // keeps the prototype's violet. Working also spins the dashed ring
+    // faster — the same "motion is the status" the orbit layout speaks.
+    const liveCore = coreStatus !== "idle";
+    const coreCol = liveCore ? COL[coreStatus] : "#b5abfc";
+    const coreGlow = liveCore ? coreCol : "#9184d9";
     // Lighthouse rays — a slow sweep that says "awake".
     for (let k = 0; k < 6; k++) {
       const ang = t / 5200 + (k * Math.PI) / 3;
@@ -572,18 +638,18 @@ export function startConstellationScene(
     nd.shadowColor = "rgba(165,150,255,0.75)";
     nd.fill();
     nd.shadowBlur = 0;
-    nd.strokeStyle = "#b5abfc";
+    nd.strokeStyle = coreCol;
     nd.lineWidth = 2.5;
-    nd.shadowBlur = 18;
-    nd.shadowColor = "#9184d9";
+    nd.shadowBlur = liveCore ? 26 : 18;
+    nd.shadowColor = coreGlow;
     nd.stroke();
     nd.shadowBlur = 0;
 
     nd.beginPath();
     nd.setLineDash([5, 8]);
-    nd.lineDashOffset = -t / 34;
+    nd.lineDashOffset = (-t / 34) * (coreStatus === "building" ? 2.6 : 1);
     nd.arc(core.x, core.y, CR + 11, 0, Math.PI * 2);
-    nd.strokeStyle = "rgba(181,171,252,0.6)";
+    nd.strokeStyle = liveCore ? `${coreCol}b4` : "rgba(181,171,252,0.6)";
     nd.lineWidth = 1.4;
     nd.stroke();
     nd.setLineDash([]);
@@ -653,12 +719,14 @@ export function startConstellationScene(
       if (!isLive(node) || !positions[i]) return;
       const p = positions[i]!;
       const boost = node.status === "building" ? 1 : 0.25;
+      // A moon's own satellites hug it — full-size orbits would lap the core.
+      const orbitScale = node.role === "moon" ? 0.45 : 1;
       for (const o of orbiters[i] ?? []) {
         o.ang += o.speed * boost * dt * 2;
         fx.beginPath();
         fx.arc(
-          p.x + Math.cos(o.ang) * o.r,
-          p.y + Math.sin(o.ang) * o.r * 0.72,
+          p.x + Math.cos(o.ang) * o.r * orbitScale,
+          p.y + Math.sin(o.ang) * o.r * 0.72 * orbitScale,
           1.7,
           0,
           Math.PI * 2,
@@ -708,9 +776,11 @@ export function startConstellationScene(
       const col = COL[node.status];
       const idle = node.status === "idle";
       const hovered = hoverIndex === i;
+      const isMoon = node.role === "moon";
       const pulse =
         node.status === "waiting" ? 1 + 0.05 * Math.sin(t / 160) : 1;
-      const rad = (hovered ? 29 : 26) * pulse;
+      const rad =
+        (isMoon ? (hovered ? 17 : 15) : hovered ? 29 : 26) * pulse;
 
       if (!idle) {
         const breathe = 0.75 + 0.25 * Math.sin(t / 700 + i * 1.7);
@@ -757,21 +827,50 @@ export function startConstellationScene(
       nd.shadowBlur = 0;
       nd.globalAlpha = 1;
 
+      // The node's own face — the customized image clipped inside the disc
+      // (the tree row's rule, on canvas); the initials until it loads.
+      const face =
+        node.imageUrl != null && node.imageUrl !== ""
+          ? imageFor(node.imageUrl)
+          : null;
+      if (face !== null) {
+        nd.save();
+        nd.beginPath();
+        nd.arc(p.x, p.y, rad - 2.5, 0, Math.PI * 2);
+        nd.clip();
+        nd.globalAlpha = idle ? 0.7 : 1;
+        // Cover-fit: fill the disc, crop the overflow.
+        const scale = Math.max(
+          ((rad - 2.5) * 2) / face.naturalWidth,
+          ((rad - 2.5) * 2) / face.naturalHeight,
+        );
+        const drawW = face.naturalWidth * scale;
+        const drawH = face.naturalHeight * scale;
+        nd.drawImage(face, p.x - drawW / 2, p.y - drawH / 2, drawW, drawH);
+        nd.restore();
+      } else {
+        nd.fillStyle = idle ? DIM : "#ffffff";
+        nd.font = `700 ${isMoon ? 9 : 12}px "Segoe UI Variable Text", system-ui, sans-serif`;
+        nd.textAlign = "center";
+        nd.textBaseline = "middle";
+        nd.fillText(node.initials, p.x, p.y);
+      }
+
       nd.fillStyle = idle ? DIM : "#ffffff";
-      nd.font = '700 12px "Segoe UI Variable Text", system-ui, sans-serif';
+      nd.font = `600 ${isMoon ? 10.5 : 13}px "Segoe UI Variable Text", system-ui, sans-serif`;
       nd.textAlign = "center";
       nd.textBaseline = "middle";
-      nd.fillText(node.initials, p.x, p.y);
+      nd.fillText(node.name, p.x, p.y + rad + (isMoon ? 15 : 21));
 
-      nd.fillStyle = idle ? DIM : "#ffffff";
-      nd.font = '600 13px "Segoe UI Variable Text", system-ui, sans-serif';
-      nd.fillText(node.name, p.x, p.y + rad + 21);
-
-      nd.fillStyle = col;
-      nd.font = '700 8.5px "Segoe UI Variable Text", system-ui, sans-serif';
-      nd.letterSpacing = "1.5px";
-      nd.fillText(labelFor(node.status), p.x, p.y + rad + 37);
-      nd.letterSpacing = "0px";
+      // A moon is a small mark — its ring already says the state; the caption
+      // would be bigger than the dot.
+      if (!isMoon) {
+        nd.fillStyle = col;
+        nd.font = '700 8.5px "Segoe UI Variable Text", system-ui, sans-serif';
+        nd.letterSpacing = "1.5px";
+        nd.fillText(labelFor(node.status), p.x, p.y + rad + 37);
+        nd.letterSpacing = "0px";
+      }
     });
   }
 
@@ -800,18 +899,36 @@ export function startConstellationScene(
       // pointer either.
       const p = positions[i];
       if (p === undefined) continue;
-      if (Math.hypot(x - p.x, y - p.y) <= 30) return i;
+      const reach = nodes[i]?.role === "moon" ? 20 : 30;
+      if (Math.hypot(x - p.x, y - p.y) <= reach) return i;
     }
     return -1;
   }
 
+  /** The centre under the pointer — only meaningful when it has a click. */
+  function isOverCore(clientX: number, clientY: number): boolean {
+    if (onCorePick === undefined) return false;
+    const rect = ndCv.getBoundingClientRect();
+    return (
+      Math.hypot(clientX - rect.left - core.x, clientY - rect.top - core.y) <= 50
+    );
+  }
+
   function onMove(event: MouseEvent) {
     hoverIndex = hitTest(event.clientX, event.clientY);
-    ndCv.style.cursor = hoverIndex >= 0 ? "pointer" : "";
+    ndCv.style.cursor =
+      hoverIndex >= 0 || isOverCore(event.clientX, event.clientY)
+        ? "pointer"
+        : "";
   }
   function onClick(event: MouseEvent) {
     const i = hitTest(event.clientX, event.clientY);
-    if (i >= 0 && nodes[i]) onPick(nodes[i]!.id);
+    if (i >= 0 && nodes[i]) {
+      onPick(nodes[i]!.id);
+      return;
+    }
+    // The dots win over the centre — a moon on its first orbit passes close.
+    if (isOverCore(event.clientX, event.clientY)) onCorePick?.();
   }
   ndCv.addEventListener("mousemove", onMove);
   ndCv.addEventListener("mouseleave", () => {
@@ -874,6 +991,9 @@ export function startConstellationScene(
     },
     setCoreLabel(label) {
       coreLabel = label.trim() === "" ? "VYNEL" : label.toUpperCase();
+    },
+    setCoreStatus(status) {
+      coreStatus = status;
     },
     hitTest,
     destroy() {

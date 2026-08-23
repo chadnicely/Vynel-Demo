@@ -19,8 +19,10 @@ function makeLevel(coreLabel: string, onPick = vi.fn()): NodeLevel {
     ]),
     messages: computed(() => []),
     coreLabel: computed(() => coreLabel),
+    coreStatus: computed(() => "idle" as const),
     hasAnswered: computed(() => true),
     onPick,
+    onCorePick: vi.fn(),
   };
 }
 

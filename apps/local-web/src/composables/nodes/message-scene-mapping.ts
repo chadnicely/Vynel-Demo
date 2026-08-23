@@ -53,27 +53,25 @@ export function fleetMessages(
  *  used to match only each conversation's current head, so after a context
  *  swap every arc touching a pre-swap segment silently vanished from a screen
  *  whose whole job is showing what just happened (2026-08-19 audit, A5-10).
- *  `nodeIdBySegmentId` therefore carries the whole chain of every dot drawn. */
+ *  `nodeIdBySegmentId` therefore carries the whole chain of every dot drawn.
+ *
+ *  The room's own thread is deliberately NOT in the map (Kafi, 2026-08-24 —
+ *  the primary IS the centre): an unmapped endpoint resolves to null, which
+ *  the scene anchors at the core, so the build's traffic arrives exactly
+ *  where the build now lives. The both-null rule keeps the primary's own
+ *  segment-to-segment chatter off the stage. */
 export function projectMessages(
   edges: readonly MessageEdgeLike[],
   input: {
-    projectId: string;
     /** Every segment of every drawn conversation → the node that draws it. */
     nodeIdBySegmentId: ReadonlyMap<string, string>;
   },
 ): SceneMessage[] {
-  const buildNodeId = sceneNodeId({ kind: "workspace", id: input.projectId });
   const bySession = (sessionId: string | null): string | null =>
     sessionId === null ? null : (input.nodeIdBySegmentId.get(sessionId) ?? null);
   return edges
-    .map((edge) => {
-      // A delivery names no target session: it goes to the requester's primary
-      // conversation, which on this screen is the build.
-      const to =
-        edge.toSessionId === null && edge.toWorkspaceId === input.projectId
-          ? buildNodeId
-          : bySession(edge.toSessionId);
-      return keep(edge, bySession(edge.fromSessionId), to);
-    })
+    .map((edge) =>
+      keep(edge, bySession(edge.fromSessionId), bySession(edge.toSessionId)),
+    )
     .filter((message): message is SceneMessage => message !== null);
 }

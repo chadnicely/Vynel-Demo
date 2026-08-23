@@ -38,9 +38,15 @@ export interface NodeLevel {
   messages: Readonly<Ref<readonly SceneMessage[]>>;
   /** What the centre orb wears while this level is on show. */
   coreLabel: Readonly<Ref<string>>;
+  /** The centre IS this level's primary conversation (the global root out on
+   *  the fleet, the room's own thread inside one — Kafi 2026-08-24), so it
+   *  carries that conversation's status into the scene's palette. */
+  coreStatus: Readonly<Ref<SceneNode["status"]>>;
   hasAnswered: Readonly<Ref<boolean>>;
   /** What clicking one of this level's dots MEANS — descend, or open it. */
   onPick: (ref: SceneNodeRef, label: string) => void;
+  /** What clicking the CENTRE means — opening the primary it stands for. */
+  onCorePick: () => void;
 }
 
 /** Where the user is standing: the refs drilled into, outermost first. Empty

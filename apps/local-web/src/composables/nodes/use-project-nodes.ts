@@ -16,16 +16,19 @@ import { projectMessages, type MessageEdgeLike } from "./message-scene-mapping.j
 import type { NodeLevel } from "./node-level.js";
 
 // The SECOND level of the node screen (Chad, 2026-08-11): step inside one
-// project and the dots become its own conversations — the continuing build
-// first, then every session it holds. Both readings come from main's real
-// ladders (Move 3): each session's own derived status, and — for the build —
-// the ROOM's status, since the continuing thread is what the room's status
-// already describes (one truth, tree and node screen alike).
+// project and the dots become its own conversations. The room's continuing
+// build is not one of them any more (Kafi, 2026-08-24): the CENTRE is the
+// workspace manager — the primary session — so the centre wears the room's
+// status and its click opens the room's chat, and only the CHILDREN orbit it.
+// One truth, tree and node screen alike: the room's status IS the continuing
+// thread's status (Move 3).
 export function useProjectNodes(input: {
   workspaceId: MaybeRefOrGetter<string | null>;
   workspaceName: MaybeRefOrGetter<string | null>;
   edges: MaybeRefOrGetter<readonly MessageEdgeLike[]>;
   onPick: (ref: SceneNodeRef, label: string) => void;
+  /** Opening the room's chat — the centre's click (the build's old door). */
+  onCorePick: () => void;
 }): NodeLevel {
   const vynel = useVynel();
   const workspaceStatuses = useWorkspaceStatuses();
@@ -54,22 +57,6 @@ export function useProjectNodes(input: {
     enabled: computed(() => id.value !== null),
   });
 
-  // The project's continuing build is hidden from the overview end to end, so
-  // it is asked for by name — read-only, nulls until the room's first turn.
-  const continuingQuery = useQuery({
-    queryKey: computed(() => [
-      ...sessionKeys.all,
-      "continuing",
-      sessionScopeKey({
-        kind: "workspace" as const,
-        workspaceId: id.value ?? "none",
-      }),
-    ]),
-    queryFn: () => vynel.chat.getContinuing(id.value!),
-    enabled: computed(() => id.value !== null),
-    staleTime: 15_000,
-  });
-
   const entries = computed<readonly SessionsOverviewEntry[]>(
     () => sessionsQuery.data.value ?? [],
   );
@@ -84,76 +71,33 @@ export function useProjectNodes(input: {
   const nodes = computed<SceneNode[]>(() => {
     const workspaceId = id.value;
     if (workspaceId === null) return [];
-    const rows: SceneNode[] = [];
-    const continuing = continuingQuery.data.value;
-    if ((continuing?.rootSessionId ?? null) !== null) {
-      // The build IS the room's ongoing conversation, so it wears the room's
-      // status — the same one the tree row shows (it reaches `problem` from a
-      // failed turn, `needs_input` from an approval or the assistant's own
-      // set state) — and it is addressed by the room's own ref, which is the
-      // one identity that survives a context swap (the head segment id does
-      // not, and re-keying the dot mid-conversation would fly it in again).
-      //
-      // KNOWN OVER-CLAIM (inherited from the workspace ladder, and the reason
-      // this note is worth keeping): an AGENT colleague's turn announces under
-      // its grounding workspace, so a failing colleague can light this dot as
-      // well as its own. The build chain is hidden from the overview, so it
-      // has no per-conversation facts of its own to read instead; splitting
-      // them is the fix if the double-dot ever bites.
-      const view = workspaceStatuses.statusByWorkspaceId.value[workspaceId];
-      rows.push({
-        id: sceneNodeId({ kind: "workspace", id: workspaceId }),
-        name: "The build",
-        initials: "BD",
-        status: resolveNodeStatus(view?.status ?? "not_running"),
-        ...(view === undefined
-          ? {}
-          : {
-              detail: {
-                note: view.note,
-                tasksDone: view.tasksDone,
-                tasksTotal: view.tasksTotal,
-              },
-            }),
-      });
-    }
-    for (const entry of entries.value) {
+    return entries.value.map((entry) => {
       const view = sessionStatuses.statusFor(entry.sessionId);
-      rows.push({
+      return {
         id: sceneNodeId({ kind: "session", id: entry.sessionId }),
         name: entry.title,
         initials: initialsOf(entry.title),
         status: resolveNodeStatus(view?.status ?? "idle"),
         ...(view === null ? {} : { detail: { note: view.note } }),
-      });
-    }
-    return rows;
+      };
+    });
   });
 
-  /** Both reads have ANSWERED — a result or an error, like the fleet level:
-   *  only then is "nothing here" the truth rather than the loading state, and
-   *  a failed read must not leave the stage blank forever (no counts, no
-   *  invitation, no error). */
+  /** The sessions read has ANSWERED — a result or an error, like the fleet
+   *  level: only then is "nothing here" the truth rather than the loading
+   *  state, and a failed read must not leave the stage blank forever (no
+   *  counts, no invitation, no error). */
   const hasAnswered = computed(
-    () =>
-      (sessionsQuery.data.value !== undefined || sessionsQuery.isError.value) &&
-      (continuingQuery.data.value !== undefined || continuingQuery.isError.value),
+    () => sessionsQuery.data.value !== undefined || sessionsQuery.isError.value,
   );
 
   /** Every segment of every drawn conversation, pointing at the dot that
    *  draws it — how an arc finds its endpoint across a context swap. The
-   *  build's chain is hidden from the overview, so its segments come from the
-   *  continuing payload (`segmentSessionIds`, oldest first, head included). */
+   *  room's own chain is deliberately NOT here: the primary IS the centre
+   *  now, and an unmapped endpoint anchors at the core, which is exactly
+   *  where its arcs belong. */
   const nodeIdBySegmentId = computed(() => {
     const byId = new Map<string, string>();
-    const workspaceId = id.value;
-    const continuing = continuingQuery.data.value;
-    if (workspaceId !== null && continuing !== undefined) {
-      const buildNodeId = sceneNodeId({ kind: "workspace", id: workspaceId });
-      const head = continuing.currentSdkSessionId;
-      if (head !== null) byId.set(head, buildNodeId);
-      for (const segmentId of continuing.segmentSessionIds ?? []) byId.set(segmentId, buildNodeId);
-    }
     for (const entry of entries.value) {
       const nodeId = sceneNodeId({ kind: "session", id: entry.sessionId });
       for (const segment of entry.segments) byId.set(segment.sessionId, nodeId);
@@ -162,15 +106,38 @@ export function useProjectNodes(input: {
   });
 
   const messages = computed(() => {
-    const workspaceId = id.value;
-    if (workspaceId === null) return [];
+    if (id.value === null) return [];
     return projectMessages(toValue(input.edges), {
-      projectId: workspaceId,
       nodeIdBySegmentId: nodeIdBySegmentId.value,
     });
   });
 
   const coreLabel = computed(() => toValue(input.workspaceName) ?? "Project");
+  // The centre wears the ROOM's status — the same one the tree row shows (it
+  // reaches `problem` from a failed turn, `needs_input` from an approval or
+  // the assistant's own set state).
+  //
+  // KNOWN OVER-CLAIM (inherited from the workspace ladder): an AGENT
+  // colleague's turn announces under its grounding workspace, so a failing
+  // colleague can light the centre as well as its own dot. The build chain is
+  // hidden from the overview, so it has no per-conversation facts of its own
+  // to read instead; splitting them is the fix if the double-light ever bites.
+  const coreStatus = computed<SceneNode["status"]>(() => {
+    const workspaceId = id.value;
+    if (workspaceId === null) return "idle";
+    return resolveNodeStatus(
+      workspaceStatuses.statusByWorkspaceId.value[workspaceId]?.status ??
+        "not_running",
+    );
+  });
 
-  return { nodes, messages, coreLabel, hasAnswered, onPick: input.onPick };
+  return {
+    nodes,
+    messages,
+    coreLabel,
+    coreStatus,
+    hasAnswered,
+    onPick: input.onPick,
+    onCorePick: input.onCorePick,
+  };
 }
