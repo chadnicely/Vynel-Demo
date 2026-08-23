@@ -6,13 +6,16 @@ import { useContinuingConversation } from "../chat/use-continuing-conversation.j
 import { useActivityStore } from "../../stores/activity-store.js";
 import { matchTurnToIdentity } from "./match-turn-to-identity.js";
 
-// The working rail's roster (redesign, the rail clarification): "agents,
-// sessions, workspaces all show as small icons — only active ones; once they
-// complete, one after another they're gone." One entity per WORKING identity,
-// composed from the two liveness sources the app already holds — the feed's
-// presence map and the work-kind in-flight poll — never a new channel.
-// Ephemeral SDK agents are a recorded follow-up (they need a running-agent-
-// calls read; their tool card shows everything meanwhile).
+// The app's working-identity fold: one entity per WORKING identity, composed
+// from the two liveness sources the app already holds — the feed's presence
+// map and the work-kind in-flight poll — never a new channel. Born as the
+// edge rail's roster; the rail itself retired (2026-08-24 — the task panel's
+// sessions box lists the scope's working children now) and the Display's
+// status derivation (`use-display-status`) is the remaining consumer: its
+// `buildingCount` counts these entities so the same session is never counted
+// twice across the feed and the poll. Ephemeral SDK agents are a recorded
+// follow-up (they need a running-agent-calls read; their tool card shows
+// everything meanwhile).
 //
 // A feed turn is placed by IDENTITY, through the one matcher every feed reader
 // uses (session-hardening D1) — never by the presence or absence of a field.

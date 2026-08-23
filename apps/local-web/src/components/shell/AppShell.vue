@@ -27,7 +27,9 @@ import {
   PhSlidersHorizontal as SlidersHorizontal,
   PhSpeakerHigh as SpeakerHigh,
   PhPlayCircle as SquarePlay,
+  PhSquaresFour as SquaresFour,
   PhTerminalWindow as SquareSlash,
+  PhStack as Stack,
   PhStorefront as Store,
   PhUser as UserRound,
   PhWrench as Wrench,
@@ -50,7 +52,6 @@ import UpdatePill from "./UpdatePill.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
-import WorkingRail from "../rail/WorkingRail.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
 import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
@@ -61,6 +62,7 @@ import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import {
   MENU_GROUP_LABELS,
+  WORKSPACE_ONLY_SECTION_IDS,
   WORKSPACE_SECTIONS,
 } from "../workspace/workspace-sections.js";
 import { GLOBAL_TAB_ID, isTasksPanelSurface, useUiStore } from "../../stores/ui-store.js";
@@ -187,6 +189,8 @@ const SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
   marketplace: Store,
   channels: Radio,
   schedules: CalendarClock,
+  phases: Stack,
+  features: SquaresFour,
   tasks: ListChecks,
   plans: CalendarRange,
   journal: NotebookPen,
@@ -196,8 +200,10 @@ const SECTION_ICONS: Record<string, SidebarItem["icon"]> = {
   apps: SquarePlay,
   "ssh-servers": Server,
 };
-// Apps needs a running project — it has no global surface.
-const GLOBAL_HIDDEN_SECTION_IDS = new Set<string>(["apps"]);
+// Workspace-only sections have no global surface (GlobalChatView would fall
+// through to the chat pane, a dead row) — the list itself lives with the
+// catalog, shared with Global Customize.
+const GLOBAL_HIDDEN_SECTION_IDS = new Set<string>(WORKSPACE_ONLY_SECTION_IDS);
 // The machine-level screens — this computer's, never a room's. They live in
 // the title bar's Settings MENU (Kafi, 2026-08-22: Embedding · Voice · Where
 // Vynel runs · Application), not the sidebar; they stay in the palette's
@@ -909,7 +915,6 @@ onBeforeUnmount(() => {
       </ResizablePanel>
     </div>
 
-    <WorkingRail />
     <ConversationSidebar />
     <ApprovalNotifier />
     <AskNotifier />

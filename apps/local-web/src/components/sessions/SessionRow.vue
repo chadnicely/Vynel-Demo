@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { PhCaretRight as ChevronRight } from "@phosphor-icons/vue";
-import { PresenceDot } from "@vynel/ui";
+import {
+  PhCaretRight as ChevronRight,
+  PhCircleNotch as CircleNotch,
+} from "@phosphor-icons/vue";
 import type {
   SessionsOverviewEntry,
   SessionsOverviewSegment,
@@ -10,19 +12,23 @@ import type { SessionStatusView } from "@vynel/contracts/chat/session-status";
 import { formatContextTooltip } from "../../composables/chat/context-occupancy.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import SessionChain from "./SessionChain.vue";
+import SessionIconBadge from "./SessionIconBadge.vue";
 
-// One plain row on the Sessions list (the old Conversations-panel idiom —
-// Chad's "no special menus, it's simple"): name, relative time, a small
-// context percentage, a working dot while it runs, and the conversation's
-// status mark + its one-line why. Clicking opens the session in the pane
-// beside the list; a continued conversation expands its chain.
+// One row on the Sessions list, in the workspace tree's row language (the
+// left menu's idiom, per the user 2026-08-24): the session's face on the
+// left — its curated icon, else its monogram over its accent — the name, and
+// the state cluster on the RIGHT: relative time, context %, then ONE mark
+// (the spinner while it works, the status dot when it needs you / broke /
+// completed). The one-line why breathes under the row when a mark is up.
+// Clicking opens the session in the pane beside the list; a continued
+// conversation expands its chain.
 const props = defineProps<{
   entry: SessionsOverviewEntry;
   /** This row's session is open in the pane. */
   isActive: boolean;
   /** The conversation's derived status (use-session-statuses) — null before
-   *  the overview lands. Running renders the live dot; needs_input / problem
-   *  / completed render the mark, with the note under the name. */
+   *  the overview lands. Running renders the spinner; needs_input / problem
+   *  / completed render the mark, with the note under the row. */
   status: SessionStatusView | null;
 }>();
 
@@ -78,47 +84,62 @@ const statusNote = computed(() =>
     <div class="flex items-center">
       <button
         type="button"
-        class="session-row min-w-0 flex-1 cursor-default rounded-sm px-2.5 py-2 text-left transition hover:bg-row-hover"
-        :class="{ 'is-active bg-row-active': props.isActive }"
+        class="session-row grid min-h-[30px] min-w-0 flex-1 cursor-default grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-sm py-1 pl-[10px] pr-[9px] text-left text-[12.5px] transition"
+        :class="
+          props.isActive
+            ? 'is-active bg-[var(--color-accent-900)] text-[var(--color-accent-100)]'
+            : 'text-ink-2 hover:bg-row-hover hover:text-ink-1'
+        "
         :aria-label="`Open ${props.entry.title}`"
+        :aria-current="props.isActive ? 'page' : undefined"
         @click="emit('open')"
       >
-        <span class="flex items-center gap-2">
-          <span class="session-title min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink-1">
-            {{ props.entry.title }}
+        <SessionIconBadge :name="props.entry.title" :icon="props.entry.icon" />
+        <span class="min-w-0 truncate">{{ props.entry.title }}</span>
+        <!-- The state cluster, on the right: the quiet numbers, then ONE mark. -->
+        <span class="flex items-center gap-[7px]">
+          <span
+            class="whitespace-nowrap text-[10.5px] font-medium text-[var(--color-neutral-500)]"
+          >
+            {{ formatRelativeTime(props.entry.lastMessageAt) }}
           </span>
+          <span
+            v-if="contextPercent !== null"
+            class="context-percent shrink-0 text-[10.5px] font-semibold tabular-nums text-ink-3"
+            :title="contextTooltip"
+            >{{ contextPercent }}%</span
+          >
           <span
             v-if="isWorking"
             class="working-dot inline-flex shrink-0 items-center"
             aria-label="Working"
           >
-            <PresenceDot state="live" />
+            <CircleNotch
+              :size="14"
+              weight="bold"
+              class="animate-spin text-gold"
+            />
           </span>
           <!-- One status, one colour — the tree row's mark, per conversation. -->
           <span
             v-else-if="markStatus"
-            class="session-mark size-2 shrink-0 rounded-full"
+            class="session-mark size-2.5 shrink-0 rounded-full"
             :data-status="markStatus"
             :aria-label="`${props.entry.title} ${MARK_LABELS[markStatus]}`"
           />
-          <span
-            v-if="contextPercent !== null"
-            class="context-percent shrink-0 text-[10.5px] font-semibold text-ink-3"
-            :title="contextTooltip"
-            >{{ contextPercent }}%</span
-          >
         </span>
-        <span class="session-sub mt-0.5 block truncate text-[11px] text-ink-3">
-          {{ formatRelativeTime(props.entry.lastMessageAt) }}
-          <template v-if="hasChain">
-            · continued {{ props.entry.segments.length - 1 }}×</template
-          >
+        <!-- The row's footnotes, aligned under the name: how the conversation
+             continued, and the why behind a mark — in the assistant's own
+             words (or the error that stopped it). -->
+        <span
+          v-if="hasChain"
+          class="col-span-full block truncate pl-[26px] text-[10.5px] text-[var(--color-neutral-500)]"
+        >
+          continued {{ props.entry.segments.length - 1 }}×
         </span>
-        <!-- The why, in the assistant's own words (or the error that stopped
-             it) — the reason a red dot is worth looking at. -->
         <span
           v-if="statusNote"
-          class="session-note mt-0.5 block truncate text-[11px]"
+          class="session-note col-span-full block truncate pl-[26px] text-[11px]"
           :data-status="markStatus"
           >{{ statusNote }}</span
         >
@@ -151,10 +172,11 @@ const statusNote = computed(() =>
 </template>
 
 <style scoped>
-/* One status, one colour — the same marks the tree row wears (tokens, pulse
-   and reduced-motion rule included), so a conversation reads the same in the
-   list as its room does in the sidebar. */
+/* One status, one colour — the same marks the tree row wears (tokens, ring,
+   pulse and reduced-motion rule included), so a conversation reads the same
+   in the list as its room does in the sidebar. */
 .session-mark {
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
   animation: session-mark-pulse 1.4s ease-in-out infinite;
 }
 
@@ -189,8 +211,8 @@ const statusNote = computed(() =>
     transform: scale(1);
   }
   50% {
-    opacity: 0.35;
-    transform: scale(0.72);
+    opacity: 0.45;
+    transform: scale(0.8);
   }
 }
 

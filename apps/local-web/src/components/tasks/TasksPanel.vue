@@ -9,6 +9,7 @@ import {
   PhCheckCircle as CheckCircle,
   PhCircleDashed as CircleDashed,
   PhCircleHalf as CircleHalf,
+  PhCircleNotch as CircleNotch,
   PhMonitor as Monitor,
   PhPlus as Plus,
   PhStopCircle as StopCircle,
@@ -28,6 +29,7 @@ import { useSessionsOverview } from "../../composables/sessions/use-sessions-ove
 import { matchTurnToIdentity } from "../../composables/activity/match-turn-to-identity.js";
 import TaskViewDialog from "./TaskViewDialog.vue";
 import LiveStepLine from "./LiveStepLine.vue";
+import SessionIconBadge from "../sessions/SessionIconBadge.vue";
 import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useWorkspaceApps } from "../../composables/workspace-apps/use-workspace-apps.js";
 import { useWorkspaceStatuses } from "../../composables/workspaces/use-workspace-status.js";
@@ -94,15 +96,11 @@ const shownTasks = computed(() =>
   listTab.value === "done" ? completedTasks.value : queuedTasks.value,
 );
 
-// EVERY running turn in this scope — the activity header's "sessions working"
-// count and the sessions box's rows. The first one anchors the live card's
-// steps and the interrupt target, as before.
-//
-// The SPOKEN thread is deliberately not among them: this box names its rows
-// from the shared sessions overview, which the voice conversation never rides
-// (it belongs to the Voice chat surface alone), so a counted voice turn would
-// show up as a nameless "A conversation" and advertise a thread this panel
-// cannot open. The global identity is the AREA minus voice, by construction.
+// The turns anchoring the live card + interrupt, as before: for a WORKSPACE,
+// the room's own thread alone (matchTurnToIdentity's workspace identity
+// deliberately excludes the children — a spawned session announces in the
+// room's scope but names its own continuing identity); for GLOBAL, the whole
+// area family, the matcher's documented asymmetry.
 const workingTurns = computed(() =>
   Object.values(activity.serverTurns).filter((turn) =>
     matchTurnToIdentity(
@@ -118,31 +116,69 @@ const workingTurns = computed(() =>
 // scope; it anchors both the live card's steps and the interrupt target.
 const liveSessionId = computed(() => workingTurns.value[0]?.sessionId ?? null);
 
+
 // ── The activity header: the scope's done/total rollup + who is working. ──
 const activityCounts = computed(() => ({
   done: completedTasks.value.length,
   total: tasksInScope.value.length,
 }));
 
-// The sessions box — collapsed it advertises the count; expanded it lists
-// this scope's working sessions by name (titles from the shared overview
-// query, fetched only while the box is open; always scope-filtered — the
-// standing rule for every session surface).
+// The sessions box — the scope's working CHILD sessions (the user's call,
+// 2026-08-24): only sessions spawned for this workspace, by name and icon,
+// never the primary — the room's own thread already owns the live card and
+// the workspace header. Rows resolve through the shared overview (warm on
+// these surfaces via the context-occupancy read, so the count is live while
+// the box is folded); a turn the overview can't name yet simply waits a
+// beat. Always scope-filtered — the standing rule for every session surface.
+//
+// A turn is placed by its RESOLVED conversation, never by the frame's area
+// stamp: the two doors into one child disagree on the wire — a delegated
+// send_message turn announces in the GLOBAL family with no workspaceId
+// (run-task-job's session-target rule, from before children could be
+// workspace-grounded) while an interactive turn announces in the room — so
+// filtering on `scopeKind` showed "0 sessions working" while a child worked.
+// The session ROW is the one truth for where a child belongs; the voice
+// thread excludes itself here too (its entry's scope is 'voice').
 const isSessionsBoxOpen = ref(false);
-const sessionsOverviewQuery = useSessionsOverview(isSessionsBoxOpen);
-const workingSessions = computed(() =>
-  workingTurns.value.flatMap((turn) => {
-    // A turn that hasn't resolved its session yet has no row to name.
-    if (turn.sessionId === null) return [];
-    const sessionId = turn.sessionId;
-    const entry = (sessionsOverviewQuery.data.value ?? []).find(
-      (row) =>
-        row.sessionId === sessionId ||
-        row.segments.some((segment) => segment.sessionId === sessionId),
-    );
-    return [{ sessionId, title: entry?.title ?? "A conversation" }];
-  }),
-);
+const sessionsOverviewQuery = useSessionsOverview(true);
+const workingChildSessions = computed(() => {
+  const entries = sessionsOverviewQuery.data.value ?? [];
+  const rows: { sessionId: string; title: string; icon: string | null }[] = [];
+  // Dedupe on the CONVERSATION (the entry's head) — two frames of one child
+  // must render one row, never duplicate keys.
+  const seenConversationIds = new Set<string>();
+  for (const turn of Object.values(activity.serverTurns)) {
+    // The continuing identity first (the feed stamps it before the turn
+    // resolves a session id), then the served segment.
+    const entry =
+      entries.find(
+        (row) =>
+          turn.primarySessionId != null &&
+          row.primarySessionId === turn.primarySessionId,
+      ) ??
+      entries.find(
+        (row) =>
+          turn.sessionId !== null &&
+          (row.sessionId === turn.sessionId ||
+            row.segments.some((segment) => segment.sessionId === turn.sessionId)),
+      );
+    // Children of THIS scope only: a spawned or agent conversation grounded
+    // here (global children carry a null workspaceId, matching the global
+    // panel's null scope id). The room's own thread (scope 'workspace') and
+    // the brain (scope 'global') stay out.
+    if (entry === undefined || (entry.scope !== "spawned" && entry.scope !== "agent"))
+      continue;
+    if (entry.workspaceId !== scopeWorkspaceId.value) continue;
+    if (seenConversationIds.has(entry.sessionId)) continue;
+    seenConversationIds.add(entry.sessionId);
+    rows.push({
+      sessionId: turn.sessionId ?? entry.sessionId,
+      title: entry.title,
+      icon: entry.icon,
+    });
+  }
+  return rows;
+});
 
 const liveTask = computed(
   () => queuedTasks.value.find((row) => row.status === "in-progress") ?? null,
@@ -267,7 +303,7 @@ function removeTask(task: TaskResponse) {
 // icon opens the shared review dialog on either relation (the day-plan link
 // or the execution plan whose taskId points here); the session icon opens the
 // ASSIGNED session's real conversation in the sidebar — the same door the
-// working rail's edge chips open (Kafi, 2026-08-18: never the sessions tab).
+// sessions box's rows open (Kafi, 2026-08-18: never the sessions tab).
 const ui = useUiStore();
 const sidebar = useConversationSidebarStore();
 const expandedTask = computed(
@@ -394,8 +430,8 @@ function completedAtLabel(task: TaskResponse): string {
         :aria-expanded="isSessionsBoxOpen"
         @click="isSessionsBoxOpen = !isSessionsBoxOpen"
       >
-        <span class="activity-count">{{ workingTurns.length }}</span>
-        {{ workingTurns.length === 1 ? "session" : "sessions" }} working
+        <span class="activity-count">{{ workingChildSessions.length }}</span>
+        {{ workingChildSessions.length === 1 ? "session" : "sessions" }} working
         <CaretRight
           :size="10"
           class="sessions-caret"
@@ -403,9 +439,10 @@ function completedAtLabel(task: TaskResponse): string {
         />
       </button>
       <ul v-if="isSessionsBoxOpen" class="sessions-list">
-        <!-- Each row opens the session's REAL conversation in the sidebar —
-             the same door the working rail's edge chips open. -->
-        <li v-for="session in workingSessions" :key="session.sessionId">
+        <!-- The workspace tree's row language, per child session: its face
+             (curated icon, else monogram), its name, the working spinner.
+             Clicking opens the session's REAL conversation in the sidebar. -->
+        <li v-for="session in workingChildSessions" :key="session.sessionId">
           <button
             type="button"
             class="sessions-row"
@@ -417,11 +454,17 @@ function completedAtLabel(task: TaskResponse): string {
               })
             "
           >
-            <span class="sessions-dot" aria-hidden="true" />
+            <SessionIconBadge :name="session.title" :icon="session.icon" />
             <span class="sessions-title">{{ session.title }}</span>
+            <CircleNotch
+              :size="13"
+              weight="bold"
+              class="sessions-spinner"
+              aria-label="Working"
+            />
           </button>
         </li>
-        <li v-if="workingSessions.length === 0" class="sessions-empty">
+        <li v-if="workingChildSessions.length === 0" class="sessions-empty">
           Nothing working right now.
         </li>
       </ul>
@@ -786,13 +829,16 @@ function completedAtLabel(task: TaskResponse): string {
   gap: 3px;
 }
 
+/* The workspace tree's row footprint, per child session: 30px row, the 18px
+   face, the name, the working spinner closing the row. */
 .sessions-row {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
-  padding: 2px 4px;
+  min-height: 30px;
+  padding: 2px 9px 2px 6px;
   border-radius: var(--radius-s);
   text-align: left;
   transition: background var(--t-fast) var(--ease-out);
@@ -802,22 +848,37 @@ function completedAtLabel(task: TaskResponse): string {
   background: var(--row-hover);
 }
 
-.sessions-dot {
-  flex: none;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--gold);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 60%, transparent);
-}
-
 .sessions-title {
+  flex: 1;
   min-width: 0;
   color: var(--ink-2);
-  font: 400 11px/1.5 var(--font-ui);
+  font: 400 12.5px/1.5 var(--font-ui);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sessions-row:hover .sessions-title {
+  color: var(--ink-1);
+}
+
+/* Gold = presence: every row here IS a running turn. */
+.sessions-spinner {
+  flex: none;
+  color: var(--gold);
+  animation: sessions-spinner-turn 1.6s linear infinite;
+}
+
+@keyframes sessions-spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sessions-spinner {
+    animation: none;
+  }
 }
 
 .sessions-empty {

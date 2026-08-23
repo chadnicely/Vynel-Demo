@@ -516,16 +516,36 @@ describe("TasksPanel (work rail)", () => {
     expect(patchCalls).toEqual([["step-1", { status: "done" }]]);
   });
 
-  it("the sessions box counts this scope's working turns and lists them on expand", async () => {
+  it("the sessions box counts and lists ONLY the scope's working CHILD sessions — never the primary", async () => {
+    // The room's own thread AND a spawned child are both live; the box shows
+    // the child alone (the primary already owns the live card), named + iconed
+    // from the overview (2026-08-24: the tree-row restyle).
     const client = makeClient({
       sessions: {
         overview: async () => [
           {
             sessionId: "s-live",
+            primarySessionId: null,
             scope: "workspace",
             workspaceId: "w1",
             workspaceName: "Bakery",
             title: "Spring campaign",
+            icon: null,
+            model: null,
+            contextTokens: null,
+            contextWindow: 200000,
+            lastMessageAt: "2026-08-18T10:00:00.000Z",
+            statusFacts: {},
+            segments: [],
+          },
+          {
+            sessionId: "s-child",
+            primarySessionId: "p-child",
+            scope: "spawned",
+            workspaceId: "w1",
+            workspaceName: "Bakery",
+            title: "Email Feature Manager",
+            icon: "mail",
             model: null,
             contextTokens: null,
             contextWindow: 200000,
@@ -539,6 +559,7 @@ describe("TasksPanel (work rail)", () => {
 
     const pinia = createPinia();
     setActivePinia(pinia);
+    // The room's own turn — a workspace-scope frame naming NO primary.
     useActivityStore().applyServerActivity({
       kind: "turn-started",
       turnId: "turn-1",
@@ -546,6 +567,21 @@ describe("TasksPanel (work rail)", () => {
       workspaceId: "w1",
       sessionId: "s-live",
       origin: "web",
+      startedAt: "2026-08-18T10:00:00.000Z",
+    });
+    // The child's turn — THE REAL delegated frame (run-task-job's session-
+    // target rule): it announces in the GLOBAL family with no workspaceId,
+    // naming only its continuing identity. Placing by the frame's area stamp
+    // is exactly the bug that showed "0 sessions working" while this child
+    // worked — the box must place it by its resolved session row.
+    useActivityStore().applyServerActivity({
+      kind: "turn-started",
+      turnId: "turn-2",
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: "s-child",
+      primarySessionId: "p-child",
+      origin: "delegation",
       startedAt: "2026-08-18T10:00:00.000Z",
     });
 
@@ -563,7 +599,60 @@ describe("TasksPanel (work rail)", () => {
     await box.trigger("click");
     await flushPromises();
 
-    expect(wrapper.get(".sessions-title").text()).toBe("Spring campaign");
+    const titles = wrapper.findAll(".sessions-title");
+    expect(titles).toHaveLength(1);
+    expect(titles[0]!.text()).toBe("Email Feature Manager");
+    // The child wears its face — the curated icon, not the primary's row.
+    expect(wrapper.find(".sessions-row .session-icon").exists()).toBe(true);
+  });
+
+  it("the GLOBAL panel never lists a workspace-grounded child, whatever its frame says", async () => {
+    // The same delegated global-family frame — but the session ROW belongs to
+    // a workspace, so the global box must not claim it (the scope filter runs
+    // on the resolved entry, both directions).
+    const client = makeClient({
+      sessions: {
+        overview: async () => [
+          {
+            sessionId: "s-child",
+            primarySessionId: "p-child",
+            scope: "spawned",
+            workspaceId: "w1",
+            workspaceName: "Bakery",
+            title: "Email Feature Manager",
+            icon: "mail",
+            model: null,
+            contextTokens: null,
+            contextWindow: 200000,
+            lastMessageAt: "2026-08-18T10:00:00.000Z",
+            statusFacts: {},
+            segments: [],
+          },
+        ],
+      },
+    });
+
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useActivityStore().applyServerActivity({
+      kind: "turn-started",
+      turnId: "turn-1",
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: "s-child",
+      primarySessionId: "p-child",
+      origin: "delegation",
+      startedAt: "2026-08-18T10:00:00.000Z",
+    });
+
+    const wrapper = mountPanel(client, { kind: "global" }, pinia);
+    await flushPromises();
+
+    const box = wrapper.get(".sessions-box");
+    expect(box.text()).toContain("0");
+    await box.trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll(".sessions-title")).toHaveLength(0);
   });
 
   it("reads quiet when nothing is happening — no abort, no fake progress", async () => {
