@@ -18,9 +18,8 @@ works where and when to merge — Vynel only keeps the state (Slice 4's `session
 signed out → the in-app sign-in; signed in → handle + sign out), the wizard's account step shows the real
 handle. **Next:** Slice 2 git home + facts (`read-git-facts` → `GET /workspaces/:id/git` [x-mcp]), Slice 3
 repo on Finish (`gh repo create … --source . --push`) + Connect an existing workspace, Slice 4 worktree
-state + tools. **Owed by Kafi:** the live smoke of the sign-in — does `gh auth login --web` print its code
-under a non-TTY spawn on this box (the relay's one assumption); if not, the terminal handoff from Chad's
-branch is the fallback.
+state + tools. **Live smoke (Kafi, 2026-08-23): sign out → sign in WORKED** — `gh auth login --web` prints its code under the
+non-TTY spawn and opens the browser itself; the relay's one assumption holds. No terminal fallback needed.
 
 ## ✅ 2026-08-23 NEW-WORKSPACE WIZARD — all five slices, MERGED TO MAIN + pushed
 
