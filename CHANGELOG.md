@@ -7,7 +7,56 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Added
+
+- **Sessions wear a face now.** When Claude spawns a helper session ("Email Feature Manager",
+  "Bug Hunt", …) it can stamp it with an icon from a curated set of thirty (mail, code, bug,
+  chart, rocket…), picked to say what the session is *for*. The icon rides the session
+  everywhere it is listed and survives long-conversation handoffs; a session without one wears
+  its name's monogram over its accent, the same way workspaces do.
+
+- **Phases and Features joined the workspace menu.** Two new sections in the Utils group, sitting
+  directly above Plans and Tasks: **Phases** — the build plan's ordered stages, with ordinal
+  chips and the same open → in-progress → done cycle the tasks use — and **Features** — what the
+  project is building, grouped under its phase (unplaced ones gathered at the end). Both are
+  view, edit, delete, and create through a dialog (their descriptions are long-form). On menus
+  arranged before this release the two slot in at exactly that spot rather than dangling at the
+  bottom of the list.
+
+### Fixed
+
+- **The task panel's sessions box no longer misses a working helper.** A helper the assistant
+  sent work to through the delegation queue announced on the wire under the global family, so
+  the box filtered it out and said "0 sessions working" while it visibly worked. The box now
+  places every live turn by the session it belongs to — the one truth — whichever door the turn
+  came through.
+
+### Changed
+
+- **The Nodes screen tells the truth about the centre.** Out on the fleet, the centre orb IS
+  the global primary session: it wears its live status (ring colour, faster spin while
+  working), clicking it opens the global chat, and the spoken Voice thread rides beside it as a
+  small moon on the first orbit — its own status, its own click into Voice chat. Inside a
+  project, the old "The build" satellite is gone: the centre is the workspace manager itself —
+  the primary session — wearing the room's status, one click from its chat, with only the
+  child sessions in orbit. And project dots now wear the workspace's own uploaded face, the
+  same one the sidebar tree shows.
+
+- **The Sessions list speaks the left menu's language.** Session rows now look like the workspace
+  rows in the sidebar tree: the session's icon (or monogram) on the left, the name, and the state
+  cluster on the right — relative time, context %, a spinner while it works, the status dot when
+  it needs you. The one-line why and "continued N×" sit under the row as quiet footnotes.
+
+- **The task panel's "sessions working" box shows the workspace's helpers, not the room itself.**
+  It now counts and lists only the *child* sessions working for that workspace — each with its
+  name and icon in the same tree-row style — and clicking one still opens its real conversation
+  in the sidebar. The room's own thread was never a helper: it already owns the live card above.
+
 ### Removed
+
+- **The WORKING edge strip is gone.** The little vertical rail of icons on the right edge
+  duplicated what the task panel's sessions box now does properly, so it retired. Everything it
+  opened is still one click away: the sessions box rows and chat pointers open the same sidebar.
 
 - **First launch is two screens now: hello, and your name.** The old setup walked through seven
   steps — naming a workspace, seeding memory, picking starter skills, connecting Telegram,
