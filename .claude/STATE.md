@@ -3,7 +3,7 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 2 (the git home + facts) MERGED TO MAIN `cab1dc88`; Slice 1 (the connection) MERGED `2eaf8e18`; Slices 3–4 next
+## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 3 (repo on Finish + Connect) MERGED TO MAIN `826c26fe`; Slice 2 `cab1dc88`; Slice 1 `2eaf8e18`; Slice 4 next
 
 Kafi's plan after the wizard (note `docs/module-notes/github-connection.md`): **everything over the `gh` CLI**
 (no OAuth app, no API client, no token in Vynel — the sessions already have `git`/`gh` on Bash, so PRs and
@@ -25,8 +25,19 @@ non-TTY spawn and opens the browser itself; the relay's one assumption holds. No
 `--no-optional-locks`; scaffold + clone moved onto it; `read-git-facts` / `list-branches` / `list-worktrees`, real-git
 tests), `GET /workspaces/:id/git` [x-mcp `get_workspace_git_facts`], the chat-header badge "main · 3 uncommitted · ↑1 ↓2".
 Reviewer catch: `remoteUrl` is credential-redacted (a pasted `https://token@github.com/…` clone URL lives in .git/config).
-**Next: Slice 3** (repo on Finish via `gh repo create --source . --push` + "Connect to GitHub" on an existing workspace),
-then Slice 4 (session worktrees + the four tools).
+**Slice 3 landed (2026-08-24):** `@vynel/github` `createGitHubRepository` (`gh repo create <name> --private|--public
+--source <folder> --remote origin --push`; outcome `created { url } | failed { reason }`, never a throw; per-call
+5-min timeout — a killed gh is named as such since it may have half-succeeded), `GitHubConnection.createRepository`
+(signed-in pre-flight → a failed outcome), `POST /workspaces/:id/github/repository` → `{ outcome }` always 200, no
+x-mcp. Wizard account step: "Also create the repository on GitHub when I finish" (only when signed in; name =
+`suggestRepositoryName(appName)`, private; gated on `REPOSITORY_NAME_PATTERN`) → Finish runs it AFTER the scaffold,
+busy through the push → Done links / reports. Header: **Connect to GitHub** when `repository && remoteUrl === null`
+→ `ConnectGitHubDialog` (shared `GitHubRepositoryFields`); signed out → "Open Settings".
+**Owed by Kafi:** a live Finish with the offer on (does `--push` go through GCM without a prompt on this box?) and
+Connect on an existing local-only repo. Open question for Kafi: `gh auth setup-git` after the in-app sign-in (makes
+gh the git credential helper — a global git-config write) vs relying on GCM.
+**Next: Slice 4** (`session_worktrees` + `create_worktree` / `set_session_location` / `list_worktrees` /
+`remove_worktree`; the primary's and spawned sessions' cwd follow the state; the rail says "on `<branch>`").
 
 ## ✅ 2026-08-23 NEW-WORKSPACE WIZARD — all five slices, MERGED TO MAIN + pushed
 
