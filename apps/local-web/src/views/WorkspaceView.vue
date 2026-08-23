@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import {
   PhTreeView as FolderTree,
+  PhGitBranch as GitBranch,
   PhListChecks as ListChecks,
   PhSparkle as Sparkles,
 } from "@phosphor-icons/vue";
@@ -20,6 +21,8 @@ import DisplayView from "./display/DisplayView.vue";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
 import { useWorkspaceStatuses } from "../composables/workspaces/use-workspace-status.js";
+import { useWorkspaceGit } from "../composables/workspaces/use-workspace-git.js";
+import { describeGitFacts } from "../composables/workspaces/git-facts-label.js";
 import { useSessionDetail } from "../composables/chat/use-session-detail.js";
 import { useInFlightDelegations } from "../composables/delegations/use-in-flight-delegations.js";
 import { buildThreadPointers } from "../components/chat/thread-pointers.js";
@@ -155,6 +158,15 @@ const statusView = computed(() =>
   tab.workspaceId === null
     ? null
     : (statusByWorkspaceId.value[tab.workspaceId] ?? null),
+);
+// What git knows about the folder — "main · 3 uncommitted · ↑1 ↓2" beside the
+// name; nothing while it is still loading, honest words for a folder without git.
+const workspaceIdForGit = computed(() => tab.workspaceId);
+const gitQuery = useWorkspaceGit(workspaceIdForGit);
+const gitBadge = computed(() =>
+  gitQuery.data.value === undefined
+    ? null
+    : describeGitFacts(gitQuery.data.value),
 );
 // The canvas's header badge, worded per state ("Task 5 of 13" · "Waiting on
 // your answer" · "Stopped on an error" · "All N tasks done" · "Not running").
@@ -400,6 +412,15 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
         >
           {{ headerBadge.label }}
         </span>
+        <span
+          v-if="gitBadge"
+          class="thread-badge thread-git"
+          :data-tone="gitBadge.tone"
+          :title="gitBadge.detail"
+        >
+          <GitBranch :size="11" aria-hidden="true" />
+          {{ gitBadge.label }}
+        </span>
         <span class="thread-header-space" />
         <IconButton
           label="Toggle files"
@@ -572,6 +593,23 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
   border-color: color-mix(in srgb, var(--needs-input) 45%, transparent);
   background: var(--needs-input-soft);
   color: var(--needs-input);
+}
+
+/* The git badge — same geometry, a branch glyph, muted for "no git yet",
+   the danger hue when the folder or git itself is the problem. */
+.thread-git {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.thread-git[data-tone="muted"] {
+  color: var(--ink-3);
+}
+
+.thread-git[data-tone="problem"] {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
 }
 
 .thread-badge[data-status="problem"] {

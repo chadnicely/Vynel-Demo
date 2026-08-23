@@ -14,14 +14,12 @@
 // the user pressing send on the brief seeded into the workspace's chat —
 // building begins under their eyes, never as a side effect of Finish.
 //
-// SHAPE: fixed argument lists via execFile; the git step takes an injectable
-// runner so tests never shell out.
+// SHAPE: git runs through the package's one runner (`../git/run-git.ts`),
+// injectable so tests never shell out.
 
 import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { rm, writeFile } from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import { ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
@@ -37,9 +35,7 @@ import { createWorkspaceWithin, type CreateWorkspaceDependencies } from './creat
 import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
 import { resolveExistingDirectory } from '../directory/resolve-existing-directory.js'
 import { toWorkspaceBrief, type WorkspaceBrief } from '../brief/workspace-brief.js'
-
-const run = promisify(execFile)
-const GIT_TIMEOUT_MS = 20_000
+import { defaultGitRunner, type GitRunner } from '../git/run-git.js'
 
 export type ScaffoldWorkspaceInput = {
   userId: string
@@ -64,12 +60,6 @@ export type ScaffoldedWorkspace = {
   /** What actually happened with git — shown, never assumed. */
   git: ScaffoldGitOutcome
   brief: WorkspaceBrief
-}
-
-export type GitRunner = (args: string[], cwd: string) => Promise<void>
-
-const defaultGitRunner: GitRunner = async (args, cwd) => {
-  await run('git', args, { cwd, timeout: GIT_TIMEOUT_MS, windowsHide: true })
 }
 
 export type ScaffoldWorkspaceDependencies = CreateWorkspaceDependencies & {

@@ -2313,6 +2313,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getGit: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/git"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/git", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async (options?: NonNullable<paths["/workspaces"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces", {
       params: { ...(options && { query: options }) },

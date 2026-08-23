@@ -79,6 +79,7 @@ import { providersApp } from './routes/providers/index.js'
 import { githubApp } from './routes/github/index.js'
 import { workspaceWizardApp } from './routes/workspaces/wizard.js'
 import { workspaceBriefApp } from './routes/workspaces/brief.js'
+import { workspaceGitApp } from './routes/workspaces/git.js'
 import { onboardingApp } from './routes/onboarding/index.js'
 import { firstLaunchGateMiddleware } from './middleware/first-launch-gate.js'
 import {
@@ -405,6 +406,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // The per-workspace dashboard reads (usage statistics) — twin of `/dashboard`.
   app.route('/workspaces/:workspaceId/dashboard', dashboardWorkspaceApp)
   app.route('/workspaces/:workspaceId/brief', workspaceBriefApp)
+  app.route('/workspaces/:workspaceId/git', workspaceGitApp)
   // The drilled menu's per-section counts — twin of `/section-counts`.
   app.route('/workspaces/:workspaceId/section-counts', sectionCountsWorkspaceApp)
   // User-scoped (no workspace prefix) — GLOBAL (null-workspace) + cross-workspace

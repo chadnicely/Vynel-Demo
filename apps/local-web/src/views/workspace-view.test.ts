@@ -21,10 +21,18 @@ import DisplayView from "./display/DisplayView.vue";
 import TasksPanel from "../components/tasks/TasksPanel.vue";
 import FilesPanel from "../components/workspace/FilesPanel.vue";
 
-/** Every read the canvas makes, answering empty. */
+/** Every read the canvas makes, answering empty — the git facts shaped,
+ *  since the header reads `facts.kind` off whatever comes back. */
+const NO_GIT = { facts: { kind: "not-a-repository" }, branches: [], worktrees: [] };
 const quietClient = new Proxy(
   {},
-  { get: () => new Proxy({}, { get: () => async () => [] }) },
+  {
+    get: () =>
+      new Proxy(
+        {},
+        { get: (_, method) => async () => (method === "getGit" ? NO_GIT : []) },
+      ),
+  },
 ) as unknown as VynelClient;
 
 // The tab strip persists itself, active tab included — start every case on a

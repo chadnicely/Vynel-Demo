@@ -14,7 +14,8 @@ import {
   listWorkspacesForUser,
 } from '@vynel/db/repositories/workspaces'
 import type { WorkspaceBriefAnswers, WorkspacePlan } from '@vynel/contracts/workspaces/workspace-brief'
-import { scaffoldWorkspace, type GitRunner } from './scaffold-workspace.js'
+import { scaffoldWorkspace } from './scaffold-workspace.js'
+import type { GitRunner } from '../git/run-git.js'
 
 function makeUser(id: string = randomUUID()) {
   return {
@@ -64,6 +65,7 @@ function fakeGit(calls: { args: string[]; cwd: string }[]): GitRunner {
   return async (args, cwd) => {
     calls.push({ args, cwd })
     if (args[0] === 'init') mkdirSync(path.join(cwd, '.git'))
+    return ''
   }
 }
 

@@ -1740,6 +1740,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/git": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** This workspace folder's git facts: branch, upstream distance, uncommitted work, remote, branches, worktrees. */
+        get: operations["getWorkspacesByWorkspaceIdGit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/section-counts": {
         parameters: {
             query?: never;
@@ -11114,6 +11131,70 @@ export interface operations {
                             brief: string;
                             createdAt: string;
                         } | null;
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdGit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { facts, branches, worktrees } — facts.kind says whether there is a repository at all. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        facts: {
+                            /** @constant */
+                            kind: "no-git";
+                        } | {
+                            /** @constant */
+                            kind: "folder-missing";
+                        } | {
+                            /** @constant */
+                            kind: "not-a-repository";
+                        } | {
+                            /** @constant */
+                            kind: "unreadable";
+                            reason: string;
+                        } | {
+                            /** @constant */
+                            kind: "repository";
+                            branch: string | null;
+                            upstream: string | null;
+                            ahead: number | null;
+                            behind: number | null;
+                            changedCount: number;
+                            untrackedCount: number;
+                            remoteUrl: string | null;
+                        };
+                        branches: {
+                            name: string;
+                            isCurrent: boolean;
+                            upstream: string | null;
+                        }[];
+                        worktrees: {
+                            path: string;
+                            branch: string | null;
+                            isMain: boolean;
+                        }[];
                     };
                 };
             };
