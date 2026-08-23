@@ -89,7 +89,7 @@ export function composeOverviewEntry(
   context: OverviewEntryContext,
   folded: FoldedSessionChain,
 ): SessionsOverviewEntry {
-  const { tail, chain, title, model } = folded
+  const { tail, chain, title, icon, model } = folded
   // The durable status facts (Move 3), all CONVERSATION-scoped: the
   // assistant-set trio rides the tail (copy-forward keeps it there across
   // swaps), while the message facts and the approval count span the whole
@@ -130,6 +130,7 @@ export function composeOverviewEntry(
     workspaceId: tail.workspaceId,
     workspaceName: workspaceNameFor(db, context, tail.workspaceId),
     title,
+    icon,
     model,
     contextTokens: tail.lastContextTokens,
     // The persisted denominator (the model the chain is DRIVEN on) first, so the

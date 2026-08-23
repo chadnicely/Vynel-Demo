@@ -170,6 +170,8 @@ export const ChatSessionSchema = z.object({
   providerId: z.string(),
   model: z.string().nullable(),
   title: z.string(),
+  // The curated icon name stamped at a spawned birth — null = monogram.
+  icon: z.string().nullable(),
   visibility: ChatSessionVisibilitySchema,
   scope: ChatSessionScopeSchema,
   isArchived: z.boolean(),

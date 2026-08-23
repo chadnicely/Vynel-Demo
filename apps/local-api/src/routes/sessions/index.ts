@@ -314,7 +314,9 @@ export const sessionsApp = factory
           'own context free — prefer send_message to "workspace:<id>" when the task belongs to ' +
           "a specific workspace's ongoing context, and a new session for standalone or " +
           'cross-cutting work. Check list_sessions first: reuse an existing suitable session ' +
-          'instead of creating duplicates. Returns { sessionId, name } — address it with ' +
+          'instead of creating duplicates. Give it a clear role name (e.g. "Email Feature ' +
+          'Manager") and pick the `icon` that matches what it is for — the session wears both ' +
+          'everywhere it is listed. Returns { sessionId, name } — address it with ' +
           'send_message to "session:<sessionId>". The session appears in the user’s Sessions ' +
           'panel immediately.',
       },
@@ -322,7 +324,7 @@ export const sessionsApp = factory
     validator('json', CreateSpawnedSessionRequestSchema),
     ...userScoped,
     async (c) => {
-      const { name, purpose, workspaceId } = c.req.valid('json')
+      const { name, icon, purpose, workspaceId } = c.req.valid('json')
       // Ground = the creator's (locked fork 1, extended by Slice ④b): a
       // workspace-origin call grounds the session in ITS workspace
       // (ownership-checked — unknown and not-owned both 404); absent →
@@ -334,6 +336,7 @@ export const sessionsApp = factory
       const created = await createSpawnedSession(c.var.db, c.var.aiProvider, {
         userId: c.var.user.id,
         name,
+        ...(icon !== undefined ? { icon } : {}),
         purpose,
         workspacePath: workspace === null ? ensureGlobalRootWorkspaceDir() : workspace.path,
         ...(workspace !== null ? { workspaceId: workspace.id } : {}),

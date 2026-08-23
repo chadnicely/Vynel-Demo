@@ -17,6 +17,7 @@ function makeEntry(
     workspaceId: null,
     workspaceName: null,
     title: "Ongoing conversation",
+    icon: null,
     model: "claude-opus-4-8",
     contextTokens: 166_000,
     contextWindow: 200_000,

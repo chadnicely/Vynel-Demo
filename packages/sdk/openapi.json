@@ -11896,6 +11896,12 @@
                       "title": {
                         "type": "string"
                       },
+                      "icon": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "visibility": {
                         "type": "string",
                         "enum": [
@@ -11991,6 +11997,7 @@
                       "providerId",
                       "model",
                       "title",
+                      "icon",
                       "visibility",
                       "scope",
                       "isArchived",
@@ -12240,6 +12247,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -12329,6 +12342,7 @@
                         "providerId",
                         "model",
                         "title",
+                        "icon",
                         "visibility",
                         "scope",
                         "isArchived",
@@ -12938,6 +12952,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -13027,6 +13047,7 @@
                         "providerId",
                         "model",
                         "title",
+                        "icon",
                         "visibility",
                         "scope",
                         "isArchived",
@@ -13520,6 +13541,12 @@
                     "title": {
                       "type": "string"
                     },
+                    "icon": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "visibility": {
                       "type": "string",
                       "enum": [
@@ -13609,6 +13636,7 @@
                     "providerId",
                     "model",
                     "title",
+                    "icon",
                     "visibility",
                     "scope",
                     "isArchived",
@@ -13849,6 +13877,12 @@
                     "title": {
                       "type": "string"
                     },
+                    "icon": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "visibility": {
                       "type": "string",
                       "enum": [
@@ -13938,6 +13972,7 @@
                     "providerId",
                     "model",
                     "title",
+                    "icon",
                     "visibility",
                     "scope",
                     "isArchived",
@@ -14021,6 +14056,12 @@
                     "title": {
                       "type": "string"
                     },
+                    "icon": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "visibility": {
                       "type": "string",
                       "enum": [
@@ -14110,6 +14151,7 @@
                     "providerId",
                     "model",
                     "title",
+                    "icon",
                     "visibility",
                     "scope",
                     "isArchived",
@@ -35770,6 +35812,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -35859,6 +35907,7 @@
                         "providerId",
                         "model",
                         "title",
+                        "icon",
                         "visibility",
                         "scope",
                         "isArchived",
@@ -36350,6 +36399,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "model": {
                           "type": [
                             "string",
@@ -36495,6 +36550,7 @@
                         "workspaceId",
                         "workspaceName",
                         "title",
+                        "icon",
                         "model",
                         "contextTokens",
                         "contextWindow",
@@ -37171,6 +37227,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -37260,6 +37322,7 @@
                         "providerId",
                         "model",
                         "title",
+                        "icon",
                         "visibility",
                         "scope",
                         "isArchived",
@@ -37738,6 +37801,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -37827,6 +37896,7 @@
                         "providerId",
                         "model",
                         "title",
+                        "icon",
                         "visibility",
                         "scope",
                         "isArchived",
@@ -38318,6 +38388,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -38407,6 +38483,7 @@
                         "providerId",
                         "model",
                         "title",
+                        "icon",
                         "visibility",
                         "scope",
                         "isArchived",
@@ -40222,6 +40299,12 @@
                           "title": {
                             "type": "string"
                           },
+                          "icon": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "visibility": {
                             "type": "string",
                             "enum": [
@@ -40317,6 +40400,7 @@
                           "providerId",
                           "model",
                           "title",
+                          "icon",
                           "visibility",
                           "scope",
                           "isArchived",
@@ -40837,6 +40921,12 @@
                       "title": {
                         "type": "string"
                       },
+                      "icon": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "model": {
                         "type": [
                           "string",
@@ -40982,6 +41072,7 @@
                       "workspaceId",
                       "workspaceName",
                       "title",
+                      "icon",
                       "model",
                       "contextTokens",
                       "contextWindow",
@@ -41170,6 +41261,12 @@
                         "title": {
                           "type": "string"
                         },
+                        "icon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -41259,6 +41356,7 @@
                         "providerId",
                         "model",
                         "title",
+                        "icon",
                         "visibility",
                         "scope",
                         "isArchived",
@@ -41767,7 +41865,7 @@
           "mutatingApproved": true,
           "rootSurface": true,
           "workspaceInteractiveSurface": true,
-          "description": "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_message to \"workspace:<id>\" when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Returns { sessionId, name } — address it with send_message to \"session:<sessionId>\". The session appears in the user’s Sessions panel immediately."
+          "description": "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_message to \"workspace:<id>\" when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Give it a clear role name (e.g. \"Email Feature Manager\") and pick the `icon` that matches what it is for — the session wears both everywhere it is listed. Returns { sessionId, name } — address it with send_message to \"session:<sessionId>\". The session appears in the user’s Sessions panel immediately."
         },
         "requestBody": {
           "content": {
@@ -41779,6 +41877,41 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 120
+                  },
+                  "icon": {
+                    "type": "string",
+                    "enum": [
+                      "mail",
+                      "code",
+                      "bug",
+                      "web",
+                      "database",
+                      "docs",
+                      "chart",
+                      "calendar",
+                      "robot",
+                      "build",
+                      "test",
+                      "search",
+                      "chat",
+                      "rocket",
+                      "shield",
+                      "design",
+                      "media",
+                      "book",
+                      "gear",
+                      "users",
+                      "idea",
+                      "folder",
+                      "terminal",
+                      "git",
+                      "lock",
+                      "bell",
+                      "clock",
+                      "package",
+                      "phone",
+                      "money"
+                    ]
                   },
                   "purpose": {
                     "type": "string",

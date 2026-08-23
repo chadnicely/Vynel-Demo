@@ -39,12 +39,15 @@ describe('recordSpawnedSessionSegment (core)', () => {
         userId: user.id,
         providerId: 'claude',
         name: 'Research: pricing pages',
+        icon: 'search',
       })
 
       // The row PK is the SDK id (D15 preserved).
       expect(segment.id).toBe(sdkSessionId)
-      // The FIRST segment's title IS the session's name.
+      // The FIRST segment's title IS the session's name — and the icon rides
+      // the same birth write (the identity pair).
       expect(segment.title).toBe('Research: pricing pages')
+      expect(segment.icon).toBe('search')
       // Listed from birth — unlike the hidden swap segments.
       expect(segment.visibility).toBe('listed')
       expect(segment.scope).toBe('spawned')

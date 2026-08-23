@@ -45,6 +45,10 @@ export type RecordSpawnedSessionSegmentInput = {
   providerId: AiAgentProviderId
   /** The spawned session's name — the first segment's title IS the identity. */
   name: string
+  /** The session's curated icon (`@vynel/contracts/chat/session-icons`) —
+   *  part of the identity like the name, so it lives on the SAME first
+   *  segment and the chain fold surfaces both together. */
+  icon?: string | null
   /** The creator's workspace (Slice ④b) — absent/null = global-grounded (v1). */
   workspaceId?: string | null
   /** When the segment was started. Defaults to now. */
@@ -79,6 +83,7 @@ export function recordSpawnedSessionSegment(
         providerId: input.providerId,
         startedAt,
         title: input.name,
+        icon: input.icon ?? null,
         initialMessageCount: 0,
         visibility: 'listed',
         scope: 'spawned',

@@ -72,6 +72,7 @@ function makeEntry(
     workspaceId: null,
     workspaceName: null,
     title: "Research: pricing",
+    icon: null,
     model: "claude-opus-4-8",
     contextTokens: 40_000,
     contextWindow: 200_000,

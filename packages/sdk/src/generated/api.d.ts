@@ -9047,6 +9047,7 @@ export interface operations {
                         providerId: string;
                         model: string | null;
                         title: string;
+                        icon: string | null;
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
@@ -9174,6 +9175,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -9353,6 +9355,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -9518,6 +9521,7 @@ export interface operations {
                         providerId: string;
                         model: string | null;
                         title: string;
+                        icon: string | null;
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
@@ -9648,6 +9652,7 @@ export interface operations {
                         providerId: string;
                         model: string | null;
                         title: string;
+                        icon: string | null;
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
@@ -9703,6 +9708,7 @@ export interface operations {
                         providerId: string;
                         model: string | null;
                         title: string;
+                        icon: string | null;
                         /** @enum {string} */
                         visibility: "listed" | "hidden";
                         /** @enum {string} */
@@ -18022,6 +18028,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -18145,6 +18152,7 @@ export interface operations {
                             workspaceId: string | null;
                             workspaceName: string | null;
                             title: string;
+                            icon: string | null;
                             model: string | null;
                             contextTokens: number | null;
                             contextWindow: number;
@@ -18434,6 +18442,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -18558,6 +18567,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -18689,6 +18699,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -19405,6 +19416,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -19578,6 +19590,7 @@ export interface operations {
                         workspaceId: string | null;
                         workspaceName: string | null;
                         title: string;
+                        icon: string | null;
                         model: string | null;
                         contextTokens: number | null;
                         contextWindow: number;
@@ -19664,6 +19677,7 @@ export interface operations {
                             providerId: string;
                             model: string | null;
                             title: string;
+                            icon: string | null;
                             /** @enum {string} */
                             visibility: "listed" | "hidden";
                             /** @enum {string} */
@@ -19781,6 +19795,8 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
+                    /** @enum {string} */
+                    icon?: "mail" | "code" | "bug" | "web" | "database" | "docs" | "chart" | "calendar" | "robot" | "build" | "test" | "search" | "chat" | "rocket" | "shield" | "design" | "media" | "book" | "gear" | "users" | "idea" | "folder" | "terminal" | "git" | "lock" | "bell" | "clock" | "package" | "phone" | "money";
                     purpose: string;
                     workspaceId?: string;
                 };

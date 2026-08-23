@@ -452,6 +452,7 @@ describe('POST /sessions/spawned (Slice ④ — create_session)', () => {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             name: 'Research: pricing',
+            icon: 'search',
             purpose: 'Compare competitor pricing pages.',
           }),
         })
@@ -471,6 +472,8 @@ describe('POST /sessions/spawned (Slice ④ — create_session)', () => {
         expect(segment?.scope).toBe('spawned')
         expect(segment?.visibility).toBe('listed')
         expect(segment?.title).toBe('Research: pricing')
+        // The curated icon rides the same birth write as the name.
+        expect(segment?.icon).toBe('search')
         expect(
           findSpawnedSessionBySegmentId(db, { userId: user.id, sessionId: 'sdk-spawned-route' }),
         ).not.toBeNull()

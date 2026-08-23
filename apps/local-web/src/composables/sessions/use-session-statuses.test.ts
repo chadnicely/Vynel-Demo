@@ -19,6 +19,7 @@ function makeEntry(
     workspaceId: null,
     workspaceName: null,
     title: "Research",
+    icon: null,
     model: null,
     contextTokens: null,
     contextWindow: 200_000,

@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import { ChatModelIdSchema } from '@vynel/contracts/chat/chat-models'
 import { THINKING_EFFORT_LEVELS } from '@vynel/contracts/chat/thinking-effort'
+import { SESSION_ICONS } from '@vynel/contracts/chat/session-icons'
 import { SESSION_SET_STATUSES } from '@vynel/contracts/chat/session-status'
 import {
   SESSION_CHILD_KINDS,
@@ -51,6 +52,8 @@ export const SessionsOverviewEntrySchema = z.object({
   workspaceId: z.string().nullable(),
   workspaceName: z.string().nullable(),
   title: z.string(),
+  /** The conversation's curated icon name — null renders the monogram. */
+  icon: z.string().nullable(),
   model: z.string().nullable(),
   contextTokens: z.number().int().nullable(),
   contextWindow: z.number().int(),
@@ -66,6 +69,10 @@ export const SessionsOverviewResponseSchema = z.array(SessionsOverviewEntrySchem
 export const CreateSpawnedSessionRequestSchema = z.object({
   /** The session's display name — its identity in the Sessions panel. */
   name: z.string().min(1).max(120),
+  /** The session's face beside its name — one of the curated vocabulary
+   *  names (the enum below), picked to say what the session is FOR. Omitted =
+   *  the monogram fallback. */
+  icon: z.enum(SESSION_ICONS).optional(),
   /** What the session is for — primed into it as carried context. */
   purpose: z.string().min(1).max(50000),
   /** Slice ④b: the creating workspace — the session inherits ITS ground (path,

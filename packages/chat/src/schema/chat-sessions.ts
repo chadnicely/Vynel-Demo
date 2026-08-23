@@ -77,6 +77,12 @@ export const chatSessions = table(
     // Drives the context-window denominator (200k vs 1M) for the usage chip.
     model: text(),
     title: text().notNull(),
+    // The session's face beside its name — a curated vocabulary name from
+    // `@vynel/contracts/chat/session-icons` ("mail", "bug", …), stamped by the
+    // assistant at spawn to say what the session is for. Nullable (purely
+    // additive; unset or unknown renders the monogram fallback) and validated
+    // at the application layer like `providerId` — db stays vocabulary-blind.
+    icon: text(),
     // Sidebar curation (Slice 2). NOT NULL DEFAULT 'listed' so the column is
     // purely additive — every pre-existing session backfills to 'listed' and
     // keeps showing in the sidebar (no D15/PK change).

@@ -34,6 +34,9 @@ export type CreateSpawnedSessionInput = {
   userId: string
   /** The session's display name — becomes the first segment's title (the identity). */
   name: string
+  /** The session's curated icon (`@vynel/contracts/chat/session-icons`) —
+   *  stamped on the first segment beside the name. */
+  icon?: string
   /** What this session is for — seeded into the priming turn as carried context. */
   purpose: string
   /** The session's SDK cwd — the creator's ground: the global root's hidden
@@ -98,6 +101,7 @@ export async function createSpawnedSession(
     userId: input.userId,
     providerId: DEFAULT_PROVIDER_ID,
     name: input.name,
+    icon: input.icon ?? null,
     workspaceId: input.workspaceId ?? null,
     ...(input.settings !== undefined ? { settings: input.settings } : {}),
   })

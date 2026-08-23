@@ -21,6 +21,9 @@ export type BuildNewChatSessionRowInput = {
   startedAt: Date
   /** Display title. Defaults to the first-turn placeholder. */
   title?: string
+  /** The session's curated icon name — set with the title at a spawned birth;
+   *  null (the default) renders the monogram fallback. */
+  icon?: string | null
   /** Messages already attributed to the session at insert time (the co-committed
    *  user message on a normal first turn = 1; a swap segment starts empty = 0). */
   initialMessageCount?: number
@@ -44,6 +47,7 @@ export function buildNewChatSessionRow(input: BuildNewChatSessionRowInput): NewC
     workspaceId: input.workspaceId,
     providerId: input.providerId,
     title: input.title ?? DEFAULT_SESSION_TITLE,
+    icon: input.icon ?? null,
     visibility: input.visibility ?? 'listed',
     scope: input.scope ?? (input.workspaceId === null ? 'global' : 'workspace'),
     isArchived: false,

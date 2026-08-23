@@ -24,6 +24,9 @@ export type FoldedSessionChain = {
   tail: ChatSession
   chain: ChatSession[]
   title: string
+  /** The identity segment's curated icon — resolved from the SAME segment the
+   *  title comes from, so name and face can never disagree across a swap. */
+  icon: string | null
   model: string | null
 }
 
@@ -72,22 +75,29 @@ export function foldSessionChains(db: Database, userId: string): FoldedSessionCh
     const hasListedSegment = chain.some((segment) => segment.visibility === 'listed')
     if (tail.scope !== 'global' && tail.scope !== 'voice' && !hasListedSegment) continue
 
-    const title =
+    // The identity segment: the newest listed segment still wearing a real
+    // title. It answers BOTH name questions — swap segments are born with the
+    // stock title and no icon, so the fold reaches back once for the pair.
+    const namedSegment =
       tail.scope === 'global'
-        ? ASSISTANT_ENTRY_TITLE
-        : ([...chain]
+        ? undefined
+        : [...chain]
             .reverse()
             .find(
               (segment) =>
                 segment.visibility === 'listed' && segment.title !== SWAP_SEGMENT_TITLE,
-            )?.title ?? tail.title)
+            )
+    const title =
+      tail.scope === 'global' ? ASSISTANT_ENTRY_TITLE : (namedSegment?.title ?? tail.title)
+    const icon =
+      tail.scope === 'global' ? null : namedSegment !== undefined ? namedSegment.icon : tail.icon
 
     // A fresh swap segment reports no model until its first turn — the chain's
     // last-known model keeps the meter's denominator honest across the swap.
     const model =
       tail.model ?? [...chain].reverse().find((segment) => segment.model !== null)?.model ?? null
 
-    folded.push({ tail, chain, title, model })
+    folded.push({ tail, chain, title, icon, model })
   }
 
   return folded.sort((a, b) => (a.tail.lastMessageAt < b.tail.lastMessageAt ? 1 : -1))

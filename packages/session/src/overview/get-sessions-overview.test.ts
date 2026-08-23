@@ -108,6 +108,7 @@ describe('getSessionsOverview', () => {
         db,
         makeSession(user.id, ws.id, {
           title: 'Fix the build',
+          icon: 'bug',
           model: 'claude-opus-4-8',
           lastContextTokens: 170_000,
           lastMessageAt: new Date('2026-07-01T10:00:00Z'),
@@ -132,6 +133,9 @@ describe('getSessionsOverview', () => {
       // (never the swap stock title), the CURRENT occupancy, the chain inside.
       expect(entry.sessionId).toBe(tail.id)
       expect(entry.title).toBe('Fix the build')
+      // The icon rides the SAME identity segment the title comes from — a
+      // swap segment (born icon-less) never strips the session's face.
+      expect(entry.icon).toBe('bug')
       expect(entry.workspaceName).toBe('Acme')
       expect(entry.contextTokens).toBe(12_000)
       expect(entry.contextWindow).toBe(1_000_000) // opus-4-8 per resolveContextWindow
@@ -198,6 +202,8 @@ describe('getSessionsOverview', () => {
       const spawned = entries.find((entry) => entry.sessionId === 'sdk-spawned-1')
       expect(spawned?.scope).toBe('spawned')
       expect(spawned?.title).toBe('Research: pricing')
+      // Never stamped → null, and every surface paints the monogram.
+      expect(spawned?.icon).toBeNull()
       expect(spawned?.workspaceId).toBeNull()
       expect(spawned?.segments).toHaveLength(1)
     })

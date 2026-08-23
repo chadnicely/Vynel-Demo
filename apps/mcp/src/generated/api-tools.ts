@@ -731,9 +731,10 @@ export const createSchedule: McpToolFactory = (scope, app) =>
 export const createSession: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_session',
-    "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_message to \"workspace:<id>\" when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Returns { sessionId, name } — address it with send_message to \"session:<sessionId>\". The session appears in the user’s Sessions panel immediately.",
+    "Create a NEW session: a normal continuing conversation with its own context, primed with the purpose you give it. Use it to hand off big or parallel work and keep your own context free — prefer send_message to \"workspace:<id>\" when the task belongs to a specific workspace's ongoing context, and a new session for standalone or cross-cutting work. Check list_sessions first: reuse an existing suitable session instead of creating duplicates. Give it a clear role name (e.g. \"Email Feature Manager\") and pick the `icon` that matches what it is for — the session wears both everywhere it is listed. Returns { sessionId, name } — address it with send_message to \"session:<sessionId>\". The session appears in the user’s Sessions panel immediately.",
     {
     name: z.string(),
+    icon: z.enum(['mail', 'code', 'bug', 'web', 'database', 'docs', 'chart', 'calendar', 'robot', 'build', 'test', 'search', 'chat', 'rocket', 'shield', 'design', 'media', 'book', 'gear', 'users', 'idea', 'folder', 'terminal', 'git', 'lock', 'bell', 'clock', 'package', 'phone', 'money']).optional(),
     purpose: z.string(),
     workspaceId: z.string().optional(),
   },
@@ -742,7 +743,7 @@ export const createSession: McpToolFactory = (scope, app) =>
         const pathStr = '/sessions/spawned'
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['name', 'purpose', 'workspaceId']) {
+        for (const k of ['name', 'icon', 'purpose', 'workspaceId']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {

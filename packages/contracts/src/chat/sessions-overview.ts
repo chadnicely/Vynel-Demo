@@ -36,6 +36,10 @@ export interface SessionsOverviewEntry {
   workspaceId: string | null
   workspaceName: string | null
   title: string
+  /** The conversation's curated icon name (`session-icons.ts`) — resolved from
+   *  the same segment the title comes from. Null (or a name a surface doesn't
+   *  know) renders the monogram fallback. */
+  icon: string | null
   model: string | null
   /** The newest segment's occupancy — the meter's numerator. */
   contextTokens: number | null
