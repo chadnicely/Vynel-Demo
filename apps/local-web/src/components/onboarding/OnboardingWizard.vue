@@ -14,15 +14,12 @@ import WizardProgressHeader from "./WizardProgressHeader.vue";
 import WizardStepBody from "./WizardStepBody.vue";
 import WelcomeStep from "./steps/WelcomeStep.vue";
 import ProfileStep from "./steps/ProfileStep.vue";
-import NameWorkspaceStep from "./steps/NameWorkspaceStep.vue";
-import IdentitySeedStep from "./steps/IdentitySeedStep.vue";
-import SkillsStep from "./steps/SkillsStep.vue";
-import ChannelStep from "./steps/ChannelStep.vue";
-import ScheduleStep from "./steps/ScheduleStep.vue";
 
 // The first-launch wizard — takes over the whole window until the run
 // completes (the API's first-launch gate 412s everything else anyway).
 // Server truth drives it: the run/status snapshot decides which step shows.
+// Two steps since 2026-08-24: welcome + the name (profile) — workspaces,
+// skills, channels, and schedules each have their own in-app door now.
 const emit = defineEmits<{
   completed: [];
 }>();
@@ -145,33 +142,6 @@ function startOver() {
             <ProfileStep
               v-else-if="currentStepKind === 'profile'"
               :busy="busy"
-              @submit="submitCurrent"
-            />
-            <NameWorkspaceStep
-              v-else-if="currentStepKind === 'name-workspace'"
-              :busy="busy"
-              @submit="submitCurrent"
-            />
-            <IdentitySeedStep
-              v-else-if="currentStepKind === 'identity-seed'"
-              :busy="busy"
-              @submit="submitCurrent"
-            />
-            <SkillsStep
-              v-else-if="currentStepKind === 'install-suggested-skills'"
-              :busy="busy"
-              :suggested-skills="snapshot.suggestedSkills"
-              @submit="submitCurrent"
-            />
-            <ChannelStep
-              v-else-if="currentStepKind === 'optional-channel'"
-              :busy="busy"
-              @submit="submitCurrent"
-            />
-            <ScheduleStep
-              v-else-if="currentStepKind === 'optional-schedule'"
-              :busy="busy"
-              :default-timezone="snapshot.collectedData.profile?.timezone"
               @submit="submitCurrent"
             />
           </WizardStepBody>

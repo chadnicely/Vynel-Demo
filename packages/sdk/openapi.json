@@ -32282,12 +32282,7 @@
                       "type": "string",
                       "enum": [
                         "welcome",
-                        "profile",
-                        "name-workspace",
-                        "identity-seed",
-                        "install-suggested-skills",
-                        "optional-channel",
-                        "optional-schedule"
+                        "profile"
                       ]
                     },
                     "completedSteps": {
@@ -32296,12 +32291,7 @@
                         "type": "string",
                         "enum": [
                           "welcome",
-                          "profile",
-                          "name-workspace",
-                          "identity-seed",
-                          "install-suggested-skills",
-                          "optional-channel",
-                          "optional-schedule"
+                          "profile"
                         ]
                       }
                     },
@@ -32382,12 +32372,7 @@
                       "type": "string",
                       "enum": [
                         "welcome",
-                        "profile",
-                        "name-workspace",
-                        "identity-seed",
-                        "install-suggested-skills",
-                        "optional-channel",
-                        "optional-schedule"
+                        "profile"
                       ]
                     },
                     "completedSteps": {
@@ -32396,12 +32381,7 @@
                         "type": "string",
                         "enum": [
                           "welcome",
-                          "profile",
-                          "name-workspace",
-                          "identity-seed",
-                          "install-suggested-skills",
-                          "optional-channel",
-                          "optional-schedule"
+                          "profile"
                         ]
                       }
                     },
@@ -32523,12 +32503,7 @@
                           "type": "string",
                           "enum": [
                             "welcome",
-                            "profile",
-                            "name-workspace",
-                            "identity-seed",
-                            "install-suggested-skills",
-                            "optional-channel",
-                            "optional-schedule"
+                            "profile"
                           ]
                         },
                         "completedSteps": {
@@ -32537,12 +32512,7 @@
                             "type": "string",
                             "enum": [
                               "welcome",
-                              "profile",
-                              "name-workspace",
-                              "identity-seed",
-                              "install-suggested-skills",
-                              "optional-channel",
-                              "optional-schedule"
+                              "profile"
                             ]
                           }
                         },
@@ -32591,12 +32561,7 @@
                           "type": "string",
                           "enum": [
                             "welcome",
-                            "profile",
-                            "name-workspace",
-                            "identity-seed",
-                            "install-suggested-skills",
-                            "optional-channel",
-                            "optional-schedule"
+                            "profile"
                           ]
                         },
                         "order": {
@@ -32665,190 +32630,8 @@
                             "locale",
                             "timezone"
                           ]
-                        },
-                        "nameWorkspace": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 120
-                            }
-                          },
-                          "required": [
-                            "name"
-                          ]
-                        },
-                        "identitySeed": {
-                          "type": "object",
-                          "properties": {
-                            "aboutYouParagraph": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 2000
-                            },
-                            "workspaceContextAnswer": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 2000
-                            },
-                            "workingStyleAnswer": {
-                              "type": "string",
-                              "maxLength": 2000
-                            }
-                          },
-                          "required": [
-                            "aboutYouParagraph",
-                            "workspaceContextAnswer"
-                          ]
-                        },
-                        "installSuggestedSkills": {
-                          "type": "object",
-                          "properties": {
-                            "skillIdsToInstall": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              },
-                              "maxItems": 20
-                            },
-                            "skillSettingsBySkillId": {
-                              "type": "object",
-                              "additionalProperties": {
-                                "type": "object",
-                                "additionalProperties": {}
-                              }
-                            }
-                          },
-                          "required": [
-                            "skillIdsToInstall"
-                          ]
-                        },
-                        "optionalChannel": {
-                          "oneOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "skipped"
-                                }
-                              },
-                              "required": [
-                                "kind"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "connect"
-                                },
-                                "channelKind": {
-                                  "type": "string",
-                                  "const": "telegram"
-                                },
-                                "displayName": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 120
-                                },
-                                "botCredentials": {
-                                  "type": "object",
-                                  "properties": {
-                                    "botToken": {
-                                      "type": "string",
-                                      "minLength": 1
-                                    }
-                                  },
-                                  "required": [
-                                    "botToken"
-                                  ]
-                                },
-                                "initialAllowedSenderId": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "kind",
-                                "channelKind",
-                                "displayName",
-                                "botCredentials"
-                              ]
-                            }
-                          ]
-                        },
-                        "optionalSchedule": {
-                          "oneOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "skipped"
-                                }
-                              },
-                              "required": [
-                                "kind"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "create-morning-briefing"
-                                },
-                                "timezone": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 60
-                                },
-                                "fireHour": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 23
-                                },
-                                "channelId": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "kind",
-                                "fireHour"
-                              ]
-                            }
-                          ]
-                        },
-                        "workspacePath": {
-                          "type": "string"
-                        },
-                        "channelId": {
-                          "type": "string"
                         }
                       }
-                    },
-                    "suggestedSkills": {
-                      "type": "object",
-                      "properties": {
-                        "defaultCheckedSkillIds": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "optionalSkillIds": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "required": [
-                        "defaultCheckedSkillIds",
-                        "optionalSkillIds"
-                      ]
                     }
                   },
                   "required": [
@@ -32911,12 +32694,7 @@
                       "type": "string",
                       "enum": [
                         "welcome",
-                        "profile",
-                        "name-workspace",
-                        "identity-seed",
-                        "install-suggested-skills",
-                        "optional-channel",
-                        "optional-schedule"
+                        "profile"
                       ]
                     },
                     "completedSteps": {
@@ -32925,12 +32703,7 @@
                         "type": "string",
                         "enum": [
                           "welcome",
-                          "profile",
-                          "name-workspace",
-                          "identity-seed",
-                          "install-suggested-skills",
-                          "optional-channel",
-                          "optional-schedule"
+                          "profile"
                         ]
                       }
                     },
@@ -33012,12 +32785,7 @@
                     "type": "string",
                     "enum": [
                       "welcome",
-                      "profile",
-                      "name-workspace",
-                      "identity-seed",
-                      "install-suggested-skills",
-                      "optional-channel",
-                      "optional-schedule"
+                      "profile"
                     ]
                   },
                   "stepInput": {}

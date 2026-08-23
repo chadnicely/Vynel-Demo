@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import type { Database } from '@vynel/db'
 import { insertUser, findUserById, updateUser } from '@vynel/db/repositories/users'
+import { insertOnboardingRun, findOnboardingRunById } from '@vynel/db/repositories/onboarding'
+import type { OnboardingStepKind } from '@vynel/contracts/onboarding/onboarding-step-catalog'
 import { startOnboardingRun } from './start-onboarding-run.js'
 import { restartOnboardingRun } from './restart-onboarding-run.js'
 import { advanceRun } from './advance-run.js'
@@ -38,6 +40,32 @@ describe('onboarding lifecycle', () => {
     })
   })
 
+  it('start self-heals a run parked on a RETIRED step — abandoned, fresh two-step run begins', async () => {
+    await withTestDatabase(async (db) => {
+      const userId = seedUser(db)
+      const now = new Date()
+      // A row the pre-2026-08-24 seven-step flow left mid-way. The cast
+      // simulates stored data older than the trimmed kind union.
+      const stale = insertOnboardingRun(db, {
+        id: randomUUID(),
+        userId,
+        workspaceId: null,
+        currentStepKind: 'identity-seed' as OnboardingStepKind,
+        completedSteps: ['welcome', 'profile'],
+        collectedData: {},
+        status: 'in-progress',
+        startedAt: now,
+        lastActivityAt: now,
+        completedAt: null,
+      })
+
+      const fresh = startOnboardingRun(db, userId)
+      expect(fresh.id).not.toBe(stale.id)
+      expect(fresh.currentStepKind).toBe('welcome')
+      expect(findOnboardingRunById(db, stale.id)?.status).toBe('abandoned')
+    })
+  })
+
   it('advanceRun appends the step, merges collectedData, and advances', async () => {
     await withTestDatabase(async (db) => {
       const userId = seedUser(db)
@@ -61,11 +89,16 @@ describe('onboarding lifecycle', () => {
     })
   })
 
-  it('completing the last step flips users.hasCompletedOnboarding + opens the gate', async () => {
+  it('completing the last step (profile) flips users.hasCompletedOnboarding + opens the gate', async () => {
     await withTestDatabase(async (db) => {
       const userId = seedUser(db)
       const run = startOnboardingRun(db, userId)
-      const atLast = advanceRun(db, run, 'optional-schedule', { kind: 'skipped' })
+      const atProfile = advanceRun(db, run, 'welcome', { acknowledged: true })
+      const atLast = advanceRun(db, atProfile, 'profile', {
+        displayName: 'Sam',
+        locale: 'en-US',
+        timezone: 'UTC',
+      })
       expect(atLast.status).toBe('completed')
 
       // The gate flip is injected (invariant #2) — the fake writes through the
@@ -95,7 +128,7 @@ describe('onboarding lifecycle', () => {
       const run = startOnboardingRun(db, userId)
       const snap = getOnboardingRunStatus(db, userId, run.id)
       expect(snap.currentStep.stepKind).toBe('welcome')
-      expect(snap.totalSteps).toBe(7)
+      expect(snap.totalSteps).toBe(2)
       expect(() => getOnboardingRunStatus(db, randomUUID(), run.id)).toThrow()
     })
   })

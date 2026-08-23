@@ -10,22 +10,9 @@ import { findOnboardingRunById, type OnboardingRun } from '@vynel/db/repositorie
 import {
   WelcomeStepInputSchema,
   ProfileStepInputSchema,
-  NameWorkspaceStepInputSchema,
-  IdentitySeedStepInputSchema,
-  InstallSuggestedSkillsStepInputSchema,
-  OptionalChannelStepInputSchema,
-  OptionalScheduleStepInputSchema,
 } from '@vynel/contracts/onboarding/onboarding-step-inputs'
 import type { OnboardingStepKind } from '@vynel/contracts/onboarding/onboarding-step-catalog'
-import {
-  handleWelcomeStep,
-  handleProfileStep,
-  handleNameWorkspaceStep,
-  handleIdentitySeedStep,
-  handleInstallSuggestedSkillsStep,
-  handleOptionalChannelStep,
-  handleOptionalScheduleStep,
-} from './handlers/index.js'
+import { handleWelcomeStep, handleProfileStep } from './handlers/index.js'
 import { completeOnboardingRun } from './complete-onboarding-run.js'
 import {
   OnboardingRunAlreadyCompletedError,
@@ -53,10 +40,6 @@ export async function submitOnboardingStep(
     throw new OnboardingStepKindMismatchError(run.currentStepKind, input.stepKind)
   }
 
-  // The whole `OnboardingDeps` bundle is passed straight through; the handlers
-  // each declare the narrow Pick they need. Built as a literal
-  // `{ logger: deps.logger, … }` it would materialize an explicit `undefined`
-  // and trip exactOptionalPropertyTypes.
   let result: OnboardingRun
   switch (input.stepKind) {
     case 'welcome':
@@ -64,26 +47,6 @@ export async function submitOnboardingStep(
       break
     case 'profile':
       result = handleProfileStep(db, run, ProfileStepInputSchema.parse(input.stepInput), deps)
-      break
-    case 'name-workspace':
-      result = await handleNameWorkspaceStep(db, run, NameWorkspaceStepInputSchema.parse(input.stepInput), deps)
-      break
-    case 'identity-seed':
-      result = await handleIdentitySeedStep(db, run, IdentitySeedStepInputSchema.parse(input.stepInput), deps)
-      break
-    case 'install-suggested-skills':
-      result = await handleInstallSuggestedSkillsStep(
-        db,
-        run,
-        InstallSuggestedSkillsStepInputSchema.parse(input.stepInput),
-        deps,
-      )
-      break
-    case 'optional-channel':
-      result = await handleOptionalChannelStep(db, run, OptionalChannelStepInputSchema.parse(input.stepInput), deps)
-      break
-    case 'optional-schedule':
-      result = handleOptionalScheduleStep(db, run, OptionalScheduleStepInputSchema.parse(input.stepInput), deps)
       break
     default: {
       const exhaustive: never = input.stepKind

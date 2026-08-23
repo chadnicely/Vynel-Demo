@@ -5,31 +5,20 @@
 // declare exactly what each handler already returns (`c.json(coreOp(...))`
 // with no serializer — dates pass through `JSON.stringify`'s native
 // Date→ISO conversion, the `root`-routes precedent for a raw-object return).
+// Two steps since 2026-08-24 (welcome + profile) — the five retired steps'
+// schemas left with their handlers.
 
 import { z } from 'zod'
 import {
   WelcomeStepInputSchema,
   ProfileStepInputSchema,
-  NameWorkspaceStepInputSchema,
-  IdentitySeedStepInputSchema,
-  InstallSuggestedSkillsStepInputSchema,
-  OptionalChannelStepInputSchema,
-  OptionalScheduleStepInputSchema,
 } from '@vynel/contracts/onboarding/onboarding-step-inputs'
 
 export const RunIdParamSchema = z.object({
   runId: z.string().min(1),
 })
 
-const OnboardingStepKindSchema = z.enum([
-  'welcome',
-  'profile',
-  'name-workspace',
-  'identity-seed',
-  'install-suggested-skills',
-  'optional-channel',
-  'optional-schedule',
-])
+const OnboardingStepKindSchema = z.enum(['welcome', 'profile'])
 
 // `stepKind` is the OnboardingStepKind enum (kept in sync with the contract);
 // `stepInput` is opaque here — the core dispatcher validates it per-step.
@@ -46,13 +35,6 @@ export const SubmitStepBodySchema = z.object({
 const CollectedOnboardingDataSchema = z.object({
   welcome: WelcomeStepInputSchema.optional(),
   profile: ProfileStepInputSchema.optional(),
-  nameWorkspace: NameWorkspaceStepInputSchema.optional(),
-  identitySeed: IdentitySeedStepInputSchema.optional(),
-  installSuggestedSkills: InstallSuggestedSkillsStepInputSchema.optional(),
-  optionalChannel: OptionalChannelStepInputSchema.optional(),
-  optionalSchedule: OptionalScheduleStepInputSchema.optional(),
-  workspacePath: z.string().optional(),
-  channelId: z.string().optional(),
 })
 
 // The `onboarding_runs` row — `startedAt` / `lastActivityAt` / `completedAt`
@@ -90,10 +72,4 @@ export const OnboardingRunStatusSnapshotResponseSchema = z.object({
   totalSteps: z.number(),
   completedStepCount: z.number(),
   collectedData: CollectedOnboardingDataSchema,
-  suggestedSkills: z
-    .object({
-      defaultCheckedSkillIds: z.array(z.string()),
-      optionalSkillIds: z.array(z.string()),
-    })
-    .optional(),
 })

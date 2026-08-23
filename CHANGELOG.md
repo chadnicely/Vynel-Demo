@@ -55,6 +55,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Removed
 
+- **First launch is two screens now: hello, and your name.** The old setup walked through seven
+  steps — naming a workspace, seeding memory, picking starter skills, connecting Telegram,
+  scheduling a briefing. All of that has a better home inside the app today (the new-workspace
+  wizard, Skills, Channels, Schedules), so onboarding stopped front-loading it: welcome, your
+  name, and you're in. A setup that was left half-finished on the old flow starts over cleanly
+  on the new one.
+
 - **The steps strip under the chat is retired.** The task panel's tasks + steps are the one place
   the assistant keeps its visible work list, so the little step dock above the composer is gone
   and sessions no longer get the tool that fed it. Nothing is deleted underneath — the dock's

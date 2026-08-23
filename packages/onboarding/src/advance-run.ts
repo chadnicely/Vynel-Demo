@@ -15,21 +15,10 @@ import {
   type OnboardingStepKind,
 } from '@vynel/contracts/onboarding/onboarding-step-catalog'
 
-export interface AdvanceRunUpdates {
-  workspaceId?: string
-  workspacePath?: string // stored in collectedData
-  channelId?: string // stored in collectedData
-}
-
 // Maps a stepKind to its `CollectedOnboardingData` key.
 const COLLECTED_KEY_BY_STEP: Record<OnboardingStepKind, string> = {
   welcome: 'welcome',
   profile: 'profile',
-  'name-workspace': 'nameWorkspace',
-  'identity-seed': 'identitySeed',
-  'install-suggested-skills': 'installSuggestedSkills',
-  'optional-channel': 'optionalChannel',
-  'optional-schedule': 'optionalSchedule',
 }
 
 export function advanceRun(
@@ -37,12 +26,9 @@ export function advanceRun(
   run: OnboardingRun,
   justCompletedStep: OnboardingStepKind,
   stepInput: unknown,
-  updates: AdvanceRunUpdates = {},
 ): OnboardingRun {
   const collected: Record<string, unknown> = { ...run.collectedData }
   collected[COLLECTED_KEY_BY_STEP[justCompletedStep]] = stepInput
-  if (updates.workspacePath) collected.workspacePath = updates.workspacePath
-  if (updates.channelId) collected.channelId = updates.channelId
 
   const completedSteps = run.completedSteps.includes(justCompletedStep)
     ? run.completedSteps
@@ -59,7 +45,6 @@ export function advanceRun(
     lastActivityAt: new Date(),
     completedAt: status === 'completed' ? new Date() : null,
   }
-  if (updates.workspaceId) patch.workspaceId = updates.workspaceId
 
   return updateOnboardingRun(db, run.id, patch)
 }

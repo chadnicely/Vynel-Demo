@@ -15,8 +15,8 @@
 // exactly — the source route file carries the same note).
 //
 // These routes compose `...userScoped` (the user-resolver — `c.var.user` is the
-// single boot-created user, D14) but NOT the workspace resolver (no workspace
-// until step 3) — D7. The submit route binds the REAL sibling ops via
+// single boot-created user, D14) but NOT the workspace resolver (onboarding
+// touches no workspace) — D7. The submit route binds the core-users ops via
 // `buildOnboardingDeps` (the api-edge composition point — invariant #2: the
 // onboarding leaf declares them only structurally).
 

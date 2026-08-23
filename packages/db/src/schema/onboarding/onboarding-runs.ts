@@ -1,8 +1,8 @@
 // `onboarding_runs` table for the `onboarding` domain — one row per
-// onboarding attempt (the 7-step state machine + the accumulated per-step
+// onboarding attempt (the step state machine + the accumulated per-step
 // input). `userId` is NOT NULL (the single local user exists from boot —
-// decisions.md D14); `workspaceId` is nullable until the name-workspace step
-// creates the workspace. There is NO `deletedAt` — the lifecycle is the `status` enum
+// decisions.md D14); `workspaceId` is null in the live two-step flow (only
+// the retired name-workspace step ever set it). There is NO `deletedAt` — the lifecycle is the `status` enum
 // (in-progress / completed / abandoned, decisions.md D11). `completedSteps`
 // + `collectedData` are `json<T>()` (opaque, never filtered).
 //
@@ -19,8 +19,11 @@ import { workspaces } from '../workspaces/workspaces.js'
 // `OnboardingStepKind` + `OnboardingRunStatus` are declared LOCALLY (the
 // schedules `ScheduleTemplateKind` colocation precedent) — schema files import
 // `@vynel/db/dialect` + sibling schema only, never `@vynel/contracts`. The
-// 7-literal step union is kept in sync with
-// `@vynel/contracts/onboarding/onboarding-step-catalog`.
+// 7-literal union DELIBERATELY retains the five kinds retired 2026-08-24:
+// rows carrying them exist, and this type describes STORED data — trimming it
+// would make those rows type-lies. The live two-step flow is the contracts
+// catalog's, and its string-widened `findOnboardingStepByKind` is the
+// boundary where these legacy kinds are read.
 export type OnboardingStepKind =
   | 'welcome'
   | 'profile'

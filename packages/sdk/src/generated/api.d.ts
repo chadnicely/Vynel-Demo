@@ -16704,8 +16704,8 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        currentStepKind: "welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule";
-                        completedSteps: ("welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule")[];
+                        currentStepKind: "welcome" | "profile";
+                        completedSteps: ("welcome" | "profile")[];
                         collectedData: {
                             [key: string]: unknown;
                         };
@@ -16739,8 +16739,8 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        currentStepKind: "welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule";
-                        completedSteps: ("welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule")[];
+                        currentStepKind: "welcome" | "profile";
+                        completedSteps: ("welcome" | "profile")[];
                         collectedData: {
                             [key: string]: unknown;
                         };
@@ -16800,8 +16800,8 @@ export interface operations {
                             userId: string;
                             workspaceId: string | null;
                             /** @enum {string} */
-                            currentStepKind: "welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule";
-                            completedSteps: ("welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule")[];
+                            currentStepKind: "welcome" | "profile";
+                            completedSteps: ("welcome" | "profile")[];
                             collectedData: {
                                 [key: string]: unknown;
                             };
@@ -16813,7 +16813,7 @@ export interface operations {
                         };
                         currentStep: {
                             /** @enum {string} */
-                            stepKind: "welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule";
+                            stepKind: "welcome" | "profile";
                             order: number;
                             isSkippable: boolean;
                             displayLabel: string;
@@ -16831,52 +16831,6 @@ export interface operations {
                                 locale: string;
                                 timezone: string;
                             };
-                            nameWorkspace?: {
-                                name: string;
-                            };
-                            identitySeed?: {
-                                aboutYouParagraph: string;
-                                workspaceContextAnswer: string;
-                                workingStyleAnswer?: string;
-                            };
-                            installSuggestedSkills?: {
-                                skillIdsToInstall: string[];
-                                skillSettingsBySkillId?: {
-                                    [key: string]: {
-                                        [key: string]: unknown;
-                                    };
-                                };
-                            };
-                            optionalChannel?: {
-                                /** @constant */
-                                kind: "skipped";
-                            } | {
-                                /** @constant */
-                                kind: "connect";
-                                /** @constant */
-                                channelKind: "telegram";
-                                displayName: string;
-                                botCredentials: {
-                                    botToken: string;
-                                };
-                                initialAllowedSenderId?: string;
-                            };
-                            optionalSchedule?: {
-                                /** @constant */
-                                kind: "skipped";
-                            } | {
-                                /** @constant */
-                                kind: "create-morning-briefing";
-                                timezone?: string;
-                                fireHour: number;
-                                channelId?: string;
-                            };
-                            workspacePath?: string;
-                            channelId?: string;
-                        };
-                        suggestedSkills?: {
-                            defaultCheckedSkillIds: string[];
-                            optionalSkillIds: string[];
                         };
                     };
                 };
@@ -16903,7 +16857,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    stepKind: "welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule";
+                    stepKind: "welcome" | "profile";
                     stepInput?: unknown;
                 };
             };
@@ -16920,8 +16874,8 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        currentStepKind: "welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule";
-                        completedSteps: ("welcome" | "profile" | "name-workspace" | "identity-seed" | "install-suggested-skills" | "optional-channel" | "optional-schedule")[];
+                        currentStepKind: "welcome" | "profile";
+                        completedSteps: ("welcome" | "profile")[];
                         collectedData: {
                             [key: string]: unknown;
                         };

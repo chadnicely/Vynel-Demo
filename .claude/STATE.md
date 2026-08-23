@@ -3,7 +3,22 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔧 2026-08-24 (latest, later) TODO DOCK RETIRED — set_todos disconnected (on main)
+## 🔧 2026-08-24 (latest, latest) ONBOARDING = TWO STEPS — welcome + the name (on main)
+
+The user's call: first launch keeps ONLY welcome + profile (the name screen); the five later steps
+(name-workspace / identity-seed / install-suggested-skills / optional-channel / optional-schedule) are
+DELETED — each has a richer in-app door now (new-workspace wizard, Skills, Channels, Schedules). The
+catalog (`onboarding-step-catalog.ts`) is the one home: 2 entries, `OnboardingStepKind` trimmed to the two
+live kinds, `findOnboardingStepByKind` widened to `string` (the boundary where OLD rows' legacy kinds
+enter). **Self-heal:** `startOnboardingRun` abandons an in-progress run parked on a retired step and starts
+fresh (tested with a cast legacy row); `getOnboardingRunStatus` 404s unknown steps (start always runs
+first). `OnboardingDeps` = logger + updateUserProfile + markUserOnboardingComplete only — the
+workspace/memory/skills/channel/schedule bindings left with their handlers (`build-onboarding-deps` trims to
+core-users); `seeding/` + `suggested-skills` contract deleted; api schemas trimmed; wizard renders two
+branches; WizardDoneScreen/composable/store unchanged. profile completes the run → gate flips. SDK
+regenerated (263 paths). Tests rewritten to the 2-step flow (34 green incl. the route + wizard tests).
+
+## 🔧 2026-08-24 TODO DOCK RETIRED — set_todos disconnected (on main)
 
 The user's call (screenshot of the STEPS 0/6 strip): the task panel's tasks + steps are the ONE visible
 work-tracking home, so the dock duplicates it. Done the mcp-development way: `PUT /todos` keeps the contract

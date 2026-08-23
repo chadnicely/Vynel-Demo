@@ -1,7 +1,7 @@
-// The `onboarding` domain's specialized `VynelError` subclasses. The three
+// The `onboarding` domain's specialized `VynelError` subclasses. The two
 // state-machine errors carry DISTINCT codes the wizard branches on
 // (already-complete → redirect to the app; step-kind mismatch → resync to the
-// current step; out-of-order → jump to the missing prior step). They extend
+// current step). They extend
 // `VynelError` DIRECTLY with an explicit `code` + `httpStatus`, matching the
 // `IdentityFileParseError` precedent — the generic subclasses declare `code`
 // as a literal (`'conflict'`, `'validation_failed'`), so extending them and
@@ -36,11 +36,3 @@ export class OnboardingStepKindMismatchError extends VynelError {
   }
 }
 
-export class OnboardingStepOutOfOrderError extends VynelError {
-  readonly code = 'onboarding_step_out_of_order'
-  readonly httpStatus = 400
-
-  constructor(public readonly reason: string) {
-    super(`Please complete the earlier steps first: ${reason}.`)
-  }
-}

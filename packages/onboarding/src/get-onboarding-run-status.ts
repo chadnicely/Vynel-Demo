@@ -1,7 +1,8 @@
 // `getOnboardingRunStatus` — loads the run (404 if missing / not owned), derives
-// the current step entry + completed count, and (at step 6) the suggested
-// skills. `collectedData` is cast from the opaque DB JSON to its contract shape.
-// Sync. Spec: blueprint.md §6.1.
+// the current step entry + completed count. `collectedData` is cast from the
+// opaque DB JSON to its contract shape. A run parked on a retired step reads
+// as 404 too — `startOnboardingRun` is the self-heal door (the wizard always
+// starts before it polls status). Sync. Spec: blueprint.md §6.1.
 
 import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
@@ -10,7 +11,6 @@ import {
   findOnboardingStepByKind,
   ONBOARDING_STEP_CATALOG,
 } from '@vynel/contracts/onboarding/onboarding-step-catalog'
-import { resolveSuggestedSkills } from '@vynel/contracts/onboarding/suggested-skills'
 import type { CollectedOnboardingData } from '@vynel/contracts/onboarding/collected-onboarding-data'
 import type { OnboardingRunStatusSnapshot } from './onboarding-types.js'
 
@@ -27,20 +27,11 @@ export function getOnboardingRunStatus(
 
   const collectedData = run.collectedData as unknown as CollectedOnboardingData
 
-  const snapshot: OnboardingRunStatusSnapshot = {
+  return {
     run,
     currentStep,
     totalSteps: ONBOARDING_STEP_CATALOG.length,
     completedStepCount: run.completedSteps.length,
     collectedData,
   }
-
-  // The kind picker was retired ("stop asking") — every workspace now defaults to
-  // 'personal' (createWorkspace core default). Suggested skills key off that
-  // default — the per-kind map is retained for when >1 user-installable skill ships.
-  if (currentStep.stepKind === 'install-suggested-skills') {
-    snapshot.suggestedSkills = resolveSuggestedSkills('personal')
-  }
-
-  return snapshot
 }
