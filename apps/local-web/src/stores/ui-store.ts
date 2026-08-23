@@ -48,6 +48,9 @@ export type ChatMainView =
   // `voice-settings`, not `voice`: `voice-chat` is the spoken thread's window.
   | "embedding"
   | "voice-settings"
+  // Machine-level, global-only (Settings): the app's ONE GitHub sign-in over
+  // the gh CLI — an account of this computer, never of a workspace.
+  | "github"
   // Machine-level, global-only (Settings): whether Vynel may ACT on this
   // desktop — click and type. Looking is never gated. A property of this
   // computer, never of a workspace.

@@ -233,6 +233,9 @@ importers:
       '@vynel/files':
         specifier: workspace:*
         version: link:../../packages/files
+      '@vynel/github':
+        specifier: workspace:*
+        version: link:../../packages/github
       '@vynel/hub-account':
         specifier: workspace:*
         version: link:../../packages/hub-account
@@ -997,6 +1000,16 @@ importers:
       '@vynel/testing':
         specifier: workspace:*
         version: link:../testing
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/github:
+    dependencies:
+      '@vynel/errors':
+        specifier: workspace:*
+        version: link:../errors
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

@@ -6,6 +6,7 @@ import {
   PhCpu as Cpu,
   PhDiamondsFour as DiamondsFour,
   PhFolderPlus as FolderPlus,
+  PhGithubLogo as GithubLogo,
   PhGraph as Graph,
   PhList as List,
   PhListChecks as ListChecks,
@@ -116,6 +117,7 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
       { id: "embedding", label: "Embedding", icon: Graph },
       { id: "voice-settings", label: "Voice", icon: SpeakerHigh },
       { id: "desktop-control", label: "Desktop control", icon: Monitor },
+      { id: "github", label: "GitHub", icon: GithubLogo },
       { id: "sep-settings", kind: "separator" },
       { id: "engine", label: "Where Vynel runs", icon: Cpu },
       {

@@ -301,6 +301,8 @@ const activeSection = computed<WorkspaceSectionId | null>(() =>
   shell.mainView !== "voice-settings" &&
   // The desktop belongs to this computer, not to a room.
   shell.mainView !== "desktop-control" &&
+  // The GitHub sign-in belongs to this computer, not to a room.
+  shell.mainView !== "github" &&
   shell.mainView !== "customize"
     ? shell.mainView
     : null,

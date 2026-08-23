@@ -9,6 +9,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Settings → GitHub: one sign-in for the whole app.** Vynel now talks to GitHub through GitHub's
+  own command-line tool (`gh`), the same one your sessions use. If it isn't installed, the screen
+  says so and how to get it; if it is, you sign in from inside Vynel — a one-time code and a link,
+  approved in your browser — and Vynel notices the moment it lands. The credential stays with
+  `gh`; Vynel never sees it. The new-workspace wizard's account step shows the signed-in handle.
 - **New workspace now opens a door, and one of the doors is a guided setup.** Adding a
   workspace asks one question first — start something new, or bring in what you have. "Pull
   from a folder" is the dialog you know. "Walk me through it" is new: twelve short screens

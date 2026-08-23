@@ -15,6 +15,7 @@ import { FileWatcherService } from '@vynel/knowledge'
 import type { PayloadArchive as ServerPayloadArchive } from '@vynel/server-install'
 import { resolveAiAgentProvider, DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AiAgentProvider } from '@vynel/providers'
+import { GitHubConnection } from '@vynel/github'
 import type { HubSession } from '@vynel/hub-account'
 import type { FireScheduleDeps } from '@vynel/schedules'
 import { ScheduleFirePool } from '@vynel/schedules'
@@ -75,6 +76,7 @@ import { usersApp } from './routes/users/index.js'
 import { agentsApp } from './routes/agents/index.js'
 import { toolPoliciesApp } from './routes/tool-policies/index.js'
 import { providersApp } from './routes/providers/index.js'
+import { githubApp } from './routes/github/index.js'
 import { workspaceWizardApp } from './routes/workspaces/wizard.js'
 import { workspaceBriefApp } from './routes/workspaces/brief.js'
 import { onboardingApp } from './routes/onboarding/index.js'
@@ -132,6 +134,10 @@ export interface CreateAppOptions {
   // routes (skills `/synchronize`) run through the HTTP stack without the live
   // Claude runtime reading the dev's real `~/.claude/skills`.
   readonly aiProvider?: AiAgentProvider
+  // Override the GitHub connection (the `gh` CLI seam). Omitted in production
+  // (createApp constructs the real one); a test injects one with faked I/O so
+  // the CLI is never spawned.
+  readonly githubConnection?: GitHubConnection
   // Mount the first-launch gate (412s non-onboarding routes until onboarding
   // completes). The middleware skips `/openapi.json` BEFORE touching `c.var.db`,
   // so the SDK generator's stub-deps spec request is safe. Off by default
@@ -243,6 +249,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // is a Map lookup of an already-constructed instance, cheap at boot), or a
   // fake for tests. Set once, like `fileWatcher`.
   const aiProvider = options.aiProvider ?? resolveAiAgentProvider(DEFAULT_PROVIDER_ID)
+  // The GitHub connection — one per process (its sign-in relay holds state).
+  const githubConnection = options.githubConnection ?? new GitHubConnection()
   // The turn-event pub/sub — one per process (see CreateAppOptions).
   const turnEvents = options.turnEvents ?? new TurnEventBroadcaster()
   // The turn-liveness registry — one per process (see CreateAppOptions).
@@ -290,6 +298,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('appRequest', appRequest)
     c.set('fileWatcher', fileWatcher)
     c.set('aiProvider', aiProvider)
+    c.set('githubConnection', githubConnection)
     c.set('turnEvents', turnEvents)
     c.set('activityFeed', activityFeed)
     c.set('delegationCancels', delegationCancels)
@@ -459,6 +468,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   app.route('/users', usersApp)
   app.route('/onboarding', onboardingApp)
   app.route('/providers', providersApp)
+  app.route('/github', githubApp)
   app.route('/agents', agentsApp)
   app.route('/root', rootApp)
   app.route('/routing', routingApp)

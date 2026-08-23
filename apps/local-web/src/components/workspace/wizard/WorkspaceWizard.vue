@@ -29,6 +29,7 @@ import { cleanSiteName } from "./wizard-study.js";
 import { KICKER, PRIMARY_BUTTON } from "./wizard-classes.js";
 import { useVynel } from "../../../composables/use-vynel.js";
 import { useClaudeAuthStatus } from "../../../composables/providers/use-claude-auth-status.js";
+import { useGitHubConnection } from "../../../composables/github/use-github-connection.js";
 import { useScaffoldWorkspace } from "../../../composables/workspaces/use-scaffold-workspace.js";
 import { formatSdkError } from "../../../utils/format-sdk-error.js";
 
@@ -60,6 +61,13 @@ const scaffold = useScaffoldWorkspace();
 const isOpen = computed(() => props.open);
 const auth = useClaudeAuthStatus(() => props.open);
 const isSignedIn = computed(() => auth.data.value?.isAuthenticated === true);
+// The global GitHub sign-in, shown (never chosen) on the account step.
+const github = useGitHubConnection(() => props.open);
+const githubAccount = computed(() =>
+  github.data.value?.isAuthenticated === true
+    ? { accountLabel: github.data.value.accountLabel ?? "you" }
+    : null,
+);
 
 const stepIndex = ref(0);
 const stepId = computed(() => WIZARD_STEPS[stepIndex.value] ?? "place");
@@ -261,6 +269,7 @@ function onOpenChange(open: boolean) {
         v-else-if="stepId === 'account'"
         :status="auth.data.value ?? null"
         :loading="auth.isPending.value"
+        :github="githubAccount"
         @sign-in="emit('signIn')"
       />
       <StepCare v-else-if="stepId === 'care'" />

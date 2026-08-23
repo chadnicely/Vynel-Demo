@@ -56,11 +56,23 @@ function makeListings(): Record<string, DirectoryListingResponse> {
 }
 
 function makeFakeClient(
-  options: { planIsNull?: boolean; signedIn?: boolean } = {},
+  options: {
+    planIsNull?: boolean;
+    signedIn?: boolean;
+    githubSignedIn?: boolean;
+  } = {},
 ) {
   const calls: FakeCalls = { studyRival: [], synthesizePlan: [], scaffold: [] };
   const listings = makeListings();
   const client = {
+    github: {
+      getConnection: async () => ({
+        isInstalled: true,
+        isAuthenticated: options.githubSignedIn ?? false,
+        accountLabel: options.githubSignedIn ? "chadnicely" : null,
+        inactiveReason: options.githubSignedIn ? null : "Not signed in",
+      }),
+    },
     providers: {
       getAuthStatus: async () => ({
         providerId: "claude",
@@ -186,7 +198,12 @@ function queryPlugin(): [typeof VueQueryPlugin, { queryClient: QueryClient }] {
 }
 
 async function mountWizard(
-  options: { planIsNull?: boolean; signedIn?: boolean; groupId?: string } = {},
+  options: {
+    planIsNull?: boolean;
+    signedIn?: boolean;
+    githubSignedIn?: boolean;
+    groupId?: string;
+  } = {},
 ) {
   const fake = makeFakeClient(options);
   const wrapper = mount(WorkspaceWizard, {
@@ -548,7 +565,10 @@ describe("WorkspaceWizard", () => {
   });
 
   it("Finish makes the workspace in the chosen folder, Done reports honestly, Open my workspace hands over the STORED brief", async () => {
-    const { wrapper, calls } = await mountWizard({ groupId: "grp-1" });
+    const { wrapper, calls } = await mountWizard({
+      groupId: "grp-1",
+      githubSignedIn: true,
+    });
     await answerThroughQuestions();
     await press("Continue"); // rivals
     await press("Continue"); // wants
@@ -560,6 +580,7 @@ describe("WorkspaceWizard", () => {
     await press("Continue"); // stack
     expect(bodyText()).toContain("Claude — signed in");
     expect(bodyText()).toContain("chad@x.dev");
+    expect(bodyText()).toContain("GitHub — signed in as @chadnicely");
     await press("Continue"); // account
     expect(bodyText()).toContain("You don't need to be a security expert.");
     await press("Continue"); // care

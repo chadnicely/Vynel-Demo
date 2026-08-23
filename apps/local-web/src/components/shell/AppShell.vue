@@ -10,6 +10,7 @@ import {
   PhCalendarBlank as CalendarRange,
   PhCpu as Cpu,
   PhTreeView as FolderTree,
+  PhGithubLogo as GithubLogo,
   PhGraph as Graph,
   PhClockCounterClockwise as History,
   PhHouse as House,
@@ -205,6 +206,7 @@ const GLOBAL_SETTINGS_ITEMS: SidebarItem[] = [
   { id: "embedding", label: "Embedding", icon: Graph },
   { id: "voice-settings", label: "Voice", icon: SpeakerHigh },
   { id: "desktop-control", label: "Desktop control", icon: Monitor },
+  { id: "github", label: "GitHub", icon: GithubLogo },
   { id: "engine", label: "Where Vynel runs", icon: Cpu },
   { id: "application", label: "Application", icon: Settings2 },
 ];
