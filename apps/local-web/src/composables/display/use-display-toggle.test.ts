@@ -200,8 +200,14 @@ describe("useDisplayToggle", () => {
 
     toggle().toggleDisplay();
     // The canvas routes are lazily imported, so the navigation settles a tick
-    // or two after the switch — wait for it rather than for one flush.
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("workspace"));
+    // or two after the switch — wait for it rather than for one flush. A
+    // generous budget: under a loaded machine (the full suite alongside dev
+    // servers) the lazy import alone has blown waitFor's 1s default — the
+    // only flake this file ever showed (2026-08-24).
+    await vi.waitFor(
+      () => expect(router.currentRoute.value.name).toBe("workspace"),
+      { timeout: 10_000 },
+    );
 
     expect(workspaceTab.shell.mainView).toBe("display");
     expect(ui.activeTabId).toBe(workspaceTab.id);
