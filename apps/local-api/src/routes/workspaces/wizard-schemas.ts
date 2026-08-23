@@ -3,18 +3,19 @@
 import { z } from 'zod'
 import { WorkspaceResponseSchema } from './schemas.js'
 
-/** The folder the user chose as the app's home (screen 1) — its parent,
- *  since the app does not exist yet. It grounds the one-shot dispatch (the
- *  cwd); nothing is written there, though its own Claude Code settings /
- *  CLAUDE.md load as for any workspace. */
-const ParentPathSchema = z.string().min(1).max(4_096)
+/** The folder the user chose on screen 1 — the workspace folder itself
+ *  (Kafi, 2026-08-23: never a child minted from the name). Before Finish it
+ *  grounds the one-shot dispatch (the cwd); nothing is written there by a
+ *  read, though its own Claude Code settings / CLAUDE.md load as for any
+ *  workspace. */
+const DirectorySchema = z.string().min(1).max(4_096)
 
 export const StudyRivalSiteRequestSchema = z.object({
   /** The site as the user typed it — "opentable.com" (the UI's own floor). */
   site: z.string().trim().min(4).max(200),
   /** The user's idea, so the study is about THEIR angle on the site. */
   idea: z.string().min(1).max(5_000),
-  parentPath: ParentPathSchema,
+  directory: DirectorySchema,
 })
 
 const RivalSiteStudySchema = z.object({
@@ -50,7 +51,7 @@ const AnswerFields = {
 
 export const SynthesizeWorkspacePlanRequestSchema = z.object({
   ...AnswerFields,
-  parentPath: ParentPathSchema,
+  directory: DirectorySchema,
 })
 
 export const WorkspaceBriefAnswersSchema = z.object({
@@ -76,12 +77,10 @@ export const SynthesizeWorkspacePlanResponseSchema = z.object({
   plan: WorkspacePlanSchema.nullable(),
 })
 
-// Finish: the folder inside the chosen one, README, git, the row, the brief.
+// Finish: the chosen folder becomes the workspace — README, git, the row, the brief.
 export const ScaffoldWorkspaceRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  parentPath: ParentPathSchema,
-  /** Folder name; omitted = the workspace name. */
-  folderName: z.string().trim().min(1).max(120).optional(),
+  directory: DirectorySchema,
   /** The menu-tree group the wizard was opened from; omitted = the tree root. */
   groupId: z.string().min(1).optional(),
   answers: WorkspaceBriefAnswersSchema,
@@ -100,6 +99,7 @@ export const ScaffoldWorkspaceResponseSchema = z.object({
   workspace: WorkspaceResponseSchema,
   git: z.union([
     z.object({ kind: z.literal('initialized') }),
+    z.object({ kind: z.literal('existing') }),
     z.object({ kind: z.literal('skipped'), reason: z.string() }),
   ]),
   brief: WorkspaceBriefResponseSchema,
@@ -110,13 +110,12 @@ export const GetWorkspaceBriefResponseSchema = z.object({
   brief: WorkspaceBriefResponseSchema.nullable(),
 })
 
-// "Create from a repository": clone into a fresh folder inside the chosen one.
+// "Create from a repository": clone INTO the chosen (empty) folder.
 export const CloneRepositoryRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  parentPath: ParentPathSchema,
+  directory: DirectorySchema,
   /** An https / ssh git address — the op refuses anything else before git sees it. */
   repositoryUrl: z.string().trim().min(1).max(2_000),
-  folderName: z.string().trim().min(1).max(120).optional(),
   groupId: z.string().min(1).optional(),
 })
 

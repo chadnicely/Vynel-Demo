@@ -94,7 +94,7 @@
                     "minLength": 1,
                     "maxLength": 5000
                   },
-                  "parentPath": {
+                  "directory": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 4096
@@ -103,7 +103,7 @@
                 "required": [
                   "site",
                   "idea",
-                  "parentPath"
+                  "directory"
                 ]
               }
             }
@@ -345,7 +345,7 @@
                       "database"
                     ]
                   },
-                  "parentPath": {
+                  "directory": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 4096
@@ -363,7 +363,7 @@
                   "changeRequests",
                   "goalNotes",
                   "stack",
-                  "parentPath"
+                  "directory"
                 ]
               }
             }
@@ -375,7 +375,7 @@
       "post": {
         "responses": {
           "201": {
-            "description": "The workspace row, what actually happened with git (initialized / skipped), and the stored brief.",
+            "description": "The workspace row, what actually happened with git (initialized / existing / skipped), and the stored brief.",
             "content": {
               "application/json": {
                 "schema": {
@@ -483,6 +483,18 @@
                             "kind": {
                               "type": "string",
                               "const": "initialized"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "existing"
                             }
                           },
                           "required": [
@@ -763,7 +775,7 @@
             "description": "No such group owned by this user."
           },
           "409": {
-            "description": "A folder with that name is already in the chosen folder."
+            "description": "The chosen folder is already a workspace."
           }
         },
         "operationId": "postWorkspacesWizardScaffold",
@@ -771,7 +783,7 @@
           "workspaces"
         ],
         "parameters": [],
-        "summary": "Make the wizard's workspace: folder, README, git, the row, the stored brief.",
+        "summary": "Make the wizard's workspace in the chosen folder: README, git, the row, the stored brief.",
         "x-sdk-name": "workspaces.scaffold",
         "requestBody": {
           "content": {
@@ -784,15 +796,10 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
-                  "parentPath": {
+                  "directory": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 4096
-                  },
-                  "folderName": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
                   },
                   "groupId": {
                     "type": "string",
@@ -1019,7 +1026,7 @@
                 },
                 "required": [
                   "name",
-                  "parentPath",
+                  "directory",
                   "answers",
                   "plan"
                 ]
@@ -1142,13 +1149,13 @@
             }
           },
           "400": {
-            "description": "Validation error, a bad repository address, a missing chosen folder, or the clone failing."
+            "description": "Validation error, a bad repository address, a missing or non-empty chosen folder, or the clone failing."
           },
           "404": {
             "description": "No such group owned by this user."
           },
           "409": {
-            "description": "A folder with that name is already in the chosen folder."
+            "description": "The chosen folder is already a workspace."
           }
         },
         "operationId": "postWorkspacesWizardClone",
@@ -1156,7 +1163,7 @@
           "workspaces"
         ],
         "parameters": [],
-        "summary": "Clone a git repository into a new folder and register it as a workspace.",
+        "summary": "Clone a git repository into the chosen folder and register it as a workspace.",
         "x-sdk-name": "workspaces.clone",
         "requestBody": {
           "content": {
@@ -1169,7 +1176,7 @@
                     "minLength": 1,
                     "maxLength": 120
                   },
-                  "parentPath": {
+                  "directory": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 4096
@@ -1179,11 +1186,6 @@
                     "minLength": 1,
                     "maxLength": 2000
                   },
-                  "folderName": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  },
                   "groupId": {
                     "type": "string",
                     "minLength": 1
@@ -1191,7 +1193,7 @@
                 },
                 "required": [
                   "name",
-                  "parentPath",
+                  "directory",
                   "repositoryUrl"
                 ]
               }

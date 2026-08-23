@@ -124,7 +124,7 @@ describe('workspace wizard routes', () => {
           postJson({
             site: 'opentable.com',
             idea: 'Book a table',
-            parentPath: folder,
+            directory: folder,
           }),
         )
 
@@ -151,7 +151,7 @@ describe('workspace wizard routes', () => {
           postJson({
             site: 'opentable.com',
             idea: 'Book a table',
-            parentPath: makeChosenFolder(),
+            directory: makeChosenFolder(),
           }),
         )
 
@@ -175,7 +175,7 @@ describe('workspace wizard routes', () => {
           postJson({
             site: 'opentable.com',
             idea: 'Book a table',
-            parentPath: missing,
+            directory: missing,
           }),
         )
 
@@ -200,7 +200,7 @@ describe('workspace wizard routes', () => {
           postJson({
             site: 'ab',
             idea: 'Book a table',
-            parentPath: makeChosenFolder(),
+            directory: makeChosenFolder(),
           }),
         )
 
@@ -223,7 +223,7 @@ describe('workspace wizard routes', () => {
 
         const res = await app.request(
           '/workspaces/wizard/plan',
-          postJson({ ...PLAN_ANSWERS, parentPath: folder }),
+          postJson({ ...PLAN_ANSWERS, directory: folder }),
         )
 
         expect(res.status).toBe(200)
@@ -235,7 +235,7 @@ describe('workspace wizard routes', () => {
         expect(received.changeRequests).toEqual(PLAN_ANSWERS.changeRequests)
         expect(received.stack).toEqual(PLAN_ANSWERS.stack)
         // The folder is the cwd, not an answer — it never rides the prompt.
-        expect('parentPath' in received).toBe(false)
+        expect('directory' in received).toBe(false)
       })
     })
 
@@ -250,7 +250,7 @@ describe('workspace wizard routes', () => {
 
         const res = await app.request(
           '/workspaces/wizard/plan',
-          postJson({ ...PLAN_ANSWERS, parentPath: makeChosenFolder() }),
+          postJson({ ...PLAN_ANSWERS, directory: makeChosenFolder() }),
         )
 
         expect(res.status).toBe(200)
@@ -270,7 +270,7 @@ describe('workspace wizard routes', () => {
 
         const res = await app.request(
           '/workspaces/wizard/plan',
-          postJson({ ...PLAN_ANSWERS, parentPath: missing }),
+          postJson({ ...PLAN_ANSWERS, directory: missing }),
         )
 
         expect(res.status).toBe(400)
@@ -290,7 +290,7 @@ describe('workspace wizard routes', () => {
 
         const res = await app.request(
           '/workspaces/wizard/plan',
-          postJson({ ...withoutIdea, parentPath: makeChosenFolder() }),
+          postJson({ ...withoutIdea, directory: makeChosenFolder() }),
         )
 
         expect(res.status).toBe(400)

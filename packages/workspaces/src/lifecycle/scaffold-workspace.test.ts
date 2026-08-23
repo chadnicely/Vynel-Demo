@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, mkdirSync, existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, existsSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { withTestDatabase } from '@vynel/testing'
@@ -29,7 +29,7 @@ function makeUser(id: string = randomUUID()) {
   }
 }
 
-// The folder the user chose on screen 1.
+// The folder the user chose on screen 1 — this IS the workspace.
 function chosenFolder(): string {
   return mkdtempSync(path.join(os.tmpdir(), 'vynel-scaffold-'))
 }
@@ -58,44 +58,46 @@ const PLAN: WorkspacePlan = {
   sessions: [{ name: 'Set the project up', items: ['Create the first page'], mvp: true }],
 }
 
-// Records every git call instead of shelling out.
+// Records every git call instead of shelling out; `init` makes the .git
+// folder the way git would, so cleanup has something real to take back.
 function fakeGit(calls: { args: string[]; cwd: string }[]): GitRunner {
   return async (args, cwd) => {
     calls.push({ args, cwd })
+    if (args[0] === 'init') mkdirSync(path.join(cwd, '.git'))
   }
 }
 
 describe('scaffoldWorkspace', () => {
-  it('makes the folder inside the chosen one, writes the README, inits git, registers the row, stores the brief', async () => {
+  it('uses the chosen folder itself: README, .gitignore, git, the row, the brief', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
+      const folder = chosenFolder()
       const gitCalls: { args: string[]; cwd: string }[] = []
 
       const made = await scaffoldWorkspace(
         db,
-        { userId: user.id, name: 'Front of House', parentPath: parent, answers: ANSWERS, plan: PLAN },
+        { userId: user.id, name: 'Front of House', directory: folder, answers: ANSWERS, plan: PLAN },
         { runGit: fakeGit(gitCalls) },
       )
 
-      const expectedDir = path.join(realpathSync(parent), 'Front of House')
+      const expectedDir = realpathSync(folder)
       expect(made.workspace.path).toBe(expectedDir)
       expect(made.workspace.name).toBe('Front of House')
       expect(made.workspace.groupId).toBeNull()
       expect(existsSync(path.join(expectedDir, '.vynel'))).toBe(true)
-      expect(readFileSync(path.join(expectedDir, 'README.md'), 'utf8')).toContain(
-        '- Front end: Next.js',
-      )
+      expect(readFileSync(path.join(expectedDir, 'README.md'), 'utf8')).toContain('- Front end: Next.js')
       // Vynel's metadata never enters the project's history.
       expect(readFileSync(path.join(expectedDir, '.gitignore'), 'utf8')).toBe('.vynel/\n')
 
       expect(made.git).toEqual({ kind: 'initialized' })
-      expect(gitCalls.map((call) => call.args[0] === '-c' ? 'commit' : call.args[0])).toEqual([
+      expect(gitCalls.map((call) => (call.args[0] === '-c' ? 'commit' : call.args[0]))).toEqual([
         'init',
         'add',
         'commit',
       ])
+      // Only the scaffold's own files go into the first commit.
+      expect(gitCalls[1]?.args).toEqual(['add', '--', 'README.md', '.gitignore'])
       expect(gitCalls.every((call) => call.cwd === expectedDir)).toBe(true)
 
       expect(made.brief.workspaceId).toBe(made.workspace.id)
@@ -108,7 +110,7 @@ describe('scaffoldWorkspace', () => {
     })
   })
 
-  it('files the row into the group and sanitizes the folder name', async () => {
+  it('files the row into the group, and never overwrites what the folder already had', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
@@ -120,23 +122,58 @@ describe('scaffoldWorkspace', () => {
         createdAt: now,
         updatedAt: now,
       })
-      const parent = chosenFolder()
+      const folder = chosenFolder()
+      writeFileSync(path.join(folder, 'README.md'), '# Theirs\n')
+      mkdirSync(path.join(folder, '.git'))
+      const gitCalls: { args: string[]; cwd: string }[] = []
 
       const made = await scaffoldWorkspace(
         db,
-        {
-          userId: user.id,
-          name: 'Front of House: v2.',
-          parentPath: parent,
-          groupId: group.id,
-          answers: ANSWERS,
-          plan: PLAN,
-        },
-        { runGit: fakeGit([]) },
+        { userId: user.id, name: 'Front of House', directory: folder, groupId: group.id, answers: ANSWERS, plan: PLAN },
+        { runGit: fakeGit(gitCalls) },
       )
 
       expect(made.workspace.groupId).toBe(group.id)
-      expect(path.basename(made.workspace.path)).toBe('Front of House_ v2')
+      expect(readFileSync(path.join(folder, 'README.md'), 'utf8')).toBe('# Theirs\n')
+      // A folder with a history keeps it — git is not touched.
+      expect(made.git).toEqual({ kind: 'existing' })
+      expect(gitCalls).toEqual([])
+      expect(existsSync(path.join(folder, '.gitignore'))).toBe(true)
+    })
+  })
+
+  it("never sweeps the user's own files into the first commit", async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const folder = chosenFolder()
+      writeFileSync(path.join(folder, '.env'), 'SECRET=1')
+      writeFileSync(path.join(folder, '.gitignore'), 'node_modules\n')
+      const gitCalls: { args: string[]; cwd: string }[] = []
+
+      const made = await scaffoldWorkspace(
+        db,
+        { userId: user.id, name: 'Mine', directory: folder, answers: ANSWERS, plan: PLAN },
+        { runGit: fakeGit(gitCalls) },
+      )
+
+      expect(made.git).toEqual({ kind: 'initialized' })
+      // Their .gitignore is kept; only the README the scaffold wrote is added.
+      expect(gitCalls[1]?.args).toEqual(['add', '--', 'README.md'])
+      expect(readFileSync(path.join(folder, '.gitignore'), 'utf8')).toBe('node_modules\n')
+
+      // Both files already there → nothing to add, history still starts.
+      const full = chosenFolder()
+      writeFileSync(path.join(full, 'README.md'), '# Theirs\n')
+      writeFileSync(path.join(full, '.gitignore'), 'dist\n')
+      const calls: { args: string[]; cwd: string }[] = []
+      await scaffoldWorkspace(
+        db,
+        { userId: user.id, name: 'Full', directory: full, answers: ANSWERS, plan: PLAN },
+        { runGit: fakeGit(calls) },
+      )
+      expect(calls.map((call) => call.args[0])).toEqual(['init', '-c'])
+      expect(calls[1]?.args).toContain('--allow-empty')
     })
   })
 
@@ -144,7 +181,7 @@ describe('scaffoldWorkspace', () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
+      const folder = chosenFolder()
       const warnings: string[] = []
       const noGit: GitRunner = async () => {
         throw new Error('spawn git ENOENT')
@@ -152,7 +189,7 @@ describe('scaffoldWorkspace', () => {
 
       const made = await scaffoldWorkspace(
         db,
-        { userId: user.id, name: 'Offline', parentPath: parent, answers: ANSWERS, plan: PLAN },
+        { userId: user.id, name: 'Offline', directory: folder, answers: ANSWERS, plan: PLAN },
         { runGit: noGit, logger: { info: () => {}, warn: (_obj, msg) => warnings.push(msg) } },
       )
 
@@ -163,41 +200,20 @@ describe('scaffoldWorkspace', () => {
     })
   })
 
-  it('refuses a folder that is already there, and leaves it untouched', async () => {
+  it('a folder that is already a workspace is refused, and only what we added is taken back', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
-      mkdirSync(path.join(parent, 'Taken'))
-
-      await expect(
-        scaffoldWorkspace(
-          db,
-          { userId: user.id, name: 'Taken', parentPath: parent, answers: ANSWERS, plan: PLAN },
-          { runGit: fakeGit([]) },
-        ),
-      ).rejects.toBeInstanceOf(ConflictError)
-      expect(existsSync(path.join(parent, 'Taken'))).toBe(true)
-      expect(listWorkspacesForUser(db, user.id)).toEqual([])
-    })
-  })
-
-  it('a row clash after the folder is made rolls everything back — no folder, no row, no brief', async () => {
-    await withTestDatabase(async (db) => {
-      const user = makeUser()
-      insertUser(db, user)
-      const parent = chosenFolder()
-      // A row already claims the path the scaffold is about to make (the
-      // folder itself is gone — a moved workspace), so createWorkspaceWithin's
-      // dedup fires AFTER the folder exists.
+      const folder = chosenFolder()
+      writeFileSync(path.join(folder, 'notes.txt'), 'theirs')
       const now = new Date()
       insertWorkspace(db, {
         id: randomUUID(),
         userId: user.id,
-        name: 'Ghost',
+        name: 'Already',
         managerName: null,
         kind: 'personal',
-        path: path.join(realpathSync(parent), 'Taken'),
+        path: realpathSync(folder),
         groupId: null,
         isArchived: false,
         createdAt: now,
@@ -208,20 +224,21 @@ describe('scaffoldWorkspace', () => {
       await expect(
         scaffoldWorkspace(
           db,
-          { userId: user.id, name: 'Taken', parentPath: parent, answers: ANSWERS, plan: PLAN },
+          { userId: user.id, name: 'Again', directory: folder, answers: ANSWERS, plan: PLAN },
           { runGit: fakeGit([]) },
         ),
       ).rejects.toBeInstanceOf(ConflictError)
 
-      expect(existsSync(path.join(parent, 'Taken'))).toBe(false)
-      expect(listWorkspacesForUser(db, user.id).map((row) => row.name)).toEqual(['Ghost'])
+      // The user's file stays; our README, .gitignore and .git are gone.
+      expect(readdirSync(folder).sort()).toEqual(['notes.txt'])
+      expect(listWorkspacesForUser(db, user.id).map((row) => row.name)).toEqual(['Already'])
       for (const row of listWorkspacesForUser(db, user.id)) {
         expect(findWorkspaceBriefByWorkspaceId(db, row.id)).toBeNull()
       }
     })
   })
 
-  it('a missing chosen folder is a ValidationError; a foreign group is a NotFoundError before any folder is made', async () => {
+  it('a missing chosen folder is a ValidationError; a foreign group is a NotFoundError before anything is written', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
@@ -230,27 +247,20 @@ describe('scaffoldWorkspace', () => {
       await expect(
         scaffoldWorkspace(
           db,
-          { userId: user.id, name: 'Nowhere', parentPath: missing, answers: ANSWERS, plan: PLAN },
+          { userId: user.id, name: 'Nowhere', directory: missing, answers: ANSWERS, plan: PLAN },
           { runGit: fakeGit([]) },
         ),
       ).rejects.toBeInstanceOf(ValidationError)
 
-      const parent = chosenFolder()
+      const folder = chosenFolder()
       await expect(
         scaffoldWorkspace(
           db,
-          {
-            userId: user.id,
-            name: 'Wrong group',
-            parentPath: parent,
-            groupId: randomUUID(),
-            answers: ANSWERS,
-            plan: PLAN,
-          },
+          { userId: user.id, name: 'Wrong group', directory: folder, groupId: randomUUID(), answers: ANSWERS, plan: PLAN },
           { runGit: fakeGit([]) },
         ),
       ).rejects.toBeInstanceOf(NotFoundError)
-      expect(readdirSync(parent)).toEqual([])
+      expect(readdirSync(folder)).toEqual([])
     })
   })
 })

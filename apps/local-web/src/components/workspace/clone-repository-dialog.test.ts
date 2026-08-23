@@ -48,7 +48,7 @@ function makeFakeClient(options: { cloneFails?: boolean } = {}) {
         if (!listing) throw new Error(`${query?.path} is not readable.`);
         return structuredClone(listing);
       },
-      clone: async (input: { name: string; parentPath: string }) => {
+      clone: async (input: { name: string; directory: string }) => {
         cloneCalls.push(input);
         if (options.cloneFails) {
           throw new Error(
@@ -62,7 +62,7 @@ function makeFakeClient(options: { cloneFails?: boolean } = {}) {
             name: input.name,
             managerName: input.name,
             kind: "personal",
-            path: `${input.parentPath}\\${input.name}`,
+            path: input.directory,
             isArchived: false,
             continueEnabled: true,
             groupId: null,
@@ -138,7 +138,7 @@ function cloneButton(): HTMLButtonElement {
 }
 
 describe("CloneRepositoryDialog", () => {
-  it("the address names the workspace, the folder is picked, Clone it registers the row", async () => {
+  it("the clone lands IN the picked folder, which names the workspace until the user does", async () => {
     const { wrapper, cloneCalls } = await mountDialog({ groupId: "grp-1" });
     expect(bodyText()).toContain("Paste a repository address to continue");
     expect(cloneButton().disabled).toBe(true);
@@ -147,23 +147,26 @@ describe("CloneRepositoryDialog", () => {
       "input[placeholder='https://github.com/you/project.git']",
       "https://github.com/acme/pricing-tool.git",
     );
-    expect(
-      (document.body.querySelector("input.name") as HTMLInputElement).value,
-    ).toBe("pricing-tool");
     expect(bodyText()).toContain("Pick the folder it will live in to continue");
 
     tile("Projects").click();
     await flushPromises();
-    expect(bodyText()).toContain(`${PROJECTS}\\pricing-tool`);
+    // The folder is the workspace — no child folder, and it names it.
+    expect(
+      (document.body.querySelector("input.name") as HTMLInputElement).value,
+    ).toBe("Projects");
+    expect(bodyText()).toContain(`It will live at ${PROJECTS}`);
+    expect(bodyText()).not.toContain(`${PROJECTS}\\`);
     expect(cloneButton().disabled).toBe(false);
 
+    await type("input.name", "Pricing tool");
     cloneButton().click();
     await flushPromises();
 
     expect(cloneCalls).toEqual([
       {
-        name: "pricing-tool",
-        parentPath: PROJECTS,
+        name: "Pricing tool",
+        directory: PROJECTS,
         repositoryUrl: "https://github.com/acme/pricing-tool.git",
         groupId: "grp-1",
       },

@@ -75,7 +75,10 @@ const planState = useWizardPlan(answers, () => stepId.value, {
 const scaffoldError = ref<string | null>(null);
 const scaffolded = ref<{
   workspace: WorkspaceResponse;
-  git: { kind: "initialized" } | { kind: "skipped"; reason: string };
+  git:
+    | { kind: "initialized" }
+    | { kind: "existing" }
+    | { kind: "skipped"; reason: string };
   brief: string;
 } | null>(null);
 
@@ -97,18 +100,16 @@ const gate = computed(() =>
 );
 
 async function finish() {
-  const parentPath = answers.parentPath;
-  if (parentPath === null) {
+  const directory = answers.directory;
+  if (directory === null) {
     scaffoldError.value = "Pick the folder it will live in first.";
     return;
   }
   scaffoldError.value = null;
-  const folderName = answers.folder.trim();
   try {
     const made = await scaffold.mutateAsync({
       name: answers.appName.trim(),
-      parentPath,
-      ...(folderName.length > 0 ? { folderName } : {}),
+      directory,
       ...(props.groupId !== null ? { groupId: props.groupId } : {}),
       answers: toBriefAnswers(answers, planState.leftOut.value),
       plan: planState.plan.value,

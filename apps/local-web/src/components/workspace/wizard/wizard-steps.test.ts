@@ -19,7 +19,7 @@ const SIGNED_OUT = { isSignedIn: false };
 function answeredThroughQ2(): WizardAnswers {
   return {
     ...makeEmptyAnswers(),
-    parentPath: "C:\\Users\\chad\\Projects",
+    directory: "C:\\Users\\chad\\Projects",
     appName: "Front of House",
     idea: "A place where my regulars can book a table.",
     who: "My customers",
@@ -43,7 +43,7 @@ describe("the step machine", () => {
     const empty = makeEmptyAnswers();
     expect(wizardGate("place", empty, SIGNED_IN)).toContain("folder");
     expect(
-      wizardGate("place", { ...empty, parentPath: "C:\\x" }, SIGNED_IN),
+      wizardGate("place", { ...empty, directory: "C:\\x" }, SIGNED_IN),
     ).toContain("name");
     expect(wizardGate("idea", empty, SIGNED_IN)).toContain("idea");
     expect(wizardGate("q1", empty, SIGNED_IN)).toContain("all three");

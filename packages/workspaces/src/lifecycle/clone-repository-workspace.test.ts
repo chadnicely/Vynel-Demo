@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { withTestDatabase } from '@vynel/testing'
@@ -13,13 +13,18 @@ import {
 } from '@vynel/db/repositories/workspaces'
 import { cloneRepositoryWorkspace } from './clone-repository-workspace.js'
 
-// A faked git that never touches the network: the folder already exists
-// (createChildDirectory made it), so a `clone` just records the call — and,
-// if asked, fails the way git or the spawn would.
+// A faked git that never touches the network: a `clone` drops what a clone
+// would into the (existing, empty) target, then — if asked — fails the way
+// git or the spawn would, so the cleanup path has something to take back.
 function makeGitRunner(behaviour: { fail?: unknown } = {}) {
   const calls: { args: string[]; cwd: string }[] = []
   const runGit = async (args: string[], cwd: string) => {
     calls.push({ args, cwd })
+    if (args[0] === 'clone') {
+      const target = args[3]!
+      mkdirSync(path.join(target, '.git'))
+      writeFileSync(path.join(target, 'README.md'), '# cloned\n')
+    }
     if (behaviour.fail !== undefined) throw behaviour.fail
   }
   return { runGit, calls }
@@ -38,6 +43,7 @@ function makeUser(id: string = randomUUID()) {
   }
 }
 
+// The folder the user chose (or made with New folder) — the clone lands IN it.
 function chosenFolder(): string {
   return mkdtempSync(path.join(os.tmpdir(), 'vynel-clone-'))
 }
@@ -45,7 +51,7 @@ function chosenFolder(): string {
 const URL = 'https://github.com/acme/pricing.git'
 
 describe('cloneRepositoryWorkspace', () => {
-  it('clones into a fresh folder inside the chosen one and registers it, filed into the group', async () => {
+  it('clones INTO the chosen folder and registers it, filed into the group', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
@@ -57,21 +63,21 @@ describe('cloneRepositoryWorkspace', () => {
         createdAt: now,
         updatedAt: now,
       })
-      const parent = chosenFolder()
+      const folder = chosenFolder()
       const { runGit, calls } = makeGitRunner()
 
       const { workspace } = await cloneRepositoryWorkspace(
         db,
-        { userId: user.id, name: 'Pricing', parentPath: parent, repositoryUrl: URL, groupId: group.id },
+        { userId: user.id, name: 'Pricing', directory: folder, repositoryUrl: URL, groupId: group.id },
         { runGit },
       )
 
-      const directory = path.join(realpathSync(parent), 'Pricing')
+      const directory = realpathSync(folder)
       expect(workspace.path).toBe(directory)
       expect(workspace.groupId).toBe(group.id)
       expect(existsSync(path.join(directory, '.vynel'))).toBe(true)
-      // git was handed the URL after `--`, into the folder we made.
-      expect(calls).toEqual([{ args: ['clone', '--', URL, directory], cwd: parent }])
+      // git was handed the URL after `--`, with the chosen folder as the target.
+      expect(calls).toEqual([{ args: ['clone', '--', URL, directory], cwd: directory }])
     })
   })
 
@@ -79,7 +85,7 @@ describe('cloneRepositoryWorkspace', () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
+      const folder = chosenFolder()
       const { runGit, calls } = makeGitRunner()
       for (const repositoryUrl of [
         '',
@@ -91,39 +97,41 @@ describe('cloneRepositoryWorkspace', () => {
         await expect(
           cloneRepositoryWorkspace(
             db,
-            { userId: user.id, name: 'Bad', parentPath: parent, repositoryUrl },
+            { userId: user.id, name: 'Bad', directory: folder, repositoryUrl },
             { runGit },
           ),
         ).rejects.toBeInstanceOf(ValidationError)
       }
       expect(calls).toEqual([])
-      expect(readdirSync(parent)).toEqual([])
+      expect(readdirSync(folder)).toEqual([])
     })
   })
 
-  it('a folder name can never climb out of the chosen folder', async () => {
+  it('refuses a folder that already has things in it — a clone never lands on top of files', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
-      const { runGit } = makeGitRunner()
+      const folder = chosenFolder()
+      writeFileSync(path.join(folder, 'theirs.txt'), 'x')
+      const { runGit, calls } = makeGitRunner()
 
-      const { workspace } = await cloneRepositoryWorkspace(
-        db,
-        { userId: user.id, name: 'Escape', parentPath: parent, repositoryUrl: URL, folderName: '../escape' },
-        { runGit },
-      )
-
-      expect(path.dirname(workspace.path)).toBe(realpathSync(parent))
-      expect(path.basename(workspace.path)).toBe('.._escape')
+      await expect(
+        cloneRepositoryWorkspace(
+          db,
+          { userId: user.id, name: 'Busy', directory: folder, repositoryUrl: URL },
+          { runGit },
+        ),
+      ).rejects.toThrow(/already has things in it/)
+      expect(calls).toEqual([])
+      expect(readdirSync(folder)).toEqual(['theirs.txt'])
     })
   })
 
-  it("a failed clone removes the folder, says git's own reason — never the command line — and registers nothing", async () => {
+  it("a failed clone empties the folder again, says git's own reason — never the command line — and registers nothing", async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
+      const folder = chosenFolder()
       const warnings: string[] = []
       const logger = { info: () => {}, warn: (_obj: object, msg: string) => warnings.push(msg) }
       const gitError = new Error(
@@ -133,12 +141,13 @@ describe('cloneRepositoryWorkspace', () => {
       await expect(
         cloneRepositoryWorkspace(
           db,
-          { userId: user.id, name: 'Private', parentPath: parent, repositoryUrl: 'git@github.com:acme/private.git' },
+          { userId: user.id, name: 'Private', directory: folder, repositoryUrl: 'git@github.com:acme/private.git' },
           { runGit: makeGitRunner({ fail: gitError }).runGit, logger },
         ),
       ).rejects.toThrow(/^Could not clone that repository — Authentication failed for the remote$/)
 
-      expect(existsSync(path.join(parent, 'Private'))).toBe(false)
+      expect(existsSync(folder)).toBe(true)
+      expect(readdirSync(folder)).toEqual([])
       expect(listWorkspacesForUser(db, user.id)).toEqual([])
       expect(warnings).toEqual(['git clone failed'])
     })
@@ -148,12 +157,12 @@ describe('cloneRepositoryWorkspace', () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
+      const folder = chosenFolder()
       const missing = Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })
       await expect(
         cloneRepositoryWorkspace(
           db,
-          { userId: user.id, name: 'NoGit', parentPath: parent, repositoryUrl: URL },
+          { userId: user.id, name: 'NoGit', directory: folder, repositoryUrl: URL },
           { runGit: makeGitRunner({ fail: missing }).runGit },
         ),
       ).rejects.toThrow(/git isn't installed on this computer/)
@@ -162,11 +171,11 @@ describe('cloneRepositoryWorkspace', () => {
       await expect(
         cloneRepositoryWorkspace(
           db,
-          { userId: user.id, name: 'Slow', parentPath: parent, repositoryUrl: URL },
+          { userId: user.id, name: 'Slow', directory: folder, repositoryUrl: URL },
           { runGit: makeGitRunner({ fail: timedOut }).runGit },
         ),
       ).rejects.toThrow(/longer than five minutes/)
-      expect(readdirSync(parent)).toEqual([])
+      expect(readdirSync(folder)).toEqual([])
     })
   })
 
@@ -174,9 +183,9 @@ describe('cloneRepositoryWorkspace', () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
-      // A row already claims the path the clone is about to make — the
-      // dedup in createWorkspace fires AFTER the folder exists.
+      const folder = chosenFolder()
+      // A row already claims this very folder — createWorkspace's dedup fires
+      // AFTER the clone landed.
       const now = new Date()
       insertWorkspace(db, {
         id: randomUUID(),
@@ -184,7 +193,7 @@ describe('cloneRepositoryWorkspace', () => {
         name: 'Ghost',
         managerName: null,
         kind: 'personal',
-        path: path.join(realpathSync(parent), 'Taken'),
+        path: realpathSync(folder),
         groupId: null,
         isArchived: false,
         createdAt: now,
@@ -195,42 +204,38 @@ describe('cloneRepositoryWorkspace', () => {
       await expect(
         cloneRepositoryWorkspace(
           db,
-          { userId: user.id, name: 'Taken', parentPath: parent, repositoryUrl: URL },
+          { userId: user.id, name: 'Taken', directory: folder, repositoryUrl: URL },
           { runGit: makeGitRunner().runGit },
         ),
       ).rejects.toBeInstanceOf(ConflictError)
-      expect(existsSync(path.join(parent, 'Taken'))).toBe(false)
+      expect(readdirSync(folder)).toEqual([])
     })
   })
 
-  it('a folder already there is a ConflictError; a missing chosen folder and a foreign group are refused before git', async () => {
+  it('a missing chosen folder and a foreign group are refused before git', async () => {
     await withTestDatabase(async (db) => {
       const user = makeUser()
       insertUser(db, user)
-      const parent = chosenFolder()
-      mkdirSync(path.join(parent, 'Taken'))
+      const folder = chosenFolder()
       const { runGit, calls } = makeGitRunner()
       const base = { userId: user.id, repositoryUrl: URL }
 
       await expect(
-        cloneRepositoryWorkspace(db, { ...base, name: 'Taken', parentPath: parent }, { runGit }),
-      ).rejects.toBeInstanceOf(ConflictError)
-      await expect(
         cloneRepositoryWorkspace(
           db,
-          { ...base, name: 'X', parentPath: path.join(os.tmpdir(), `vynel-missing-${randomUUID()}`) },
+          { ...base, name: 'X', directory: path.join(os.tmpdir(), `vynel-missing-${randomUUID()}`) },
           { runGit },
         ),
       ).rejects.toBeInstanceOf(ValidationError)
       await expect(
         cloneRepositoryWorkspace(
           db,
-          { ...base, name: 'X', parentPath: parent, groupId: randomUUID() },
+          { ...base, name: 'X', directory: folder, groupId: randomUUID() },
           { runGit },
         ),
       ).rejects.toBeInstanceOf(NotFoundError)
       expect(calls).toEqual([])
-      expect(existsSync(path.join(parent, 'Taken'))).toBe(true)
+      expect(readdirSync(folder)).toEqual([])
     })
   })
 })

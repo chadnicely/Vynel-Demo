@@ -1,11 +1,14 @@
-// The new-workspace wizard's Finish: a brand-new workspace gets a real home.
-// In order — the group is checked first so a bad pick never leaves a stray
-// folder — the folder is made inside the folder the user chose (never the
-// global space), a README records the name + the stack they picked, git is
+// The new-workspace wizard's Finish: the folder the user chose IS the
+// workspace (Kafi, 2026-08-23 — no child folder minted from the name; the
+// browser's "New folder" makes an empty one when they want one). In order —
+// the group is checked first so a bad pick writes nothing — a README records
+// the name + the stack they picked, `.vynel/` is gitignored, git is
 // initialised with a first commit (best-effort: a machine without git still
-// gets a healthy workspace, reported honestly), then the row + the approved
-// plan (the brief) land in ONE transaction through the same
-// `createWorkspaceWithin` every workspace goes through — invariant 5.
+// gets a healthy workspace, reported honestly; a folder that already has a
+// history keeps it), then the row + the approved plan (the brief) land in
+// ONE transaction through the same `createWorkspaceWithin` every workspace
+// goes through — invariant 5. Nothing the user already had is overwritten:
+// an existing README or .gitignore is left alone.
 //
 // What this deliberately does NOT do: start the build. The first session is
 // the user pressing send on the brief seeded into the workspace's chat —
@@ -15,6 +18,7 @@
 // runner so tests never shell out.
 
 import path from 'node:path'
+import { existsSync } from 'node:fs'
 import { rm, writeFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -31,8 +35,7 @@ import {
 } from '@vynel/contracts/workspaces/workspace-brief'
 import { createWorkspaceWithin, type CreateWorkspaceDependencies } from './create-workspace.js'
 import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
-import { createChildDirectory } from '../directory/create-child-directory.js'
-import { sanitizeFolderName } from '../directory/sanitize-folder-name.js'
+import { resolveExistingDirectory } from '../directory/resolve-existing-directory.js'
 import { toWorkspaceBrief, type WorkspaceBrief } from '../brief/workspace-brief.js'
 
 const run = promisify(execFile)
@@ -41,10 +44,8 @@ const GIT_TIMEOUT_MS = 20_000
 export type ScaffoldWorkspaceInput = {
   userId: string
   name: string
-  /** The folder the user chose on screen 1 — the workspace folder is made inside it. */
-  parentPath: string
-  /** Folder name; defaults to the workspace name. Sanitized either way. */
-  folderName?: string
+  /** The folder the user chose on screen 1 — this IS the workspace folder. */
+  directory: string
   /** The menu-tree group the wizard was opened from; omit for the tree root. */
   groupId?: string
   /** The answers + the approved plan — stored as the workspace's brief. */
@@ -54,6 +55,8 @@ export type ScaffoldWorkspaceInput = {
 
 export type ScaffoldGitOutcome =
   | { kind: 'initialized' }
+  /** The folder already had a `.git` — its history is kept, untouched. */
+  | { kind: 'existing' }
   | { kind: 'skipped'; reason: string }
 
 export type ScaffoldedWorkspace = {
@@ -94,18 +97,21 @@ export async function scaffoldWorkspace(
   if (input.groupId !== undefined) {
     getWorkspaceGroupForUserOrThrow(db, input.userId, input.groupId)
   }
+  const directory = await resolveExistingDirectory(input.directory)
 
-  const folder = await createChildDirectory(input.parentPath, folderNameFor(input, name))
+  // Everything we add to the user's folder, so a failed Finish takes back
+  // exactly that — never the folder, never what was already there.
+  const written: string[] = []
   try {
-    await writeFile(path.join(folder.path, 'README.md'), buildReadme(name, input.answers.stack), 'utf8')
-    await writeFile(path.join(folder.path, '.gitignore'), GITIGNORE, 'utf8')
-    const git = await initialiseGit(folder.path, deps)
+    await writeIfAbsent(path.join(directory, 'README.md'), buildReadme(name, input.answers.stack), written)
+    await writeIfAbsent(path.join(directory, '.gitignore'), GITIGNORE, written)
+    const git = await initialiseGit(directory, deps, written)
 
     const { workspace, brief } = withTransaction(db, (tx) => {
       const workspace = createWorkspaceWithin(tx, {
         userId: input.userId,
         name,
-        directory: folder.path,
+        directory,
         ...(input.groupId !== undefined ? { groupId: input.groupId } : {}),
       })
       const brief = workspaceBriefsRepository.insertWorkspaceBrief(tx, {
@@ -130,32 +136,58 @@ export async function scaffoldWorkspace(
     )
     return { workspace, git, brief }
   } catch (error) {
-    // The folder is ours alone (just made, empty but for our README) — take
-    // it back so a failed Finish leaves nothing behind to trip the next try.
-    await rm(folder.path, { recursive: true, force: true })
+    // The user's error is the one that matters; a cleanup that fails on top
+    // of it (EBUSY from a still-running git on Windows) is logged, not thrown.
+    try {
+      await Promise.all(written.map((entry) => rm(entry, { recursive: true, force: true })))
+    } catch (cleanupError) {
+      deps.logger?.warn({ err: cleanupError, directory }, 'could not take back the scaffold files')
+    }
     throw error
   }
 }
 
-function folderNameFor(input: ScaffoldWorkspaceInput, name: string): string {
-  const requested = input.folderName?.trim() || name
-  // `createChildDirectory` refuses a name it would have to change; sanitize
-  // first so a title like "Front of House: v2" becomes a folder, not a 400.
-  return sanitizeFolderName(requested).replace(/[. ]+$/, '') || 'workspace'
+async function writeIfAbsent(file: string, content: string, written: string[]): Promise<void> {
+  if (existsSync(file)) return
+  try {
+    await writeFile(file, content, 'utf8')
+  } catch {
+    throw new ValidationError(
+      `Couldn't write in ${path.dirname(file)} — the folder may be read-only. Try another location.`,
+    )
+  }
+  written.push(file)
 }
 
 async function initialiseGit(
   directory: string,
   deps: ScaffoldWorkspaceDependencies,
+  written: string[],
 ): Promise<ScaffoldGitOutcome> {
+  if (existsSync(path.join(directory, '.git'))) return { kind: 'existing' }
   const runGit = deps.runGit ?? defaultGitRunner
   try {
     await runGit(['init'], directory)
-    await runGit(['add', '.'], directory)
+    written.push(path.join(directory, '.git'))
+    // Only what the scaffold put there goes into the first commit — never a
+    // sweep of whatever the user already kept in the folder (.env, photos,
+    // node_modules). A folder that already had both files gets an empty
+    // first commit: history starts, nothing is claimed.
+    const added = written.filter((entry) => !entry.endsWith('.git')).map((entry) => path.basename(entry))
+    if (added.length > 0) await runGit(['add', '--', ...added], directory)
     // A fresh machine has no git identity; the first commit must not fail on
     // that, so the scaffold signs it itself.
     await runGit(
-      ['-c', 'user.name=Vynel', '-c', 'user.email=vynel@localhost', 'commit', '-m', 'chore: new workspace scaffold'],
+      [
+        '-c',
+        'user.name=Vynel',
+        '-c',
+        'user.email=vynel@localhost',
+        'commit',
+        ...(added.length === 0 ? ['--allow-empty'] : []),
+        '-m',
+        'chore: new workspace scaffold',
+      ],
       directory,
     )
     return { kind: 'initialized' }

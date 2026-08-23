@@ -131,11 +131,7 @@ function makeFakeClient(
           },
         };
       },
-      scaffold: async (input: {
-        name: string;
-        parentPath: string;
-        folderName?: string;
-      }) => {
+      scaffold: async (input: { name: string; directory: string }) => {
         calls.scaffold.push(input);
         return {
           workspace: {
@@ -144,7 +140,7 @@ function makeFakeClient(
             name: input.name,
             managerName: input.name,
             kind: "personal",
-            path: `${input.parentPath}\\${input.folderName ?? input.name}`,
+            path: input.directory,
             isArchived: false,
             continueEnabled: true,
             groupId: null,
@@ -239,7 +235,8 @@ function tile(name: string): HTMLButtonElement {
   return match;
 }
 
-/** Screen 1: pick Projects as the home, name it. */
+/** Screen 1: pick Projects as the workspace folder, then name it over the
+ *  folder-suggested name. */
 async function pickPlace(name = "Front of House") {
   tile("Projects").click();
   await flushPromises();
@@ -309,25 +306,47 @@ async function mountWithDeferredSynthesis() {
 }
 
 describe("WorkspaceWizard", () => {
-  it("opens on the folder — the gate speaks until a folder AND a name are in", async () => {
+  it("opens on the folder — the chosen folder IS the workspace, and names it until the user does", async () => {
     await mountWizard();
-    expect(bodyText()).toContain("Give it a name and a home");
+    expect(bodyText()).toContain("Give it a home and a name");
     expect(bodyText()).toContain("Step 1 of 12");
     expect(bodyText()).toContain("Pick the folder it will live in to continue");
     expect(findButton("Continue").disabled).toBe(true);
 
     tile("Projects").click();
     await flushPromises();
-    expect(bodyText()).toContain("Give it a name to continue");
-    expect(bodyText()).toContain(`${PROJECTS}\\New workspace`);
+    // The folder names the workspace — no second folder, no second name.
+    expect(
+      (document.body.querySelector("input[type='text']") as HTMLInputElement)
+        .value,
+    ).toBe("Projects");
+    expect(bodyText()).toContain(`It will live at ${PROJECTS}`);
+    expect(bodyText()).not.toContain(`${PROJECTS}\\`);
+    expect(findButton("Continue").disabled).toBe(false);
 
     await type("input[type='text']", "Front of House");
     expect(findButton("Continue").disabled).toBe(false);
-    expect(bodyText()).toContain(`${PROJECTS}\\Front of House`);
+    expect(bodyText()).toContain(`It will live at ${PROJECTS}`);
 
     await press("Continue");
     expect(bodyText()).toContain("What do you want to build?");
     expect(bodyText()).toContain("Step 2 of 12");
+  });
+
+  it("Back to the first screen keeps the folder and the name", async () => {
+    await mountWizard();
+    await pickPlace();
+    await press("Continue");
+    expect(bodyText()).toContain("What do you want to build?");
+
+    await press("Back");
+    expect(bodyText()).toContain("Give it a home and a name");
+    expect(
+      (document.body.querySelector("input[type='text']") as HTMLInputElement)
+        .value,
+    ).toBe("Front of House");
+    expect(bodyText()).toContain(`It will live at ${PROJECTS}`);
+    expect(findButton("Continue").disabled).toBe(false);
   });
 
   it("walks the questions with a talking gate at each", async () => {
@@ -346,7 +365,7 @@ describe("WorkspaceWizard", () => {
     await press("Look into it");
 
     expect(calls.studyRival).toEqual([
-      expect.objectContaining({ site: "opentable.com", parentPath: PROJECTS }),
+      expect.objectContaining({ site: "opentable.com", directory: PROJECTS }),
     ]);
     expect(bodyText()).toContain(
       "From what Claude already knows of opentable.com",
@@ -373,7 +392,7 @@ describe("WorkspaceWizard", () => {
     expect(calls.synthesizePlan).toHaveLength(1);
     expect(calls.synthesizePlan[0]).toEqual(
       expect.objectContaining({
-        parentPath: PROJECTS,
+        directory: PROJECTS,
         audience: "My customers",
       }),
     );
@@ -553,8 +572,7 @@ describe("WorkspaceWizard", () => {
     expect(calls.scaffold).toEqual([
       expect.objectContaining({
         name: "Front of House",
-        parentPath: PROJECTS,
-        folderName: "Front of House",
+        directory: PROJECTS,
         groupId: "grp-1",
         answers: expect.objectContaining({
           idea: "A place where my regulars can book a table and see the week.",
@@ -567,7 +585,7 @@ describe("WorkspaceWizard", () => {
       }),
     ]);
     expect(bodyText()).toContain("What happens from here");
-    expect(bodyText()).toContain(`${PROJECTS}\\Front of House`);
+    expect(bodyText()).toContain(PROJECTS);
     expect(bodyText()).toContain("first commit in");
 
     await press("Open my workspace");
