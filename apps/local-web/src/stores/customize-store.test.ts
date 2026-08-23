@@ -4,7 +4,10 @@ import {
   defaultCustomization,
   useCustomizeStore,
 } from "./customize-store.js";
-import { WORKSPACE_SECTIONS } from "../components/workspace/workspace-sections.js";
+import {
+  MENU_GROUP_LABELS,
+  WORKSPACE_SECTIONS,
+} from "../components/workspace/workspace-sections.js";
 
 const STORAGE_KEY = "vynel.customize";
 
@@ -126,7 +129,7 @@ describe("customize-store", () => {
     expect(config.colorSlot).toBe(2);
     const ids = config.entries.map((entry) => entry.sectionId);
     expect(ids).not.toContain("retired-section");
-    // Sections the save predates append at the end, visible.
+    // Sections the save predates slot in (at their catalog position), visible.
     for (const section of WORKSPACE_SECTIONS) {
       expect(ids).toContain(section.id);
     }
@@ -143,6 +146,48 @@ describe("customize-store", () => {
     expect(
       config.entries.find((entry) => entry.sectionId === "tasks")?.isHidden,
     ).toBe(false);
+  });
+
+  it("a catalog-new section slots in at its catalog position with its catalog group — never a trailing ungrouped row", () => {
+    // A stored layout from BEFORE phases/features existed: the full catalog
+    // minus the two, groups intact. Reconcile must land them in Utils,
+    // directly above Plans (the catalog's story), not below Marketplace.
+    const legacySections = WORKSPACE_SECTIONS.filter(
+      (section) => section.id !== "phases" && section.id !== "features",
+    );
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        w1: {
+          colorSlot: null,
+          groups: Object.entries(MENU_GROUP_LABELS).map(([id, label]) => ({
+            id,
+            label,
+          })),
+          entries: legacySections.map((section) => ({
+            sectionId: section.id,
+            groupId: section.group,
+            isHidden: false,
+          })),
+        },
+      }),
+    );
+
+    const store = useCustomizeStore();
+    const ids = store
+      .customizationFor("w1")
+      .entries.map((entry) => entry.sectionId);
+
+    expect(ids.indexOf("phases")).toBe(ids.indexOf("apps") + 1);
+    expect(ids.indexOf("features")).toBe(ids.indexOf("phases") + 1);
+    expect(ids.indexOf("plans")).toBe(ids.indexOf("features") + 1);
+    for (const sectionId of ["phases", "features"] as const) {
+      expect(
+        store
+          .customizationFor("w1")
+          .entries.find((entry) => entry.sectionId === sectionId),
+      ).toEqual({ sectionId, groupId: "utils", isHidden: false });
+    }
   });
 
   it("color slot persists independently of the menu layout", () => {

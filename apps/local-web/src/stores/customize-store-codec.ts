@@ -69,9 +69,13 @@ export function defaultCustomization(): ScopeCustomization {
 }
 
 /** Rebuild a stored customization against the CURRENT catalog: sections that
- *  no longer exist drop out, sections the catalog gained since the save
- *  append at the end (visible, ungrouped — never silently hidden), and a
- *  dangling group ref degrades to standalone. */
+ *  no longer exist drop out, sections the catalog gained since the save slot
+ *  in at their CATALOG position with their catalog group (visible — never
+ *  silently hidden; before 2026-08-24 they appended ungrouped at the end,
+ *  which put every new section below Marketplace on existing installs), and
+ *  a dangling group ref degrades to standalone. The user's own ordering of
+ *  the sections they already had is never reshuffled — a new id only slots
+ *  in relative to its catalog neighbours. */
 export function reconcile(stored: ScopeCustomization): ScopeCustomization {
   const groupIds = new Set(stored.groups.map((group) => group.id));
   const entries = stored.entries
@@ -84,9 +88,25 @@ export function reconcile(stored: ScopeCustomization): ScopeCustomization {
           : null,
     }));
   const present = new Set(entries.map((entry) => entry.sectionId));
+  const catalogOrder = WORKSPACE_SECTIONS.map((section) => section.id);
   for (const section of WORKSPACE_SECTIONS) {
-    if (!present.has(section.id))
-      entries.push({ sectionId: section.id, groupId: null, isHidden: false });
+    if (present.has(section.id)) continue;
+    // Before the first stored entry that FOLLOWS it in the catalog (walking
+    // catalog order, an earlier-inserted new id is already in `entries`, so
+    // two new neighbours keep their catalog order too); nothing follows =
+    // append. The catalog group applies only if the scope still has it.
+    const successorIds = new Set<string>(
+      catalogOrder.slice(catalogOrder.indexOf(section.id) + 1),
+    );
+    const insertAt = entries.findIndex((entry) => successorIds.has(entry.sectionId));
+    const entry = {
+      sectionId: section.id,
+      groupId: section.group !== null && groupIds.has(section.group) ? section.group : null,
+      isHidden: false,
+    };
+    if (insertAt === -1) entries.push(entry);
+    else entries.splice(insertAt, 0, entry);
+    present.add(section.id);
   }
   return {
     colorSlot: stored.colorSlot,

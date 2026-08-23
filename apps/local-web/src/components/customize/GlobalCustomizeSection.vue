@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { PhSlidersHorizontal as SlidersHorizontal } from "@phosphor-icons/vue";
 import { GLOBAL_SCOPE_KEY, useCustomizeStore } from "../../stores/customize-store.js";
+import { WORKSPACE_ONLY_SECTION_IDS } from "../workspace/workspace-sections.js";
 import SectionHeader from "../sections/SectionHeader.vue";
 import MenuEditor from "./MenuEditor.vue";
 import PersonaIconPicker from "./PersonaIconPicker.vue";
@@ -8,7 +9,7 @@ import PersonaIconPicker from "./PersonaIconPicker.vue";
 // The Global surface's Customize canvas: the assistant here IS Claude (no
 // name or accent to change — gold stays presence-only), so the persona card
 // offers only the conversation icon; the menu editor mirrors the workspace
-// one, minus Apps (no global surface for it).
+// one, minus the workspace-only sections (no global surface for them).
 const store = useCustomizeStore();
 const cardClass = "rounded-lg border border-hair bg-panel p-3.5";
 </script>
@@ -43,7 +44,10 @@ const cardClass = "rounded-lg border border-hair bg-panel p-3.5";
         Choose what shows in the Global menu and how it's grouped. Hiding a
         menu never limits what Claude can do — it only tidies the list.
       </p>
-      <MenuEditor :scope-key="GLOBAL_SCOPE_KEY" :exclude-section-ids="['apps']" />
+      <MenuEditor
+        :scope-key="GLOBAL_SCOPE_KEY"
+        :exclude-section-ids="WORKSPACE_ONLY_SECTION_IDS"
+      />
     </div>
   </div>
 </template>

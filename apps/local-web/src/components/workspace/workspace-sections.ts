@@ -13,6 +13,8 @@ export type WorkspaceSectionId =
   | "marketplace"
   | "channels"
   | "schedules"
+  | "phases"
+  | "features"
   | "tasks"
   | "plans"
   | "journal"
@@ -42,6 +44,16 @@ export interface WorkspaceSectionMeta {
   // not a thing you manage — it stays visible with all groups collapsed).
   group: MenuGroupId | null;
 }
+
+// Sections that exist ONLY inside a workspace — Apps needs a running project;
+// Phases/Features order a project's build. The ONE home for that fact:
+// AppShell hides them from the global menu (and the palette), and Global
+// Customize never offers rows that could not render.
+export const WORKSPACE_ONLY_SECTION_IDS: WorkspaceSectionId[] = [
+  "apps",
+  "phases",
+  "features",
+];
 
 // Order is the menu's reading order, and it tells a story: what the
 // assistant can DO here (toolkit), the running work (utils), what it knows
@@ -83,6 +95,22 @@ export const WORKSPACE_SECTIONS: WorkspaceSectionMeta[] = [
     id: "apps",
     label: "Apps",
     hint: "The apps this project runs — start, stop, watch",
+    group: "utils",
+  },
+  // Phases and Features sit ON TOP of Plans/Tasks (the user's call,
+  // 2026-08-24): the build plan's stages first, what they deliver next, then
+  // the day plans and the queue that execute them. Workspace-only — AppShell
+  // hides both from the global menu (the Apps precedent).
+  {
+    id: "phases",
+    label: "Phases",
+    hint: "The build plan's ordered stages",
+    group: "utils",
+  },
+  {
+    id: "features",
+    label: "Features",
+    hint: "What this project is building, phase by phase",
     group: "utils",
   },
   {

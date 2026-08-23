@@ -10,13 +10,14 @@ import type { TaskStatus } from "@vynel/contracts/tasks/task-http";
 // The one home for the status cycle: every click walks open → in-progress →
 // done → open, so a row is never stuck without a way back. Two sizes: the
 // section rows wear it as their size-9 icon tile; the side panel compacts it.
-// Plans share the same status vocabulary, so PlanRow wears this control too —
-// `noun` keeps the accessible labels honest about what is cycling.
+// Plans, phases and features share the same status vocabulary, so their rows
+// wear this control too — `noun` keeps the accessible labels honest about
+// what is cycling.
 const props = withDefaults(
   defineProps<{
     status: TaskStatus;
     size?: "tile" | "compact";
-    noun?: "task" | "plan";
+    noun?: "task" | "plan" | "phase" | "feature";
   }>(),
   { size: "tile", noun: "task" },
 );

@@ -17,6 +17,8 @@ import SshServersSection from "../sections/SshServersSection.vue";
 import ToolPolicySection from "../sections/ToolPolicySection.vue";
 import TasksSection from "../sections/TasksSection.vue";
 import PlansSection from "../sections/PlansSection.vue";
+import PhasesSection from "../sections/PhasesSection.vue";
+import FeaturesSection from "../sections/FeaturesSection.vue";
 import JournalSection from "../sections/JournalSection.vue";
 import type { WorkspaceSectionId } from "./workspace-sections.js";
 
@@ -47,7 +49,17 @@ const { isLocked } = useHubFeatures();
       :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
     />
   </template>
-  <!-- Tasks/Plans/Journal are core assistant plumbing (like notebook) — no tier gate. -->
+  <!-- Phases/Features/Tasks/Plans/Journal are core assistant plumbing (like
+       notebook) — no tier gate. Phases/Features are workspace-only (the Apps
+       shape): no scope prop, no global twin. -->
+  <PhasesSection
+    v-else-if="props.section === 'phases'"
+    :workspace-id="props.workspaceId"
+  />
+  <FeaturesSection
+    v-else-if="props.section === 'features'"
+    :workspace-id="props.workspaceId"
+  />
   <TasksSection
     v-else-if="props.section === 'tasks'"
     :scope="{ kind: 'workspace', workspaceId: props.workspaceId }"
