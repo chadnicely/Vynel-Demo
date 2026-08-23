@@ -42,7 +42,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Make the wizard's workspace: folder, README, git, the row, the stored brief. */
+        /** Make the wizard's workspace in the chosen folder: README, git, the row, the stored brief. */
         post: operations["postWorkspacesWizardScaffold"];
         delete?: never;
         options?: never;
@@ -59,7 +59,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Clone a git repository into a new folder and register it as a workspace. */
+        /** Clone a git repository into the chosen folder and register it as a workspace. */
         post: operations["postWorkspacesWizardClone"];
         delete?: never;
         options?: never;
@@ -4473,7 +4473,7 @@ export interface operations {
                 "application/json": {
                     site: string;
                     idea: string;
-                    parentPath: string;
+                    directory: string;
                 };
             };
         };
@@ -4533,7 +4533,7 @@ export interface operations {
                         back: string;
                         database: string;
                     };
-                    parentPath: string;
+                    directory: string;
                 };
             };
         };
@@ -4587,8 +4587,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    parentPath: string;
-                    folderName?: string;
+                    directory: string;
                     groupId?: string;
                     answers: {
                         idea: string;
@@ -4634,7 +4633,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The workspace row, what actually happened with git (initialized / skipped), and the stored brief. */
+            /** @description The workspace row, what actually happened with git (initialized / existing / skipped), and the stored brief. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -4663,6 +4662,9 @@ export interface operations {
                         git: {
                             /** @constant */
                             kind: "initialized";
+                        } | {
+                            /** @constant */
+                            kind: "existing";
                         } | {
                             /** @constant */
                             kind: "skipped";
@@ -4730,7 +4732,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description A folder with that name is already in the chosen folder. */
+            /** @description The chosen folder is already a workspace. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4750,9 +4752,8 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    parentPath: string;
+                    directory: string;
                     repositoryUrl: string;
-                    folderName?: string;
                     groupId?: string;
                 };
             };
@@ -4787,7 +4788,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Validation error, a bad repository address, a missing chosen folder, or the clone failing. */
+            /** @description Validation error, a bad repository address, a missing or non-empty chosen folder, or the clone failing. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4801,7 +4802,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description A folder with that name is already in the chosen folder. */
+            /** @description The chosen folder is already a workspace. */
             409: {
                 headers: {
                     [name: string]: unknown;

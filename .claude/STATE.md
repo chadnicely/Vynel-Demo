@@ -51,6 +51,13 @@ in a role=alert) + the third door. Commits: `4e59d700` · `92c58dbd` · `75bcc1d
 branch `feature/new-workspace-wizard` merged to main with a merge commit — **not pushed** (Kafi's call).
 Every slice: code-reviewer pass + fixes + full gate green (final: typecheck 112/112 · parity 5/5 ·
 1007 files / 6884 tests).
+**Live-smoke fix (same day, `fix/wizard-folder-is-the-workspace`):** Kafi's two screenshots — the name asked
+twice, and `vynel-beta\vynel-beta` from the clone — were one bug: the chosen folder was a PARENT and a child
+was minted from the name. Now **the chosen folder IS the workspace** for every door (wizard screen 1, clone,
+and "Pull from a folder" already was): the API takes `directory` (no `parentPath`/`folderName`), the name
+follows the folder until edited, the scaffold writes README/.gitignore only if absent + keeps an existing
+`.git` (`git: existing`) + takes back only what it added, the clone requires an EMPTY folder and empties it
+on failure.
 **Next:** Quick Create ("Set it up instantly"), GitHub as a global Settings connection, draft persistence.
 **Owed by Kafi:** the live smoke — New workspace → Walk me through it → a real synthesis on sonnet-5 →
 Finish in a real folder → the seeded brief in the new chat; and Create from a repository on a real URL. Not taken from the branch: two-level workspaces, setup

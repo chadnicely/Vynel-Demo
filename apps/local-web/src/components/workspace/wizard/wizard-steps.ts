@@ -2,7 +2,7 @@
 // each screen opens with, and the per-step gate (what still stands between
 // the user and Continue, said in words beside the button — never a silently
 // dead control). Ported from Chad's design branch; the folder comes FIRST
-// (Kafi, 2026-08-23): the user picks where the workspace lives before
+// (Kafi, 2026-08-23): the user picks the folder that IS the workspace before
 // anything else, and every AI read dispatches from that folder.
 
 import type { WorkspaceBriefAnswers } from "@vynel/contracts/workspaces/workspace-brief";
@@ -33,11 +33,9 @@ export type WizardWant = { text: string; from: string };
 
 /** Everything the user answers, in one flat object the screens write into. */
 export type WizardAnswers = {
-  /** Screen 1 — the folder (absolute path) the workspace is made inside. */
-  parentPath: string | null;
+  /** Screen 1 — the folder (absolute path) that IS the workspace. */
+  directory: string | null;
   appName: string;
-  /** The folder name inside the chosen one; follows the name unless edited. */
-  folder: string;
   idea: string;
   who: string | null;
   first: string;
@@ -62,9 +60,8 @@ export type WizardAnswers = {
 
 export function makeEmptyAnswers(): WizardAnswers {
   return {
-    parentPath: null,
+    directory: null,
     appName: "",
-    folder: "",
     idea: "",
     who: null,
     first: "",
@@ -90,9 +87,9 @@ export const WIZARD_COPY: Record<
   { title: string; blurb: string }
 > = {
   place: {
-    title: "Give it a name and a home",
+    title: "Give it a home and a name",
     blurb:
-      "Pick the folder on this computer where it will live — it stays there, nothing gets moved — and tell us what to call it.",
+      "Pick the folder on this computer that will be the workspace — it stays there, nothing gets moved — and tell us what to call it.",
   },
   idea: {
     title: "What do you want to build?",
@@ -163,7 +160,7 @@ export function wizardGate(
   context: WizardGateContext,
 ): string | null {
   if (step === "place") {
-    if (answers.parentPath === null)
+    if (answers.directory === null)
       return "Pick the folder it will live in to continue";
     return answers.appName.trim().length > 0
       ? null

@@ -18,7 +18,11 @@ import { CARD, KICKER } from "./wizard-classes.js";
 // shown, never assumed).
 defineProps<{
   folderPath: string | null;
-  git: { kind: "initialized" } | { kind: "skipped"; reason: string } | null;
+  git:
+    | { kind: "initialized" }
+    | { kind: "existing" }
+    | { kind: "skipped"; reason: string }
+    | null;
 }>();
 
 const LOOP = [
@@ -93,6 +97,9 @@ const FORGOTTEN = [
         }}</code>
         <template v-if="git?.kind === 'initialized'"
           >, first commit in.</template
+        >
+        <template v-else-if="git?.kind === 'existing'"
+          >, its history kept as it was.</template
         >
         <template v-else>.</template>
       </span>

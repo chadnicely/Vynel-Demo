@@ -1,8 +1,8 @@
 // Integration tests for `POST /workspaces/wizard/clone`. The core op is
 // stubbed on the `@vynel/workspaces` barrel (it shells out to git — covered at
 // the leaf in `clone-repository-workspace.test.ts`); what the route owns is
-// proven here: the body validates, the resolved user rides in, optional
-// fields stay absent, and the response is the serialized row.
+// proven here: the body validates, the resolved user rides in, an optional
+// field stays absent, and the response is the serialized row.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -23,6 +23,8 @@ const mockClone = vi.mocked(cloneRepositoryWorkspace)
 const silentLogger = pino({ level: 'silent' })
 
 type Db = Parameters<Parameters<typeof withTestDatabase>[0]>[0]
+
+const FOLDER = 'C:\\Users\\chad\\Projects\\Pricing'
 
 function seedUser(db: Db) {
   const now = new Date()
@@ -61,7 +63,7 @@ describe('POST /workspaces/wizard/clone', () => {
         name: 'Pricing',
         managerName: 'Pricing',
         kind: 'personal',
-        path: 'C:\\Users\\chad\\Projects\\Pricing',
+        path: FOLDER,
         groupId: null,
         isArchived: false,
         createdAt: now,
@@ -75,7 +77,7 @@ describe('POST /workspaces/wizard/clone', () => {
         '/workspaces/wizard/clone',
         postJson({
           name: 'Pricing',
-          parentPath: 'C:\\Users\\chad\\Projects',
+          directory: FOLDER,
           repositoryUrl: 'https://github.com/acme/pricing.git',
         }),
       )
@@ -88,8 +90,7 @@ describe('POST /workspaces/wizard/clone', () => {
       const [, input, deps] = mockClone.mock.calls[0]!
       expect(input.userId).toBe(user.id)
       expect(input.repositoryUrl).toBe('https://github.com/acme/pricing.git')
-      expect(input.parentPath).toBe('C:\\Users\\chad\\Projects')
-      expect('folderName' in input).toBe(false)
+      expect(input.directory).toBe(FOLDER)
       expect('groupId' in input).toBe(false)
       expect(deps?.logger).toBeDefined()
     })
@@ -102,7 +103,7 @@ describe('POST /workspaces/wizard/clone', () => {
 
       const res = await app.request(
         '/workspaces/wizard/clone',
-        postJson({ name: 'Pricing', parentPath: 'C:\\Users\\chad\\Projects' }),
+        postJson({ name: 'Pricing', directory: FOLDER }),
       )
 
       expect(res.status).toBe(400)

@@ -7,8 +7,10 @@
 // — the screen is never empty, and never pretends.
 
 import { computed, reactive, ref, watch } from "vue";
-import type { WorkspacePlan } from "@vynel/contracts/workspaces/workspace-brief";
-import type { WorkspaceBriefAnswers } from "@vynel/contracts/workspaces/workspace-brief";
+import type {
+  WorkspaceBriefAnswers,
+  WorkspacePlan,
+} from "@vynel/contracts/workspaces/workspace-brief";
 import { deriveFallbackPlan } from "./derive-fallback-plan.js";
 import {
   toBriefAnswers,
@@ -19,14 +21,12 @@ import { cleanSiteName, type RivalStudyOutcome } from "./wizard-study.js";
 
 export type WizardPlanEngine = {
   synthesizePlan: (
-    input: Omit<WorkspaceBriefAnswers, "advancedNotes"> & {
-      parentPath: string;
-    },
+    input: Omit<WorkspaceBriefAnswers, "advancedNotes"> & { directory: string },
   ) => Promise<{ plan: WorkspacePlan | null }>;
   studyRival: (input: {
     site: string;
     idea: string;
-    parentPath: string;
+    directory: string;
   }) => Promise<{
     study: Omit<Extract<RivalStudyOutcome, { state: "ready" }>, "state"> | null;
   }>;
@@ -103,8 +103,8 @@ export function useWizardPlan(
   }
 
   async function synthesize(): Promise<void> {
-    const parentPath = answers.parentPath;
-    if (parentPath === null) return;
+    const directory = answers.directory;
+    if (directory === null) return;
     const key = currentSynthesisKey.value;
     if (synthesizedForKey.value === key || inFlightKey.value === key) return;
     inFlightKey.value = key;
@@ -116,7 +116,7 @@ export function useWizardPlan(
         answers,
         leftOut.value,
       );
-      const reply = await engine.synthesizePlan({ ...fields, parentPath });
+      const reply = await engine.synthesizePlan({ ...fields, directory });
       if (reply.plan === null) {
         // Nothing to show — the mechanical plan stays; revisiting retries.
         synthesisFailed.value = true;
@@ -135,9 +135,9 @@ export function useWizardPlan(
   }
 
   async function studyRival(): Promise<void> {
-    const parentPath = answers.parentPath;
+    const directory = answers.directory;
     const site = cleanSiteName(answers.rivalDraft);
-    if (site.length < 4 || parentPath === null) return;
+    if (site.length < 4 || directory === null) return;
     if (!answers.rivals.includes(site)) answers.rivals.push(site);
     answers.rivalDraft = "";
     studies[site] = { state: "loading" };
@@ -145,7 +145,7 @@ export function useWizardPlan(
       const reply = await engine.studyRival({
         site,
         idea: answers.idea,
-        parentPath,
+        directory,
       });
       studies[site] =
         reply.study === null

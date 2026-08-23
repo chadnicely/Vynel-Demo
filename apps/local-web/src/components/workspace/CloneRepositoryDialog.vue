@@ -10,10 +10,11 @@ import { useTooBroadFolder } from "../../composables/workspaces/use-too-broad-fo
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 
 // "Create from a repository" (Chad, 2026-08-11) — the second door under
-// "bring in what you have". One screen: the repository address, a name (which
-// is also the folder), and the folder it is cloned inside — the user's own
-// pick, never a fixed home. Clone it runs the clone and registers the result;
-// the dialog stays up with git's own reason if it fails.
+// "bring in what you have". One screen: the repository address, the folder
+// the clone lands IN (the user's own pick — New folder makes an empty one;
+// Kafi, 2026-08-23: never a child minted from the name), and a name that
+// follows the folder until edited. Clone it runs the clone and registers the
+// result; the dialog stays up with git's own reason if it fails.
 const props = defineProps<{
   open: boolean;
   /** The menu-tree group the door was opened from; null = the tree root. */
@@ -39,25 +40,22 @@ const { isTooBroad, reason: tooBroadReason } = useTooBroadFolder(
   isOpen,
 );
 
-// The name follows the repository's own name until the user types their own —
-// https://github.com/acme/pricing-tool.git → "pricing-tool".
-watch(repositoryUrl, (next) => {
-  if (!nameEdited.value) name.value = repositoryBaseName(next);
+const directory = computed(() =>
+  selection.value !== null && !isTooBroad.value ? selection.value.path : null,
+);
+// The name follows the folder until the user types their own; clearing it
+// hands control back to the folder.
+const suggestedName = computed(() =>
+  selection.value !== null && !isTooBroad.value ? selection.value.name : "",
+);
+watch(suggestedName, (suggested) => {
+  if (!nameEdited.value) name.value = suggested;
 });
 
-function repositoryBaseName(url: string): string {
-  const trimmed = url
-    .trim()
-    .replace(/\/+$/, "")
-    .replace(/\.git$/i, "");
-  return trimmed.slice(
-    Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf(":")) + 1,
-  );
-}
-
 function onNameInput(event: Event) {
-  nameEdited.value = (event.target as HTMLInputElement).value.trim().length > 0;
-  if (!nameEdited.value) name.value = repositoryBaseName(repositoryUrl.value);
+  const typed = (event.target as HTMLInputElement).value;
+  nameEdited.value = typed.trim().length > 0;
+  if (!nameEdited.value) name.value = suggestedName.value;
 }
 
 // Clear the fields whenever the dialog reopens, so a second workspace never
@@ -74,18 +72,10 @@ watch(
   },
 );
 
-const parentPath = computed(() =>
-  selection.value !== null && !isTooBroad.value ? selection.value.path : null,
-);
-const separator = computed(() =>
-  parentPath.value?.includes("\\") ? "\\" : "/",
-);
-const folderShown = computed(() => name.value.trim() || "project");
-
 const gate = computed(() => {
   if (repositoryUrl.value.trim().length === 0)
     return "Paste a repository address to continue";
-  if (parentPath.value === null)
+  if (directory.value === null)
     return "Pick the folder it will live in to continue";
   if (name.value.trim().length === 0) return "Name the workspace to continue";
   return null;
@@ -96,12 +86,12 @@ const errorMessage = computed(() =>
 );
 
 function submit() {
-  const parent = parentPath.value;
-  if (gate.value !== null || clone.isPending.value || parent === null) return;
+  const target = directory.value;
+  if (gate.value !== null || clone.isPending.value || target === null) return;
   clone.mutate(
     {
       name: name.value.trim(),
-      parentPath: parent,
+      directory: target,
       repositoryUrl: repositoryUrl.value.trim(),
       ...(props.groupId !== null ? { groupId: props.groupId } : {}),
     },
@@ -120,7 +110,7 @@ function onOpenChange(open: boolean) {
   <Modal
     :open="props.open"
     title="Create from a repository"
-    description="Paste the repository address, pick where it should live, and name it. We clone it into a new folder — nothing you already have is touched."
+    description="Paste the repository address and pick the empty folder it should be cloned into — nothing you already have is touched."
     size="xl"
     @update:open="onOpenChange"
   >
@@ -156,11 +146,11 @@ function onOpenChange(open: boolean) {
         />
         <span v-if="tooBroadReason" class="text-[11px] text-needs-input">
           That's your whole {{ tooBroadReason }} — open it and pick the folder
-          this should be cloned inside.
+          this should be cloned into.
         </span>
         <span v-else class="text-[11px] text-ink-3">
           Click a folder to choose it, double-click to open it. The clone lands
-          in a new folder inside the one you choose.
+          in the folder you choose, so it must be empty — New folder makes one.
         </span>
       </div>
 
@@ -170,23 +160,22 @@ function onOpenChange(open: boolean) {
           v-model="name"
           type="text"
           maxlength="120"
-          placeholder="Picked from the address — change it if you like"
+          placeholder="Picked from the folder — change it if you like"
           class="name w-full rounded-sm border border-hair-strong bg-panel px-2.5 py-1.5 text-[12.5px] text-ink-1 placeholder:text-ink-3"
           @input="onNameInput"
           @keydown.enter.prevent="submit"
         />
       </label>
       <p
-        v-if="parentPath"
+        v-if="directory"
         class="m-0 flex items-center gap-1.5 text-[12px] text-ink-2"
       >
         <PhFolderOpen :size="13" />
         It will live at
         <code
           class="rounded-sm bg-panel px-1.5 py-0.5 text-[11.5px] text-ink-1"
+          >{{ directory }}</code
         >
-          {{ parentPath }}{{ separator }}{{ folderShown }}
-        </code>
       </p>
 
       <p v-if="errorMessage" class="m-0 text-xs text-danger" role="alert">

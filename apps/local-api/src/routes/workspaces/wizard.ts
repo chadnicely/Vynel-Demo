@@ -4,8 +4,8 @@
 //
 //   POST /study-rival -> what a named site does / leave out / magic   (no x-mcp)
 //   POST /plan        -> every wizard answer distilled into the plan  (no x-mcp)
-//   POST /scaffold    -> Finish: folder, README, git, the row, the brief (no x-mcp)
-//   POST /clone       -> "Create from a repository": git clone + the row (no x-mcp)
+//   POST /scaffold    -> Finish: README, git, the row, the brief — in the chosen folder (no x-mcp)
+//   POST /clone       -> "Create from a repository": git clone INTO the chosen folder + the row (no x-mcp)
 //
 // The two reads go through the provider seam's best-effort one-shots (toolless, the
 // capable model — plan quality is the product) via `c.var.aiProvider` (a
@@ -15,11 +15,12 @@
 // plan derivation, and nothing is lost. No x-mcp — these are human
 // affordances inside the wizard, not agent tools.
 //
-// The dispatch cwd is the folder the user chose as the app's home on screen
-// 1 (Kafi, 2026-08-23: the user's own folder, never the global space). It
-// must exist — `resolveExistingDirectory` → 400 when it doesn't. Nothing is
-// written there (the dispatch is toolless); the folder's own Claude Code
-// settings / CLAUDE.md still load, exactly as they would for any workspace.
+// The folder the user chose on screen 1 IS the workspace (Kafi, 2026-08-23:
+// their own folder, never the global space, never a child minted from the
+// name). Before Finish it is only the dispatch cwd — it must exist
+// (`resolveExistingDirectory` → 400 when it doesn't); nothing is written by a
+// read (the dispatch is toolless), though the folder's own Claude Code
+// settings / CLAUDE.md load exactly as they would for any workspace.
 
 import { resolver, validator } from 'hono-openapi/zod'
 import {
@@ -64,8 +65,8 @@ export const workspaceWizardApp = factory
     validator('json', StudyRivalSiteRequestSchema),
     ...userScoped,
     async (c) => {
-      const { site, idea, parentPath } = c.req.valid('json')
-      const workspacePath = await resolveExistingDirectory(parentPath)
+      const { site, idea, directory } = c.req.valid('json')
+      const workspacePath = await resolveExistingDirectory(directory)
       const study = await c.var.aiProvider.studyRivalSite({
         site,
         idea,
@@ -95,8 +96,8 @@ export const workspaceWizardApp = factory
     validator('json', SynthesizeWorkspacePlanRequestSchema),
     ...userScoped,
     async (c) => {
-      const { parentPath, ...answers } = c.req.valid('json')
-      const workspacePath = await resolveExistingDirectory(parentPath)
+      const { directory, ...answers } = c.req.valid('json')
+      const workspacePath = await resolveExistingDirectory(directory)
       const plan = await c.var.aiProvider.synthesizeWorkspacePlan({
         ...answers,
         workspacePath,
@@ -112,23 +113,23 @@ export const workspaceWizardApp = factory
     '/scaffold',
     describeRoute({
       tags: ['workspaces'],
-      summary: "Make the wizard's workspace: folder, README, git, the row, the stored brief.",
+      summary: "Make the wizard's workspace in the chosen folder: README, git, the row, the stored brief.",
       'x-sdk-name': 'workspaces.scaffold',
       responses: {
         201: {
           description:
-            'The workspace row, what actually happened with git (initialized / skipped), and the stored brief.',
+            'The workspace row, what actually happened with git (initialized / existing / skipped), and the stored brief.',
           content: { 'application/json': { schema: resolver(ScaffoldWorkspaceResponseSchema) } },
         },
         400: { description: 'Validation error, or the chosen folder does not exist.' },
         404: { description: 'No such group owned by this user.' },
-        409: { description: 'A folder with that name is already in the chosen folder.' },
+        409: { description: 'The chosen folder is already a workspace.' },
       },
     }),
     validator('json', ScaffoldWorkspaceRequestSchema),
     ...userScoped,
     async (c) => {
-      const { name, parentPath, folderName, groupId, answers, plan } = c.req.valid('json')
+      const { name, directory, groupId, answers, plan } = c.req.valid('json')
       // Zod types an omitted optional as `undefined`; the contract (and the
       // stored JSON) want the key absent.
       const { advancedNotes, ...answerFields } = answers
@@ -137,8 +138,7 @@ export const workspaceWizardApp = factory
         {
           userId: c.var.user.id,
           name,
-          parentPath,
-          ...(folderName === undefined ? {} : { folderName }),
+          directory,
           ...(groupId === undefined ? {} : { groupId }),
           answers: {
             ...answerFields,
@@ -159,13 +159,13 @@ export const workspaceWizardApp = factory
     },
   )
   // The second door under "bring in what you have": clone a repository the
-  // user already owns into a fresh folder inside the folder they chose, then
-  // register it. No brief — the repository IS the history.
+  // user already owns INTO the (empty) folder they chose, then register it.
+  // No brief — the repository IS the history.
   .post(
     '/clone',
     describeRoute({
       tags: ['workspaces'],
-      summary: 'Clone a git repository into a new folder and register it as a workspace.',
+      summary: 'Clone a git repository into the chosen folder and register it as a workspace.',
       'x-sdk-name': 'workspaces.clone',
       responses: {
         201: {
@@ -174,24 +174,23 @@ export const workspaceWizardApp = factory
         },
         400: {
           description:
-            'Validation error, a bad repository address, a missing chosen folder, or the clone failing.',
+            'Validation error, a bad repository address, a missing or non-empty chosen folder, or the clone failing.',
         },
         404: { description: 'No such group owned by this user.' },
-        409: { description: 'A folder with that name is already in the chosen folder.' },
+        409: { description: 'The chosen folder is already a workspace.' },
       },
     }),
     validator('json', CloneRepositoryRequestSchema),
     ...userScoped,
     async (c) => {
-      const { name, parentPath, repositoryUrl, folderName, groupId } = c.req.valid('json')
+      const { name, directory, repositoryUrl, groupId } = c.req.valid('json')
       const made = await cloneRepositoryWorkspace(
         c.var.db,
         {
           userId: c.var.user.id,
           name,
-          parentPath,
+          directory,
           repositoryUrl,
-          ...(folderName === undefined ? {} : { folderName }),
           ...(groupId === undefined ? {} : { groupId }),
         },
         { logger: c.var.logger },

@@ -86,7 +86,10 @@ watch(
   () => props.active,
   (active) => {
     if (!active) return;
-    folderPath.value = null;
+    // A picker re-activated with a folder already chosen starts there — the
+    // wizard's Back to its first screen keeps the pick; a fresh one starts at
+    // Home (the API's default).
+    folderPath.value = props.modelValue?.kind === "folder" ? props.modelValue.path : null;
     showingThisPc.value = false;
     highlighted.value = null;
     history.value = [];

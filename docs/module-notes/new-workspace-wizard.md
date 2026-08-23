@@ -28,7 +28,7 @@ the demo sits on decisions main has rejected).
 
 | Fork | Call |
 |---|---|
-| Where the app is stored | **The user's chosen folder** (screen 1). The one-shots dispatch from that folder (`cwd`), never from the global space; nothing is written there — the dispatches are toolless. |
+| Where the app is stored | **The user's chosen folder IS the workspace** (screen 1; live-smoke correction 2026-08-23 — the first cut minted a child folder from the name, which asked for the name twice and made `vynel-beta\vynel-beta`). The browser's New folder makes an empty one; the name follows the folder until edited, as in "Pull from a folder". The scaffold writes README/.gitignore only if absent, keeps an existing `.git`, and takes back only what it added on failure. The clone needs an EMPTY folder (git's rule) and empties it again on failure. The one-shots dispatch from the folder (`cwd`); a read writes nothing there. |
 | Screen order | **Place first**: place → idea → q1 → q2 → rivals → wants → plan → goals → stack → account (pre-flight) → care → sessions → done. |
 | Accounts | **Global.** Claude = the signed-in account; GitHub = a global Settings connection when it lands. Never per workspace. |
 | Where the plan lives | **The DB**, attached to the workspace — not a file in the folder. |
