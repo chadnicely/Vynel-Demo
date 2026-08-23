@@ -1,10 +1,13 @@
-// `readClaudeAuthenticationStatus` — inspects the Claude Code CLI install +
-// credential state and returns a typed `AuthenticationStatus`. The CLI's own
-// `claude auth status` JSON is the authoritative read (email / org /
-// subscription live only there — `.credentials.json` carries no identity);
-// the env-var/settings API-key checks and the credentials-file read remain as
-// the fallback for older CLIs whose status prints no JSON. Never throws on
-// normal not-installed / not-authenticated states — those are returned as data.
+// `readClaudeAuthenticationStatus` — inspects the Claude engine install +
+// credential state and returns a typed `AuthenticationStatus`. The engine is
+// the SDK's BUNDLED `claude` binary (the one every session runs on), so
+// "installed" means Vynel's own install is whole — never whether the host
+// has a `claude` on PATH. The CLI's own `claude auth status` JSON is the
+// authoritative read (email / org / subscription live only there —
+// `.credentials.json` carries no identity); the env-var/settings API-key
+// checks and the credentials-file read remain as the fallback for older CLIs
+// whose status prints no JSON. Never throws on normal not-installed /
+// not-authenticated states — those are returned as data.
 //
 // Vynel detects WHICH auth method the CLI uses; it never extracts or stores
 // the API key value (decisions.md D14). Identity metadata (email, org, plan)
@@ -13,9 +16,9 @@
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { execFile, spawnSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { resolveClaudeCodeExecutablePath } from './resolve-claude-code-executable-path.js'
+import { resolveBundledClaudeBinary } from './claude-plugin-cli.js'
 import { readHostOsEnvVar } from './read-host-os-env-var.js'
 import type {
   AuthenticationStatus,
@@ -23,21 +26,22 @@ import type {
 } from '../../shared/authentication-status.js'
 
 export async function readClaudeAuthenticationStatus(): Promise<AuthenticationStatus> {
-  if (!checkClaudeCodeInstallation()) {
+  const engine = locateEngineBinary()
+  if (engine.binaryPath === null) {
     return {
       providerId: 'claude',
       isInstalled: false,
       isAuthenticated: false,
       authenticatedAccountLabel: null,
       authenticationMethod: null,
-      inactiveReason: 'Claude Code CLI is not installed',
+      inactiveReason: engine.missingReason,
       email: null,
       organizationName: null,
       subscriptionPlan: null,
     }
   }
 
-  const credentials = await readCredentialsStatus()
+  const credentials = await readCredentialsStatus(engine.binaryPath)
 
   return {
     providerId: 'claude',
@@ -52,15 +56,18 @@ export async function readClaudeAuthenticationStatus(): Promise<AuthenticationSt
   }
 }
 
-function checkClaudeCodeInstallation(): boolean {
+type EngineLocation =
+  | { binaryPath: string; missingReason: null }
+  | { binaryPath: null; missingReason: string }
+
+// A missing engine is a torn Vynel install, reported as data with the
+// resolver's own words (which name the platform package it looked for).
+function locateEngineBinary(): EngineLocation {
   try {
-    const result = spawnSync(resolveClaudeCodeExecutablePath(), ['--version'], {
-      stdio: 'ignore',
-      timeout: 5000,
-    })
-    return result.status === 0
-  } catch {
-    return false
+    return { binaryPath: resolveBundledClaudeBinary(), missingReason: null }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    return { binaryPath: null, missingReason: reason }
   }
 }
 
@@ -87,7 +94,7 @@ const NOT_AUTHENTICATED: CredentialsStatus = {
 // key → the CLI's own `auth status` report → OAuth credentials file (the
 // no-JSON fallback). Vynel detects PRESENCE only — it never reads the key
 // value through.
-async function readCredentialsStatus(): Promise<CredentialsStatus> {
+async function readCredentialsStatus(binaryPath: string): Promise<CredentialsStatus> {
   const apiKey: CredentialsStatus = {
     isAuthenticated: true,
     accountLabel: 'API Key',
@@ -100,7 +107,7 @@ async function readCredentialsStatus(): Promise<CredentialsStatus> {
   if (readHostOsEnvVar('ANTHROPIC_API_KEY') !== null) return apiKey
   if (await hasApiKeyInSettings()) return apiKey
 
-  const reported = await readCliAuthStatus()
+  const reported = await readCliAuthStatus(binaryPath)
   if (reported !== null) return reported
 
   const oauth = await readOauthCredentials()
@@ -110,7 +117,7 @@ async function readCredentialsStatus(): Promise<CredentialsStatus> {
         isAuthenticated: false,
         accountLabel: null,
         method: null,
-        reason: 'OAuth token has expired. Re-authenticate with `claude login`.',
+        reason: 'OAuth token has expired. Sign in again.',
       }
     }
     return {
@@ -135,14 +142,13 @@ const execFileAsync = promisify(execFile)
  *  an older CLI; the file-based fallback takes over. Async on purpose: the
  *  CLI boots for seconds, and a synchronous spawn here would freeze every
  *  live SSE stream in the process for that long. */
-async function readCliAuthStatus(): Promise<CredentialsStatus | null> {
+async function readCliAuthStatus(binaryPath: string): Promise<CredentialsStatus | null> {
   let output: string
   try {
-    const { stdout, stderr } = await execFileAsync(
-      resolveClaudeCodeExecutablePath(),
-      ['auth', 'status'],
-      { timeout: 10_000, windowsHide: true },
-    )
+    const { stdout, stderr } = await execFileAsync(binaryPath, ['auth', 'status'], {
+      timeout: 10_000,
+      windowsHide: true,
+    })
     output = `${stdout ?? ''}${stderr ?? ''}`
   } catch (error) {
     // A signed-out CLI can exit non-zero yet still print its JSON — read it.

@@ -3309,9 +3309,27 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Begin signing this machine in to the provider (returns the authorization URL). */
+        /** Begin signing this machine in — the CLI opens the browser; poll for the outcome. */
         post: operations["postProvidersByProviderIdAuthLogin"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/{providerId}/auth/login/{loginId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where a sign-in stands — poll until the browser's callback (or a pasted code) settles it. */
+        get: operations["getProvidersByProviderIdAuthLoginByLoginId"];
+        put?: never;
+        post?: never;
+        /** Cancel a pending sign-in (the dialog was closed). */
+        delete: operations["deleteProvidersByProviderIdAuthLoginByLoginId"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3326,26 +3344,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Finish the sign-in with the code the browser gave, returning the fresh status. */
+        /** The fallback: hand the CLI the code the browser showed; the poll settles the verdict. */
         post: operations["postProvidersByProviderIdAuthLoginByLoginIdCode"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/providers/{providerId}/auth/login/{loginId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Cancel a pending sign-in (the dialog was closed). */
-        delete: operations["deleteProvidersByProviderIdAuthLoginByLoginId"];
         options?: never;
         head?: never;
         patch?: never;
@@ -17039,7 +17040,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The sign-in is open: show the URL, then submit the pasted code. */
+            /** @description The sign-in is open and the browser is opening: poll it, and offer the fallback link. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17047,7 +17048,10 @@ export interface operations {
                 content: {
                     "application/json": {
                         loginId: string;
-                        authorizationUrl: string;
+                        /** @enum {string} */
+                        phase: "awaiting-browser" | "finishing" | "signed-in" | "failed";
+                        authorizationUrl: string | null;
+                        errorMessage: string | null;
                     };
                 };
             };
@@ -17058,7 +17062,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The CLI offered no sign-in link (not installed, no subscription). */
+            /** @description The CLI offered no sign-in link (no subscription, a torn engine). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17067,7 +17071,7 @@ export interface operations {
             };
         };
     };
-    postProvidersByProviderIdAuthLoginByLoginIdCode: {
+    getProvidersByProviderIdAuthLoginByLoginId: {
         parameters: {
             query?: never;
             header?: never;
@@ -17077,51 +17081,32 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    code: string;
-                };
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Signed in — the provider status after the CLI wrote its credential. */
+            /** @description The sign-in state: still awaiting the browser, finishing, signed-in, or failed with the CLI's words. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
+                        loginId: string;
                         /** @enum {string} */
-                        providerId: "claude" | "codex" | "gemini" | "cursor";
-                        isInstalled: boolean;
-                        isAuthenticated: boolean;
-                        authenticatedAccountLabel: string | null;
-                        /** @enum {string|null} */
-                        authenticationMethod: "oauth" | "api-key" | null;
-                        inactiveReason: string | null;
-                        email: string | null;
-                        organizationName: string | null;
-                        subscriptionPlan: string | null;
+                        phase: "awaiting-browser" | "finishing" | "signed-in" | "failed";
+                        authorizationUrl: string | null;
+                        errorMessage: string | null;
                     };
                 };
             };
-            /** @description Unsupported providerId, or an empty code. */
+            /** @description Unsupported providerId. */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description That sign-in is no longer open — begin again. */
+            /** @description That sign-in is no longer open (abandoned or timed out) — begin again. */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The CLI rejected the code or did not finish. */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17155,6 +17140,62 @@ export interface operations {
             };
             /** @description Unsupported providerId. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postProvidersByProviderIdAuthLoginByLoginIdCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerId: "claude" | "codex" | "gemini" | "cursor";
+                loginId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The code is with the CLI (phase finishing) — keep polling for the outcome. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        loginId: string;
+                        /** @enum {string} */
+                        phase: "awaiting-browser" | "finishing" | "signed-in" | "failed";
+                        authorizationUrl: string | null;
+                        errorMessage: string | null;
+                    };
+                };
+            };
+            /** @description Unsupported providerId, or an empty code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description That sign-in is no longer open — begin again. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The CLI had already given up before the code arrived. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -3,7 +3,35 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 3 (repo on Finish + Connect) MERGED TO MAIN `826c26fe`; Slice 2 `cab1dc88`; Slice 1 `2eaf8e18`; Slice 4 next
+## 🔧 2026-08-24 (latest) CLAUDE SIGN-IN — bundled engine + browser-settled login (fix, on main)
+
+Report: a fresh computer (no separately-installed Claude Code) showed "Claude Code isn't installed" in the
+account popup + wizard; and the sign-in demanded a pasted code while Claude Code itself settles the login
+from the browser. **Root causes:** (1) two binary homes — auth status + `ClaudeLoginRelay` searched the host
+PATH (`resolveClaudeCodeExecutablePath`) while plugins/MCP ran the SDK-bundled binary
+(`resolveBundledClaudeBinary`); the installed payload DOES ship `claude-agent-sdk-win32-x64/claude.exe`.
+(2) the relay's "URL out, code in" shape; plus the CLI now paints its link as an OSC-8 hyperlink, so the old
+URL regex glued href+BEL+text into one broken URL. **Probed live (bundled 2.1.235, piped spawn):**
+`auth login --claudeai` starts a localhost listener, opens the default browser ITSELF (rundll32) with
+`redirect_uri=http://localhost:<port>/callback`, prints the manual-code link only as the fallback, waits on
+stdin, exits 0 when the callback lands. **Landed:** `resolveBundledClaudeBinary` = THE one home (+
+`existsSync`; a torn install throws); PATH resolver deleted; `isInstalled:false` = "Vynel's engine is
+missing → reinstall" (copy in `ClaudeAccountDialog` + wizard `StepAccount`); the sync `--version` probe
+gone. Relay phases `awaiting-browser | finishing | signed-in | failed`, exit 0 = signed-in, control-char-safe
+URL regex (+ terminator lookahead vs chunk-split URLs), link-line-only `summarize`, `submitCode` = fallback
+(no-op once signed in), every `read` re-arms the 10-min idle timer (a slow browser leg is never cut off
+while the dialog polls). API mirrors the GitHub sign-in door: one `LoginStateResponseSchema` for begin /
+NEW `GET …/login/:loginId` (poll; verdict as data; 404 = gone) / `code` (hands over, the poll settles).
+Web: `use-claude-login` polls every 1.5s with an `attempt` guard, maps 404 → "That sign-in is no longer
+open — start again", holds the spinner through the status refetch (no signed-out flash), a code's 404 is
+silent (the poll carries the verdict); `ClaudeLoginFlow` = "Finish signing in in your browser" + folded
+"Browser didn't open, or a different account?" (link in a private window + paste) + Cancel on every
+pending panel. Sweep: the same
+regex fix + OSC-8 fixture in server-install's `ClaudeAuthRelay` (remote sign-in keeps the paste — no browser
+on a server). **Owed (live smoke):** one real sign-in from the popup on a box (happy path: browser →
+Authorize → popup flips to the account), and the fallback paste once (never live-smoked, ever).
+
+## 🔨 2026-08-23 GITHUB + GIT — Slice 3 (repo on Finish + Connect) MERGED TO MAIN `826c26fe`; Slice 2 `cab1dc88`; Slice 1 `2eaf8e18`; Slice 4 next
 
 Kafi's plan after the wizard (note `docs/module-notes/github-connection.md`): **everything over the `gh` CLI**
 (no OAuth app, no API client, no token in Vynel — the sessions already have `git`/`gh` on Bash, so PRs and

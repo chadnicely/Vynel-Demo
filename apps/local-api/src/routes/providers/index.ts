@@ -3,8 +3,9 @@
 //
 //   GET /                    -> listProvidersWithStatus            [x-mcp: list_ai_agent_providers]
 //   GET /:providerId/auth    -> getProviderAuthenticationStatus    [x-mcp: get_ai_agent_provider_auth_status]
-//   POST /:providerId/auth/login                -> begin the LOCAL sign-in (URL out; no x-mcp)
-//   POST /:providerId/auth/login/:loginId/code  -> pasted code in, fresh status back (no x-mcp)
+//   POST /:providerId/auth/login                -> begin the LOCAL sign-in (the CLI opens the browser; no x-mcp)
+//   GET  /:providerId/auth/login/:loginId       -> where that sign-in stands (poll; no x-mcp)
+//   POST /:providerId/auth/login/:loginId/code  -> the fallback: a pasted code in (no x-mcp)
 //   DELETE /:providerId/auth/login/:loginId     -> cancel a pending sign-in (no x-mcp)
 //   GET /:providerId/limits  -> the account's limit windows (no x-mcp)
 //   GET /:providerId/models  -> the stored roster (or the curated floor) [x-mcp: list_available_chat_models]
@@ -23,7 +24,7 @@
 // providerIds keep the source ValidationError → 400 semantics.
 
 import { resolver, validator } from 'hono-openapi/zod'
-import { ConflictError, ValidationError } from '@vynel/errors'
+import { ValidationError } from '@vynel/errors'
 import {
   ClaudeLoginRelay,
   discoverInstalledSkillsForProvider,
@@ -44,24 +45,20 @@ import {
   DiscoverSkillsQuerySchema,
   ProviderIdParamSchema,
   AuthenticationStatusResponseSchema,
-  BeginLoginResponseSchema,
   CancelLoginResponseSchema,
   ListProvidersWithStatusResponseSchema,
   DiscoverInstalledSkillsResponseSchema,
   ListAvailableModelsResponseSchema,
   ListRateLimitSnapshotsResponseSchema,
   LoginSessionParamSchema,
+  LoginStateResponseSchema,
   SubmitLoginCodeRequestSchema,
 } from './schemas.js'
 
-// One relay per process — it holds the live `claude auth login` child between
-// the "show me the link" and "here is my code" round-trips (the server-install
-// route's ClaudeAuthRelay precedent).
+// One relay per process — it holds the live `claude auth login` child across
+// the begin → poll round-trips while the user is in the browser (the
+// server-install route's ClaudeAuthRelay + the GitHub sign-in precedent).
 const claudeLoginRelay = new ClaudeLoginRelay()
-
-// How long the code round-trip waits for the CLI to write its credential and
-// exit before reporting the pending state as a conflict.
-const LOGIN_SETTLE_TIMEOUT_MS = 45_000
 
 function requireClaudeProvider(providerId: string): void {
   if (providerId !== 'claude') {
@@ -134,25 +131,28 @@ export const providersApp = factory
     },
   )
   // ──────────────────────────────────────────────────────────────────
-  // The local sign-in (top-bar account popup, 2026-08-18): three hops
-  // mirroring the server-install relay — begin (URL out), code (pasted code
-  // in, wait for the CLI's own verdict), cancel. NO x-mcp on any: signing the
-  // machine in is the USER's door, never an agent tool. The CLI writes its
-  // own credential file; no response carries a secret.
+  // The local sign-in (top-bar account popup, 2026-08-18; browser-settled
+  // 2026-08-24): begin (the CLI opens the browser, the fallback link comes
+  // out), get (poll until the browser's callback — or a pasted code —
+  // settles it; the GitHub sign-in door's shape), code (the fallback, in),
+  // cancel. NO x-mcp on any: signing the machine in is the USER's door,
+  // never an agent tool. The CLI writes its own credential file; no response
+  // carries a secret.
   // ──────────────────────────────────────────────────────────────────
   .post(
     '/:providerId/auth/login',
     describeRoute({
       tags: ['providers'],
-      summary: 'Begin signing this machine in to the provider (returns the authorization URL).',
+      summary: 'Begin signing this machine in — the CLI opens the browser; poll for the outcome.',
       'x-sdk-name': 'providers.beginLogin',
       responses: {
         200: {
-          description: 'The sign-in is open: show the URL, then submit the pasted code.',
-          content: { 'application/json': { schema: resolver(BeginLoginResponseSchema) } },
+          description:
+            'The sign-in is open and the browser is opening: poll it, and offer the fallback link.',
+          content: { 'application/json': { schema: resolver(LoginStateResponseSchema) } },
         },
         400: { description: 'Unsupported providerId.' },
-        409: { description: 'The CLI offered no sign-in link (not installed, no subscription).' },
+        409: { description: 'The CLI offered no sign-in link (no subscription, a torn engine).' },
       },
     }),
     validator('param', ProviderIdParamSchema),
@@ -160,43 +160,59 @@ export const providersApp = factory
     async (c) => {
       const { providerId } = c.req.valid('param')
       requireClaudeProvider(providerId)
-      const state = await claudeLoginRelay.begin()
-      // begin() resolves only once the URL is present.
-      return c.json({ loginId: state.loginId, authorizationUrl: state.authorizationUrl ?? '' })
+      // begin() resolves once the fallback link is present (or the CLI
+      // already said done).
+      return c.json(await claudeLoginRelay.begin())
+    },
+  )
+  .get(
+    '/:providerId/auth/login/:loginId',
+    describeRoute({
+      tags: ['providers'],
+      summary: "Where a sign-in stands — poll until the browser's callback (or a pasted code) settles it.",
+      'x-sdk-name': 'providers.getLogin',
+      responses: {
+        200: {
+          description:
+            "The sign-in state: still awaiting the browser, finishing, signed-in, or failed with the CLI's words.",
+          content: { 'application/json': { schema: resolver(LoginStateResponseSchema) } },
+        },
+        400: { description: 'Unsupported providerId.' },
+        404: { description: 'That sign-in is no longer open (abandoned or timed out) — begin again.' },
+      },
+    }),
+    validator('param', LoginSessionParamSchema),
+    ...userScoped,
+    (c) => {
+      const { providerId, loginId } = c.req.valid('param')
+      requireClaudeProvider(providerId)
+      return c.json(claudeLoginRelay.read(loginId))
     },
   )
   .post(
     '/:providerId/auth/login/:loginId/code',
     describeRoute({
       tags: ['providers'],
-      summary: 'Finish the sign-in with the code the browser gave, returning the fresh status.',
+      summary: 'The fallback: hand the CLI the code the browser showed; the poll settles the verdict.',
       'x-sdk-name': 'providers.submitLoginCode',
       responses: {
         200: {
-          description: 'Signed in — the provider status after the CLI wrote its credential.',
-          content: { 'application/json': { schema: resolver(AuthenticationStatusResponseSchema) } },
+          description: 'The code is with the CLI (phase finishing) — keep polling for the outcome.',
+          content: { 'application/json': { schema: resolver(LoginStateResponseSchema) } },
         },
         400: { description: 'Unsupported providerId, or an empty code.' },
         404: { description: 'That sign-in is no longer open — begin again.' },
-        409: { description: 'The CLI rejected the code or did not finish.' },
+        409: { description: 'The CLI had already given up before the code arrived.' },
       },
     }),
     validator('param', LoginSessionParamSchema),
     validator('json', SubmitLoginCodeRequestSchema),
     ...userScoped,
-    async (c) => {
+    (c) => {
       const { providerId, loginId } = c.req.valid('param')
       requireClaudeProvider(providerId)
       const { code } = c.req.valid('json')
-      claudeLoginRelay.submitCode(loginId, code)
-      const settled = await claudeLoginRelay.waitForOutcome(loginId, LOGIN_SETTLE_TIMEOUT_MS)
-      if (settled.phase !== 'signed-in') {
-        claudeLoginRelay.discard(loginId)
-        throw new ConflictError(settled.errorMessage ?? 'The sign-in did not finish. Try again.')
-      }
-      claudeLoginRelay.discard(loginId)
-      const status = await getProviderAuthenticationStatus(providerId, c.var.aiProvider)
-      return c.json(status)
+      return c.json(claudeLoginRelay.submitCode(loginId, code))
     },
   )
   .delete(

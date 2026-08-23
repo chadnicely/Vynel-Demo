@@ -1,6 +1,7 @@
-// Tests for `readClaudeAuthenticationStatus` — stubs `spawnSync`, `readFile`,
-// and `readHostOsEnvVar` so the auth states are exercised deterministically
-// without real Claude Code. End-to-end coverage is the step-27 smoke test.
+// Tests for `readClaudeAuthenticationStatus` — stubs the bundled-binary
+// resolver, `execFile`, `readFile`, and `readHostOsEnvVar` so the auth states
+// are exercised deterministically without real Claude Code. End-to-end
+// coverage is the step-27 smoke test.
 //
 // test: correct expectation for the oauth label — was the credentials-file's
 // top-level email, should be the CLI's `auth status` JSON: the real
@@ -9,27 +10,34 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-vi.mock('node:child_process', () => ({ spawnSync: vi.fn(), execFile: vi.fn() }))
+vi.mock('node:child_process', () => ({ execFile: vi.fn() }))
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn() }))
 vi.mock('./read-host-os-env-var.js', () => ({ readHostOsEnvVar: vi.fn() }))
+vi.mock('./claude-plugin-cli.js', () => ({ resolveBundledClaudeBinary: vi.fn() }))
 
-import { execFile, spawnSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { ValidationError } from '@vynel/errors'
 import { readHostOsEnvVar } from './read-host-os-env-var.js'
+import { resolveBundledClaudeBinary } from './claude-plugin-cli.js'
 import { readClaudeAuthenticationStatus } from './read-claude-authentication-status.js'
 
-const mockSpawnSync = vi.mocked(spawnSync)
+const mockResolveBundledClaudeBinary = vi.mocked(resolveBundledClaudeBinary)
 const mockExecFile = vi.mocked(execFile)
 const mockReadFile = vi.mocked(readFile)
 const mockReadHostOsEnvVar = vi.mocked(readHostOsEnvVar)
 
-// The read runs the CLI twice: `--version` synchronously (install check),
-// then `auth status` async (the CLI's own JSON report — promisify drives the
-// mocked execFile through its callback).
+// "Installed" is the SDK's bundled binary resolving (the engine the sessions
+// run on); a torn install throws from the resolver. The status itself is the
+// CLI's own `auth status` JSON (promisify drives the mocked execFile through
+// its callback).
 function setCli(options: { installed: boolean; statusOutput?: string }): void {
-  mockSpawnSync.mockImplementation(
-    (() => ({ status: options.installed ? 0 : 1 })) as never,
-  )
+  mockResolveBundledClaudeBinary.mockImplementation(() => {
+    if (!options.installed) {
+      throw new ValidationError('The Claude engine binary for this platform is not installed')
+    }
+    return '/vynel/engine/claude'
+  })
   mockExecFile.mockImplementation(((
     _command: string,
     _args: string[],
@@ -49,12 +57,24 @@ beforeEach(() => {
 })
 
 describe('readClaudeAuthenticationStatus', () => {
-  it('returns isInstalled: false when the CLI is not on PATH', async () => {
+  it('returns isInstalled: false, quoting the resolver, when the bundled engine is missing', async () => {
     setCli({ installed: false })
     const status = await readClaudeAuthenticationStatus()
     expect(status.isInstalled).toBe(false)
     expect(status.isAuthenticated).toBe(false)
-    expect(status.inactiveReason).toMatch(/not installed/i)
+    expect(status.inactiveReason).toMatch(/engine binary .* not installed/i)
+    expect(mockExecFile).not.toHaveBeenCalled()
+  })
+
+  it('runs the bundled binary for auth status — never a host claude on PATH', async () => {
+    setCli({ installed: true, statusOutput: JSON.stringify({ loggedIn: false }) })
+    await readClaudeAuthenticationStatus()
+    expect(mockExecFile).toHaveBeenCalledWith(
+      '/vynel/engine/claude',
+      ['auth', 'status'],
+      expect.objectContaining({ windowsHide: true }),
+      expect.any(Function),
+    )
   })
 
   it('reports api-key auth when ANTHROPIC_API_KEY is set in the environment', async () => {

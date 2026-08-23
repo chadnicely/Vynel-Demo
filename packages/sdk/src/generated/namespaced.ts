@@ -1432,6 +1432,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getLogin: async (providerId: NonNullable<paths["/providers/{providerId}/auth/login/{loginId}"]["get"]['parameters']>['path']["providerId"], loginId: NonNullable<paths["/providers/{providerId}/auth/login/{loginId}"]["get"]['parameters']>['path']["loginId"]) => {
+    const { data, error, response } = await client["GET"]("/providers/{providerId}/auth/login/{loginId}", {
+      params: { path: { providerId: providerId, loginId: loginId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async () => {
     const { data, error, response } = await client["GET"]("/providers")
     if (error || data === undefined) throw new SdkError(response, error ?? data)

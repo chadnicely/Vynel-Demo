@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from "vue";
+import { onBeforeUnmount, ref, watch } from "vue";
 import {
   PhArrowSquareOut as ArrowSquareOut,
   PhArrowsClockwise as ArrowsClockwise,
@@ -11,9 +11,12 @@ import { useClaudeLogin } from "../../composables/providers/use-claude-login.js"
 // The sign-in flow, one home for both of the account dialog's doors: the
 // signed-out "Sign in with your subscription" and the signed-in "Switch
 // account" (an expired auth or a limit-dodging second subscription — Kafi,
-// 2026-08-18). The current account stays active until the NEW sign-in lands:
-// the CLI only writes its credential file on completion, so cancel and
-// failure change nothing.
+// 2026-08-18). The engine's own CLI opens the browser and finishes the
+// sign-in by itself once the browser's callback lands — this panel just
+// waits, with the fallback link + code paste folded away for a browser that
+// didn't open or a different account (a private window). The current
+// account stays active until the NEW sign-in lands: the CLI only writes its
+// credential file on completion, so cancel and failure change nothing.
 const props = withDefaults(
   defineProps<{
     idleLabel: string;
@@ -26,6 +29,18 @@ const props = withDefaults(
 
 const login = useClaudeLogin();
 const pastedCode = ref("");
+const showFallback = ref(false);
+
+// A fresh attempt folds the fallback away again.
+watch(
+  () => login.phase.value,
+  (phase) => {
+    if (phase === "opening") {
+      showFallback.value = false;
+      pastedCode.value = "";
+    }
+  },
+);
 
 // The dialog closing unmounts this flow — a half-finished sign-in must not
 // linger (cancel also discards the server-side relay session).
@@ -50,47 +65,70 @@ function submitCode() {
 
   <p v-else-if="login.phase.value === 'opening'" class="flow-panel flow-note">
     <CircleNotch :size="13" class="spin" aria-hidden="true" />
-    Asking Claude for a sign-in link…
+    Opening your browser…
   </p>
 
-  <div v-else-if="login.phase.value === 'code'" class="flow-panel">
-    <p class="flow-lead">Claude has opened a sign-in page.</p>
-    <p class="flow-note">
-      Open this link, sign in as the account you want, then paste the code it
-      gives you. For a different account than the browser holds, use a private
-      window.
+  <div v-else-if="login.phase.value === 'browser'" class="flow-panel">
+    <p class="flow-lead">Finish signing in in your browser.</p>
+    <p class="flow-note" role="status">
+      <CircleNotch :size="13" class="spin" aria-hidden="true" />
+      Sign in to Claude there and click Authorize — this updates on its own.
     </p>
-    <a
-      :href="login.authorizationUrl.value ?? '#'"
-      target="_blank"
-      rel="noopener"
-      class="authorization-link"
-    >
-      <ArrowSquareOut :size="12" aria-hidden="true" />
-      {{ login.authorizationUrl.value }}
-    </a>
-    <input
-      v-model="pastedCode"
-      type="text"
-      spellcheck="false"
-      placeholder="Paste the code from your browser"
-      class="code-input"
-      @keydown.enter.prevent="submitCode"
-    />
     <div class="flex gap-2">
-      <button type="button" class="primary-button" @click="submitCode">
-        Finish sign-in
+      <button
+        type="button"
+        class="ghost-button"
+        :aria-expanded="showFallback"
+        @click="showFallback = !showFallback"
+      >
+        Browser didn't open, or a different account?
       </button>
       <button type="button" class="ghost-button" @click="login.cancel()">
         Cancel
       </button>
     </div>
+    <template v-if="showFallback">
+      <p class="flow-note">
+        Open this link yourself — in a private window to use an account your
+        browser isn't holding — then paste the code it shows you.
+      </p>
+      <a
+        :href="login.authorizationUrl.value ?? '#'"
+        target="_blank"
+        rel="noopener"
+        class="authorization-link"
+      >
+        <ArrowSquareOut :size="12" aria-hidden="true" />
+        {{ login.authorizationUrl.value }}
+      </a>
+      <input
+        v-model="pastedCode"
+        type="text"
+        spellcheck="false"
+        placeholder="Paste the code from your browser"
+        class="code-input"
+        @keydown.enter.prevent="submitCode"
+      />
+      <button
+        type="button"
+        class="primary-button self-start"
+        :disabled="pastedCode.trim().length === 0"
+        @click="submitCode"
+      >
+        Finish sign-in
+      </button>
+    </template>
   </div>
 
-  <p v-else-if="login.phase.value === 'finishing'" class="flow-panel flow-note">
-    <CircleNotch :size="13" class="spin" aria-hidden="true" />
-    Finishing the sign-in…
-  </p>
+  <div v-else-if="login.phase.value === 'finishing'" class="flow-panel">
+    <p class="flow-note" role="status">
+      <CircleNotch :size="13" class="spin" aria-hidden="true" />
+      Finishing the sign-in…
+    </p>
+    <button type="button" class="ghost-button self-start" @click="login.cancel()">
+      Cancel
+    </button>
+  </div>
 
   <div v-else class="flow-panel is-error">
     <p class="error-lead">
@@ -216,6 +254,11 @@ function submitCode() {
 
 .primary-button:hover {
   background: color-mix(in srgb, var(--claude-mark) 24%, transparent);
+}
+
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .ghost-button {

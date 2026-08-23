@@ -33258,7 +33258,7 @@
       "post": {
         "responses": {
           "200": {
-            "description": "The sign-in is open: show the URL, then submit the pasted code.",
+            "description": "The sign-in is open and the browser is opening: poll it, and offer the fallback link.",
             "content": {
               "application/json": {
                 "schema": {
@@ -33267,13 +33267,33 @@
                     "loginId": {
                       "type": "string"
                     },
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting-browser",
+                        "finishing",
+                        "signed-in",
+                        "failed"
+                      ]
+                    },
                     "authorizationUrl": {
-                      "type": "string"
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "loginId",
-                    "authorizationUrl"
+                    "phase",
+                    "authorizationUrl",
+                    "errorMessage"
                   ]
                 }
               }
@@ -33283,7 +33303,7 @@
             "description": "Unsupported providerId."
           },
           "409": {
-            "description": "The CLI offered no sign-in link (not installed, no subscription)."
+            "description": "The CLI offered no sign-in link (no subscription, a torn engine)."
           }
         },
         "operationId": "postProvidersByProviderIdAuthLogin",
@@ -33306,71 +33326,39 @@
             "required": true
           }
         ],
-        "summary": "Begin signing this machine in to the provider (returns the authorization URL).",
+        "summary": "Begin signing this machine in — the CLI opens the browser; poll for the outcome.",
         "x-sdk-name": "providers.beginLogin"
       }
     },
-    "/providers/{providerId}/auth/login/{loginId}/code": {
-      "post": {
+    "/providers/{providerId}/auth/login/{loginId}": {
+      "get": {
         "responses": {
           "200": {
-            "description": "Signed in — the provider status after the CLI wrote its credential.",
+            "description": "The sign-in state: still awaiting the browser, finishing, signed-in, or failed with the CLI's words.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "providerId": {
+                    "loginId": {
+                      "type": "string"
+                    },
+                    "phase": {
                       "type": "string",
                       "enum": [
-                        "claude",
-                        "codex",
-                        "gemini",
-                        "cursor"
+                        "awaiting-browser",
+                        "finishing",
+                        "signed-in",
+                        "failed"
                       ]
                     },
-                    "isInstalled": {
-                      "type": "boolean"
-                    },
-                    "isAuthenticated": {
-                      "type": "boolean"
-                    },
-                    "authenticatedAccountLabel": {
+                    "authorizationUrl": {
                       "type": [
                         "string",
                         "null"
                       ]
                     },
-                    "authenticationMethod": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "enum": [
-                        "oauth",
-                        "api-key",
-                        null
-                      ]
-                    },
-                    "inactiveReason": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "email": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "organizationName": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "subscriptionPlan": {
+                    "errorMessage": {
                       "type": [
                         "string",
                         "null"
@@ -33378,31 +33366,23 @@
                     }
                   },
                   "required": [
-                    "providerId",
-                    "isInstalled",
-                    "isAuthenticated",
-                    "authenticatedAccountLabel",
-                    "authenticationMethod",
-                    "inactiveReason",
-                    "email",
-                    "organizationName",
-                    "subscriptionPlan"
+                    "loginId",
+                    "phase",
+                    "authorizationUrl",
+                    "errorMessage"
                   ]
                 }
               }
             }
           },
           "400": {
-            "description": "Unsupported providerId, or an empty code."
+            "description": "Unsupported providerId."
           },
           "404": {
-            "description": "That sign-in is no longer open — begin again."
-          },
-          "409": {
-            "description": "The CLI rejected the code or did not finish."
+            "description": "That sign-in is no longer open (abandoned or timed out) — begin again."
           }
         },
-        "operationId": "postProvidersByProviderIdAuthLoginByLoginIdCode",
+        "operationId": "getProvidersByProviderIdAuthLoginByLoginId",
         "tags": [
           "providers"
         ],
@@ -33431,29 +33411,9 @@
             "required": true
           }
         ],
-        "summary": "Finish the sign-in with the code the browser gave, returning the fresh status.",
-        "x-sdk-name": "providers.submitLoginCode",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": [
-                  "code"
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/providers/{providerId}/auth/login/{loginId}": {
+        "summary": "Where a sign-in stands — poll until the browser's callback (or a pasted code) settles it.",
+        "x-sdk-name": "providers.getLogin"
+      },
       "delete": {
         "responses": {
           "200": {
@@ -33510,6 +33470,112 @@
         ],
         "summary": "Cancel a pending sign-in (the dialog was closed).",
         "x-sdk-name": "providers.cancelLogin"
+      }
+    },
+    "/providers/{providerId}/auth/login/{loginId}/code": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The code is with the CLI (phase finishing) — keep polling for the outcome.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "loginId": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting-browser",
+                        "finishing",
+                        "signed-in",
+                        "failed"
+                      ]
+                    },
+                    "authorizationUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errorMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "loginId",
+                    "phase",
+                    "authorizationUrl",
+                    "errorMessage"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported providerId, or an empty code."
+          },
+          "404": {
+            "description": "That sign-in is no longer open — begin again."
+          },
+          "409": {
+            "description": "The CLI had already given up before the code arrived."
+          }
+        },
+        "operationId": "postProvidersByProviderIdAuthLoginByLoginIdCode",
+        "tags": [
+          "providers"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude",
+                "codex",
+                "gemini",
+                "cursor"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "loginId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true
+          }
+        ],
+        "summary": "The fallback: hand the CLI the code the browser showed; the poll settles the verdict.",
+        "x-sdk-name": "providers.submitLoginCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/providers/{providerId}/limits": {

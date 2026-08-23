@@ -34,6 +34,25 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   facts reader) now run through ONE runner with `protocol.ext.allow=never` on every call and
   `--no-optional-locks` so a background read never fights a session over the index lock.
 
+- **Signing in to Claude finishes by itself.** "Sign in with your subscription" opens your browser;
+  once you click Authorize there, Vynel notices on its own and shows the account — no code to copy
+  back. The link + paste-a-code path is still there, folded behind "Browser didn't open, or a
+  different account?" (open the link in a private window to sign in as an account your browser
+  isn't holding). Vynel still never sees the credential — Claude's own program writes it.
+
+### Fixed
+
+- **A fresh computer no longer says "Claude Code isn't installed."** Vynel ships its own Claude
+  engine, but the account dialog and the wizard's account step were looking for a separately
+  installed `claude` on the machine — so a clean install had nothing to sign in to. Every Claude
+  door (status, sign-in, plugins, MCP) now runs the one bundled engine; "not installed" is now
+  only ever a torn Vynel install, and says to reinstall.
+- The sign-in link was being captured with its terminal hyperlink escape codes glued in (the
+  current Claude CLI paints it as a clickable link), producing a doubled, broken URL — fixed for
+  both the local sign-in and the server sign-in.
+- Reading the Claude account status no longer freezes the engine for up to five seconds — the
+  synchronous "is claude installed" probe is gone (the bundled engine's presence is a file check).
+
 ## [0.3.5] — 2026-08-23
 
 ### Added

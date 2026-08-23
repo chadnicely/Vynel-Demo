@@ -78,14 +78,14 @@ const answers = useWizardAnswers();
         <span class="text-[13px] text-ink-1">
           {{
             status?.isInstalled === false
-              ? "Claude Code is not installed"
+              ? "Claude engine missing"
               : "Claude — not signed in"
           }}
         </span>
         <span class="text-[11.5px] text-ink-3">
           {{
             status?.isInstalled === false
-              ? "Vynel builds through Claude Code; install it and come back to this step."
+              ? "Vynel's own Claude engine is missing from this install; reinstall Vynel and come back to this step."
               : "Sign in once — it is the account every workspace builds with."
           }}
         </span>

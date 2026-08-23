@@ -78,10 +78,11 @@ Pulled from the old core `providers` domain: the runtime-interrogating reads liv
 | `claude/history/translate-persisted-claude-message.ts` | Maps a persisted Claude message → normalized transcript shape. |
 | `claude/history/claude-session-storage.ts` | Path helpers for the Claude CLI session-artifact storage. |
 | **`claude/installation/`** | **Host install/config reads.** |
-| `claude/installation/read-claude-authentication-status.ts` | Reads the Claude CLI auth/oauth state → `AuthenticationStatus`. |
+| `claude/installation/claude-plugin-cli.ts` | `resolveBundledClaudeBinary` — THE one home for the engine binary (the SDK platform package's `claude`; throws on a torn install) + the plugin-lifecycle delegate. Every CLI door runs this binary, never a host `claude` on PATH. |
+| `claude/installation/read-claude-authentication-status.ts` | Reads the bundled engine's presence + its `claude auth status` JSON → `AuthenticationStatus` (`isInstalled` = Vynel's own install is whole). |
+| `claude/installation/claude-login-relay.ts` | `ClaudeLoginRelay` — drives the bundled `claude auth login --claudeai` over pipes: the CLI opens the browser and exits 0 once its localhost callback lands (signed-in); the printed fallback link (OSC-8-wrapped) goes out + a pasted code comes back for the edge cases. |
 | `claude/installation/discover-claude-installed-skills.ts` | Scans skill directories → `InstalledSkill[]`. |
 | `claude/installation/list-claude-configured-mcp-servers.ts` | Reads the Claude CLI MCP config → `McpServerConfig[]`. |
-| `claude/installation/resolve-claude-code-executable-path.ts` | Resolves the Claude Code CLI binary path. |
 | `claude/installation/read-host-os-env-var.ts` | Reads a host-OS env var (blessed exception to the `process.env` ban — a runtime boundary read, not app config). |
 
 ### `packages/providers/src/test-support/`

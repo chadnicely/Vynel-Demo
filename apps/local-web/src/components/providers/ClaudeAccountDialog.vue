@@ -20,8 +20,8 @@ import ClaudeLoginFlow from "./ClaudeLoginFlow.vue";
 // one functionality — whose subscription this machine runs on. Two tabs:
 // Account (who is signed in + the week's token usage, with the sign-in /
 // switch flow) and Limits (the /usage-style windows the engine reports as
-// turns run). The sign-in itself lives in ClaudeLoginFlow — link out, pasted
-// code back, never the credential.
+// turns run). The sign-in itself lives in ClaudeLoginFlow — the engine's CLI
+// opens the browser and settles it, never the credential.
 const props = defineProps<{
   open: boolean;
 }>();
@@ -168,11 +168,12 @@ function onOpenChange(open: boolean) {
         </p>
 
         <template v-else-if="status">
-          <!-- Not installed: nothing to sign in to. -->
+          <!-- Not installed: Vynel ships its own Claude engine, so a missing
+               one is a torn install — nothing to sign in to until it's whole. -->
           <p v-if="!status.isInstalled" class="danger-note">
             <WarningCircle :size="14" aria-hidden="true" />
-            Claude Code isn't installed on this computer, so there is no
-            account to sign in. Install it, then come back here.
+            Vynel's Claude engine is missing from this install, so there is no
+            account to sign in. Reinstall Vynel, then come back here.
           </p>
 
           <!-- Signed in: the account card + the switch door (an expired auth

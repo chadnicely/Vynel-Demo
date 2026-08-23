@@ -12,14 +12,19 @@ import { openServerConnection } from '../connecting/server-connection.js'
 const AUTH_URL = 'https://claude.ai/oauth/authorize?code=1&state=abc'
 const GOOD_CODE = 'paste-me-1234'
 
-/** The fake CLI: greets with the URL, then judges the pasted code. */
+/** The fake CLI: greets with the URL — painted as an OSC-8 terminal
+ *  hyperlink, the way the real CLI writes it — then judges the pasted code. */
 function claudeLoginHandler(): NonNullable<
   Parameters<typeof startFakeSshServer>[0]
 > {
   return {
     interactiveHandler: ({ line }) => {
       if (line === null) {
-        return { write: `Open this URL to authorize:\r\n${AUTH_URL}\r\nPaste code here: ` }
+        return {
+          write:
+            'Open this URL to authorize:\r\n' +
+            `\u001b]8;;${AUTH_URL}\u0007${AUTH_URL}\u001b]8;;\u0007\r\nPaste code here: `,
+        }
       }
       if (line === GOOD_CODE) return { write: '\r\nLogin successful.\r\n', exitCode: 0 }
       return { write: '\r\nInvalid code.\r\n', exitCode: 1 }

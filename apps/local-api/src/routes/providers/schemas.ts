@@ -34,17 +34,26 @@ export const AuthenticationStatusResponseSchema = z.object({
   subscriptionPlan: z.string().nullable(),
 })
 
-// The local sign-in flow (top-bar account popup): the relay spawns
-// `claude auth login`, hands the browser URL out, takes the pasted code back.
+// The local sign-in flow (top-bar account popup): the relay spawns the
+// bundled `claude auth login`, which opens the browser and finishes on its
+// own once the browser's callback lands; the fallback link goes out and a
+// pasted code comes back only for the edge cases.
 export const LoginSessionParamSchema = z.object({
   providerId: AiAgentProviderIdSchema,
   loginId: z.string().min(1),
 })
 
-export const BeginLoginResponseSchema = z.object({
+export const LoginPhaseSchema = z.enum(['awaiting-browser', 'finishing', 'signed-in', 'failed'])
+
+/** Where the sign-in stands — the one shape begin / wait / code all return. */
+export const LoginStateResponseSchema = z.object({
   loginId: z.string(),
-  /** The page the user opens (in their browser) to authorize this machine. */
-  authorizationUrl: z.string(),
+  phase: LoginPhaseSchema,
+  /** The fallback link (the code-to-paste variant of the sign-in page) for a
+   *  browser that didn't open, or a private window holding another account. */
+  authorizationUrl: z.string().nullable(),
+  /** Actionable when phase is 'failed'. */
+  errorMessage: z.string().nullable(),
 })
 
 export const SubmitLoginCodeRequestSchema = z.object({

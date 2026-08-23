@@ -21,7 +21,12 @@ export const CLAUDE_STATUS_COMMAND = 'claude auth status'
 // forever — a user who closes the dialog just walks away.
 const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000
 
-const URL_PATTERN = /(https?:\/\/[^\s"'<>]+)/
+// The CLI paints its link as an OSC-8 terminal hyperlink (ESC ] 8 ; ; url
+// BEL text ESC ] 8 ; ; BEL) — the href and the visible text sit back to
+// back, separated only by control characters. Excluding those stops the
+// match at the href instead of gluing both copies into one broken URL.
+// eslint-disable-next-line no-control-regex -- stopping at terminal control characters is the point
+const URL_PATTERN = /(https?:\/\/[^\s"'<>\x00-\x1f\x7f]+)/
 
 export type ClaudeAuthPhase = 'awaiting-authorization' | 'finishing' | 'signed-in' | 'failed'
 

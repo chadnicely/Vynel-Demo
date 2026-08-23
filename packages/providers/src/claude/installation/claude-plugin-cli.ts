@@ -10,7 +10,7 @@
 import os from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { ValidationError } from '@vynel/errors'
@@ -19,10 +19,13 @@ import { formatCliErrorDetail } from './format-cli-error-detail.js'
 const execFileAsync = promisify(execFile)
 const COMMAND_TIMEOUT_MS = 5 * 60 * 1000
 
-/** Two-hop resolution: providers → the SDK package → its platform package
+/** THE one home for "where is the Claude engine" — every CLI door (plugins,
+ * MCP auth, account sign-in, auth status) runs the binary the sessions
+ * themselves run on, never a `claude` the host happens to have on PATH.
+ * Two-hop resolution: providers → the SDK package → its platform package
  * (`@anthropic-ai/claude-agent-sdk-<platform>-<arch>`), where the binary
- * lives. Throws with the searched name so a missing platform package reads
- * as what it is. */
+ * lives. Throws with the searched name so a missing platform package — or a
+ * package without its binary (a torn install) — reads as what it is. */
 export function resolveBundledClaudeBinary(): string {
   const platformPackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`
   const fromProviders = createRequire(import.meta.url)
@@ -31,17 +34,20 @@ export function resolveBundledClaudeBinary(): string {
   // optional dep, invisible from providers directly under pnpm.
   const sdkMainEntry = fromProviders.resolve('@anthropic-ai/claude-agent-sdk')
   const fromSdk = createRequire(sdkMainEntry)
+  const missing = new ValidationError(
+    `The Claude engine binary for this platform (${platformPackage}) is not installed — ` +
+      'reinstall dependencies or update @anthropic-ai/claude-agent-sdk.',
+  )
   let platformPackageJson: string
   try {
     platformPackageJson = fromSdk.resolve(`${platformPackage}/package.json`)
   } catch {
-    throw new ValidationError(
-      `The Claude engine binary for this platform (${platformPackage}) is not installed — ` +
-        'reinstall dependencies or update @anthropic-ai/claude-agent-sdk.',
-    )
+    throw missing
   }
   const binaryName = process.platform === 'win32' ? 'claude.exe' : 'claude'
-  return path.join(path.dirname(platformPackageJson), binaryName)
+  const binaryPath = path.join(path.dirname(platformPackageJson), binaryName)
+  if (!existsSync(binaryPath)) throw missing
+  return binaryPath
 }
 
 // Exported for the marketplace-cli sibling — `plugin marketplace …`

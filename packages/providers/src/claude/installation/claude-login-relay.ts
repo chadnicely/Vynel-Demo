@@ -1,32 +1,51 @@
 // Signing THIS machine in to Claude — the local twin of server-install's
-// `ClaudeAuthRelay`. `claude auth login --claudeai` prints an authorization
-// URL and then blocks on stdin for the code the user gets from their browser,
-// so the flow spans several HTTP round-trips and the child process has to
-// stay alive between them — hence a stateful registry (classes only for real
-// state, the AppProcessSupervisor precedent).
+// `ClaudeAuthRelay`, over the SDK's BUNDLED `claude` binary (the engine the
+// sessions run on; no host install needed). `claude auth login --claudeai`
+// opens the user's default browser itself, listens on a localhost callback,
+// and exits 0 once the browser's redirect lands — no code to paste (probed
+// live on 2.1.235: `redirect_uri=http://localhost:<port>/callback`). It ALSO
+// prints a fallback link — the manual variant that shows a code to paste —
+// for a browser that didn't open, or a private window holding a different
+// account. The flow spans several HTTP round-trips (begin, then reads until
+// the verdict) and the child has to stay alive between them — hence a
+// stateful registry (classes only for real state, the AppProcessSupervisor
+// precedent; the GitHubSignInRelay shape).
 //
 // VYNEL NEVER SEES OR STORES THE CREDENTIAL. The CLI writes its own
-// `~/.claude` file; we relay the URL out and the pasted code in (decision
-// D14). Spawned through a shell because the CLI is a `.cmd` shim on Windows
-// (a bare spawn fails with EINVAL) — with pipes, never a console window.
+// `~/.claude` file; we relay the fallback link out and a pasted code in
+// (decision D14). Spawned directly — it is a real executable, not the
+// `.cmd` shim a host install puts on PATH — with pipes, never a console.
 
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { ConflictError, NotFoundError, ValidationError } from '@vynel/errors'
-import { resolveClaudeCodeExecutablePath } from './resolve-claude-code-executable-path.js'
+import { resolveBundledClaudeBinary } from './claude-plugin-cli.js'
 
-// An abandoned dialog must not hold a half-finished login forever.
+// An abandoned dialog must not hold a half-finished login forever; every
+// read re-arms it, so a user slow in the browser is never cut off while the
+// dialog is still asking.
 const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000
 const LOGIN_URL_TIMEOUT_MS = 30_000
 
-const URL_PATTERN = /(https?:\/\/[^\s"'<>]+)/
+// The CLI paints its link as an OSC-8 terminal hyperlink (ESC ] 8 ; ; url
+// BEL text ESC ] 8 ; ; BEL) — the href and the visible text sit back to
+// back, separated only by control characters. Excluding those stops the
+// match at the href instead of gluing both copies into one broken URL; the
+// lookahead insists on that terminator, so a URL cut at a pipe-chunk
+// boundary is not taken for the whole.
+// eslint-disable-next-line no-control-regex -- stopping at terminal control characters is the point
+const URL_PATTERN = /(https?:\/\/[^\s"'<>\x00-\x1f\x7f]+)(?=[\s"'<>\x00-\x1f\x7f])/
+const OSC8_LINK_OPENER = '\u001b]8;;'
+// eslint-disable-next-line no-control-regex -- terminal escapes are control characters by definition
+const TERMINAL_ESCAPE_PATTERN = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]/g
 
-export type ClaudeLoginPhase = 'awaiting-code' | 'finishing' | 'signed-in' | 'failed'
+export type ClaudeLoginPhase = 'awaiting-browser' | 'finishing' | 'signed-in' | 'failed'
 
 export interface ClaudeLoginState {
   loginId: string
   phase: ClaudeLoginPhase
-  /** The URL the user opens in their browser; null until the CLI prints it. */
+  /** The fallback link (opens the code-to-paste variant of the sign-in);
+   *  null until the CLI prints it. The browser itself was opened by the CLI. */
   authorizationUrl: string | null
   /** Actionable when phase is 'failed'. */
   errorMessage: string | null
@@ -45,9 +64,7 @@ export interface ClaudeLoginRelayDeps {
 }
 
 function spawnClaudeLoginProcess(): ClaudeLoginProcess {
-  const executable = resolveClaudeCodeExecutablePath()
-  const child = spawn(`"${executable}" auth login --claudeai`, {
-    shell: true,
+  const child = spawn(resolveBundledClaudeBinary(), ['auth', 'login', '--claudeai'], {
     windowsHide: true,
   })
   let output = ''
@@ -63,7 +80,12 @@ function spawnClaudeLoginProcess(): ClaudeLoginProcess {
   // listener is the belt-and-braces.
   child.stdin?.on('error', () => {})
   const finished = new Promise<number | null>((resolve) => {
-    child.on('error', () => resolve(null))
+    // A spawn failure (EACCES, a binary that won't start) has no exit code;
+    // its reason is the only thing worth showing.
+    child.on('error', (error) => {
+      output += `\n${error.message}\n`
+      resolve(null)
+    })
     child.on('close', (code) => resolve(code))
   })
   return {
@@ -72,16 +94,6 @@ function spawnClaudeLoginProcess(): ClaudeLoginProcess {
       child.stdin?.write(`${line}\n`)
     },
     kill: () => {
-      // `shell: true` puts a cmd.exe shim between us and the CLI on Windows —
-      // killing only the shim orphans the real child blocked on stdin, so an
-      // abandoned login would linger as a zombie. taskkill fells the tree.
-      if (process.platform === 'win32' && child.pid !== undefined) {
-        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }).on(
-          'error',
-          () => child.kill(),
-        )
-        return
-      }
       child.kill()
     },
     finished,
@@ -97,9 +109,10 @@ interface TrackedLogin {
 export class ClaudeLoginRelay {
   private readonly sessions = new Map<string, TrackedLogin>()
 
-  /** Begin the sign-in; resolves once the CLI has printed its authorization
-   *  URL, so the caller can show it immediately. One login at a time — a new
-   *  begin discards any pending one (the dialog was reopened). */
+  /** Begin the sign-in: the CLI opens the browser; this resolves once it has
+   *  printed its fallback link, so the caller can show it immediately. One
+   *  login at a time — a new begin discards any pending one (the dialog was
+   *  reopened). */
   async begin(deps: ClaudeLoginRelayDeps = {}): Promise<ClaudeLoginState> {
     this.discardAll()
     const loginId = randomUUID()
@@ -107,44 +120,46 @@ export class ClaudeLoginRelay {
 
     const tracked: TrackedLogin = {
       process: loginProcess,
-      state: { loginId, phase: 'awaiting-code', authorizationUrl: null, errorMessage: null },
+      state: { loginId, phase: 'awaiting-browser', authorizationUrl: null, errorMessage: null },
       idleTimer: this.armIdleTimer(loginId),
     }
     this.sessions.set(loginId, tracked)
 
-    // The CLI exiting on its own before a code arrives means it refused
-    // (already signed in, no browser, not installed) — surface its words.
+    // The CLI's exit IS the verdict: 0 means it wrote its credential — after
+    // the browser's callback landed or a pasted code was accepted; anything
+    // else is a refusal (no subscription, the code rejected, its own auth
+    // timeout) — surface its words.
     void loginProcess.finished.then((exitCode) => {
       const current = this.sessions.get(loginId)
       if (current !== tracked) return
-      if (current.state.phase === 'finishing' && exitCode === 0) {
+      if (exitCode === 0) {
         current.state.phase = 'signed-in'
         return
       }
-      if (current.state.phase !== 'signed-in') {
-        current.state.phase = 'failed'
-        current.state.errorMessage = summarize(loginProcess.output(), exitCode)
-      }
+      current.state.phase = 'failed'
+      current.state.errorMessage = summarize(loginProcess.output(), exitCode)
     })
 
     const url = await this.waitForUrl(loginProcess)
     if (url === null) {
-      const failure = summarize(loginProcess.output(), null)
+      // Exit 0 with no link printed is still the CLI saying "done".
+      if (tracked.state.phase === 'signed-in') return { ...tracked.state }
+      const failure = tracked.state.errorMessage ?? summarize(loginProcess.output(), null)
       this.discard(loginId)
       throw new ConflictError(
-        `Claude did not offer a sign-in link. ${failure || 'Is the Claude CLI installed?'}`,
+        `Claude did not offer a sign-in link. ${failure || 'Is the Claude engine intact?'}`,
       )
     }
     tracked.state.authorizationUrl = url
     return { ...tracked.state }
   }
 
-  /** Hand the CLI the code the user copied from their browser. */
+  /** The fallback: hand the CLI the code the user copied from the browser. */
   submitCode(loginId: string, code: string): ClaudeLoginState {
     const trimmed = code.trim()
     if (trimmed.length === 0) throw new ValidationError('Paste the code from your browser first.')
     const tracked = this.require(loginId)
-    // The CLI can exit on its own between the URL round-trip and the code
+    // The CLI can exit on its own between the link round-trip and the code
     // arriving (its own auth timeout, a crash). Writing to that dead child
     // would EPIPE, and re-stamping 'finishing' could never settle again —
     // surface the CLI's parting words instead.
@@ -153,28 +168,21 @@ export class ClaudeLoginRelay {
       this.discard(loginId)
       throw new ConflictError(failure ?? 'The sign-in ended before the code arrived. Start again.')
     }
+    // The browser's callback may already have landed — a late paste must
+    // not regress a signed-in session to 'finishing'.
+    if (tracked.state.phase === 'signed-in') return { ...tracked.state }
     tracked.process.writeLine(trimmed)
     tracked.state.phase = 'finishing'
     this.rearmIdleTimer(loginId, tracked)
     return { ...tracked.state }
   }
 
-  /** Where the flow stands right now. */
+  /** Where the flow stands right now — the poll. Each read is a heartbeat
+   *  from a dialog still asking, so it re-arms the idle timer. */
   read(loginId: string): ClaudeLoginState {
-    return { ...this.require(loginId).state }
-  }
-
-  /** Wait for a submitted code to settle — the CLI writes its credential and
-   *  exits (signed-in) or refuses (failed); a timeout reports the pending
-   *  state honestly instead of inventing an outcome. */
-  async waitForOutcome(loginId: string, timeoutMs: number): Promise<ClaudeLoginState> {
-    const deadline = Date.now() + timeoutMs
-    while (Date.now() < deadline) {
-      const state = this.read(loginId)
-      if (state.phase === 'signed-in' || state.phase === 'failed') return state
-      await new Promise((resolveTick) => setTimeout(resolveTick, 200))
-    }
-    return this.read(loginId)
+    const tracked = this.require(loginId)
+    this.rearmIdleTimer(loginId, tracked)
+    return { ...tracked.state }
   }
 
   /** Drop a session and its child — done, abandoned, or superseded. */
@@ -206,7 +214,7 @@ export class ClaudeLoginRelay {
     tracked.idleTimer = this.armIdleTimer(loginId)
   }
 
-  // The CLI paints its URL a moment after start; poll its accumulated output
+  // The CLI paints its link a moment after start; poll its accumulated output
   // rather than racing one 'data' event (the URL may arrive split).
   private async waitForUrl(loginProcess: ClaudeLoginProcess): Promise<string | null> {
     const deadline = Date.now() + LOGIN_URL_TIMEOUT_MS
@@ -217,14 +225,24 @@ export class ClaudeLoginRelay {
         loginProcess.finished.then(() => true),
         new Promise<false>((resolveTick) => setTimeout(() => resolveTick(false), 250)),
       ])
-      if (exited) return URL_PATTERN.exec(loginProcess.output())?.[1] ?? null
+      if (exited) return URL_PATTERN.exec(`${loginProcess.output()}\n`)?.[1] ?? null
     }
     return null
   }
 }
 
+// The CLI's parting words, minus its terminal paint and the fallback-link
+// line (a 400-character URL is noise next to "Invalid code"). Only the
+// painted link line goes — a refusal that happens to cite a URL stays.
 function summarize(output: string, exitCode: number | null): string {
-  const tail = output.trim().split('\n').slice(-3).join(' ').trim().slice(-300)
+  const tail = output
+    .split(/\r?\n|\r/)
+    .filter((line) => !line.includes(OSC8_LINK_OPENER))
+    .map((line) => line.replace(TERMINAL_ESCAPE_PATTERN, '').trim())
+    .filter((line) => line.length > 0)
+    .slice(-3)
+    .join(' ')
+    .slice(-300)
   if (tail.length > 0) return tail
   return exitCode === null ? '' : `The sign-in command exited with code ${exitCode}.`
 }

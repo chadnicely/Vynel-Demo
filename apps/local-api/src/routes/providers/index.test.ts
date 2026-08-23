@@ -120,11 +120,12 @@ describe('providers routes', () => {
   })
 
   // The sign-in HAPPY PATH is covered at the leaf, over a scripted fake child:
-  // packages/providers/src/claude/installation/claude-login-relay.test.ts (url
-  // out, code in, verdict back, refusals). A route-level version would spawn
-  // the REAL `claude auth login` on the dev machine — deliberately not
-  // shipped (the server-install route test's precedent). Only the guard that
-  // never reaches the relay is exercised here.
+  // packages/providers/src/claude/installation/claude-login-relay.test.ts (the
+  // fallback link out, the browser's callback or a pasted code settling it,
+  // refusals). A route-level version would spawn the REAL `claude auth login`
+  // on the dev machine — deliberately not shipped (the server-install route
+  // test's precedent). Only the guards that never reach the relay are
+  // exercised here.
   describe('POST /providers/:providerId/auth/login', () => {
     it('returns 400 for a provider whose sign-in is not wired up (never spawns)', async () => {
       await withTestDatabase(async (db) => {
@@ -133,6 +134,16 @@ describe('providers routes', () => {
         expect(res.status).toBe(400)
         const body = (await res.json()) as { code: string }
         expect(body.code).toBe('validation_failed')
+      })
+    })
+  })
+
+  describe('GET /providers/:providerId/auth/login/:loginId', () => {
+    it('404s a sign-in that is not open — a stale dialog begins again', async () => {
+      await withTestDatabase(async (db) => {
+        const app = createApp({ db, logger: silentLogger, aiProvider: makeFakeProvider() })
+        const res = await app.request('/providers/claude/auth/login/never-begun')
+        expect(res.status).toBe(404)
       })
     })
   })
