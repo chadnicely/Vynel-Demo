@@ -5,6 +5,25 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Added
+
+- **The workspace header says where git stands.** Beside the workspace name: the branch, how much
+  is uncommitted, and how far ahead/behind its upstream ("main · 3 uncommitted · ↑1 ↓2"), with the
+  remote, the tracked branch and the worktree count on hover. A folder without git says "No git
+  yet"; a vanished folder or a machine without git says so in the danger hue — never a broken
+  header. Read fresh from git every half minute, so work the sessions do on Bash shows up without
+  Vynel being told. A session can read the same facts with the new `get_workspace_git_facts`
+  tool (branch, distance, changed/untracked counts, origin, local branches, every worktree —
+  the `.claude/worktrees/<slug>` ones included) before deciding where to work.
+
+### Changed
+
+- Vynel's own few git calls (the wizard's first commit, the repository door's clone, the new
+  facts reader) now run through ONE runner with `protocol.ext.allow=never` on every call and
+  `--no-optional-locks` so a background read never fights a session over the index lock.
+
 ## [0.3.5] — 2026-08-23
 
 ### Added

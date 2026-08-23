@@ -81,6 +81,9 @@ import {
 //   - the new-workspace wizard (2026-08-23): get_workspace_brief (read) — the
 //     plan the user approved at setup, stored in the DB; a resumed build
 //     re-reads what was agreed instead of guessing from the folder.
+//   - the git home (2026-08-23): get_workspace_git_facts (read) — branch,
+//     upstream distance, uncommitted work, remote, branches, worktrees, read
+//     fresh from git; a session checks where it stands before working.
 //     Every op is DOUBLED on the routing array under a global-flavored name,
 //     because the two surfaces are mutually exclusive and a turn that can arm
 //     a watch must be able to stop it. There is no watchable-events tool: the
@@ -146,6 +149,7 @@ const EXPECTED_TOOL_NAMES = [
   'get_user_preferences',
   'get_workspace',
   'get_workspace_brief',
+  'get_workspace_git_facts',
   'list_agents',
   'list_ai_agent_providers',
   'list_allowed_senders',

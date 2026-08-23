@@ -26,6 +26,7 @@ function makeGitRunner(behaviour: { fail?: unknown } = {}) {
       writeFileSync(path.join(target, 'README.md'), '# cloned\n')
     }
     if (behaviour.fail !== undefined) throw behaviour.fail
+    return ''
   }
   return { runGit, calls }
 }

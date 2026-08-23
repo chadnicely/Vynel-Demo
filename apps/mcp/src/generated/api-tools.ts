@@ -1882,6 +1882,39 @@ export const getWorkspaceBrief: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getWorkspaceGitFacts: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_workspace_git_facts',
+    "Read what git knows about this workspace's folder, fresh: `facts.kind` is 'repository' (with the current branch, its upstream and how many commits ahead/behind, the count of changed and untracked files, and the origin address), 'not-a-repository' (a plain folder — no git yet), 'folder-missing', 'no-git' (git is not installed), or 'unreadable' (git's own reason). `branches` lists the local branches with the checked-out one marked; `worktrees` lists every checkout of the repository, the main one first, then every linked worktree (the sessions' `.claude/worktrees/<slug>` folders among them). Use it before deciding where to work or whether there is uncommitted work to protect. Read-only — it never changes the repository.",
+    {
+    workspaceId: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/workspaces/{workspaceId}/git'
+        pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const installCuratedAgent: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'install_curated_agent',
@@ -4683,6 +4716,7 @@ export const generatedMcpTools: McpToolFactory[] = [
   getUserPreferences,
   getWorkspace,
   getWorkspaceBrief,
+  getWorkspaceGitFacts,
   installCuratedAgent,
   installMarketplaceItem,
   killBackgroundProcess,

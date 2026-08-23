@@ -14,18 +14,20 @@
 
 import path from 'node:path'
 import { readdir, rm } from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import { ValidationError } from '@vynel/errors'
 import type { Database } from '@vynel/db'
 import type { Workspace } from '@vynel/db/repositories/workspaces'
 import { createWorkspace, type CreateWorkspaceDependencies } from './create-workspace.js'
 import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
 import { resolveExistingDirectory } from '../directory/resolve-existing-directory.js'
-import type { GitRunner } from './scaffold-workspace.js'
+import { makeGitRunner, type GitFailure, type GitRunner } from '../git/run-git.js'
+import { describeGitFailure } from '../git/describe-git-failure.js'
 
-const run = promisify(execFile)
 const GIT_CLONE_TIMEOUT_MS = 5 * 60 * 1000
+const CLONE_FAILURE_WORDING = {
+  timedOut: 'the clone took longer than five minutes and was stopped',
+  fallback: 'the clone failed',
+}
 
 // A repository address we will hand to `git clone`. Must look like a real
 // remote — an https/http/ssh/git scheme, or the scp-style `user@host:path` —
@@ -52,13 +54,7 @@ export type CloneRepositoryWorkspaceDependencies = CreateWorkspaceDependencies &
   }
 }
 
-const defaultGitRunner: GitRunner = async (args, cwd) => {
-  await run('git', ['-c', 'protocol.ext.allow=never', ...args], {
-    cwd,
-    timeout: GIT_CLONE_TIMEOUT_MS,
-    windowsHide: true,
-  })
-}
+const defaultGitRunner: GitRunner = makeGitRunner(GIT_CLONE_TIMEOUT_MS)
 
 export async function cloneRepositoryWorkspace(
   db: Database,
@@ -89,9 +85,18 @@ export async function cloneRepositoryWorkspace(
   try {
     await runGit(['clone', '--', url, directory], directory)
   } catch (error) {
-    deps.logger?.warn({ err: error, directory }, 'git clone failed')
+    deps.logger?.warn(
+      {
+        code: (error as GitFailure).code ?? null,
+        reason: describeGitFailure(error, CLONE_FAILURE_WORDING),
+        directory,
+      },
+      'git clone failed',
+    )
     await emptyDirectory(directory, deps)
-    throw new ValidationError(`Could not clone that repository — ${describeGitFailure(error)}`)
+    throw new ValidationError(
+      `Could not clone that repository — ${describeGitFailure(error, CLONE_FAILURE_WORDING)}`,
+    )
   }
 
   try {
@@ -126,30 +131,9 @@ async function emptyDirectory(
       entries.map((entry) => rm(path.join(directory, entry), { recursive: true, force: true })),
     )
   } catch (cleanupError) {
-    deps.logger?.warn({ err: cleanupError, directory }, 'could not empty the folder after a failed clone')
+    deps.logger?.warn(
+      { err: cleanupError, directory },
+      'could not empty the folder after a failed clone',
+    )
   }
-}
-
-// The reason a person can act on: git missing, the clone timing out, or
-// git's own first meaningful line — never the raw command line (which would
-// echo a pasted address, token and all).
-function describeGitFailure(error: unknown): string {
-  const failure = error as (NodeJS.ErrnoException & { killed?: boolean }) | null
-  if (failure?.code === 'ENOENT') return "git isn't installed on this computer (or isn't on PATH)"
-  if (failure?.killed) return 'the clone took longer than five minutes and was stopped'
-  return cleanGitError(failure?.message ?? '')
-}
-
-function cleanGitError(message: string): string {
-  const lines = message
-    .split('\n')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0 && !entry.startsWith('Command failed'))
-  const line =
-    lines.find(
-      (entry) =>
-        entry.toLowerCase().includes('fatal:') || entry.toLowerCase().includes('error:'),
-    ) ?? lines[0]
-  const picked = (line ?? '').replace(/^fatal:\s*/i, '').trim()
-  return picked === '' ? 'the clone failed' : picked
 }

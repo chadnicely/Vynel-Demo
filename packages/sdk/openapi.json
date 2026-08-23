@@ -17616,6 +17616,214 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/git": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ facts, branches, worktrees } — facts.kind says whether there is a repository at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "facts": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "no-git"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "folder-missing"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "not-a-repository"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "unreadable"
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "reason"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "repository"
+                            },
+                            "branch": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "upstream": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "ahead": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "behind": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "changedCount": {
+                              "type": "integer"
+                            },
+                            "untrackedCount": {
+                              "type": "integer"
+                            },
+                            "remoteUrl": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "branch",
+                            "upstream",
+                            "ahead",
+                            "behind",
+                            "changedCount",
+                            "untrackedCount",
+                            "remoteUrl"
+                          ]
+                        }
+                      ]
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "isCurrent": {
+                            "type": "boolean"
+                          },
+                          "upstream": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "isCurrent",
+                          "upstream"
+                        ]
+                      }
+                    },
+                    "worktrees": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "branch": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "isMain": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "branch",
+                          "isMain"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "facts",
+                    "branches",
+                    "worktrees"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdGit",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "This workspace folder's git facts: branch, upstream distance, uncommitted work, remote, branches, worktrees.",
+        "x-sdk-name": "workspaces.getGit",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_workspace_git_facts",
+          "description": "Read what git knows about this workspace's folder, fresh: `facts.kind` is 'repository' (with the current branch, its upstream and how many commits ahead/behind, the count of changed and untracked files, and the origin address), 'not-a-repository' (a plain folder — no git yet), 'folder-missing', 'no-git' (git is not installed), or 'unreadable' (git's own reason). `branches` lists the local branches with the checked-out one marked; `worktrees` lists every checkout of the repository, the main one first, then every linked worktree (the sessions' `.claude/worktrees/<slug>` folders among them). Use it before deciding where to work or whether there is uncommitted work to protect. Read-only — it never changes the repository."
+        }
+      }
+    },
     "/workspaces/{workspaceId}/section-counts": {
       "get": {
         "responses": {

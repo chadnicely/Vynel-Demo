@@ -60,12 +60,18 @@ export type {
   ScaffoldWorkspaceDependencies,
   ScaffoldedWorkspace,
   ScaffoldGitOutcome,
-  GitRunner,
 } from './lifecycle/scaffold-workspace.js'
 export { cloneRepositoryWorkspace } from './lifecycle/clone-repository-workspace.js'
 export type { CloneRepositoryWorkspaceInput } from './lifecycle/clone-repository-workspace.js'
 export { findWorkspaceBrief, toWorkspaceBrief } from './brief/workspace-brief.js'
 export type { WorkspaceBrief } from './brief/workspace-brief.js'
+
+// The one git home — Vynel's own few git calls + the facts readers.
+export { makeGitRunner, defaultGitRunner } from './git/run-git.js'
+export type { GitRunner } from './git/run-git.js'
+export { readGitFacts } from './git/read-git-facts.js'
+export { listBranches } from './git/list-branches.js'
+export { listWorktrees } from './git/list-worktrees.js'
 
 // Manager persona naming (brain-tree Ch5) — the default-name picker + the resolver.
 export { formatManagerLabel, hasDistinctManagerName, resolveManagerName } from './manager-name.js'
