@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { NotFoundError } from '@vynel/errors'
 import { GH_NOT_INSTALLED_REASON } from './github-auth-status.js'
+import { lastMeaningfulLine } from '../gh-output.js'
 
 // An abandoned dialog must not hold a half-finished sign-in forever; GitHub's
 // own device code expires in 15 minutes.
@@ -141,7 +142,10 @@ export class GitHubSignInRelay {
       await new Promise((resolve) => setTimeout(resolve, CODE_POLL_MS))
     }
     if (!settled) {
-      this.fail(entry, 'The GitHub CLI did not offer a sign-in code in time. Try again, or run `gh auth login` in a terminal.')
+      this.fail(
+        entry,
+        'The GitHub CLI did not offer a sign-in code in time. Try again, or run `gh auth login` in a terminal.',
+      )
       child.kill()
     }
     return { ...state }
@@ -167,21 +171,11 @@ export class GitHubSignInRelay {
       entry.state.phase = 'signed-in'
       return
     }
-    this.fail(entry, lastMeaningfulLine(entry.process.output()))
+    this.fail(entry, lastMeaningfulLine(entry.process.output(), 'The sign-in did not complete.'))
   }
 
   private fail(entry: Entry, message: string): void {
     entry.state.phase = 'failed'
     entry.state.errorMessage = message
   }
-}
-
-// gh's failure is usually one line among progress noise — keep the last one
-// that says something, never the whole transcript.
-function lastMeaningfulLine(output: string): string {
-  const lines = output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith('!') && !/one-time code/i.test(line))
-  return lines.at(-1) ?? 'The sign-in did not complete.'
 }

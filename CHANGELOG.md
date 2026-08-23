@@ -9,6 +9,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A GitHub repository when you finish the wizard — and "Connect to GitHub" for any workspace.**
+  When the app is signed in to GitHub, the wizard's account step offers "Also create the
+  repository on GitHub when I finish" with the name (following the workspace name) and
+  private/public; Finish then makes the repository and pushes the first commit through the
+  GitHub CLI, and the Done screen links to it — or says plainly why it could not (name taken,
+  not signed in…), the workspace being fine either way. A workspace that already exists and has
+  no remote shows **Connect to GitHub** in its header: the same create-and-push, the same two
+  fields; signed out, it points to Settings → GitHub instead of a dead button. Vynel never
+  touches the token — `gh` does the API call and the push.
+
 - **The workspace header says where git stands.** Beside the workspace name: the branch, how much
   is uncommitted, and how far ahead/behind its upstream ("main · 3 uncommitted · ↑1 ↓2"), with the
   remote, the tracked branch and the worktree count on hover. A folder without git says "No git

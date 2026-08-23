@@ -5,6 +5,7 @@
 // (Kafi, 2026-08-23): the user picks the folder that IS the workspace before
 // anything else, and every AI read dispatches from that folder.
 
+import { REPOSITORY_NAME_PATTERN } from "@vynel/contracts/github/github-repository";
 import type { WorkspaceBriefAnswers } from "@vynel/contracts/workspaces/workspace-brief";
 import { ADVANCED_ROWS, chosenStack } from "./derive-stack.js";
 
@@ -56,6 +57,13 @@ export type WizardAnswers = {
   stackPicks: Record<string, string>;
   advNotes: string;
   planApproved: boolean;
+  /** Screen 10 — the GitHub repository Finish makes, when signed in there.
+   *  `name` is seeded from the workspace name the first time the screen shows. */
+  repository: {
+    create: boolean;
+    name: string;
+    visibility: "private" | "public";
+  };
 };
 
 export function makeEmptyAnswers(): WizardAnswers {
@@ -79,6 +87,7 @@ export function makeEmptyAnswers(): WizardAnswers {
     stackPicks: {},
     advNotes: "",
     planApproved: false,
+    repository: { create: true, name: "", visibility: "private" },
   };
 }
 
@@ -150,8 +159,11 @@ export const WIZARD_COPY: Record<
   },
 };
 
-/** What the gate needs that is not an answer — the global sign-in state. */
-export type WizardGateContext = { isSignedIn: boolean };
+/** What the gate needs that is not an answer — the global sign-in states. */
+export type WizardGateContext = {
+  isSignedIn: boolean;
+  isGitHubSignedIn: boolean;
+};
 
 /** What still stands between the user and Continue — null when nothing does. */
 export function wizardGate(
@@ -191,8 +203,15 @@ export function wizardGate(
   }
   if (step === "goals")
     return answers.goalsOk ? null : "Tell us if the MVP is right to continue";
-  if (step === "account")
-    return context.isSignedIn ? null : "Sign in to Claude to continue";
+  if (step === "account") {
+    if (!context.isSignedIn) return "Sign in to Claude to continue";
+    const wantsRepository =
+      context.isGitHubSignedIn && answers.repository.create;
+    return wantsRepository &&
+      !REPOSITORY_NAME_PATTERN.test(answers.repository.name.trim())
+      ? "Give the repository a name GitHub accepts to continue"
+      : null;
+  }
   if (step === "sessions")
     return answers.planApproved ? null : "Approve the plan to finish";
   return null;

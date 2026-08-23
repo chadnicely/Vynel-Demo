@@ -7,7 +7,12 @@ import { describe, expect, it } from 'vitest'
 import { NotFoundError } from '@vynel/errors'
 import { GitHubSignInRelay, type GitHubSignInProcess } from './github-sign-in-relay.js'
 
-function scriptedProcess(script: { printAfterMs?: number; text?: string; exitCode: number | null; exitAfterMs?: number }) {
+function scriptedProcess(script: {
+  printAfterMs?: number
+  text?: string
+  exitCode: number | null
+  exitAfterMs?: number
+}) {
   let output = ''
   let killed = false
   let finish: (code: number | null) => void = () => {}

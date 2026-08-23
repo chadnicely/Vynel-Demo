@@ -17824,6 +17824,114 @@
         }
       }
     },
+    "/workspaces/{workspaceId}/github/repository": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ outcome } — created (with the URL) or failed (with the reason: not signed in, name taken, no commits…).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "created"
+                            },
+                            "url": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "url"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "failed"
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "reason"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "outcome"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdGithubRepository",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Create a GitHub repository for this workspace's folder and push it, through the app's GitHub sign-in.",
+        "x-sdk-name": "workspaces.createGitHubRepository",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]{0,99}$"
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "public"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "visibility"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspaceId}/section-counts": {
       "get": {
         "responses": {

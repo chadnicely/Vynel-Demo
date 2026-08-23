@@ -2277,6 +2277,14 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  createGitHubRepository: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/github/repository"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/github/repository"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/github/repository", {
+      params: { path: { workspaceId: workspaceId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   createGroup: async (input: NonNullable<paths["/workspaces/groups"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/groups", {
       body: input,

@@ -19,3 +19,7 @@ export {
   type GitHubSignInProcess,
 } from './auth/github-sign-in-relay.js'
 export { signGitHubOut } from './auth/sign-github-out.js'
+export {
+  createGitHubRepository,
+  type CreateGitHubRepositoryInput,
+} from './repository/create-github-repository.js'

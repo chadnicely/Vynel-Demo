@@ -25,11 +25,14 @@ export type GitHubAuthStatus = {
 export type CommandRunner = (
   file: string,
   args: string[],
+  options?: { timeoutMs?: number },
 ) => Promise<{ stdout: string; stderr: string }>
 
-export const defaultCommandRunner: CommandRunner = async (file, args) => {
+// A status read is quick; a repo create + push is not — callers that wait on
+// the network say so per call instead of everything riding the short default.
+export const defaultCommandRunner: CommandRunner = async (file, args, options = {}) => {
   const { stdout, stderr } = await run(file, args, {
-    timeout: STATUS_TIMEOUT_MS,
+    timeout: options.timeoutMs ?? STATUS_TIMEOUT_MS,
     windowsHide: true,
   })
   return { stdout, stderr }

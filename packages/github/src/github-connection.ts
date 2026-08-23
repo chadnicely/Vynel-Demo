@@ -17,6 +17,11 @@ import {
   type GitHubSignInState,
 } from './auth/github-sign-in-relay.js'
 import { signGitHubOut } from './auth/sign-github-out.js'
+import {
+  createGitHubRepository,
+  type CreateGitHubRepositoryInput,
+} from './repository/create-github-repository.js'
+import type { GitHubRepositoryOutcome } from '@vynel/contracts/github/github-repository'
 
 export interface GitHubConnectionDeps extends GitHubSignInRelayDeps {
   runCommand?: CommandRunner
@@ -45,6 +50,21 @@ export class GitHubConnection {
 
   cancelSignIn(loginId: string): void {
     this.relay.discard(loginId)
+  }
+
+  /** Make the repository + first push for a workspace folder. Not being signed
+   *  in is a reported outcome, like every other way this can fail. */
+  async createRepository(input: CreateGitHubRepositoryInput): Promise<GitHubRepositoryOutcome> {
+    const status = await this.readStatus()
+    if (!status.isAuthenticated) {
+      return {
+        kind: 'failed',
+        reason: status.isInstalled
+          ? 'Sign in to GitHub first (Settings → GitHub).'
+          : (status.inactiveReason ?? 'The GitHub CLI is not available.'),
+      }
+    }
+    return createGitHubRepository(input, this.runCommand)
   }
 
   /** Signing out while already signed out (or with no CLI) is a no-op. */
