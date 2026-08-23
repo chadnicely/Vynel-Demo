@@ -6,7 +6,7 @@ import { EmptyState, ThreadSkeleton } from "@vynel/ui";
 import ThreadStream from "../components/chat/ThreadStream.vue";
 import AppComposer from "../components/chat/AppComposer.vue";
 import QueuedMessageChips from "../components/chat/QueuedMessageChips.vue";
-import TodoDock from "../components/chat/TodoDock.vue";
+// import TodoDock from "../components/chat/TodoDock.vue"; // dock retired 2026-08-24 — see the commented element below
 import VoiceChatPanel from "../components/chat/VoiceChatPanel.vue";
 import DisplayView from "./display/DisplayView.vue";
 import GlobalWelcomeHero from "../components/chat/GlobalWelcomeHero.vue";
@@ -498,7 +498,8 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
       />
 
       <footer class="composer-dock">
-        <TodoDock :session-id="activeSessionId" />
+        <!-- Dock retired 2026-08-24 — the task panel's tasks + steps carry the visible work list; set_todos is disconnected. Reconnect = uncomment here (x3 views) + re-expose the tool.
+        <TodoDock :session-id="activeSessionId" /> -->
         <QueuedMessageChips
           :queued="queuedSend.queued.value"
           @remove="queuedSend.removeQueued"

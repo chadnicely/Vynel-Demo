@@ -180,7 +180,7 @@ export async function streamChatTurn(
     pressureThreshold !== undefined ? { swapThreshold: pressureThreshold } : {},
   )
   // The turn's own session identity, stamped onto every request its tools make
-  // (`set_todos` writes the dock of exactly this session). Created BEFORE
+  // (`set_session_status` sets the light of exactly this session). Created BEFORE
   // composition and resolved below/from the stream — a fresh conversation has
   // no id yet at this point.
   const turnSession = createTurnSessionCarrier()

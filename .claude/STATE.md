@@ -3,7 +3,21 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔧 2026-08-24 (latest) CLAUDE SIGN-IN — bundled engine + browser-settled login (fix, on main)
+## 🔧 2026-08-24 (latest, later) TODO DOCK RETIRED — set_todos disconnected (on main)
+
+The user's call (screenshot of the STEPS 0/6 strip): the task panel's tasks + steps are the ONE visible
+work-tracking home, so the dock duplicates it. Done the mcp-development way: `PUT /todos` keeps the contract
+but its `x-mcp` block is REMOVED (121 tools / 151 catalog entries after `api:generate`), both census pins
+dropped, `mcp__vynel__set_todos` out of the `tasks` gate, the "## Working steps" prompt section deleted from
+the descriptor (the routing descriptor now contributes NO standing prompt — `contributePrompt` dropped),
+`<TodoDock>` commented out (per the user's explicit ask) in SessionThreadView / GlobalChatView /
+WorkspaceView with a reconnect note, `work-view-invalidation` no longer treats the old name as
+work-mutating (pinned false), and every comment that claimed a live `set_todos` now says "retired".
+TodoDock.vue + its test + the todos repositories/routes stay for a deliberate reconnect
+(`docs/module-notes/session-todos.md` stamped RETIRED). Reconnect = re-expose x-mcp + uncomment ×3 +
+restore the gate/census/prompt pins.
+
+## 🔧 2026-08-24 CLAUDE SIGN-IN — bundled engine + browser-settled login (fix, on main)
 
 Report: a fresh computer (no separately-installed Claude Code) showed "Claude Code isn't installed" in the
 account popup + wizard; and the sign-in demanded a pasted code while Claude Code itself settles the login

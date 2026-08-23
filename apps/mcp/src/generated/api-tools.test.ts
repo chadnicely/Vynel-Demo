@@ -193,18 +193,15 @@ const EXPECTED_TOOL_NAMES = [
   'search_memory',
   'send_message',
   'set_agent_enabled',
-  // The working-steps dock (2026-08-02): `x-mcp.workspaceSurface` keeps it in
-  // the plain workspace array alongside its routing membership below — one
-  // name on every surface, so the toolset never flips per turn origin.
-  'set_todos',
   // Task execution steps (2026-08-18): the task panel's durable per-task
   // checklist (whole-list replace, mutatingApproved like every task write);
   // workspace door only — tasks live per workspace, the global root routes.
+  // (Its dock-side twin `set_todos` was retired 2026-08-24 with the TodoDock.)
   'set_task_steps',
   // The per-SESSION status light (Move 3, 2026-08-17) — the
-  // set_workspace_status sibling on the ambient turn session (the set_todos
-  // door); workspaceSurface + rootSurface so every conversation can set its
-  // own light regardless of turn origin.
+  // set_workspace_status sibling on the ambient turn session; workspaceSurface
+  // + rootSurface so every conversation can set its own light regardless of
+  // turn origin.
   'set_session_status',
   // The status vocabulary write (workspace redesign Arc 5b) — completed /
   // problem / needs_input, the state light every navigation surface renders.
@@ -288,9 +285,6 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   // The per-SESSION status light (Move 3) — the global chat sets its own
   // light like any other conversation.
   'set_session_status',
-  // The working-steps dock (2026-08-02): `rootSurface` + `workspaceSurface` —
-  // the global chat is a session with a dock like any other.
-  'set_todos',
   'speak',
   'start_call',
   'stop_global_monitor',

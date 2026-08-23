@@ -3,16 +3,17 @@
 // SESSION, and a session may have no workspace at all) from
 // `apps/local-api/src/app.ts`:
 //
-//   PUT    /            -> replaceSessionTodos   [x-mcp: set_todos]  ← AGENT door
+//   PUT    /            -> replaceSessionTodos (agent door — MCP disconnected)
 //   GET    /?sessionId= -> listTodosForSession                        ← USER door
 //   PATCH  /:todoId     -> updateTodoStatus                           ← USER door
 //   DELETE /:todoId     -> deleteTodo (hard delete)                   ← USER door
 //
-// ONE app, two doors, told apart by x-mcp rather than by mount point (tasks'
-// two doors split by path because the agent's door is workspace-scoped; both
-// doors here address the same user-scoped path). Only `PUT /` is x-mcp:
-// removing a step is the user's call, and the model already replaces the whole
-// list — a delete tool would be a second way to do the same thing.
+// THE DOCK IS RETIRED (2026-08-24): the task panel's tasks + steps
+// (set_task_steps) are the one visible work-tracking home, so `set_todos` no
+// longer ships as a tool — the `PUT /` route keeps the contract (ambient
+// turn-session header, whole-list replace) for a deliberate reconnect, but
+// carries no x-mcp exposure and the TodoDock render sits commented out in the
+// views.
 //
 // THE SESSION IS NEVER A PARAMETER on the agent door. `PUT /` reads the
 // ambient `x-vynel-turn-session` header the turn stamps server-side
@@ -47,19 +48,6 @@ import {
   ListSessionTodosResponseSchema,
 } from './schemas.js'
 
-const SET_TODOS_DESCRIPTION =
-  'Keep the working-step list the user watches under the chat while you work — the same ' +
-  'discipline as your built-in todo list, except these steps are VISIBLE to the user. Send your ' +
-  'COMPLETE current list every time: `todos` is an array of objects, each ' +
-  '{ "title": "<short step in plain language>", "status": "open" | "in-progress" | "done" }, in ' +
-  'the order you will work them. The list is REPLACED wholesale — omit a step and it disappears; ' +
-  'send an empty array when the work is finished and the dock should clear. Exactly one step ' +
-  'should be "in-progress" at a time: mark it the moment you start it and "done" the moment it ' +
-  'is actually finished, then send the list again. Titles are what the user reads ("Draft the ' +
-  'newsletter"), never technical mechanics. Do not narrate this bookkeeping in your reply. Only ' +
-  'works on a turn the user is watching; if it says there is no active session, simply carry on ' +
-  'without it.'
-
 export const todosApp = factory
   .createApp()
   // PUT / — the AGENT's whole-list replace. Session identity comes from the
@@ -77,18 +65,6 @@ export const todosApp = factory
         },
         400: { description: 'Validation error, or this turn has no watching session.' },
         404: { description: 'The calling session could not be resolved.' },
-      },
-      // Both surfaces (the send_message precedent): the dock exists on
-      // workspace chats, the global root, and spawned sessions alike, and a
-      // toolset that changes per turn origin is what makes the SDK strip the
-      // whole vynel server (build-workspace-background-mcp.ts).
-      'x-mcp': {
-        exposed: true,
-        name: 'set_todos',
-        description: SET_TODOS_DESCRIPTION,
-        mutatingApproved: true,
-        rootSurface: true,
-        workspaceSurface: true,
       },
     }),
     validator('json', SetTodosRequestSchema),

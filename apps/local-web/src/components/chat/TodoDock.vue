@@ -11,6 +11,10 @@ import { useSessionTodos } from "../../composables/todos/use-session-todos.js";
 import { useUpdateTodoStatus } from "../../composables/todos/use-update-todo-status.js";
 import { useDeleteTodo } from "../../composables/todos/use-delete-todo.js";
 
+// CURRENTLY UNRENDERED (2026-08-24): retired in favour of the task panel’s
+// tasks + steps — the three views keep the element commented out, and
+// set_todos no longer ships as a tool. Kept (with its test) for a deliberate
+// reconnect.
 // The working-steps dock: the step list the session keeps while it works,
 // sitting directly above the composer in every chat. The session writes it
 // with set_todos; the user can tick a step off or drop it. Empty = no dock at

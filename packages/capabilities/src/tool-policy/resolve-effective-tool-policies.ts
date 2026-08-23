@@ -36,7 +36,7 @@ function toSurfaces(
 }
 
 /** PRECONDITION on `catalog`: one entry per toolName. Several vynel tools
- *  (get_chat_session, send_message, set_todos, search_chat_messages) exist in
+ *  (get_chat_session, send_message, search_chat_messages) exist in
  *  more than one generated surface array under the SAME name — the assembler
  *  must pre-merge their surface membership into one entry, or the later entry
  *  silently wins here. */

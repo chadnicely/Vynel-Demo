@@ -1,5 +1,10 @@
 # session-todos — the working-steps dock
 
+> **RETIRED 2026-08-24** (Kafi): the dock element is commented out in the three views and
+> `set_todos` no longer ships as a tool — the task panel's tasks + steps (`set_task_steps`) are
+> the one visible work-tracking home. The `PUT /todos` route keeps the contract for a deliberate
+> reconnect. This note stays as the record of the original design.
+
 **Shipped 2026-08-02 (five-task session, Task 5).** A Claude Code-style TODO strip at the bottom
 of every chat, directly above the composer: the session maintains its working steps there; the
 user can tick items off and remove them. Auto-hides when empty.

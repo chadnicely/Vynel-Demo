@@ -109,7 +109,6 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__update_task',
       'mcp__vynel__complete_task',
       'mcp__vynel__list_my_tasks',
-      'mcp__vynel__set_todos',
       'mcp__vynel__set_task_steps',
     ])
     // `plans` and `journal` gate their whole toolsets the same way (plans +
@@ -154,10 +153,10 @@ describe('vynelWorkspaceDescriptor', () => {
     const withTasks = vynelWorkspaceDescriptor.contributePrompt?.(context, new Set(['tasks']))
     expect(withTasks).toContain('list_tasks')
     expect(withTasks).toContain('complete_task')
-    // The tasks toggle also carries the per-session step-list discipline —
-    // dropping it silently loses the todo dock's prompt on workspaces.
-    expect(withTasks).toContain('## Working steps')
-    expect(withTasks).toContain('set_todos')
+    // The dock's "## Working steps" section is GONE with set_todos
+    // (2026-08-24) — the tasks toggle carries the task discipline only.
+    expect(withTasks).not.toContain('## Working steps')
+    expect(withTasks).not.toContain('set_todos')
     // Only the enabled capability's section — no plans/journal lines steering
     // the model into denied tools.
     expect(withTasks).not.toContain('create_plan')
@@ -200,13 +199,8 @@ describe('vynelWorkspaceDescriptor', () => {
     expect(vynelWorkspaceDescriptor.contributePrompt?.(context)).toBeNull()
   })
 
-  it('the routing descriptor carries the working-steps discipline ungated', () => {
-    // The global root has no capability set — its step-list prompt rides the
-    // routing descriptor unconditionally. Losing it silently strips the todo
-    // dock's discipline from the root chat.
-    const prompt = vynelRoutingDescriptor.contributePrompt?.(fakeContext())
-    expect(prompt).toContain('## Working steps')
-    expect(prompt).toContain('set_todos')
+  it('the routing descriptor contributes no standing prompt — set_todos retired with the dock', () => {
+    expect(vynelRoutingDescriptor.contributePrompt).toBeUndefined()
   })
 
   it('build() returns a live server for a workspace context', () => {

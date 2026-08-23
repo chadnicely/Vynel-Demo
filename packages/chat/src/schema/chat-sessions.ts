@@ -123,7 +123,7 @@ export const chatSessions = table(
     // The workspaces status trio, per conversation: a FACT with a timestamp
     // ("the assistant set X at T"), never cleared by a write — superseded at
     // READ time by the user's next message (deriveSessionStatus in contracts).
-    // Written by `set_session_status` (ambient turn session, the set_todos
+    // Written by `set_session_status` (ambient turn session, the retired set_todos
     // door); copied forward onto swap segments like the composer settings.
     status: text().$type<ChatSessionSetStatus>(),
     statusNote: text(),

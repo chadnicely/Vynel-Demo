@@ -12,7 +12,7 @@
 //   GET  /:sessionId/settings   -> the per-session composer settings (no x-mcp)
 //   PATCH /:sessionId/settings  -> partial settings update (no x-mcp)
 //   PUT  /status -> set_session_status (x-mcp; ambient turn session — the
-//                   set_todos door: the session is never a parameter)
+//                   retired set_todos door: the session is never a parameter)
 //
 // Thin by design: parse → call the session-tier op → return. The overview op
 // returns the wire shape directly (ISO dates), so the panel and the tool read
@@ -350,7 +350,7 @@ export const sessionsApp = factory
   // ──────────────────────────────────────────────────────────────────
   // PUT /status — set_session_status: the calling session sets its OWN status
   // light (Move 3 — the set_workspace_status sibling, per conversation). THE
-  // SESSION IS NEVER A PARAMETER (the set_todos door): identity comes from the
+  // SESSION IS NEVER A PARAMETER (the retired set_todos door): identity comes from the
   // ambient `x-vynel-turn-session` header the turn stamps server-side, so
   // neither the session nor its scope can be model-supplied. A turn with no
   // watching session (a schedule fire, a delegation tick) carries no header
@@ -374,7 +374,7 @@ export const sessionsApp = factory
       // A self-tool, so no askApproval: setting the light is reporting, not an
       // irreversible action (the set_workspace_status stance). Both surfaces —
       // the light exists on workspace chats, the global root, and spawned
-      // sessions alike (the set_todos precedent).
+      // sessions alike (the retired set_todos door’s precedent).
       'x-mcp': {
         exposed: true,
         name: 'set_session_status',

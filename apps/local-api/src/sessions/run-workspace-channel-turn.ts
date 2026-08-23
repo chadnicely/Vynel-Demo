@@ -187,7 +187,7 @@ export async function buildWorkspaceChannelTurnRunner(
           : []
       // This turn's chat-session identity, filled by the stream's first frame —
       // the read half is what lets `ask_user` name the conversation it parked,
-      // and what `whoami` / `set_todos` / `set_session_status` resolve against.
+      // and what `whoami` / `set_session_status` / `set_task_steps` resolve against.
       const turnSession = createTurnSessionCarrier()
       const composedMcp = composeSessionMcpServers(
         [

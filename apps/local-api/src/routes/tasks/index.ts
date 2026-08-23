@@ -36,8 +36,8 @@ import {
 import type { Database } from '@vynel/db'
 
 // The ambient turn-session header, OWNERSHIP-CHECKED before it becomes a
-// durable loose ref (`task_steps.sessionId`, `tasks.assignedSessionId`) — the
-// set_todos contract. Unlike set_todos these doors deliberately never 400
+// durable loose ref (`task_steps.sessionId`, `tasks.assignedSessionId`).
+// Unlike the retired set_todos door, these doors deliberately never 400
 // without a session (steps anchor to the TASK; background turns manage them),
 // so an invalid or foreign value is treated as ABSENT, not an error.
 function resolveOwnedTurnSessionId(
@@ -249,7 +249,7 @@ export const tasksApp = factory
     },
   )
   // PUT /:taskId/steps — the AGENT's whole-list step replace. The writing
-  // session comes from the ambient header WHEN PRESENT (unlike set_todos this
+  // session comes from the ambient header WHEN PRESENT (unlike the retired set_todos door this
   // never 400s without one — steps anchor to the TASK, and background turns
   // legitimately manage them); the task row supplies the scope.
   .put(
@@ -278,8 +278,8 @@ export const tasksApp = factory
           'Set `planId` when the steps come from a plan (create_plan first for medium/large work). ' +
           'Exactly one step should be "in-progress" at a time; update the list the moment a step ' +
           'starts or finishes. Titles are what the user reads ("Draft the newsletter"), never ' +
-          'technical mechanics. Steps are NOT the chat dock (set_todos keeps that) — they are the ' +
-          "task's plan-of-record and persist until the task is deleted. Do not narrate the " +
+          "technical mechanics. Steps are the task's plan-of-record — they persist until the task " +
+          'is deleted. Do not narrate the ' +
           'bookkeeping in your reply.',
         mutatingApproved: true,
       },

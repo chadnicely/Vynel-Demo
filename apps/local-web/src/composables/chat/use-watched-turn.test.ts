@@ -362,7 +362,7 @@ describe("useWatchedTurn", () => {
     harness.invalidateQueries.mockClear();
     harness.push({
       kind: "tool-call-completed",
-      toolCall: { id: "tc-1", toolName: "mcp__vynel__set_todos", status: "completed" },
+      toolCall: { id: "tc-1", toolName: "mcp__vynel__set_task_steps", status: "completed" },
     } as never);
     await vi.waitFor(() => {
       const keys = harness.invalidateQueries.mock.calls.map((call) => {

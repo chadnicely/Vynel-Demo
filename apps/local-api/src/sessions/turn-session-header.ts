@@ -1,7 +1,7 @@
 // The internal side-channel carrying a turn's OWN SESSION IDENTITY — the chat
-// session its MCP tool calls belong to. `set_todos` writes the working-steps
-// dock of exactly one session, and the dock is what the user is looking at, so
-// the id must be the turn's real one.
+// session its MCP tool calls belong to. `set_session_status` sets the status
+// light of exactly one session (and `set_task_steps` anchors steps to the
+// turn's session), so the id must be the turn's real one.
 //
 // Why a header (the report-caller/report-requester shape, verbatim): the
 // session is AMBIENT turn context the model never sees. A model-visible field

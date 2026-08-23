@@ -53,16 +53,15 @@ export const VYNEL_CAPABILITY_GATED_TOOLS: Readonly<Record<string, readonly stri
     'mcp__vynel__update_memory_entry',
     'mcp__vynel__add_memory_from_file',
   ],
-  // `tasks` owns BOTH halves of the work-tracking leaf: the durable task list
-  // and the per-session working steps (`set_todos`) — one toggle, because a
-  // user turning "Tasks" off means "stop keeping lists for me".
+  // `tasks` owns the whole work-tracking leaf: the durable task list and its
+  // per-task steps — one toggle, because a user turning "Tasks" off means
+  // "stop keeping lists for me".
   tasks: [
     'mcp__vynel__list_tasks',
     'mcp__vynel__create_task',
     'mcp__vynel__update_task',
     'mcp__vynel__complete_task',
     'mcp__vynel__list_my_tasks',
-    'mcp__vynel__set_todos',
     'mcp__vynel__set_task_steps',
   ],
   plans: [

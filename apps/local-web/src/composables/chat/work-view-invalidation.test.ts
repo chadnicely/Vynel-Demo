@@ -10,7 +10,6 @@ import { dashboardKeys } from "../dashboard/dashboard-keys.js";
 
 describe("isWorkMutatingToolName", () => {
   it("matches the assistant's own task + step writers only", () => {
-    expect(isWorkMutatingToolName("mcp__vynel__set_todos")).toBe(true);
     expect(isWorkMutatingToolName("mcp__vynel__create_task")).toBe(true);
     expect(isWorkMutatingToolName("mcp__vynel__update_task")).toBe(true);
     expect(isWorkMutatingToolName("mcp__vynel__complete_task")).toBe(true);
@@ -19,6 +18,9 @@ describe("isWorkMutatingToolName", () => {
     expect(isWorkMutatingToolName("mcp__vynel__list_tasks")).toBe(false);
     expect(isWorkMutatingToolName("Bash")).toBe(false);
     expect(isWorkMutatingToolName("set_todos")).toBe(false);
+    // Retired with the dock (2026-08-24) — a stale transcript replaying the
+    // old tool must not thrash the task panel.
+    expect(isWorkMutatingToolName("mcp__vynel__set_todos")).toBe(false);
   });
 });
 

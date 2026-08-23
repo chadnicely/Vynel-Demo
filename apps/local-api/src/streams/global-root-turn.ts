@@ -223,7 +223,7 @@ export async function streamGlobalRootTurn(
   // `auto` — no Vynel card of any kind on a hands-free surface (D1).
   const permissionMode = turnSettings.permissionMode
   const modeAwareAppRequest = wrapAppRequestWithMode(c.var.appRequest, permissionMode)
-  // The turn's own session identity (`set_todos` writes the dock of exactly
+  // The turn's own session identity (`set_session_status` sets the light of exactly
   // this session). The global root resolves its conversation INSIDE the core
   // runner, so the carrier is filled from the stream's first frame.
   const turnSession = createTurnSessionCarrier()

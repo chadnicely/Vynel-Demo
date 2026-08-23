@@ -52,19 +52,6 @@ const TASKS_PROMPT_INSTRUCTIONS = [
     'sizing, plan-then-steps). Never narrate the bookkeeping.',
 ].join('\n')
 
-// The working-steps dock (session-todos): the step-level twin of the task
-// list. Contributed on EVERY surface — workspace turns gate it behind `tasks`
-// (below), the global root gets it ungated (it has no capability rows).
-const TODOS_PROMPT_INSTRUCTIONS = [
-  '## Working steps',
-  'The user watches a small step list under the chat, and you keep it with set_todos. Use it the ' +
-    'way you use your own todo list: the moment a request needs more than a couple of steps, send ' +
-    'the whole list (title + status per step), mark the one you are on "in-progress", and send the ' +
-    'list again with it "done" the moment it is finished — one step in progress at a time. Send an ' +
-    'empty list when the work is done and the dock should clear. Titles are plain language the ' +
-    'user recognizes, never technical mechanics. Never narrate the bookkeeping.',
-].join('\n')
-
 const PLANS_PROMPT_INSTRUCTIONS = [
   '## Plans',
   'The user keeps date-wise plans (create_plan / update_plan / complete_plan / list_plans) — ' +
@@ -108,13 +95,12 @@ const JOURNAL_PROMPT_INSTRUCTIONS = [
     'entries as a faithful record; never narrate the bookkeeping.',
 ].join('\n')
 
-// Section order is stable (tasks → todos → plans → phases → features →
-// journal) so the composed prompt never reshuffles between turns. Tasks and
-// todos share the `tasks` capability — the durable list and its step-level
-// twin ride one toggle.
+// Section order is stable (tasks → plans → phases → features → journal) so
+// the composed prompt never reshuffles between turns. (The working-steps dock
+// section rode here until 2026-08-24 — retired with set_todos in favour of
+// the task panel's steps.)
 const CAPABILITY_PROMPT_SECTIONS: readonly { capabilityId: string; section: string }[] = [
   { capabilityId: 'tasks', section: TASKS_PROMPT_INSTRUCTIONS },
-  { capabilityId: 'tasks', section: TODOS_PROMPT_INSTRUCTIONS },
   { capabilityId: 'plans', section: PLANS_PROMPT_INSTRUCTIONS },
   { capabilityId: 'phases', section: PHASES_PROMPT_INSTRUCTIONS },
   { capabilityId: 'features', section: FEATURES_PROMPT_INSTRUCTIONS },
@@ -193,12 +179,6 @@ export const vynelWorkspaceInteractiveDescriptor: McpFeatureDescriptor = {
 // capability gate. `register_workspace` rides the generated ask-approval tier
 // (route-level `x-mcp.askApproval`) — Chad 2026-07-26 dropped it from the
 // every-mode set: it cards in ask mode, runs uncarded in auto/bypass.
-// The root keeps working steps too (`set_todos` rides both surfaces) — the
-// dock is per SESSION, and the global chat is a session like any other. The
-// section is contributed UNGATED here: the root has no workspace, so no
-// capability rows can exist for it, and a single-entry `capabilityGatedTools`
-// would make the composer drop this descriptor's whole prompt the moment that
-// one capability went missing.
 export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   serverName: 'vynel',
   toolNames: ROUTING_TOOL_NAMES,
@@ -206,5 +186,4 @@ export const vynelRoutingDescriptor: McpFeatureDescriptor = {
   mutatingToolNames: [],
   askModeApprovalToolNames: generatedAskModeApprovalToolNames,
   featureGatedTools: ROUTING_FEATURE_GATED_TOOLS,
-  contributePrompt: () => TODOS_PROMPT_INSTRUCTIONS,
 }

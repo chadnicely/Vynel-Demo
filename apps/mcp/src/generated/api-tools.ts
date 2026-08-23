@@ -3862,7 +3862,7 @@ export const setSessionStatus: McpToolFactory = (scope, app) =>
 export const setTaskSteps: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'set_task_steps',
-    "Lay out (or revise) a task's execution steps — the durable checklist the user watches on the task panel, where each row shows its steps and an n/m progress count. Send the task's COMPLETE current list every time: `steps` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in working order — the list is REPLACED wholesale, so omit a step and it disappears. Set `planId` when the steps come from a plan (create_plan first for medium/large work). Exactly one step should be \"in-progress\" at a time; update the list the moment a step starts or finishes. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Steps are NOT the chat dock (set_todos keeps that) — they are the task's plan-of-record and persist until the task is deleted. Do not narrate the bookkeeping in your reply.",
+    "Lay out (or revise) a task's execution steps — the durable checklist the user watches on the task panel, where each row shows its steps and an n/m progress count. Send the task's COMPLETE current list every time: `steps` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in working order — the list is REPLACED wholesale, so omit a step and it disappears. Set `planId` when the steps come from a plan (create_plan first for medium/large work). Exactly one step should be \"in-progress\" at a time; update the list the moment a step starts or finishes. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Steps are the task's plan-of-record — they persist until the task is deleted. Do not narrate the bookkeeping in your reply.",
     {
     taskId: z.string(),
     workspaceId: z.string(),
@@ -3880,45 +3880,6 @@ export const setTaskSteps: McpToolFactory = (scope, app) =>
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
         for (const k of ['steps', 'planId']) {
-          if (args[k] !== undefined) bodyObj[k] = args[k]
-        }
-        const requestBody = JSON.stringify(bodyObj)
-        const url = pathStr + (queryStr ? '?' + queryStr : '')
-        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
-        const bodyText = await response.text()
-        if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
-            isError: true,
-          }
-        }
-        return { content: [{ type: 'text', text: bodyText }] }
-      } catch (err) {
-        return {
-          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
-          isError: true,
-        }
-      }
-    },
-    { annotations: { readOnlyHint: false, destructiveHint: true } },
-  )
-
-export const setTodos: McpToolFactory = (scope, app) =>
-  (tool as unknown as McpToolFn)(
-    'set_todos',
-    "Keep the working-step list the user watches under the chat while you work — the same discipline as your built-in todo list, except these steps are VISIBLE to the user. Send your COMPLETE current list every time: `todos` is an array of objects, each { \"title\": \"<short step in plain language>\", \"status\": \"open\" | \"in-progress\" | \"done\" }, in the order you will work them. The list is REPLACED wholesale — omit a step and it disappears; send an empty array when the work is finished and the dock should clear. Exactly one step should be \"in-progress\" at a time: mark it the moment you start it and \"done\" the moment it is actually finished, then send the list again. Titles are what the user reads (\"Draft the newsletter\"), never technical mechanics. Do not narrate this bookkeeping in your reply. Only works on a turn the user is watching; if it says there is no active session, simply carry on without it.",
-    {
-    todos: z.array(z.object({
-      title: z.string(),
-      status: z.enum(['open', 'in-progress', 'done']),
-    })),
-  },
-    async (args: Record<string, unknown>) => {
-      try {
-        const pathStr = '/todos'
-        const queryStr = ''
-        const bodyObj: Record<string, unknown> = {}
-        for (const k of ['todos']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)
@@ -4762,7 +4723,6 @@ export const generatedMcpTools: McpToolFactory[] = [
   setAgentEnabled,
   setSessionStatus,
   setTaskSteps,
-  setTodos,
   setWorkspaceStatus,
   startApp,
   stopApp,
@@ -4812,7 +4772,6 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   sendMessage,
   sendToChannel,
   setSessionStatus,
-  setTodos,
   speak,
   startCall,
   stopGlobalMonitor,

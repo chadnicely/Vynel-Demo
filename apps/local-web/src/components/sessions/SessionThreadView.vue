@@ -5,7 +5,7 @@ import ThreadStream from "../chat/ThreadStream.vue";
 import { useOpenPointerTarget } from "../chat/open-pointer-target.js";
 import AppComposer from "../chat/AppComposer.vue";
 import QueuedMessageChips from "../chat/QueuedMessageChips.vue";
-import TodoDock from "../chat/TodoDock.vue";
+// import TodoDock from "../chat/TodoDock.vue"; // dock retired 2026-08-24 — see the commented element below
 import { useSessionDetail } from "../../composables/chat/use-session-detail.js";
 import { useSessionsOverview } from "../../composables/sessions/use-sessions-overview.js";
 import { resolveChainHead } from "../../composables/sessions/resolve-chain-head.js";
@@ -264,7 +264,8 @@ const queuedSend = useQueuedSend(activeTurn, sendMessage);
     </p>
 
     <footer v-if="props.chattable" class="composer-dock">
-      <TodoDock :session-id="activeSessionId" />
+      <!-- Dock retired 2026-08-24 — the task panel's tasks + steps carry the visible work list; set_todos is disconnected. Reconnect = uncomment here (x3 views) + re-expose the tool.
+      <TodoDock :session-id="activeSessionId" /> -->
       <QueuedMessageChips
         :queued="queuedSend.queued.value"
         @remove="queuedSend.removeQueued"

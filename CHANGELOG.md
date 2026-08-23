@@ -53,6 +53,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 - Reading the Claude account status no longer freezes the engine for up to five seconds — the
   synchronous "is claude installed" probe is gone (the bundled engine's presence is a file check).
 
+### Removed
+
+- **The steps strip under the chat is retired.** The task panel's tasks + steps are the one place
+  the assistant keeps its visible work list, so the little step dock above the composer is gone
+  and sessions no longer get the tool that fed it. Nothing is deleted underneath — the dock's
+  plumbing stays for a deliberate return.
+
 ## [0.3.5] — 2026-08-23
 
 ### Added
