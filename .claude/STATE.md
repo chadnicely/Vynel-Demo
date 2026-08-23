@@ -3,7 +3,7 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 1 (the connection) on `feature/github-connection`
+## 🔨 2026-08-23 (latest) GITHUB + GIT — Slice 1 (the connection) MERGED TO MAIN `2eaf8e18` + pushed; Slices 2–4 next
 
 Kafi's plan after the wizard (note `docs/module-notes/github-connection.md`): **everything over the `gh` CLI**
 (no OAuth app, no API client, no token in Vynel — the sessions already have `git`/`gh` on Bash, so PRs and
