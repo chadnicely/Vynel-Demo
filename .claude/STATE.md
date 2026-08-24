@@ -3,7 +3,19 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔧 2026-08-25 (latest) OPERATING MODEL + JOURNAL TIMELINE (on main)
+## ⚠ 2026-08-25 LIVE CHECK FAILED — DEBUG FIRST (Kafi, end of day)
+
+Kafi's live look at today's arcs: **"still not working properly"** — no specifics captured; checking
+resumes tomorrow. Debug first thing, before any new work. Candidate suspects across today's seven
+commits (`ea1409eb`…`976aed77`): the identity stack on live turns (base+kind composition), the
+step-narration + batch fold (merge/summary rendering in ThreadStream/LiveTurn — needs an engine
+RESTART to pick up the edited instruction files, cached per process), the journal pointer
+(header-stamped attribution + sidebar door), or simply a stale dev DB (migration 0054 applies at
+boot; `no such column` → delete `.data/vynel.dev.db*` + restart — the known baseline-folding trap).
+Gates were green throughout (GATE_EXIT=0); whatever is wrong is a LIVE-only behavior. Start by
+asking Kafi what they saw, then reproduce.
+
+## 🔧 2026-08-25 OPERATING MODEL + JOURNAL TIMELINE (on main)
 
 Kafi's system model, first slices (`1b80d848` + `13dc0e6f`): **kind files teach the manager/child
 flow** — manager stays with the user, one dedicated child per area, tasks sent WITH instructions +
