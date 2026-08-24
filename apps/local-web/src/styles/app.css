@@ -54,6 +54,7 @@
   --color-ok: var(--ok);
   --color-danger: var(--danger);
   --color-needs-input: var(--needs-input);
+  --color-warning: var(--warning);
   --color-needs-input-soft: var(--needs-input-soft);
   --color-info: var(--info);
 

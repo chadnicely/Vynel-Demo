@@ -267,6 +267,24 @@ describe("SessionsSidebar", () => {
     );
   });
 
+  it("the context chip wears its tier — blue with room, yellow in the last stretch, red past the swap", async () => {
+    const { wrapper } = await mountSidebar([
+      makeEntry({ sessionId: "a", contextTokens: 40_000, contextWindow: 200_000,
+        segments: [makeSegment({ sessionId: "a" })] }),
+      makeEntry({ sessionId: "b", contextTokens: 160_000, contextWindow: 200_000,
+        segments: [makeSegment({ sessionId: "b" })] }),
+      makeEntry({ sessionId: "c", contextTokens: 180_000, contextWindow: 200_000,
+        segments: [makeSegment({ sessionId: "c" })] }),
+    ]);
+    expect(
+      wrapper.findAll(".context-percent").map((chip) => [chip.text(), chip.attributes("data-tier")]),
+    ).toEqual([
+      ["20%", "low"],
+      ["80%", "high"],
+      ["90%", "critical"],
+    ]);
+  });
+
   it("lights the working dot when the feed reports a turn on the entry's session", async () => {
     const { wrapper, pinia } = await mountSidebar([
       makeEntry(),

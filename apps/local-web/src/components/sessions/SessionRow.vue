@@ -50,6 +50,14 @@ const contextPercent = computed(() =>
           100,
       ),
 );
+// The chip's colour is the meter's story (Kafi, 2026-08-24): blue while
+// there is room, yellow in the last stretch before the ~85% auto-continue,
+// red past it.
+const contextTier = computed<"low" | "high" | "critical" | null>(() => {
+  const percent = contextPercent.value;
+  if (percent === null) return null;
+  return percent < 75 ? "low" : percent <= 85 ? "high" : "critical";
+});
 const contextTooltip = computed(() =>
   props.entry.contextTokens === null
     ? undefined
@@ -106,7 +114,8 @@ const statusNote = computed(() =>
                reading, not a stray label. -->
           <span
             v-if="contextPercent !== null"
-            class="context-percent inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold leading-[15px] tabular-nums text-ink-3"
+            class="context-percent inline-flex shrink-0 items-center rounded-full border px-1.5 text-[9.5px] font-semibold leading-[15px] tabular-nums"
+            :data-tier="contextTier"
             :title="contextTooltip"
             >{{ contextPercent }}%</span
           >
@@ -197,6 +206,22 @@ const statusNote = computed(() =>
 .session-note[data-status="completed"] {
   color: var(--ok);
   background: var(--ok);
+}
+
+/* The context chip — one tier, one colour: room / last stretch / past it. */
+.context-percent[data-tier="low"] {
+  color: var(--needs-input);
+  border-color: color-mix(in srgb, var(--needs-input) 55%, transparent);
+}
+
+.context-percent[data-tier="high"] {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 55%, transparent);
+}
+
+.context-percent[data-tier="critical"] {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
 }
 
 /* The note is TEXT in the state's hue — the shared rules above set both

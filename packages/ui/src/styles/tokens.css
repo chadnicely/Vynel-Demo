@@ -157,6 +157,8 @@
   --ok: oklch(0.7 0.105 158);
   --danger: #f2564b;
   --needs-input: #38b6ff;
+  /* Approaching a limit (a context meter in its last stretch) — not gold, which is presence. */
+  --warning: #f5b544;
   --needs-input-soft: color-mix(in srgb, #38b6ff 14%, transparent);
   --info: #5c9dd9;
   /* Meter tier only — an "approaching the limit" fill (the account popup's
@@ -250,6 +252,7 @@
   --ok: oklch(0.55 0.105 158);
   --danger: #d33f44;
   --needs-input: #1583cd;
+  --warning: #b8760a;
   --needs-input-soft: color-mix(in srgb, #1583cd 12%, transparent);
   --info: #3b82c4;
   /* Meter tier only — see the dark block's note. */

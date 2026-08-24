@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { PhArrowLeft as ArrowLeft } from "@phosphor-icons/vue";
+import {
+  PhArrowLeft as ArrowLeft,
+  PhClockCounterClockwise as History,
+} from "@phosphor-icons/vue";
 import type {
   SessionsOverviewEntry,
   SessionsOverviewSegment,
@@ -108,9 +111,11 @@ onBeforeUnmount(() => {
       <span class="truncate">All Menus</span>
     </button>
     <SidebarWorkspaceCard v-if="props.workspaceCard" :card="props.workspaceCard" />
+    <!-- The header wears the Sessions nav's own icon — the row you came from. -->
     <p
-      class="pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]"
+      class="flex items-center gap-2 pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]"
     >
+      <History :size="11" class="shrink-0" />
       Sessions
     </p>
 
