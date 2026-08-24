@@ -9,6 +9,7 @@ import type {
   SessionsOverviewSegment,
 } from "@vynel/contracts/chat/sessions-overview";
 import type { SessionStatusView } from "@vynel/contracts/chat/session-status";
+import { ContextRing } from "@vynel/ui";
 import { formatContextTooltip } from "../../composables/chat/context-occupancy.js";
 import { formatRelativeTime } from "../../utils/format-relative-time.js";
 import SessionChain from "./SessionChain.vue";
@@ -49,22 +50,6 @@ const contextPercent = computed(() =>
         Math.min(1, props.entry.contextTokens / props.entry.contextWindow) *
           100,
       ),
-);
-// The chip's colour is the meter's story (Kafi, 2026-08-24): blue while
-// there is room, yellow in the last stretch before the ~85% auto-continue,
-// red past it.
-const contextTier = computed<"low" | "high" | "critical" | null>(() => {
-  const percent = contextPercent.value;
-  if (percent === null) return null;
-  return percent < 75 ? "low" : percent <= 85 ? "high" : "critical";
-});
-// The ring's geometry: r=6 in a 16-box, so the arc is a fraction of one
-// circumference; a round cap keeps even 5% visible as a dot.
-const RING_CIRCUMFERENCE = 2 * Math.PI * 6;
-const ringArc = computed(() =>
-  contextPercent.value === null
-    ? 0
-    : (RING_CIRCUMFERENCE * contextPercent.value) / 100,
 );
 const contextTooltip = computed(() =>
   props.entry.contextTokens === null
@@ -117,38 +102,15 @@ const statusNote = computed(() =>
         <span class="min-w-0 truncate">{{ props.entry.title }}</span>
         <!-- The state cluster, on the right: the quiet number, then ONE mark. -->
         <span class="flex items-center gap-[7px]">
-          <!-- The context occupancy as a RING (Kafi, 2026-08-25): the arc
-               fills to the percentage in the tier's colour; the number stays
-               for screen readers and the tooltip. -->
+          <!-- The context occupancy as the app's ONE ring (the composer's,
+               from @vynel/ui) — the arc fills to the percentage in the
+               tier's colour; the number stays for screen readers. -->
           <span
             v-if="contextPercent !== null"
             class="context-percent inline-flex shrink-0 items-center"
-            :data-tier="contextTier"
             :title="contextTooltip"
           >
-            <svg viewBox="0 0 16 16" class="size-[14px]" aria-hidden="true">
-              <circle
-                cx="8"
-                cy="8"
-                r="6"
-                fill="none"
-                stroke="currentColor"
-                stroke-opacity="0.22"
-                stroke-width="2"
-              />
-              <circle
-                class="context-ring-arc"
-                cx="8"
-                cy="8"
-                r="6"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                :stroke-dasharray="`${ringArc} ${RING_CIRCUMFERENCE}`"
-                transform="rotate(-90 8 8)"
-              />
-            </svg>
+            <ContextRing :fraction="contextPercent / 100" :tooltip="contextTooltip" />
             <span class="sr-only">{{ contextPercent }}%</span>
           </span>
           <span
@@ -238,20 +200,6 @@ const statusNote = computed(() =>
 .session-note[data-status="completed"] {
   color: var(--ok);
   background: var(--ok);
-}
-
-/* The context ring — one tier, one colour: room / last stretch / past it.
-   Both circles stroke currentColor, so the tier sets the whole ring. */
-.context-percent[data-tier="low"] {
-  color: var(--needs-input);
-}
-
-.context-percent[data-tier="high"] {
-  color: var(--warning);
-}
-
-.context-percent[data-tier="critical"] {
-  color: var(--danger);
 }
 
 /* The note is TEXT in the state's hue — the shared rules above set both

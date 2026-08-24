@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-// The composer's context ring (Claude-desktop parity): a small arc showing how
-// full the current session's context window is. Data-blind — the host computes
-// the fraction and the tooltip. Amber from 70%; the tick marks 85%, where the
-// conversation continues automatically (the ring visibly resets after a swap).
+// The context ring — ONE home for "how full is this conversation's window"
+// (the composer's model chip and every session row wear it): a small arc
+// filling to the occupancy, in the tier's colour. Blue while there is room,
+// yellow in the last stretch before the ~85% auto-continue, red past it
+// (Kafi, 2026-08-25 — the colour replaced the old 85% tick). Data-blind —
+// the host computes the fraction and the tooltip.
 const props = defineProps<{
   /** Occupancy 0..1 (clamped). */
   fraction: number;
@@ -16,30 +18,21 @@ const props = defineProps<{
 
 const clamped = computed(() => Math.min(1, Math.max(0, props.fraction)));
 const percent = computed(() => Math.round(clamped.value * 100));
-const isWarn = computed(() => clamped.value >= 0.7);
+const tier = computed<"low" | "high" | "critical">(() =>
+  percent.value < 75 ? "low" : percent.value <= 85 ? "high" : "critical",
+);
 
-const diameter = computed(() => props.size ?? 18);
+const diameter = computed(() => props.size ?? 14);
 const STROKE = 2;
 const radius = computed(() => (diameter.value - STROKE) / 2);
 const circumference = computed(() => 2 * Math.PI * radius.value);
 const dashOffset = computed(() => circumference.value * (1 - clamped.value));
-
-// The 85% tick, on the same -90°-rotated circle the arc draws on.
-const swapAngle = 0.85 * 2 * Math.PI - Math.PI / 2;
-function tickPoint(distance: number): { x: number; y: number } {
-  return {
-    x: diameter.value / 2 + distance * Math.cos(swapAngle),
-    y: diameter.value / 2 + distance * Math.sin(swapAngle),
-  };
-}
-const tickInner = computed(() => tickPoint(radius.value - STROKE));
-const tickOuter = computed(() => tickPoint(radius.value + STROKE / 2));
 </script>
 
 <template>
   <span
     class="context-ring"
-    :class="{ 'is-warn': isWarn }"
+    :data-tier="tier"
     role="meter"
     :aria-valuenow="percent"
     aria-valuemin="0"
@@ -61,6 +54,7 @@ const tickOuter = computed(() => tickPoint(radius.value + STROKE / 2));
         fill="none"
         :stroke-width="STROKE"
       />
+      <!-- A round cap keeps even a few percent visible as a dot. -->
       <circle
         class="ring-fill"
         :cx="diameter / 2"
@@ -73,39 +67,34 @@ const tickOuter = computed(() => tickPoint(radius.value + STROKE / 2));
         :stroke-dashoffset="dashOffset"
         :transform="`rotate(-90 ${diameter / 2} ${diameter / 2})`"
       />
-      <line
-        class="swap-mark"
-        :x1="tickInner.x"
-        :y1="tickInner.y"
-        :x2="tickOuter.x"
-        :y2="tickOuter.y"
-        stroke-width="1"
-      />
     </svg>
   </span>
 </template>
 
 <style scoped>
+/* One tier, one colour — both circles stroke currentColor, so the tier sets
+   the whole ring. */
 .context-ring {
   display: inline-grid;
   place-items: center;
+  color: var(--needs-input);
+}
+
+.context-ring[data-tier="high"] {
+  color: var(--warning);
+}
+
+.context-ring[data-tier="critical"] {
+  color: var(--danger);
 }
 
 .ring-track {
-  stroke: var(--row-active);
+  stroke: currentColor;
+  stroke-opacity: 0.22;
 }
 
 .ring-fill {
-  stroke: var(--ink-3);
+  stroke: currentColor;
   transition: stroke-dashoffset 300ms var(--ease-out, ease-out);
-}
-
-.context-ring.is-warn .ring-fill {
-  stroke: var(--gold);
-}
-
-/* The 85% line — where the conversation continues automatically. */
-.swap-mark {
-  stroke: var(--hair-strong);
 }
 </style>

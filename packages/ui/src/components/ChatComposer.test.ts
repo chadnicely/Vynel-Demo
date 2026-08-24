@@ -109,7 +109,9 @@ describe("ChatComposer", () => {
     });
 
     const ring = wrapper.get(".context-ring");
-    expect(ring.classes()).toContain("is-warn");
+    // test: correct expectation — the ring wears TIERS now (2026-08-25):
+    // 83% sits in the yellow last stretch, not the old amber-at-70% class.
+    expect(ring.attributes("data-tier")).toBe("high");
     expect(ring.attributes("title")).toBe(
       "~166k of 200k · continues automatically near 85%",
     );

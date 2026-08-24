@@ -11,21 +11,28 @@ describe("ContextRing", () => {
     const offset = Number(fill.attributes("stroke-dashoffset"));
     expect(offset).toBeCloseTo(dash * 0.5, 5);
     expect(wrapper.attributes("aria-valuenow")).toBe("50");
-    expect(wrapper.classes()).not.toContain("is-warn");
   });
 
-  it("turns amber at 70% and clamps past 100%", () => {
-    const warn = mount(ContextRing, { props: { fraction: 0.71 } });
-    expect(warn.classes()).toContain("is-warn");
+  // test: correct expectation — the tiers replaced the amber-at-70% + 85%
+  // tick (2026-08-25): blue with room, yellow 75–85%, red past the swap.
+  it("wears its tier: blue below 75%, yellow through 85%, red past it", () => {
+    expect(mount(ContextRing, { props: { fraction: 0.5 } }).attributes("data-tier")).toBe("low");
+    expect(mount(ContextRing, { props: { fraction: 0.74 } }).attributes("data-tier")).toBe("low");
+    expect(mount(ContextRing, { props: { fraction: 0.75 } }).attributes("data-tier")).toBe("high");
+    expect(mount(ContextRing, { props: { fraction: 0.85 } }).attributes("data-tier")).toBe("high");
+    expect(mount(ContextRing, { props: { fraction: 0.86 } }).attributes("data-tier")).toBe("critical");
+  });
 
+  it("clamps past 100%", () => {
     const over = mount(ContextRing, { props: { fraction: 1.3 } });
     expect(over.attributes("aria-valuenow")).toBe("100");
     expect(Number(over.get(".ring-fill").attributes("stroke-dashoffset"))).toBe(
       0,
     );
+    expect(over.attributes("data-tier")).toBe("critical");
   });
 
-  it("marks the 85% auto-continue tick and carries the tooltip", () => {
+  it("carries the tooltip, and is the small 14px ring by default", () => {
     const wrapper = mount(ContextRing, {
       props: {
         fraction: 0.2,
@@ -33,9 +40,9 @@ describe("ContextRing", () => {
       },
     });
 
-    expect(wrapper.find(".swap-mark").exists()).toBe(true);
     expect(wrapper.attributes("title")).toBe(
       "~40k of 200k · continues automatically near 85%",
     );
+    expect(wrapper.get("svg").attributes("width")).toBe("14");
   });
 });
