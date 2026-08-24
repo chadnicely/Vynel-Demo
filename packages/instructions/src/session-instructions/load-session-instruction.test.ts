@@ -55,12 +55,23 @@ describe('loadSessionInstruction', () => {
     expect(prompt).toContain('child session')
     // Sending a task to a child means sending instructions with it.
     expect(prompt).toContain('clear instructions')
+    // The merge discipline (Kafi 2026-08-25): children live in worktrees;
+    // the MANAGER merges into main and removes the worktree — never a child.
+    expect(prompt).toContain('worktree')
+    expect(prompt).toContain('merge')
+    expect(prompt).toContain('never another child')
   })
 
-  it('spawned-session frames the child and points at the task instructions', () => {
+  it('spawned-session frames the child and its working discipline', () => {
     const prompt = loadSessionInstruction('spawned-session')
     expect(prompt).toContain('CHILD session')
     expect(prompt).toContain('instructions')
+    // The working discipline (Kafi 2026-08-25): context first, own worktree
+    // (the merge is the manager's), and the review gate is a FRESH agent with
+    // no conversation context; small tasks skip the ceremony.
+    expect(prompt).toContain('worktree')
+    expect(prompt).toContain('FRESH review agent')
+    expect(prompt).toContain('skips the ceremony')
     // The report protocol rides the task steer, and chat text reaches no one.
     expect(prompt).toContain('reaches no one')
   })
