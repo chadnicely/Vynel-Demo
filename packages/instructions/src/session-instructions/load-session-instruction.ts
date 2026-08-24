@@ -46,6 +46,7 @@ export type SessionInstructionId =
   | 'workspace-manager'
   | 'spawned-session'
   | 'agent-colleague'
+  | 'workspace-session'
   | 'voice-turn-marker'
   | 'autopilot-marker'
   | 'schedule-fire-marker'

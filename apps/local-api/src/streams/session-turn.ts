@@ -63,6 +63,8 @@ import {
 import { ApprovalWaitGate } from '@vynel/orchestration'
 import { isPrimarySwapping, linkPrimarySessionToSdkSession } from '@vynel/session/continuity'
 import { findRoutableSessionBySegmentId, findRoutableSessionById } from '@vynel/session/spawned'
+import { composeAgentColleaguePrompt, resolveColleagueAgent } from '@vynel/session/delegation'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 import { persistTurnSessionSettings, type ChatTurnEvent } from '@vynel/chat'
 import { DEFAULT_PROVIDER_ID } from '@vynel/providers'
 import type { AppEnv } from '../factory.js'
@@ -293,6 +295,28 @@ export async function streamSpawnedSessionTurn(
       ? withVoiceThreadToolDenials(composedTurnMcp)
       : composedTurnMcp
 
+  // The identity stack (base + kind) rides the DIRECT turn too — the same
+  // stack this session's delegated turns carry, so it never speaks with two
+  // identities depending on which door the turn came through. An agent
+  // colleague keeps its persona on EVERY turn (persona-sessions) — before
+  // this, a user typing at a colleague got NO persona at all; a colleague
+  // whose agent row is gone (uninstalled while the conversation lingers)
+  // falls back to the child identity rather than failing the user's turn.
+  const colleagueAgent =
+    spawned.scope === 'agent' && spawned.scopeRef !== null
+      ? await resolveColleagueAgent(db, {
+          userId,
+          workspaceId: spawned.workspaceId,
+          slug: spawned.scopeRef,
+        })
+      : null
+  const identityAppend =
+    colleagueAgent !== null
+      ? composeAgentColleaguePrompt(colleagueAgent.name, colleagueAgent.prompt, {
+          voice: isVoiceTurn,
+        })
+      : composeSessionInstruction('spawned-session', { voice: isVoiceTurn })
+
   const locks = c.var.sessionTargetLocks
   const turnEvents = c.var.turnEvents
   const logger = c.var.logger
@@ -422,10 +446,11 @@ export async function streamSpawnedSessionTurn(
             // tier's mode), resolved through the session's persisted settings
             // above; never the routed-turn default.
             permissionMode: turnPermissionMode,
-            // The system prompt carries ONLY the MCP composer's per-feature
-            // sections + the mention-dispatch note — never
+            // The system prompt opens with the identity stack (base + kind;
+            // a colleague's persona included), then the MCP composer's
+            // per-feature sections + the mention-dispatch note — never
             // ROUTED_TASK_INSTRUCTIONS (this is the user, not a routed
-            // background task); the session's identity rides its transcript.
+            // background task).
             ...(composedMcp !== null
               ? {
                   mcpServers: composedMcp.mcpServers,
@@ -440,6 +465,7 @@ export async function streamSpawnedSessionTurn(
               : {}),
             ...(() => {
               const sections = [
+                identityAppend,
                 composedMcp?.systemPromptAppend ?? '',
                 mentionPlan?.systemPromptAppend ?? '',
               ].filter((section) => section !== '')

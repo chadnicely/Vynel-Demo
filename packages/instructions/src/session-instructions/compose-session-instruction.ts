@@ -12,12 +12,15 @@ import { loadSessionInstruction } from './load-session-instruction.js'
 
 /** The session kinds with an identity file — the duty-book kinds' prompt-side
  *  twins (`workspace` → workspace-manager, `spawned` → spawned-session,
- *  `agent` → agent-colleague; `voice` is the global kind on the voice base). */
+ *  `agent` → agent-colleague, `plain` → workspace-session; `voice` is the
+ *  global kind on the voice base). `workspace-session` ships content-first,
+ *  the duty-book precedent: no live door composes the plain kind yet. */
 export type SessionInstructionKind =
   | 'global-root'
   | 'workspace-manager'
   | 'spawned-session'
   | 'agent-colleague'
+  | 'workspace-session'
 
 export function composeSessionInstruction(
   kind: SessionInstructionKind,

@@ -124,8 +124,15 @@ export const DIRECT_DELIVERY_INSTRUCTIONS =
  *  persona survives swaps and transcript compaction. The agent's own prompt is
  *  the persona; this wrapper stacks the identity (`base` + the rendered
  *  `agent-colleague` kind file, editable markdown) above it. */
-export function composeAgentColleaguePrompt(agentName: string, agentPrompt: string): string {
-  return `${composeSessionInstruction('agent-colleague', { agentName })}\n\n${agentPrompt}`
+export function composeAgentColleaguePrompt(
+  agentName: string,
+  agentPrompt: string,
+  options: { voice?: boolean } = {},
+): string {
+  return `${composeSessionInstruction('agent-colleague', {
+    agentName,
+    ...(options.voice !== undefined ? { voice: options.voice } : {}),
+  })}\n\n${agentPrompt}`
 }
 
 /** The background workspace MCP attachment for a routed turn — structurally the

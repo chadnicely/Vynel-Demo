@@ -20,7 +20,7 @@ describe('composeSessionInstruction', () => {
   })
 
   it('composes the manager and child kinds on the text base', () => {
-    for (const kind of ['workspace-manager', 'spawned-session'] as const) {
+    for (const kind of ['workspace-manager', 'spawned-session', 'workspace-session'] as const) {
       const composed = composeSessionInstruction(kind)
       expect(composed.startsWith(loadSessionInstruction('base')), kind).toBe(true)
       expect(composed.endsWith(loadSessionInstruction(kind)), kind).toBe(true)

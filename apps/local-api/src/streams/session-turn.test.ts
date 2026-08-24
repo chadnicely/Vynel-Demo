@@ -175,6 +175,8 @@ import {
 } from '@vynel/session/continuity'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { SessionTargetLocks } from '@vynel/session/delegation'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
+import { createAgent } from '@vynel/agents'
 import { withVynelUserDataDir } from '../sessions/global-root-workspace.js'
 import { createApp } from '../app.js'
 
@@ -365,7 +367,9 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         // test: correct expectation — was "no MCP attachment at all"; now the
         // ONE server every session carries, whoami (continuity arc Slice 3).
         expect(Object.keys(input.mcpServers ?? {})).toEqual(['vynel-session'])
-        // …and whoami's one standing prompt line is the ONLY prompt contribution.
+        // test: correct expectation — the identity stack (base + spawned-session)
+        // now LEADS the direct turn's prompt; whoami's standing line follows it.
+        expect(input.systemPromptAppend).toContain(composeSessionInstruction('spawned-session'))
         expect(input.systemPromptAppend).toContain('You can call whoami')
         expect(input.systemPromptAppend).not.toContain('routed from')
         // Interactive default — the workspace chat stream's mode resolution
@@ -403,8 +407,11 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         // delegated turns carry (vynel workspace tools present).
         expect(input.mcpServers).toBeDefined()
         expect(input.mcpServers).toHaveProperty('vynel')
-        // The user is talking directly — the routed-task steer must NOT ride
-        // the system prompt (only the composer's per-feature sections may).
+        // The user is talking directly — the identity stack leads and the
+        // routed-task steer must NOT ride the system prompt.
+        expect(input.systemPromptAppend ?? '').toContain(
+          composeSessionInstruction('spawned-session'),
+        )
         expect(input.systemPromptAppend ?? '').not.toContain('routed from')
         // The per-turn picks thread through.
         expect(input.model).toBe('claude-haiku-4-5')
@@ -496,6 +503,67 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         // colleague speaks (send_message) exactly as its mention runs do.
         expect(input.mcpServers ?? {}).toHaveProperty('vynel')
         expect(Object.keys(input.mcpServers ?? {}).length).toBeGreaterThan(0)
+        // No agent row backs the slug in this fixture — the identity falls
+        // back to the child stack rather than failing the user's turn.
+        expect(input.systemPromptAppend ?? '').toContain(
+          composeSessionInstruction('spawned-session'),
+        )
+        expect(input.systemPromptAppend ?? '').not.toContain('persistent colleague')
+      })
+    })
+  })
+
+  it('a colleague with a real agent row carries its persona on the DIRECT turn too', async () => {
+    await withTestDatabase(async (db) => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), 'vynel-turn-agent-persona-'))
+      await withVynelUserDataDir(dataDir, async () => {
+        const user = seedUser(db)
+        await createAgent(db, {
+          userId: user.id,
+          workspaceId: null,
+          slug: 'reviewer',
+          name: 'Code Reviewer',
+          description: 'Reviews code.',
+          prompt: 'You review code carefully.',
+          source: 'user',
+          trustTier: 'community',
+        })
+        const colleague = await getOrCreateContinuingSession(db, {
+          userId: user.id,
+          scope: 'agent',
+          workspaceId: null,
+          scopeRef: 'reviewer',
+        })
+        insertChatSession(
+          db,
+          buildNewChatSessionRow({
+            sessionId: 'colleague-seg-2',
+            userId: user.id,
+            workspaceId: null,
+            providerId: 'claude',
+            startedAt: new Date(),
+            title: 'Code Reviewer',
+            scope: 'agent',
+          }),
+        )
+        linkPrimarySessionToSdkSession(db, {
+          primarySessionId: colleague.id,
+          userId: user.id,
+          sdkSessionId: 'colleague-seg-2',
+        })
+        const app = createApp({ db, logger: silentLogger })
+
+        const res = await postTurn(app, 'colleague-seg-2', { userMessageText: 'review this' })
+        expect(res.status).toBe(200)
+        await res.text()
+
+        expect(startChatSessionInputs).toHaveLength(1)
+        const input = startChatSessionInputs[0]!
+        // The persona rides EVERY turn (persona-sessions) — direct included:
+        // base + the rendered colleague framing + the agent's own prompt.
+        expect(input.systemPromptAppend).toContain('You are "Code Reviewer"')
+        expect(input.systemPromptAppend).toContain('You review code carefully.')
+        expect(input.systemPromptAppend).not.toContain('routed from')
       })
     })
   })

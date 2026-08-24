@@ -18,6 +18,7 @@ export {
 export {
   ROUTED_TASK_INSTRUCTIONS,
   REPORT_DELIVERY_INSTRUCTIONS,
+  composeAgentColleaguePrompt,
   type RoutedTurnMcpAttachment,
 } from './routed-turn-provider-input.js'
 // Session-comms: the report-delivery notify branch's global-runner seam (the

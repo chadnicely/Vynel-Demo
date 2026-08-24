@@ -57,6 +57,12 @@ describe('loadSessionInstruction', () => {
     expect(prompt).toContain('reaches no one')
   })
 
+  it('workspace-session frames the plain session and defers coordination to the manager', () => {
+    const prompt = loadSessionInstruction('workspace-session')
+    expect(prompt).toContain('workspace session')
+    expect(prompt).toContain("not the workspace's manager")
+  })
+
   it('agent-colleague keeps the continuing-colleague framing and its placeholder', () => {
     const prompt = loadSessionInstruction('agent-colleague')
     expect(prompt).toContain('{{agentName}}')
