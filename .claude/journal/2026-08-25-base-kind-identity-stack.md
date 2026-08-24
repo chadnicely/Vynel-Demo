@@ -47,10 +47,18 @@ steers and feature sections join after, at the caller).
 `pnpm test` GREEN twice (slice 1, then the manager/children pass): 1023 files / 6977 tests,
 typecheck + parity included.
 
-## Owed / deferred
+## Follow-up slice (same day): direct child turns + the plain kind
 
-- Interactive `streams/session-turn.ts` (a user typing directly into a child session) composes no
-  identity yet — needs kind resolution from the session row; small follow-up slice.
+`streams/session-turn.ts` now composes the identity too — scope `spawned` → base+spawned-session,
+scope `agent` → `resolveColleagueAgent` (the existing one home) → `composeAgentColleaguePrompt`
+(now takes `{ voice }` and rides the voice base on spoken turns). **Found and fixed a real hole:**
+a user typing directly at a colleague got NO persona at all — it rode only delegated turns; a
+colleague whose agent row is gone falls back to the child identity rather than failing the turn
+(guarded by a new persona-on-direct-turn test). `workspace-session.md` shipped CONTENT-FIRST for
+the duty-book `plain` kind (no live door composes it yet — the binding-before-content precedent).
+Gate green again (1023 files / 6979 tests).
+
+## Owed / deferred
 - Doc refresh: `.claude/docs/instructions/` book (predates all three md homes),
   `.claude/docs/session/structure.md` + `docs/module-notes/voice-realtime.md` still mention
   `voice-turn.md`; `docs/module-notes/instructions-notebook.md` still reads "PLANNED".

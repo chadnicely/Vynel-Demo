@@ -37,6 +37,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Talking directly to an agent colleague now brings its persona along.** A colleague's persona
+  prompt used to ride only the tasks routed to it — opening its conversation and typing at it
+  directly ran the turn with no persona (and no identity) at all. Direct turns into child sessions
+  and colleagues now carry the same identity stack as their routed turns, the colleague's persona
+  included; a colleague whose agent was uninstalled falls back to the plain child identity instead
+  of failing the turn.
+
 - **A room no longer loses its conversation if the engine dies mid-first-turn.** The link from a
   room (or the global assistant, or the voice thread) to the session its first turn started was
   only written after the turn finished — so a crash or a restart during that first turn left the

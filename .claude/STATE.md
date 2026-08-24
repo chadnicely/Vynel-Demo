@@ -17,11 +17,14 @@ NEW `spawned-session.md` + `agent-colleague.md` ({{agentName}} render, fail-loud
 steer-only — `delegateToWorkspaceRoot`/`delegateToSpawnedSession`/`composeAgentColleaguePrompt` now
 prepend the stack, closing the two-identities-per-door asymmetry; whoami/checkpoint already ride the
 background set so children can read who they are. Third layer stays per-turn: routed steers + the
-manager's task instructions ride the task message. Gate green ×2 (1023 files / 6977 tests). **Owed:**
-interactive `session-turn.ts` (typing directly into a child) still composes no identity (needs kind
-from the session row); doc refresh (`.claude/docs/instructions` book, session structure,
-voice-realtime note, the stale "PLANNED" line in `docs/module-notes/instructions-notebook.md`);
-wording tweaks to the md files expected later by design. Journal:
+manager's task instructions ride the task message. **Follow-up slice landed same day:** direct turns
+into children/colleagues (`session-turn.ts`) compose the stack too — and fixed a real hole: typing
+directly at a colleague carried NO persona (it rode only delegated turns); agent-row-gone falls back
+to the child identity. `workspace-session.md` shipped content-first for the duty-book `plain` kind
+(no live door yet). Gate green ×3 (latest 1023 files / 6979 tests). **Owed:** doc refresh
+(`.claude/docs/instructions` book, session structure, voice-realtime note, the stale "PLANNED" line
+in `docs/module-notes/instructions-notebook.md`); live smokes (voice brevity, child ack/report,
+colleague persona on direct turn); wording tweaks to the md files expected later by design. Journal:
 `.claude/journal/2026-08-25-base-kind-identity-stack.md`.
 
 ## 🔧 2026-08-24 ONBOARDING = TWO STEPS — welcome + the name (on main)
