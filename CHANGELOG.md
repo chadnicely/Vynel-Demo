@@ -9,6 +9,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The journal is now a clickable timeline.** Every entry the assistant writes carries who wrote
+  it — the working session's name as a chip you can click to open that conversation in the sidebar
+  and see exactly what was done — and, when the work landed as a commit, the commit's short id.
+  The assistant is told to journal the moments that matter (started a task, finished it, a fix, a
+  check that passed) with the commit attached, and the attribution happens automatically — it
+  cannot forget it or write history as someone else.
+
+- **The workspace has an operating model now.** The workspace manager's standing instructions
+  teach the flow: the manager stays with you and runs the work through dedicated child sessions —
+  one per area ("Email Feature Manager"), each task sent with clear instructions and tracked on
+  the task list. Children build in their own worktree, never directly on the main branch; on a
+  substantial task they plan, lay out steps, build test-first, and have the result checked by a
+  fresh reviewer with no context before reporting done — and the manager itself merges the
+  finished worktree and removes it. Small asks skip the ceremony.
+
 - **Tool activity now folds tidy.** While the assistant works, each step reads as one short line in
   plain words ("Checking git status for you") with everything it did folded beneath it into a single
   summary line — "Ran 4 commands, edited pricing.ts +49 -20" — that you can expand to see every

@@ -82,6 +82,28 @@ folded line became the Claude-Desktop summary: `summarizeToolCallBatch` → "Ran
 pricing.ts" + aggregated ±diff chip; the hint now names only a RUNNING call. Emptied carrier rows
 render nothing.
 
+## Round 3 (same day): the operating model + the journal pointer
+
+Kafi's full system model landed its first two implementation slices (`1b80d848` + `13dc0e6f`):
+
+- **Kind files carry the manager/child flow.** Manager: stay with the user; one dedicated child
+  per area; tasks sent WITH instructions and tracked; children in worktrees, never main; **the
+  manager merges and removes the worktree — never another child**; small asks skip ceremony.
+  Child: context first → task → plan → steps → test-first → **FRESH context-less review agent**
+  gate → report; small tasks skip the ceremony. Guards pin merge/worktree/reviewer phrases. The
+  deeper pipeline is duty-book/notebook material — Kafi writes those later (incl. the
+  new-workspace research notebook).
+- **Journal = the clickable timeline.** `commit_ref` column (migration 0054, drizzle-generated);
+  attribution server-stamped from the turn-session header (`resolveOwnedTurnSessionId` EXTRACTED
+  from tasks/index.ts into turn-session-header.ts — one home at its second consumer); responses
+  resolve `sessionTitle`; the journal UI wears a session pointer chip (opens the conversation
+  sidebar — the tasks-panel door) + a commit chip; `add_journal_entry` takes `commit`; the prompt
+  section teaches started/completed/fix entries. JournalSection's mount gained pinia (the sidebar
+  store) — its test harness too.
+- The system model's other legs already exist: memory (standing facts), knowledge (user
+  docs/research), features (the catalog a feature manager maintains). The worktree STATE tools
+  stay the github-connection Slice 4 arc.
+
 ## Owed / deferred
 - Doc refresh: `.claude/docs/instructions/` book (predates all three md homes),
   `.claude/docs/session/structure.md` + `docs/module-notes/voice-realtime.md` still mention

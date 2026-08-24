@@ -3,7 +3,22 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔧 2026-08-25 (latest) INSTRUCTIONS = BASE+KIND IDENTITY STACK (on main)
+## 🔧 2026-08-25 (latest) OPERATING MODEL + JOURNAL TIMELINE (on main)
+
+Kafi's system model, first slices (`1b80d848` + `13dc0e6f`): **kind files teach the manager/child
+flow** — manager stays with the user, one dedicated child per area, tasks sent WITH instructions +
+tracked, children in worktrees (never main), THE MANAGER merges + removes the worktree (never a
+child), child discipline = context → task → plan → steps → test-first → FRESH context-less review
+agent → report, small asks skip ceremony (guards pin merge/worktree/reviewer). **Journal = clickable
+timeline**: `commit_ref` (migration 0054), attribution SERVER-STAMPED from the turn-session header
+(`resolveOwnedTurnSessionId` extracted to turn-session-header.ts — one home, tasks + journal),
+responses carry `sessionTitle`, UI pointer chip opens the conversation sidebar + commit chip,
+`add_journal_entry` takes `commit`, prompt section teaches started/completed/fix entries.
+Regenerated 121 tools / 151 catalog entries. Gate green (GATE_EXIT=0). **Later (Kafi):** the duty
+books + the new-workspace research notebook carry the deep pipeline; worktree state tools =
+github-connection Slice 4.
+
+## 🔧 2026-08-25 INSTRUCTIONS = BASE+KIND IDENTITY STACK (on main)
 
 Kafi's model, landed: every session's system prompt opens with ONE base + its KIND file, composed by
 the new `composeSessionInstruction(kind, { voice, agentName })` (`@vynel/instructions/
