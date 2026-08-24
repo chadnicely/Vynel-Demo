@@ -6,7 +6,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { setCapabilityEnabled } from '@vynel/capabilities'
 import { createMemoryEntry } from '@vynel/memory'
-import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 import { composeSessionCapabilities } from './compose-session-capabilities.js'
 
 function seed(db: Database) {
@@ -49,11 +49,14 @@ function addMemoryEntry(db: Database, userId: string, workspaceId: string) {
 }
 
 describe('composeSessionCapabilities', () => {
-  it('always includes the Vynel operating-rules', async () => {
+  // test: correct expectation — the identity moved from one kind file to the
+  // base+kind stack (base carries the operating rules; workspace-manager the
+  // kind framing), so the composed append must open with the full stack.
+  it('always includes the Vynel identity stack (base + workspace-manager)', async () => {
     await withTestDatabase((db) => {
       const { workspace } = seed(db)
       const composed = composeSessionCapabilities(db, { workspaceId: workspace.id })
-      expect(composed.systemPromptAppend).toContain(loadSessionInstruction('workspace-agent'))
+      expect(composed.systemPromptAppend).toContain(composeSessionInstruction('workspace-manager'))
     })
   })
 

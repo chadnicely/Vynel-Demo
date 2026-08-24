@@ -8,6 +8,10 @@ export {
   type SessionInstructionId,
 } from './load-session-instruction.js'
 export {
+  composeSessionInstruction,
+  type SessionInstructionKind,
+} from './compose-session-instruction.js'
+export {
   renderScheduleFireMarker,
   type RenderScheduleFireMarkerInput,
 } from './render-schedule-fire-marker.js'

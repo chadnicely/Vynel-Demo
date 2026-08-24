@@ -21,8 +21,12 @@ import { join } from 'node:path'
 import { resolveInstructionsContentDirectory } from '../content-root.js'
 
 // Each id maps to `<id>.md` in the content directory — the filename IS the
-// specification of which session the instruction governs. `voice-turn-marker`
-// is the per-MESSAGE sibling of `voice-turn`: the same directive re-stated on
+// specification of which session the instruction governs. `base` / `voice-base`
+// are the CHANNEL bases of the identity stack (every session = one base + its
+// kind file — see `compose-session-instruction.ts`); the voice base is written
+// for the ear, because output format is base material and a voice turn must
+// never be handed prose rules it then has to un-learn. `voice-turn-marker`
+// is the per-MESSAGE sibling of `voice-base`: the spoken directive re-stated on
 // the turn's provider input, because on a long root session the system-prompt
 // block decays under conversational momentum — recency wins. `autopilot-marker`
 // is the per-message directive for a session whose `autoBuildout` setting is on
@@ -36,9 +40,12 @@ import { resolveInstructionsContentDirectory } from '../content-root.js'
 // turn (a model reads no clock) — `{{nowLocal}}` / `{{timezone}}`, filled by
 // `renderTurnTimeMarker`.
 export type SessionInstructionId =
+  | 'base'
+  | 'voice-base'
   | 'global-root'
-  | 'workspace-agent'
-  | 'voice-turn'
+  | 'workspace-manager'
+  | 'spawned-session'
+  | 'agent-colleague'
   | 'voice-turn-marker'
   | 'autopilot-marker'
   | 'schedule-fire-marker'

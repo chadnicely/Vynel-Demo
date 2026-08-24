@@ -1,6 +1,6 @@
 // `composeSessionCapabilities` — assembles the agent's per-turn PROMPT
 // contribution from the workspace's enabled capabilities: the always-on Vynel
-// operating-rules (`workspace-agent` — editable markdown loaded from
+// identity stack (`base` + `workspace-manager` — editable markdown composed by
 // `@vynel/instructions/session-instructions`) plus, per enabled capability, its
 // system-prompt contribution (memory's snapshot today; knowledge in Phase B).
 // The MCP-tool
@@ -12,7 +12,7 @@
 import type { Database } from '@vynel/db'
 import { listEnabledCapabilities, type CapabilityId } from '@vynel/capabilities'
 import { buildMemorySessionContribution } from '@vynel/memory'
-import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 
 export type ComposedSessionCapabilities = {
   systemPromptAppend: string
@@ -25,7 +25,7 @@ export function composeSessionCapabilities(
   const enabled = listEnabledCapabilities(db, input.workspaceId)
   const enabledIds = new Set<CapabilityId>(enabled.map((capability) => capability.id))
 
-  const sections: string[] = [loadSessionInstruction('workspace-agent')]
+  const sections: string[] = [composeSessionInstruction('workspace-manager')]
   if (enabledIds.has('memory')) {
     sections.push(buildMemorySessionContribution(db, { workspaceId: input.workspaceId }))
   }

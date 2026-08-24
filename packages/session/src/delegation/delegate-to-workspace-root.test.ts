@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/repositories'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { SESSION_DELEGATED, type SessionDelegatedPayload } from '@vynel/orchestration'
@@ -91,8 +92,12 @@ describe('delegateToWorkspaceRoot', () => {
       expect(result.reference).toBe('ws-root-new')
       expect(result.resultText).toBe('Acme has 3 docs; all current.')
 
-      // The background steer rides the SYSTEM prompt, never the persisted task text.
-      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(ROUTED_TASK_INSTRUCTIONS)
+      // test: correct expectation for the base+kind stack — the manager
+      // identity (base + workspace-manager) now LEADS the routed steer, so the
+      // primary keeps one identity whichever door the turn came through.
+      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(
+        `${composeSessionInstruction('workspace-manager')}\n\n${ROUTED_TASK_INSTRUCTIONS}`,
+      )
 
       // The fresh workspace-root segment was recorded (hidden, workspace-scoped).
       const segment = findChatSessionById(db, 'ws-root-new')
@@ -143,8 +148,10 @@ describe('delegateToWorkspaceRoot', () => {
         steerInstructions: REPORT_DELIVERY_INSTRUCTIONS,
       })
 
-      // The steer swapped wholesale — never both.
-      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(REPORT_DELIVERY_INSTRUCTIONS)
+      // The steer swapped wholesale — never both; the identity still leads.
+      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(
+        `${composeSessionInstruction('workspace-manager')}\n\n${REPORT_DELIVERY_INSTRUCTIONS}`,
+      )
 
       // The INBOUND row reads as the child's report; the reply keeps the
       // workspace's own manager identity.
@@ -195,9 +202,9 @@ describe('delegateToWorkspaceRoot', () => {
       expect(turnInput.deniedToolNames).toEqual(['mcp__vynel__search_knowledge'])
       expect(turnInput.alwaysRequireApprovalToolNames).toEqual(['mcp__vynel__register_workspace'])
       expect(turnInput.askModeApprovalToolNames).toEqual(['mcp__vynel__remove_knowledge_source'])
-      // The routed steer stays FIRST; the composer's feature sections follow.
+      // Identity first, the routed steer next, the composer's feature sections last.
       expect(turnInput.systemPromptAppend).toBe(
-        `${ROUTED_TASK_INSTRUCTIONS}\n\n## Task list\nKeep it current.`,
+        `${composeSessionInstruction('workspace-manager')}\n\n${ROUTED_TASK_INSTRUCTIONS}\n\n## Task list\nKeep it current.`,
       )
     })
   })

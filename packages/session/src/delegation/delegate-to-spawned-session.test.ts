@@ -20,6 +20,7 @@ import { findPrimarySessionById } from '../repositories/index.js'
 import { resolveSessionChainTranscript } from '../runtime/resolve-primary-transcript.js'
 import { delegateToSpawnedSession } from './delegate-to-spawned-session.js'
 import { ROUTED_TASK_INSTRUCTIONS } from './routed-turn-provider-input.js'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 
 function makeUser(id: string = randomUUID()) {
   const now = new Date()
@@ -72,8 +73,11 @@ describe('delegateToSpawnedSession', () => {
       // Resume, not fresh: the spawned session's continuing SDK session.
       expect(startChatSessionInputs[0]!.resumeSessionId).toBe(created.sessionId)
       expect(startChatSessionInputs[0]!.workspacePath).toBe('/tmp/vynel/global-root')
-      // The background steer rides the SYSTEM prompt, never the persisted task.
-      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(ROUTED_TASK_INSTRUCTIONS)
+      // test: correct expectation for the base+kind stack — the child identity
+      // (base + spawned-session) now LEADS the routed steer on every turn.
+      expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(
+        `${composeSessionInstruction('spawned-session')}\n\n${ROUTED_TASK_INSTRUCTIONS}`,
+      )
 
       expect(result.reference).toBe(created.sessionId)
       expect(result.resultText).toBe('Competitor A undercuts us by 12%.')
@@ -138,8 +142,10 @@ describe('delegateToSpawnedSession', () => {
       // the tools; the canUseTool policy map gates each call (SHADOWED fix).
       expect('allowedMcpToolPatterns' in turnInput).toBe(false)
       expect(turnInput.deniedToolNames).toEqual([])
-      // Empty composer prompt → the routed steer alone, no trailing join.
-      expect(turnInput.systemPromptAppend).toBe(ROUTED_TASK_INSTRUCTIONS)
+      // Empty composer prompt → identity + the routed steer, no trailing join.
+      expect(turnInput.systemPromptAppend).toBe(
+        `${composeSessionInstruction('spawned-session')}\n\n${ROUTED_TASK_INSTRUCTIONS}`,
+      )
       // No declared mutators → the field stays absent (the provider floor alone).
       expect(turnInput.alwaysRequireApprovalToolNames).toBeUndefined()
     })

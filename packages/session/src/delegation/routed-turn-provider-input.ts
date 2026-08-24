@@ -4,7 +4,10 @@
 // spread into `startChatSession`. One home so the runners can never drift on
 // how a routed turn is shaped.
 
-import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
+import {
+  composeSessionInstruction,
+  loadSessionInstruction,
+} from '@vynel/instructions/session-instructions'
 
 // How a routed (background) turn should behave — appended to the SYSTEM prompt, never
 // the task text (the task persists verbatim to the transcript). ACKNOWLEDGE-FIRST
@@ -119,14 +122,10 @@ export const DIRECT_DELIVERY_INSTRUCTIONS =
 /** The COLLEAGUE identity block for an agent session's turn (persona-sessions):
  *  rides `systemPromptAppend` on EVERY turn — never seeded priming — so the
  *  persona survives swaps and transcript compaction. The agent's own prompt is
- *  the persona; this wrapper adds only the continuing-colleague framing. */
+ *  the persona; this wrapper stacks the identity (`base` + the rendered
+ *  `agent-colleague` kind file, editable markdown) above it. */
 export function composeAgentColleaguePrompt(agentName: string, agentPrompt: string): string {
-  return (
-    `You are "${agentName}" — a persistent colleague with your own continuing session. ` +
-    'This conversation is your memory: it accumulates across every task you are given, ' +
-    'so build on what you already know instead of starting fresh.\n\n' +
-    agentPrompt
-  )
+  return `${composeSessionInstruction('agent-colleague', { agentName })}\n\n${agentPrompt}`
 }
 
 /** The background workspace MCP attachment for a routed turn — structurally the

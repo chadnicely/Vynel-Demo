@@ -54,22 +54,21 @@ import type {
   RunGlobalRootTurnCoreInput,
   SessionSink,
 } from './session-types.js'
-import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 import { rootTurnLockKey, runUnderRootTurnLock } from './root-turn-lock.js'
 import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 import { composeGlobalRootProviderMessage } from './compose-global-root-provider-message.js'
 
 /**
- * Compose the turn's `systemPromptAppend`: the global-root instructions, the
- * feature/MCP contribution, and — for a voice turn — the spoken-style directive.
- * Both prompts are editable markdown loaded from
- * `@vynel/instructions/session-instructions`.
+ * Compose the turn's `systemPromptAppend`: the identity stack (the channel base
+ * — `voice-base` on a voice turn, else `base` — plus the `global-root` kind
+ * file, all editable markdown from `@vynel/instructions/session-instructions`),
+ * then the feature/MCP contribution and any per-turn steer.
  */
 function buildSystemPromptAppend(input: RunGlobalRootTurnCoreInput): string {
-  const parts = [loadSessionInstruction('global-root')]
+  const parts = [composeSessionInstruction('global-root', { voice: input.voice === true })]
   if (input.mcpSystemPromptAppend !== '') parts.push(input.mcpSystemPromptAppend)
-  if (input.voice === true) parts.push(loadSessionInstruction('voice-turn'))
   if (input.steerPromptAppend !== undefined && input.steerPromptAppend !== '') {
     parts.push(input.steerPromptAppend)
   }

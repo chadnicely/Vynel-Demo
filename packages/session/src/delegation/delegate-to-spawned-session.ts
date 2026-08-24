@@ -41,6 +41,7 @@ import {
   buildContextNudge,
   linkPrimarySessionToSdkSession,
 } from '../continuity/index.js'
+import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 import { withBoundaryContinuity } from '../runtime/with-boundary-continuity.js'
 import * as primarySessionsRepository from '../repositories/index.js'
 import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
@@ -174,7 +175,8 @@ export async function delegateToSpawnedSession(
     workspacePath: input.runCwdPath,
     resumeSessionId: primary.currentSdkSessionId,
     userMessageText: composeRoutedTurnProviderText(input.taskText, input.autoBuildout === true),
-    systemPromptAppend: composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions),
+    // The child identity (base + spawned-session) leads; the routed steer follows.
+    systemPromptAppend: `${composeSessionInstruction('spawned-session')}\n\n${composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions)}`,
     permissionMode: input.permissionMode ?? toPermissionMode(DEFAULT_SESSION_MODE),
     // Empty grants: the resumed session keeps its existing tool grants.
     allowedToolNames: [],

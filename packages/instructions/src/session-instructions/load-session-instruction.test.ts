@@ -10,6 +10,25 @@ import {
 } from './load-session-instruction.js'
 
 describe('loadSessionInstruction', () => {
+  // test: correct expectation for the base+kind split — the operating rules
+  // (plain language, approvals, real schedules, duty book) moved from the kind
+  // files into the shared text base; the kind files keep only what the kind is.
+  it('base states the operating rules every text session carries', () => {
+    const prompt = loadSessionInstruction('base')
+    expect(prompt).toContain('plain language')
+    expect(prompt).toContain('approval card')
+    // The real-schedule discipline (never a simulated timer) — an unframed
+    // schedule ask once produced a sleep timer; the rule is base material.
+    expect(prompt).toContain('create a real schedule')
+    expect(prompt).toContain('never simulate')
+    // The user knows the assistant as Vynel, not the underlying runtime.
+    expect(prompt).toContain('Vynel')
+    expect(prompt).toContain('never the underlying runtime')
+    // Every kind has a duty book — the base carries the pointer once.
+    expect(prompt).toContain('read_playbook')
+    expect(prompt).toContain('whoami')
+  })
+
   it('global-root names all four routing tools and frames the brain as a router', () => {
     const prompt = loadSessionInstruction('global-root')
     expect(prompt).toContain('list_routing_workspaces')
@@ -19,18 +38,37 @@ describe('loadSessionInstruction', () => {
     expect(prompt.toLowerCase()).toContain('route')
   })
 
-  it('workspace-agent states the plain-language and approval operating rules', () => {
-    const prompt = loadSessionInstruction('workspace-agent')
-    expect(prompt).toContain('plain language')
-    expect(prompt).toContain('approval card')
+  // test: correct expectation for the base+kind split — plain-language and the
+  // approval rule now live in base; the kind file states what this session IS:
+  // the workspace's MANAGER (the primary runs the work and manages children).
+  it('workspace-manager frames the primary as the workspace manager', () => {
+    const prompt = loadSessionInstruction('workspace-manager')
+    expect(prompt).toContain('MANAGER')
+    expect(prompt).toContain('child session')
+    // Sending a task to a child means sending instructions with it.
+    expect(prompt).toContain('clear instructions')
   })
 
-  // test: correct expectation for the voice directive — was "reply by calling
-  // `speak`", should be "your text IS the voice" (voice-realtime VR1: the tool
-  // is no longer attached on a voice-thread turn, the client speaks the
-  // streamed deltas).
-  it('voice-turn teaches the spoken style and says the speak tool is gone', () => {
-    const prompt = loadSessionInstruction('voice-turn')
+  it('spawned-session frames the child and points at the task instructions', () => {
+    const prompt = loadSessionInstruction('spawned-session')
+    expect(prompt).toContain('CHILD session')
+    expect(prompt).toContain('instructions')
+    // The report protocol rides the task steer, and chat text reaches no one.
+    expect(prompt).toContain('reaches no one')
+  })
+
+  it('agent-colleague keeps the continuing-colleague framing and its placeholder', () => {
+    const prompt = loadSessionInstruction('agent-colleague')
+    expect(prompt).toContain('{{agentName}}')
+    expect(prompt).toContain('persistent colleague')
+    expect(prompt).toContain('This conversation is your memory')
+  })
+
+  // test: correct expectation — `voice-turn.md` (the modifier) became
+  // `voice-base.md` (the voice channel's base): same spoken-format directives
+  // (voice-realtime VR1/VR3), plus the shared ground rules phrased for the ear.
+  it('voice-base teaches the spoken style and says the speak tool is gone', () => {
+    const prompt = loadSessionInstruction('voice-base')
     expect(prompt).toContain('VOICE')
     expect(prompt).toContain('HEARD as you write')
     expect(prompt).toContain('ONE or TWO short spoken sentences')
@@ -48,14 +86,25 @@ describe('loadSessionInstruction', () => {
     expect(prompt).toContain('one moment')
   })
 
+  // The two bases are DELIBERATELY parallel files (text vs ear) — this pins the
+  // core disciplines to BOTH so an edit to one cannot silently drop a rule the
+  // other still states.
+  it('the two bases stay aligned on the core disciplines', () => {
+    for (const id of ['base', 'voice-base'] as const) {
+      const prompt = loadSessionInstruction(id)
+      expect(prompt, id).toContain('approval card')
+      expect(prompt, id).toContain('real schedule')
+      expect(prompt, id).toContain('never the underlying runtime')
+      expect(prompt, id).toContain('read_playbook')
+    }
+  })
+
   it('autopilot-marker tells the model it is on autopilot and names the needs_input exit', () => {
     const body = loadSessionInstruction('autopilot-marker')
     expect(body).toContain('AUTOPILOT')
     expect(body).toContain('needs_input')
   })
 
-  // test: correct expectation for the per-message marker — same VR1 change as
-  // the block above. It rides EVERY voice message, so it stays one line.
   it('voice-turn-marker re-states the spoken style (and the missing tool) in one line', () => {
     const marker = loadSessionInstruction('voice-turn-marker')
     expect(marker).toContain('VOICE')
