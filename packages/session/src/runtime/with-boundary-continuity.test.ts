@@ -249,6 +249,62 @@ describe('withBoundaryContinuity', () => {
     })
   })
 
+  it('a first turn whose stream DIES after session-created still leaves the primary linked and the segment hidden — the room survives a process death', async () => {
+    // 2026-08-25: the link was post-drain only, so an engine restart mid-first-
+    // turn left a 24-message conversation with no primary pointing at it —
+    // the room on its welcome hero, the segment still listed as "New session".
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const now = new Date()
+      const primary = insertPrimarySession(db, {
+        id: randomUUID(),
+        userId: user.id,
+        workspaceId: workspace.id,
+        currentSdkSessionId: null,
+        supersededFromSdkSessionId: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      })
+      // The consumer's fresh first segment: listed, stock-titled.
+      const fresh = insertChatSession(db, {
+        id: 'seg-fresh',
+        userId: user.id,
+        workspaceId: workspace.id,
+        providerId: 'claude',
+        title: 'New session',
+        visibility: 'listed',
+        isArchived: false,
+        deletedAt: null,
+        totalMessageCount: 1,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        startedAt: now,
+        lastMessageAt: now,
+        updatedAt: now,
+      })
+      async function* dying(): AsyncIterable<ChatTurnEvent> {
+        yield { kind: 'session-created', session: fresh }
+        yield { kind: 'text-chunk', messageId: 'm-1', textDelta: 'working…' }
+        throw new Error('engine restarted')
+      }
+      await expect(
+        collect(
+          withBoundaryContinuity(
+            dying(),
+            { primarySessionId: primary.id, priorSdkSessionId: null, userId: user.id, workspacePath: workspace.path, providerId: 'claude' },
+            { db, provider: new FakeAiAgentProvider({}) },
+          ),
+        ),
+      ).rejects.toThrow('engine restarted')
+      // Linked the moment the segment was named — and the manager's first
+      // segment hid, so the thread shows as ONE pinned entry, not a listed row.
+      expect(findPrimarySessionById(db, primary.id)?.currentSdkSessionId).toBe('seg-fresh')
+      expect(findChatSessionById(db, 'seg-fresh')?.visibility).toBe('hidden')
+    })
+  })
+
   it('a thrown inner stream propagates untouched — no continuity is attempted', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

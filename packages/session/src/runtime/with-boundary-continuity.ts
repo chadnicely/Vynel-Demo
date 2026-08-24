@@ -31,6 +31,7 @@ import {
   runTurnContinuitySwap,
   type TurnContinuityPlan,
 } from './apply-primary-turn-continuity.js'
+import { linkPrimaryToTurnSegment } from '../continuity/index.js'
 
 export type BoundaryContinuityInput = {
   primarySessionId: string
@@ -60,7 +61,16 @@ export async function* withBoundaryContinuity(
   // `session-created` (a fresh root's first segment, or a mid-turn swap).
   let effectiveSdkSessionId: string | null = input.priorSdkSessionId
   for await (const event of turnStream) {
-    if (event.kind === 'session-created') effectiveSdkSessionId = event.session.id
+    if (event.kind === 'session-created') {
+      effectiveSdkSessionId = event.session.id
+      // Link NOW, not after the drain: the segment's row exists (the
+      // consumer inserts before it yields), and a process that dies from
+      // here on must not strand a conversation the primary never claimed
+      // (2026-08-25 — a room's 24-message first turn, orphaned by an engine
+      // restart, left the room on its welcome hero). Best-effort: the
+      // post-drain step repeats it.
+      linkInStream(input, event.session.id, deps)
+    }
     yield event
   }
   if (effectiveSdkSessionId === null) return
@@ -79,6 +89,26 @@ export async function* withBoundaryContinuity(
     sessionId: effectiveSdkSessionId,
     primarySessionId: input.primarySessionId,
     toSessionId,
+  }
+}
+
+function linkInStream(
+  input: BoundaryContinuityInput,
+  sdkSessionId: string,
+  deps: BoundaryContinuityDeps,
+): void {
+  try {
+    linkPrimaryToTurnSegment(deps.db, {
+      primarySessionId: input.primarySessionId,
+      userId: input.userId,
+      priorSdkSessionId: input.priorSdkSessionId,
+      sdkSessionId,
+    })
+  } catch (err) {
+    deps.logger?.warn(
+      { err, primarySessionId: input.primarySessionId, sdkSessionId },
+      'the primary could not be linked in-stream — the post-turn step retries',
+    )
   }
 }
 

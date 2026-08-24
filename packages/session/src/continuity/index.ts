@@ -19,6 +19,15 @@ export {
   type LinkPrimarySessionToSdkSessionInput,
 } from './link-primary-session-to-sdk-session.js'
 
+// The first-turn bookkeeping (link + first-segment hide), run in-stream at
+// `session-created` AND after the drain — idempotent, so a process death
+// mid-first-turn never strands a room's conversation.
+export {
+  linkPrimaryToTurnSegment,
+  hidesFirstSegment,
+  type LinkPrimaryToTurnSegmentInput,
+} from './link-primary-to-turn-segment.js'
+
 export { findPrimaryConversation, type FindPrimaryConversationInput } from './find-primary-conversation.js'
 
 // Published read surface for the monitor aggregator (reads primaries via this core

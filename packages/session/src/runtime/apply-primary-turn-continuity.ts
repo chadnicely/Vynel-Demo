@@ -43,15 +43,14 @@ import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
 import {
   detectContextPressure,
-  linkPrimarySessionToSdkSession,
+  linkPrimaryToTurnSegment,
   resolveSegmentContextWindow,
   type BridgePrimarySessionResult,
   type ContextMeasurement,
   type ContextPressure,
 } from '../continuity/index.js'
 import * as primarySessionsRepository from '../repositories/index.js'
-import type { PrimarySessionScope } from '../repositories/index.js'
-import { findChatSessionById, updateChatSession } from '@vynel/chat/repositories'
+import { findChatSessionById } from '@vynel/chat/repositories'
 import type { AiAgentProviderId } from '@vynel/providers'
 import {
   bridgePrimarySessionAfterTurn,
@@ -88,16 +87,6 @@ export type TurnContinuityPlan = {
   threshold?: number
 }
 
-// A MANAGER primary's first segment (workspace brain, global root, the voice
-// twin) is the continuing thread itself — created by the normal new-session
-// flow as a listed "New session", it must hide so the thread shows as ONE
-// pinned entry. A spawned session's or colleague's first segment is the
-// opposite: it IS the listed identity row (its name in the sessions panel) and
-// must stay visible.
-function hidesFirstSegment(scope: PrimarySessionScope): boolean {
-  return scope !== 'spawned' && scope !== 'agent'
-}
-
 /** Phase 1 — link the primary to the segment the turn ran on, read the
  *  segment's persisted occupancy, detect pressure. No provider call. */
 export function prepareTurnContinuity(
@@ -109,17 +98,14 @@ export function prepareTurnContinuity(
     throw new NotFoundError('primary session', input.primarySessionId)
   }
 
-  // 1. Link the primary to the session this turn ran on (first turn / reconcile).
-  if (input.priorSdkSessionId !== input.effectiveSdkSessionId) {
-    linkPrimarySessionToSdkSession(db, {
-      primarySessionId: input.primarySessionId,
-      userId: input.userId,
-      sdkSessionId: input.effectiveSdkSessionId,
-    })
-    if (input.priorSdkSessionId === null && hidesFirstSegment(primary.scope)) {
-      updateChatSession(db, input.effectiveSdkSessionId, { visibility: 'hidden' })
-    }
-  }
+  // 1. Link the primary to the session this turn ran on (first turn /
+  //    reconcile) — a no-op when the wrapper already linked it in-stream.
+  linkPrimaryToTurnSegment(db, {
+    primarySessionId: input.primarySessionId,
+    userId: input.userId,
+    priorSdkSessionId: input.priorSdkSessionId,
+    sdkSessionId: input.effectiveSdkSessionId,
+  })
 
   // 2. Measure from the effective segment's persisted occupancy against the
   //    chain's denominator. No row / no usage yet → nothing measured → nothing
