@@ -10,12 +10,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 ### Added
 
 - **Tool activity now folds tidy.** While the assistant works, each step reads as one short line in
-  plain words ("Checking git status for you") with its tool calls folded beneath it — a small
-  "4 tool calls · git status" line you can expand to see every call, in every session view. A live
-  step shows what is running right now in the folded line, and a call that needs your go-ahead
-  ("Run it anyway") opens its fold by itself. The assistant's standing instructions teach the
-  matching narration shape — one short line per step, no chatter between tool calls — so
-  transcripts read that way from now on.
+  plain words ("Checking git status for you") with everything it did folded beneath it into a single
+  summary line — "Ran 4 commands, edited pricing.ts +49 -20" — that you can expand to see every
+  call, in every session view. Runs that used to scatter into many "1 tool call" rows now gather
+  under their step line as one batch, live exactly as they settle. A live step shows what is running
+  right now beside the summary, and a call that needs your go-ahead ("Run it anyway") opens its fold
+  by itself. The assistant's standing instructions teach the matching narration shape — one short
+  line per step, no chatter between tool calls — so transcripts read that way from now on.
 
 - **Every session now starts from the same playbook.** The assistant's standing instructions became
   one editable stack: a shared **base** every session carries (how to behave, how to format

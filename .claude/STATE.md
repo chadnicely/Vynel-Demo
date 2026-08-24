@@ -19,9 +19,12 @@ prepend the stack, closing the two-identities-per-door asymmetry; whoami/checkpo
 background set so children can read who they are. Third layer stays per-turn: routed steers + the
 manager's task instructions ride the task message. **Step narration + fold (same day, `ed5f1883` +
 `0bc70ba0`):** base mandates ONE short step line before each tool batch, no text between calls
-(guarded as UI-LOAD-BEARING); `ToolCallList` folds every batch behind "N tool calls · hint"
-(running call's line while live; blocked auto-opens) — one home, every session view; easy-words +
-examples-in-markdown joined the base. **Follow-up slice landed same day:** direct turns
+(guarded as UI-LOAD-BEARING); `ToolCallList` folds every batch behind a Claude-Desktop SUMMARY line
+("Ran 4 commands, edited pricing.ts" + aggregated ±diff chip; running call's line beside it while
+live; blocked auto-opens) — and `mergeToolOnlyBatches` (`0bc70ba0` + `008f4976`) folds text-less
+tool rows into the step line above (the SDK's one-message-per-provider-message fragmentation made
+many "1 tool call" rows — Kafi's screenshots); one home, both renderers, live = settled; easy-words
++ examples-in-markdown joined the base. **Follow-up slice landed same day:** direct turns
 into children/colleagues (`session-turn.ts`) compose the stack too — and fixed a real hole: typing
 directly at a colleague carried NO persona (it rode only delegated turns); agent-row-gone falls back
 to the child identity. `workspace-session.md` shipped content-first for the duty-book `plain` kind

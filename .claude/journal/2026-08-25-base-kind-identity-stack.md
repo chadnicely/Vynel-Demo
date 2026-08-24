@@ -72,6 +72,16 @@ expandable); a BLOCKED call auto-opens its batch. Gotcha for next time: ToolCall
 tests live in **AgentActivityPane.test.ts** — a scoped run of ToolCallList.test.ts alone misses
 them (found by the full gate, red once, fixed by expanding before card-level asserts).
 
+Round 2 (Kafi's screenshots): the per-message fold produced MANY "1 tool call" rows — the SDK
+persists one message per provider message, so a heredoc-heavy run fragments. Fix =
+`mergeToolOnlyBatches` (packages/ui/tool-cards, pure, one home for BOTH renderers): a text-less
+tool-carrying row folds its calls into the nearest assistant text row above (user rows /
+continuation anchors reset; a tool-opening row anchors itself — two existing tests pin that;
+`hasText` must be assistant-only or a USER row becomes the holder — the round's one real bug). The
+folded line became the Claude-Desktop summary: `summarizeToolCallBatch` → "Ran 4 commands, edited
+pricing.ts" + aggregated ±diff chip; the hint now names only a RUNNING call. Emptied carrier rows
+render nothing.
+
 ## Owed / deferred
 - Doc refresh: `.claude/docs/instructions/` book (predates all three md homes),
   `.claude/docs/session/structure.md` + `docs/module-notes/voice-realtime.md` still mention
