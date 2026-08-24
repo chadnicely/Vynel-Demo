@@ -283,6 +283,9 @@ describe("SessionsSidebar", () => {
       ["80%", "high"],
       ["90%", "critical"],
     ]);
+    // The ring's arc is the percentage of one circumference (r=6).
+    const arc = wrapper.findAll(".context-ring-arc")[0]!.attributes("stroke-dasharray");
+    expect(Number.parseFloat(arc ?? "")).toBeCloseTo(2 * Math.PI * 6 * 0.2, 3);
   });
 
   it("lights the working dot when the feed reports a turn on the entry's session", async () => {

@@ -58,6 +58,14 @@ const contextTier = computed<"low" | "high" | "critical" | null>(() => {
   if (percent === null) return null;
   return percent < 75 ? "low" : percent <= 85 ? "high" : "critical";
 });
+// The ring's geometry: r=6 in a 16-box, so the arc is a fraction of one
+// circumference; a round cap keeps even 5% visible as a dot.
+const RING_CIRCUMFERENCE = 2 * Math.PI * 6;
+const ringArc = computed(() =>
+  contextPercent.value === null
+    ? 0
+    : (RING_CIRCUMFERENCE * contextPercent.value) / 100,
+);
 const contextTooltip = computed(() =>
   props.entry.contextTokens === null
     ? undefined
@@ -109,16 +117,40 @@ const statusNote = computed(() =>
         <span class="min-w-0 truncate">{{ props.entry.title }}</span>
         <!-- The state cluster, on the right: the quiet number, then ONE mark. -->
         <span class="flex items-center gap-[7px]">
-          <!-- The context occupancy as a chip (Kafi, 2026-08-24) — the same
-               pill the row chips wear elsewhere, so a number reads as a
-               reading, not a stray label. -->
+          <!-- The context occupancy as a RING (Kafi, 2026-08-25): the arc
+               fills to the percentage in the tier's colour; the number stays
+               for screen readers and the tooltip. -->
           <span
             v-if="contextPercent !== null"
-            class="context-percent inline-flex shrink-0 items-center rounded-full border px-1.5 text-[9.5px] font-semibold leading-[15px] tabular-nums"
+            class="context-percent inline-flex shrink-0 items-center"
             :data-tier="contextTier"
             :title="contextTooltip"
-            >{{ contextPercent }}%</span
           >
+            <svg viewBox="0 0 16 16" class="size-[14px]" aria-hidden="true">
+              <circle
+                cx="8"
+                cy="8"
+                r="6"
+                fill="none"
+                stroke="currentColor"
+                stroke-opacity="0.22"
+                stroke-width="2"
+              />
+              <circle
+                class="context-ring-arc"
+                cx="8"
+                cy="8"
+                r="6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                :stroke-dasharray="`${ringArc} ${RING_CIRCUMFERENCE}`"
+                transform="rotate(-90 8 8)"
+              />
+            </svg>
+            <span class="sr-only">{{ contextPercent }}%</span>
+          </span>
           <span
             v-if="isWorking"
             class="working-dot inline-flex shrink-0 items-center"
@@ -208,20 +240,18 @@ const statusNote = computed(() =>
   background: var(--ok);
 }
 
-/* The context chip — one tier, one colour: room / last stretch / past it. */
+/* The context ring — one tier, one colour: room / last stretch / past it.
+   Both circles stroke currentColor, so the tier sets the whole ring. */
 .context-percent[data-tier="low"] {
   color: var(--needs-input);
-  border-color: color-mix(in srgb, var(--needs-input) 55%, transparent);
 }
 
 .context-percent[data-tier="high"] {
   color: var(--warning);
-  border-color: color-mix(in srgb, var(--warning) 55%, transparent);
 }
 
 .context-percent[data-tier="critical"] {
   color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
 }
 
 /* The note is TEXT in the state's hue — the shared rules above set both
