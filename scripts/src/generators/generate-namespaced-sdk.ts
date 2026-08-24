@@ -20,7 +20,8 @@
 // which emits the openapi.json this reads). Drift is caught by
 // `check-sdk-parity.ts`.
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
+import { writeIfChanged } from './write-if-changed.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -71,7 +72,7 @@ export function makeNamespaced(client: Client<paths>) {
 }
 `
 
-writeFileSync(sdkNamespacedPath, header)
+writeIfChanged(sdkNamespacedPath, header)
 
 // eslint-disable-next-line no-console
 console.log(

@@ -7,7 +7,8 @@
 // Committed + drift-guarded by `check-tool-catalog-parity.ts` in the gate,
 // so the snapshot can never disagree with what the engine composes.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { writeIfChanged } from "./write-if-changed.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSessionToolCatalog } from "@vynel/local-api/tool-catalog";
@@ -62,7 +63,7 @@ ${entries}
 `;
 
 mkdirSync(path.dirname(outPath), { recursive: true });
-writeFileSync(outPath, file);
+writeIfChanged(outPath, file);
 // eslint-disable-next-line no-console
 console.log(
   `[tool-catalog:generate] wrote ${path.relative(repoRoot, outPath)} (${catalog.length} entries)`,

@@ -10,7 +10,8 @@
 // Per `docs/blueprints/mcp/blueprint.md §4` + `coding.md §6` +
 // `decisions.md` D1 + D2 + D3 + D5 + D7 + D12.
 
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
+import { writeIfChanged } from './write-if-changed.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createApp, type CreateAppOptions } from '@vynel/local-api/app'
@@ -248,7 +249,7 @@ entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
 const fileSource = renderFile(entries)
 mkdirSync(outputDir, { recursive: true })
-writeFileSync(outputPath, fileSource)
+writeIfChanged(outputPath, fileSource)
 // eslint-disable-next-line no-console
 console.log(
   `[mcp:generate] wrote ${path.relative(repoRoot, outputPath)} ` +

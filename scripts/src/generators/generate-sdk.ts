@@ -18,7 +18,8 @@
 // `.claude/rules/sdk-mcp.md` "Discipline" +
 // `.claude/memory/decisions/apps-web-foundation-design.md`.
 
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
+import { writeIfChanged } from './write-if-changed.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import openapiTS, { astToString } from 'openapi-typescript'
@@ -54,7 +55,7 @@ const paths = (spec['paths'] ?? {}) as Record<string, unknown>
 const pathCount = Object.keys(paths).length
 
 mkdirSync(sdkGeneratedDir, { recursive: true })
-writeFileSync(sdkOpenApiPath, JSON.stringify(spec, null, 2) + '\n')
+writeIfChanged(sdkOpenApiPath, JSON.stringify(spec, null, 2) + '\n')
 // eslint-disable-next-line no-console
 console.log(
   `[sdk:generate] wrote ${path.relative(repoRoot, sdkOpenApiPath)} ` +
@@ -78,6 +79,6 @@ if (pathCount === 0) {
 
 const ast = await openapiTS(JSON.stringify(spec))
 const types = astToString(ast)
-writeFileSync(sdkTypesPath, types)
+writeIfChanged(sdkTypesPath, types)
 // eslint-disable-next-line no-console
 console.log(`[sdk:generate] wrote ${path.relative(repoRoot, sdkTypesPath)}`)
