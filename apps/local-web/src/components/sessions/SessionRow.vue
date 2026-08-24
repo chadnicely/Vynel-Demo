@@ -101,9 +101,12 @@ const statusNote = computed(() =>
         <span class="min-w-0 truncate">{{ props.entry.title }}</span>
         <!-- The state cluster, on the right: the quiet number, then ONE mark. -->
         <span class="flex items-center gap-[7px]">
+          <!-- The context occupancy as a chip (Kafi, 2026-08-24) — the same
+               pill the row chips wear elsewhere, so a number reads as a
+               reading, not a stray label. -->
           <span
             v-if="contextPercent !== null"
-            class="context-percent shrink-0 text-[10.5px] font-semibold tabular-nums text-ink-3"
+            class="context-percent inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold leading-[15px] tabular-nums text-ink-3"
             :title="contextTooltip"
             >{{ contextPercent }}%</span
           >

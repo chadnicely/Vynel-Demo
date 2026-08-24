@@ -4,6 +4,9 @@ import { PhArrowLeft as ArrowLeft, PhCaretRight as ChevronRight } from "@phospho
 import type { SessionStatusView } from "@vynel/contracts/chat/session-status";
 import SidebarAccountRow from "./SidebarAccountRow.vue";
 import SidebarStatusMark from "./SidebarStatusMark.vue";
+import SidebarWorkspaceCard, {
+  type SidebarWorkspaceCardModel,
+} from "./SidebarWorkspaceCard.vue";
 
 export interface SidebarItem {
   id: string;
@@ -36,17 +39,7 @@ const props = defineProps<{
   showBack?: boolean;
   /** The drilled workspace's header card (the canvas's app card): identity
    *  chip + name + the live status line. Null = the plain section title. */
-  workspaceCard?: {
-    name: string;
-    /** The workspace's uploaded logo (data URL) — the same face the tree
-     *  shows; null = the monogram. */
-    imageUrl: string | null;
-    initials: string;
-    statusLine: string;
-    /** The status vocabulary key — colours the meta line (one status one
-     *  colour). */
-    statusTone: "running" | "needs_input" | "problem" | "completed" | "not_running";
-  } | null;
+  workspaceCard?: SidebarWorkspaceCardModel | null;
 }>();
 
 const emit = defineEmits<{
@@ -140,39 +133,12 @@ watch(
         <ArrowLeft :size="12" class="shrink-0" />
         <span class="truncate">Workspaces</span>
       </button>
-      <!-- The drilled app's header card (the canvas): identity chip + name +
+      <!-- The drilled app's header tile (the canvas): identity chip + name +
            the live status line, on the accent ground. -->
-      <div
+      <SidebarWorkspaceCard
         v-if="props.workspaceCard"
-        class="mb-[8.4px] mt-0.5 flex items-center gap-[9px] rounded-sm bg-[var(--color-accent-900)] px-[11.2px] py-[7px]"
-        data-testid="sidebar-workspace-card"
-      >
-        <!-- The logo as-is (no tint behind it, like the tree row), else the
-             monogram on the accent. -->
-        <span
-          class="workspace-card-face grid size-5 shrink-0 place-items-center overflow-hidden rounded-[4px] text-[9px] text-[var(--color-accent-100)]"
-          :class="{ 'bg-[var(--color-accent-600)]': !props.workspaceCard.imageUrl }"
-        >
-          <img
-            v-if="props.workspaceCard.imageUrl"
-            :src="props.workspaceCard.imageUrl"
-            alt=""
-            class="size-full object-contain"
-          />
-          <template v-else>{{ props.workspaceCard.initials }}</template>
-        </span>
-        <span class="flex min-w-0 flex-col gap-px">
-          <span class="truncate text-[13px] leading-tight text-[var(--color-accent-100)]">
-            {{ props.workspaceCard.name }}
-          </span>
-          <span
-            class="workspace-card-meta truncate text-[10.5px] leading-snug"
-            :data-status="props.workspaceCard.statusTone"
-          >
-            {{ props.workspaceCard.statusLine }}
-          </span>
-        </span>
-      </div>
+        :card="props.workspaceCard"
+      />
       <p
         v-else
         class="pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]"
@@ -252,21 +218,3 @@ watch(
   </nav>
 </template>
 
-<style scoped>
-/* One status, one colour — the header card's meta line. */
-.workspace-card-meta {
-  color: var(--color-accent-300);
-}
-
-.workspace-card-meta[data-status="needs_input"] {
-  color: var(--needs-input);
-}
-
-.workspace-card-meta[data-status="problem"] {
-  color: var(--danger);
-}
-
-.workspace-card-meta[data-status="completed"] {
-  color: var(--ok);
-}
-</style>

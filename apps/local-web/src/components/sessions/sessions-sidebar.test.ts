@@ -66,7 +66,13 @@ async function mountSidebar(
   entries: SessionsOverviewEntry[],
   props: {
     workspaceScopeId?: string | null;
-    backLabel?: string;
+    workspaceCard?: {
+      name: string;
+      imageUrl: string | null;
+      initials: string;
+      statusLine: string;
+      statusTone: "running" | "needs_input" | "problem" | "completed" | "not_running";
+    } | null;
     activeSessionId?: string | null;
   } = {},
 ) {
@@ -99,7 +105,7 @@ async function mountSidebar(
   const wrapper = mount(SessionsSidebar, {
     props: {
       workspaceScopeId: props.workspaceScopeId ?? null,
-      backLabel: props.backLabel ?? "Menu",
+      workspaceCard: props.workspaceCard ?? null,
       activeSessionId: props.activeSessionId ?? null,
     },
     global: {
@@ -189,12 +195,32 @@ describe("SessionsSidebar", () => {
     expect(wrapper.text()).not.toContain("Contracts");
   });
 
-  it("the back row wears the scope's name and returns to the menus", async () => {
-    const { wrapper } = await mountSidebar([], { backLabel: "letterman" });
+  it("the back row says All Menus and returns to them", async () => {
+    const { wrapper } = await mountSidebar([]);
     const back = wrapper.get(".sessions-back");
-    expect(back.text()).toBe("letterman");
+    expect(back.text()).toBe("All Menus");
     await back.trigger("click");
     expect(wrapper.emitted("back")).toHaveLength(1);
+  });
+
+  it("keeps the room's tile under the back row — the column is still the room's", async () => {
+    const { wrapper } = await mountSidebar([], {
+      workspaceScopeId: "w1",
+      workspaceCard: {
+        name: "letterman",
+        imageUrl: null,
+        initials: "LE",
+        statusLine: "Nothing running",
+        statusTone: "not_running",
+      },
+    });
+    const card = wrapper.get('[data-testid="sidebar-workspace-card"]');
+    expect(card.text()).toContain("letterman");
+    expect(card.text()).toContain("Nothing running");
+
+    // The global library has no room to name — no tile.
+    const global = await mountSidebar([]);
+    expect(global.wrapper.find('[data-testid="sidebar-workspace-card"]').exists()).toBe(false);
   });
 
   it("a row click EMITS the entry — the shell decides what opening means", async () => {

@@ -296,7 +296,7 @@ describe("app shell", () => {
     const sessions = await mountShell("/sessions", [], { navMode: "tabs" });
     expect(currentMenuItems(sessions.wrapper)).toHaveLength(0);
     expect(sessions.wrapper.find(".sessions-sidebar").exists()).toBe(true);
-    expect(sessions.wrapper.get(".sessions-back").text()).toBe("Menu");
+    expect(sessions.wrapper.get(".sessions-back").text()).toBe("All Menus");
   });
 
   // test: correct expectation — scope now lives on the TAB STRIP. A /workspace

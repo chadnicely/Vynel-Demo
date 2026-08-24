@@ -861,7 +861,7 @@ onBeforeUnmount(() => {
         <SessionsSidebar
           v-if="surface === 'sessions'"
           :workspace-scope-id="sessionsScopeId"
-          :back-label="sectionTitle"
+          :workspace-card="sidebarWorkspaceCard"
           :active-session-id="openSessionId"
           @back="leaveSessions"
           @open="openSessionEntry"

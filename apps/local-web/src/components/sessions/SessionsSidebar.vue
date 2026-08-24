@@ -8,22 +8,28 @@ import type {
 import { useSessionsLibrary } from "../../composables/sessions/use-sessions-library.js";
 import { useSessionStatuses } from "../../composables/sessions/use-session-statuses.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
+import SidebarWorkspaceCard, {
+  type SidebarWorkspaceCardModel,
+} from "../shell/SidebarWorkspaceCard.vue";
 import SessionRow from "./SessionRow.vue";
 
 // The Sessions library AS the sidebar (Kafi, 2026-08-24): the same drill the
 // workspace tree does — open a room and the column becomes its menus, open
-// Sessions and the column becomes its conversations, with a back row on top
-// returning to the menus. The old middle list panel is gone; the pane beside
-// this column is the selected conversation. Data-blind about what a click
-// MEANS — the shell decides (use-sessions-navigation); this lists.
+// Sessions and the column becomes its conversations: "← All Menus" on top,
+// the room's own tile under it (the same one its menus wear — the column is
+// still the room's), then the rows. The old middle list panel is gone; the
+// pane beside this column is the selected conversation. Data-blind about
+// what a click MEANS — the shell decides (use-sessions-navigation); this
+// lists.
 //
 // Scope: a workspace (`workspaceScopeId`) lists the room's conversation + its
 // sessions; null lists ONLY the global root's own child sessions (the brain's
 // own thread IS the Chat nav).
 const props = defineProps<{
   workspaceScopeId: string | null;
-  /** What the back row returns to — the room's name, or the global menu. */
-  backLabel: string;
+  /** The room's header tile (the drilled menu's) — null on the global
+   *  library, which has no room to name. */
+  workspaceCard?: SidebarWorkspaceCardModel | null;
   /** The conversation open in the pane (its entry id) — marks its row. */
   activeSessionId: string | null;
 }>();
@@ -99,8 +105,9 @@ onBeforeUnmount(() => {
       @click="emit('back')"
     >
       <ArrowLeft :size="12" class="shrink-0" />
-      <span class="truncate">{{ props.backLabel }}</span>
+      <span class="truncate">All Menus</span>
     </button>
+    <SidebarWorkspaceCard v-if="props.workspaceCard" :card="props.workspaceCard" />
     <p
       class="pb-[5px] pl-[10px] pr-[11.2px] pt-[7px] text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]"
     >
