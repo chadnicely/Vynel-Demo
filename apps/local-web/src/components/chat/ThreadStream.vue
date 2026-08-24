@@ -17,6 +17,7 @@ import {
   MessageRow,
   ToolCallList,
   deriveSettledAgentActivity,
+  mergeToolOnlyBatches,
   presentToolCall,
   splitSourceLabel,
   workspaceMonogram,
@@ -402,6 +403,44 @@ function startsNewCard(
   if (message.role === "user") return true;
   if (previous.role === "user") return false;
   return startsNewTurn(message, previous);
+}
+
+// CROSS-MESSAGE tool batches (Kafi 2026-08-25, the compact Claude-Desktop
+// shape): one provider message per row means a run of tool calls with no text
+// between them lands as many one-call rows — each folding to its own tiny
+// line. The visible TEXT is the real boundary (the base instruction's
+// step-narration rule guarantees it), so a text-less tool-carrying row folds
+// its calls into the nearest text row above, within the same card. `null` =
+// this row's calls moved up; its emptied row hides entirely.
+const mergedToolCallsByMessageId = computed(() => {
+  const messages = visibleMessages.value;
+  const merged = mergeToolOnlyBatches(
+    messages.map((message, index) => ({
+      // Only an ASSISTANT row can hold a batch — a user row resets the run
+      // (startsRun) and must never absorb the calls that follow it.
+      hasText:
+        message.role === "assistant" && message.body.trim().length > 0,
+      toolCalls: props.toolCallsByMessageId[message.id] ?? [],
+      startsRun:
+        message.role !== "assistant" ||
+        startsNewCard(message, messages[index - 1]),
+    })),
+  );
+  const map = new Map<string, ChatToolCallResponse[] | null>();
+  messages.forEach((message, index) => map.set(message.id, merged[index]!));
+  return map;
+});
+
+// A row whose ONLY content was the calls that moved up renders nothing — no
+// empty shell rows between a step line and its folded batch. (Its pointers,
+// if any, still render: the pointer loop sits outside the MessageRow.)
+function isAbsorbedEmptyRow(message: ChatMessageResponse): boolean {
+  return (
+    message.role === "assistant" &&
+    message.body.trim().length === 0 &&
+    (props.toolCallsByMessageId[message.id]?.length ?? 0) > 0 &&
+    mergedToolCallsByMessageId.value.get(message.id) === null
+  );
 }
 
 // Folding (Chad, 2026-08-09, re-grouped by the Arc 5b card): every card folds
@@ -934,7 +973,7 @@ watch(
             :key="message.id"
           >
             <MessageRow
-              v-if="showsMember(group, memberIndex)"
+              v-if="showsMember(group, memberIndex) && !isAbsorbedEmptyRow(message)"
               :message="message"
               :data-trace-id="message.partialSessionId ?? undefined"
               :class="{
@@ -972,13 +1011,13 @@ watch(
               <template
                 v-if="
                   isReplyOpen(group.key) &&
-                  props.toolCallsByMessageId[message.id]?.length
+                  mergedToolCallsByMessageId.get(message.id)?.length
                 "
                 #tool-calls
               >
                 <ToolCallList
                   class="tool-list"
-                  :tool-calls="props.toolCallsByMessageId[message.id] ?? []"
+                  :tool-calls="mergedToolCallsByMessageId.get(message.id) ?? []"
                   :reauthorize-state="reauthorizeState"
                   @reauthorize="(call) => emit('reauthorizeToolCall', call)"
                 />

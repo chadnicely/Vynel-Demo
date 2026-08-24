@@ -496,6 +496,45 @@ describe("ThreadStream", () => {
     });
   });
 
+  // The cross-message batch merge (Kafi 2026-08-25, the compact Claude-Desktop
+  // shape): one provider message per row splits a tool run into many one-call
+  // rows — the text-less carriers fold into the step line above as ONE batch,
+  // and their emptied rows render nothing.
+  it("folds text-less tool rows into the step line above as one batch", async () => {
+    const messages: ChatMessageResponse[] = [
+      { ...makeMessage(0), role: "user" },
+      {
+        ...makeMessage(1),
+        id: "a1",
+        role: "assistant",
+        body: "Building the skeleton now.",
+      },
+      { ...makeMessage(2), id: "a2", role: "assistant", body: "" },
+      { ...makeMessage(3), id: "a3", role: "assistant", body: "" },
+    ];
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages,
+        toolCallsByMessageId: {
+          a2: [makeToolCall("a2")],
+          a3: [makeToolCall("a3")],
+        },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    // ONE batch on the step line — "Read 2 files", never two "1 call" rows.
+    const lists = wrapper.findAll(".tool-list");
+    expect(lists).toHaveLength(1);
+    expect(lists[0]!.get(".batch-summary").text()).toBe("Read 2 files");
+    // The emptied carrier rows render nothing at all.
+    expect(wrapper.findAll(".message-row")).toHaveLength(2);
+
+    await lists[0]!.get(".batch-header").trigger("click");
+    expect(lists[0]!.findAll(".tool-call-card")).toHaveLength(2);
+  });
+
   it("a folded reply hides the tool calls AND the later rows; opening shows the turn as it ran", async () => {
     const messages: ChatMessageResponse[] = [
       { ...makeMessage(0), role: "user" },

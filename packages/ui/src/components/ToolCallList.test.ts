@@ -118,9 +118,11 @@ describe("ToolCallList — the batch folds by default", () => {
 
     expect(wrapper.find(".batch-body").exists()).toBe(false);
     expect(wrapper.find(".tool-call-card").exists()).toBe(false);
-    expect(wrapper.get(".batch-header").text()).toContain("2 tool calls");
-    // The hint is the LATEST call's one-liner.
-    expect(wrapper.get(".batch-hint").text()).toContain("git status");
+    // test: correct expectation (2026-08-25) — the folded line SAYS what
+    // happened (the Claude-Desktop summary), not a bare count; a settled
+    // batch carries no hint (the hint names only a RUNNING call).
+    expect(wrapper.get(".batch-summary").text()).toBe("Ran 2 commands");
+    expect(wrapper.find(".batch-hint").exists()).toBe(false);
 
     await wrapper.get(".batch-header").trigger("click");
     expect(wrapper.find(".batch-body").exists()).toBe(true);
@@ -129,12 +131,17 @@ describe("ToolCallList — the batch folds by default", () => {
     expect(wrapper.find(".batch-body").exists()).toBe(false);
   });
 
-  it("a single call folds too, labelled in the singular", () => {
+  it("a single call folds too, summarized as its own line", () => {
     const wrapper = mount(ToolCallList, {
-      props: { toolCalls: [makeToolCall()] },
+      props: {
+        toolCalls: [
+          makeToolCall({ toolName: "Bash", toolInput: { command: "ls" } }),
+        ],
+      },
     });
 
-    expect(wrapper.get(".batch-header").text()).toContain("1 tool call");
+    expect(wrapper.get(".batch-summary").text()).toContain("Ran");
+    expect(wrapper.get(".batch-summary").text()).toContain("ls");
     expect(wrapper.find(".tool-call-card").exists()).toBe(false);
   });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
+import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import LiveTurn from "./LiveTurn.vue";
 import {
   createActiveTurnView,
@@ -73,7 +74,7 @@ describe("LiveTurn segmented rendering", () => {
     // shows the card.
     expect(segments[0]!.text()).toContain("Reading the file…");
     expect(segments[0]!.find(".tool-call-card").exists()).toBe(false);
-    expect(segments[0]!.get(".batch-header").text()).toContain("1 tool call");
+    expect(segments[0]!.get(".batch-header").text()).toContain("Read");
     await segments[0]!.get(".batch-header").trigger("click");
     expect(segments[0]!.findAll(".tool-call-card")).toHaveLength(1);
     expect(segments[1]!.text()).toContain("Here's the answer.");
@@ -82,6 +83,51 @@ describe("LiveTurn segmented rendering", () => {
     // Only the live edge wears the cursor.
     expect(segments[0]!.find(".stream-cursor").exists()).toBe(false);
     expect(segments[1]!.find(".stream-cursor").exists()).toBe(true);
+  });
+
+  // The cross-segment batch merge (2026-08-25) — live exactly as it settles:
+  // a text-less tool segment folds into the step segment above.
+  it("folds a text-less tool segment into the step segment above", async () => {
+    const readCall = (id: string, messageId: string): ChatToolCallResponse => ({
+      id,
+      parentMessageId: messageId,
+      toolUseId: `tu-${id}`,
+      toolName: "Read",
+      toolInput: {},
+      toolOutput: null,
+      status: "completed",
+      approvalStatus: null,
+      isErrorResult: false,
+      startedAt: "2026-07-19T10:00:00.000Z",
+      completedAt: "2026-07-19T10:00:01.000Z",
+    });
+    const wrapper = mount(LiveTurn, {
+      props: {
+        view: {
+          ...createActiveTurnView(),
+          segments: [
+            {
+              messageId: "m1",
+              text: "Building the files:",
+              thinking: "",
+              toolCalls: [readCall("tc-1", "m1")],
+            },
+            {
+              messageId: "m2",
+              text: "",
+              thinking: "",
+              toolCalls: [readCall("tc-2", "m2")],
+            },
+          ],
+        },
+      },
+    });
+
+    const segments = wrapper.findAll(".segment");
+    expect(segments).toHaveLength(1);
+    expect(segments[0]!.get(".batch-summary").text()).toBe("Read 2 files");
+    await segments[0]!.get(".batch-header").trigger("click");
+    expect(segments[0]!.findAll(".tool-call-card")).toHaveLength(2);
   });
 });
 

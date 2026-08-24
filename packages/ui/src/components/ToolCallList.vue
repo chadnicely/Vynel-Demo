@@ -5,6 +5,7 @@ import { groupConsecutiveToolCalls } from "../tool-cards/group-tool-calls.js";
 import {
   describeToolCallGroup,
   presentToolCall,
+  summarizeToolCallBatch,
 } from "../tool-cards/tool-presenters.js";
 import ToolCallCard from "./ToolCallCard.vue";
 import type { ReauthorizeState } from "./ToolCallBlockedLine.vue";
@@ -112,23 +113,22 @@ const runningCall = computed(
   () => props.toolCalls.find((toolCall) => toolCall.status === "started") ?? null,
 );
 
-// The header's one-line hint: the call that best says where the work IS —
-// the running one while live, else the latest. A running Agent's hint is its
-// live ticker (the same line its expanded card shows).
+// The header's whole-line summary — "Ran 4 commands, edited pricing.ts" with
+// the batch's aggregated diff chip — so the folded line SAYS what happened,
+// not just how much (the Claude-Desktop shape Kafi pointed at).
+const batchSummary = computed(() => summarizeToolCallBatch(props.toolCalls));
+
+// While a call RUNS, a hint beside the summary names the action in flight —
+// a running Agent's live ticker included. Settled batches need none: the
+// summary already carries the specifics.
 const batchHint = computed(() => {
-  const call = runningCall.value ?? props.toolCalls.at(-1);
-  if (call === undefined || call === null) return "";
+  const call = runningCall.value;
+  if (call === null) return "";
   const ticker = agentTickerFor(call);
   if (ticker !== null) return ticker;
   const { verb, argument } = presentToolCall(call);
   return argument ? `${verb} ${argument}` : verb;
 });
-
-const batchCountLabel = computed(() =>
-  props.toolCalls.length === 1
-    ? "1 tool call"
-    : `${props.toolCalls.length} tool calls`,
-);
 </script>
 
 <template>
@@ -157,7 +157,15 @@ const batchCountLabel = computed(() =>
           stroke-linejoin="round"
         />
       </svg>
-      <span class="batch-count">{{ batchCountLabel }}</span>
+      <span class="batch-summary">{{ batchSummary.text }}</span>
+      <span v-if="batchSummary.stats" class="batch-stats">
+        <span v-if="batchSummary.stats.added > 0" class="stat-added"
+          >+{{ batchSummary.stats.added }}</span
+        >
+        <span v-if="batchSummary.stats.removed > 0" class="stat-removed"
+          >-{{ batchSummary.stats.removed }}</span
+        >
+      </span>
       <span v-if="batchHint" class="batch-hint">{{ batchHint }}</span>
       <PresenceDot v-if="runningCall" state="live" label="tools running" />
     </button>
@@ -265,8 +273,26 @@ const batchCountLabel = computed(() =>
   outline-offset: -2px;
 }
 
-.batch-count {
+.batch-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-stats {
   flex: none;
+  display: inline-flex;
+  gap: 4px;
+  font: 500 11px/1.5 var(--font-mono);
+}
+
+.stat-added {
+  color: var(--ok);
+}
+
+.stat-removed {
+  color: var(--danger);
 }
 
 .batch-hint {

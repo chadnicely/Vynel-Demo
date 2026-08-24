@@ -8,6 +8,7 @@ import {
   ToolCallList,
   MarkdownText,
   deriveSettledAgentActivity,
+  mergeToolOnlyBatches,
   type ReauthorizeState,
 } from "@vynel/ui";
 // The pure taxonomy the server itself records with — same function, so the
@@ -89,6 +90,40 @@ const liveRows = computed<LiveRow[]>(() => {
   rows.push(...continuationRowsAt(props.view.segments.length));
   return rows;
 });
+// CROSS-SEGMENT tool batches (Kafi 2026-08-25 — the same merge the settled
+// thread applies): a text-less segment's calls fold into the nearest text
+// segment above, so a run of one-call provider messages reads as ONE batch,
+// live exactly as it will settle. A continuation anchor resets the run.
+const mergedSegmentToolCalls = computed(() => {
+  const merged = mergeToolOnlyBatches(
+    liveRows.value.map((row) => ({
+      hasText: row.kind === "segment" && row.segment.text.trim().length > 0,
+      toolCalls: row.kind === "segment" ? row.segment.toolCalls : [],
+      startsRun: row.kind === "continuation",
+    })),
+  );
+  const map = new Map<string, ChatToolCallResponse[] | null>();
+  liveRows.value.forEach((row, index) => {
+    if (row.kind === "segment") map.set(row.segment.messageId, merged[index]!);
+  });
+  return map;
+});
+
+function segmentToolCalls(segment: ActiveTurnSegment): ChatToolCallResponse[] {
+  return mergedSegmentToolCalls.value.get(segment.messageId) ?? [];
+}
+
+// A segment whose only content moved up (a text-less tool carrier) renders
+// nothing — no empty shells between a step line and its folded batch.
+function segmentIsVisible(segment: ActiveTurnSegment): boolean {
+  return (
+    segment.thinking.length > 0 ||
+    segment.text.length > 0 ||
+    segmentToolCalls(segment).length > 0 ||
+    agentPointersFor(segment).length > 0
+  );
+}
+
 // An agent spawn in the LIVE turn wears its pointer right under its card —
 // the live fold's map wins (streaming line), the call's own persisted fields
 // cover a mid-turn reload. Same card, same door as the settled thread's.
@@ -162,7 +197,7 @@ const elapsedLabel = useTickingElapsed(
         :message="row.continuation.userMessage"
         class="continuation-row"
       />
-      <div v-else class="segment">
+      <div v-else-if="segmentIsVisible(row.segment)" class="segment">
         <ThinkingBlock
           v-if="row.segment.thinking"
           :text="row.segment.thinking"
@@ -187,8 +222,8 @@ const elapsedLabel = useTickingElapsed(
         </div>
 
         <ToolCallList
-          v-if="row.segment.toolCalls.length > 0"
-          :tool-calls="row.segment.toolCalls"
+          v-if="segmentToolCalls(row.segment).length > 0"
+          :tool-calls="segmentToolCalls(row.segment)"
           :agent-activity="props.view.agentActivity"
           :reauthorize-state="props.reauthorizeState"
           @reauthorize="(call) => emit('reauthorizeToolCall', call)"

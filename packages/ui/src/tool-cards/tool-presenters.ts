@@ -287,3 +287,42 @@ export function describeToolCallGroup(toolName: string, count: number): string {
   ];
   return `${verb} ${count} ${count === 1 ? singular : plural}`;
 }
+
+/** The folded batch's whole-line summary (Kafi 2026-08-25, the Claude-Desktop
+ *  shape): per tool in first-appearance order — a lone call reads as its own
+ *  line ("Edited pricing.ts"), several as the group count ("Ran 4 commands")
+ *  — joined into one sentence, labels after the first lowercased. File-diff
+ *  stats aggregate across the batch: `{ text: "Ran 4 commands, edited
+ *  pricing.ts", stats: { added: 49, removed: 20 } | null }`. */
+export function summarizeToolCallBatch(toolCalls: ChatToolCallResponse[]): {
+  text: string;
+  stats: ToolCallStats | null;
+} {
+  const byTool = new Map<string, ChatToolCallResponse[]>();
+  for (const toolCall of toolCalls) {
+    const list = byTool.get(toolCall.toolName) ?? [];
+    list.push(toolCall);
+    byTool.set(toolCall.toolName, list);
+  }
+  let added = 0;
+  let removed = 0;
+  let sawStats = false;
+  for (const toolCall of toolCalls) {
+    const stats = presentToolCall(toolCall).stats;
+    if (stats === null) continue;
+    sawStats = true;
+    added += stats.added;
+    removed += stats.removed;
+  }
+  const labels = [...byTool.entries()].map(([toolName, calls]) => {
+    if (calls.length > 1) return describeToolCallGroup(toolName, calls.length);
+    const { verb, argument } = presentToolCall(calls[0]!);
+    return argument ? `${verb} ${argument}` : verb;
+  });
+  const text = labels
+    .map((label, index) =>
+      index === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1),
+    )
+    .join(", ");
+  return { text, stats: sawStats ? { added, removed } : null };
+}

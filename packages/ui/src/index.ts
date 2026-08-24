@@ -36,7 +36,12 @@ export {
 export {
   displayToolName,
   presentToolCall,
+  summarizeToolCallBatch,
 } from "./tool-cards/tool-presenters.js";
+export {
+  mergeToolOnlyBatches,
+  type ToolBatchItem,
+} from "./tool-cards/merge-tool-batches.js";
 export {
   describeDesktopStep,
   DESKTOP_TOOL_PREFIX,
