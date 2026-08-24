@@ -25,6 +25,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **A room no longer loses its conversation if the engine dies mid-first-turn.** The link from a
+  room (or the global assistant, or the voice thread) to the session its first turn started was
+  only written after the turn finished — so a crash or a restart during that first turn left the
+  whole conversation stranded: the room showed its welcome screen over an orphaned thread, and a
+  stray "New session" row appeared in its Sessions list. The link (and the hiding of that first
+  segment) now happens the moment the session is known, and again at the end as before.
+
+- **`pnpm test` no longer restarts a running dev engine.** The code generators the gate re-runs
+  rewrote their output files even when nothing changed, and the engine's file watcher restarted
+  on every rewrite — mid-turn. They now write only when the content differs.
+
 - **The task panel's sessions box no longer misses a working helper.** A helper the assistant
   sent work to through the delegation queue announced on the wire under the global family, so
   the box filtered it out and said "0 sessions working" while it visibly worked. The box now

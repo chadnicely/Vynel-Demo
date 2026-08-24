@@ -82,3 +82,24 @@ pane alone. The 24 view tests split honestly: list behaviours moved to
 `sessions-sidebar.test.ts`, routing decisions to `use-sessions-navigation.test.ts`, the pane
 kept its 13 (opened by route instead of a row click; a deep link the library has not paged in
 still opens — the route is the truth).
+
+## Part 4 (2026-08-25) — the stranded room
+
+Kafi's report: test2's chat "totally gone" (welcome hero, "Stopped on an error"). Facts from the
+dev DB: primary `8148bfc6` created 18:07:29Z and NEVER updated; chat segment `84670738` (24
+messages, 18:07:31–18:10:54Z) with no primary pointing at it; the turn row `ended_reason:
+orphaned` at 18:27 — the engine restarted mid-turn and the reaper closed it. Why restarted: my
+`pnpm test` runs — the parity guards re-run the generators, which rewrote identical files, and
+`node --watch` restarted the API. Why stranded: for manager primaries the primary→segment LINK
+(and the first-segment hide) lived only in `prepareTurnContinuity`, AFTER the drain; spawned
+sessions link in-stream at `session-created`. A death between session-created and the drain
+strands the conversation forever.
+
+Fixes: (1) `linkPrimaryToTurnSegment` — one idempotent op (link + hide), run in the boundary
+wrapper at `session-created` AND post-drain (test pins the dying-stream case); (2)
+`writeIfChanged` in the four generators — identical output no longer bumps mtimes (proved: two
+`api:generate` runs, mtimes untouched); (3) test2 repaired by hand (primary relinked to
+`84670738`, the segment hidden) — a one-off dev-DB `UPDATE`, reported to Kafi.
+
+The lesson: never run the gate while a live turn is in flight on the dev engine — and now the
+gate can't hurt it anyway.
