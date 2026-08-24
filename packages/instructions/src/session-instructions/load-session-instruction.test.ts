@@ -27,6 +27,14 @@ describe('loadSessionInstruction', () => {
     // Every kind has a duty book — the base carries the pointer once.
     expect(prompt).toContain('read_playbook')
     expect(prompt).toContain('whoami')
+    // UI-LOAD-BEARING (transcript collapse): the step-narration shape — one
+    // short line before each batch of tool calls, no text between them — is
+    // what gives the chat UI its boundary for collapsing tool-call runs under
+    // the step line. Dropping it silently breaks the collapsed transcript.
+    expect(prompt).toContain('ONE short line')
+    expect(prompt).toContain('no text between them')
+    // Example-first communication (show, in markdown, over long explanation).
+    expect(prompt).toContain('markdown')
   })
 
   it('global-root names all four routing tools and frames the brain as a router', () => {
