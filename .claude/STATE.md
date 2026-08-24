@@ -17,7 +17,11 @@ NEW `spawned-session.md` + `agent-colleague.md` ({{agentName}} render, fail-loud
 steer-only — `delegateToWorkspaceRoot`/`delegateToSpawnedSession`/`composeAgentColleaguePrompt` now
 prepend the stack, closing the two-identities-per-door asymmetry; whoami/checkpoint already ride the
 background set so children can read who they are. Third layer stays per-turn: routed steers + the
-manager's task instructions ride the task message. **Follow-up slice landed same day:** direct turns
+manager's task instructions ride the task message. **Step narration + fold (same day, `ed5f1883` +
+`0bc70ba0`):** base mandates ONE short step line before each tool batch, no text between calls
+(guarded as UI-LOAD-BEARING); `ToolCallList` folds every batch behind "N tool calls · hint"
+(running call's line while live; blocked auto-opens) — one home, every session view; easy-words +
+examples-in-markdown joined the base. **Follow-up slice landed same day:** direct turns
 into children/colleagues (`session-turn.ts`) compose the stack too — and fixed a real hole: typing
 directly at a colleague carried NO persona (it rode only delegated turns); agent-row-gone falls back
 to the child identity. `workspace-session.md` shipped content-first for the duty-book `plain` kind

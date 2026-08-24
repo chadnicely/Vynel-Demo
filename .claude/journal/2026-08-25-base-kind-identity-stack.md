@@ -58,6 +58,20 @@ colleague whose agent row is gone falls back to the child identity rather than f
 the duty-book `plain` kind (no live door composes it yet — the binding-before-content precedent).
 Gate green again (1023 files / 6979 tests).
 
+## Follow-up (same day): step narration + the transcript fold
+
+Kafi's output-format directive: the base now mandates the STEP-NARRATION shape — ONE short line in
+the user's words before each batch of tool calls, no text between the calls, a new line per step —
+**guarded as UI-load-bearing** (the collapse depends on it, like routing depends on the tool
+names). Plus easy-words/explain-less/examples-in-markdown. The collapse itself needed NO wire
+change: `toolCallsByMessageId` / `segment.toolCalls` already batch per assistant message, so the
+step line IS the boundary. `ToolCallList.vue` (one home — ThreadStream + LiveTurn both render it →
+every session view) folds the batch behind "N tool calls · <hint>" (hint = running call while
+live, incl. an Agent's ticker; else the latest call; approved by Kafi: count + one-liner,
+expandable); a BLOCKED call auto-opens its batch. Gotcha for next time: ToolCallList ticker/watch
+tests live in **AgentActivityPane.test.ts** — a scoped run of ToolCallList.test.ts alone misses
+them (found by the full gate, red once, fixed by expanding before card-level asserts).
+
 ## Owed / deferred
 - Doc refresh: `.claude/docs/instructions/` book (predates all three md homes),
   `.claude/docs/session/structure.md` + `docs/module-notes/voice-realtime.md` still mention
