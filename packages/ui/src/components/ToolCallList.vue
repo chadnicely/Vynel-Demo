@@ -2,7 +2,10 @@
 import { computed, ref } from "vue";
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { groupConsecutiveToolCalls } from "../tool-cards/group-tool-calls.js";
-import { describeToolCallGroup } from "../tool-cards/tool-presenters.js";
+import {
+  describeToolCallGroup,
+  presentToolCall,
+} from "../tool-cards/tool-presenters.js";
 import ToolCallCard from "./ToolCallCard.vue";
 import type { ReauthorizeState } from "./ToolCallBlockedLine.vue";
 import type { AgentActivityLike } from "./AgentActivityPane.vue";
@@ -12,8 +15,15 @@ import {
 } from "../tool-cards/subagent-activity.js";
 import PresenceDot from "./PresenceDot.vue";
 
-// Renders a message's tool activity: consecutive same-tool runs collapse
-// under one header ("Read 2 files"), single calls render as plain cards.
+// Renders a message's tool activity. The WHOLE batch folds behind one line
+// by default (Kafi 2026-08-25, the Claude-Desktop shape): the assistant's
+// step line above the batch says WHAT is happening (base.md's step-narration
+// rule makes it reliably exist), this header says how much plus a one-line
+// hint — the running call while live, else the latest call. A batch with a
+// BLOCKED call opens itself ("Run it anyway" must never hide behind a fold);
+// the user's toggle wins after that. Expanded, consecutive same-tool runs
+// still collapse under their own sub-header ("Read 2 files"), single calls
+// render as plain cards.
 // A RUNNING Agent card shows a one-line live ticker — its latest action
 // only, from the host-supplied live map (keyed by the Agent call's
 // toolUseId). The full activity never renders in-line (parallel agents must
@@ -82,10 +92,76 @@ function toggleGroup(group: ChatToolCallResponse[]) {
 function groupHasRunning(group: ChatToolCallResponse[]): boolean {
   return group.some((toolCall) => toolCall.status === "started");
 }
+
+// ── The batch fold ────────────────────────────────────────────────────────
+// null = untouched (the default rules decide); the user's click then owns it
+// for this mounted batch. Not persisted — a reopened thread folds again.
+const userToggledOpen = ref<boolean | null>(null);
+
+const hasBlockedCall = computed(() =>
+  props.toolCalls.some((toolCall) => toolCall.status === "blocked"),
+);
+
+const isBatchOpen = computed(() => userToggledOpen.value ?? hasBlockedCall.value);
+
+function toggleBatch() {
+  userToggledOpen.value = !isBatchOpen.value;
+}
+
+const runningCall = computed(
+  () => props.toolCalls.find((toolCall) => toolCall.status === "started") ?? null,
+);
+
+// The header's one-line hint: the call that best says where the work IS —
+// the running one while live, else the latest. A running Agent's hint is its
+// live ticker (the same line its expanded card shows).
+const batchHint = computed(() => {
+  const call = runningCall.value ?? props.toolCalls.at(-1);
+  if (call === undefined || call === null) return "";
+  const ticker = agentTickerFor(call);
+  if (ticker !== null) return ticker;
+  const { verb, argument } = presentToolCall(call);
+  return argument ? `${verb} ${argument}` : verb;
+});
+
+const batchCountLabel = computed(() =>
+  props.toolCalls.length === 1
+    ? "1 tool call"
+    : `${props.toolCalls.length} tool calls`,
+);
 </script>
 
 <template>
   <div class="tool-call-list">
+    <button
+      type="button"
+      class="batch-header"
+      :aria-expanded="isBatchOpen"
+      @click="toggleBatch"
+    >
+      <!-- Inline chevron keeps @vynel/ui icon-library-free (module-notes rule) -->
+      <svg
+        class="chevron"
+        :class="{ 'is-open': isBatchOpen }"
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M6 4l4 4-4 4"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <span class="batch-count">{{ batchCountLabel }}</span>
+      <span v-if="batchHint" class="batch-hint">{{ batchHint }}</span>
+      <PresenceDot v-if="runningCall" state="live" label="tools running" />
+    </button>
+    <div v-if="isBatchOpen" class="batch-body">
     <template v-for="group in groups" :key="group[0]!.id">
       <template v-if="group.length === 1">
         <ToolCallCard
@@ -152,11 +228,63 @@ function groupHasRunning(group: ChatToolCallResponse[]): boolean {
         </div>
       </div>
     </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .tool-call-list {
+  display: grid;
+  gap: 6px;
+}
+
+/* The batch fold's one visible line: count + hint, under the step line. */
+.batch-header {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font: 500 12px/1.5 var(--font-ui);
+  cursor: default;
+  border-radius: var(--radius-s);
+  max-width: 100%;
+}
+
+.batch-header:hover {
+  color: var(--ink-1);
+  background: var(--row-hover);
+}
+
+.batch-header:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+
+.batch-count {
+  flex: none;
+}
+
+.batch-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font: 500 12px/1.5 var(--font-mono);
+}
+
+.batch-hint::before {
+  content: "· ";
+  color: var(--ink-3);
+  font-family: var(--font-ui);
+}
+
+.batch-body {
   display: grid;
   gap: 6px;
 }

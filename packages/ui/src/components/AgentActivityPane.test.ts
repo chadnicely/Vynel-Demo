@@ -48,7 +48,7 @@ describe("AgentActivityPane", () => {
 });
 
 describe("ToolCallList agent ticker", () => {
-  it("a RUNNING Agent card shows a one-line ticker with its LATEST action only", () => {
+  it("a RUNNING Agent card shows a one-line ticker with its LATEST action only", async () => {
     const wrapper = mount(ToolCallList, {
       props: {
         toolCalls: [agentCall],
@@ -73,6 +73,11 @@ describe("ToolCallList agent ticker", () => {
         },
       },
     });
+    // test: correct expectation (2026-08-25) — the batch folds by default;
+    // the collapsed hint carries the SAME latest-action line, and expanding
+    // shows the in-line ticker under the card.
+    expect(wrapper.get(".batch-hint").text()).toContain("Grep pricing");
+    await wrapper.get(".batch-header").trigger("click");
     const ticker = wrapper.find(".agent-ticker");
     expect(ticker.exists()).toBe(true);
     expect(ticker.text()).toContain("Grep pricing");
@@ -82,17 +87,18 @@ describe("ToolCallList agent ticker", () => {
     expect(wrapper.text()).not.toContain("sweeping…");
   });
 
-  it("shows a plain working note before the agent's first tool", () => {
+  it("shows a plain working note before the agent's first tool", async () => {
     const wrapper = mount(ToolCallList, {
       props: {
         toolCalls: [agentCall],
         agentActivity: { tu_agent_1: { text: "on it", toolCalls: [] } },
       },
     });
+    await wrapper.get(".batch-header").trigger("click");
     expect(wrapper.find(".agent-ticker").text()).toContain("Working…");
   });
 
-  it("a RUNNING card with no live map falls back to its persisted latest action (mid-run reload)", () => {
+  it("a RUNNING card with no live map falls back to its persisted latest action (mid-run reload)", async () => {
     const wrapper = mount(ToolCallList, {
       props: {
         toolCalls: [
@@ -112,6 +118,7 @@ describe("ToolCallList agent ticker", () => {
         ],
       },
     });
+    await wrapper.get(".batch-header").trigger("click");
     expect(wrapper.find(".agent-ticker").text()).toContain("Read docs/pricing.md");
   });
 
@@ -155,6 +162,7 @@ describe("ToolCallList agent watch chip", () => {
     const wrapper = mount(ToolCallList, {
       props: { toolCalls: [agentCall], watchableAgents: true },
     });
+    await wrapper.get(".batch-header").trigger("click");
     const chip = wrapper.find(".watch-chip");
     expect(chip.exists()).toBe(true);
     await chip.trigger("click");

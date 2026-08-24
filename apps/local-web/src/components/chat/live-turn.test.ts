@@ -27,7 +27,7 @@ function mountWithApproval(toolName: string) {
 }
 
 describe("LiveTurn segmented rendering", () => {
-  it("renders each assistant message as its own block with its tool calls — matching the settled layout", () => {
+  it("renders each assistant message as its own block with its tool calls — matching the settled layout", async () => {
     const wrapper = mount(LiveTurn, {
       props: {
         view: {
@@ -66,12 +66,19 @@ describe("LiveTurn segmented rendering", () => {
 
     const segments = wrapper.findAll(".segment");
     expect(segments).toHaveLength(2);
-    // Interleaved: the first block carries its text AND its tool card; the
+    // Interleaved: the first block carries its text AND its tool batch; the
     // second carries only text — not one flat text blob over one tool pile.
+    // test: correct expectation (2026-08-25) — the batch folds by default
+    // (Kafi's collapse call): the header wears the count+hint; expanding
+    // shows the card.
     expect(segments[0]!.text()).toContain("Reading the file…");
+    expect(segments[0]!.find(".tool-call-card").exists()).toBe(false);
+    expect(segments[0]!.get(".batch-header").text()).toContain("1 tool call");
+    await segments[0]!.get(".batch-header").trigger("click");
     expect(segments[0]!.findAll(".tool-call-card")).toHaveLength(1);
     expect(segments[1]!.text()).toContain("Here's the answer.");
     expect(segments[1]!.findAll(".tool-call-card")).toHaveLength(0);
+    expect(segments[1]!.find(".batch-header").exists()).toBe(false);
     // Only the live edge wears the cursor.
     expect(segments[0]!.find(".stream-cursor").exists()).toBe(false);
     expect(segments[1]!.find(".stream-cursor").exists()).toBe(true);
