@@ -9,6 +9,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Every session now starts from the same playbook.** The assistant's standing instructions became
+  one editable stack: a shared **base** every session carries (how to behave, how to format
+  replies), a **voice base** that replaces it on spoken turns (written for the ear, so a voice
+  reply is never handed prose rules it has to un-learn), and one small **kind** file per session
+  kind saying what that session *is* — the global brain, a workspace's **manager**, a **child**
+  session opened for one assignment, or a named agent colleague. Child and background turns, which
+  previously ran with no identity at all, now carry the same identity as the conversation's
+  interactive turns; the workspace primary is named what it is — the manager, which works the
+  project itself, hands slices to children with clear instructions, and owns what reaches the
+  user. All of it is markdown under `packages/instructions/session-instructions/` — edit a file,
+  restart, and the behavior follows.
+
 - **Sessions wear a face now.** When Claude spawns a helper session ("Email Feature Manager",
   "Bug Hunt", …) it can stamp it with an icon from a curated set of thirty (mail, code, bug,
   chart, rocket…), picked to say what the session is *for*. The icon rides the session

@@ -3,7 +3,28 @@
 **Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔧 2026-08-24 (latest, latest) ONBOARDING = TWO STEPS — welcome + the name (on main)
+## 🔧 2026-08-25 (latest) INSTRUCTIONS = BASE+KIND IDENTITY STACK (on main)
+
+Kafi's model, landed: every session's system prompt opens with ONE base + its KIND file, composed by
+the new `composeSessionInstruction(kind, { voice, agentName })` (`@vynel/instructions/
+session-instructions` — the one ordering home). `base.md` = the shared text rules (extracted from the
+duplicated kind-file lines) + a NEW reply-format section; `voice-base.md` REPLACES it on voice turns
+(absorbs the old `voice-turn.md` modifier — deleted; `voice-turn-marker.md` untouched) so a spoken
+turn never un-learns prose rules; an alignment test pins the core disciplines to BOTH bases.
+`workspace-agent.md` → **`workspace-manager.md`** (Kafi: the primary IS the manager — runs work,
+hands slices to children WITH instructions, owns what reaches the user; duty book already said so).
+NEW `spawned-session.md` + `agent-colleague.md` ({{agentName}} render, fail-loud): children were
+steer-only — `delegateToWorkspaceRoot`/`delegateToSpawnedSession`/`composeAgentColleaguePrompt` now
+prepend the stack, closing the two-identities-per-door asymmetry; whoami/checkpoint already ride the
+background set so children can read who they are. Third layer stays per-turn: routed steers + the
+manager's task instructions ride the task message. Gate green ×2 (1023 files / 6977 tests). **Owed:**
+interactive `session-turn.ts` (typing directly into a child) still composes no identity (needs kind
+from the session row); doc refresh (`.claude/docs/instructions` book, session structure,
+voice-realtime note, the stale "PLANNED" line in `docs/module-notes/instructions-notebook.md`);
+wording tweaks to the md files expected later by design. Journal:
+`.claude/journal/2026-08-25-base-kind-identity-stack.md`.
+
+## 🔧 2026-08-24 ONBOARDING = TWO STEPS — welcome + the name (on main)
 
 The user's call: first launch keeps ONLY welcome + profile (the name screen); the five later steps
 (name-workspace / identity-seed / install-suggested-skills / optional-channel / optional-schedule) are
