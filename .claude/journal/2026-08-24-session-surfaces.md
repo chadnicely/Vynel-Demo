@@ -69,3 +69,16 @@ the workspace's customized image (canvas `Image` cache + cover-fit clip; initial
 Flake fixed on the way: `use-display-toggle.test.ts`'s lazy-route `vi.waitFor` got a 10s budget
 — under the full suite + dev servers the lazy import alone blew the 1s default (the only red in
 three otherwise-green full runs).
+
+## Part 3 (morning) — the library IS the sidebar
+
+Kafi's tweak on waking: skip the extra session list panel; the sessions column should drill the
+way the workspace tree does. Landed as `SessionsSidebar` (back row "← <scope>" + the tree-row
+rows + the paged scroll), mounted by AppShell in place of the menu on the `sessions` route, with
+the open conversation on the ROUTE (`?session=` follows the chain head; `&part=` opens a
+superseded segment view-only) through one navigation home (`use-sessions-navigation.ts`) — the
+sidebar lists, the shell decides what a click means, the view renders. `SessionsView` is the
+pane alone. The 24 view tests split honestly: list behaviours moved to
+`sessions-sidebar.test.ts`, routing decisions to `use-sessions-navigation.test.ts`, the pane
+kept its 13 (opened by route instead of a row click; a deep link the library has not paged in
+still opens — the route is the truth).

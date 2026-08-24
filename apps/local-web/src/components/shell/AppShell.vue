@@ -52,6 +52,7 @@ import UpdatePill from "./UpdatePill.vue";
 import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
+import SessionsSidebar from "../sessions/SessionsSidebar.vue";
 import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
 import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
@@ -86,6 +87,7 @@ import { useSectionCounts } from "../../composables/workspaces/use-section-count
 import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
 import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-status.js";
+import { useSessionsNavigation } from "../../composables/sessions/use-sessions-navigation.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import { useViewMode } from "../../composables/shell/use-view-mode.js";
@@ -128,6 +130,16 @@ const surface = computed<"home" | "chat" | "sessions" | "workspace" | "nodes">(
 // Everything contextual (sidebar menu, session library scope, the canvas
 // shell) derives from it.
 const inWorkspaceScope = computed(() => ui.activeTab.workspaceId !== null);
+// The Sessions surface's own sidebar state (Kafi, 2026-08-24): the library
+// IS the sidebar on that route, so its scope + open conversation come off the
+// route through the one navigation home.
+const {
+  workspaceScopeId: sessionsScopeId,
+  openSessionId,
+  openEntry: openSessionEntry,
+  openSegment: openSessionSegment,
+  leaveSessions,
+} = useSessionsNavigation();
 const scopeShell = computed(() => ui.activeTab.shell);
 
 const allWorkspaces = computed(() => workspacesQuery.data.value ?? []);
@@ -842,8 +854,21 @@ onBeforeUnmount(() => {
         :min-width="200"
         :max-width="380"
       >
+        <!-- The Sessions route: the column becomes the library itself (the
+             room's menus drill, one level deeper) — its back row returns to
+             the menus. It wins over the tree: a deep link or reload onto
+             /sessions must show the list, not a tree with an empty pane. -->
+        <SessionsSidebar
+          v-if="surface === 'sessions'"
+          :workspace-scope-id="sessionsScopeId"
+          :back-label="sectionTitle"
+          :active-session-id="openSessionId"
+          @back="leaveSessions"
+          @open="openSessionEntry"
+          @open-segment="openSessionSegment"
+        />
         <WorkspaceTree
-          v-if="ui.navMode === 'menu' && ui.isWorkspaceTreeOpen"
+          v-else-if="ui.navMode === 'menu' && ui.isWorkspaceTreeOpen"
           :workspaces="workspaceOptions"
           :groups="workspaceGroupOptions"
           :active-workspace-id="ui.activeWorkspaceId"

@@ -33,6 +33,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Sessions open from the sidebar now — the extra list panel is gone.** Click Sessions in a
+  room's menu and the left column becomes that room's conversations, the same way the tree
+  drills into a room's menus: a back row on top ("← letterman") returns to the menus, the rows
+  wear the tree-row look, and the one you pick opens straight in the main pane. The open
+  conversation rides the address (`?session=…`), so a reload lands where you were, and an
+  earlier part of a continued conversation opens view-only from its chain.
+
 - **The Nodes screen tells the truth about the centre.** Out on the fleet, the centre orb IS
   the global primary session: it wears its live status (ring colour, faster spin while
   working), clicking it opens the global chat, and the spoken Voice thread rides beside it as a

@@ -17,9 +17,11 @@ import SessionIconBadge from "./SessionIconBadge.vue";
 // One row on the Sessions list, in the workspace tree's row language (the
 // left menu's idiom, per the user 2026-08-24): the session's face on the
 // left — its curated icon, else its monogram over its accent — the name, and
-// the state cluster on the RIGHT: relative time, context %, then ONE mark
-// (the spinner while it works, the status dot when it needs you / broke /
-// completed). The one-line why breathes under the row when a mark is up.
+// the state cluster on the RIGHT: context %, then ONE mark (the spinner while
+// it works, the status dot when it needs you / broke / completed). The
+// relative time rides the row's tooltip: at the sidebar's width (the library
+// IS the sidebar now) a visible time label truncated every name. The
+// one-line why breathes under the row when a mark is up.
 // Clicking opens the session in the pane beside the list; a continued
 // conversation expands its chain.
 const props = defineProps<{
@@ -92,17 +94,13 @@ const statusNote = computed(() =>
         "
         :aria-label="`Open ${props.entry.title}`"
         :aria-current="props.isActive ? 'page' : undefined"
+        :title="`${props.entry.title} · ${formatRelativeTime(props.entry.lastMessageAt)}`"
         @click="emit('open')"
       >
         <SessionIconBadge :name="props.entry.title" :icon="props.entry.icon" />
         <span class="min-w-0 truncate">{{ props.entry.title }}</span>
-        <!-- The state cluster, on the right: the quiet numbers, then ONE mark. -->
+        <!-- The state cluster, on the right: the quiet number, then ONE mark. -->
         <span class="flex items-center gap-[7px]">
-          <span
-            class="whitespace-nowrap text-[10.5px] font-medium text-[var(--color-neutral-500)]"
-          >
-            {{ formatRelativeTime(props.entry.lastMessageAt) }}
-          </span>
           <span
             v-if="contextPercent !== null"
             class="context-percent shrink-0 text-[10.5px] font-semibold tabular-nums text-ink-3"

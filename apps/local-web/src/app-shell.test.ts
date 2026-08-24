@@ -290,10 +290,13 @@ describe("app shell", () => {
       "Chat",
     ]);
 
+    // test: correct expectation — on /sessions the column IS the library
+    // (2026-08-24, the tree-drill idiom): there is no menu row to mark; the
+    // sessions sidebar stands there, its back row naming the scope's menus.
     const sessions = await mountShell("/sessions", [], { navMode: "tabs" });
-    expect(currentMenuItems(sessions.wrapper).map((b) => b.text())).toEqual([
-      "Sessions",
-    ]);
+    expect(currentMenuItems(sessions.wrapper)).toHaveLength(0);
+    expect(sessions.wrapper.find(".sessions-sidebar").exists()).toBe(true);
+    expect(sessions.wrapper.get(".sessions-back").text()).toBe("Menu");
   });
 
   // test: correct expectation — scope now lives on the TAB STRIP. A /workspace
