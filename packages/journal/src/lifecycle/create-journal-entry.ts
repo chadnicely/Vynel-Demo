@@ -24,6 +24,10 @@ export function assertValidEntryDate(entryDate: string): void {
   }
 }
 
+// A commit reference is a short pointer, not prose — cap it well under any
+// real hash + refname length.
+export const JOURNAL_COMMIT_REF_MAX_LENGTH = 64
+
 export interface CreateJournalEntryInput {
   userId: string
   workspaceId: string | null // null = GLOBAL scope (no workspace)
@@ -31,6 +35,7 @@ export interface CreateJournalEntryInput {
   content: string
   source: JournalEntrySource
   sessionId?: string // the chat session whose turn wrote the entry
+  commitRef?: string // the commit this entry records, when the work landed as one
 }
 
 export function createJournalEntry(
@@ -48,6 +53,12 @@ export function createJournalEntry(
     )
   }
   assertValidEntryDate(input.entryDate)
+  const commitRef = input.commitRef?.trim() ?? ''
+  if (commitRef.length > JOURNAL_COMMIT_REF_MAX_LENGTH) {
+    throw new ValidationError(
+      `A journal commit reference is capped at ${JOURNAL_COMMIT_REF_MAX_LENGTH} characters — pass the short hash, not a description.`,
+    )
+  }
 
   const now = new Date()
   const entry = withTransaction(db, (tx) => {
@@ -59,6 +70,7 @@ export function createJournalEntry(
       content,
       source: input.source,
       sessionId: input.sessionId ?? null,
+      commitRef: commitRef.length > 0 ? commitRef : null,
       createdAt: now,
       updatedAt: now,
     })

@@ -91,8 +91,11 @@ const JOURNAL_PROMPT_INSTRUCTIONS = [
   'The user keeps a daily work journal (add_journal_entry / list_journal_entries). When you ' +
     'pick work back up, read the recent entries to understand the flow of the last days. When ' +
     'meaningful work lands, append one dated entry (entryDate YYYY-MM-DD) saying what happened ' +
-    'and what was decided, in plain language. The journal is append-only for you — write ' +
-    'entries as a faithful record; never narrate the bookkeeping.',
+    'and what was decided, in plain language — started a task, finished a task, a fix, a ' +
+    'check that passed. When the work landed as a commit, pass its short hash as `commit`. ' +
+    'Entries are attributed to your session automatically, so the journal reads as the ' +
+    "workspace's timeline: who did what, when, and where to look. The journal is append-only " +
+    'for you — write entries as a faithful record; never narrate the bookkeeping.',
 ].join('\n')
 
 // Section order is stable (tasks → plans → phases → features → journal) so

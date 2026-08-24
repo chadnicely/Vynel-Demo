@@ -20,6 +20,11 @@ export interface JournalEntryResponse {
   content: string
   source: JournalEntrySource
   sessionId: string | null
+  /** The writing session's display title, resolved at read time — the label
+   *  on the entry's pointer chip (null when no session or none resolvable). */
+  sessionTitle: string | null
+  /** The commit this entry records, when the work landed as one. */
+  commitRef: string | null
   /** ISO-8601 */
   createdAt: string
   /** ISO-8601 */

@@ -32,6 +32,23 @@ export function parseTurnSessionHeader(headerValue: string | undefined): string 
   return headerValue
 }
 
+/** The ambient turn-session header, OWNERSHIP-CHECKED before it becomes a
+ *  durable loose ref (tasks' `assignedSessionId` / steps' `sessionId`, the
+ *  journal's attribution). An invalid or foreign value is treated as ABSENT,
+ *  not an error — a background turn without a session stays legal; the tool
+ *  simply records no attribution. */
+export function resolveOwnedTurnSessionId(
+  db: Database,
+  userId: string,
+  headerValue: string | undefined,
+): string | undefined {
+  const turnSessionId = parseTurnSessionHeader(headerValue)
+  if (turnSessionId === undefined) return undefined
+  const session = findChatSessionById(db, turnSessionId)
+  if (session === null || session.userId !== userId) return undefined
+  return session.id
+}
+
 /**
  * Whether the tool call comes from the GLOBAL ASSISTANT's own turn — the
  * identity-aware exception to the cross-session scope wall: the brain's

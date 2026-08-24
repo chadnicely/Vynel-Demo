@@ -25,7 +25,14 @@ import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
 import { createJournalEntry, listJournalEntries } from '@vynel/journal'
-import { serializeJournalEntryForResponse } from './serializers.js'
+import {
+  resolveJournalSessionTitle,
+  serializeJournalEntryForResponse,
+} from './serializers.js'
+import {
+  TURN_SESSION_HEADER,
+  resolveOwnedTurnSessionId,
+} from '../../sessions/turn-session-header.js'
 import {
   ListJournalEntriesQuerySchema,
   CreateJournalEntryRequestSchema,
@@ -72,7 +79,14 @@ export const journalApp = factory
         ...(to !== undefined ? { toDate: to } : {}),
         ...(limit !== undefined ? { limit } : {}),
       })
-      return c.json(entries.map(serializeJournalEntryForResponse))
+      return c.json(
+        entries.map((entry) =>
+          serializeJournalEntryForResponse(
+            entry,
+            resolveJournalSessionTitle(c.var.db, c.var.user.id, entry.sessionId),
+          ),
+        ),
+      )
     },
   )
   // POST / — the AGENT's append door (source is hard-coded 'assistant').
@@ -97,7 +111,10 @@ export const journalApp = factory
           'Append a dated entry to the daily work journal when meaningful work lands — what ' +
           'happened, what was decided, and anything the next session needs to know, in plain ' +
           'language the user recognizes. `entryDate` is the day it belongs to (YYYY-MM-DD, ' +
-          "usually today); `content` is the entry (≤8000 chars). The journal is append-only for " +
+          "usually today); `content` is the entry (≤8000 chars). When the work landed as a " +
+          'commit, pass `commit` (the short hash) so the entry points at it. Entries are ' +
+          'attributed to YOUR session automatically — the user can open the session from the ' +
+          'journal to see what was done. The journal is append-only for ' +
           'you — you cannot edit or remove entries, so write them as a faithful record, not a ' +
           'draft. Do not narrate the bookkeeping. Side effect: the entry appears in the ' +
           "user's journal.",
@@ -108,6 +125,16 @@ export const journalApp = factory
     ...workspaceScoped,
     (c) => {
       const body = c.req.valid('json')
+      // Attribution is server-stamped from the turn's ambient session header
+      // (the tasks precedent) — the model cannot forget it or name another
+      // session. The body field stays as the explicit fallback for callers
+      // with no turn (none today pass it).
+      const turnSessionId =
+        resolveOwnedTurnSessionId(
+          c.var.db,
+          c.var.user.id,
+          c.req.header(TURN_SESSION_HEADER),
+        ) ?? body.sessionId
       const entry = createJournalEntry(
         c.var.db,
         {
@@ -116,10 +143,17 @@ export const journalApp = factory
           entryDate: body.entryDate,
           content: body.content,
           source: 'assistant',
-          ...(body.sessionId !== undefined ? { sessionId: body.sessionId } : {}),
+          ...(turnSessionId !== undefined ? { sessionId: turnSessionId } : {}),
+          ...(body.commit !== undefined ? { commitRef: body.commit } : {}),
         },
         { logger: c.var.logger },
       )
-      return c.json(serializeJournalEntryForResponse(entry), 201)
+      return c.json(
+        serializeJournalEntryForResponse(
+          entry,
+          resolveJournalSessionTitle(c.var.db, c.var.user.id, entry.sessionId),
+        ),
+        201,
+      )
     },
   )

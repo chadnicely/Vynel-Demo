@@ -10610,6 +10610,18 @@
                           "null"
                         ]
                       },
+                      "sessionTitle": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "commitRef": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "createdAt": {
                         "type": "string"
                       },
@@ -10625,6 +10637,8 @@
                       "content",
                       "source",
                       "sessionId",
+                      "sessionTitle",
+                      "commitRef",
                       "createdAt",
                       "updatedAt"
                     ]
@@ -10732,6 +10746,18 @@
                         "null"
                       ]
                     },
+                    "sessionTitle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "commitRef": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -10747,6 +10773,8 @@
                     "content",
                     "source",
                     "sessionId",
+                    "sessionTitle",
+                    "commitRef",
                     "createdAt",
                     "updatedAt"
                   ]
@@ -10780,7 +10808,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "add_journal_entry",
-          "description": "Append a dated entry to the daily work journal when meaningful work lands — what happened, what was decided, and anything the next session needs to know, in plain language the user recognizes. `entryDate` is the day it belongs to (YYYY-MM-DD, usually today); `content` is the entry (≤8000 chars). The journal is append-only for you — you cannot edit or remove entries, so write them as a faithful record, not a draft. Do not narrate the bookkeeping. Side effect: the entry appears in the user's journal.",
+          "description": "Append a dated entry to the daily work journal when meaningful work lands — what happened, what was decided, and anything the next session needs to know, in plain language the user recognizes. `entryDate` is the day it belongs to (YYYY-MM-DD, usually today); `content` is the entry (≤8000 chars). When the work landed as a commit, pass `commit` (the short hash) so the entry points at it. Entries are attributed to YOUR session automatically — the user can open the session from the journal to see what was done. The journal is append-only for you — you cannot edit or remove entries, so write them as a faithful record, not a draft. Do not narrate the bookkeeping. Side effect: the entry appears in the user's journal.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -10801,6 +10829,11 @@
                   "sessionId": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "commit": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   }
                 },
                 "required": [
@@ -25595,6 +25628,18 @@
                           "null"
                         ]
                       },
+                      "sessionTitle": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "commitRef": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "createdAt": {
                         "type": "string"
                       },
@@ -25610,6 +25655,8 @@
                       "content",
                       "source",
                       "sessionId",
+                      "sessionTitle",
+                      "commitRef",
                       "createdAt",
                       "updatedAt"
                     ]
@@ -25706,6 +25753,18 @@
                         "null"
                       ]
                     },
+                    "sessionTitle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "commitRef": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -25721,6 +25780,8 @@
                     "content",
                     "source",
                     "sessionId",
+                    "sessionTitle",
+                    "commitRef",
                     "createdAt",
                     "updatedAt"
                   ]
@@ -25843,6 +25904,18 @@
                         "null"
                       ]
                     },
+                    "sessionTitle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "commitRef": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -25858,6 +25931,8 @@
                     "content",
                     "source",
                     "sessionId",
+                    "sessionTitle",
+                    "commitRef",
                     "createdAt",
                     "updatedAt"
                   ]

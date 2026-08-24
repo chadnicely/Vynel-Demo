@@ -36,6 +36,42 @@ describe('createJournalEntry', () => {
     })
   })
 
+  it('records the commit ref trimmed; blank collapses to null; over-cap rejects', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId, workspaceId } = seedUserWorkspace(db)
+      const withCommit = createJournalEntry(db, {
+        userId,
+        workspaceId,
+        entryDate: '2026-08-25',
+        content: 'Email feature: task completed.',
+        source: 'assistant',
+        commitRef: '  ab12cd3  ',
+      })
+      expect(withCommit.commitRef).toBe('ab12cd3')
+
+      const blank = createJournalEntry(db, {
+        userId,
+        workspaceId,
+        entryDate: '2026-08-25',
+        content: 'No commit for this one.',
+        source: 'assistant',
+        commitRef: '   ',
+      })
+      expect(blank.commitRef).toBeNull()
+
+      expect(() =>
+        createJournalEntry(db, {
+          userId,
+          workspaceId,
+          entryDate: '2026-08-25',
+          content: 'Too long a ref.',
+          source: 'assistant',
+          commitRef: 'x'.repeat(65),
+        }),
+      ).toThrow(ValidationError)
+    })
+  })
+
   it('creates a GLOBAL entry (null workspaceId)', async () => {
     await withTestDatabase(async (db) => {
       const { userId } = seedUserWorkspace(db)

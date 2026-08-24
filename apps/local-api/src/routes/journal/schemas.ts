@@ -26,6 +26,9 @@ export const CreateJournalEntryRequestSchema = z.object({
   entryDate: EntryDateSchema,
   content: z.string().min(1).max(8000),
   sessionId: z.string().min(1).optional(),
+  // The commit this entry records, when the work landed as one — the short
+  // hash, capped at the core op's JOURNAL_COMMIT_REF_MAX_LENGTH.
+  commit: z.string().min(1).max(64).optional(),
 })
 
 // The user-scoped `POST /journal` body — the PANEL/CLI create door (the route
@@ -67,6 +70,8 @@ export const JournalEntryResponseSchema = z.object({
   content: z.string(),
   source: JournalEntrySourceResponseSchema,
   sessionId: z.string().nullable(),
+  sessionTitle: z.string().nullable(),
+  commitRef: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

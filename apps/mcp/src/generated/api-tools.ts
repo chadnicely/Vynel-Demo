@@ -79,12 +79,13 @@ export const addApp: McpToolFactory = (scope, app) =>
 export const addJournalEntry: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'add_journal_entry',
-    "Append a dated entry to the daily work journal when meaningful work lands — what happened, what was decided, and anything the next session needs to know, in plain language the user recognizes. `entryDate` is the day it belongs to (YYYY-MM-DD, usually today); `content` is the entry (≤8000 chars). The journal is append-only for you — you cannot edit or remove entries, so write them as a faithful record, not a draft. Do not narrate the bookkeeping. Side effect: the entry appears in the user's journal.",
+    "Append a dated entry to the daily work journal when meaningful work lands — what happened, what was decided, and anything the next session needs to know, in plain language the user recognizes. `entryDate` is the day it belongs to (YYYY-MM-DD, usually today); `content` is the entry (≤8000 chars). When the work landed as a commit, pass `commit` (the short hash) so the entry points at it. Entries are attributed to YOUR session automatically — the user can open the session from the journal to see what was done. The journal is append-only for you — you cannot edit or remove entries, so write them as a faithful record, not a draft. Do not narrate the bookkeeping. Side effect: the entry appears in the user's journal.",
     {
     workspaceId: z.string(),
     entryDate: z.string(),
     content: z.string(),
     sessionId: z.string().optional(),
+    commit: z.string().optional(),
   },
     async (args: Record<string, unknown>) => {
       try {
@@ -92,7 +93,7 @@ export const addJournalEntry: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         const queryStr = ''
         const bodyObj: Record<string, unknown> = {}
-        for (const k of ['entryDate', 'content', 'sessionId']) {
+        for (const k of ['entryDate', 'content', 'sessionId', 'commit']) {
           if (args[k] !== undefined) bodyObj[k] = args[k]
         }
         const requestBody = JSON.stringify(bodyObj)

@@ -36,6 +36,11 @@ export const journalEntries = table(
     // Loose cross-domain ref — the chat session whose turn wrote the entry
     // (NOT a FK).
     sessionId: text(),
+    // The commit this entry records, when the work landed as one (Kafi
+    // 2026-08-25 — the journal is the workspace's changelog/timeline, and an
+    // entry that names its commit is a concrete pointer into history). Free
+    // text (a short hash), never resolved against a repo.
+    commitRef: text(),
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),
   },

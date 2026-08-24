@@ -15,6 +15,10 @@ const emit = defineEmits<{
   view: [];
   edit: [];
   delete: [];
+  /** The pointer chip (Kafi 2026-08-25): the entry names the session that
+   *  wrote it — clicking opens that conversation in the sidebar, so the user
+   *  can see what was done behind this moment. */
+  openSession: [sessionId: string, title: string];
 }>();
 </script>
 
@@ -30,6 +34,24 @@ const emit = defineEmits<{
         <span
           class="source-chip inline-flex shrink-0 items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-3"
           >{{ props.entry.source === "assistant" ? "Claude" : "You" }}</span
+        >
+        <!-- The pointer: WHO did this — click opens that session's
+             conversation in the sidebar (the timeline door). -->
+        <button
+          v-if="props.entry.sessionId && props.entry.sessionTitle"
+          type="button"
+          class="session-chip inline-flex min-w-0 shrink items-center rounded-full border border-hair-strong px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-ink-2 transition hover:border-gold hover:text-ink-1"
+          :title="`Open ${props.entry.sessionTitle}`"
+          @click="
+            emit('openSession', props.entry.sessionId, props.entry.sessionTitle)
+          "
+        >
+          <span class="truncate">{{ props.entry.sessionTitle }}</span>
+        </button>
+        <span
+          v-if="props.entry.commitRef"
+          class="commit-chip inline-flex shrink-0 items-center rounded border border-hair px-1 font-mono text-[10px] text-ink-3"
+          >{{ props.entry.commitRef.slice(0, 10) }}</span
         >
         <span class="row-time text-xs text-ink-3">{{
           formatRelativeTime(props.entry.createdAt)

@@ -32,7 +32,10 @@ import {
   listJournalEntriesForUser,
   updateJournalEntry,
 } from '@vynel/journal'
-import { serializeJournalEntryForResponse } from './serializers.js'
+import {
+  resolveJournalSessionTitle,
+  serializeJournalEntryForResponse,
+} from './serializers.js'
 import {
   JournalEntryParamSchema,
   ListJournalEntriesQuerySchema,
@@ -78,7 +81,14 @@ export const journalUserApp = factory
         ...(to !== undefined ? { toDate: to } : {}),
         ...(limit !== undefined ? { limit } : {}),
       })
-      return c.json(entries.map(serializeJournalEntryForResponse))
+      return c.json(
+        entries.map((entry) =>
+          serializeJournalEntryForResponse(
+            entry,
+            resolveJournalSessionTitle(c.var.db, c.var.user.id, entry.sessionId),
+          ),
+        ),
+      )
     },
   )
   // POST / — the USER's create door; scope picks global (null workspace) vs a workspace.
@@ -145,7 +155,12 @@ export const journalUserApp = factory
         },
         { logger: c.var.logger },
       )
-      return c.json(serializeJournalEntryForResponse(entry))
+      return c.json(
+        serializeJournalEntryForResponse(
+          entry,
+          resolveJournalSessionTitle(c.var.db, c.var.user.id, entry.sessionId),
+        ),
+      )
     },
   )
   // DELETE /:entryId — remove an entry (hard delete; the user's call, never the agent's).

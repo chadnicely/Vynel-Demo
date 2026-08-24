@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import { createPinia, type Pinia } from "pinia";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import type { VynelClient } from "@vynel/sdk";
 import JournalSection from "./JournalSection.vue";
 import { localDayKey } from "../../utils/format-day-label.js";
 import type { SectionScope } from "./section-scope.js";
+import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 
 function makeEntry(overrides: Record<string, unknown> = {}) {
   return {
@@ -16,6 +18,8 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     content: "Shipped the newsletter draft.",
     source: "assistant",
     sessionId: null,
+    sessionTitle: null,
+    commitRef: null,
     createdAt: "2026-07-23T10:00:00.000Z",
     updatedAt: "2026-07-23T10:00:00.000Z",
     ...overrides,
@@ -26,11 +30,16 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function mountSection(scope: SectionScope, client: VynelClient) {
+function mountSection(
+  scope: SectionScope,
+  client: VynelClient,
+  pinia: Pinia = createPinia(),
+) {
   return mount(JournalSection, {
     props: { scope },
     global: {
       plugins: [
+        pinia,
         [
           VueQueryPlugin,
           {
@@ -87,6 +96,44 @@ describe("JournalSection", () => {
     // The chip says who wrote it — the user or the assistant.
     expect(wrapper.text()).toContain("You");
     expect(wrapper.text()).toContain("Claude");
+  });
+
+  // The pointer (Kafi 2026-08-25): an attributed entry names the session that
+  // wrote it and the commit it landed — the chip opens that conversation in
+  // the sidebar, so the journal is a clickable timeline.
+  it("an attributed entry wears the session pointer + commit chips; clicking opens the sidebar", async () => {
+    const client = {
+      journal: {
+        list: async () => [
+          makeEntry({
+            id: "j5",
+            workspaceId: "w1",
+            sessionId: "sess-email",
+            sessionTitle: "Email Feature Manager",
+            commitRef: "ab12cd3",
+          }),
+        ],
+      },
+    } as unknown as VynelClient;
+
+    const pinia = createPinia();
+    const wrapper = mountSection(
+      { kind: "workspace", workspaceId: "w1" },
+      client,
+      pinia,
+    );
+    await flushPromises();
+
+    expect(wrapper.get(".session-chip").text()).toContain("Email Feature Manager");
+    expect(wrapper.get(".commit-chip").text()).toBe("ab12cd3");
+
+    await wrapper.get(".session-chip").trigger("click");
+    const sidebar = useConversationSidebarStore(pinia);
+    expect(sidebar.activeNode).toMatchObject({
+      kind: "session",
+      sessionId: "sess-email",
+      title: "Email Feature Manager",
+    });
   });
 
   it("the global menu lists ONLY global (null-workspace) entries", async () => {

@@ -15,6 +15,7 @@ import {
 import SectionHeader from "./SectionHeader.vue";
 import JournalEntryRow from "./JournalEntryRow.vue";
 import type { SectionScope } from "./section-scope.js";
+import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 
 // The journal section, on either surface: the daily record Claude writes and
 // reads. Entries group under day headers (newest first — the list read the
@@ -28,6 +29,9 @@ const props = defineProps<{
 const entriesQuery = useJournalEntriesInScope(() => props.scope);
 const createEntry = useCreateJournalEntry();
 const deleteEntry = useDeleteJournalEntry();
+// The entry's pointer chip opens the writing session's conversation in the
+// sidebar — the same door the task panel's session chip uses.
+const conversationSidebar = useConversationSidebarStore();
 
 const entries = computed(() => entriesQuery.data.value ?? []);
 
@@ -128,6 +132,10 @@ const editingEntry = ref<JournalEntryResponse | null>(null);
             @view="viewingEntry = entry"
             @edit="editingEntry = entry"
             @delete="removeEntry(entry)"
+            @open-session="
+              (sessionId, title) =>
+                conversationSidebar.openSession({ sessionId, title })
+            "
           />
         </div>
       </section>

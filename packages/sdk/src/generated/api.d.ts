@@ -8492,6 +8492,8 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        sessionTitle: string | null;
+                        commitRef: string | null;
                         createdAt: string;
                         updatedAt: string;
                     }[];
@@ -8521,6 +8523,7 @@ export interface operations {
                     entryDate: string;
                     content: string;
                     sessionId?: string;
+                    commit?: string;
                 };
             };
         };
@@ -8540,6 +8543,8 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        sessionTitle: string | null;
+                        commitRef: string | null;
                         createdAt: string;
                         updatedAt: string;
                     };
@@ -14030,6 +14035,8 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        sessionTitle: string | null;
+                        commitRef: string | null;
                         createdAt: string;
                         updatedAt: string;
                     }[];
@@ -14076,6 +14083,8 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        sessionTitle: string | null;
+                        commitRef: string | null;
                         createdAt: string;
                         updatedAt: string;
                     };
@@ -14150,6 +14159,8 @@ export interface operations {
                         /** @enum {string} */
                         source: "assistant" | "user";
                         sessionId: string | null;
+                        sessionTitle: string | null;
+                        commitRef: string | null;
                         createdAt: string;
                         updatedAt: string;
                     };

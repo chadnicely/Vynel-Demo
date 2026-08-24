@@ -14,6 +14,8 @@ import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertJournalEntry, makeJournalEntry } from '@vynel/journal/test-support'
+import { buildNewChatSessionRow } from '@vynel/chat'
+import { insertChatSession } from '@vynel/chat/repositories'
 import { createApp } from '../../app.js'
 import type { Database } from '@vynel/db'
 
@@ -73,6 +75,64 @@ describe('workspace-scoped journal routes', () => {
         await app.request(`/workspaces/${workspace.id}/journal`)
       ).json()) as { id: string }[]
       expect(list.map((e) => e.id)).toEqual([created.id])
+    })
+  })
+
+  // The pointer (Kafi 2026-08-25): attribution is server-stamped from the
+  // turn-session header (the tasks precedent — the model cannot name another
+  // session), the commit rides the body, and the response resolves the
+  // session's title for the journal's pointer chip.
+  it('POST / stamps the turn session from the header, records the commit, and serves the title', async () => {
+    await withTestDatabase(async (db) => {
+      const app = createApp({ db, logger: silentLogger })
+      const user = insertUser(db, makeUser())
+      const workspace = seedWorkspace(db, user.id)
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'sess-email',
+          userId: user.id,
+          workspaceId: workspace.id,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Email Feature Manager',
+        }),
+      )
+
+      const res = await app.request(`/workspaces/${workspace.id}/journal`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-vynel-turn-session': 'sess-email',
+        },
+        body: JSON.stringify({
+          entryDate: '2026-08-25',
+          content: 'Email feature: task completed.',
+          commit: 'ab12cd3',
+        }),
+      })
+      expect(res.status).toBe(201)
+      const created = (await res.json()) as {
+        sessionId: string | null
+        sessionTitle: string | null
+        commitRef: string | null
+      }
+      expect(created.sessionId).toBe('sess-email')
+      expect(created.sessionTitle).toBe('Email Feature Manager')
+      expect(created.commitRef).toBe('ab12cd3')
+
+      // A foreign or unknown header value is treated as ABSENT, not an error.
+      const unattributed = await app.request(`/workspaces/${workspace.id}/journal`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-vynel-turn-session': 'no-such-session',
+        },
+        body: JSON.stringify({ entryDate: '2026-08-25', content: 'Anonymous moment.' }),
+      })
+      expect(unattributed.status).toBe(201)
+      const anonymous = (await unattributed.json()) as { sessionId: string | null }
+      expect(anonymous.sessionId).toBeNull()
     })
   })
 

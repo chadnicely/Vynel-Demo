@@ -27,30 +27,13 @@ import { resolver, validator } from 'hono-openapi/zod'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
-import { findChatSessionById } from '@vynel/chat/repositories'
 import { countStepsForTasks, createTask, listTasks, replaceTaskSteps, updateTask } from '@vynel/tasks'
+// The ownership-checked turn-session resolution moved to the header module
+// (one home) when the journal became its second consumer.
 import {
   TURN_SESSION_HEADER,
-  parseTurnSessionHeader,
+  resolveOwnedTurnSessionId,
 } from '../../sessions/turn-session-header.js'
-import type { Database } from '@vynel/db'
-
-// The ambient turn-session header, OWNERSHIP-CHECKED before it becomes a
-// durable loose ref (`task_steps.sessionId`, `tasks.assignedSessionId`).
-// Unlike the retired set_todos door, these doors deliberately never 400
-// without a session (steps anchor to the TASK; background turns manage them),
-// so an invalid or foreign value is treated as ABSENT, not an error.
-function resolveOwnedTurnSessionId(
-  db: Database,
-  userId: string,
-  headerValue: string | undefined,
-): string | undefined {
-  const turnSessionId = parseTurnSessionHeader(headerValue)
-  if (turnSessionId === undefined) return undefined
-  const session = findChatSessionById(db, turnSessionId)
-  if (session === null || session.userId !== userId) return undefined
-  return session.id
-}
 import { serializeTaskForResponse, serializeTasksWithStepCounts, serializeTaskStepForResponse } from './serializers.js'
 import {
   TaskParamSchema,
