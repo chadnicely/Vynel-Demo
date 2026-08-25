@@ -69,7 +69,7 @@ function addServerBody(overrides: Record<string, unknown> = {}): Record<string, 
 describe('ssh-servers routes', () => {
   it('POST / registers global + workspace servers; NO response ever carries the credential', async () => {
     await withTestDatabase(async (db) => {
-      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKeyBase64 })
+      const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKeyBase64 })
       const user = insertUser(db, makeUser())
       const workspace = seedWorkspace(db, user.id)
 
@@ -108,7 +108,7 @@ describe('ssh-servers routes', () => {
 
   it('POST / with scope:workspace requires workspaceId (400 without it)', async () => {
     await withTestDatabase(async (db) => {
-      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKeyBase64 })
+      const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKeyBase64 })
       insertUser(db, makeUser())
 
       const missing = await app.request(
@@ -121,7 +121,7 @@ describe('ssh-servers routes', () => {
 
   it('DELETE /:serverId removes an owned server (204); the list empties', async () => {
     await withTestDatabase(async (db) => {
-      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKeyBase64 })
+      const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKeyBase64 })
       insertUser(db, makeUser())
 
       const created = await app.request('/ssh-servers', jsonBody('POST', addServerBody()))
@@ -136,7 +136,7 @@ describe('ssh-servers routes', () => {
 
   it("404s identically on a missing server and another user's server", async () => {
     await withTestDatabase(async (db) => {
-      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKeyBase64 })
+      const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKeyBase64 })
       insertUser(db, makeUser()) // attacker — resolved as the local user
       const victim = seedUserWorkspace(db)
 
@@ -171,7 +171,7 @@ describe('ssh-servers routes', () => {
     await withTestDatabase(async (db) => {
       const fakeServer = await startFakeSshServer()
       try {
-        const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKeyBase64 })
+        const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKeyBase64 })
         insertUser(db, makeUser())
 
         const created = await app.request(
@@ -209,7 +209,7 @@ describe('ssh-servers routes', () => {
 
   it('refuses to seal without a master key (createApp got none) — 409, actionable message', async () => {
     await withTestDatabase(async (db) => {
-      // No sshMasterKeyBase64 — the generator/test default. 409 stands in for
+      // No sealingMasterKeyBase64 — the generator/test default. 409 stands in for
       // 503 (the closed error taxonomy has no 503 class; see the route's WHY).
       const app = createApp({ db, logger: silentLogger })
       insertUser(db, makeUser())

@@ -100,10 +100,10 @@ export async function streamChatTurn(
   // are unopenable, so the tools would only error: attach nothing instead.
   // Fail-closed on the TYPE too (a partial test harness leaves the var unset).
   const { buildSshFeatureDescriptor } = await import('@vynel/ssh-servers/mcp')
-  const sshMasterKey = c.var.sshMasterKey
+  const sealingMasterKey = c.var.sealingMasterKey
   const sshFeatureDescriptors =
-    typeof sshMasterKey === 'string'
-      ? [buildSshFeatureDescriptor({ masterKeyBase64: sshMasterKey, logger: c.var.logger })]
+    typeof sealingMasterKey === 'string'
+      ? [buildSshFeatureDescriptor({ masterKeyBase64: sealingMasterKey, logger: c.var.logger })]
       : []
   const enabledCapabilityIds = new Set(
     listEnabledCapabilities(c.var.db, c.var.workspace!.id).map((capability) => capability.id),

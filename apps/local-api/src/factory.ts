@@ -142,12 +142,12 @@ export interface AppEnv {
     // sibling. Set once at construction (`app.ts`); boot sweeps orphans at
     // start and killAll()s at shutdown.
     processRunner: BackgroundProcessRunner
-    // The ssh sealing master key (base64, 32 bytes) — resolved from the OS
+    // THE sealing master key (base64, 32 bytes) — ssh-servers AND
+    // voice-providers credentials seal against it. Resolved from the OS
     // keyring at boot by server.ts; null in generator/test contexts that
-    // don't pass one (the ssh routes then refuse to seal/open credentials).
-    // It is THE sealing master key: voice-provider credentials seal against
-    // the same key (a rename to `sealingMasterKey` is a parked follow-up).
-    sshMasterKey: string | null
+    // don't pass one (the sealing routes then refuse via
+    // `requireSealingMasterKey`).
+    sealingMasterKey: string | null
     // The fetch every cloud voice-provider call goes through — the global
     // fetch in production, a fake in route tests (a test must never call a
     // cloud API). Set once at construction (`app.ts`).

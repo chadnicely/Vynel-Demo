@@ -54,7 +54,7 @@ const claudeAuthRelay = new ClaudeAuthRelay()
 // Same closed-taxonomy rationale as the ssh routes' requireSshMasterKey:
 // 409 is the closest fit for "this daemon can't take the request right now".
 function requireMasterKey(c: Context<AppEnv>): string {
-  const masterKey = c.var.sshMasterKey
+  const masterKey = c.var.sealingMasterKey
   if (masterKey === null) {
     throw new ConflictError(
       'Server install is unavailable: the encryption key is not loaded. Restart Vynel and try again.',

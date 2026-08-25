@@ -20,7 +20,8 @@ source, `FallbackVoiceEngine` = never-silent · web: provider cards + hearing so
 committed (`a77f4b55` `02bd1edf` `ec0d5d0f` `ed2bc293`); slice 5 pending the arc-wide
 code-reviewer verdict, then commit. **Remaining:** live smokes (connect a real key → Preview →
 overlay cloud STT round trip) — Kafi; merge to main + worktree teardown after; deferred: cloud
-dictation (composer mic), per-language STT prefs, `sshMasterKey`→`sealingMasterKey` rename chore.
+dictation (composer mic), per-language STT prefs. (The `sealingMasterKey` rename chore landed on
+this branch — the context var + option are honestly named now that two families seal.)
 
 ## ✅ 2026-08-26 PRESET GONE — Vynel's stack IS the system prompt (on main)
 

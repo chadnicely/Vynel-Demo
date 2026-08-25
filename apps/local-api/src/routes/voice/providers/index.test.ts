@@ -74,7 +74,7 @@ function buildApp(db: Parameters<Parameters<typeof withTestDatabase>[0]>[0]) {
   return createApp({
     db,
     logger: silentLogger,
-    sshMasterKeyBase64: masterKeyBase64,
+    sealingMasterKeyBase64: masterKeyBase64,
     voiceProviderFetch: fakeCloudFetch(),
   })
 }

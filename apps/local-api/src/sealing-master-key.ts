@@ -9,7 +9,7 @@ import type { Context } from 'hono'
 import type { AppEnv } from './factory.js'
 
 export function requireSealingMasterKey(c: Context<AppEnv>, featureLabel: string): string {
-  const masterKey = c.var.sshMasterKey
+  const masterKey = c.var.sealingMasterKey
   if (masterKey === null) {
     throw new ConflictError(
       `${featureLabel} is unavailable: the encryption key is not loaded. Restart Vynel and try again.`,

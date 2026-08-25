@@ -56,7 +56,7 @@ describe('server-install routes', () => {
   it('refuses to start without an engine payload on this machine', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
-      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKey })
+      const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKey })
       const response = await app.request('/server-install', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -89,7 +89,7 @@ describe('server-install routes', () => {
         const app = createApp({
           db,
           logger: silentLogger,
-          sshMasterKeyBase64: masterKey,
+          sealingMasterKeyBase64: masterKey,
           serverPayloadArchive: archive,
           appVersion: '7.7.7',
         })
@@ -152,7 +152,7 @@ describe('server-install routes', () => {
         const app = createApp({
           db,
           logger: silentLogger,
-          sshMasterKeyBase64: masterKey,
+          sealingMasterKeyBase64: masterKey,
           serverPayloadArchive: archive,
         })
         const install = startServerInstall(
@@ -180,7 +180,7 @@ describe('server-install routes', () => {
   it('refuses sign-in while the install is still provisioning', async () => {
     await withTestDatabase(async (db) => {
       const userId = seedUser(db)
-      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKey })
+      const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKey })
       const install = startServerInstall(
         db,
         {
@@ -201,7 +201,7 @@ describe('server-install routes', () => {
   it('404s an unknown install id', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
-      const app = createApp({ db, logger: silentLogger, sshMasterKeyBase64: masterKey })
+      const app = createApp({ db, logger: silentLogger, sealingMasterKeyBase64: masterKey })
       const response = await app.request('/server-install/nope')
       expect(response.status).toBe(404)
     })

@@ -38,4 +38,5 @@ later. Built on `feature/voice-providers` (worktree, band 18940), five gate-gree
 - Kafi's live smokes: connect a real key → Preview a cloud voice → overlay cloud-STT round trip
   → cloud-down fallback line. Merge to main + worktree teardown after.
 - Deferred: cloud dictation (composer mic), per-language STT preference, parallel per-sentence
-  cloud synthesis (drop the shared lane for relays), `sshMasterKey` → `sealingMasterKey` rename.
+  cloud synthesis (drop the shared lane for relays). (The `sshMasterKey` → `sealingMasterKey`
+  rename landed on this branch same-day.)
