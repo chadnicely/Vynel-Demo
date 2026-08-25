@@ -63,6 +63,28 @@ export function getVoiceProviderCatalogEntry(provider: VoiceProviderId): VoicePr
   return VOICE_PROVIDER_CATALOG[provider]
 }
 
+// The SOURCE picks (Settings → Voice). Speaking: the local sherpa models
+// or a connected provider. Hearing: `web-speech` is the default — the
+// browser overlay is the main talking surface and its recognition is free
+// and word-by-word — while the always-on WAKE listening is pinned to the
+// local model regardless (the room's audio never streams to a cloud API).
+export const VOICE_TTS_SOURCES = ['local', ...VOICE_PROVIDER_IDS] as const
+export type VoiceTtsSource = (typeof VOICE_TTS_SOURCES)[number]
+
+export const VOICE_STT_SOURCES = ['web-speech', 'local', ...VOICE_PROVIDER_IDS] as const
+export type VoiceSttSource = (typeof VOICE_STT_SOURCES)[number]
+
+export const DEFAULT_VOICE_TTS_SOURCE: VoiceTtsSource = 'local'
+export const DEFAULT_VOICE_STT_SOURCE: VoiceSttSource = 'web-speech'
+
+export function isVoiceTtsSource(value: unknown): value is VoiceTtsSource {
+  return VOICE_TTS_SOURCES.some((source) => source === value)
+}
+
+export function isVoiceSttSource(value: unknown): value is VoiceSttSource {
+  return VOICE_STT_SOURCES.some((source) => source === value)
+}
+
 /** A provider voice the user can pick for speaking (fetched live — the
  *  ElevenLabs list is account-scoped; Google's is global and huge, so the
  *  picker filters by language client-side). */

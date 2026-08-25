@@ -314,6 +314,12 @@ importers:
       '@vynel/voice':
         specifier: workspace:*
         version: link:../../packages/voice
+      '@vynel/voice-engine':
+        specifier: workspace:*
+        version: link:../../packages/voice-engine
+      '@vynel/voice-providers':
+        specifier: workspace:*
+        version: link:../../packages/voice-providers
       '@vynel/workspaces':
         specifier: workspace:*
         version: link:../../packages/workspaces

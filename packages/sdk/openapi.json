@@ -32215,6 +32215,29 @@
                         "moonshine-base"
                       ]
                     },
+                    "voiceTtsSource": {
+                      "type": "string",
+                      "enum": [
+                        "local",
+                        "elevenlabs",
+                        "google"
+                      ]
+                    },
+                    "voiceTtsProviderVoiceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "voiceSttSource": {
+                      "type": "string",
+                      "enum": [
+                        "web-speech",
+                        "local",
+                        "elevenlabs",
+                        "google"
+                      ]
+                    },
                     "desktopActionsEnabled": {
                       "type": "boolean"
                     }
@@ -32227,6 +32250,9 @@
                     "voiceTtsModelId",
                     "voiceSpeakerId",
                     "voiceSttModelId",
+                    "voiceTtsSource",
+                    "voiceTtsProviderVoiceId",
+                    "voiceSttSource",
                     "desktopActionsEnabled"
                   ]
                 }
@@ -32293,6 +32319,29 @@
                         "moonshine-base"
                       ]
                     },
+                    "voiceTtsSource": {
+                      "type": "string",
+                      "enum": [
+                        "local",
+                        "elevenlabs",
+                        "google"
+                      ]
+                    },
+                    "voiceTtsProviderVoiceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "voiceSttSource": {
+                      "type": "string",
+                      "enum": [
+                        "web-speech",
+                        "local",
+                        "elevenlabs",
+                        "google"
+                      ]
+                    },
                     "desktopActionsEnabled": {
                       "type": "boolean"
                     }
@@ -32305,6 +32354,9 @@
                     "voiceTtsModelId",
                     "voiceSpeakerId",
                     "voiceSttModelId",
+                    "voiceTtsSource",
+                    "voiceTtsProviderVoiceId",
+                    "voiceSttSource",
                     "desktopActionsEnabled"
                   ]
                 }
@@ -32361,6 +32413,31 @@
                     "enum": [
                       "moonshine-tiny",
                       "moonshine-base"
+                    ]
+                  },
+                  "voiceTtsSource": {
+                    "type": "string",
+                    "enum": [
+                      "local",
+                      "elevenlabs",
+                      "google"
+                    ]
+                  },
+                  "voiceTtsProviderVoiceId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "voiceSttSource": {
+                    "type": "string",
+                    "enum": [
+                      "web-speech",
+                      "local",
+                      "elevenlabs",
+                      "google"
                     ]
                   },
                   "desktopActionsEnabled": {
@@ -40235,6 +40312,433 @@
           "mutatingApproved": true,
           "rootSurface": true,
           "description": "Leave a live call: detaches Vynel's ears and voice from the call audio and stops the call conversation. The call's session remains — after ending, collect the outcome for the user: send one message to \"session:<sessionId>\" asking for a summary of decisions, open questions, and action items (or read it with get_chat_session), then relay that to the user. Returns { ended, sessionId } on success, or { ended: false, reason } when the call was already gone."
+        }
+      }
+    },
+    "/voice/providers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Catalog + connection state per provider (never credentials).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "enum": [
+                          "elevenlabs",
+                          "google"
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "tagline": {
+                        "type": "string"
+                      },
+                      "connectHint": {
+                        "type": "string"
+                      },
+                      "credentialField": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "const": "apiKey"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "placeholder": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "placeholder"
+                        ]
+                      },
+                      "supports": {
+                        "type": "object",
+                        "properties": {
+                          "tts": {
+                            "type": "boolean"
+                          },
+                          "stt": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "tts",
+                          "stt"
+                        ]
+                      },
+                      "connected": {
+                        "type": "boolean"
+                      },
+                      "accountLabel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "connectedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "tagline",
+                      "connectHint",
+                      "credentialField",
+                      "supports",
+                      "connected",
+                      "accountLabel",
+                      "connectedAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getVoiceProviders",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "List the cloud voice providers and whether each is connected.",
+        "x-sdk-name": "voiceProviders.list"
+      }
+    },
+    "/voice/providers/{provider}/connect": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Connected — the provider status (no credentials).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "enum": [
+                        "elevenlabs",
+                        "google"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "tagline": {
+                      "type": "string"
+                    },
+                    "connectHint": {
+                      "type": "string"
+                    },
+                    "credentialField": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "const": "apiKey"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "placeholder": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "label",
+                        "placeholder"
+                      ]
+                    },
+                    "supports": {
+                      "type": "object",
+                      "properties": {
+                        "tts": {
+                          "type": "boolean"
+                        },
+                        "stt": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "tts",
+                        "stt"
+                      ]
+                    },
+                    "connected": {
+                      "type": "boolean"
+                    },
+                    "accountLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "connectedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "tagline",
+                    "connectHint",
+                    "credentialField",
+                    "supports",
+                    "connected",
+                    "accountLabel",
+                    "connectedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The provider rejected the API key."
+          },
+          "409": {
+            "description": "The sealing key is unavailable."
+          }
+        },
+        "operationId": "postVoiceProvidersByProviderConnect",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "elevenlabs",
+                "google"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "summary": "Connect a cloud voice provider with an API key (sealed, never returned).",
+        "x-sdk-name": "voiceProviders.connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "apiKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "apiKey"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/providers/{provider}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Disconnected."
+          },
+          "404": {
+            "description": "This provider is not connected."
+          }
+        },
+        "operationId": "deleteVoiceProvidersByProvider",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "elevenlabs",
+                "google"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "summary": "Disconnect a cloud voice provider (hard delete of the sealed key).",
+        "x-sdk-name": "voiceProviders.disconnect"
+      }
+    },
+    "/voice/providers/{provider}/voices": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ voices } — id, label, language per voice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "voices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "language": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "language"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "voices"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The provider rejected the stored key — reconnect."
+          },
+          "409": {
+            "description": "This provider is not connected, or the sealing key is unavailable."
+          }
+        },
+        "operationId": "getVoiceProvidersByProviderVoices",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "elevenlabs",
+                "google"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "summary": "List a connected provider's voices for the Settings picker.",
+        "x-sdk-name": "voiceProviders.listVoices"
+      }
+    },
+    "/voice/transcribe": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ text } — the transcript (empty when nothing was said).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad audio body, or the provider rejected the stored key."
+          },
+          "409": {
+            "description": "Cloud transcription is not the selected hearing source, the provider is not connected, or it is unreachable."
+          }
+        },
+        "operationId": "postVoiceTranscribe",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Transcribe one spoken utterance (mono 16-bit WAV body) through the selected cloud provider.",
+        "x-sdk-name": "voiceProviders.transcribe"
+      }
+    },
+    "/voice/provider-synthesize": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The spoken audio as audio/wav (mono 16-bit PCM)."
+          },
+          "400": {
+            "description": "Validation error, or the provider rejected the stored key."
+          },
+          "409": {
+            "description": "Cloud speaking is not the selected source, no provider voice is picked, the provider is not connected, or it is unreachable."
+          }
+        },
+        "operationId": "postVoiceProvider-synthesize",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Synthesize text through the selected cloud provider — answers mono 16-bit WAV.",
+        "x-sdk-name": "voiceProviders.synthesize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              }
+            }
+          }
         }
       }
     },

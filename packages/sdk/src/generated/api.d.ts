@@ -4071,6 +4071,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the cloud voice providers and whether each is connected. */
+        get: operations["getVoiceProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/providers/{provider}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Connect a cloud voice provider with an API key (sealed, never returned). */
+        post: operations["postVoiceProvidersByProviderConnect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/providers/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect a cloud voice provider (hard delete of the sealed key). */
+        delete: operations["deleteVoiceProvidersByProvider"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/providers/{provider}/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a connected provider's voices for the Settings picker. */
+        get: operations["getVoiceProvidersByProviderVoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transcribe one spoken utterance (mono 16-bit WAV body) through the selected cloud provider. */
+        post: operations["postVoiceTranscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voice/provider-synthesize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Synthesize text through the selected cloud provider — answers mono 16-bit WAV. */
+        post: operations["postVoiceProvider-synthesize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/overview": {
         parameters: {
             query?: never;
@@ -16640,6 +16742,11 @@ export interface operations {
                         voiceSpeakerId: number;
                         /** @enum {string} */
                         voiceSttModelId: "moonshine-tiny" | "moonshine-base";
+                        /** @enum {string} */
+                        voiceTtsSource: "local" | "elevenlabs" | "google";
+                        voiceTtsProviderVoiceId: string | null;
+                        /** @enum {string} */
+                        voiceSttSource: "web-speech" | "local" | "elevenlabs" | "google";
                         desktopActionsEnabled: boolean;
                     };
                 };
@@ -16666,6 +16773,11 @@ export interface operations {
                     voiceSpeakerId?: number;
                     /** @enum {string} */
                     voiceSttModelId?: "moonshine-tiny" | "moonshine-base";
+                    /** @enum {string} */
+                    voiceTtsSource?: "local" | "elevenlabs" | "google";
+                    voiceTtsProviderVoiceId?: string | null;
+                    /** @enum {string} */
+                    voiceSttSource?: "web-speech" | "local" | "elevenlabs" | "google";
                     desktopActionsEnabled?: boolean;
                 };
             };
@@ -16688,6 +16800,11 @@ export interface operations {
                         voiceSpeakerId: number;
                         /** @enum {string} */
                         voiceSttModelId: "moonshine-tiny" | "moonshine-base";
+                        /** @enum {string} */
+                        voiceTtsSource: "local" | "elevenlabs" | "google";
+                        voiceTtsProviderVoiceId: string | null;
+                        /** @enum {string} */
+                        voiceSttSource: "web-speech" | "local" | "elevenlabs" | "google";
                         desktopActionsEnabled: boolean;
                     };
                 };
@@ -19382,6 +19499,249 @@ export interface operations {
                         reason?: string;
                     };
                 };
+            };
+        };
+    };
+    getVoiceProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Catalog + connection state per provider (never credentials). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        id: "elevenlabs" | "google";
+                        label: string;
+                        tagline: string;
+                        connectHint: string;
+                        credentialField: {
+                            /** @constant */
+                            key: "apiKey";
+                            label: string;
+                            placeholder: string;
+                        };
+                        supports: {
+                            tts: boolean;
+                            stt: boolean;
+                        };
+                        connected: boolean;
+                        accountLabel: string | null;
+                        connectedAt: string | null;
+                    }[];
+                };
+            };
+        };
+    };
+    postVoiceProvidersByProviderConnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "elevenlabs" | "google";
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    apiKey: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Connected — the provider status (no credentials). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        id: "elevenlabs" | "google";
+                        label: string;
+                        tagline: string;
+                        connectHint: string;
+                        credentialField: {
+                            /** @constant */
+                            key: "apiKey";
+                            label: string;
+                            placeholder: string;
+                        };
+                        supports: {
+                            tts: boolean;
+                            stt: boolean;
+                        };
+                        connected: boolean;
+                        accountLabel: string | null;
+                        connectedAt: string | null;
+                    };
+                };
+            };
+            /** @description The provider rejected the API key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The sealing key is unavailable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteVoiceProvidersByProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "elevenlabs" | "google";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disconnected. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description This provider is not connected. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getVoiceProvidersByProviderVoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "elevenlabs" | "google";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { voices } — id, label, language per voice. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        voices: {
+                            id: string;
+                            label: string;
+                            language: string | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description The provider rejected the stored key — reconnect. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description This provider is not connected, or the sealing key is unavailable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postVoiceTranscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { text } — the transcript (empty when nothing was said). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        text: string;
+                    };
+                };
+            };
+            /** @description Bad audio body, or the provider rejected the stored key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cloud transcription is not the selected hearing source, the provider is not connected, or it is unreachable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postVoiceProvider-synthesize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The spoken audio as audio/wav (mono 16-bit PCM). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation error, or the provider rejected the stored key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cloud speaking is not the selected source, no provider voice is picked, the provider is not connected, or it is unreachable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -9,8 +9,10 @@ import type { PcmAudio } from './voice-engine.js'
 const WAV_HEADER_BYTES = 44
 const RIFF_CHUNK_HEADER_BYTES = 8
 
-/** Mono 16-bit little-endian WAV bytes for `pcm` — the upload/wire shape. */
-export function encodeWavFromPcm(pcm: PcmAudio): Uint8Array {
+/** Mono 16-bit little-endian WAV bytes for `pcm` — the upload/wire shape.
+ *  Typed over `ArrayBuffer` (not `ArrayBufferLike`) so the bytes can feed
+ *  response bodies directly. */
+export function encodeWavFromPcm(pcm: PcmAudio): Uint8Array<ArrayBuffer> {
   const sampleCount = pcm.samples.length
   const dataBytes = sampleCount * 2
   const buffer = new ArrayBuffer(WAV_HEADER_BYTES + dataBytes)

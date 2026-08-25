@@ -6,6 +6,9 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./provider-engines": "./src/provider-engines.ts",
+    "./pcm-codec": "./src/pcm-codec.ts",
+    "./voice-provider-request-error": "./src/voice-provider-request-error.ts",
     "./test-support": "./src/test-support/index.ts"
   },
   "scripts": {

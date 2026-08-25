@@ -14,6 +14,14 @@ import {
   type LocalSttModelId,
   type LocalTtsModelId,
 } from '@vynel/contracts/models/local-model-catalog'
+import {
+  DEFAULT_VOICE_STT_SOURCE,
+  DEFAULT_VOICE_TTS_SOURCE,
+  isVoiceSttSource,
+  isVoiceTtsSource,
+  type VoiceSttSource,
+  type VoiceTtsSource,
+} from '@vynel/contracts/voice/voice-providers'
 
 export interface ResolvedUserPreferences {
   theme: 'light' | 'dark' | 'system'
@@ -25,6 +33,13 @@ export interface ResolvedUserPreferences {
   voiceTtsModelId: LocalTtsModelId
   voiceSpeakerId: number
   voiceSttModelId: LocalSttModelId
+  // The cloud-provider extension (voice-cloud-providers, 2026-08-26): WHERE
+  // speaking and hearing run. The local model ids above keep meaning the
+  // LOCAL pick (the STT one = the wake model, which never leaves the machine);
+  // a provider source additionally needs its string voice id for speaking.
+  voiceTtsSource: VoiceTtsSource
+  voiceTtsProviderVoiceId: string | null
+  voiceSttSource: VoiceSttSource
   // Settings → Desktop control (2026-08-23): may Vynel CLICK and TYPE on this
   // desktop? Looking (screenshots, window lists) is never gated. Fail-closed
   // default; `VYNEL_DESKTOP_ACT_ENABLED` seeds it only while the user has
@@ -40,6 +55,9 @@ export const DEFAULT_PREFERENCES: ResolvedUserPreferences = {
   voiceTtsModelId: DEFAULT_TTS_MODEL_ID,
   voiceSpeakerId: 0,
   voiceSttModelId: DEFAULT_STT_MODEL_ID,
+  voiceTtsSource: DEFAULT_VOICE_TTS_SOURCE,
+  voiceTtsProviderVoiceId: null,
+  voiceSttSource: DEFAULT_VOICE_STT_SOURCE,
   desktopActionsEnabled: false,
 }
 
@@ -90,6 +108,19 @@ export function getUserPreferences(db: Database, userId: string): ResolvedUserPr
         break
       case 'voiceSttModelId':
         if (isSttModelId(parsed)) resolved.voiceSttModelId = parsed
+        break
+      case 'voiceTtsSource':
+        // A source whose provider was later removed falls back to 'local'
+        // via the guard — the daemon must never chase a retired provider.
+        if (isVoiceTtsSource(parsed)) resolved.voiceTtsSource = parsed
+        break
+      case 'voiceTtsProviderVoiceId':
+        if (typeof parsed === 'string' && parsed.length > 0) {
+          resolved.voiceTtsProviderVoiceId = parsed
+        }
+        break
+      case 'voiceSttSource':
+        if (isVoiceSttSource(parsed)) resolved.voiceSttSource = parsed
         break
       case 'desktopActionsEnabled':
         // The fail-closed `false` this falls back to is the ROW default — what

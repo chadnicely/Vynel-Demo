@@ -10,7 +10,7 @@ export {
   VoiceProviderAdapter,
   type VerifyVoiceProviderCredentialsResult,
 } from './adapters/voice-provider-adapter.js'
-export { resolveVoiceProviderAdapter } from './adapters/voice-provider-adapter-registry.js'
+export { createVoiceProviderAdapter } from './adapters/voice-provider-adapter-factory.js'
 export {
   VOICE_PROVIDER_CONNECTED,
   VOICE_PROVIDER_DISCONNECTED,

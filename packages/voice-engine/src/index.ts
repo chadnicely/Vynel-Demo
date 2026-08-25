@@ -23,6 +23,14 @@ export type { GoogleVoiceEngineOptions } from './google/google-voice-engine.js'
 export { GoogleSpeechRecognizer } from './google/google-speech-recognizer.js'
 export type { GoogleSpeechRecognizerOptions } from './google/google-speech-recognizer.js'
 export { VoiceProviderRequestError } from './voice-provider-request-error.js'
+export {
+  createProviderVoiceEngine,
+  createProviderSpeechRecognizer,
+} from './provider-engines.js'
+export type {
+  CreateProviderVoiceEngineInput,
+  CreateProviderSpeechRecognizerInput,
+} from './provider-engines.js'
 export { encodeWavFromPcm, decodeWavToPcm, int16BytesToFloat32 } from './pcm-codec.js'
 export { SherpaVoiceEngine } from './sherpa/sherpa-voice-engine.js'
 export type { SherpaVoiceEngineOptions } from './sherpa/sherpa-voice-engine.js'

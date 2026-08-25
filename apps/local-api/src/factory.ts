@@ -145,7 +145,13 @@ export interface AppEnv {
     // The ssh sealing master key (base64, 32 bytes) — resolved from the OS
     // keyring at boot by server.ts; null in generator/test contexts that
     // don't pass one (the ssh routes then refuse to seal/open credentials).
+    // It is THE sealing master key: voice-provider credentials seal against
+    // the same key (a rename to `sealingMasterKey` is a parked follow-up).
     sshMasterKey: string | null
+    // The fetch every cloud voice-provider call goes through — the global
+    // fetch in production, a fake in route tests (a test must never call a
+    // cloud API). Set once at construction (`app.ts`).
+    voiceProviderFetch: typeof fetch
     // The process-wide desktop-notification reader — present only when boot
     // constructed the Windows listener (server.ts); absent in tests /
     // off-Windows, which also keeps the whole desktop MCP feature off a turn

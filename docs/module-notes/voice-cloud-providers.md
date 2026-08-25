@@ -90,6 +90,16 @@ Both map cleanly onto `PcmAudio` (Int16LE ↔ Float32) with no new dependencies 
    implementation — AudioWorklet 16 kHz mono → the pure `audio-segmenter` from `@vynel/voice`
    (RMS endpointing, already tested) → WAV → `POST /voice/transcribe`; per-utterance captions.
 
+## Status
+
+| Slice | Commit | Notes |
+|---|---|---|
+| 1 connections leaf | `a77f4b55` | `@vynel/voice-providers` (sealed creds, connect/disconnect + outbox, adapters, factory) · provider catalog in contracts · migration 0055 · reviewer CLEAN (pairing guard + bounded Google fault applied). |
+| 2 cloud engines | `02bd1edf` | Four backends behind the existing contracts + pure `pcm-codec` + `VoiceProviderRequestError` (auth vs provider-down). Scribe v2 confirmed current. |
+| 3 engine routes + prefs | in worktree | `/voice/providers` family + the executing `/voice/transcribe` + `/voice/provider-synthesize` doors (no x-mcp anywhere); prefs keys `voiceTtsSource`/`voiceTtsProviderVoiceId`/`voiceSttSource`; `voiceProviderFetch` DI; shared `requireSealingMasterKey` (ssh rewired); voice-engine PURE subpath exports so local-api never loads the sherpa native addon; artifacts regenerated (269 paths, tools unchanged at 121). |
+| 4 daemon wiring | next | factory in `voice-engines.ts` (sherpa \| engine-relay), selection reads the new keys, reload outcome carries provider state. |
+| 5 web | next | Settings source pickers + provider cards + connect dialog; browser cloud-STT `CommandRecognizer`. |
+
 ## Watch-outs
 
 - `SynthesizeOptions.voiceId?: number` is sherpa-shaped; cloud engines take their string voice id
