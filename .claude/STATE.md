@@ -1,7 +1,23 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-19.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## 🔬 2026-08-26 DEFAULT-PROMPT RESEARCH — decision awaiting Kafi's okay
+
+Kafi: the appended manager/child instructions "are not working at all" — research first. Journal:
+`.claude/journal/2026-08-26-default-prompt-research.md` (+ `…-prompt-shapes-probe.log`). **Found:**
+the `claude_code` preset (read out of the bundled CLI 2.1.235) opens "You are Claude Code … helps
+users with software engineering tasks", wants short/concise monospace-terminal replies, and on
+Opus 5 carries "## Delegating to subagents … Otherwise, do it yourself" — before our append, with
+a 3k-token head start. **Measured (real express project, stub delegation tools, n=4):**
+preset+append delegated 1/4 (3 self-builds — Kafi's symptom); a CUSTOM system prompt 3/4; preset +
+output style 2/4. A custom prompt keeps tools + CLAUDE.md; the preset costs only ≈3.2k tokens (the
+~24k/request baseline is tool definitions). **Confound:** `settingSources` injects the dev's own
+`~/.claude/CLAUDE.md` ("pair programmer") into every Vynel session on a dev box. **Plan (§7 of the
+journal, NOT started):** `harness.md` prepended by `composeSessionInstruction`; provider seam
+`systemPromptAppend` → full `systemPrompt` string (no preset) with a guard test; plus the
+per-message `manager-turn-marker.md` already decided; rerun the probe on a real workspace after.
 
 ## ⚠ 2026-08-25 LIVE CHECK FAILED — DEBUG FIRST (Kafi, end of day)
 
