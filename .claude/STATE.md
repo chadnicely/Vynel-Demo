@@ -20,7 +20,13 @@ session, on a 150k-token continuing conversation full of self-build precedent. T
 measured limit of prompt-side identity; **NEXT = the per-message `manager-turn-marker.md`**
 (user-turn marker: 2/2 in the probe) + the report-arrival marker. test2 was left with the
 turn's uncommitted contact-page files (Kafi to look/discard). Gate: rerun after a voice-overlay
-port flake under load (`overlay-channel.test.ts` green alone).
+port flake under load (`overlay-channel.test.ts` green alone). **Then (Kafi's format):** `base.md`
+restructured to the preset's section order — Identity (ours) · security (verbatim) · Harness
+(ours) · Code (Coding Guideline book) · pronouns (verbatim) · Session-specific guidance (verbatim)
+· Memory (Vynel memory via tools) · Context management (journal = history, duty book = rule book) ·
+Working with the user · Working out loud · Replies; `voice-base.md` in step; the per-section
+status map is `docs/module-notes/instructions/base-sections.md` (markers never go inside the prompt
+file). Kafi is testing live behavior in the dev web UI before deciding on the manager marker.
 
 ## 🔬 2026-08-26 DEFAULT-PROMPT RESEARCH — decided (see above)
 

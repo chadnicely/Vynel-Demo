@@ -11,6 +11,7 @@ apply); this folder is where we compare, measure and plan them.
 | `vynel-system-prompt.md` | **Ours, end to end**, rendered through the real composer per session kind (workspace manager, child, global brain, colleague, voice): base → kind → feature sections, with sizes. Compare against the file above; optimize here. |
 | `claude-sdk-request-anatomy.md` | The whole API request, section by section: who adds each part (SDK default · preset · `settingSources` · Vynel), whether it survives a custom prompt, and the lever that changes it. Answers "what do we build vs what does the SDK add by default". |
 | `native-toolset.md` | Which of the 30 built-in tools Vynel keeps (`CLAUDE_CODE_BASE_TOOL_NAMES`), which it drops and what replaces each, and the per-kind polish still to do. |
+| `base-sections.md` | `base.md` section by section in the preset's order — Anthropic-verbatim vs ours, what is done, and what still has to be built or verified in its own session (Coding Guideline book, the `.claude/memory.md` source, duty books). |
 
 Related, elsewhere:
 
