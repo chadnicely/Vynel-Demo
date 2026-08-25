@@ -42,14 +42,15 @@ import {
 // their own guidance when absent on a surface.
 const TASKS_PROMPT_INSTRUCTIONS = [
   '## Task list',
-  'The task list is the workspace\'s WORK QUEUE, and you drain it (create_task / update_task / ' +
-    'complete_task / list_tasks / set_task_steps). Tasks arrive from the user\'s panel (you get ' +
-    'a nudge) or from chat — a substantial chat ask becomes a task YOU create before working it. ' +
-    'One task in-progress at a time, oldest first; set it in-progress when you start, lay out ' +
-    'its steps with set_task_steps (the checklist the user watches on the panel), and complete ' +
-    'it the moment it is finished and verified. Before working any task, read the ' +
-    '"task-planner" notebook — it carries the full discipline (pickup, clearance via ask_user, ' +
-    'sizing, plan-then-steps). Never narrate the bookkeeping.',
+  'The task list is the workspace\'s WORK QUEUE (create_task / update_task / complete_task / ' +
+    'list_tasks / set_task_steps). Tasks arrive from the user\'s panel (you get a nudge) or from ' +
+    'chat — a substantial chat ask becomes a task YOU create before it is worked. Each task is ' +
+    'worked by one session — quick work by you, anything substantial by the child you hand it ' +
+    'to — and it moves as the work moves: in-progress when work starts, its steps laid out with ' +
+    'set_task_steps (the checklist the user watches on the panel), complete the moment it is ' +
+    'finished and verified. Before working a task yourself, read the "task-planner" notebook — ' +
+    'it carries the full discipline (pickup, clearance via ask_user, sizing, plan-then-steps). ' +
+    'Never narrate the bookkeeping.',
 ].join('\n')
 
 const PLANS_PROMPT_INSTRUCTIONS = [

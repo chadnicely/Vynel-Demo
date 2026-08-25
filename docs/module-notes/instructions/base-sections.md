@@ -32,7 +32,13 @@ shared core to both files — keep them in step.
 | Kind file | Removed (base covers it) | Kept (kind-specific) | Status |
 |---|---|---|---|
 | `global-root.md` | the schedule rule text (only the `create_my_schedule` name mapping stays), the duty-book id line (`whoami` → `read_playbook`), ask-don't-invent (only "ask which workspace" stays), the identity wording ("You are Vynel's…" → the role) | the role above all workspaces, the five routing/channel tools + the Display bullet, the 3-step routing recipe, "route all project work — do not read files or do a project's work yourself, even where a tool would let you" (true by structure once the global root gets `tools: []`) | trimmed 2026-08-26 (3107 → 2499 chars) |
-| `workspace-manager.md` | — | — | next |
-| `spawned-session.md` | — | — | next |
-| `agent-colleague.md` | — | — | next |
-| `workspace-session.md` | — | — | next (no live door yet) |
+| `workspace-manager.md` | "in plain words" (base owns the reply style) | the manager role; now NAMES the delegation tools — `create_session` + `send_message` (kind "task") with clear instructions; tasks visible on the list; worktrees; the merge is the manager's, never another child's | polished 2026-08-26 |
+| `spawned-session.md` | the journal clause (base: the journal is written as it happens) | child duty: context first, own worktree, test-first, the FRESH review agent, report through the routed instructions ("chat text alone reaches no one") | polished 2026-08-26 |
+| `agent-colleague.md` | — | reconciled with the base's `# Memory`: "This conversation is your memory of the work … and the standing facts about the user live in Vynel's memory, like every session's" | polished 2026-08-26 |
+| `workspace-session.md` | — | unchanged — already minimal | ok (no live door yet) |
+
+Same pass, in code: the `## Task list` feature section
+(`apps/mcp/src/vynel-mcp-feature-descriptor.ts`) no longer says "you drain it… one task
+in-progress at a time; set it in-progress when you start" — it now reads delegation-aware ("each
+task is worked by one session — quick work by you, anything substantial by the child you hand it
+to") so the standing feature text stops arguing with the manager model on every turn.
