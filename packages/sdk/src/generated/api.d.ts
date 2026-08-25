@@ -19337,6 +19337,8 @@ export interface operations {
                         ttsModelId: string;
                         sttModelId: string;
                         speakerId: number;
+                        ttsSource: string;
+                        sttSource: string;
                         changed: string[];
                         missing: string[];
                         ready: boolean;

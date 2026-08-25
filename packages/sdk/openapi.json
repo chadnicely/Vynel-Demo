@@ -39938,6 +39938,12 @@
                         "speakerId": {
                           "type": "integer"
                         },
+                        "ttsSource": {
+                          "type": "string"
+                        },
+                        "sttSource": {
+                          "type": "string"
+                        },
                         "changed": {
                           "type": "array",
                           "items": {
@@ -39959,6 +39965,8 @@
                         "ttsModelId",
                         "sttModelId",
                         "speakerId",
+                        "ttsSource",
+                        "sttSource",
                         "changed",
                         "missing",
                         "ready"
