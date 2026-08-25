@@ -59,7 +59,7 @@ describe('loadSessionInstruction', () => {
     // the MANAGER merges into main and removes the worktree — never a child.
     expect(prompt).toContain('worktree')
     expect(prompt).toContain('merge')
-    expect(prompt).toContain('merge session')
+    expect(prompt).toContain('Maintainer')
   })
 
   it('spawned-session frames the child and its working discipline', () => {
