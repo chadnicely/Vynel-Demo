@@ -6,18 +6,24 @@
 ## 🔬 2026-08-26 DEFAULT-PROMPT RESEARCH — decision awaiting Kafi's okay
 
 Kafi: the appended manager/child instructions "are not working at all" — research first. Journal:
-`.claude/journal/2026-08-26-default-prompt-research.md` (+ `…-prompt-shapes-probe.log`). **Found:**
-the `claude_code` preset (read out of the bundled CLI 2.1.235) opens "You are Claude Code … helps
-users with software engineering tasks", wants short/concise monospace-terminal replies, and on
-Opus 5 carries "## Delegating to subagents … Otherwise, do it yourself" — before our append, with
-a 3k-token head start. **Measured (real express project, stub delegation tools, n=4):**
-preset+append delegated 1/4 (3 self-builds — Kafi's symptom); a CUSTOM system prompt 3/4; preset +
-output style 2/4. A custom prompt keeps tools + CLAUDE.md; the preset costs only ≈3.2k tokens (the
-~24k/request baseline is tool definitions). **Confound:** `settingSources` injects the dev's own
-`~/.claude/CLAUDE.md` ("pair programmer") into every Vynel session on a dev box. **Plan (§7 of the
-journal, NOT started):** `harness.md` prepended by `composeSessionInstruction`; provider seam
-`systemPromptAppend` → full `systemPrompt` string (no preset) with a guard test; plus the
-per-message `manager-turn-marker.md` already decided; rerun the probe on a real workspace after.
+`.claude/journal/2026-08-26-default-prompt-research.md`; the request the CLI really sends is
+captured verbatim in `…-claude-code-preset-captured.md` + `…-claude-code-tools-captured.md` (read
+those before reasoning about the preset). **Found:** the SDK gets the LEAN `claude_code` preset
+(≈3.2k tokens): "You are Claude Code … helps users with software engineering tasks", `# Harness`
+(markdown "in a terminal"), `# Memory` (auto-memory), `# Environment`, `# Delivering work`,
+`# Corrections`, then — right before our append — **"Do not call the AgentTool unless the user
+requested it"**; a `# Advisor Tool` section follows even a custom prompt. **Measured (real express
+project, stub delegation tools, n=4):** preset+append delegated 1/4 (3 self-builds — Kafi's
+symptom); a CUSTOM system prompt 3/4; preset + output style 2/4. Tools + CLAUDE.md survive a custom
+prompt; the ~24k/request baseline is the 30 native tool definitions (identical under every prompt —
+patch via `disallowedTools`). **Side findings:** the preset's auto-memory has Vynel sessions writing
+a HIDDEN second memory under `~/.claude/projects/<cwd>/memory/` (global root's dir has files) →
+`settings: { autoMemoryEnabled: false }`; `title` skips the extra naming request; `settingSources`
+injects the dev's own `~/.claude/CLAUDE.md` + agents into every dev-box session (confound). **Plan
+(§7 of the journal, NOT started):** `harness.md` prepended by `composeSessionInstruction`; provider
+seam `systemPromptAppend` → full `systemPrompt` string (no preset) with a guard test; the
+per-message `manager-turn-marker.md`; the three one-line side fixes; rerun the probe on a real
+workspace after.
 
 ## ⚠ 2026-08-25 LIVE CHECK FAILED — DEBUG FIRST (Kafi, end of day)
 

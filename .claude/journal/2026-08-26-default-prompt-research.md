@@ -1,41 +1,79 @@
 # 2026-08-26 — Should Vynel keep the `claude_code` preset, or run its own system prompt? (measured)
 
 Kafi's question after the failed live checks: the appended manager / child instructions "are not
-working at all" — what IS Anthropic's default prompt, and can we replace it with our own? We read
-the preset out of the exact binary we ship, measured what it costs, and ran the manager under three
-prompt shapes on the same ask. Raw rows: `2026-08-26-prompt-shapes-probe.log`.
+working at all" — what IS Anthropic's default prompt, and can we replace it with our own? We
+captured the exact request the bundled CLI sends, measured what the preset costs, and ran the
+manager under three prompt shapes on the same ask.
+
+Companion files: `2026-08-26-claude-code-preset-captured.md` (the system prompt verbatim, both
+shapes, plus the first user turn) · `2026-08-26-claude-code-tools-captured.md` (all 30 tool
+definitions verbatim) · `2026-08-26-prompt-shapes-probe.log` (raw probe rows).
 
 ## Verdict
 
 **Replace the preset with Vynel's own system prompt** (one `harness.md` + the existing base + kind
-stack + feature sections), and keep last night's decision — the per-message manager marker — as the
-next-action lever. Anthropic's own guidance says a product with a different surface, identity,
-permission model, or non-coding purpose should write its own prompt; Vynel is all four. The preset
-is not expensive (≈3.2k tokens); the problem is that it argues against us from the first line.
+stack + feature sections), keep last night's decision — the per-message manager marker — as the
+next-action lever, and take two side findings as their own slices: **switch the SDK's hidden
+auto-memory off** and **trim the native tool set**. Anthropic's own guidance says a product with a
+different surface, identity, permission model, or non-coding purpose should write its own prompt;
+Vynel is all four. The preset is not expensive (≈3.2k tokens); the problem is what it says.
 
-## 1. What the preset actually says (bundled CLI 2.1.235, SDK 0.3.235)
+## 1. What the SDK actually sends (captured, CLI 2.1.235 inside SDK 0.3.235)
 
-The Agent SDK's `claude_code` preset is assembled from many fragments inside `claude.exe`. The
-sections a Vynel session receives, in order, with the sentences that fight our product:
+Captured by pointing `ANTHROPIC_BASE_URL` at a local recorder under our production options
+(`claude-opus-5`, `settingSources: ['user','project','local']`, one stub MCP tool). The request has
+three `system` blocks, a `tools` array, and the first user turn:
+
+| Part | preset + append (today) | custom string |
+|---|---|---|
+| `system[1]` identity | "You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK." | "You are a Claude agent, built on Anthropic's Claude Agent SDK." |
+| `system[2]` main prompt | 11,422 chars ≈ 3.2k tokens (below) — **our append is its last lines** | our string + the CLI's `# Advisor Tool` section |
+| `tools` | 30 definitions, ≈23.8k tokens — **identical** | identical |
+| `messages[0]` | user turn + `<system-reminder>` blocks (CLAUDE.md, memory) — identical | identical |
+| `messages[1]` (role system) | "Available agent types for the Agent tool" — 10k chars from the dev box's `~/.claude/agents` + the repo's | identical |
+
+**The SDK gets the LEAN preset**, not the long CLI prompt I first read out of the binary (that
+branch — `# Doing tasks`, `# Tone and style` "short and concise", `# Using your tools`,
+"monospace" — did NOT appear in the captured request). What it does say, in order:
 
 | Section | What it tells the model |
 |---|---|
-| Intro | "You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK." / "You are an interactive agent that helps users **with software engineering tasks**." + the security-testing policy + "NEVER generate or guess URLs … unless … for helping the user with programming." |
-| `# System` | Output "will be rendered in a **monospace font**"; permission-mode + denied-call rule; `<system-reminder>` tags; prompt-injection flag; hooks; auto-compaction. |
-| `# Doing tasks` | "The user will primarily request you to perform **software engineering tasks**…" + coding rules (no unrequested features/refactors, no comments, no defensive error handling, test UI changes in a browser) + `/help` + "report the issue at github.com/anthropics/claude-code/issues". |
-| `# Executing actions with care` | Confirm hard-to-reverse / outward-facing actions (our approval card already owns this). |
-| `# Using your tools` | Prefer dedicated tools over Bash; plan with TodoWrite/TaskCreate; parallel calls; "Use the Agent tool with specialized agents … should not be used excessively." |
-| `# Tone and style` | "**Your responses should be short and concise.**" No emojis. "include the pattern `file_path:line_number`". No colon before tool calls. |
-| `# Communicating with the user` (dynamic) | Say one sentence before the first tool call, brief updates, lead with the outcome, readable > concise. (Genuinely good; our base says the same.) |
-| `# Environment` (dynamic) | cwd, git flag, platform, OS, "You are powered by the model …", "**Claude Code is available as a CLI … desktop app … IDE extensions**", fast mode. |
-| `## Delegating to subagents` (dynamic, **Opus 5 only**, present when the Agent tool is in the toolset — it is, for our managers) | "Subagents multiply cost and time … **Do not spawn a subagent for work you could finish yourself in a handful of tool calls** … Keep spawn counts low … Delegate for work that is genuinely independent, large enough to justify a fresh context, or naturally parallel. **Otherwise, do it yourself.**" |
-| Others | pronouns, action caution, task continuity, session guidance (`!` prefix, skills, ultrareview), auto-memory, scratchpad, context management, autonomy append. |
+| Intro | "You are an interactive agent that helps users **with software engineering tasks**." + the security-testing policy. |
+| `# Harness` | Text is "displayed to the user as Github-flavored markdown **in a terminal**"; permission mode + denied-call rule; mid-conversation system turns; hooks; prefer dedicated file/search tools over shell; parallel calls; "Reference code as `file_path:line_number`". |
+| loose lines | Match surrounding code style; they/them pronouns; confirm hard-to-reverse / outward-facing actions; report outcomes faithfully. |
+| `# Session-specific guidance` | `/<skill-name>` → Skill tool. |
+| `# Memory` | "You have a persistent file-based memory at `~/.claude/projects/<cwd>/memory/`… write to it directly with the Write tool" + the whole memory-file protocol. |
+| `# Environment` | cwd, git flag, platform, shell, OS, "You are powered by the model named Opus 5", cutoff, model ids, "**Claude Code is available as a CLI … desktop app … IDE extensions**", fast mode. |
+| `# Context management` | auto-compaction. |
+| `# Delivering work` | Scope discipline, finish the whole task, when to ask. (Good; keep the idea.) |
+| `# Corrections` | Don't over-correct or apologise. (Good.) |
+| **last two lines before our append** | "**Do not call the AgentTool unless the user requested it**" / "Do not use workflows or deep-research unless the user requested it". |
+| after our append | `# Advisor Tool` — a server-side `advisor` tool "backed by a stronger reviewer model"; "Call advisor BEFORE substantive work … and when you believe the task is complete." Added to the custom shape too. |
 
-Anthropic documents the last one: "Claude Code adds a delegation instruction of its own on Claude
-Opus 5 only when you use its `claude_code` system prompt preset" ([Prompting Claude Opus 5 →
-Controlling subagent spawning](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5)).
-So on our production model the preset itself tells the manager to do the work itself — and it sits
-BEFORE our append, with a 3k-token head start. That is the "did the work itself" Kafi saw.
+So the words the manager reads immediately before "anything substantial goes to a child session"
+are *don't hand work to another agent unless the user asked*. The Opus-5 "## Delegating to
+subagents … Otherwise, do it yourself" block exists in the binary and is documented by Anthropic
+([Prompting Claude Opus 5 → Controlling subagent spawning](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5)),
+but it is behind a remote/model steer flag and was NOT in this first request — don't quote it as
+present.
+
+### Three side findings from the capture
+
+1. **Hidden second memory.** The preset's `# Memory` section is live in Vynel sessions: this
+   machine has 68 `~/.claude/projects/*/memory/` dirs, and the Vynel global root's hidden SDK cwd
+   (`C--Users-KLONE--vynel-global-root/memory`) holds `MEMORY.md` + `desktop-control-focus-quirks.md`
+   — memories the user never sees, beside `@vynel/memory`. The SDK `Settings` type has
+   `autoMemoryEnabled: false` ("will not read from or write to the auto-memory directory") — one
+   line in `buildClaudeSdkOptions`' `settings`.
+2. **Tool guidance lives in the `tools` array, not the prompt.** Every one of the 30 native tool
+   definitions is sent whatever the system prompt says — `Workflow` (19k chars), `Monitor` (6k),
+   `DesignSync`, `ScheduleWakeup` + `CronCreate` (compete with Vynel schedules), `RemoteTrigger`,
+   `SendMessage` / `ListAgents`, `PushNotification`, `EnterWorktree` / `ExitWorktree`, `Skill`,
+   `LSP`, `ReportFindings`, `TaskOutput` / `TaskStop`, `NotebookEdit`. The only levers are
+   `disallowedTools` / `allowedTools` and our own MCP descriptions. Denying the ones a
+   non-technical product never wants also shrinks every request.
+3. **A second request per new session** names the session ("You are naming a coding session…",
+   3k chars). Passing `options.title` skips it.
 
 ## 2. Measured: cost, and what survives a custom prompt
 
@@ -46,15 +84,15 @@ Probe 1 (`claude-opus-5`, `settingSources: []`, no MCP servers, prompt "Reply wi
 | preset | 27,272 |
 | custom one-liner | 24,022 |
 
-**The preset's instructions are ≈3.2k tokens.** The other ~24k is the built-in tool definitions
-(Bash, Read, Edit, Agent, …), which ride the API `tools` parameter and are unchanged by the system
-prompt choice — so "replace it to save tokens" is not a motive. What DOES survive a custom prompt:
+**The preset's instructions are ≈3.2k tokens.** The other ~24k is the tool definitions above,
+unchanged by the system prompt choice — so "replace it to save tokens" is not a motive. What DOES
+survive a custom prompt:
 
 - **Tools work.** Custom prompt + "What is the secret word in hello.txt?" → the model called Bash and
   answered PELICAN (same as the preset run).
 - **CLAUDE.md still loads** (last night's canary, 2/2): it rides `settingSources`, not the preset.
-- **What you lose** is exactly the preset text above — including the useful bits we must re-supply
-  (harness facts, tool hygiene, the communication cadence).
+- **What you lose** is exactly the preset text above — including the parts worth re-supplying
+  (harness facts, tool hygiene, `# Delivering work`, `# Corrections`).
 
 ## 3. Measured: does the prompt shape change the manager's behaviour?
 
@@ -93,13 +131,13 @@ marker fixes the **next action**. Both are needed; neither replaces the other.
   need"). Custom = "You take responsibility for replacing the tool guidance and safety instructions
   your agent still needs."
 - [Output styles](https://code.claude.com/docs/en/output-styles): the sanctioned "different role"
-  path for the CLI. It swaps the intro line and drops only the `# Doing tasks` block; `# Tone and
-  style`, `# System`, `# Environment` and the Opus-5 delegation section stay. Needs a style file on
-  disk (workspace `.claude/output-styles/`, `~/.claude/output-styles/`, or a plugin) — plumbing for
-  little gain, and it measured no better than append.
+  path for the CLI. It swaps the intro line and drops the coding block; the harness, environment
+  and memory sections stay. Needs a style file on disk (workspace `.claude/output-styles/`,
+  `~/.claude/output-styles/`, or a plugin) — plumbing for little gain, and it measured no better
+  than append.
 - [Piebald-AI/claude-code-system-prompts](https://github.com/Piebald-AI/claude-code-system-prompts)
   — the preset is 500+ conditional fragments, re-cut every release; anything we build "around" it
-  is built on sand. Our extract matched their structure for 2.1.235.
+  is built on sand (this capture is already a snapshot of one build).
 - [Team 400](https://team400.ai/blog/2026-04-claude-agent-sdk-system-prompts-customisation) and the
   [SDK-vs-CLI report](https://github.com/shanraisshan/claude-code-best-practice/blob/main/reports/claude-agent-sdk-vs-cli-system-prompts.md):
   coding products should keep the preset (+ `settingSources`), because "agents produce noticeably
@@ -115,20 +153,21 @@ marker fixes the **next action**. Both are needed; neither replaces the other.
 ## 5. A confound in every live check so far
 
 `buildClaudeSdkOptions` sets `settingSources: ['user', 'project', 'local']`, so the **end user's
-`~/.claude/CLAUDE.md` and `~/.claude/rules/` are injected into every Vynel session**. On Kafi's dev
-machine that is the "I'm a full-stack developer … talk to me like a pair programmer … after every
-change give a summary" file. A non-technical end user has none, so production is clean — but every
-manual check on a dev box has been running with a developer persona layered under Vynel's. Decide
-deliberately: keep `user` (skills/plugins land in standard Claude locations — the marketplace
-interop decision) but it drags the memory file along. Cheapest fix for checks: an empty
-`~/.claude/CLAUDE.md` on the test machine; the real fix is a product decision.
+`~/.claude/CLAUDE.md`, `~/.claude/rules/` and `~/.claude/agents/` are injected into every Vynel
+session**. On Kafi's dev machine that is the "I'm a full-stack developer … talk to me like a pair
+programmer" file plus a 10k-char agent roster. A non-technical end user has none, so production is
+clean — but every manual check on a dev box has been running with a developer persona layered
+under Vynel's. Keep `user` (skills/plugins land in standard Claude locations — the marketplace
+interop decision) knowing it drags these along; cheapest fix for checks: an empty
+`~/.claude/CLAUDE.md` on the test machine.
 
 ## 6. The options
 
 | | Keep preset + append (today) | **Custom system prompt** | Output style |
 |---|---|---|---|
-| Identity | "You are Claude Code… software engineering" first, Vynel second | Vynel first and only | Vynel + preset tone/env/delegation |
-| Fights the manager model | yes (Opus-5 "do it yourself") | no | yes (section stays) |
+| Identity | "You are Claude Code… software engineering" first, Vynel second | Vynel first and only | Vynel + preset harness/env/memory |
+| "Don't call the AgentTool unless asked" right before our rules | yes | no | yes |
+| Hidden auto-memory section | yes (fix separately) | no | yes |
 | Re-supply harness/tool text | no | yes — one `harness.md` | no |
 | Plumbing | none | small (provider seam) | style file per workspace / plugin |
 | Measured delegation (n=4) | 1/4 | 3/4 | 2/4 |
@@ -139,9 +178,9 @@ interop decision) but it drags the memory file along. Cheapest fix for checks: a
    preset's harness facts — where text is shown (Vynel's chat, markdown), tools run behind the
    approval card and a denied call is the user declining, `<system-reminder>` tags are the
    harness, flag suspected prompt injection, the conversation auto-compacts, prefer dedicated
-   file/search tools over shell, parallel independent calls, work in the workspace folder.
-   Plus a short rendered environment line (workspace path, platform) — the date already rides the
-   turn-time marker.
+   file/search tools over shell, parallel independent calls, work in the workspace folder — plus
+   the `# Delivering work` / `# Corrections` ideas in Vynel's words. A short rendered environment
+   line (workspace path, platform); the date already rides the turn-time marker.
 2. `composeSessionInstruction` prepends the harness — the one ordering home stays the one home; every
    door (chat, voice, channel, schedule fires, the three delegated runners, direct turns) already
    composes through it.
@@ -150,9 +189,12 @@ interop decision) but it drags the memory file along. Cheapest fix for checks: a
    `systemPrompt: input.systemPrompt` instead of the preset object. Guard test: the SDK options
    never carry `type: 'preset'` again.
 4. Per-message manager marker (`manager-turn-marker.md`) as decided last night — unchanged plan.
-5. `settingSources` untouched in this slice; the `user` CLAUDE.md question is its own decision.
-6. Gate + two live smokes (manager delegates on a real workspace; child persona on a direct turn).
+5. Side slices (independent, each one line in `buildClaudeSdkOptions`): `settings: { autoMemoryEnabled:
+   false }`; `title` per session (skips the naming request); a `disallowedTools` list for the native
+   tools Vynel never wants (decide the list against the tools file).
+6. `settingSources` untouched; the `user` CLAUDE.md question is its own decision.
+7. Gate + two live smokes (manager delegates on a real workspace; child persona on a direct turn).
 
 Caveats: n is small (see the table), one model, stub delegation tools, a toy project; the empty-folder
-probe last night turned "build" into "ask". Rerun on a real workspace after the slice lands before
-quoting the numbers as law.
+probe last night turned "build" into "ask"; the capture is one CLI build. Rerun on a real workspace
+after the slice lands before quoting the numbers as law.
