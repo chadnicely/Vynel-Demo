@@ -1,3 +1,4 @@
+/// <reference path="./unbzip2-stream.d.ts" />
 import { createReadStream, createWriteStream } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
