@@ -238,11 +238,25 @@ export class VoiceSessionDriver {
     // Asleep = wake listening → ALWAYS the local recognizer (the room never
     // streams to a cloud API). Once a conversation is live, the utterance is
     // a command — the session lane (a cloud provider, when picked) hears it.
-    const transcript = (
-      this.#state === 'asleep' || this.#deps.transcribeCommand === undefined
-        ? await this.#deps.recognizer.transcribe(segment)
-        : await this.#deps.transcribeCommand(segment)
-    ).trim()
+    // A transcription failure is a ROUTINE event on that lane (engine
+    // restarting, provider outage) and `pushAudio` is fire-and-forget — a
+    // throw here would be an unhandled rejection that kills the daemon, so
+    // the utterance is dropped with a warning and the mic keeps listening
+    // (the call leg's precedent).
+    let transcript: string
+    try {
+      transcript = (
+        this.#state === 'asleep' || this.#deps.transcribeCommand === undefined
+          ? await this.#deps.recognizer.transcribe(segment)
+          : await this.#deps.transcribeCommand(segment)
+      ).trim()
+    } catch (error) {
+      this.#deps.logger.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        'transcription failed — dropped the utterance, still listening',
+      )
+      return
+    }
     if (!transcript) return
     if (this.#speaker.echoFilter.isEcho(transcript)) {
       this.#deps.logger.debug({ transcript }, 'ignoring an echo of our own voice')

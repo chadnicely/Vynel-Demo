@@ -972,4 +972,30 @@ describe('VoiceSessionDriver — the session transcription lane (cloud hearing)'
     expect(recognizer.calls).toBe(1) // untouched — no double transcription
     expect(utterances).toContain('cloud heard this command')
   })
+
+  it('a session-lane failure drops the utterance and keeps listening — never a crash', async () => {
+    let commandCalls = 0
+    const { driver, recognizer } = buildDriver(['hey vynel'], () => brainSaying('Sure.'), {
+      transcribeCommand: async () => {
+        commandCalls += 1
+        if (commandCalls === 1) throw new Error('cloud transcription unreachable')
+        return 'heard after the outage'
+      },
+    })
+
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(driver.isAwake).toBe(true)
+
+    // The failing utterance: dropped, no rejection escapes pushAudio.
+    await expect(driver.pushAudio(chunk())).resolves.toBeUndefined()
+    await settle()
+    expect(driver.isAwake).toBe(true) // the conversation survived
+
+    // The next utterance is heard normally.
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(commandCalls).toBe(2)
+    expect(recognizer.calls).toBe(1) // wake only — the local model never re-entered
+  })
 })
