@@ -18,6 +18,8 @@ import {
   useUserPreferences,
 } from "../../composables/users/use-user-preferences.js";
 import LocalModelCard from "../models/LocalModelCard.vue";
+import CloudVoicesSettings from "../voice/CloudVoicesSettings.vue";
+import HearingSourceSettings from "../voice/HearingSourceSettings.vue";
 import SectionHeader from "./SectionHeader.vue";
 
 // Settings → Voice: the models Vynel speaks and hears with — which are on this
@@ -40,6 +42,12 @@ const chosenTts = computed(
   () => ttsModels.value.find((model) => model.id === preferences.value?.voiceTtsModelId) ?? null,
 );
 const speakers = computed(() => chosenTts.value?.speakers ?? []);
+
+// The cloud-provider blocks (connect, speaking pick + voice, hearing source)
+// live in their own components — this section keeps the local models, the
+// save→reload cycle, and the Preview player.
+const ttsSource = computed(() => preferences.value?.voiceTtsSource ?? "local");
+const sttSource = computed(() => preferences.value?.voiceSttSource ?? "web-speech");
 
 const isBusy = computed(
   () => actions.download.isPending.value || actions.cancel.isPending.value || actions.remove.isPending.value,
@@ -112,8 +120,9 @@ watch(models, (rows) => {
 
 function chooseTts(modelId: string) {
   if (!isTtsModelId(modelId)) return;
-  // A new model has its own speakers — start from its default voice.
-  savePick({ voiceTtsModelId: modelId, voiceSpeakerId: 0 });
+  // A new model has its own speakers — start from its default voice. Picking
+  // a local model IS picking the local source.
+  savePick({ voiceTtsModelId: modelId, voiceSpeakerId: 0, voiceTtsSource: "local" });
 }
 
 function chooseStt(modelId: string) {
@@ -175,7 +184,7 @@ async function preview() {
               type="radio"
               name="voice-tts"
               :value="model.id"
-              :checked="preferences?.voiceTtsModelId === model.id"
+              :checked="ttsSource === 'local' && preferences?.voiceTtsModelId === model.id"
               :disabled="model.state !== 'installed' || updatePreferences.isPending.value"
               @change="chooseTts(model.id)"
             />
@@ -183,7 +192,7 @@ async function preview() {
             <span v-if="model.state !== 'installed'" class="text-ink-3">(download it first)</span>
           </label>
           <div
-            v-if="preferences?.voiceTtsModelId === model.id && model.state === 'installed'"
+            v-if="ttsSource === 'local' && preferences?.voiceTtsModelId === model.id && model.state === 'installed'"
             class="flex flex-wrap items-center gap-3"
           >
             <label v-if="speakers.length > 1" class="speaker-pick flex items-center gap-2 text-xs text-ink-2">
@@ -209,6 +218,22 @@ async function preview() {
             </button>
           </div>
         </LocalModelCard>
+
+        <CloudVoicesSettings
+          :preferences="preferences"
+          :saving="updatePreferences.isPending.value"
+          :previewing="isPreviewing"
+          @save="savePick"
+          @preview="preview"
+        />
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <HearingSourceSettings
+          :stt-source="sttSource"
+          :saving="updatePreferences.isPending.value"
+          @save="savePick"
+        />
       </section>
 
       <section class="flex flex-col gap-2">
@@ -217,7 +242,8 @@ async function preview() {
              open it announces its session and the daemon stands down (Kafi 2026-08-22:
              web recognition is the one that hears you; the engine needs internet anyway). -->
         <p class="hearing-note m-0 text-xs text-ink-3">
-          Used to catch “hey Vynel” and open the window. From then on, web speech recognition hears you.
+          Used to catch “hey Vynel” and open the window — always on this computer, whatever the
+          conversation hearing above says. From then on, your picked hearing source takes over.
         </p>
         <LocalModelCard
           v-for="model in sttModels"

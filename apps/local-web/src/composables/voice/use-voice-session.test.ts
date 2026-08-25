@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineComponent } from "vue";
 import { mount, type VueWrapper } from "@vue/test-utils";
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import type { VynelClient } from "@vynel/sdk";
 import {
   VOICE_TIER_MODEL,
@@ -26,7 +27,15 @@ function mountVoiceSession(onEnded: () => void, onStarted?: () => void) {
   const wrapper = mount(Harness, {
     global: {
       // The failed-start path never reaches the client; a stub satisfies inject.
+      // The preferences query it now carries fails against the stub — data stays
+      // undefined, which IS the web-speech default this test exercises.
       provide: { [vynelClientKey as symbol]: {} as VynelClient },
+      plugins: [
+        [
+          VueQueryPlugin,
+          { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+        ],
+      ],
     },
   });
   return { session, wrapper };
@@ -39,7 +48,7 @@ describe("useVoiceSession", () => {
       endedCount += 1;
     });
 
-    expect(session.canListen).toBe(false); // happy-dom ships no SpeechRecognition
+    expect(session.canListen.value).toBe(false); // happy-dom ships no SpeechRecognition
     session.start();
 
     expect(endedCount).toBe(1);
@@ -139,6 +148,12 @@ function mountWithStream() {
       provide: {
         [vynelClientKey as symbol]: { POST, root: { interruptTurn } } as unknown as VynelClient,
       },
+      plugins: [
+        [
+          VueQueryPlugin,
+          { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+        ],
+      ],
     },
   });
   return { session, POST, interruptTurn, stream: () => handles[0]! };
