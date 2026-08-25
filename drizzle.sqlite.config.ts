@@ -63,6 +63,7 @@ export default defineConfig({
     '../customization/src/schema/tree-layouts.ts',
     '../display/src/schema/display-widgets.ts',
     '../ssh-servers/src/schema/ssh-servers.ts',
+    '../voice-providers/src/schema/voice-provider-connections.ts',
     '../server-install/src/schema/server-installs.ts',
     './src/schema/onboarding/onboarding-runs.ts',
     './src/schema/capabilities/workspace-capabilities.ts',
