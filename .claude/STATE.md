@@ -15,6 +15,18 @@ boot; `no such column` → delete `.data/vynel.dev.db*` + restart — the known 
 Gates were green throughout (GATE_EXIT=0); whatever is wrong is a LIVE-only behavior. Start by
 asking Kafi what they saw, then reproduce.
 
+**Kafi's report + the MEASURED answer (2026-08-26, `.claude/journal/2026-08-26-instruction-channel-probe.md`):**
+the manager did the work itself (delegated only when asked), then didn't merge the child's DONE
+report. A 7-channel probe on the production model showed: every SYSTEM-PROMPT channel (append either
+order, UserPromptSubmit hook additionalContext, SessionStart, .claude/rules file, custom prompt) →
+0/2 delegations; a ONE-LINE manager marker on the USER message → 2/2 (explore → create_task →
+delegate → update_task, Kafi's flow). Removing Write/Edit/Bash alone → 0/2. The task-section
+contradiction was NOT the root cause (identity-only → 0/2). CORRECTION: a custom system prompt keeps
+CLAUDE.md (canary 2/2). **Next:** per-message markers — manager (`manager-turn-marker.md` naming
+create_session/send_message), child duties, and the "child reported DONE → verify, merge, remove
+worktree, close task" step on the delivered message; the manager-report steer; session header on
+delegated turns; prompt cleanup as reinforcement only.
+
 ## 🔧 2026-08-25 OPERATING MODEL + JOURNAL TIMELINE (on main)
 
 Kafi's system model, first slices (`1b80d848` + `13dc0e6f`): **kind files teach the manager/child
