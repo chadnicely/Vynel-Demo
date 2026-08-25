@@ -15,12 +15,12 @@ describe('loadSessionInstruction', () => {
   // files into the shared text base; the kind files keep only what the kind is.
   it('base states the operating rules every text session carries', () => {
     const prompt = loadSessionInstruction('base')
-    expect(prompt).toContain('plain language')
+    expect(prompt).toContain('no jargon')
     expect(prompt).toContain('approval card')
     // The real-schedule discipline (never a simulated timer) — an unframed
     // schedule ask once produced a sleep timer; the rule is base material.
-    expect(prompt).toContain('create a real schedule')
-    expect(prompt).toContain('never simulate')
+    expect(prompt).toContain('real schedule with the schedule tool')
+    expect(prompt).toContain('simulate one with sleep')
     // The assistant is Claude, working through Vynel — the runtime stays out of the user's view.
     expect(prompt).toContain('Vynel')
     expect(prompt).toContain('You are Claude')

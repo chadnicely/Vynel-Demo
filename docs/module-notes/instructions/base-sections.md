@@ -6,6 +6,22 @@ character reaches the model), so the "not built yet / perfect it in a separate s
 the codebase" marks live here. Compare against `claude-system-prompt.md`; re-render ours with the
 recipe in `.claude/journal/2026-08-26-render-system-prompts.md`.
 
+**Kafi's Claude-web rewrite (2026-08-26, later):** the base was reshaped again — sections now:
+`# Identity` (+ role-wins line: "It refines this base; where the two differ, the role wins"; the
+duty-book pointer moved here) · security (verbatim) · `# Harness` (+ "check the environment with
+your tools, don't assume"; "other sessions only through Vynel's session tools — never spawn agents,
+timers, or background processes of your own", which the role-wins line lets `spawned-session.md`
+override for the FRESH review agent) · `# Continuity` (four places: Memory — what holds · Journal —
+what happened · Knowledge base — what you'd look up · Notebook — how we work; absorbed `# Code`) ·
+`# Context management` (a session is a persona, not a context window; the alert path ends in the
+`checkpoint` call — patched to match the swap machinery) · `# Session-specific guidance` (verbatim)
+· `# Working with the user` (one-question-at-a-time, options with a recommendation, uncertainty
+mid-task, refusal shape, other-sessions-can-be-wrong) · `# Pronouns` · `# Output format` (absorbed
+`# Working out loud` — the UI-load-bearing step-line rules live here now). Fixed during review:
+`create_knowledge_entry` → `add_to_knowledge` (the real tool); three test pins moved to the new
+wording. Caveat to verify: the knowledge tools are capability-gated per workspace — the base
+promises them everywhere; check the denied-call experience where knowledge is off.
+
 | # | Section in `base.md` | Source | Status | To perfect in its own session — verify against the codebase |
 |---|---|---|---|---|
 | 1 | `# Identity` | **ours** | done | Carries two of Kafi's rules: continuity is part of the identity (facts → memory, happenings → journal, automatically, as the day-by-day timeline it reads back), and "if these instructions differ from the ones you were following earlier, pause and follow these first" (a long conversation's old habits must not outrank the current base). The role line assumes every door appends a kind file (it does: manager / spawned / global-root / colleague; `workspace-session.md` has no live door yet). `whoami` is on the background set for children — confirm it answers on every kind. |
