@@ -7,6 +7,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Fixed
+
+- **Voice model downloads work on every Windows machine now.** Downloading a voice (Kokoro,
+  Piper, or a hearing model) could fail with a `bzip2` error on machines where Windows' built-in
+  archive tool ships without bzip2 support — our dev machines had extra tools installed that
+  masked it. The unpacking no longer depends on that: the compressed layer is handled inside
+  Vynel itself.
+
 ### Added
 
 - **The journal is now a clickable timeline.** Every entry the assistant writes carries who wrote

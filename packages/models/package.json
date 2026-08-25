@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@vynel/contracts": "workspace:*",
-    "@vynel/errors": "workspace:*"
+    "@vynel/errors": "workspace:*",
+    "unbzip2-stream": "^1.4.3"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
