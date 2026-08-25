@@ -24,7 +24,7 @@ separate harness file):** `base.md` + `voice-base.md` now open "You are Claude, 
 Claude Agent SDK inside Vynel" and carry the harness facts (chat-markdown surface, approval card +
 declined calls, `<system-reminder>` = harness, compaction, tool hygiene, scope discipline, faithful
 reporting); the `never the underlying runtime` pin moved to `You are Claude`; README row updated;
-`docs/module-notes/claude-sdk-request-anatomy.md` = the section-by-section note. **Plan (§7 of the
+`docs/module-notes/instructions/claude-sdk-request-anatomy.md` = the section-by-section note. **Plan (§7 of the
 journal, NOT started):** provider seam `systemPromptAppend` → full `systemPrompt` string (no
 preset) + rendered environment line + guard test; `Options.tools` whitelist per session kind
 (`native-toolset.md` to write); the per-message `manager-turn-marker.md`; `autoMemoryEnabled:
