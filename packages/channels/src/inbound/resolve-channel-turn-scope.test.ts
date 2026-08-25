@@ -19,7 +19,7 @@ describe('resolveChannelTurnScope', () => {
       const { channel, workspace } = seedChannel(db)
 
       expect(resolveChannelTurnScope(db, { channel, canRunWorkspaceTurn: true }, { logger: silent }))
-        .toEqual({ kind: 'workspace', workspaceId: workspace.id, workspacePath: workspace.path })
+        .toEqual({ kind: 'workspace', workspaceId: workspace.id, workspacePath: workspace.path, workspaceName: workspace.name })
     })
   })
 

@@ -20,12 +20,14 @@ export type ComposedSessionCapabilities = {
 
 export function composeSessionCapabilities(
   db: Database,
-  input: { workspaceId: string },
+  input: { workspaceId: string; workspaceName: string },
 ): ComposedSessionCapabilities {
   const enabled = listEnabledCapabilities(db, input.workspaceId)
   const enabledIds = new Set<CapabilityId>(enabled.map((capability) => capability.id))
 
-  const sections: string[] = [composeSessionInstruction('workspace-manager')]
+  const sections: string[] = [
+    composeSessionInstruction('workspace-manager', { workspaceName: input.workspaceName }),
+  ]
   if (enabledIds.has('memory')) {
     sections.push(buildMemorySessionContribution(db, { workspaceId: input.workspaceId }))
   }

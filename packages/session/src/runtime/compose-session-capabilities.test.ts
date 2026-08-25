@@ -55,8 +55,8 @@ describe('composeSessionCapabilities', () => {
   it('always includes the Vynel identity stack (base + workspace-manager)', async () => {
     await withTestDatabase((db) => {
       const { workspace } = seed(db)
-      const composed = composeSessionCapabilities(db, { workspaceId: workspace.id })
-      expect(composed.systemPromptAppend).toContain(composeSessionInstruction('workspace-manager'))
+      const composed = composeSessionCapabilities(db, { workspaceId: workspace.id, workspaceName: workspace.name })
+      expect(composed.systemPromptAppend).toContain(composeSessionInstruction('workspace-manager', { workspaceName: workspace.name }))
     })
   })
 
@@ -72,7 +72,7 @@ describe('composeSessionCapabilities', () => {
         capabilityId: 'memory',
         isEnabled: false,
       })
-      const composed = composeSessionCapabilities(db, { workspaceId: workspace.id })
+      const composed = composeSessionCapabilities(db, { workspaceId: workspace.id, workspaceName: workspace.name })
       expect(composed.systemPromptAppend).not.toContain('Head of partnerships at Acme.')
     })
   })
@@ -81,7 +81,7 @@ describe('composeSessionCapabilities', () => {
     await withTestDatabase((db) => {
       const { user, workspace } = seed(db)
       addMemoryEntry(db, user.id, workspace.id)
-      const composed = composeSessionCapabilities(db, { workspaceId: workspace.id })
+      const composed = composeSessionCapabilities(db, { workspaceId: workspace.id, workspaceName: workspace.name })
       expect(composed.systemPromptAppend).toContain('Head of partnerships at Acme.')
     })
   })

@@ -192,6 +192,7 @@ describe('startChannelsService', () => {
       originChannel: 'telegram' as const,
       workspaceId: 'ws-1',
       workspacePath: '/tmp/ws',
+      workspaceName: 'Acme',
     }
 
     buildWorkspaceRunnerMock.mockRejectedValueOnce(new Error('descriptor import failed'))

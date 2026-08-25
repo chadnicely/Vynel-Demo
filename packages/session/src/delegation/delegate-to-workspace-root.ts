@@ -178,7 +178,7 @@ export async function delegateToWorkspaceRoot(
     // The manager identity rides EVERY turn of the workspace primary — a routed
     // turn is the same continuing session as the interactive chat, so it keeps
     // the same base+kind stack; the routed steer follows it.
-    systemPromptAppend: `${composeSessionInstruction('workspace-manager')}\n\n${composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions)}`,
+    systemPromptAppend: `${composeSessionInstruction('workspace-manager', { workspaceName: input.workspaceName })}\n\n${composeRoutedTurnSystemPrompt(input.mcpAttachment, input.steerInstructions)}`,
     permissionMode: input.permissionMode ?? toPermissionMode(DEFAULT_SESSION_MODE),
     // Empty grants: a resumed root keeps the workspace's existing tool grants; a
     // fresh root gets the SDK defaults. The provider's own floor still cards

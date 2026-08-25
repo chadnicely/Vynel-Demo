@@ -51,15 +51,15 @@ describe('loadSessionInstruction', () => {
   // the workspace's MANAGER (the primary runs the work and manages children).
   it('workspace-manager frames the primary as the workspace manager', () => {
     const prompt = loadSessionInstruction('workspace-manager')
-    expect(prompt).toContain('MANAGER')
+    expect(prompt).toContain('Workspace Manager')
     expect(prompt).toContain('child session')
     // Sending a task to a child means sending instructions with it.
-    expect(prompt).toContain('clear instructions')
+    expect(prompt).toContain('goes into its task')
     // The merge discipline (Kafi 2026-08-25): children live in worktrees;
     // the MANAGER merges into main and removes the worktree — never a child.
     expect(prompt).toContain('worktree')
     expect(prompt).toContain('merge')
-    expect(prompt).toContain('never another child')
+    expect(prompt).toContain('merge session')
   })
 
   it('spawned-session frames the child and its working discipline', () => {

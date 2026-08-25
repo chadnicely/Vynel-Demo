@@ -242,7 +242,7 @@ export async function streamChatTurn(
     // A resumed turn knows its session before the first frame — stamp it now so
     // even a tool called on the very first event carries the identity.
     if (resumeSessionId !== undefined) turnSession.resolve(resumeSessionId)
-    const composed = composeSessionCapabilities(c.var.db, { workspaceId: c.var.workspace!.id })
+    const composed = composeSessionCapabilities(c.var.db, { workspaceId: c.var.workspace!.id, workspaceName: c.var.workspace!.name })
     // Compose the enabled agents for this session (Mode A — the root model
     // delegates to them via the SDK Agent tool). In ask mode every
     // irreversible (sub)agent tool call still cards via the always-on

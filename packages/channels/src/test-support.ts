@@ -59,7 +59,7 @@ export function makeWorkspace(userId: string) {
 export interface SeededChannel {
   user: { id: string }
   /** `path` rides along: a workspace-scoped channel turn is addressed by it. */
-  workspace: { id: string; path: string }
+  workspace: { id: string; path: string; name: string }
   channel: Channel
 }
 

@@ -90,6 +90,8 @@ export interface WorkspaceChannelTurnInput {
   userId: string
   workspaceId: string
   workspacePath: string
+  /** The workspace name — renders the manager identity's {{workspace_name}}. */
+  workspaceName: string
   userMessageText: string
   /** The channel coordinates this turn must answer — stamped on every request
    *  its tools make, so `reply_to_channel` needs no address from the model. */
@@ -213,7 +215,7 @@ export async function buildWorkspaceChannelTurnRunner(
           surfaceKind: 'workspace-interactive',
         },
       )
-      const composedCapabilities = composeSessionCapabilities(db, { workspaceId })
+      const composedCapabilities = composeSessionCapabilities(db, { workspaceId, workspaceName: input.workspaceName })
 
       // The cap arms only now the lock is HELD — queue time was the holder's
       // budget. A parked card suspends it; on expiry the streams' helper

@@ -156,11 +156,12 @@ const channelOrigin = {
   externalChatContextId: '123456',
 }
 
-function turnInput(userId: string, workspace: { id: string; path: string }) {
+function turnInput(userId: string, workspace: { id: string; path: string; name: string }) {
   return {
     userId,
     workspaceId: workspace.id,
     workspacePath: workspace.path,
+    workspaceName: workspace.name,
     userMessageText: 'how did yesterday go?',
     origin: channelOrigin,
     originChannel: 'telegram' as const,

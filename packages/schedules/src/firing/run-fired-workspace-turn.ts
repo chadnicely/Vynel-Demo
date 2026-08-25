@@ -79,7 +79,7 @@ export async function runFiredWorkspaceTurn(
   })
   // The workspace's capability PROMPT for THIS turn (Vynel rules + enabled-
   // capability contributions like the memory snapshot).
-  const composed = deps.composeSessionCapabilities(db, { workspaceId: workspace.id })
+  const composed = deps.composeSessionCapabilities(db, { workspaceId: workspace.id, workspaceName: workspace.name })
   // The turn's settings — the workspace primary's row, else the defaults (BT2).
   const settings = deps.resolveWorkspaceTurnSettings(db, {
     userId: schedule.userId,

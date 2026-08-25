@@ -19,12 +19,23 @@ describe('composeSessionInstruction', () => {
     expect(composed).not.toContain(loadSessionInstruction('base'))
   })
 
-  it('composes the manager and child kinds on the text base', () => {
-    for (const kind of ['workspace-manager', 'spawned-session', 'workspace-session'] as const) {
+  it('composes the child kinds on the text base', () => {
+    for (const kind of ['spawned-session', 'workspace-session'] as const) {
       const composed = composeSessionInstruction(kind)
       expect(composed.startsWith(loadSessionInstruction('base')), kind).toBe(true)
       expect(composed.endsWith(loadSessionInstruction(kind)), kind).toBe(true)
     }
+  })
+
+  it('renders the workspace-manager kind with the workspace name filled in', () => {
+    const composed = composeSessionInstruction('workspace-manager', { workspaceName: 'Letterman' })
+    expect(composed).toContain('the workspace "Letterman"')
+    expect(composed).not.toContain('{{workspace_name}}')
+    expect(composed.startsWith(loadSessionInstruction('base'))).toBe(true)
+  })
+
+  it('fails loudly when the workspace-name placeholder is left unfilled', () => {
+    expect(() => composeSessionInstruction('workspace-manager')).toThrow(/workspace_name/)
   })
 
   it('renders the agent-colleague kind with the agent name filled in', () => {

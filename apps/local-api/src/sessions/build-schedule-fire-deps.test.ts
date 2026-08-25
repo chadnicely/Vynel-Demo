@@ -117,7 +117,7 @@ describe('buildScheduleFireDeps (real composition — no mocks)', () => {
       const { workspaceId } = seedWorkspace(db)
       const deps = await buildScheduleFireDeps(realOptions())
 
-      const composed = deps.composeSessionCapabilities(db, { workspaceId })
+      const composed = deps.composeSessionCapabilities(db, { workspaceId, workspaceName: 'Fired workspace' })
 
       expect(typeof composed.systemPromptAppend).toBe('string')
       expect(composed.systemPromptAppend.length).toBeGreaterThan(0)

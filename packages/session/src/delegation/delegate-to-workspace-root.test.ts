@@ -96,7 +96,7 @@ describe('delegateToWorkspaceRoot', () => {
       // identity (base + workspace-manager) now LEADS the routed steer, so the
       // primary keeps one identity whichever door the turn came through.
       expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(
-        `${composeSessionInstruction('workspace-manager')}\n\n${ROUTED_TASK_INSTRUCTIONS}`,
+        `${composeSessionInstruction('workspace-manager', { workspaceName: workspace.name })}\n\n${ROUTED_TASK_INSTRUCTIONS}`,
       )
 
       // The fresh workspace-root segment was recorded (hidden, workspace-scoped).
@@ -150,7 +150,7 @@ describe('delegateToWorkspaceRoot', () => {
 
       // The steer swapped wholesale — never both; the identity still leads.
       expect(startChatSessionInputs[0]!.systemPromptAppend).toBe(
-        `${composeSessionInstruction('workspace-manager')}\n\n${REPORT_DELIVERY_INSTRUCTIONS}`,
+        `${composeSessionInstruction('workspace-manager', { workspaceName: workspace.name })}\n\n${REPORT_DELIVERY_INSTRUCTIONS}`,
       )
 
       // The INBOUND row reads as the child's report; the reply keeps the
@@ -204,7 +204,7 @@ describe('delegateToWorkspaceRoot', () => {
       expect(turnInput.askModeApprovalToolNames).toEqual(['mcp__vynel__remove_knowledge_source'])
       // Identity first, the routed steer next, the composer's feature sections last.
       expect(turnInput.systemPromptAppend).toBe(
-        `${composeSessionInstruction('workspace-manager')}\n\n${ROUTED_TASK_INSTRUCTIONS}\n\n## Task list\nKeep it current.`,
+        `${composeSessionInstruction('workspace-manager', { workspaceName: workspace.name })}\n\n${ROUTED_TASK_INSTRUCTIONS}\n\n## Task list\nKeep it current.`,
       )
     })
   })

@@ -35,8 +35,8 @@ const kinds: Kind[] = [
     title: 'Workspace MANAGER — interactive chat turn',
     door: 'apps/local-api/src/streams/chat-turn.ts → composeSessionCapabilities + composeSessionMcpServers',
     parts: [
-      { source: 'session-instructions/base.md', text: composeSessionInstruction('workspace-manager').split('\n\n').slice(0, -1).join('\n\n'), note: 'base' },
-      { source: 'session-instructions/workspace-manager.md', text: composeSessionInstruction('workspace-manager').split('\n\n').slice(-1).join(''), note: 'kind' },
+      { source: 'session-instructions/base.md', text: composeSessionInstruction('workspace-manager', { workspaceName: 'Letterman' }).split('\n\n').slice(0, -1).join('\n\n'), note: 'base' },
+      { source: 'session-instructions/workspace-manager.md', text: composeSessionInstruction('workspace-manager', { workspaceName: 'Letterman' }).split('\n\n').slice(-1).join(''), note: 'kind' },
       memoryPart,
       { source: 'apps/mcp vynelWorkspaceInteractiveDescriptor.contributePrompt (one section per enabled capability: tasks · plans · phases · features · journal)', text: workspaceSections },
       { source: '@vynel/instructions notebookFeatureDescriptor', text: NOTEBOOK_PROMPT_INSTRUCTIONS },

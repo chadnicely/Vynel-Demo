@@ -164,6 +164,7 @@ export async function routeAsChatTurn(
             ...turnRequest,
             workspaceId: scope.workspaceId,
             workspacePath: scope.workspacePath,
+            workspaceName: scope.workspaceName,
           })
         : await deps.runRootTurn(db, turnRequest)
     // NO CAPTURE while the turn HAS replied: the model spoke through

@@ -81,7 +81,7 @@ export interface ProcessInboundDeps {
   // the root path byte-for-byte.
   runWorkspaceTurn?: (
     db: Database,
-    input: ChannelTurnRequest & { workspaceId: string; workspacePath: string },
+    input: ChannelTurnRequest & { workspaceId: string; workspacePath: string; workspaceName: string },
   ) => Promise<{ resultText: string }>
   // Resolve an approval at the sender's direction (the channel approval-reply path). Injected +
   // typed STRUCTURALLY here so the channels leaf never imports the approvals leaf (invariant #2 —

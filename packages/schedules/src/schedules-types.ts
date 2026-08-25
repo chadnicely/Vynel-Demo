@@ -189,7 +189,7 @@ export interface FireScheduleDeps {
   // skips composition.
   composeSessionCapabilities: (
     db: Database,
-    input: { workspaceId: string },
+    input: { workspaceId: string; workspaceName: string },
   ) => {
     systemPromptAppend: string
   }

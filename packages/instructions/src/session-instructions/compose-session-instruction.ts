@@ -1,13 +1,3 @@
-// `composeSessionInstruction` — the per-session identity stack: one BASE (how
-// to behave + how to format output) plus the session's KIND file (what this
-// session is). The base is picked by CHANNEL — a voice turn reads
-// `voice-base.md`, written for the ear, instead of the text base — because
-// output format is base material, and a voice turn must never be handed prose
-// rules it then has to un-learn (the old shape appended a voice modifier AFTER
-// the feature sections instead). One composer so callers cannot drift on the
-// order: base first, kind second; per-turn steers and per-feature sections
-// join after, at the caller.
-
 import { loadSessionInstruction } from './load-session-instruction.js'
 
 /** The session kinds with an identity file — the duty-book kinds' prompt-side
@@ -24,18 +14,24 @@ export type SessionInstructionKind =
 
 export function composeSessionInstruction(
   kind: SessionInstructionKind,
-  options: { voice?: boolean; agentName?: string } = {},
+  options: { voice?: boolean; agentName?: string; workspaceName?: string } = {},
 ): string {
   const base = loadSessionInstruction(options.voice === true ? 'voice-base' : 'base')
   let kindInstruction = loadSessionInstruction(kind)
   if (options.agentName !== undefined) {
     kindInstruction = kindInstruction.replaceAll('{{agentName}}', options.agentName)
   }
-  // Fail-loud on an unfilled placeholder (the render-marker discipline): a
-  // literal `{{agentName}}` reaching the model means the caller forgot the name.
-  if (kindInstruction.includes('{{agentName}}')) {
+  if (options.workspaceName !== undefined) {
+    kindInstruction = kindInstruction.replaceAll('{{workspace_name}}', options.workspaceName)
+  }
+  // Fail loud on ANY unrendered placeholder — a kind file may add one (the
+  // manager's {{workspace_name}}, the colleague's {{agentName}}) and a door
+  // that forgets to pass the value must break in tests, never ship mustache
+  // to the model.
+  const unrendered = kindInstruction.match(/\{\{[a-zA-Z_]+\}\}/)
+  if (unrendered !== null) {
     throw new Error(
-      `Session instruction "${kind}" carries an {{agentName}} placeholder — pass options.agentName to compose it.`,
+      `Session instruction "${kind}" carries an unrendered ${unrendered[0]} placeholder — pass the matching option (agentName / workspaceName) to compose it.`,
     )
   }
   return `${base}\n\n${kindInstruction}`

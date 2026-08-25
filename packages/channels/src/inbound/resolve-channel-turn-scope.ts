@@ -20,7 +20,7 @@ import type { StructuralLogger } from '../channels-types.js'
 
 export type ChannelTurnScope =
   | { kind: 'global' }
-  | { kind: 'workspace'; workspaceId: string; workspacePath: string }
+  | { kind: 'workspace'; workspaceId: string; workspacePath: string; workspaceName: string }
 
 export function resolveChannelTurnScope(
   db: Database,
@@ -44,5 +44,5 @@ export function resolveChannelTurnScope(
     )
     return { kind: 'global' }
   }
-  return { kind: 'workspace', workspaceId: workspace.id, workspacePath: workspace.path }
+  return { kind: 'workspace', workspaceId: workspace.id, workspacePath: workspace.path, workspaceName: workspace.name }
 }
