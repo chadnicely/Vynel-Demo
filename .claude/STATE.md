@@ -3,7 +3,26 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔬 2026-08-26 DEFAULT-PROMPT RESEARCH — decision awaiting Kafi's okay
+## ✅ 2026-08-26 PRESET GONE — Vynel's stack IS the system prompt (on main)
+
+Kafi's go: `buildClaudeSdkOptions` now sends the composed stack as the SDK's custom `systemPrompt`
+(no `claude_code` preset), whitelists Claude Code's base tools (`CLAUDE_CODE_BASE_TOOL_NAMES`:
+Bash/Read/Edit/Write/Glob/Grep/WebFetch/WebSearch/Agent/Skill/TaskOutput/TaskStop — Workflow,
+Monitor, Cron*, ScheduleWakeup, SendMessage… dropped, ≈19k tokens of definitions per request), and
+sets `settings: { autoMemoryEnabled: false }` (the hidden second memory). Field name
+`systemPromptAppend` kept (the SDK still frames our text with its one-line identity) — a rename is
+polish. Notes: `docs/module-notes/instructions/` (README · claude-system-prompt · vynel-system-prompt
+· request anatomy · native-toolset). **Live smoke on `test2` (Kafi's Desktop scratch workspace):**
+turn 1 "what's in this folder / who are you" → step line, one Bash, "I'm Claude, working inside
+Vynel…" in plain words ✔. Turn 2 "add a contact page… build it" → created the task, then
+SELF-BUILT it (8 Bash calls: files, typecheck, started both servers, curl-tested) — no child
+session, on a 150k-token continuing conversation full of self-build precedent. That is the
+measured limit of prompt-side identity; **NEXT = the per-message `manager-turn-marker.md`**
+(user-turn marker: 2/2 in the probe) + the report-arrival marker. test2 was left with the
+turn's uncommitted contact-page files (Kafi to look/discard). Gate: rerun after a voice-overlay
+port flake under load (`overlay-channel.test.ts` green alone).
+
+## 🔬 2026-08-26 DEFAULT-PROMPT RESEARCH — decided (see above)
 
 Kafi: the appended manager/child instructions "are not working at all" — research first. Journal:
 `.claude/journal/2026-08-26-default-prompt-research.md`; the request the CLI really sends is

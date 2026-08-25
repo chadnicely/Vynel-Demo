@@ -2,7 +2,7 @@
 // See `docs/blueprints/providers/blueprint.md §11.5`.
 
 import { describe, expect, it } from 'vitest'
-import { buildClaudeSdkOptions } from './build-claude-sdk-options.js'
+import { buildClaudeSdkOptions, CLAUDE_CODE_BASE_TOOL_NAMES } from './build-claude-sdk-options.js'
 
 const base = {
   workspacePath: '/tmp/ws',
@@ -142,22 +142,29 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.allowedTools).toBeUndefined()
   })
 
-  it('appends systemPromptAppend to the Claude Code preset system prompt', () => {
+  it("sends Vynel's stack as the CUSTOM system prompt — never the claude_code preset", () => {
     const options = buildClaudeSdkOptions({
       ...base,
       permissionMode: 'ask',
-      systemPromptAppend: 'You are Vynel.',
+      systemPromptAppend: 'You are Claude, working through Vynel.',
     })
-    expect(options.systemPrompt).toEqual({
-      type: 'preset',
-      preset: 'claude_code',
-      append: 'You are Vynel.',
-    })
+    expect(options.systemPrompt).toBe('You are Claude, working through Vynel.')
   })
 
-  it('omits append when systemPromptAppend is not provided (bare preset — regression)', () => {
+  it('omits the system prompt when no stack is given (the seeded-swap priming turn)', () => {
     const options = buildClaudeSdkOptions({ ...base, permissionMode: 'ask' })
-    expect(options.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' })
+    expect(options.systemPrompt).toBeUndefined()
+  })
+
+  it("whitelists Claude Code's base tools — Vynel's features arrive as MCP tools", () => {
+    const options = buildClaudeSdkOptions({ ...base, permissionMode: 'ask' })
+    expect(options.tools).toEqual([...CLAUDE_CODE_BASE_TOOL_NAMES])
+    expect(options.tools).not.toContain('Workflow')
+  })
+
+  it("turns the SDK's hidden auto-memory off", () => {
+    const options = buildClaudeSdkOptions({ ...base, permissionMode: 'ask' })
+    expect(options.settings).toEqual({ autoMemoryEnabled: false })
   })
 
   it('forwards agents to the SDK options when provided, omits them otherwise', () => {

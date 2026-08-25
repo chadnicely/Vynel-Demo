@@ -120,6 +120,16 @@ Read together with last night's probe (empty folder: every system-prompt channel
 marker on the user turn 2/2): the custom prompt fixes the **identity** contest; the per-message
 marker fixes the **next action**. Both are needed; neither replaces the other.
 
+**Live, after landing (same day, `test2` — Kafi's Desktop scratch workspace, continuing
+conversation ≈150k tokens of history):** turn 1 "what's in this folder, who are you" → one step
+line, one Bash call, "I'm Claude, working inside Vynel…" in plain words, no runtime talk. Turn 2
+"add a contact page… build it" → `create_task`, then eight Bash calls: wrote the API + page files,
+typechecked, started both dev servers with `nohup`, curl-tested — **no child session**. Same
+verdict as the probe: identity landed, the next action did not flip on a session whose own
+transcript is full of self-building. The marker slice is next; the stray dev servers the turn
+started were stopped by hand afterwards, and the uncommitted files left in `test2` are Kafi's to
+keep or discard.
+
 ## 4. What Anthropic and others say
 
 - [Modifying system prompts](https://code.claude.com/docs/en/agent-sdk/modifying-system-prompts):

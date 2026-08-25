@@ -2,8 +2,8 @@
 
 Rendered through the real composer (`composeSessionInstruction`) and the real descriptor sections
 (`McpFeatureDescriptor.contributePrompt`, every capability enabled), in the order each door joins
-them. Today this whole stack rides as `append` after Claude Code's preset
-(`claude-system-prompt.md`); after the seam change it IS the system prompt. Parts marked
+them. Since 2026-08-26 this stack IS the system prompt — the SDK adds only its one-line "You are a Claude agent…" frame and the Advisor section; Claude Code's preset
+(`claude-system-prompt.md`) is no longer sent. Parts marked
 DB-dependent or per-turn are named, not rendered. Sizes exclude the preset and the tool
 definitions. Re-render: the recipe + script live in `.claude/journal/2026-08-26-render-system-prompts.md` (copy the script into
 `apps/local-api/src/`, run it with tsx, delete it).

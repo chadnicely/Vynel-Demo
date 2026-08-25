@@ -93,12 +93,13 @@ export type StartChatSessionInput = {
   mcpServers?: Record<string, unknown>
 
   /**
-   * Text appended to the Claude Code preset system prompt
-   * (`systemPrompt.append`). Carries Vynel's always-on operating rules plus,
-   * per enabled capability, its "how to use" instruction + context snapshot.
-   * Composed by the caller (apps/api session-build); providers forwards it
-   * verbatim into the SDK options. Applies every turn, incl. resumed sessions.
-   * See `.claude/plans/capability-platform.md`.
+   * Vynel's whole standing prompt: the identity stack (base + kind, composed by
+   * `composeSessionInstruction`) plus, per enabled capability, its "how to use"
+   * instruction + context snapshot. Composed by the caller; the provider sends
+   * it as the runtime's CUSTOM system prompt — Claude Code's preset is not used
+   * (2026-08-26; `docs/module-notes/instructions/`). The runtime still frames
+   * it with its own one-line identity, hence "append". Applies every turn,
+   * incl. resumed sessions.
    */
   systemPromptAppend?: string
 

@@ -7,9 +7,11 @@ verbatim from our bundled CLI (2.1.235 in SDK 0.3.235) under production options;
 `.claude/journal/2026-08-26-claude-code-tools-captured.md` (all 30 tool definitions). A new CLI
 build re-cuts the preset text; re-capture before quoting it (recipe at the end).
 
-**Status: research landed. `base.md` / `voice-base.md` now carry the harness facts + the
-Claude-through-Vynel identity (Kafi's call 2026-08-26: no separate `harness.md`); the seam change
-(send the stack as the whole `systemPrompt`) and the native toolset whitelist await Kafi's okay.**
+**Status: LANDED 2026-08-26.** `base.md` / `voice-base.md` carry the harness facts + the
+Claude-through-Vynel identity (no separate `harness.md`); `buildClaudeSdkOptions` sends the stack
+as the whole `systemPrompt` (the `claude_code` preset is gone), whitelists Claude Code's base tools
+(`native-toolset.md`), and turns the SDK's auto-memory off. Live check: a real turn on the `test2`
+workspace opened with a step line, one Bash call, then "I'm Claude, working inside Vynel…".
 
 ## 1. The request at a glance
 

@@ -1,7 +1,8 @@
 # Session instructions
 
-The always-on identity/operating prompts Vynel appends to a session's system
-prompt. Each `<id>.md` in this directory **is** one prompt — the filename says
+The always-on identity/operating prompts that ARE a session's system prompt —
+Claude Code's own preset is not used (since 2026-08-26); the SDK frames our text
+with its one-line identity only. Each `<id>.md` in this directory **is** one prompt — the filename says
 which session it governs, and the whole file body is injected verbatim. Edit a
 file to change how that scope behaves — no code change, no rebuild. Each file is
 read once and cached for the process's lifetime, so a running app picks up your

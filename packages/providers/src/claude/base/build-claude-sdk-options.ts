@@ -30,10 +30,17 @@ export type BuildClaudeSdkOptionsInput = {
    */
   mcpServers?: Options['mcpServers']
   /**
-   * Text appended to the Claude Code preset system prompt
-   * (`systemPrompt.append`). Vynel's operating rules + per-enabled-capability
-   * instructions/snapshot, composed by the caller. See
-   * `.claude/plans/capability-platform.md`.
+   * Vynel's whole standing prompt — base + kind + feature sections, composed by
+   * the caller through `composeSessionInstruction`. Sent as the SDK's CUSTOM
+   * `systemPrompt` string: Claude Code's `claude_code` preset is deliberately
+   * NOT used — it opens "You are Claude Code… software engineering tasks", ends
+   * "Do not call the AgentTool unless the user requested it" right before our
+   * text, and installs an auto-memory protocol (measured 2026-08-26: the
+   * manager delegated 1/4 under preset+append vs 3/4 under a custom prompt;
+   * `docs/module-notes/instructions/`). The SDK still frames the string with
+   * its own one-line identity ("You are a Claude agent…"), hence "append".
+   * Omitted only by the seeded-swap priming turn, which then runs on the SDK's
+   * minimal tool-calling prompt.
    */
   systemPromptAppend?: string
   /**
@@ -107,6 +114,31 @@ const SDK_PERMISSION_MODE = {
 // protocol, offering the native form is offering a dead phone.
 const NATIVE_TOOLS_WITHOUT_A_VYNEL_ANSWER_CHANNEL = ['AskUserQuestion']
 
+// Claude Code's base tools — the built-in set Vynel keeps: file / search /
+// shell / web, `Agent` (a child's fresh review agent), `Skill` (marketplace
+// skills install into the standard Claude locations and are invoked through
+// it), and `TaskOutput` / `TaskStop` so a background shell run is never a dead
+// end. Everything else among the SDK's 30 natives (Workflow, Monitor, Cron*,
+// ScheduleWakeup, SendMessage, ListAgents, DesignSync, RemoteTrigger,
+// PushNotification, EnterWorktree/ExitWorktree, LSP, NotebookEdit,
+// ReportFindings) duplicates a Vynel feature or belongs to the interactive
+// CLI, and its definitions cost ≈19k tokens per request (captured 2026-08-26,
+// `.claude/journal/2026-08-26-claude-code-tools-captured.md`).
+export const CLAUDE_CODE_BASE_TOOL_NAMES = [
+  'Bash',
+  'Read',
+  'Edit',
+  'Write',
+  'Glob',
+  'Grep',
+  'WebFetch',
+  'WebSearch',
+  'Agent',
+  'Skill',
+  'TaskOutput',
+  'TaskStop',
+] as const
+
 export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Options {
   const sdkPermissionMode = SDK_PERMISSION_MODE[input.permissionMode]
 
@@ -126,11 +158,17 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
     // Code as the user experiences it (Implement decision — blueprint §11.5
     // gave only the input shape).
     settingSources: ['user', 'project', 'local'],
-    systemPrompt: {
-      type: 'preset',
-      preset: 'claude_code',
-      ...(input.systemPromptAppend !== undefined ? { append: input.systemPromptAppend } : {}),
-    },
+    // Vynel's stack IS the system prompt — never the `claude_code` preset (see
+    // `systemPromptAppend` above).
+    ...(input.systemPromptAppend !== undefined ? { systemPrompt: input.systemPromptAppend } : {}),
+    // The built-in toolset is a WHITELIST; Vynel's own features arrive as MCP
+    // tools (`mcpServers` below).
+    tools: [...CLAUDE_CODE_BASE_TOOL_NAMES],
+    // The SDK's auto-memory would have the model keep a SECOND memory under
+    // `~/.claude/projects/<cwd>/memory/` that the user never sees, beside
+    // `@vynel/memory` (found live 2026-08-26 — the global root's hidden cwd had
+    // files). Flag-layer settings outrank the user's own settings.json.
+    settings: { autoMemoryEnabled: false },
     // The can't-be-skipped safety backstop (always on, every session). A
     // PreToolUse hook fires for EVERY tool call — including a subagent in a
     // bypass permission mode that would skip `canUseTool` — and forces

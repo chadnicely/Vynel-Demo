@@ -10,6 +10,7 @@ apply); this folder is where we compare, measure and plan them.
 | `claude-system-prompt.md` | Claude Code's `claude_code` preset **verbatim**, as our bundled CLI actually sends it (captured 2026-08-26) — plus what the SDK sends instead under a custom prompt. The thing we are replacing. |
 | `vynel-system-prompt.md` | **Ours, end to end**, rendered through the real composer per session kind (workspace manager, child, global brain, colleague, voice): base → kind → feature sections, with sizes. Compare against the file above; optimize here. |
 | `claude-sdk-request-anatomy.md` | The whole API request, section by section: who adds each part (SDK default · preset · `settingSources` · Vynel), whether it survives a custom prompt, and the lever that changes it. Answers "what do we build vs what does the SDK add by default". |
+| `native-toolset.md` | Which of the 30 built-in tools Vynel keeps (`CLAUDE_CODE_BASE_TOOL_NAMES`), which it drops and what replaces each, and the per-kind polish still to do. |
 
 Related, elsewhere:
 
@@ -24,7 +25,7 @@ Related, elsewhere:
 ## How the stack composes (today and after the seam change)
 
 ```
-system prompt = [Claude Code preset — GOES AWAY at the seam change]
+system prompt = (the SDK's one-line "You are a Claude agent…" frame; the claude_code preset is GONE since 2026-08-26)
               + base.md | voice-base.md          ← identity + harness + operating rules + reply format
               + <kind>.md                        ← the duty: workspace-manager / spawned-session / global-root / agent-colleague
               + memory contribution (workspace)  ← "what you already know" snapshot
