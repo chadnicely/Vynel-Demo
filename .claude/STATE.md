@@ -3,7 +3,7 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## 🔵 2026-08-26 VOICE CLOUD PROVIDERS — arc on `feature/voice-providers` (worktree, band 18940)
+## ✅ 2026-08-26 VOICE CLOUD PROVIDERS — MERGED TO MAIN (Kafi: "get everything to main")
 
 Kafi's directive: users connect their own **ElevenLabs / Google Cloud** with an API key and use
 them for TTS and/or STT; **web speech stays the default STT** ("we talk through web"); more
@@ -16,12 +16,16 @@ in `@vynel/voice-engine` (PURE subpath exports — local-api/local-web import `/
 browser both relay; no x-mcp anywhere) · prefs `voiceTtsSource`/`voiceTtsProviderVoiceId`/
 `voiceSttSource` (existing keys untouched) · daemon: wake PINNED local, session lane routes by
 source, `FallbackVoiceEngine` = never-silent · web: provider cards + hearing source picker +
-`cloud-command-recognizer` (AudioWorklet → `SpeechSegmenter` → WAV → engine). Slices 1–4
-committed (`a77f4b55` `02bd1edf` `ec0d5d0f` `ed2bc293`); slice 5 pending the arc-wide
-code-reviewer verdict, then commit. **Remaining:** live smokes (connect a real key → Preview →
-overlay cloud STT round trip) — Kafi; merge to main + worktree teardown after; deferred: cloud
-dictation (composer mic), per-language STT prefs. (The `sealingMasterKey` rename chore landed on
-this branch — the context var + option are honestly named now that two families seal.)
+`cloud-command-recognizer` (AudioWorklet → `SpeechSegmenter` → WAV → engine). All 8 arc commits
+(`a77f4b55` → `7dfdf550`, incl. the reviewer fixes: daemon survives a failed cloud transcription;
+mic-track leak on abort closed; endpoint waits for an in-flight transcript; + the
+`sealingMasterKey` rename) merged to main; arc-wide code-reviewer findings all closed; gate green
+on the merged tree. Same day, separately merged: `fix(models)` — bzip2 decompressed IN-PROCESS
+(Windows tar often lacks the filter; QC field report). **Remaining:** Kafi's live smokes NOW FROM
+MAIN (connect a real key → Preview a cloud voice → overlay cloud-STT round trip → cloud-down
+fallback line; restart the voice daemon after pulling) · push (main is ~50 ahead of origin) ·
+release decision with Chad (the bzip2 fix only reaches users via a build). Deferred: cloud
+dictation (composer mic), per-language STT prefs, parallel per-sentence cloud synth.
 
 ## ✅ 2026-08-26 PRESET GONE — Vynel's stack IS the system prompt (on main)
 
