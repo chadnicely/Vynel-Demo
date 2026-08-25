@@ -21,9 +21,9 @@ describe('loadSessionInstruction', () => {
     // schedule ask once produced a sleep timer; the rule is base material.
     expect(prompt).toContain('create a real schedule')
     expect(prompt).toContain('never simulate')
-    // The user knows the assistant as Vynel, not the underlying runtime.
+    // The assistant is Claude, working through Vynel — the runtime stays out of the user's view.
     expect(prompt).toContain('Vynel')
-    expect(prompt).toContain('never the underlying runtime')
+    expect(prompt).toContain('You are Claude')
     // Every kind has a duty book — the base carries the pointer once.
     expect(prompt).toContain('read_playbook')
     expect(prompt).toContain('whoami')
@@ -119,7 +119,7 @@ describe('loadSessionInstruction', () => {
       const prompt = loadSessionInstruction(id)
       expect(prompt, id).toContain('approval card')
       expect(prompt, id).toContain('real schedule')
-      expect(prompt, id).toContain('never the underlying runtime')
+      expect(prompt, id).toContain('You are Claude')
       expect(prompt, id).toContain('read_playbook')
     }
   })

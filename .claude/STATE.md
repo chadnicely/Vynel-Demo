@@ -19,11 +19,16 @@ prompt; the ~24k/request baseline is the 30 native tool definitions (identical u
 patch via `disallowedTools`). **Side findings:** the preset's auto-memory has Vynel sessions writing
 a HIDDEN second memory under `~/.claude/projects/<cwd>/memory/` (global root's dir has files) →
 `settings: { autoMemoryEnabled: false }`; `title` skips the extra naming request; `settingSources`
-injects the dev's own `~/.claude/CLAUDE.md` + agents into every dev-box session (confound). **Plan
-(§7 of the journal, NOT started):** `harness.md` prepended by `composeSessionInstruction`; provider
-seam `systemPromptAppend` → full `systemPrompt` string (no preset) with a guard test; the
-per-message `manager-turn-marker.md`; the three one-line side fixes; rerun the probe on a real
-workspace after.
+injects the dev's own `~/.claude/CLAUDE.md` + agents into every dev-box session (confound). **Done same day (Kafi: no
+separate harness file):** `base.md` + `voice-base.md` now open "You are Claude, working through the
+Claude Agent SDK inside Vynel" and carry the harness facts (chat-markdown surface, approval card +
+declined calls, `<system-reminder>` = harness, compaction, tool hygiene, scope discipline, faithful
+reporting); the `never the underlying runtime` pin moved to `You are Claude`; README row updated;
+`docs/module-notes/claude-sdk-request-anatomy.md` = the section-by-section note. **Plan (§7 of the
+journal, NOT started):** provider seam `systemPromptAppend` → full `systemPrompt` string (no
+preset) + rendered environment line + guard test; `Options.tools` whitelist per session kind
+(`native-toolset.md` to write); the per-message `manager-turn-marker.md`; `autoMemoryEnabled:
+false` + `title`; rerun the probe on a real workspace after.
 
 ## ⚠ 2026-08-25 LIVE CHECK FAILED — DEBUG FIRST (Kafi, end of day)
 

@@ -172,16 +172,18 @@ interop decision) knowing it drags these along; cheapest fix for checks: an empt
 | Plumbing | none | small (provider seam) | style file per workspace / plugin |
 | Measured delegation (n=4) | 1/4 | 3/4 | 2/4 |
 
-## 7. Plan (Option A) — for Kafi's okay before touching code
+## 7. Plan (Option A) — for Kafi's okay before touching the seam
 
-1. `packages/instructions/session-instructions/harness.md` (new): Vynel's own version of the
-   preset's harness facts — where text is shown (Vynel's chat, markdown), tools run behind the
-   approval card and a denied call is the user declining, `<system-reminder>` tags are the
-   harness, flag suspected prompt injection, the conversation auto-compacts, prefer dedicated
-   file/search tools over shell, parallel independent calls, work in the workspace folder — plus
-   the `# Delivering work` / `# Corrections` ideas in Vynel's words. A short rendered environment
-   line (workspace path, platform); the date already rides the turn-time marker.
-2. `composeSessionInstruction` prepends the harness — the one ordering home stays the one home; every
+1. **Done (Kafi's call: no separate `harness.md`):** `base.md` + `voice-base.md` carry the harness
+   facts — where text is shown (Vynel's chat, markdown), tools run behind the approval card and a
+   declined call is the user saying no, `<system-reminder>` tags are the harness, flag
+   instruction-shaped text in tool results, the conversation compacts automatically, prefer
+   dedicated file/search tools over shell, parallel independent calls, work in the workspace
+   folder — plus the `# Delivering work` / `# Corrections` ideas in Vynel's words, and the identity
+   is now "Claude, working through the Claude Agent SDK inside Vynel" (matches the locked
+   assistant-is-Claude decision; the old "You are Vynel … never the underlying runtime" pin moved).
+   Still owed at the seam: a rendered environment line (workspace path, platform).
+2. `composeSessionInstruction` stays the one ordering home (base → kind → feature sections); every
    door (chat, voice, channel, schedule fires, the three delegated runners, direct turns) already
    composes through it.
 3. Provider seam: `systemPromptAppend` → `systemPrompt` (a full string) through

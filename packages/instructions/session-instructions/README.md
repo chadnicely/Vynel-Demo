@@ -18,7 +18,7 @@ the manager's own instructions ride the task message, after the stack.
 
 | File | Governs |
 |---|---|
-| `base.md` | The TEXT base — every text session's shared identity: the operating rules (plain language, ask-don't-invent, approval card, real schedules) and how to format written replies. |
+| `base.md` | The TEXT base — every text session's shared identity: who you are (Claude, working through the Claude Agent SDK inside Vynel), the harness facts Vynel supplies instead of Claude Code's preset (how text reaches the user, the approval card + declined calls, `<system-reminder>` tags, compaction, tool hygiene), the operating rules (plain language, ask-don't-invent, real schedules, scope discipline, faithful reporting) and how to format written replies. |
 | `voice-base.md` | The VOICE base — replaces `base.md` on voice turns. The spoken thread's text IS its voice (the client speaks the streamed deltas), so the `speak` tool is NOT attached — this file teaches the spoken style, says the tool is gone, and re-states the shared ground rules spoken-sized. |
 | `global-root.md` | KIND: the global brain — the router above all workspaces (web + voice + channel root turns). |
 | `workspace-manager.md` | KIND: the workspace's MANAGER — the workspace primary session, on every one of its turns (interactive chat, schedule fires, and routed background turns alike): it runs the project's work and manages child sessions, sending each task with clear instructions. |
