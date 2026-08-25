@@ -264,9 +264,12 @@ describe('the duty-book binding', () => {
   it('maps every kind to a kebab-case shelf id (voice reads the global root’s book) and reads existence off the shelf', () => {
     for (const slug of Object.values(DUTY_BOOK_SLUGS)) expect(slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
     expect(DUTY_BOOK_SLUGS.voice).toBe(DUTY_BOOK_SLUGS.global)
-    // The global root's standing instruction names its book by slug (the one
-    // prompt that serves a single kind) — keep the two homes aligned.
-    expect(loadSessionInstruction('global-root')).toContain('`' + DUTY_BOOK_SLUGS.global + '`')
+    // test: correct expectation for the duty-book pointer — was "global-root.md
+    // names its slug", should be "the base sends every kind through whoami →
+    // read_playbook" (2026-08-26: the kind files carry only what the base does
+    // not; the slug reaches the model in the whoami report, not the prompt).
+    expect(loadSessionInstruction('base')).toContain('whoami')
+    expect(loadSessionInstruction('base')).toContain('read_playbook')
     // Absent → `exists: false`, present → true, both by injection: the live
     // shelf's contents are not this test's to pin (the books land later, as
     // content, with no test change).

@@ -26,3 +26,13 @@ platform to be rendered at the seam), the SDK memory protocol, "Claude Code is a
 
 `voice-base.md` mirrors sections 1, 2, 3 (spoken-sized), 7, 8 and 9; the alignment test pins the
 shared core to both files — keep them in step.
+
+## Kind files — what the base now covers, removed from each
+
+| Kind file | Removed (base covers it) | Kept (kind-specific) | Status |
+|---|---|---|---|
+| `global-root.md` | the schedule rule text (only the `create_my_schedule` name mapping stays), the duty-book id line (`whoami` → `read_playbook`), ask-don't-invent (only "ask which workspace" stays), the identity wording ("You are Vynel's…" → the role) | the role above all workspaces, the five routing/channel tools + the Display bullet, the 3-step routing recipe, "route all project work — do not read files or do a project's work yourself, even where a tool would let you" (true by structure once the global root gets `tools: []`) | trimmed 2026-08-26 (3107 → 2499 chars) |
+| `workspace-manager.md` | — | — | next |
+| `spawned-session.md` | — | — | next |
+| `agent-colleague.md` | — | — | next |
+| `workspace-session.md` | — | — | next (no live door yet) |
