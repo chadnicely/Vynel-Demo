@@ -23,6 +23,8 @@ export type { GoogleVoiceEngineOptions } from './google/google-voice-engine.js'
 export { GoogleSpeechRecognizer } from './google/google-speech-recognizer.js'
 export type { GoogleSpeechRecognizerOptions } from './google/google-speech-recognizer.js'
 export { VoiceProviderRequestError } from './voice-provider-request-error.js'
+export { FallbackVoiceEngine } from './fallback-voice-engine.js'
+export type { FallbackVoiceEngineOptions } from './fallback-voice-engine.js'
 export {
   createProviderVoiceEngine,
   createProviderSpeechRecognizer,

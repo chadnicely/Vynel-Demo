@@ -1,6 +1,7 @@
 import type { Logger } from 'pino'
 import { SherpaVoiceActivityDetector } from '@vynel/voice-engine'
 import type {
+  PcmAudio,
   SpeechRecognizer,
   VoiceActivityDetector,
   VoiceEngine,
@@ -34,6 +35,9 @@ export interface NativeLegDeps {
   readonly slot: VoiceEngineSlot
   readonly overlay: OverlayChannel
   readonly recognizer: SpeechRecognizer
+  /** The in-session lane (a cloud provider, when picked) — the driver uses it
+   *  for commands only; wake stays on `recognizer`. */
+  readonly transcribeCommand?: (audio: PcmAudio) => Promise<string>
   readonly synthesizer: VoiceEngine
   readonly wakeHandoff: WakeHandoff
 }
@@ -77,6 +81,9 @@ export function startNativeLeg(deps: NativeLegDeps): NativeLeg | null {
       logger,
       vad: traceVad(vad, logger),
       recognizer: traceRecognizer(deps.recognizer, logger),
+      ...(deps.transcribeCommand !== undefined
+        ? { transcribeCommand: deps.transcribeCommand }
+        : {}),
       synthesizer: deps.synthesizer,
       brain: createBrainClient(env.VYNEL_API_URL),
       io,

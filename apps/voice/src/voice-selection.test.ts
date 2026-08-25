@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { planVoiceReload, readVoiceSelection, type VoiceSelection } from './voice-selection.js'
 
-const FALLBACK: VoiceSelection = { ttsModelId: 'kokoro', sttModelId: 'moonshine-base', speakerId: 0 }
+const FALLBACK: VoiceSelection = {
+  ttsSource: 'local',
+  sttSource: 'web-speech',
+  ttsModelId: 'kokoro',
+  sttModelId: 'moonshine-base',
+  speakerId: 0,
+}
 
 function answering(body: unknown, status = 200): typeof fetch {
   return (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
@@ -17,7 +23,12 @@ describe('readVoiceSelection', () => {
     }) as unknown as typeof fetch
     const selection = await readVoiceSelection({ apiUrl: 'http://engine', fallback: FALLBACK, fetch: recording })
     expect(urls).toEqual(['http://engine/users/me/preferences'])
-    expect(selection).toEqual({ ttsModelId: 'piper-lessac', sttModelId: 'moonshine-tiny', speakerId: 3 })
+    expect(selection).toEqual({
+      ...FALLBACK,
+      ttsModelId: 'piper-lessac',
+      sttModelId: 'moonshine-tiny',
+      speakerId: 3,
+    })
   })
 
   it('keeps the fallback per field for anything the engine does not answer or the catalog lacks', async () => {
@@ -45,11 +56,11 @@ describe('planVoiceReload', () => {
   it('swaps only the engines whose model changed and is installed; the speaker always follows', () => {
     const plan = planVoiceReload(
       FALLBACK,
-      { ttsModelId: 'piper-lessac', sttModelId: 'moonshine-base', speakerId: 4 },
+      { ...FALLBACK, ttsModelId: 'piper-lessac', sttModelId: 'moonshine-base', speakerId: 4 },
       () => true,
     )
     expect(plan).toEqual({
-      selection: { ttsModelId: 'piper-lessac', sttModelId: 'moonshine-base', speakerId: 4 },
+      selection: { ...FALLBACK, ttsModelId: 'piper-lessac', sttModelId: 'moonshine-base', speakerId: 4 },
       swapTts: true,
       swapStt: false,
       missing: [],
@@ -59,10 +70,10 @@ describe('planVoiceReload', () => {
   it('keeps the current engine for a picked model that is not on the disk, and says so', () => {
     const plan = planVoiceReload(
       FALLBACK,
-      { ttsModelId: 'piper-lessac', sttModelId: 'moonshine-tiny', speakerId: 0 },
+      { ...FALLBACK, ttsModelId: 'piper-lessac', sttModelId: 'moonshine-tiny', speakerId: 0 },
       (id) => id === 'moonshine-tiny',
     )
-    expect(plan.selection).toEqual({ ttsModelId: 'kokoro', sttModelId: 'moonshine-tiny', speakerId: 0 })
+    expect(plan.selection).toEqual({ ...FALLBACK, sttModelId: 'moonshine-tiny' })
     expect(plan.swapTts).toBe(false)
     expect(plan.swapStt).toBe(true)
     expect(plan.missing).toEqual(['piper-lessac'])

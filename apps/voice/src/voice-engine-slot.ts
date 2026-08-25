@@ -1,6 +1,11 @@
 import type { Logger } from 'pino'
 import type { VoiceReloadOutcome } from '@vynel/contracts/voice/voice-reload'
-import { VoiceEngines, VoiceModelMissingError, isVoiceModelInstalled } from './voice-engines.js'
+import {
+  VoiceEngines,
+  VoiceModelMissingError,
+  isVoiceModelInstalled,
+  type VoiceEngineRelayOptions,
+} from './voice-engines.js'
 import type { VoiceSelection } from './voice-selection.js'
 
 /** The daemon is up but has no voice yet — every model it would speak or
@@ -22,6 +27,9 @@ export interface VoiceEngineSlotOptions {
    *  a pick whose files are gone (or not yet downloaded) still leaves the
    *  daemon with whatever voice IS installed. */
   fallback: VoiceSelection
+  /** Where the provider-backed halves relay to (the engine's cloud doors).
+   *  Required unless a custom `load` is injected. */
+  relay?: VoiceEngineRelayOptions
   load?: VoiceEngineLoader
   isInstalled?: (modelId: string) => boolean
 }
@@ -43,7 +51,13 @@ export class VoiceEngineSlot {
     this.#logger = logger
     this.#fallback = options.fallback
     this.#load =
-      options.load ?? ((selection) => VoiceEngines.load(options.modelsDir, selection, logger))
+      options.load ??
+      ((selection) => {
+        if (options.relay === undefined) {
+          throw new Error('VoiceEngineSlot: relay options are required without a custom loader')
+        }
+        return VoiceEngines.load(options.modelsDir, selection, logger, options.relay)
+      })
     this.#isInstalled =
       options.isInstalled ?? ((modelId) => isVoiceModelInstalled(options.modelsDir, modelId))
   }

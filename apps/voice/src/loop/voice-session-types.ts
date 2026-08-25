@@ -78,6 +78,11 @@ export interface VoiceSessionDriverDeps {
   readonly logger: Logger
   readonly vad: VoiceActivityDetector
   readonly recognizer: SpeechRecognizer
+  /** IN-SESSION transcription (commands after wake) when it differs from the
+   *  wake recognizer — a cloud hearing source. Absent = one recognizer for
+   *  both, exactly the pre-provider behavior. The wake path NEVER uses this:
+   *  the always-on mic stays local. */
+  readonly transcribeCommand?: (audio: PcmAudio) => Promise<string>
   readonly synthesizer: VoiceEngine
   readonly brain: VoiceBrainClient
   readonly io: VoiceSessionIo

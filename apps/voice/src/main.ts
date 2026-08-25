@@ -16,7 +16,7 @@ import type { PcmAudio, SpeechRecognizer, SynthesizeOptions, VoiceEngine } from 
 import { loadEnv } from './env.js'
 import { VoiceEngineSlot } from './voice-engine-slot.js'
 import { readVoiceSelection } from './voice-selection.js'
-import { encodeWav } from './audio/wav-encode.js'
+import { encodeWavFromPcm } from '@vynel/voice-engine/pcm-codec'
 import { CallRegistry } from './call/call-registry.js'
 import {
   createLinuxCallCablePool,
@@ -42,8 +42,11 @@ async function main(): Promise<void> {
   const logger = pino({ level: env.LOG_LEVEL })
 
   // The user's voice pick (Settings → Voice) — env is the fallback for a daemon
-  // that boots before the engine, or a dev box with no pick saved.
+  // that boots before the engine, or a dev box with no pick saved (sources
+  // default to the pre-provider behavior: local voice, web-speech commands).
   const envSelection = {
+    ttsSource: 'local' as const,
+    sttSource: 'web-speech' as const,
     ttsModelId: env.VYNEL_VOICE_TTS,
     sttModelId: env.VYNEL_VOICE_STT,
     speakerId: env.VYNEL_VOICE_ID,
@@ -55,7 +58,11 @@ async function main(): Promise<void> {
   // The pick first; a pick whose files are gone falls back to the env models
   // (the slot owns that order, at boot and on every reload); nothing on the
   // disk at all = no voice yet, and the daemon still comes up.
-  const slot = new VoiceEngineSlot(logger, { modelsDir: env.VYNEL_VOICE_MODELS_DIR, fallback: envSelection })
+  const slot = new VoiceEngineSlot(logger, {
+    modelsDir: env.VYNEL_VOICE_MODELS_DIR,
+    fallback: envSelection,
+    relay: { apiUrl: env.VYNEL_API_URL },
+  })
   if (!slot.tryLoad(selection)) {
     logger.warn('no voice model installed yet — download one in Settings → Voice (the daemon waits)')
   }
@@ -72,6 +79,15 @@ async function main(): Promise<void> {
   )
   const serializedRecognizer: SpeechRecognizer = { transcribe: sharedTranscribe }
   const serializedSynthesizer: VoiceEngine = { synthesize: sharedSynthesize }
+  // IN-SESSION transcription (commands, call legs). When the session lane IS
+  // the local recognizer it must ride the same serialized lane (one native
+  // instance); the engine relay is plain HTTP and needs no mutex.
+  const sharedSessionTranscribe = (audio: PcmAudio): Promise<string> => {
+    const engines = slot.engines
+    return engines.sessionRecognizer === engines.recognizer
+      ? sharedTranscribe(audio)
+      : engines.sessionRecognizer.transcribe(audio)
+  }
 
   // The env cable-pair inventory — env's superRefine guarantees each pair is
   // whole, so presence of one end means the pair exists.
@@ -105,7 +121,8 @@ async function main(): Promise<void> {
     sessionClient: createCallSessionClient(env.VYNEL_API_URL),
     turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
     createVad: () => new SherpaVoiceActivityDetector({ vad: slot.engines.vadConfig }),
-    transcribe: sharedTranscribe,
+    // A call leg is in-session by definition — the cloud lane when picked.
+    transcribe: sharedSessionTranscribe,
     synthesize: (sentence) => sharedSynthesize(sentence),
     findCallSink: (callId) => callRegistry.findCallSink(callId),
   })
@@ -124,7 +141,7 @@ async function main(): Promise<void> {
       onSessionEnd: () => nativeLeg?.driver.endHandoff(),
       onClientsGone: () => nativeLeg?.driver.endHandoff(),
       // The overlay speaks with the daemon's own voice — one voice everywhere.
-      onSynthesize: async (text) => encodeWav(await sharedSynthesize(text)),
+      onSynthesize: async (text) => encodeWavFromPcm(await sharedSynthesize(text)),
       // Settings → Voice saved (or a download landed): re-read the pick, fill
       // or swap the engines, and start the microphone leg if it is not up.
       onReload: async () => {
@@ -220,6 +237,7 @@ async function main(): Promise<void> {
       slot,
       overlay,
       recognizer: serializedRecognizer,
+      transcribeCommand: sharedSessionTranscribe,
       synthesizer: serializedSynthesizer,
       wakeHandoff: wakeHandoff.handoff,
     })

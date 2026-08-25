@@ -235,7 +235,14 @@ export class VoiceSessionDriver {
   }
 
   async #handleSegment(segment: PcmAudio): Promise<void> {
-    const transcript = (await this.#deps.recognizer.transcribe(segment)).trim()
+    // Asleep = wake listening → ALWAYS the local recognizer (the room never
+    // streams to a cloud API). Once a conversation is live, the utterance is
+    // a command — the session lane (a cloud provider, when picked) hears it.
+    const transcript = (
+      this.#state === 'asleep' || this.#deps.transcribeCommand === undefined
+        ? await this.#deps.recognizer.transcribe(segment)
+        : await this.#deps.transcribeCommand(segment)
+    ).trim()
     if (!transcript) return
     if (this.#speaker.echoFilter.isEcho(transcript)) {
       this.#deps.logger.debug({ transcript }, 'ignoring an echo of our own voice')

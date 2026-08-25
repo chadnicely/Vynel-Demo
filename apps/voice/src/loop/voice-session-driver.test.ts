@@ -156,6 +156,7 @@ function buildDriver(
     wakeHandoff?: WakeHandoff
     onTurnWatchdog?: (utterance: string) => void
     synthesizer?: VoiceEngine
+    transcribeCommand?: (audio: PcmAudio) => Promise<string>
   },
 ) {
   const io = new RecordingIo()
@@ -176,6 +177,7 @@ function buildDriver(
       io,
       ...(options?.wakeHandoff ? { wakeHandoff: options.wakeHandoff } : {}),
       ...(options?.onTurnWatchdog ? { onTurnWatchdog: options.onTurnWatchdog } : {}),
+      ...(options?.transcribeCommand ? { transcribeCommand: options.transcribeCommand } : {}),
     },
     {
       ...(options?.idleTimeoutMs !== undefined ? { idleTimeoutMs: options.idleTimeoutMs } : {}),
@@ -935,5 +937,39 @@ describe('VoiceSessionDriver — the watchdog', () => {
     await driver.pushAudio(chunk())
     await vi.advanceTimersByTimeAsync(10_000)
     expect(synthesizer.spoken).toEqual(['Done.']) // no "still working" line
+  })
+})
+
+describe('VoiceSessionDriver — the session transcription lane (cloud hearing)', () => {
+  it('wake rides the LOCAL recognizer; in-conversation commands ride transcribeCommand', async () => {
+    const commandAudio: PcmAudio[] = []
+    const utterances: string[] = []
+    const { driver, recognizer } = buildDriver(
+      ['hey vynel'],
+      (utterance) => {
+        utterances.push(utterance)
+        return brainSaying('Sure.')
+      },
+      {
+        transcribeCommand: async (audio) => {
+          commandAudio.push(audio)
+          return 'cloud heard this command'
+        },
+      },
+    )
+
+    // The wake segment: local recognizer only — the room never hits the cloud lane.
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(driver.isAwake).toBe(true)
+    expect(recognizer.calls).toBe(1)
+    expect(commandAudio).toHaveLength(0)
+
+    // The first in-conversation utterance: the session lane transcribes it.
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(commandAudio).toHaveLength(1)
+    expect(recognizer.calls).toBe(1) // untouched — no double transcription
+    expect(utterances).toContain('cloud heard this command')
   })
 })
