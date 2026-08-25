@@ -4,6 +4,7 @@
 
 import { z } from 'zod'
 import { LOCAL_STT_MODEL_IDS, LOCAL_TTS_MODEL_IDS } from '@vynel/contracts/models/local-model-catalog'
+import { VOICE_STT_SOURCES, VOICE_TTS_SOURCES } from '@vynel/contracts/voice/voice-providers'
 
 export const UpdateUserProfileRequestSchema = z.object({
   displayName: z.string().min(1).max(120).optional(),
@@ -20,6 +21,9 @@ export const SetUserPreferencesRequestSchema = z.object({
   voiceTtsModelId: z.enum(LOCAL_TTS_MODEL_IDS).optional(),
   voiceSpeakerId: z.number().int().min(0).optional(),
   voiceSttModelId: z.enum(LOCAL_STT_MODEL_IDS).optional(),
+  voiceTtsSource: z.enum(VOICE_TTS_SOURCES).optional(),
+  voiceTtsProviderVoiceId: z.string().min(1).max(200).nullable().optional(),
+  voiceSttSource: z.enum(VOICE_STT_SOURCES).optional(),
   desktopActionsEnabled: z.boolean().optional(),
 })
 
@@ -42,6 +46,9 @@ export const UserPreferencesResponseSchema = z.object({
   voiceTtsModelId: z.enum(LOCAL_TTS_MODEL_IDS),
   voiceSpeakerId: z.number().int(),
   voiceSttModelId: z.enum(LOCAL_STT_MODEL_IDS),
+  voiceTtsSource: z.enum(VOICE_TTS_SOURCES),
+  voiceTtsProviderVoiceId: z.string().nullable(),
+  voiceSttSource: z.enum(VOICE_STT_SOURCES),
   desktopActionsEnabled: z.boolean(),
 })
 

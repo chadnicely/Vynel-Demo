@@ -48,7 +48,25 @@ const DEFAULT_PREFERENCES = {
   voiceTtsModelId: "kokoro",
   voiceSpeakerId: 0,
   voiceSttModelId: "moonshine-base",
+  voiceTtsSource: "local",
+  voiceTtsProviderVoiceId: null,
+  voiceSttSource: "web-speech",
 };
+
+function cloudProvider(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "elevenlabs",
+    label: "ElevenLabs",
+    tagline: "Natural voices from your ElevenLabs account.",
+    connectHint: "Create an API key and paste it here.",
+    credentialField: { key: "apiKey", label: "API key", placeholder: "xi-…" },
+    supports: { tts: true, stt: true },
+    connected: false,
+    accountLabel: null,
+    connectedAt: null,
+    ...overrides,
+  };
+}
 
 function harness(
   models: LocalModelStatusResponse[],
@@ -56,10 +74,23 @@ function harness(
   reloadAnswer: unknown = { reloaded: true, ttsModelId: "kokoro", sttModelId: "moonshine-base", speakerId: 5, changed: [], missing: [], ready: true },
   /** Later answers to the models list, one per refetch (the poll). */
   laterModels: LocalModelStatusResponse[][] = [],
+  providers: ReturnType<typeof cloudProvider>[] = [cloudProvider(), cloudProvider({ id: "google", label: "Google Cloud" })],
 ) {
   const updatePreferences = vi.fn(async (patch: Record<string, unknown>) => ({ ...preferences, ...patch }));
   const reload = vi.fn(async () => reloadAnswer);
   const answers = [models, ...laterModels];
+  const connect = vi.fn(async (provider: string) => {
+    const row = providers.find((entry) => entry.id === provider)!;
+    row.connected = true;
+    return { ...row };
+  });
+  const disconnect = vi.fn(async () => undefined);
+  const listVoices = vi.fn(async () => ({
+    voices: [
+      { id: "v-rachel", label: "Rachel", language: "en" },
+      { id: "v-antoni", label: "Antoni", language: "en" },
+    ],
+  }));
   const client = {
     localModels: {
       list: async () => ({ models: answers.length > 1 ? answers.shift()! : answers[0]! }),
@@ -69,6 +100,7 @@ function harness(
     },
     users: { getPreferences: async () => preferences, updatePreferences },
     voice: { reload },
+    voiceProviders: { list: async () => providers.map((entry) => ({ ...entry })), connect, disconnect, listVoices },
   } as unknown as VynelClient;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = mount(VoiceSettingsSection, {
@@ -77,7 +109,7 @@ function harness(
       provide: { [vynelClientKey as symbol]: client },
     },
   });
-  return { wrapper, updatePreferences, reload, queryClient };
+  return { wrapper, updatePreferences, reload, queryClient, connect, disconnect, listVoices };
 }
 
 describe("VoiceSettingsSection", () => {
@@ -118,7 +150,7 @@ describe("VoiceSettingsSection", () => {
     await flushPromises();
     await wrapper.findAll(".tts-pick input")[1]!.trigger("change");
     await flushPromises();
-    expect(updatePreferences).toHaveBeenCalledWith({ voiceTtsModelId: "piper-lessac", voiceSpeakerId: 0 });
+    expect(updatePreferences).toHaveBeenCalledWith({ voiceTtsModelId: "piper-lessac", voiceSpeakerId: 0, voiceTtsSource: "local" });
   });
 
   // The daemon boots on the pick: removing the model in use would leave Vynel
@@ -204,15 +236,69 @@ describe("VoiceSettingsSection", () => {
     expect(wrapper.get(".apply-note").text()).toContain("no voice yet");
   });
 
-  it("tells the truth about who hears you: local models catch the wake word, web speech hears the rest", async () => {
+  it("tells the truth about who hears you: local wake word; the picked source (web speech by default) hears the rest", async () => {
     const { wrapper } = harness([KOKORO, PIPER, MOONSHINE_BASE, VAD]);
     await flushPromises();
     const text = wrapper.text();
+    expect(text).toContain("Hearing · conversation");
+    expect(text).toContain("Web speech recognition");
     expect(text).toContain("Hearing · wake word");
-    expect(wrapper.get(".hearing-note").text()).toContain("web speech recognition hears you");
+    expect(wrapper.get(".hearing-note").text()).toContain("always on this computer");
     expect(text).toContain("Use for the wake word");
     expect(text).not.toContain("Hear with this");
     expect(text).not.toContain("Everything runs on this computer");
     expect(wrapper.get(".vad-note").text()).toContain("Always on");
+  });
+
+  it("connect flow: the key goes up once and never renders back; connected unlocks the picks", async () => {
+    const { wrapper, connect } = harness([KOKORO, PIPER, MOONSHINE_BASE, VAD]);
+    await flushPromises();
+
+    // Both providers offered, neither connected — their pick radios are locked.
+    expect(wrapper.text()).toContain("Cloud voices");
+    expect(wrapper.text()).toContain("connect it first");
+
+    await wrapper.get(".voice-provider-card button").trigger("click"); // Connect…
+    const keyInput = wrapper.get(".voice-provider-card input[type=password]");
+    await keyInput.setValue("xi-super-secret");
+    await wrapper.get(".voice-provider-card form").trigger("submit");
+    await flushPromises();
+
+    expect(connect).toHaveBeenCalledWith("elevenlabs", { apiKey: "xi-super-secret" });
+    // The key never appears anywhere in the rendered section after connect.
+    expect(wrapper.html()).not.toContain("xi-super-secret");
+    expect(wrapper.text()).toContain("Connected");
+  });
+
+  it("a connected provider can be picked for speaking (with its voice) and for hearing", async () => {
+    const providers = [
+      cloudProvider({ connected: true, accountLabel: "starter" }),
+      cloudProvider({ id: "google", label: "Google Cloud" }),
+    ];
+    const preferences = { ...DEFAULT_PREFERENCES, voiceTtsSource: "elevenlabs" };
+    const { wrapper, updatePreferences, listVoices } = harness(
+      [KOKORO, PIPER, MOONSHINE_BASE, VAD],
+      preferences,
+      undefined,
+      [],
+      providers,
+    );
+    await flushPromises();
+
+    // Speaking already points at the provider — its voices were fetched live.
+    expect(listVoices).toHaveBeenCalledWith("elevenlabs");
+    const voiceSelect = wrapper.get(".voice-provider-card select");
+    await voiceSelect.setValue("v-rachel");
+    expect(updatePreferences).toHaveBeenCalledWith({ voiceTtsProviderVoiceId: "v-rachel" });
+    // Let the save + reload settle — the hearing radios unlock again.
+    await flushPromises();
+
+    // Hearing: the connected provider is selectable; the source pick saves.
+    const hearingRadios = wrapper.findAll("input[name=voice-stt-source]");
+    expect(hearingRadios).toHaveLength(3); // web-speech + both providers
+    await hearingRadios[1]!.setValue();
+    expect(updatePreferences).toHaveBeenCalledWith({ voiceSttSource: "elevenlabs" });
+    // Google is not connected — its hearing radio stays locked.
+    expect((hearingRadios[2]!.element as HTMLInputElement).disabled).toBe(true);
   });
 });

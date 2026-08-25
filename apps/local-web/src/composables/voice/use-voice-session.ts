@@ -12,6 +12,8 @@ import {
   createCommandRecognizer,
   isWebSpeechAvailable,
 } from "./speech-recognition.js";
+import { createCloudCommandRecognizer } from "./cloud-command-recognizer.js";
+import { useUserPreferences } from "../users/use-user-preferences.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 import { adaptChatTurnStreamToVoice } from "./voice-turn-adapter.js";
 import { startVoiceCommandSession } from "./voice-command-session.js";
@@ -88,7 +90,15 @@ export function useVoiceSession(options: {
   /** A user-actionable failure (mic denied, unsupported browser). */
   const failure = ref<string | null>(null);
   const isActive = computed(() => view.value.state !== "ended");
-  const canListen = isWebSpeechAvailable();
+  // The hearing source (Settings → Voice): a cloud provider transcribes via
+  // the engine's `/voice/transcribe` door — no Web Speech needed; everything
+  // else is the web-speech leg exactly as before.
+  const preferencesQuery = useUserPreferences();
+  const usesCloudHearing = computed(() => {
+    const source = preferencesQuery.data.value?.voiceSttSource;
+    return source === "elevenlabs" || source === "google";
+  });
+  const canListen = computed(() => usesCloudHearing.value || isWebSpeechAvailable());
 
   let session: VoiceCommandSession | null = null;
 
@@ -97,7 +107,7 @@ export function useVoiceSession(options: {
   function start(initialCommand?: string, turnWatchdogMs?: number): void {
     if (session !== null) return;
     failure.value = null;
-    if (!canListen) {
+    if (!canListen.value) {
       failure.value =
         "Voice recognition needs Chrome or Edge — this browser has no Web Speech support.";
       // A start that can't begin still ends: the owner must hear it so a wake
@@ -107,7 +117,9 @@ export function useVoiceSession(options: {
       return;
     }
 
-    const recognizer = createCommandRecognizer();
+    const recognizer = usesCloudHearing.value
+      ? createCloudCommandRecognizer()
+      : createCommandRecognizer();
     const started = startVoiceCommandSession(
       {
         captureCommand: (onInterim) => recognizer.capture(onInterim),

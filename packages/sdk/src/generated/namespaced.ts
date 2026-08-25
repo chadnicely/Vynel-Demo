@@ -2194,6 +2194,47 @@ export function makeNamespaced(client: Client<paths>) {
     return data
   },
   },
+  voiceProviders: {
+  connect: async (provider: NonNullable<paths["/voice/providers/{provider}/connect"]["post"]['parameters']>['path']["provider"], input: NonNullable<paths["/voice/providers/{provider}/connect"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/voice/providers/{provider}/connect", {
+      params: { path: { provider: provider } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  disconnect: async (provider: NonNullable<paths["/voice/providers/{provider}"]["delete"]['parameters']>['path']["provider"]) => {
+    const { error, response } = await client["DELETE"]("/voice/providers/{provider}", {
+      params: { path: { provider: provider } },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  list: async () => {
+    const { data, error, response } = await client["GET"]("/voice/providers")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listVoices: async (provider: NonNullable<paths["/voice/providers/{provider}/voices"]["get"]['parameters']>['path']["provider"]) => {
+    const { data, error, response } = await client["GET"]("/voice/providers/{provider}/voices", {
+      params: { path: { provider: provider } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  synthesize: async (input: NonNullable<paths["/voice/provider-synthesize"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/voice/provider-synthesize", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  transcribe: async () => {
+    const { data, error, response } = await client["POST"]("/voice/transcribe")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  },
   workspaceApps: {
   add: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/apps"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/apps"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/apps", {

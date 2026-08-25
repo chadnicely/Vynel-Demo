@@ -161,8 +161,9 @@ export async function boot(): Promise<void> {
   // indexing service (below) restores watchers for already-registered sources.
   const fileWatcher = new FileWatcherService(db, logger)
 
-  // The ssh sealing master key, minted on first boot — the SQLite file alone
-  // is useless ciphertext without it. Desktop = the OS keyring; headless
+  // The sealing master key (ssh-servers + voice-providers credentials),
+  // minted on first boot — the SQLite file alone is useless ciphertext
+  // without it. Desktop = the OS keyring; headless
   // servers (VYNEL_MASTER_KEY_FILE set) = an owner-only key file, because no
   // Secret Service exists there and USING the keyring throws. The dynamic
   // import keeps dev/tsx lazy only — esbuild hoists it static in the bundled
@@ -173,7 +174,7 @@ export async function boot(): Promise<void> {
     env.VYNEL_MASTER_KEY_FILE !== undefined
       ? createFileMasterKeyVault(env.VYNEL_MASTER_KEY_FILE)
       : (await import('@vynel/sealing/keyring')).createKeyringMasterKeyVault()
-  const sshMasterKey = resolveMasterKey(masterKeyVault)
+  const sealingMasterKey = resolveMasterKey(masterKeyVault)
 
   // Boot-owned so shutdown can stopAll() — quitting Vynel never orphans a dev
   // server. A SELF-exit publishes its runtime fact through the leaf op.
@@ -336,7 +337,7 @@ export async function boot(): Promise<void> {
     appSupervisor,
     processRunner,
     enableFirstLaunchGate: env.VYNEL_FIRST_LAUNCH_GATE_ENABLED,
-    sshMasterKeyBase64: sshMasterKey,
+    sealingMasterKeyBase64: sealingMasterKey,
     remoteEngine: env.VYNEL_REMOTE_ENGINE,
     appVersion,
     ...(serverPayloadArchive !== null ? { serverPayloadArchive } : {}),

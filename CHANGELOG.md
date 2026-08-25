@@ -17,6 +17,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Bring your own voice.** Settings → Voice can now connect your ElevenLabs or Google Cloud
+  account with an API key — verified before anything is saved, encrypted on this computer, and
+  never shown again. Once connected, either can do the speaking (pick any voice from your
+  account, with Preview) or the hearing (transcribe what you say to a Vynel window). Web speech
+  recognition stays the default for hearing, the wake word is always caught on this computer —
+  the room's audio never streams to a cloud service — and if a cloud voice ever fails
+  mid-sentence, the local voice finishes the reply so nothing goes silent.
+
 - **The journal is now a clickable timeline.** Every entry the assistant writes carries who wrote
   it — the working session's name as a chip you can click to open that conversation in the sidebar
   and see exactly what was done — and, when the work landed as a commit, the commit's short id.

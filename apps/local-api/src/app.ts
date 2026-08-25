@@ -102,6 +102,7 @@ import { hubApp } from './routes/hub/index.js'
 import { rootApp } from './routes/root/index.js'
 import { routingApp } from './routes/routing/index.js'
 import { voiceApp } from './routes/voice/index.js'
+import { voiceProvidersApp } from './routes/voice/providers/index.js'
 import { dashboardApp } from './routes/dashboard/index.js'
 import { dashboardWorkspaceApp } from './routes/dashboard/workspace-scoped.js'
 import { sectionCountsApp } from './routes/section-counts/index.js'
@@ -194,10 +195,14 @@ export interface CreateAppOptions {
   // supervisor above; a child's settle writes the row + outbox event through
   // the leaf op.
   readonly processRunner?: BackgroundProcessRunner
-  // The ssh sealing master key (base64, 32 bytes) — `server.ts` resolves it
-  // from the OS keyring at boot; omitted by generators/tests that don't need
-  // ssh (the routes then answer that ssh is unavailable).
-  readonly sshMasterKeyBase64?: string
+  // THE sealing master key (base64, 32 bytes) — ssh-servers AND
+  // voice-providers credentials seal against it. `server.ts` resolves it from
+  // the OS keyring at boot; omitted by generators/tests that don't seal
+  // (those route families then answer 409 via `requireSealingMasterKey`).
+  readonly sealingMasterKeyBase64?: string
+  // The fetch cloud voice-provider calls go through — omitted in production
+  // (global fetch); a fake in route tests so no test ever calls a cloud API.
+  readonly voiceProviderFetch?: typeof fetch
   // The process-wide desktop-notification reader — `server.ts` constructs the
   // listener on Windows only; omitted (tests / generators / off-Windows) the
   // desktop MCP feature stays off every turn (descriptor `build` → null).
@@ -309,7 +314,8 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
     c.set('askWaiters', askWaiters)
     c.set('appSupervisor', appSupervisor)
     c.set('processRunner', processRunner)
-    c.set('sshMasterKey', options.sshMasterKeyBase64 ?? null)
+    c.set('sealingMasterKey', options.sealingMasterKeyBase64 ?? null)
+    c.set('voiceProviderFetch', options.voiceProviderFetch ?? fetch)
     c.set('remoteEngine', options.remoteEngine ?? false)
     c.set('appVersion', options.appVersion ?? '0.0.0')
     c.set('serverPayloadArchive', options.serverPayloadArchive ?? null)
@@ -480,6 +486,9 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
   // every surface: web tabs, voice, channel turns, schedule fires).
   app.route('/activity', activityApp)
   app.route('/voice', voiceApp)
+  // The cloud voice-provider surface (connect/voices + the executing
+  // transcribe/synthesize doors) — its own chain, same `/voice` prefix.
+  app.route('/voice', voiceProvidersApp)
   app.route('/dashboard', dashboardApp)
   app.route('/section-counts', sectionCountsApp)
   // The unified session list (session-library Slice ③) — user-scoped.

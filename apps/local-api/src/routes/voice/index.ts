@@ -80,6 +80,8 @@ const VoiceReloadResponseSchema = z.union([
     ttsModelId: z.string(),
     sttModelId: z.string(),
     speakerId: z.number().int(),
+    ttsSource: z.string(),
+    sttSource: z.string(),
     changed: z.array(z.string()),
     missing: z.array(z.string()),
     ready: z.boolean(),

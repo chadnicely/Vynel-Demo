@@ -5,8 +5,20 @@ import { VoiceEngineSlot, VoiceNotReadyError } from './voice-engine-slot.js'
 import type { VoiceSelection } from './voice-selection.js'
 
 const silentLogger = pino({ level: 'silent' })
-const PICK: VoiceSelection = { ttsModelId: 'kokoro', sttModelId: 'moonshine-base', speakerId: 2 }
-const ENV_MODELS: VoiceSelection = { ttsModelId: 'piper-lessac', sttModelId: 'moonshine-tiny', speakerId: 0 }
+const PICK: VoiceSelection = {
+  ttsSource: 'local',
+  sttSource: 'web-speech',
+  ttsModelId: 'kokoro',
+  sttModelId: 'moonshine-base',
+  speakerId: 2,
+}
+const ENV_MODELS: VoiceSelection = {
+  ttsSource: 'local',
+  sttSource: 'web-speech',
+  ttsModelId: 'piper-lessac',
+  sttModelId: 'moonshine-tiny',
+  speakerId: 0,
+}
 
 /** Stands in for the native engines: records applies, never touches sherpa. */
 function fakeEngines(selection: VoiceSelection): VoiceEngines & { applied: VoiceSelection[] } {

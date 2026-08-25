@@ -3,6 +3,26 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## 🔵 2026-08-26 VOICE CLOUD PROVIDERS — arc on `feature/voice-providers` (worktree, band 18940)
+
+Kafi's directive: users connect their own **ElevenLabs / Google Cloud** with an API key and use
+them for TTS and/or STT; **web speech stays the default STT** ("we talk through web"); more
+providers later. All five slices BUILT, full gate green after each; design record + status table =
+`docs/module-notes/voice-cloud-providers.md`. Shape: sealed connections leaf
+(`@vynel/voice-providers`, ssh-servers pattern, migration 0055) · cloud engines beside `sherpa/`
+in `@vynel/voice-engine` (PURE subpath exports — local-api/local-web import `/provider-engines` +
+`/pcm-codec`, NEVER the barrel: it loads the sherpa native addon) · engine-side executing doors
+`/voice/transcribe` + `/voice/provider-synthesize` (key never leaves the engine process; daemon +
+browser both relay; no x-mcp anywhere) · prefs `voiceTtsSource`/`voiceTtsProviderVoiceId`/
+`voiceSttSource` (existing keys untouched) · daemon: wake PINNED local, session lane routes by
+source, `FallbackVoiceEngine` = never-silent · web: provider cards + hearing source picker +
+`cloud-command-recognizer` (AudioWorklet → `SpeechSegmenter` → WAV → engine). Slices 1–4
+committed (`a77f4b55` `02bd1edf` `ec0d5d0f` `ed2bc293`); slice 5 pending the arc-wide
+code-reviewer verdict, then commit. **Remaining:** live smokes (connect a real key → Preview →
+overlay cloud STT round trip) — Kafi; merge to main + worktree teardown after; deferred: cloud
+dictation (composer mic), per-language STT prefs. (The `sealingMasterKey` rename chore landed on
+this branch — the context var + option are honestly named now that two families seal.)
+
 ## ✅ 2026-08-26 PRESET GONE — Vynel's stack IS the system prompt (on main)
 
 Kafi's go: `buildClaudeSdkOptions` now sends the composed stack as the SDK's custom `systemPrompt`

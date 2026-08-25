@@ -6,6 +6,12 @@ export interface VoiceReloadOutcome {
   ttsModelId: string
   sttModelId: string
   speakerId: number
+  /** WHERE speaking/hearing run (voice-cloud-providers): 'local' or a
+   *  provider id for tts; 'web-speech' | 'local' | a provider id for stt.
+   *  Sources always follow the pick — a disconnected provider surfaces at
+   *  use (the engine's 409 → the daemon's local fallback), never here. */
+  ttsSource: string
+  sttSource: string
   /** Which engines were actually re-created: 'tts' and/or 'stt'. */
   changed: string[]
   /** Picked models that are not on the disk — the old engine stays for those. */

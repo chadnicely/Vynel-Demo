@@ -272,10 +272,10 @@ export async function streamGlobalRootTurn(
   // are unopenable, so the tools would only error: attach nothing instead.
   // Fail-closed on the TYPE too (a partial test harness leaves the var unset).
   const { buildSshFeatureDescriptor } = await import('@vynel/ssh-servers/mcp')
-  const sshMasterKey = c.var.sshMasterKey
+  const sealingMasterKey = c.var.sealingMasterKey
   const sshFeatureDescriptors =
-    typeof sshMasterKey === 'string'
-      ? [buildSshFeatureDescriptor({ masterKeyBase64: sshMasterKey, logger: c.var.logger })]
+    typeof sealingMasterKey === 'string'
+      ? [buildSshFeatureDescriptor({ masterKeyBase64: sealingMasterKey, logger: c.var.logger })]
       : []
   // Desktop observation (+ gated actions) — the brain's desktop senses. The
   // descriptor excludes itself when no reader was wired at boot (off-Windows /

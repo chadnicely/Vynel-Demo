@@ -19,6 +19,7 @@
 import { resolver, validator } from 'hono-openapi/zod'
 import type { Context } from 'hono'
 import { ConflictError, ValidationError, VynelError } from '@vynel/errors'
+import { requireSealingMasterKey } from '../../sealing-master-key.js'
 import {
   addSshServer,
   listSshServers,
@@ -41,18 +42,10 @@ import {
 
 // The sealing master key is resolved from the OS keyring at boot (server.ts);
 // a context without one (generators, tests that didn't pass it) cannot seal
-// or open a credential, so the sealing routes refuse loudly. WHY ConflictError:
-// @vynel/errors has no 503-mapping class and the taxonomy is deliberately
-// closed (error-handling rule: no per-domain wrappers) — 409 "the server's
-// current state can't take this request" is the closest existing fit.
+// or open a credential, so the sealing routes refuse loudly — via the shared
+// gate in `sealing-master-key.ts` (also the voice-providers stance).
 function requireSshMasterKey(c: Context<AppEnv>): string {
-  const masterKey = c.var.sshMasterKey
-  if (masterKey === null) {
-    throw new ConflictError(
-      'SSH is unavailable: the encryption key is not loaded. Restart Vynel and try again.',
-    )
-  }
-  return masterKey
+  return requireSealingMasterKey(c, 'SSH')
 }
 
 export const sshServersApp = factory
