@@ -212,6 +212,16 @@ const stepProgress = computed(() => {
 // right now.
 const isLit = computed(() => liveTask.value !== null);
 
+// What the card HEADLINES: the task being worked; while a turn runs with
+// nothing marked in-progress yet, the next queued one — the card still names
+// what's up (Chad's rule). Idle with a queue is NOT headlined: that would
+// read "building now" over work nobody is doing.
+const headlineTask = computed(
+  () =>
+    liveTask.value ??
+    (scopeStatus.value === "running" ? (queuedTasks.value[0] ?? null) : null),
+);
+
 // Chad's kicker vocabulary — one line per state.
 const liveKicker = computed(() => {
   if (scopeStatus.value === "needs_input") return "Wants your feedback";
@@ -221,7 +231,7 @@ const liveKicker = computed(() => {
   return "Not running";
 });
 const liveTitle = computed(() => {
-  if (liveTask.value !== null) return liveTask.value.title;
+  if (headlineTask.value !== null) return headlineTask.value.title;
   if (scopeStatus.value === "running") return "Working in the chat";
   if (scopeStatus.value === "needs_input") return "Something needs your answer";
   if (scopeStatus.value === "problem") return "Stopped on an error";
@@ -232,10 +242,10 @@ const liveMeta = computed(() => {
   // The assistant's own one-line why (set_workspace_status note) wins.
   const note = statusView.value?.note;
   if (note) return note;
-  // "Task 2 · building now" — the live task by its number (Chad, 2026-08-25).
-  if (liveTask.value !== null) {
+  // "Task 2 · building now" — the headlined task by its number (Chad, 2026-08-25).
+  if (headlineTask.value !== null) {
     const stage = scopeStatus.value === "needs_input" ? "waiting on you" : "building now";
-    return `Task ${numberOf(liveTask.value)} · ${stage}`;
+    return `Task ${numberOf(headlineTask.value)} · ${stage}`;
   }
   if (scopeStatus.value === "needs_input") return "Open the chat to answer";
   if (scopeStatus.value === "problem") return "Open the chat to see what broke";
@@ -757,7 +767,8 @@ function completedAtLabel(task: TaskResponse): string {
    was running 600/500 and near-white throughout. */
 .work-rail {
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
+  /* ABORT · header · card · list head · the list (stretches) · open it */
+  grid-template-rows: auto auto auto auto 1fr auto;
   gap: var(--space-6);
   min-height: 0;
   /* 320, up from 272 (Kafi, 2026-08-18): rows carry step counts + expanders

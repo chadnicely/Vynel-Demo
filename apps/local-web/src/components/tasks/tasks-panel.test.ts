@@ -313,6 +313,39 @@ describe("TasksPanel (work rail)", () => {
     expect(wrapper.find(".live-meta").text()).toBe("Task 1 · building now");
   });
 
+  // Chad's rule: while a turn runs with nothing marked in-progress yet, the
+  // card names the NEXT queued task rather than "working in the chat".
+  it("names the next queued task while a turn runs — never while idle", async () => {
+    const client = makeClient({
+      tasks: {
+        list: async () => [
+          makeTask({ id: "t2", workspaceId: "w1", title: "Give me an idea what we can build" }),
+        ],
+      },
+    });
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useActivityStore().applyServerActivity({
+      kind: "turn-started",
+      turnId: "turn-1",
+      scopeKind: "workspace",
+      workspaceId: "w1",
+      sessionId: "s-live",
+      origin: "web",
+      startedAt: "2026-08-14T10:00:00.000Z",
+    });
+
+    const running = mountPanel(client, { kind: "workspace", workspaceId: "w1" }, pinia);
+    await flushPromises();
+    expect(running.find(".live-title").text()).toBe("Give me an idea what we can build");
+    expect(running.find(".live-meta").text()).toBe("Task 1 · building now");
+
+    const idle = mountPanel(client, { kind: "workspace", workspaceId: "w1" });
+    await flushPromises();
+    expect(idle.find(".live-title").text()).toBe("Nothing running");
+    expect(idle.find(".live-meta").text()).toBe("1 in the queue, waiting");
+  });
+
   it("what you typed while it was working shows in the card", async () => {
     const wrapper = mount(TasksPanel, {
       props: {
