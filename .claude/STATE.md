@@ -1,7 +1,18 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-27.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
+
+## 📌 2026-08-27 CLAUDE DEFAULTS RULE — a teammate's "Credit balance is too low" (no code change)
+
+Root cause: a User-level `ANTHROPIC_API_KEY` on his Windows account — desktop app → engine →
+bundled `claude.exe` inherit it (SDK `env` defaults to `{...process.env}`), and in non-interactive
+mode the CLI uses an env key over the subscription without the interactive consent — Claude
+Code's documented precedence. Resolved on his machine (User var removed, full relaunch).
+**Decision (Kafi): Vynel keeps ALL of Claude Code's default config + behavior; where a default
+conflicts with Vynel's preference, the conflict is ignored** — no env stripping, no billing
+override, no `customApiKeyResponses`, no `CLAUDE_CONFIG_DIR` isolation. Support recipe + the
+verified chain: `.claude/journal/2026-08-27-claude-defaults-rule.md`.
 
 ## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
 
