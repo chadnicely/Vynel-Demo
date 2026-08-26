@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `projects_directory` text;

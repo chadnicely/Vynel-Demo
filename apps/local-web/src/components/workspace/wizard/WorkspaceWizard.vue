@@ -133,16 +133,12 @@ const isFinishing = computed(
 );
 
 async function finish() {
-  const directory = answers.directory;
-  if (directory === null) {
-    scaffoldError.value = "Pick the folder it will live in first.";
-    return;
-  }
+  // No `directory`: the engine mints the folder from the name inside the
+  // user's projects folder (Chad, 2026-08-24). A pull-in is a different door.
   scaffoldError.value = null;
   try {
     const made = await scaffold.mutateAsync({
       name: answers.appName.trim(),
-      directory,
       ...(props.groupId !== null ? { groupId: props.groupId } : {}),
       answers: toBriefAnswers(answers, planState.leftOut.value),
       plan: planState.plan.value,

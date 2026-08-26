@@ -32,20 +32,22 @@ function answeredThroughQ2(): WizardAnswers {
 }
 
 describe("the step machine", () => {
-  it("is the 12 numbered steps plus Done, with the folder first", () => {
+  it("is the 12 numbered steps plus Done, opening on the idea and naming at screen 9", () => {
     expect(WIZARD_STEPS).toHaveLength(13);
     expect(WIZARD_LAST).toBe(12);
-    expect(WIZARD_STEPS[0]).toBe("place");
-    expect(WIZARD_STEPS[1]).toBe("idea");
+    expect(WIZARD_STEPS[0]).toBe("idea");
+    expect(WIZARD_STEPS[1]).toBe("q1");
+    expect(WIZARD_STEPS[8]).toBe("place");
     expect(WIZARD_STEPS[12]).toBe("done");
   });
 
   it("every gated step says what it still needs", () => {
     const empty = makeEmptyAnswers();
-    expect(wizardGate("place", empty, SIGNED_IN)).toContain("folder");
+    // Place is name-only now — the folder is minted from it, never picked.
+    expect(wizardGate("place", empty, SIGNED_IN)).toContain("name");
     expect(
-      wizardGate("place", { ...empty, directory: "C:\\x" }, SIGNED_IN),
-    ).toContain("name");
+      wizardGate("place", { ...empty, appName: "My Shop" }, SIGNED_IN),
+    ).toBeNull();
     expect(wizardGate("idea", empty, SIGNED_IN)).toContain("idea");
     expect(wizardGate("q1", empty, SIGNED_IN)).toContain("all three");
     expect(wizardGate("q2", empty, SIGNED_IN)).toContain("both");

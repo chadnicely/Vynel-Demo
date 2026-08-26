@@ -15,4 +15,17 @@ describe('sanitizeFolderName', () => {
     expect(sanitizeFolderName('   ')).toBe('workspace')
     expect(sanitizeFolderName('')).toBe('workspace')
   })
+
+  // A traversal is never a folder NAME — a minted project must land INSIDE the
+  // home, never at it (`.`) or above it (`..`).
+  it('refuses a traversal — "." and ".." fall back to "workspace"', () => {
+    expect(sanitizeFolderName('.')).toBe('workspace')
+    expect(sanitizeFolderName('..')).toBe('workspace')
+    expect(sanitizeFolderName('  ..  ')).toBe('workspace')
+  })
+
+  it('keeps a name that merely CONTAINS dots', () => {
+    expect(sanitizeFolderName('my.app')).toBe('my.app')
+    expect(sanitizeFolderName('v1.2')).toBe('v1.2')
+  })
 })

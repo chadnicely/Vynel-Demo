@@ -8,11 +8,12 @@
 
 import { describe, it, expect } from 'vitest'
 import pino from 'pino'
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { withTestDatabase } from '@vynel/testing'
+import { insertUser } from '@vynel/db/repositories/users'
 import type {
   AiAgentProvider,
   WorkspacePlan,
@@ -100,6 +101,27 @@ function makeChosenFolder(): string {
   return mkdtempSync(path.join(os.tmpdir(), 'vynel-workspace-wizard-'))
 }
 
+// The one-shot reads (study / plan) now dispatch from the user's PROJECTS
+// folder, resolved server-side — seed a user whose folder we control so the
+// dispatch cwd is a known path.
+function seedUserWithProjectsHome(
+  db: Parameters<Parameters<typeof withTestDatabase>[0]>[0],
+  home: string,
+): void {
+  const now = new Date()
+  insertUser(db, {
+    id: randomUUID(),
+    displayName: 'Test',
+    emailAddress: null,
+    locale: 'en-US',
+    timezone: 'UTC',
+    hasCompletedOnboarding: false,
+    projectsDirectory: home,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
 function postJson(body: unknown): RequestInit {
   return {
     method: 'POST',
@@ -110,23 +132,20 @@ function postJson(body: unknown): RequestInit {
 
 describe('workspace wizard routes', () => {
   describe('POST /workspaces/wizard/study-rival', () => {
-    it('answers the study and dispatches from the chosen folder, canonical', async () => {
+    it("answers the study and dispatches from the user's projects folder", async () => {
       await withTestDatabase(async (db) => {
         const recorded: Recorded = { studies: [], plans: [] }
+        const home = makeChosenFolder()
+        seedUserWithProjectsHome(db, home)
         const app = createApp({
           db,
           logger: silentLogger,
           aiProvider: makeFakeProvider(recorded, { study: STUDY, plan: null }),
         })
-        const folder = makeChosenFolder()
 
         const res = await app.request(
           '/workspaces/wizard/study-rival',
-          postJson({
-            site: 'opentable.com',
-            idea: 'Book a table',
-            directory: folder,
-          }),
+          postJson({ site: 'opentable.com', idea: 'Book a table' }),
         )
 
         expect(res.status).toBe(200)
@@ -134,7 +153,8 @@ describe('workspace wizard routes', () => {
         expect(recorded.studies).toHaveLength(1)
         expect(recorded.studies[0]?.site).toBe('opentable.com')
         expect(recorded.studies[0]?.idea).toBe('Book a table')
-        expect(recorded.studies[0]?.workspacePath).toBe(realpathSync(folder))
+        // Dispatched from the projects folder — never a client-supplied path.
+        expect(recorded.studies[0]?.workspacePath).toBe(home)
       })
     })
 
@@ -158,32 +178,6 @@ describe('workspace wizard routes', () => {
 
         expect(res.status).toBe(200)
         expect(await res.json()).toEqual({ study: null })
-      })
-    })
-
-    it('returns 400 when the chosen folder does not exist — and never dispatches', async () => {
-      await withTestDatabase(async (db) => {
-        const recorded: Recorded = { studies: [], plans: [] }
-        const app = createApp({
-          db,
-          logger: silentLogger,
-          aiProvider: makeFakeProvider(recorded, { study: STUDY, plan: null }),
-        })
-        const missing = path.join(os.tmpdir(), `vynel-missing-${randomUUID()}`)
-
-        const res = await app.request(
-          '/workspaces/wizard/study-rival',
-          postJson({
-            site: 'opentable.com',
-            idea: 'Book a table',
-            directory: missing,
-          }),
-        )
-
-        expect(res.status).toBe(400)
-        const body = (await res.json()) as { code: string }
-        expect(body.code).toBe('validation_failed')
-        expect(recorded.studies).toHaveLength(0)
       })
     })
 
@@ -215,27 +209,25 @@ describe('workspace wizard routes', () => {
     it('answers the plan and hands every answer to the provider whole', async () => {
       await withTestDatabase(async (db) => {
         const recorded: Recorded = { studies: [], plans: [] }
+        const home = makeChosenFolder()
+        seedUserWithProjectsHome(db, home)
         const app = createApp({
           db,
           logger: silentLogger,
           aiProvider: makeFakeProvider(recorded, { study: null, plan: PLAN }),
         })
-        const folder = makeChosenFolder()
 
-        const res = await app.request(
-          '/workspaces/wizard/plan',
-          postJson({ ...PLAN_ANSWERS, directory: folder }),
-        )
+        const res = await app.request('/workspaces/wizard/plan', postJson(PLAN_ANSWERS))
 
         expect(res.status).toBe(200)
         expect(await res.json()).toEqual({ plan: PLAN })
         expect(recorded.plans).toHaveLength(1)
         const received = recorded.plans[0]!
-        expect(received.workspacePath).toBe(realpathSync(folder))
+        // The cwd is the projects folder, resolved server-side, not an answer.
+        expect(received.workspacePath).toBe(home)
         expect(received.wants).toEqual(PLAN_ANSWERS.wants)
         expect(received.changeRequests).toEqual(PLAN_ANSWERS.changeRequests)
         expect(received.stack).toEqual(PLAN_ANSWERS.stack)
-        // The folder is the cwd, not an answer — it never rides the prompt.
         expect('directory' in received).toBe(false)
       })
     })
@@ -256,26 +248,6 @@ describe('workspace wizard routes', () => {
 
         expect(res.status).toBe(200)
         expect(await res.json()).toEqual({ plan: null })
-      })
-    })
-
-    it('returns 400 when the chosen folder does not exist — and never dispatches', async () => {
-      await withTestDatabase(async (db) => {
-        const recorded: Recorded = { studies: [], plans: [] }
-        const app = createApp({
-          db,
-          logger: silentLogger,
-          aiProvider: makeFakeProvider(recorded, { study: null, plan: PLAN }),
-        })
-        const missing = path.join(os.tmpdir(), `vynel-missing-${randomUUID()}`)
-
-        const res = await app.request(
-          '/workspaces/wizard/plan',
-          postJson({ ...PLAN_ANSWERS, directory: missing }),
-        )
-
-        expect(res.status).toBe(400)
-        expect(recorded.plans).toHaveLength(0)
       })
     })
 

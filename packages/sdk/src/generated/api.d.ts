@@ -4838,7 +4838,6 @@ export interface operations {
                 "application/json": {
                     site: string;
                     idea: string;
-                    directory: string;
                 };
             };
         };
@@ -4898,7 +4897,6 @@ export interface operations {
                         back: string;
                         database: string;
                     };
-                    directory: string;
                 };
             };
         };
@@ -4952,7 +4950,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    directory: string;
+                    directory?: string;
                     groupId?: string;
                     answers: {
                         idea: string;

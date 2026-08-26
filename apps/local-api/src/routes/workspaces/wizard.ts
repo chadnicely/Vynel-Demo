@@ -25,7 +25,7 @@
 import { resolver, validator } from 'hono-openapi/zod'
 import {
   cloneRepositoryWorkspace,
-  resolveExistingDirectory,
+  resolveNewProjectDirectory,
   scaffoldWorkspace,
 } from '@vynel/workspaces'
 import { factory } from '../../factory.js'
@@ -65,8 +65,10 @@ export const workspaceWizardApp = factory
     validator('json', StudyRivalSiteRequestSchema),
     ...userScoped,
     async (c) => {
-      const { site, idea, directory } = c.req.valid('json')
-      const workspacePath = await resolveExistingDirectory(directory)
+      const { site, idea } = c.req.valid('json')
+      // The study runs in the user's projects folder — the project's own
+      // folder does not exist until Finish, and the client is never told a path.
+      const workspacePath = await resolveNewProjectDirectory(c.var.db, c.var.user.id)
       const study = await c.var.aiProvider.studyRivalSite({
         site,
         idea,
@@ -96,8 +98,8 @@ export const workspaceWizardApp = factory
     validator('json', SynthesizeWorkspacePlanRequestSchema),
     ...userScoped,
     async (c) => {
-      const { directory, ...answers } = c.req.valid('json')
-      const workspacePath = await resolveExistingDirectory(directory)
+      const answers = c.req.valid('json')
+      const workspacePath = await resolveNewProjectDirectory(c.var.db, c.var.user.id)
       const plan = await c.var.aiProvider.synthesizeWorkspacePlan({
         ...answers,
         workspacePath,
@@ -138,7 +140,9 @@ export const workspaceWizardApp = factory
         {
           userId: c.var.user.id,
           name,
-          directory,
+          // Absent = mint it from the name inside the user's projects folder.
+          // `exactOptionalPropertyTypes` rejects an explicit `undefined`.
+          ...(directory === undefined ? {} : { directory }),
           ...(groupId === undefined ? {} : { groupId }),
           answers: {
             ...answerFields,

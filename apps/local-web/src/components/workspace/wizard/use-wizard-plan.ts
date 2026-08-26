@@ -19,14 +19,16 @@ import {
 } from "./wizard-steps.js";
 import { cleanSiteName, type RivalStudyOutcome } from "./wizard-study.js";
 
+// The one-shot reads run in the user's PROJECTS folder, resolved server-side —
+// the project's own folder does not exist until Finish, and the client is
+// never told a path (Chad, 2026-08-24). So neither call carries a directory.
 export type WizardPlanEngine = {
   synthesizePlan: (
-    input: Omit<WorkspaceBriefAnswers, "advancedNotes"> & { directory: string },
+    input: Omit<WorkspaceBriefAnswers, "advancedNotes">,
   ) => Promise<{ plan: WorkspacePlan | null }>;
   studyRival: (input: {
     site: string;
     idea: string;
-    directory: string;
   }) => Promise<{
     study: Omit<Extract<RivalStudyOutcome, { state: "ready" }>, "state"> | null;
   }>;
@@ -103,8 +105,6 @@ export function useWizardPlan(
   }
 
   async function synthesize(): Promise<void> {
-    const directory = answers.directory;
-    if (directory === null) return;
     const key = currentSynthesisKey.value;
     if (synthesizedForKey.value === key || inFlightKey.value === key) return;
     inFlightKey.value = key;
@@ -116,7 +116,7 @@ export function useWizardPlan(
         answers,
         leftOut.value,
       );
-      const reply = await engine.synthesizePlan({ ...fields, directory });
+      const reply = await engine.synthesizePlan(fields);
       if (reply.plan === null) {
         // Nothing to show — the mechanical plan stays; revisiting retries.
         synthesisFailed.value = true;
@@ -135,18 +135,13 @@ export function useWizardPlan(
   }
 
   async function studyRival(): Promise<void> {
-    const directory = answers.directory;
     const site = cleanSiteName(answers.rivalDraft);
-    if (site.length < 4 || directory === null) return;
+    if (site.length < 4) return;
     if (!answers.rivals.includes(site)) answers.rivals.push(site);
     answers.rivalDraft = "";
     studies[site] = { state: "loading" };
     try {
-      const reply = await engine.studyRival({
-        site,
-        idea: answers.idea,
-        directory,
-      });
+      const reply = await engine.studyRival({ site, idea: answers.idea });
       studies[site] =
         reply.study === null
           ? { state: "failed" }

@@ -11,6 +11,11 @@ export const users = table('users', {
   locale: text().notNull(),
   timezone: text().notNull(),
   hasCompletedOnboarding: boolean().notNull(),
+  // The folder new projects are minted into (`resolveNewProjectDirectory`).
+  // Null = the shared default (`~/Documents/Vynel`); the durable seam for a
+  // future Settings field that lets the user choose their own — no onboarding
+  // step writes it today (the name-workspace step was dropped, 2026-08-27).
+  projectsDirectory: text(),
   createdAt: timestamp().notNull(),
   updatedAt: timestamp().notNull(),
 })

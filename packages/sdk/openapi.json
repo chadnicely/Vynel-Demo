@@ -93,17 +93,11 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 5000
-                  },
-                  "directory": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 4096
                   }
                 },
                 "required": [
                   "site",
-                  "idea",
-                  "directory"
+                  "idea"
                 ]
               }
             }
@@ -344,11 +338,6 @@
                       "back",
                       "database"
                     ]
-                  },
-                  "directory": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 4096
                   }
                 },
                 "required": [
@@ -362,8 +351,7 @@
                   "leftOut",
                   "changeRequests",
                   "goalNotes",
-                  "stack",
-                  "directory"
+                  "stack"
                 ]
               }
             }
@@ -1026,7 +1014,6 @@
                 },
                 "required": [
                   "name",
-                  "directory",
                   "answers",
                   "plan"
                 ]

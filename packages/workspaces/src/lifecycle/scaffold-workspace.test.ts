@@ -5,7 +5,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { withTestDatabase } from '@vynel/testing'
 import { ConflictError, NotFoundError, ValidationError } from '@vynel/errors'
-import { insertUser } from '@vynel/db/repositories/users'
+import { insertUser, updateUser } from '@vynel/db/repositories/users'
 import {
   findWorkspaceById,
   findWorkspaceBriefByWorkspaceId,
@@ -109,6 +109,47 @@ describe('scaffoldWorkspace', () => {
       expect(made.brief.brief).not.toContain('(Note:')
       expect(findWorkspaceBriefByWorkspaceId(db, made.workspace.id)?.brief).toBe(made.brief.brief)
       expect(findWorkspaceById(db, made.workspace.id)?.path).toBe(expectedDir)
+    })
+  })
+
+  // The NEW-project path (Chad, 2026-08-24): no `directory` — the folder is
+  // minted from the name inside the user's projects folder, never picked.
+  it('mints the folder from the name inside the projects home when no directory is given', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const home = chosenFolder()
+      updateUser(db, user.id, { projectsDirectory: home })
+      const gitCalls: { args: string[]; cwd: string }[] = []
+
+      const made = await scaffoldWorkspace(
+        db,
+        { userId: user.id, name: 'My Shop', answers: ANSWERS, plan: PLAN },
+        { runGit: fakeGit(gitCalls) },
+      )
+
+      const expected = realpathSync(path.join(home, 'My Shop'))
+      expect(made.workspace.path).toBe(expected)
+      expect(existsSync(path.join(expected, 'README.md'))).toBe(true)
+      expect(existsSync(expected)).toBe(true)
+    })
+  })
+
+  // A traversal name can never escape the home — it is sanitized to "workspace".
+  it('a ".." name lands inside the home, never above it', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const home = chosenFolder()
+      updateUser(db, user.id, { projectsDirectory: home })
+
+      const made = await scaffoldWorkspace(
+        db,
+        { userId: user.id, name: '..', answers: ANSWERS, plan: PLAN },
+        { runGit: fakeGit([]) },
+      )
+
+      expect(made.workspace.path).toBe(realpathSync(path.join(home, 'workspace')))
     })
   })
 

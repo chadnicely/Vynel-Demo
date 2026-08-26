@@ -161,7 +161,9 @@ function makeFakeClient(
           },
         };
       },
-      scaffold: async (input: { name: string; directory: string }) => {
+      // The engine mints the folder from the name inside the user's workspace
+      // folder — the client sends no directory and is told the path after.
+      scaffold: async (input: { name: string }) => {
         calls.scaffold.push(input);
         return {
           workspace: {
@@ -170,7 +172,7 @@ function makeFakeClient(
             name: input.name,
             managerName: input.name,
             kind: "personal",
-            path: input.directory,
+            path: `${PROJECTS}\\${input.name}`,
             isArchived: false,
             continueEnabled: true,
             groupId: null,
@@ -270,18 +272,20 @@ function tile(name: string): HTMLButtonElement {
   return match;
 }
 
-/** Screen 1: pick Projects as the workspace folder, then name it over the
- *  folder-suggested name. */
+/** The naming screen — screen 9 now, not screen 1 (Chad's order, restored
+ *  2026-08-24). Just a name: there is no folder to pick, the engine mints one. */
 async function pickPlace(name = "Front of House") {
-  tile("Projects").click();
-  await flushPromises();
   await type("input[type='text']", name);
 }
 
-/** Screens 1–4, landing on the rivals screen. */
-async function answerThroughQuestions() {
-  await pickPlace();
+/** Screen 9 → 10: name it, then on to the account pre-flight. */
+async function nameItAndContinue(name = "Front of House") {
+  await pickPlace(name);
   await press("Continue");
+}
+
+/** Screens 1–3, landing on the rivals screen. The IDEA opens the wizard. */
+async function answerThroughQuestions() {
   await type(
     "textarea",
     "A place where my regulars can book a table and see the week.",
@@ -341,46 +345,49 @@ async function mountWithDeferredSynthesis() {
 }
 
 describe("WorkspaceWizard", () => {
-  it("opens on the folder — the chosen folder IS the workspace, and names it until the user does", async () => {
+  // Chad's order, restored 2026-08-24: the IDEA opens the wizard. Kafi had put
+  // the folder first because every AI read dispatched from it — neither the
+  // folder question nor that constraint exists any more.
+  it("opens on the IDEA, and never shows a folder or a path anywhere", async () => {
     await mountWizard();
-    expect(bodyText()).toContain("Give it a home and a name");
+    expect(bodyText()).toContain("What do you want to build?");
     expect(bodyText()).toContain("Step 1 of 12");
-    expect(bodyText()).toContain("Pick the folder it will live in to continue");
     expect(findButton("Continue").disabled).toBe(true);
 
-    tile("Projects").click();
-    await flushPromises();
-    // The folder names the workspace — no second folder, no second name.
-    expect(
-      (document.body.querySelector("input[type='text']") as HTMLInputElement)
-        .value,
-    ).toBe("Projects");
-    expect(bodyText()).toContain(`It will live at ${PROJECTS}`);
-    expect(bodyText()).not.toContain(`${PROJECTS}\\`);
-    expect(findButton("Continue").disabled).toBe(false);
+    // Picking a folder was the hardest thing this wizard asked of a
+    // non-technical person, so it is gone from every screen.
+    expect(document.body.querySelector("button.fs-tile")).toBeNull();
+    expect(bodyText()).not.toContain(PROJECTS);
 
-    await type("input[type='text']", "Front of House");
+    await type(
+      "textarea",
+      "A place where my regulars can book a table and see the week.",
+    );
     expect(findButton("Continue").disabled).toBe(false);
-    expect(bodyText()).toContain(`It will live at ${PROJECTS}`);
 
     await press("Continue");
-    expect(bodyText()).toContain("What do you want to build?");
     expect(bodyText()).toContain("Step 2 of 12");
   });
 
-  it("Back to the first screen keeps the folder and the name", async () => {
+  it("names it late — screen 9, after the plan is agreed", async () => {
     await mountWizard();
-    await pickPlace();
+    await answerThroughQuestions();
+    await press("Continue"); // rivals
+    await press("Continue"); // wants
+    await press("10"); // plan
+    await press("Looks right");
+    await press("Yes, that is it"); // goals
     await press("Continue");
-    expect(bodyText()).toContain("What do you want to build?");
+    await press("Continue"); // stack → place
 
-    await press("Back");
-    expect(bodyText()).toContain("Give it a home and a name");
-    expect(
-      (document.body.querySelector("input[type='text']") as HTMLInputElement)
-        .value,
-    ).toBe("Front of House");
-    expect(bodyText()).toContain(`It will live at ${PROJECTS}`);
+    expect(bodyText()).toContain("What are we building?");
+    expect(bodyText()).toContain("Step 9 of 12");
+    expect(bodyText()).toContain("Give it a name to continue");
+    // Still no folder, and no path, on the screen that names it.
+    expect(document.body.querySelector("button.fs-tile")).toBeNull();
+    expect(bodyText()).not.toContain(PROJECTS);
+
+    await pickPlace();
     expect(findButton("Continue").disabled).toBe(false);
   });
 
@@ -388,10 +395,10 @@ describe("WorkspaceWizard", () => {
     await mountWizard();
     await answerThroughQuestions();
     expect(bodyText()).toContain("Is there one like it already?");
-    expect(bodyText()).toContain("Step 5 of 12");
+    expect(bodyText()).toContain("Step 4 of 12");
   });
 
-  it("studies a rival site from the chosen folder, labels it as model knowledge, and ticks feed the wish list", async () => {
+  it("studies a rival site, labels it as model knowledge, and ticks feed the wish list", async () => {
     const { calls } = await mountWizard();
     await answerThroughQuestions();
 
@@ -400,7 +407,7 @@ describe("WorkspaceWizard", () => {
     await press("Look into it");
 
     expect(calls.studyRival).toEqual([
-      expect.objectContaining({ site: "opentable.com", directory: PROJECTS }),
+      expect.objectContaining({ site: "opentable.com" }),
     ]);
     expect(bodyText()).toContain(
       "From what Claude already knows of opentable.com",
@@ -427,7 +434,6 @@ describe("WorkspaceWizard", () => {
     expect(calls.synthesizePlan).toHaveLength(1);
     expect(calls.synthesizePlan[0]).toEqual(
       expect.objectContaining({
-        directory: PROJECTS,
         audience: "My customers",
       }),
     );
@@ -523,7 +529,8 @@ describe("WorkspaceWizard", () => {
     await press("Looks right");
     await press("Yes, that is it");
     await press("Continue"); // goals → stack
-    await press("Continue"); // stack → account
+    await press("Continue"); // stack → place
+    await nameItAndContinue(); // place → account
 
     expect(bodyText()).toContain("The account that builds");
     expect(bodyText()).toContain("Claude — not signed in");
@@ -569,7 +576,8 @@ describe("WorkspaceWizard", () => {
     await press("Looks right");
     await press("Yes, that is it");
     await press("Continue"); // goals → stack
-    await press("Continue"); // stack → account
+    await press("Continue"); // stack → place
+    await nameItAndContinue(); // place → account
     await press("Continue"); // account → care
     await press("Continue"); // care → sessions
     await press("I approve the plan");
@@ -582,7 +590,7 @@ describe("WorkspaceWizard", () => {
     expect(wrapper.emitted("created")).toBeUndefined();
   });
 
-  it("Finish makes the workspace in the chosen folder, Done reports honestly, Open my workspace hands over the STORED brief", async () => {
+  it("Finish makes the workspace, Done reports honestly, Open my workspace hands over the STORED brief", async () => {
     const { wrapper, calls } = await mountWizard({
       groupId: "grp-1",
       githubSignedIn: true,
@@ -595,7 +603,10 @@ describe("WorkspaceWizard", () => {
     await press("Yes, that is it"); // goals
     await press("Continue");
     expect(bodyText()).toContain("What we will build it with");
-    await press("Continue"); // stack
+    await press("Continue"); // stack → place
+    // Naming comes here now (screen 9), not at the very start.
+    expect(bodyText()).toContain("What are we building?");
+    await nameItAndContinue(); // place → account
     expect(bodyText()).toContain("Claude — signed in");
     expect(bodyText()).toContain("chad@x.dev");
     expect(bodyText()).toContain("GitHub — signed in as @chadnicely");
@@ -620,7 +631,6 @@ describe("WorkspaceWizard", () => {
     expect(calls.scaffold).toEqual([
       expect.objectContaining({
         name: "Front of House",
-        directory: PROJECTS,
         groupId: "grp-1",
         answers: expect.objectContaining({
           idea: "A place where my regulars can book a table and see the week.",
@@ -674,7 +684,8 @@ describe("WorkspaceWizard", () => {
     await press("Looks right");
     await press("Yes, that is it");
     await press("Continue"); // goals → stack
-    await press("Continue"); // stack → account
+    await press("Continue"); // stack → place
+    await nameItAndContinue(); // place → account
     await press("Continue"); // account → care
     await press("Continue"); // care → sessions
     await press("I approve the plan");
@@ -706,7 +717,8 @@ describe("WorkspaceWizard", () => {
     await press("Looks right");
     await press("Yes, that is it");
     await press("Continue"); // goals → stack
-    await press("Continue"); // stack → account
+    await press("Continue"); // stack → place
+    await nameItAndContinue(); // place → account
     await press("Continue"); // account → care
     await press("Continue"); // care → sessions
     await press("I approve the plan");

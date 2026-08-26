@@ -3,11 +3,11 @@
 import { z } from 'zod'
 import { WorkspaceResponseSchema } from './schemas.js'
 
-/** The folder the user chose on screen 1 — the workspace folder itself
- *  (Kafi, 2026-08-23: never a child minted from the name). Before Finish it
- *  grounds the one-shot dispatch (the cwd); nothing is written there by a
- *  read, though its own Claude Code settings / CLAUDE.md load as for any
- *  workspace. */
+/** A folder the user really did point at — the PULL-IN and CLONE paths only.
+ *  A new project no longer carries one: the wizard stopped asking for a folder
+ *  (Chad, 2026-08-24) and the engine mints it from the name. The one-shot
+ *  reads (study / plan) run in the user's projects folder, resolved
+ *  server-side, so they carry no directory either. */
 const DirectorySchema = z.string().min(1).max(4_096)
 
 export const StudyRivalSiteRequestSchema = z.object({
@@ -15,7 +15,6 @@ export const StudyRivalSiteRequestSchema = z.object({
   site: z.string().trim().min(4).max(200),
   /** The user's idea, so the study is about THEIR angle on the site. */
   idea: z.string().min(1).max(5_000),
-  directory: DirectorySchema,
 })
 
 const RivalSiteStudySchema = z.object({
@@ -51,7 +50,6 @@ const AnswerFields = {
 
 export const SynthesizeWorkspacePlanRequestSchema = z.object({
   ...AnswerFields,
-  directory: DirectorySchema,
 })
 
 export const WorkspaceBriefAnswersSchema = z.object({
@@ -77,10 +75,15 @@ export const SynthesizeWorkspacePlanResponseSchema = z.object({
   plan: WorkspacePlanSchema.nullable(),
 })
 
-// Finish: the chosen folder becomes the workspace — README, git, the row, the brief.
+// Finish: README, git, the row, the brief.
+//
+// `directory` is OPTIONAL (Chad, 2026-08-24 — "it's too hard for people"):
+// omitted for a new project, where the folder is minted from the name inside
+// the user's projects folder and never shown. Sent only when the user really
+// did point at a folder that already exists.
 export const ScaffoldWorkspaceRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  directory: DirectorySchema,
+  directory: DirectorySchema.optional(),
   /** The menu-tree group the wizard was opened from; omitted = the tree root. */
   groupId: z.string().min(1).optional(),
   answers: WorkspaceBriefAnswersSchema,

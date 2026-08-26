@@ -19,7 +19,7 @@
 
 import path from 'node:path'
 import { existsSync } from 'node:fs'
-import { rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
@@ -34,14 +34,20 @@ import {
 import { createWorkspaceWithin, type CreateWorkspaceDependencies } from './create-workspace.js'
 import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
 import { resolveExistingDirectory } from '../directory/resolve-existing-directory.js'
+import { resolveNewProjectDirectory } from '../directory/resolve-new-project-directory.js'
+import { sanitizeFolderName } from '../directory/sanitize-folder-name.js'
 import { toWorkspaceBrief, type WorkspaceBrief } from '../brief/workspace-brief.js'
 import { defaultGitRunner, type GitRunner } from '../git/run-git.js'
 
 export type ScaffoldWorkspaceInput = {
   userId: string
   name: string
-  /** The folder the user chose on screen 1 — this IS the workspace folder. */
-  directory: string
+  /** Where the project goes. OMIT IT for a new project (Chad, 2026-08-24 —
+   *  "reverse his rule... it's too hard for people"): the folder is minted
+   *  from the name inside the user's projects folder, and the user never sees
+   *  or picks a path. Supplying one is the pull-in path, where the user really
+   *  is pointing at a folder that already exists. */
+  directory?: string
   /** The menu-tree group the wizard was opened from; omit for the tree root. */
   groupId?: string
   /** The answers + the approved plan — stored as the workspace's brief. */
@@ -77,6 +83,32 @@ const GIT_SKIPPED_NOTE =
 // belongs in the project's history.
 const GITIGNORE = '.vynel/\n'
 
+// Two ways in, one folder out.
+//
+// NEW project (no `directory`): mint `<the user's projects folder>/<name>`.
+// Picking a folder was the single hardest thing setup asked of a non-technical
+// user, so the wizard stopped asking — the name IS the folder. `mkdir` is
+// recursive and never touches what is already inside, so re-using a name lands
+// in the existing folder rather than failing; `sanitizeFolderName` refuses a
+// traversal, so the mint can never escape the parent.
+//
+// PULL-IN (`directory` given): the folder must already exist and is used
+// exactly as handed over — nothing is created, nothing is moved. This is the
+// half of Kafi's 2026-08-23 rule that survives, and the only path that ever
+// shows a folder picker.
+async function resolveScaffoldDirectory(
+  db: Database,
+  input: ScaffoldWorkspaceInput,
+  name: string,
+): Promise<string> {
+  if (input.directory !== undefined) return resolveExistingDirectory(input.directory)
+
+  const home = await resolveNewProjectDirectory(db, input.userId)
+  const directory = path.join(home, sanitizeFolderName(name))
+  await mkdir(directory, { recursive: true })
+  return resolveExistingDirectory(directory)
+}
+
 export async function scaffoldWorkspace(
   db: Database,
   input: ScaffoldWorkspaceInput,
@@ -87,7 +119,7 @@ export async function scaffoldWorkspace(
   if (input.groupId !== undefined) {
     getWorkspaceGroupForUserOrThrow(db, input.userId, input.groupId)
   }
-  const directory = await resolveExistingDirectory(input.directory)
+  const directory = await resolveScaffoldDirectory(db, input, name)
 
   // Everything we add to the user's folder, so a failed Finish takes back
   // exactly that — never the folder, never what was already there.

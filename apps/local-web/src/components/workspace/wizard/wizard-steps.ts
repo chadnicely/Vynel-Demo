@@ -9,8 +9,11 @@ import { REPOSITORY_NAME_PATTERN } from "@vynel/contracts/github/github-reposito
 import type { WorkspaceBriefAnswers } from "@vynel/contracts/workspaces/workspace-brief";
 import { ADVANCED_ROWS, chosenStack } from "./derive-stack.js";
 
+// Opens on the IDEA and names the project at screen 9 (Chad, 2026-08-24 —
+// his original order, restored): naming no longer needs to come first now that
+// the chosen folder is not the workspace and the AI reads run from the user's
+// projects folder, not the not-yet-existing project one.
 export const WIZARD_STEPS = [
-  "place",
   "idea",
   "q1",
   "q2",
@@ -19,6 +22,7 @@ export const WIZARD_STEPS = [
   "plan",
   "goals",
   "stack",
+  "place",
   "account",
   "care",
   "sessions",
@@ -96,9 +100,9 @@ export const WIZARD_COPY: Record<
   { title: string; blurb: string }
 > = {
   place: {
-    title: "Give it a home and a name",
+    title: "What are we building?",
     blurb:
-      "Pick the folder on this computer that will be the workspace — it stays there, nothing gets moved — and tell us what to call it.",
+      "Just a name to start. Vynel makes a folder for it in your workspace — you never have to find one or move anything.",
   },
   idea: {
     title: "What do you want to build?",
@@ -172,8 +176,8 @@ export function wizardGate(
   context: WizardGateContext,
 ): string | null {
   if (step === "place") {
-    if (answers.directory === null)
-      return "Pick the folder it will live in to continue";
+    // Name only (Chad, 2026-08-24): the folder is minted from it on Finish,
+    // never picked. The pull-in door is where a real folder is chosen.
     return answers.appName.trim().length > 0
       ? null
       : "Give it a name to continue";
