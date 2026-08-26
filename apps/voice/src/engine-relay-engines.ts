@@ -5,6 +5,12 @@
 // the engine resolves WHICH provider and voice from the user's saved pick
 // per request, so switching provider (or voice) never swaps a daemon
 // engine — only a local↔relay flip does.
+//
+// The doors are reached under `/api/...`: the engine port serves the
+// GATEWAY, which proxies the bare `/voice/*` prefix to THIS daemon (the
+// browser's same-origin path to /synthesize and /events) — a bare
+// `/voice/provider-synthesize` would boomerang back here and 404 into the
+// local-voice fallback (the first live-smoke bug, 2026-08-26).
 
 import { decodeWavToPcm, encodeWavFromPcm } from '@vynel/voice-engine/pcm-codec'
 import type { PcmAudio, SpeechRecognizer, VoiceEngine } from '@vynel/voice-engine'
@@ -50,7 +56,7 @@ export class EngineRelayVoiceEngine implements VoiceEngine {
   async synthesize(text: string): Promise<PcmAudio> {
     let response: Response
     try {
-      response = await this.#fetch(`${this.#apiUrl}/voice/provider-synthesize`, {
+      response = await this.#fetch(`${this.#apiUrl}/api/voice/provider-synthesize`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -81,7 +87,7 @@ export class EngineRelaySpeechRecognizer implements SpeechRecognizer {
   async transcribe(audio: PcmAudio): Promise<string> {
     let response: Response
     try {
-      response = await this.#fetch(`${this.#apiUrl}/voice/transcribe`, {
+      response = await this.#fetch(`${this.#apiUrl}/api/voice/transcribe`, {
         method: 'POST',
         headers: { 'content-type': 'audio/wav' },
         body: encodeWavFromPcm(audio),

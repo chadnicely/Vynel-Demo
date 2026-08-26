@@ -102,6 +102,12 @@ Both map cleanly onto `PcmAudio` (Int16LE ↔ Float32) with no new dependencies 
 
 ## Watch-outs
 
+- **The engine port serves the GATEWAY, and the gateway proxies bare `/voice/*` to the DAEMON**
+  (the browser's same-origin path to `/synthesize` + `/events`). Anything calling the api's own
+  voice routes from outside must use `/api/voice/...` — the daemon's relay engines learned this
+  in the first live smoke: their bare `/voice/provider-synthesize` boomeranged back to the daemon,
+  404'd, and the never-silent fallback spoke Kokoro while Settings showed ElevenLabs connected.
+
 - `SynthesizeOptions.voiceId?: number` is sherpa-shaped; cloud engines take their string voice id
   at construction — do NOT widen the numeric knob.
 - The `serializeAsync` synth lane is a sherpa-native mutex; relay engines don't need it but keep

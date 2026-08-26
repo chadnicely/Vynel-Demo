@@ -34,7 +34,7 @@ describe('EngineRelayVoiceEngine', () => {
 
     const audio = await engine.synthesize('Hello.')
 
-    expect(seen[0]!.url).toBe('http://127.0.0.1:18892/voice/provider-synthesize')
+    expect(seen[0]!.url).toBe('http://127.0.0.1:18892/api/voice/provider-synthesize')
     expect(JSON.parse(String(seen[0]!.body))).toEqual({ text: 'Hello.' })
     expect(Object.keys(seen[0]!.headers)).toEqual(['content-type'])
     expect(audio.sampleRate).toBe(24_000)
@@ -72,7 +72,7 @@ describe('EngineRelaySpeechRecognizer', () => {
     })
 
     expect(transcript).toBe('hello world')
-    expect(seen[0]!.url).toBe('http://127.0.0.1:18892/voice/transcribe')
+    expect(seen[0]!.url).toBe('http://127.0.0.1:18892/api/voice/transcribe')
     expect(seen[0]!.headers['content-type']).toBe('audio/wav')
     expect((seen[0]!.body as Uint8Array).byteLength).toBe(44 + 4)
   })
