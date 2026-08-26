@@ -35,5 +35,6 @@ export function makeFakeAiAgentProvider(overrides: Partial<AiAgentProvider> = {}
     studyRivalSite: async () => null,
     synthesizeWorkspacePlan: async () => null,
     ...overrides,
+    setSessionPermissionMode: async () => false,
   } as AiAgentProvider
 }
