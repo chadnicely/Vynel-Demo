@@ -40,6 +40,18 @@ export type ClaudePermissionMode =
   | 'bypass-with-behavior-gate'
   | 'plan-only'
 
+/**
+ * The mode, or a way to READ the mode. The approval gates take this rather
+ * than a plain value because the mode can change mid-turn (Chad, 2026-08-25:
+ * a switch to Ask has to card the very next tool call, not the next turn) —
+ * a captured value would keep gating on the mode the turn started in.
+ */
+export type PermissionModeSource = ClaudePermissionMode | (() => ClaudePermissionMode)
+
+export function readPermissionMode(source: PermissionModeSource): ClaudePermissionMode {
+  return typeof source === 'function' ? source() : source
+}
+
 export type StartChatSessionInput = {
   /** Workspace folder path — becomes the agent's cwd. */
   workspacePath: string

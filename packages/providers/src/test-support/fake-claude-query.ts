@@ -1,11 +1,6 @@
-// `fake-claude-query` — test support. A stand-in for the Claude Agent SDK's
-// `query()`: returns a fake `Query` (an async generator over a scripted
-// message sequence) that honours `options.abortController` and drives
-// `options.canUseTool` like the real runtime. Shared by the provider tests
-// that must exercise session flows without a real Claude Code process.
-//
-// In `src/test-support/` per the `packages/db/src/test-support/` precedent —
-// a home for cross-file test infrastructure.
+// A scripted stand-in for the SDK's `query()` — replays messages and tool
+// uses, honours the abort signal, and records the out-of-band CONTROL calls
+// (a stop's interrupt, a live mode switch) so a test can watch them.
 
 import type { query } from '../claude/base/claude-agent-sdk.js'
 
@@ -25,11 +20,28 @@ type FakeClaudeQueryOptions = {
 /** The session id every fake-message builder stamps onto its message. */
 export const FAKE_CLAUDE_SESSION_ID = 'sess-fake'
 
+/** What the runtime was ASKED to do out-of-band — the control-protocol calls
+ *  a stop and a live mode switch make. Shared so a test can watch them. */
+export type FakeClaudeQueryControlLog = {
+  interruptCount: number
+  permissionModes: string[]
+  /** Make the next mode switch fail the way a runtime that refuses it would. */
+  refuseModeSwitch?: boolean
+}
+
+export function createFakeClaudeQueryControlLog(): FakeClaudeQueryControlLog {
+  return { interruptCount: 0, permissionModes: [] }
+}
+
 /**
  * Builds a fake `query()` implementation that replays `script` — assignable
- * to `vi.mocked(query).mockImplementation(...)`.
+ * to `vi.mocked(query).mockImplementation(...)`. Control calls land in
+ * `controlLog` (a fresh one when the test does not care).
  */
-export function createFakeClaudeQuery(script: FakeClaudeQueryStep[]): typeof query {
+export function createFakeClaudeQuery(
+  script: FakeClaudeQueryStep[],
+  controlLog: FakeClaudeQueryControlLog = createFakeClaudeQueryControlLog(),
+): typeof query {
   return (params) => {
     const options = (params.options ?? {}) as FakeClaudeQueryOptions
     async function* generate(): AsyncGenerator<unknown, void> {
@@ -46,15 +58,25 @@ export function createFakeClaudeQuery(script: FakeClaudeQueryStep[]): typeof que
           await options.canUseTool(step.toolName, step.toolInput, {
             signal: options.abortController?.signal ?? new AbortController().signal,
             toolUseID: 'tu_fake',
-            // Required since SDK 0.3.213 — the fake must stay honest to the
-            // real callback type, or a callback reading it sees undefined
-            // only under the fake.
             requestId: 'req_fake',
           })
         }
       }
     }
-    return generate() as unknown as ReturnType<typeof query>
+    // The real Query is the async iterator PLUS the control methods; the
+    // runner reaches both through the one object.
+    const controls = {
+      interrupt: async () => {
+        controlLog.interruptCount += 1
+      },
+      setPermissionMode: async (mode: string) => {
+        if (controlLog.refuseModeSwitch === true) {
+          throw new Error(`the runtime refused the switch to ${mode}`)
+        }
+        controlLog.permissionModes.push(mode)
+      },
+    }
+    return Object.assign(generate(), controls) as unknown as ReturnType<typeof query>
   }
 }
 

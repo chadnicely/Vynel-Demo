@@ -109,6 +109,7 @@ export { renameChatSession } from './history/rename-chat-session.js'
 export { archiveChatSession, unarchiveChatSession } from './history/archive-chat-session.js'
 export { softDeleteChatSession } from './history/soft-delete-chat-session.js'
 export { interruptChatSession } from './history/interrupt-chat-session.js'
+export { applyLiveSessionMode } from './history/apply-live-session-mode.js'
 export { purgeDeletedChatSessions } from './history/purge-deleted-chat-sessions.js'
 export type {
   PurgeDeletedChatSessionsInput,

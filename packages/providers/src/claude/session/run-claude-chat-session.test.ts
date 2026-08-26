@@ -14,6 +14,8 @@ import { PendingApprovalRegistry } from '../../shared/pending-approval-registry.
 import {
   FAKE_CLAUDE_SESSION_ID,
   createFakeClaudeQuery,
+  createFakeClaudeQueryControlLog,
+  type FakeClaudeQueryControlLog,
   fakeAssistantMessageStep,
   fakeMessageStartStep,
   fakeSuccessResultStep,
@@ -26,8 +28,12 @@ import type { StartChatSessionInput } from '../../shared/start-chat-session-inpu
 
 const mockQuery = vi.mocked(query)
 
-function installFakeQuery(script: FakeClaudeQueryStep[]): void {
-  mockQuery.mockImplementation(createFakeClaudeQuery(script))
+function installFakeQuery(
+  script: FakeClaudeQueryStep[],
+  controlLog: FakeClaudeQueryControlLog = createFakeClaudeQueryControlLog(),
+): FakeClaudeQueryControlLog {
+  mockQuery.mockImplementation(createFakeClaudeQuery(script, controlLog))
+  return controlLog
 }
 
 const BASE_INPUT: StartChatSessionInput = {
@@ -196,6 +202,68 @@ describe('runClaudeChatSession', () => {
     expect(activeSessionRegistry.listActiveSessionIds()).toEqual([])
   })
 
+  // Chad, 2026-08-25: "it needs to stop IMMEDIATELY, no delay". Aborting alone
+  // only unwinds our iteration — a long Bash keeps running inside the CLI
+  // until it returns. The CLI's own interrupt reaches it mid-tool.
+  it("Stop sends the CLI's own interrupt before aborting", async () => {
+    const controlLog = installFakeQuery([
+      fakeSystemInitStep(),
+      fakeTextStreamStep('one'),
+      fakeTextStreamStep('two'),
+    ])
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    const iterator = startSession({ activeSessionRegistry })[Symbol.asyncIterator]()
+    await iterator.next()
+
+    await activeSessionRegistry.interrupt(FAKE_CLAUDE_SESSION_ID)
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      // drain
+    }
+
+    expect(controlLog.interruptCount).toBe(1)
+  })
+
+  // Chad, 2026-08-25: a switch to Ask "HAS TO TAKE EFFECT IMMEDIATELY" — the
+  // turn already running, not the next one.
+  it('a live mode switch reaches the SDK — Ask becomes its default mode', async () => {
+    const controlLog = installFakeQuery([
+      fakeSystemInitStep(),
+      fakeTextStreamStep('one'),
+      fakeSuccessResultStep(),
+    ])
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    const iterator = startSession({ activeSessionRegistry })[Symbol.asyncIterator]()
+    await iterator.next()
+
+    expect(await activeSessionRegistry.setPermissionMode(FAKE_CLAUDE_SESSION_ID, 'ask')).toBe(
+      true,
+    )
+    expect(controlLog.permissionModes).toEqual(['default'])
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      // drain
+    }
+  })
+
+  it('a switch the runtime refuses is reported, never swallowed', async () => {
+    const controlLog = installFakeQuery([
+      fakeSystemInitStep(),
+      fakeTextStreamStep('one'),
+      fakeSuccessResultStep(),
+    ])
+    controlLog.refuseModeSwitch = true
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    const iterator = startSession({ activeSessionRegistry })[Symbol.asyncIterator]()
+    await iterator.next()
+
+    await expect(
+      activeSessionRegistry.setPermissionMode(FAKE_CLAUDE_SESSION_ID, 'bypass'),
+    ).rejects.toThrow(/refused/)
+    expect(controlLog.permissionModes).toEqual([])
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      // drain
+    }
+  })
+
   it('cleans up the registry when the consumer abandons iteration', async () => {
     installFakeQuery([fakeSystemInitStep(), fakeTextStreamStep('one'), fakeTextStreamStep('two')])
     const activeSessionRegistry = new ActiveSessionRegistry()
@@ -252,11 +320,13 @@ describe('runClaudeChatSession', () => {
     expect(typeof queryArg?.options?.canUseTool).toBe('function')
   })
 
-  it('does NOT bind canUseTool under the user bypass — the callback is genuinely dead there', async () => {
-    // bypassPermissions auto-approves before consulting the callback and the
-    // policy would allow everything anyway; leaving it unbound is what keeps
-    // the SDK's shadowed-callback warning from firing on bypass turns. The
-    // PreToolUse hook stays wired (it owns the forced-sync Agent rewrite).
+  it('binds canUseTool even under the user bypass — so switching OUT of it mid-run can card', async () => {
+    // Reversed 2026-08-25 (Chad: a mode switch "HAS TO TAKE EFFECT
+    // IMMEDIATELY"). While the turn is genuinely in bypass the callback stays
+    // dead either way — bypassPermissions auto-approves before consulting it —
+    // so binding costs only the SDK's shadowed-callback warning. Leaving it
+    // unbound left a bypass turn that could NEVER card, however the user
+    // changed their mind partway through.
     installFakeQuery([fakeSystemInitStep(), fakeSuccessResultStep()])
     await collect(
       runClaudeChatSession({
@@ -267,7 +337,9 @@ describe('runClaudeChatSession', () => {
     )
 
     const queryArg = mockQuery.mock.calls.at(-1)?.[0]
-    expect(queryArg?.options?.canUseTool).toBeUndefined()
+    expect(typeof queryArg?.options?.canUseTool).toBe('function')
+    // The turn still STARTS in bypass — binding the callback must not quietly
+    // change the mode the SDK actually runs under.
     expect(queryArg?.options?.permissionMode).toBe('bypassPermissions')
     expect(queryArg?.options?.hooks?.PreToolUse).toBeDefined()
   })

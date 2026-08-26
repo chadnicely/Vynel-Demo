@@ -11,13 +11,17 @@ import type { CanUseTool } from '../base/claude-agent-sdk.js'
 import type { ApprovalDecision } from '../../shared/approval-decision.js'
 import type { NormalizedSessionEvent } from '../../shared/normalized-session-event.js'
 import type { PendingApprovalRegistry } from '../../shared/pending-approval-registry.js'
-import type { ClaudePermissionMode } from '../../shared/start-chat-session-input.js'
+import {
+  readPermissionMode,
+  type PermissionModeSource,
+} from '../../shared/start-chat-session-input.js'
 import type { SyntheticEventQueue } from '../session/synthetic-event-queue.js'
 import { decideCanUseTool } from './tool-approval-policy.js'
 
 export type BuildClaudeCanUseToolCallbackInput = {
   pendingApprovalRegistry: PendingApprovalRegistry
-  permissionMode: ClaudePermissionMode
+  /** Read at CALL time, never captured — the mode can change mid-turn. */
+  permissionMode: PermissionModeSource
   /** Read at call time — the SDK assigns the session id only on its first
    *  event, which may arrive after the first tool use (blueprint §19). */
   sessionIdHolder: { current: string | null }
@@ -52,7 +56,7 @@ export function buildClaudeCanUseToolCallback(
     // every MCP tool outside the declared card tiers, the map-check that
     // replaced the `mcp__<server>__*` wildcard pre-approval.
     if (
-      decideCanUseTool(toolName, input.permissionMode, {
+      decideCanUseTool(toolName, readPermissionMode(input.permissionMode), {
         alwaysRequireApprovalToolNames: input.alwaysRequireApprovalToolNames,
         askModeApprovalToolNames: input.askModeApprovalToolNames,
         composedMcpServerNames: input.composedMcpServerNames,

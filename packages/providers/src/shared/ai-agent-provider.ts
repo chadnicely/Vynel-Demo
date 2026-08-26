@@ -4,6 +4,7 @@
 // a refactor. See `docs/blueprints/providers/blueprint.md §7`.
 
 import type { AiAgentProviderId } from './ai-agent-provider-id.js'
+import type { ClaudePermissionMode } from './start-chat-session-input.js'
 import type { AuthenticationStatus } from './authentication-status.js'
 import type { InstalledSkill, DiscoverSkillsInput } from './installed-skill.js'
 import type { McpServerConfig, ListMcpServersInput } from './mcp-server-config.js'
@@ -71,6 +72,19 @@ export abstract class AiAgentProvider {
    * not active.
    */
   abstract interruptChatSession(sessionId: string): Promise<void>
+
+  /**
+   * Pushes a permission-mode change into the turn ALREADY RUNNING, so a switch
+   * to Ask starts carding the very next tool call instead of the next turn.
+   * Answers false when the session is not active (or the runtime cannot switch
+   * live) — the caller has persisted the change either way.
+   */
+  async setSessionPermissionMode(
+    _sessionId: string,
+    _mode: ClaudePermissionMode,
+  ): Promise<boolean> {
+    return false
+  }
 
   /**
    * Fetches a previously-persisted session's transcript from the runtime's own

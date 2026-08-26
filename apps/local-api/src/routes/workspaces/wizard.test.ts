@@ -92,6 +92,7 @@ function makeFakeProvider(
       recorded.plans.push(input)
       return replies.plan
     },
+    setSessionPermissionMode: async () => false,
   } as AiAgentProvider
 }
 

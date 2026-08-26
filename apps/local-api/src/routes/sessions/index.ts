@@ -27,12 +27,15 @@ import { createSpawnedSession } from '@vynel/session/spawned'
 import { getWorkspaceById } from '@vynel/workspaces'
 import { sessionChannelKey } from '@vynel/session/runtime'
 import {
+  applyLiveSessionMode,
   getChatSessionDetail,
   searchChatSessions,
   updateChatSessionSettings,
   setSessionStatus,
   type ChatSessionSettingsPatch,
 } from '@vynel/chat'
+import { toPermissionMode } from '@vynel/session'
+import type { AiAgentProviderId } from '@vynel/providers'
 import type { Database } from '@vynel/db'
 import {
   TURN_SESSION_HEADER,
@@ -483,7 +486,21 @@ export const sessionsApp = factory
       if (session === null || session.userId !== c.var.user.id) {
         throw new NotFoundError('session', sessionId)
       }
-      const updated = updateChatSessionSettings(c.var.db, sessionId, c.req.valid('json'))
+      const patch = c.req.valid('json')
+      const updated = updateChatSessionSettings(c.var.db, sessionId, patch)
+      // A mode change has to reach the turn already running, not just the next
+      // one (Chad, 2026-08-25). The row is saved either way; a session that is
+      // not running answers false quietly, and a runtime that refuses the
+      // switch is logged — it must never fail the user's chip.
+      if (patch.sessionMode !== undefined && patch.sessionMode !== null) {
+        void applyLiveSessionMode(
+          session.providerId as AiAgentProviderId,
+          sessionId,
+          toPermissionMode(patch.sessionMode),
+        ).catch((err: unknown) => {
+          c.var.logger.warn({ err, sessionId }, 'live mode switch failed — next turn carries it')
+        })
+      }
       return c.json(toSessionSettings(updated))
     },
   )

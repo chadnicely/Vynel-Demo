@@ -15,7 +15,11 @@ export type BuildClaudeSdkOptionsInput = {
   model?: string
   /** Reasoning effort (Agent SDK `options.effort`). Omit for the adaptive default. */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /** The mode the turn STARTS in — what the SDK's own option is set to. */
   permissionMode: ClaudePermissionMode
+  /** How the backstop hook reads the mode at call time, so a mid-turn switch
+   *  reaches it. Defaults to the starting mode when the caller cannot switch. */
+  readPermissionMode?: () => ClaudePermissionMode
   allowedToolNames: string[]
   deniedToolNames: string[]
   /**
@@ -96,7 +100,7 @@ export type BuildClaudeSdkOptionsInput = {
 //   (Kafi 2026-08-11) — note it is still NOT the SDK's `bypassPermissions`,
 //   so whatever the provider's own classifier refuses outright it still
 //   refuses.
-const SDK_PERMISSION_MODE = {
+export const SDK_PERMISSION_MODE = {
   ask: 'default',
   auto: 'auto',
   bypass: 'bypassPermissions',
@@ -188,7 +192,7 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
         {
           hooks: [
             buildClaudePreToolUseHook(
-              input.permissionMode,
+              input.readPermissionMode ?? input.permissionMode,
               input.alwaysRequireApprovalToolNames,
               input.askModeApprovalToolNames,
             ),

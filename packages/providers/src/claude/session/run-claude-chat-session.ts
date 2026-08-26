@@ -17,7 +17,7 @@ import {
   buildClaudePostToolUseHook,
   type LiveContextHolder,
 } from '../approvals/build-claude-post-tool-use-hook.js'
-import { buildClaudeSdkOptions } from '../base/build-claude-sdk-options.js'
+import { buildClaudeSdkOptions, SDK_PERMISSION_MODE } from '../base/build-claude-sdk-options.js'
 import {
   isMainThreadContentDelta,
   readAssistantMessageIdFromStreamStart,
@@ -39,6 +39,11 @@ export type RunClaudeChatSessionDependencies = {
 // of seconds — but finite: an unbounded first pull is how "stuck forever with
 // the message unpersisted" happened.
 export const SESSION_STARTUP_TIMEOUT_MS = 90_000
+
+// How long a stop waits for the CLI's own interrupt to land before it aborts
+// anyway. Short enough to feel instant, long enough for the control message
+// to reach a healthy runtime.
+export const INTERRUPT_GRACE_MS = 250
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
@@ -66,6 +71,11 @@ export async function* runClaudeChatSession(
   })
   const abortController = new AbortController()
 
+  // The mode the gates actually gate on. It starts as the turn's mode and
+  // MOVES when the user switches mid-run — both approval gates read through
+  // it, so Ask starts carding the next tool call rather than the next turn.
+  const livePermissionMode = { current: input.permissionMode }
+
   // Per-turn feature mutating tools (e.g. desktop act_on_app) → carded in every
   // carding mode, UNIONED with the static floor in BOTH the PreToolUse hook +
   // the canUseTool callback. Convert once; pass to both so gate + backstop
@@ -85,6 +95,7 @@ export async function* runClaudeChatSession(
   const sdkOptions = buildClaudeSdkOptions({
     workspacePath: input.workspacePath,
     permissionMode: input.permissionMode,
+    readPermissionMode: () => livePermissionMode.current,
     allowedToolNames: input.allowedToolNames,
     deniedToolNames: input.deniedToolNames,
     ...(alwaysRequireApprovalToolNames !== undefined ? { alwaysRequireApprovalToolNames } : {}),
@@ -127,12 +138,13 @@ export async function* runClaudeChatSession(
       : {}),
   })
   sdkOptions.abortController = abortController
-  // In the user's `bypass` the callback is genuinely dead — the SDK's
-  // `bypassPermissions` auto-approves before consulting it, the hook stands
-  // down, and the policy would allow everything anyway. Not binding it keeps
-  // the SDK's shadowed-callback warning from firing on bypass turns; every
-  // other mode gates through it.
-  if (input.permissionMode !== 'bypass') {
+  // Bound in EVERY mode, bypass included (Chad, 2026-08-25). While the turn
+  // is actually in bypass the callback stays dead either way — the SDK
+  // auto-approves before consulting it — so binding costs only the SDK's
+  // shadowed-callback warning. It buys the thing he asked for: switching out
+  // of bypass mid-run starts carding immediately, where skipping the bind
+  // left a turn that could never card no matter what the user chose.
+  {
     // The composed server names scope the ask-mode map-allow: only Vynel's own
     // registered servers inherit the old wildcard's blanket; an external
     // settings-loaded server's tools keep carding, as they always did.
@@ -140,7 +152,7 @@ export async function* runClaudeChatSession(
       input.mcpServers !== undefined ? new Set(Object.keys(input.mcpServers)) : undefined
     sdkOptions.canUseTool = buildClaudeCanUseToolCallback({
       pendingApprovalRegistry,
-      permissionMode: input.permissionMode,
+      permissionMode: () => livePermissionMode.current,
       sessionIdHolder,
       syntheticEventQueue,
       ...(alwaysRequireApprovalToolNames !== undefined ? { alwaysRequireApprovalToolNames } : {}),
@@ -229,8 +241,38 @@ export async function* runClaudeChatSession(
     activeSessionRegistry.register({
       sessionId,
       startedAt: new Date(),
+      // Stop has to bite NOW, including mid-tool (Chad, 2026-08-25: "it needs
+      // to stop IMMEDIATELY, no delay"). Aborting alone only unwinds OUR
+      // iteration — a long-running Bash keeps going inside the CLI until it
+      // returns on its own, which is the delay he is describing. The SDK's
+      // control-protocol interrupt reaches the CLI mid-tool, so we send that
+      // first and abort straight after; the race is bounded so a runtime that
+      // never answers cannot hold the stop open.
       cancel: async () => {
+        try {
+          await Promise.race([
+            queryInstance.interrupt(),
+            new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, INTERRUPT_GRACE_MS)
+              timer.unref?.()
+            }),
+          ])
+        } catch (error: unknown) {
+          // A runtime that cannot be interrupted still gets aborted below.
+          input.logger?.warn(
+            { err: error, sessionId },
+            'runtime interrupt failed — aborting the turn anyway',
+          )
+        }
         abortController.abort()
+      },
+      // Live mode switching, both halves: the SDK's own gate moves, AND the
+      // holder both Vynel gates read moves with it. The SDK goes first — a
+      // switch it refuses (into bypass, which it only grants to a turn that
+      // started there) must not leave Vynel's gates disagreeing with it.
+      setPermissionMode: async (mode) => {
+        await queryInstance.setPermissionMode(SDK_PERMISSION_MODE[mode])
+        livePermissionMode.current = mode
       },
     })
     isRegistered = true

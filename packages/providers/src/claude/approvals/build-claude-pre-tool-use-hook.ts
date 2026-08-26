@@ -22,7 +22,10 @@
 // card mechanism; this hook only ensures it is reached.
 
 import type { HookCallback } from '../base/claude-agent-sdk.js'
-import type { ClaudePermissionMode } from '../../shared/start-chat-session-input.js'
+import {
+  readPermissionMode,
+  type PermissionModeSource,
+} from '../../shared/start-chat-session-input.js'
 import { requiresApprovalCardBackstop } from './tool-approval-policy.js'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -30,7 +33,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function buildClaudePreToolUseHook(
-  permissionMode: ClaudePermissionMode,
+  permissionMode: PermissionModeSource,
   alwaysRequireApprovalToolNames?: ReadonlySet<string>,
   askModeApprovalToolNames?: ReadonlySet<string>,
 ): HookCallback {
@@ -57,10 +60,11 @@ export function buildClaudePreToolUseHook(
     // NARROWER than the callback's own card matrix — the backstop rescues
     // declared tiers from skip-modes, it never widens what cards (see
     // `requiresApprovalCardBackstop`).
-    const requiresApprovalCard = requiresApprovalCardBackstop(input.tool_name, permissionMode, {
-      alwaysRequireApprovalToolNames,
-      askModeApprovalToolNames,
-    })
+    const requiresApprovalCard = requiresApprovalCardBackstop(
+      input.tool_name,
+      readPermissionMode(permissionMode),
+      { alwaysRequireApprovalToolNames, askModeApprovalToolNames },
+    )
 
     if (forcedSyncInput === undefined && !requiresApprovalCard) {
       // No opinion — let the normal permission flow + canUseTool gate decide.

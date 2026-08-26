@@ -9,6 +9,7 @@
 import { NotFoundError } from '@vynel/errors'
 import { ActiveSessionRegistry } from '../shared/active-session-registry.js'
 import { AiAgentProvider } from '../shared/ai-agent-provider.js'
+import type { ClaudePermissionMode } from '../shared/start-chat-session-input.js'
 import { PendingApprovalRegistry } from '../shared/pending-approval-registry.js'
 import type { AiAgentProviderId } from '../shared/ai-agent-provider-id.js'
 import type { ApprovalDecision } from '../shared/approval-decision.js'
@@ -84,6 +85,13 @@ export class ClaudeAiAgentProvider extends AiAgentProvider {
   async interruptChatSession(sessionId: string): Promise<void> {
     this.pendingApprovalRegistry.cancelAllForSession(sessionId)
     await this.activeSessionRegistry.interrupt(sessionId)
+  }
+
+  override async setSessionPermissionMode(
+    sessionId: string,
+    mode: ClaudePermissionMode,
+  ): Promise<boolean> {
+    return this.activeSessionRegistry.setPermissionMode(sessionId, mode)
   }
 
   async fetchPersistedSessionTranscript(
