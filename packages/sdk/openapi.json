@@ -435,6 +435,12 @@
                             "null"
                           ]
                         },
+                        "setupCompletedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "createdAt": {
                           "type": "string"
                         },
@@ -458,6 +464,7 @@
                         "status",
                         "statusNote",
                         "statusSetAt",
+                        "setupCompletedAt",
                         "createdAt",
                         "updatedAt",
                         "lastAccessedAt"
@@ -1099,6 +1106,12 @@
                             "null"
                           ]
                         },
+                        "setupCompletedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "createdAt": {
                           "type": "string"
                         },
@@ -1122,6 +1135,7 @@
                         "status",
                         "statusNote",
                         "statusSetAt",
+                        "setupCompletedAt",
                         "createdAt",
                         "updatedAt",
                         "lastAccessedAt"
@@ -17812,6 +17826,288 @@
           "name": "get_workspace_git_facts",
           "description": "Read what git knows about this workspace's folder, fresh: `facts.kind` is 'repository' (with the current branch, its upstream and how many commits ahead/behind, the count of changed and untracked files, and the origin address), 'not-a-repository' (a plain folder — no git yet), 'folder-missing', 'no-git' (git is not installed), or 'unreadable' (git's own reason). `branches` lists the local branches with the checked-out one marked; `worktrees` lists every checkout of the repository, the main one first, then every linked worktree (the sessions' `.claude/worktrees/<slug>` folders among them). Use it before deciding where to work or whether there is uncommitted work to protect. Read-only — it never changes the repository."
         }
+      }
+    },
+    "/workspaces/{workspaceId}/setup": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "{ git, repository, env, database, databaseIsLocal }. Env carries key NAMES only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "git": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "no-git"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "folder-missing"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "not-a-repository"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "unreadable"
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "reason"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "repository"
+                            },
+                            "branch": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "upstream": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "ahead": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "behind": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "changedCount": {
+                              "type": "integer"
+                            },
+                            "untrackedCount": {
+                              "type": "integer"
+                            },
+                            "remoteUrl": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "branch",
+                            "upstream",
+                            "ahead",
+                            "behind",
+                            "changedCount",
+                            "untrackedCount",
+                            "remoteUrl"
+                          ]
+                        }
+                      ]
+                    },
+                    "repository": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "remote"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "url"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "local-only"
+                            },
+                            "suggestedName": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "suggestedName"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "none"
+                            },
+                            "suggestedName": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "suggestedName"
+                          ]
+                        }
+                      ]
+                    },
+                    "env": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "present"
+                            },
+                            "keyNames": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "keyNames"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "from-example"
+                            },
+                            "keyNames": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "keyNames"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "not-needed"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ]
+                        }
+                      ]
+                    },
+                    "database": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "databaseIsLocal": {
+                      "type": "boolean"
+                    },
+                    "needsAccountChoice": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "git",
+                    "repository",
+                    "env",
+                    "database",
+                    "databaseIsLocal",
+                    "needsAccountChoice"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The workspace folder is no longer accessible."
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getWorkspacesByWorkspaceIdSetup",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Read what a project's folder already answers — repository, .env, database.",
+        "x-sdk-name": "workspaces.getSetup"
       }
     },
     "/workspaces/{workspaceId}/github/repository": {
@@ -42313,6 +42609,12 @@
                               "null"
                             ]
                           },
+                          "setupCompletedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "createdAt": {
                             "type": "string"
                           },
@@ -42336,6 +42638,7 @@
                           "status",
                           "statusNote",
                           "statusSetAt",
+                          "setupCompletedAt",
                           "createdAt",
                           "updatedAt",
                           "lastAccessedAt"
@@ -45156,6 +45459,12 @@
                           "null"
                         ]
                       },
+                      "setupCompletedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "createdAt": {
                         "type": "string"
                       },
@@ -45179,6 +45488,7 @@
                       "status",
                       "statusNote",
                       "statusSetAt",
+                      "setupCompletedAt",
                       "createdAt",
                       "updatedAt",
                       "lastAccessedAt"
@@ -45291,6 +45601,12 @@
                         "null"
                       ]
                     },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -45314,6 +45630,7 @@
                     "status",
                     "statusNote",
                     "statusSetAt",
+                    "setupCompletedAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -46175,6 +46492,12 @@
                         "null"
                       ]
                     },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -46198,6 +46521,7 @@
                     "status",
                     "statusNote",
                     "statusSetAt",
+                    "setupCompletedAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -46304,6 +46628,12 @@
                         "null"
                       ]
                     },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -46327,6 +46657,7 @@
                     "status",
                     "statusNote",
                     "statusSetAt",
+                    "setupCompletedAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -46497,6 +46828,12 @@
                         "null"
                       ]
                     },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -46520,6 +46857,7 @@
                     "status",
                     "statusNote",
                     "statusSetAt",
+                    "setupCompletedAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -46644,6 +46982,12 @@
                         "null"
                       ]
                     },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -46667,6 +47011,7 @@
                     "status",
                     "statusNote",
                     "statusSetAt",
+                    "setupCompletedAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -46727,6 +47072,139 @@
             }
           }
         }
+      }
+    },
+    "/workspaces/{workspaceId}/setup-complete": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The workspace, now stamped. Idempotent — the date never moves.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "userId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "managerName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "small-business",
+                        "personal",
+                        "project",
+                        "custom"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "isArchived": {
+                      "type": "boolean"
+                    },
+                    "continueEnabled": {
+                      "type": "boolean"
+                    },
+                    "groupId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "completed",
+                        "problem",
+                        "needs_input",
+                        null
+                      ]
+                    },
+                    "statusNote": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "statusSetAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "lastAccessedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "userId",
+                    "name",
+                    "managerName",
+                    "kind",
+                    "path",
+                    "isArchived",
+                    "continueEnabled",
+                    "groupId",
+                    "status",
+                    "statusNote",
+                    "statusSetAt",
+                    "setupCompletedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "lastAccessedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such workspace owned by this user."
+          }
+        },
+        "operationId": "postWorkspacesByWorkspaceIdSetup-complete",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "summary": "Mark a project as set up — it leaves the Needs setup section.",
+        "x-sdk-name": "workspaces.markSetupComplete"
       }
     },
     "/workspaces/{workspaceId}/archive": {
@@ -46802,6 +47280,12 @@
                         "null"
                       ]
                     },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -46825,6 +47309,7 @@
                     "status",
                     "statusNote",
                     "statusSetAt",
+                    "setupCompletedAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"
@@ -46928,6 +47413,12 @@
                         "null"
                       ]
                     },
+                    "setupCompletedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -46951,6 +47442,7 @@
                     "status",
                     "statusNote",
                     "statusSetAt",
+                    "setupCompletedAt",
                     "createdAt",
                     "updatedAt",
                     "lastAccessedAt"

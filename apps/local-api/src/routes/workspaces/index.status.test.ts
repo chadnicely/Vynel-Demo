@@ -134,4 +134,42 @@ describe('workspaces routes — status vocabulary', () => {
       expect(idle).toMatchObject({ tasksTotal: 0, tasksDone: 0, latestTurn: null })
     })
   })
+
+  describe('POST /:workspaceId/setup-complete', () => {
+    it('stamps a pulled-in project set up, and the row echoes it — idempotent', async () => {
+      await withTestDatabase(async (db) => {
+        const user = seedUser(db)
+        const workspace = seedWorkspace(db, user.id)
+        const app = createApp({ db, logger: silentLogger })
+
+        const before = (await (await app.request(`/workspaces/${workspace.id}`)).json()) as {
+          setupCompletedAt: string | null
+        }
+        expect(before.setupCompletedAt).toBeNull()
+
+        const res = await app.request(`/workspaces/${workspace.id}/setup-complete`, {
+          method: 'POST',
+        })
+        expect(res.status).toBe(200)
+        const stamped = (await res.json()) as { setupCompletedAt: string | null }
+        expect(stamped.setupCompletedAt).not.toBeNull()
+
+        const again = (await (
+          await app.request(`/workspaces/${workspace.id}/setup-complete`, { method: 'POST' })
+        ).json()) as { setupCompletedAt: string | null }
+        expect(again.setupCompletedAt).toBe(stamped.setupCompletedAt)
+      })
+    })
+
+    it('404s a workspace this user does not own', async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        const app = createApp({ db, logger: silentLogger })
+        const res = await app.request(`/workspaces/${randomUUID()}/setup-complete`, {
+          method: 'POST',
+        })
+        expect(res.status).toBe(404)
+      })
+    })
+  })
 })

@@ -85,6 +85,19 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   desktop screenshot, an image file the assistant read — shows the picture on its card, small
   when folded and full-size with its caption when expanded.
 
+- **Finish setting up — a project you bring in tells you what it needs.** A project pulled in from
+  a folder starts under a new **Needs setup** section at the top of the sidebar; clicking it opens
+  "Finish setting up", which reads the folder and shows what it found — its git repository, the
+  `.env` (the KEY NAMES only, never the values), the database its dependencies imply — and the one
+  thing a folder cannot answer, which of your connected accounts builds. Nothing in the folder is
+  touched; **Done — start building** stamps it set up and it leaves that section. Pull in several
+  at once and they wait quietly in Needs setup rather than marching you through setup screens back
+  to back. A project Vynel builds for you (the wizard, a clone) is set up from birth.
+
+- **The wizard opens on the idea and names the project last.** "Start something new" now opens on
+  what you want to build and asks for a name only near the end; Vynel makes the folder for it —
+  you never pick one or move anything.
+
 ### Changed
 
 - **Setup is five steps.** Welcome (Chad's copy: "Your projects stay where they are" first) →

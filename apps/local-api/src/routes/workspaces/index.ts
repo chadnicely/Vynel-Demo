@@ -67,6 +67,7 @@ import {
   deleteWorkspaceGroup,
   setWorkspaceGroup,
   setWorkspaceStatus,
+  markWorkspaceSetupComplete,
 } from '@vynel/workspaces'
 import type { WorkspaceGroup } from '@vynel/workspaces'
 import {
@@ -561,6 +562,28 @@ export const workspacesApp = factory
       })
       return c.json(serializeWorkspaceForResponse(updated))
     },
+  )
+  // "Finish setting up" → Done: stamp the project as set up so it leaves the
+  // sidebar's NEEDS SETUP section. One-way and idempotent. No x-mcp —
+  // answering the setup questions is the user's job, not an agent's (an agent
+  // marking its own project "set up" would defeat the point).
+  .post(
+    '/:workspaceId/setup-complete',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Mark a project as set up — it leaves the Needs setup section.',
+      'x-sdk-name': 'workspaces.markSetupComplete',
+      responses: {
+        200: {
+          description: 'The workspace, now stamped. Idempotent — the date never moves.',
+          content: { 'application/json': { schema: resolver(WorkspaceResponseSchema) } },
+        },
+        404: { description: 'No such workspace owned by this user.' },
+      },
+    }),
+    ...workspaceScoped,
+    (c) =>
+      c.json(serializeWorkspaceForResponse(markWorkspaceSetupComplete(c.var.db, c.var.workspace!.id))),
   )
   .post(
     '/:workspaceId/archive',

@@ -135,6 +135,9 @@ export async function scaffoldWorkspace(
         name,
         directory,
         ...(input.groupId !== undefined ? { groupId: input.groupId } : {}),
+        // The wizard built and configured it — it is set up from birth, never
+        // shown under NEEDS SETUP.
+        setupCompletedAt: new Date(),
       })
       const brief = workspaceBriefsRepository.insertWorkspaceBrief(tx, {
         id: randomUUID(),

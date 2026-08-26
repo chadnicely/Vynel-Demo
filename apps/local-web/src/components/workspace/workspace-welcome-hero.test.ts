@@ -19,6 +19,7 @@ function makeWorkspace(
     status: null,
     statusNote: null,
     statusSetAt: null,
+    setupCompletedAt: null,
     createdAt: "2026-07-05T10:00:00.000Z",
     updatedAt: "2026-07-05T10:00:00.000Z",
     lastAccessedAt: "2026-07-05T10:00:00.000Z",

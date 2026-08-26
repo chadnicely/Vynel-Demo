@@ -30,4 +30,9 @@ describe("groupActivityBucket", () => {
   it("an empty group stays where it was made", () => {
     expect(groupActivityBucket([])).toBe("active");
   });
+
+  it("needs-setup beats active — a group with one project still to set up surfaces there", () => {
+    expect(groupActivityBucket(["active", "needs-setup", "not-running"])).toBe("needs-setup");
+    expect(groupActivityBucket(["not-running", "needs-setup"])).toBe("needs-setup");
+  });
 });

@@ -35,6 +35,8 @@ export interface WorkspaceResponse {
   statusNote: string | null
   /** ISO-8601; null when nothing set. */
   statusSetAt: string | null
+  /** ISO-8601; null = still needs setting up (the sidebar's NEEDS SETUP). */
+  setupCompletedAt: string | null
   /** ISO-8601 */
   createdAt: string
   /** ISO-8601 */

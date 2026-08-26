@@ -55,6 +55,7 @@ import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
 import SessionsSidebar from "../sessions/SessionsSidebar.vue";
 import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
 import WhichProjectDialog from "../workspace/WhichProjectDialog.vue";
+import FinishSetupDialog from "../workspace/FinishSetupDialog.vue";
 import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
 import WorkspaceWizard from "../workspace/wizard/WorkspaceWizard.vue";
 import ClaudeAccountDialog from "../providers/ClaudeAccountDialog.vue";
@@ -156,6 +157,7 @@ const workspaceOptions = computed(() =>
       groupId: w.groupId ?? null,
       imageUrl: custom.workspaceImage,
       accent: workspaceAccentCss(custom, w.name),
+      setupCompletedAt: w.setupCompletedAt,
     };
   }),
 );
@@ -443,6 +445,13 @@ function treeSelect(workspaceId: string | null) {
     if (ui.activeTab.workspaceId !== null) selectTab(GLOBAL_TAB_ID);
     return;
   }
+  // A project that still needs setting up opens "Finish setting up" instead of
+  // its chat — the one thing left before it can build (Chad, 2026-08-25).
+  const workspace = activeWorkspaces.value.find((w) => w.id === workspaceId);
+  if (workspace !== undefined && workspace.setupCompletedAt === null) {
+    setupWorkspace.value = workspace;
+    return;
+  }
   // A workspace row always opens that room's chat — even when the room is
   // already the active tab on some other section (Kafi, 2026-08-19).
   ui.openWorkspaceTab(workspaceId);
@@ -566,6 +575,19 @@ function createGroupFromTree() {
 }
 const isClaudeAccountOpen = ref(false);
 
+// "Finish setting up" — a project that has not been through it (clicked from
+// the Needs setup section) opens here instead of its chat. Done stamps it and
+// opens the room; the account link hands off to the global account dialog.
+const setupWorkspace = ref<{ id: string; name: string } | null>(null);
+function closeFinishSetup() {
+  setupWorkspace.value = null;
+}
+function onSetupFinished(workspaceId: string) {
+  setupWorkspace.value = null;
+  ui.openWorkspaceTab(workspaceId);
+  void router.push({ name: "workspace" });
+}
+
 // The dialog is mounted once, here. A routed view (the Nodes screen's empty
 // state) can't reach that ref, so it rings the store's bell and we answer.
 watch(
@@ -656,8 +678,11 @@ function onWorkspaceCreated(workspace: WorkspaceResponse) {
 // the user through four rooms back to back is the wrong welcome.
 function onProjectsPulledIn(workspaces: WorkspaceResponse[]) {
   isWhichProjectOpen.value = false;
+  // A pulled-in project starts NEEDING setup. ONE opens "Finish setting up"
+  // straight away; SEVERAL stay quietly in the Needs setup section rather than
+  // marching the user through setup screens back to back (Chad, 2026-08-25).
   const only = workspaces.length === 1 ? workspaces[0] : undefined;
-  if (only) addTab(only.id);
+  if (only) setupWorkspace.value = { id: only.id, name: only.name };
 }
 
 // The wizard's "Open my workspace": the chat opens on the new workspace and
@@ -1001,6 +1026,13 @@ onBeforeUnmount(() => {
       @back="returnToDoor"
       @sign-in="isClaudeAccountOpen = true"
       @created="onWorkspaceScaffolded"
+    />
+    <FinishSetupDialog
+      :open="setupWorkspace !== null"
+      :workspace="setupWorkspace"
+      @close="closeFinishSetup"
+      @done="onSetupFinished"
+      @connect-account="isClaudeAccountOpen = true"
     />
     <ClaudeAccountDialog
       :open="isClaudeAccountOpen"

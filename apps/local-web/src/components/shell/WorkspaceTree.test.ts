@@ -16,11 +16,13 @@ import WorkspaceTree from "./WorkspaceTree.vue";
 function mountTree() {
   return mount(WorkspaceTree, {
     props: {
+      // All set up (a real date) so they bucket by STATUS — the needs-setup
+      // tier is exercised by its own test with a null stamp.
       workspaces: [
-        { id: "ws-a", name: "Acme", groupId: "grp-1" },
-        { id: "ws-c", name: "Cove", groupId: "grp-1" },
-        { id: "ws-b", name: "Blog", groupId: null },
-        { id: "ws-d", name: "Dune", groupId: null },
+        { id: "ws-a", name: "Acme", groupId: "grp-1", setupCompletedAt: "2026-08-01T00:00:00.000Z" },
+        { id: "ws-c", name: "Cove", groupId: "grp-1", setupCompletedAt: "2026-08-01T00:00:00.000Z" },
+        { id: "ws-b", name: "Blog", groupId: null, setupCompletedAt: "2026-08-01T00:00:00.000Z" },
+        { id: "ws-d", name: "Dune", groupId: null, setupCompletedAt: "2026-08-01T00:00:00.000Z" },
       ],
       groups: [
         { id: "grp-1", name: "Clients" },
@@ -273,6 +275,44 @@ describe("WorkspaceTree", () => {
       .findAll("ul.tree-root li.tree-slot")
       .map((node) => node.find(".truncate").text());
     expect(parkedNames).toEqual(["Blog", "Dune"]);
+    wrapper.unmount();
+  });
+
+  // D3 (Chad, 2026-08-25): a project not yet through "Finish setting up"
+  // (setupCompletedAt null) surfaces in NEEDS SETUP, first and above the work,
+  // beating whatever its status says.
+  it("a project needing setup sits in a Needs setup section, first, above status", () => {
+    const wrapper = mount(WorkspaceTree, {
+      props: {
+        workspaces: [
+          { id: "ws-new", name: "Freshly Pulled", groupId: null, setupCompletedAt: null },
+          { id: "ws-a", name: "Acme", groupId: null, setupCompletedAt: "2026-08-01T00:00:00.000Z" },
+        ],
+        groups: [],
+        activeWorkspaceId: null,
+        statusByWorkspaceId: {
+          // Even a RUNNING status loses to needing setup.
+          "ws-new": { status: "running" as const, note: null, tasksDone: 0, tasksTotal: 0 },
+          "ws-a": { status: "not_running" as const, note: null, tasksDone: 0, tasksTotal: 0 },
+        },
+        globalStatus: "not_running" as const,
+        accountName: "Sam",
+      },
+      attachTo: document.body,
+    });
+
+    const sections = wrapper.findAll(".tree-section");
+    expect(sections[0]!.text()).toContain("Needs setup");
+    expect(sections[0]!.text()).toContain("Freshly Pulled");
+    expect(sections[0]!.find(".tree-section-toggle").findAll("span").at(-1)!.text()).toBe("1");
+    wrapper.unmount();
+  });
+
+  it("no Needs setup section when every project is set up", () => {
+    const wrapper = mountTree();
+    expect(wrapper.findAll(".tree-section-header").map((n) => n.text()).join(" ")).not.toContain(
+      "Needs setup",
+    );
     wrapper.unmount();
   });
 

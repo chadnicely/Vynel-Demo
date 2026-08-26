@@ -58,6 +58,8 @@ const props = defineProps<{
     imageUrl?: string | null;
     /** A CSS colour — the workspace's accent (custom hex or palette reference). */
     accent?: string;
+    /** Null = still needs setting up (the sidebar's NEEDS SETUP section). */
+    setupCompletedAt?: string | null;
   }[];
   groups: { id: string; name: string }[];
   /** The active scope: a workspace id, or null for Global. */
@@ -123,9 +125,16 @@ function membersOf(listKey: string) {
   return membersByListKey.value.get(listKey) ?? [];
 }
 
-// ── Sections: the top-level Active / Not running split, read off each row's
-// status. ──
+// ── Sections: the Needs setup / Active / Not running split, read off each
+// row's own facts. A project that has not been through "Finish setting up"
+// (`setupCompletedAt` null) belongs in NEEDS SETUP — it beats status, because
+// a project you have not finished setting up is not "running" in any sense
+// that helps you. ──
 function bucketOf(workspaceId: string): WorkspaceActivityBucket {
+  const workspace = props.workspaces.find((row) => row.id === workspaceId);
+  if (workspace !== undefined && (workspace.setupCompletedAt ?? null) === null) {
+    return "needs-setup";
+  }
   return activityBucketOfStatus(statusViewOf(workspaceId)?.status ?? null);
 }
 
@@ -141,6 +150,10 @@ const bucketByGroupId = computed(() => {
 });
 
 const SECTIONS = [
+  // Needs setup FIRST — a section that BLOCKS work belongs above the work.
+  // Hidden entirely at zero (the template): it is not a universal state, and a
+  // permanent "NEEDS SETUP 0" as the first row is noise.
+  { id: "needs-setup", label: "Needs setup", addable: false, accent: false },
   // Active Projects wears the accent and carries the create buttons — the
   // working things are the headline, and nothing is born parked.
   { id: "active", label: "Active Projects", addable: true, accent: true },
@@ -162,7 +175,10 @@ const sections = computed(() =>
       groups.reduce((total, group) => total + membersOf(group.id).length, 0) +
       rootWorkspaces.length;
     return { ...section, groups, rootWorkspaces, count };
-  }),
+  })
+    // Needs setup is not a universal state — drop it entirely at zero rather
+    // than leave a permanent "NEEDS SETUP 0" as the first row.
+    .filter((section) => section.id !== "needs-setup" || section.count > 0),
 );
 
 // ── Drag and drop — the composable owns the state + drop math. ──

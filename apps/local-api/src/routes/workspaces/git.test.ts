@@ -131,4 +131,39 @@ describe('GET /workspaces/:workspaceId/git', () => {
       expect(res.status).toBe(404)
     })
   })
+
+  describe('GET /workspaces/:workspaceId/setup', () => {
+    it("reads the folder's repository, env KEY NAMES, and database — never a value", async () => {
+      await withTestDatabase(async (db) => {
+        const directory = mkdtempSync(path.join(tmpdir(), 'vynel-setup-route-'))
+        try {
+          writeFileSync(
+            path.join(directory, 'package.json'),
+            JSON.stringify({ dependencies: { 'better-sqlite3': '^11' } }),
+          )
+          writeFileSync(path.join(directory, '.env'), 'DATABASE_URL=postgres://secret\nAPI_KEY=sk-1')
+          const user = seedUser(db)
+          const workspace = seedWorkspace(db, user.id, directory)
+          const app = createApp({ db, logger: silentLogger })
+
+          const res = await app.request(`/workspaces/${workspace.id}/setup`)
+          expect(res.status).toBe(200)
+          const body = (await res.json()) as {
+            env: { kind: string; keyNames?: string[] }
+            database: string | null
+            databaseIsLocal: boolean
+          }
+          expect(body.env.kind).toBe('present')
+          expect(body.env.keyNames).toEqual(['DATABASE_URL', 'API_KEY'])
+          // The values never leave the folder.
+          expect(JSON.stringify(body)).not.toContain('secret')
+          expect(JSON.stringify(body)).not.toContain('sk-1')
+          expect(body.database).toBe('SQLite')
+          expect(body.databaseIsLocal).toBe(true)
+        } finally {
+          rmSync(directory, { recursive: true, force: true })
+        }
+      })
+    })
+  })
 })

@@ -9,7 +9,7 @@
 
 import { z } from 'zod'
 import { resolver } from 'hono-openapi/zod'
-import { listBranches, listWorktrees, readGitFacts } from '@vynel/workspaces'
+import { listBranches, listWorktrees, readGitFacts, readProjectSetup } from '@vynel/workspaces'
 import type { WorkspaceGitResponse } from '@vynel/contracts/workspaces/workspace-git'
 import { factory } from '../../factory.js'
 import { describeRoute } from '../../openapi.js'
@@ -85,4 +85,50 @@ export const workspaceGitApp = factory.createApp().get(
     }
     return c.json(response)
   },
+)
+
+// Backs "Finish setting up": everything the project's folder can answer for
+// ITSELF, so the screen only asks the one thing it cannot see — which AI
+// account does the building (Chad, 2026-08-10: Vynel is standing in the
+// folder, so it should not ask what it can see).
+//
+// No x-mcp — a UI read, not an agent tool: an agent standing in the folder
+// reads git / .env / package.json through Bash itself (the github-connection
+// route's precedent).
+export const ProjectSetupResponseSchema = z.object({
+  path: z.string(),
+  git: GitFactsSchema,
+  repository: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('remote'), url: z.string() }),
+    z.object({ kind: z.literal('local-only'), suggestedName: z.string() }),
+    z.object({ kind: z.literal('none'), suggestedName: z.string() }),
+  ]),
+  env: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('present'), keyNames: z.array(z.string()) }),
+    z.object({ kind: z.literal('from-example'), keyNames: z.array(z.string()) }),
+    z.object({ kind: z.literal('not-needed') }),
+  ]),
+  database: z.string().nullable(),
+  databaseIsLocal: z.boolean(),
+  needsAccountChoice: z.literal(true),
+})
+
+export const workspaceSetupApp = factory.createApp().get(
+  '/',
+  describeRoute({
+    tags: ['workspaces'],
+    summary: "Read what a project's folder already answers — repository, .env, database.",
+    'x-sdk-name': 'workspaces.getSetup',
+    responses: {
+      200: {
+        description:
+          '{ git, repository, env, database, databaseIsLocal }. Env carries key NAMES only.',
+        content: { 'application/json': { schema: resolver(ProjectSetupResponseSchema) } },
+      },
+      400: { description: 'The workspace folder is no longer accessible.' },
+      404: { description: 'Workspace not found.' },
+    },
+  }),
+  ...workspaceScoped,
+  async (c) => c.json(await readProjectSetup(c.var.workspace!.path)),
 )

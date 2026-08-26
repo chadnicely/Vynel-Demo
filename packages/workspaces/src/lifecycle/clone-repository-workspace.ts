@@ -107,6 +107,9 @@ export async function cloneRepositoryWorkspace(
         name,
         directory,
         ...(input.groupId !== undefined ? { groupId: input.groupId } : {}),
+        // Cloned from a repository we were handed — it is set up, never under
+        // NEEDS SETUP. Only a folder ADOPTED from disk starts needing setup.
+        setupCompletedAt: new Date(),
       },
       deps,
     )

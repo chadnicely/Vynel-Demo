@@ -2471,6 +2471,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  getSetup: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/setup"]["get"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/setup", {
+      params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   list: async (options?: NonNullable<paths["/workspaces"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/workspaces", {
       params: { ...(options && { query: options }) },
@@ -2492,6 +2499,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   listStatuses: async () => {
     const { data, error, response } = await client["GET"]("/workspaces/statuses")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  markSetupComplete: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/setup-complete"]["post"]['parameters']>['path']["workspaceId"]) => {
+    const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/setup-complete", {
+      params: { path: { workspaceId: workspaceId } },
+    })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },

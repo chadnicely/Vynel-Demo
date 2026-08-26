@@ -54,6 +54,17 @@ export const workspaces = table(
     status: text().$type<WorkspaceStatusKind>(),
     statusNote: text(),
     statusSetAt: timestamp(),
+    // When the human finished "Finish setting up" for this project — the
+    // repository, the AI account, the env file (Chad, 2026-08-24).
+    //
+    // NULL = it still needs setting up, which is exactly what the sidebar's
+    // NEEDS SETUP section lists. A project pulled in from disk starts null and
+    // stays there until the dialog's Done; a project Vynel SCAFFOLDS stamps it
+    // at birth — it built and configured it, so there is nothing left to ask.
+    //
+    // One-way and idempotent, and additive: rows written before this column
+    // read as "needs setup", so no backfill beyond the ADD COLUMN.
+    setupCompletedAt: timestamp(),
     createdAt: timestamp().notNull(),
     updatedAt: timestamp().notNull(),
     lastAccessedAt: timestamp().notNull(),

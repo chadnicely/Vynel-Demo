@@ -1740,6 +1740,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read what a project's folder already answers — repository, .env, database. */
+        get: operations["getWorkspacesByWorkspaceIdSetup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/github/repository": {
         parameters: {
             query?: never;
@@ -4780,6 +4797,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspaceId}/setup-complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a project as set up — it leaves the Needs setup section. */
+        post: operations["postWorkspacesByWorkspaceIdSetup-complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspaceId}/archive": {
         parameters: {
             query?: never;
@@ -5018,6 +5052,7 @@ export interface operations {
                             status: "completed" | "problem" | "needs_input" | null;
                             statusNote: string | null;
                             statusSetAt: string | null;
+                            setupCompletedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
                             lastAccessedAt: string;
@@ -5144,6 +5179,7 @@ export interface operations {
                             status: "completed" | "problem" | "needs_input" | null;
                             statusNote: string | null;
                             statusSetAt: string | null;
+                            setupCompletedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
                             lastAccessedAt: string;
@@ -11465,6 +11501,97 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getWorkspacesByWorkspaceIdSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { git, repository, env, database, databaseIsLocal }. Env carries key NAMES only. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        path: string;
+                        git: {
+                            /** @constant */
+                            kind: "no-git";
+                        } | {
+                            /** @constant */
+                            kind: "folder-missing";
+                        } | {
+                            /** @constant */
+                            kind: "not-a-repository";
+                        } | {
+                            /** @constant */
+                            kind: "unreadable";
+                            reason: string;
+                        } | {
+                            /** @constant */
+                            kind: "repository";
+                            branch: string | null;
+                            upstream: string | null;
+                            ahead: number | null;
+                            behind: number | null;
+                            changedCount: number;
+                            untrackedCount: number;
+                            remoteUrl: string | null;
+                        };
+                        repository: {
+                            /** @constant */
+                            kind: "remote";
+                            url: string;
+                        } | {
+                            /** @constant */
+                            kind: "local-only";
+                            suggestedName: string;
+                        } | {
+                            /** @constant */
+                            kind: "none";
+                            suggestedName: string;
+                        };
+                        env: {
+                            /** @constant */
+                            kind: "present";
+                            keyNames: string[];
+                        } | {
+                            /** @constant */
+                            kind: "from-example";
+                            keyNames: string[];
+                        } | {
+                            /** @constant */
+                            kind: "not-needed";
+                        };
+                        database: string | null;
+                        databaseIsLocal: boolean;
+                        /** @constant */
+                        needsAccountChoice: true;
+                    };
+                };
+            };
+            /** @description The workspace folder is no longer accessible. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Workspace not found. */
             404: {
@@ -20609,6 +20736,7 @@ export interface operations {
                             status: "completed" | "problem" | "needs_input" | null;
                             statusNote: string | null;
                             statusSetAt: string | null;
+                            setupCompletedAt: string | null;
                             createdAt: string;
                             updatedAt: string;
                             lastAccessedAt: string;
@@ -21535,6 +21663,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -21583,6 +21712,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -21980,6 +22110,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -22068,6 +22199,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -22121,6 +22253,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -22176,6 +22309,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -22183,6 +22317,54 @@ export interface operations {
                 };
             };
             /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postWorkspacesByWorkspaceIdSetup-complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workspace, now stamped. Idempotent — the date never moves. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        userId: string;
+                        name: string;
+                        managerName: string | null;
+                        /** @enum {string} */
+                        kind: "small-business" | "personal" | "project" | "custom";
+                        path: string;
+                        isArchived: boolean;
+                        continueEnabled: boolean;
+                        groupId: string | null;
+                        /** @enum {string|null} */
+                        status: "completed" | "problem" | "needs_input" | null;
+                        statusNote: string | null;
+                        statusSetAt: string | null;
+                        setupCompletedAt: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        lastAccessedAt: string;
+                    };
+                };
+            };
+            /** @description No such workspace owned by this user. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -22223,6 +22405,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;
@@ -22270,6 +22453,7 @@ export interface operations {
                         status: "completed" | "problem" | "needs_input" | null;
                         statusNote: string | null;
                         statusSetAt: string | null;
+                        setupCompletedAt: string | null;
                         createdAt: string;
                         updatedAt: string;
                         lastAccessedAt: string;

@@ -62,6 +62,9 @@ export type {
   ScaffoldGitOutcome,
 } from './lifecycle/scaffold-workspace.js'
 export { cloneRepositoryWorkspace } from './lifecycle/clone-repository-workspace.js'
+export { markWorkspaceSetupComplete } from './lifecycle/mark-setup-complete.js'
+export { readProjectSetup } from './directory/read-project-setup.js'
+export type { ProjectSetup, EnvPlan, RepositoryPlan } from './directory/read-project-setup.js'
 export type { CloneRepositoryWorkspaceInput } from './lifecycle/clone-repository-workspace.js'
 export { findWorkspaceBrief, toWorkspaceBrief } from './brief/workspace-brief.js'
 export type { WorkspaceBrief } from './brief/workspace-brief.js'

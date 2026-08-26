@@ -20,6 +20,7 @@ export function serializeWorkspaceForResponse(workspace: Workspace): WorkspaceRe
     status: workspace.status,
     statusNote: workspace.statusNote,
     statusSetAt: workspace.statusSetAt?.toISOString() ?? null,
+    setupCompletedAt: workspace.setupCompletedAt?.toISOString() ?? null,
     createdAt: workspace.createdAt.toISOString(),
     updatedAt: workspace.updatedAt.toISOString(),
     lastAccessedAt: workspace.lastAccessedAt.toISOString(),

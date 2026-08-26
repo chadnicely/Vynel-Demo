@@ -34,6 +34,10 @@ export type CreateWorkspaceInput = {
   directory: string
   /** The menu-tree folder to be born into (owner-checked); omit for the tree root. */
   groupId?: string
+  /** Stamp the project as already SET UP at birth — the wizard's scaffold and
+   *  a clone pass `new Date()` (Vynel built and configured it, nothing to
+   *  finish). Omitted for a pulled-in project, which starts under NEEDS SETUP. */
+  setupCompletedAt?: Date
 }
 
 // Structural logger shape — avoids the @vynel/logger dep at the core layer
@@ -107,6 +111,7 @@ export function createWorkspaceWithin(tx: Database, input: CreateWorkspaceInput)
     path: workspacePath,
     groupId: input.groupId ?? null,
     isArchived: false,
+    setupCompletedAt: input.setupCompletedAt ?? null,
     createdAt: now,
     updatedAt: now,
     lastAccessedAt: now,

@@ -126,6 +126,7 @@ export const WorkspaceResponseSchema = z.object({
   status: z.enum(['completed', 'problem', 'needs_input']).nullable(),
   statusNote: z.string().nullable(),
   statusSetAt: z.string().nullable(),
+  setupCompletedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   lastAccessedAt: z.string(),
