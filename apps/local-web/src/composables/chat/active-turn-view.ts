@@ -124,6 +124,22 @@ export function liveClockStartMs(view: ActiveTurnView): number {
   return view.startedAtMs;
 }
 
+/** The session the live turn runs on — the host an agent-run pointer opens
+ *  its nested activity by. `session-created` announces only a NEW segment,
+ *  so a turn on a continuing conversation never fills `session`; the
+ *  persisted user row (the first frame of every turn) names the segment it
+ *  landed on, and a boundary swap's landing wins once it happened. Null only
+ *  before the first frame — the seconds a pointer click has nothing to open. */
+export function liveTurnHostSessionId(view: ActiveTurnView): string | null {
+  return (
+    view.session?.id ??
+    view.contextPatch?.toSessionId ??
+    view.continuations.at(-1)?.userMessage.sessionId ??
+    view.userMessage?.sessionId ??
+    null
+  );
+}
+
 export function createActiveTurnView(): ActiveTurnView {
   return {
     status: "streaming",

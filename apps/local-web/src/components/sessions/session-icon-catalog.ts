@@ -4,7 +4,7 @@
 // badge paints the monogram — the vocabulary can grow server-side without
 // ever breaking an older client.
 
-import type { Component } from "vue";
+import { markRaw, type Component } from "vue";
 import {
   PhBell,
   PhBookOpen,
@@ -76,9 +76,11 @@ const SESSION_ICON_COMPONENTS: Record<SessionIcon, Component> = {
 };
 
 /** The glyph for a session's stored icon name — null (unset or a name this
- *  build doesn't know) means "paint the monogram". */
+ *  build doesn't know) means "paint the monogram". Raw on purpose: the glyph
+ *  travels inside prop objects (a message row's `authorPersona`), and a
+ *  component Vue makes reactive is overhead it warns about. */
 export function sessionIconComponent(icon: string | null): Component | null {
   return icon !== null && isSessionIcon(icon)
-    ? SESSION_ICON_COMPONENTS[icon]
+    ? markRaw(SESSION_ICON_COMPONENTS[icon])
     : null;
 }

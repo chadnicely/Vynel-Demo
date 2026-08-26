@@ -31,9 +31,15 @@ import {
 } from "../../composables/chat/active-turn-view.js";
 import LiveTurn from "./LiveTurn.vue";
 import PointerRow from "./PointerRow.vue";
-import { buildAgentRunPointer, buildToolCallPointer } from "./thread-pointers.js";
+import {
+  buildAgentRunPointer,
+  buildToolCallPointer,
+  isAgentSpawnToolCall,
+} from "./thread-pointers.js";
 import type { ThreadPointerModel } from "./thread-pointers.js";
 import { usePersonaResolver } from "../../composables/personas/resolve-persona.js";
+import { sessionIconComponent } from "../sessions/session-icon-catalog.js";
+import { engineReporterGlyph } from "./engine-reporter-icons.js";
 import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
 import { useTurnReference } from "../../composables/chat/use-turn-reference.js";
 
@@ -69,6 +75,10 @@ const props = withDefaults(
      *  thread. A manager row whose label names no workspace IS this room's
      *  manager speaking at home — its face comes from here. */
     workspaceId?: string | null;
+    /** Child conversation name → its curated icon (the host's overview read,
+     *  `useSessionIconsByName`) — a delivered session row wears its session's
+     *  own icon in the author line instead of a monogram. Omitted = monogram. */
+    sessionIconsByName?: Record<string, string | null> | undefined;
     /** The displayed session's model — names the model in the per-turn
      *  run-stats card (messages don't carry one). Null/omitted = "default". */
     sessionModel?: string | null;
@@ -91,6 +101,7 @@ const props = withDefaults(
     scrollToTraceId: undefined,
     workspacesByName: undefined,
     workspaceId: null,
+    sessionIconsByName: undefined,
     sessionModel: null,
     workspaceStatus: null,
     reauthorizable: true,
@@ -191,6 +202,13 @@ function workspaceBadgeFor(message: ChatMessageResponse) {
 }
 
 function authorPersonaFor(message: ChatMessageResponse) {
+  // A SYSTEM notice is the engine speaking — the notice card's icon names
+  // its producer kind (a schedule, the task list, a monitor), default glyph
+  // for one this build can't classify.
+  if (message.sourceKind === "system" && typeof message.sourceLabel === "string") {
+    const glyph = engineReporterGlyph(message.sourceLabel, { isEngineRow: true });
+    return { ...resolvePersona({ name: message.sourceLabel }), glyph };
+  }
   const isPersonaRow =
     (message.sourceKind === "workspace-manager" ||
       message.sourceKind === "agent") &&
@@ -210,7 +228,24 @@ function authorPersonaFor(message: ChatMessageResponse) {
     workspace !== null
       ? (props.workspacesByName?.[workspace] ?? null)
       : (props.workspacesByName?.[persona] ?? props.workspaceId ?? null);
-  return resolvePersona({ name: message.sourceLabel!, workspaceId });
+  // The face in the author line. Two authors are NOT the room's manager and
+  // must never wear the room's uploaded face (which `resolvePersona` hands
+  // any label grounded in a customized room): the engine relaying for a
+  // nameless job ("Background task" is nobody's initials) wears its kind's
+  // glyph, and a child SESSION the host's overview knows wears its own
+  // curated icon — or its initials when it has none. A session is looked up
+  // by its persona name (a bare label is the whole name; a combined one
+  // carries it first). Everything else keeps the persona's image/monogram.
+  const resolved = resolvePersona({ name: message.sourceLabel!, workspaceId });
+  const engineGlyph = engineReporterGlyph(message.sourceLabel);
+  const childIcon = props.sessionIconsByName?.[persona];
+  const isKnownChild = childIcon !== undefined;
+  if (engineGlyph === null && !isKnownChild) return { ...resolved, glyph: null };
+  return {
+    ...resolved,
+    imageUrl: null,
+    glyph: engineGlyph ?? sessionIconComponent(childIcon ?? null),
+  };
 }
 
 // The received-vs-sent discriminator (empirical, from how rows land): a
@@ -412,6 +447,9 @@ function startsNewCard(
 // step-narration rule guarantees it), so a text-less tool-carrying row folds
 // its calls into the nearest text row above, within the same card. `null` =
 // this row's calls moved up; its emptied row hides entirely.
+// An agent spawn is NOT a tool card: its pointer under the row is the whole
+// card (status, last act, the door into its activity — Kafi, 2026-08-26:
+// "show this directly"), so the generic Agent chip never enters the batch.
 const mergedToolCallsByMessageId = computed(() => {
   const messages = visibleMessages.value;
   const merged = mergeToolOnlyBatches(
@@ -420,7 +458,9 @@ const mergedToolCallsByMessageId = computed(() => {
       // (startsRun) and must never absorb the calls that follow it.
       hasText:
         message.role === "assistant" && message.body.trim().length > 0,
-      toolCalls: props.toolCallsByMessageId[message.id] ?? [],
+      toolCalls: (props.toolCallsByMessageId[message.id] ?? []).filter(
+        (call) => !isAgentSpawnToolCall(call.toolName),
+      ),
       startsRun:
         message.role !== "assistant" ||
         startsNewCard(message, messages[index - 1]),
@@ -634,8 +674,12 @@ function isReplyFoldable(group: {
     (_, index) => index !== 0 && index !== speakingIndex,
   );
   if (hasOtherRows) return true;
-  const hasToolCalls = group.messages.some(
-    (message) => (props.toolCallsByMessageId[message.id]?.length ?? 0) > 0,
+  // An agent spawn's pointer renders outside the fold — it adds nothing
+  // behind the caret.
+  const hasToolCalls = group.messages.some((message) =>
+    (props.toolCallsByMessageId[message.id] ?? []).some(
+      (call) => !isAgentSpawnToolCall(call.toolName),
+    ),
   );
   if (hasToolCalls) return true;
   return group.messages[speakingIndex]!.body.includes("\n\n");

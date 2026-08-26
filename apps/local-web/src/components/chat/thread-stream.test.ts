@@ -133,6 +133,48 @@ describe("ThreadStream", () => {
   // PERSISTS (Chad, 2026-08-09): live state rides the poll map; a settled
   // task keeps its pointer from the tool call's served delegation payload. ──
 
+  // An agent spawn's pointer IS its card (Kafi, 2026-08-26): the generic
+  // Agent tool chip never renders beside it, and it leaves nothing behind
+  // the reply fold — so no caret opens onto an empty batch.
+  it("an agent spawn wears only its pointer — no Agent tool chip, nothing behind the fold; click opens the run", async () => {
+    const reply = makeMessage(1);
+    const agentCall: ChatToolCallResponse = {
+      id: "tc-agent",
+      parentMessageId: reply.id,
+      toolUseId: "tu-agent",
+      toolName: "Agent",
+      toolInput: { description: "Whoami check", subagent_type: "Explore" },
+      toolOutput: "Found it.",
+      status: "completed",
+      approvalStatus: null,
+      isErrorResult: false,
+      subagentNarrative: "Looked at the login page.",
+      subagentToolCalls: [],
+      startedAt: "2026-07-05T10:00:00.000Z",
+      completedAt: "2026-07-05T10:00:05.000Z",
+    };
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [makeMessage(0), reply],
+        toolCallsByMessageId: { [reply.id]: [agentCall] },
+        activeTurn: null,
+      },
+      global: { plugins: [createPinia()] },
+    });
+
+    const pointer = wrapper.get('[data-testid="thread-pointer"]');
+    expect(pointer.attributes("data-status")).toBe("completed");
+    expect(pointer.text()).toContain("Whoami check");
+    expect(pointer.text()).toContain("Explore");
+    expect(wrapper.find(".tool-list").exists()).toBe(false);
+    expect(wrapper.find(".reply-caret").exists()).toBe(false);
+
+    await pointer.trigger("click");
+    expect(wrapper.emitted("openPointer")![0]![0]).toMatchObject({
+      agentRun: { hostSessionId: "s1", toolUseId: "tu-agent" },
+    });
+  });
+
   it("renders the pointer under the HAND-OFF row via its dispatch tool call's delegation key; click emits openPointer", async () => {
     // The PRODUCTION shape: sender-side message rows are unstamped — the work
     // trace key rides the dispatch tool call's served `delegation` (the
@@ -731,6 +773,47 @@ describe("ThreadStream", () => {
     expect(
       wrapper.getComponent(MessageRow).props("authorPersona"),
     ).toMatchObject({ accent: expect.stringMatching(/^var\(--ws-\d+\)$/) });
+  });
+
+  // A child session's delivered row wears the SESSION's curated icon (Kafi,
+  // 2026-08-26), and the engine's own rows wear their kind's glyph — neither
+  // ever the room's uploaded face, which is the manager's, not theirs. A
+  // known child with no icon wears its initials.
+  it("a child session's row wears its icon, an engine row its kind's glyph — never the room's face", () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useCustomizeStore().setWorkspaceImage("ws-room", "data:image/png;base64,ROOMLOGO");
+    const inbound = (label: string, index: number): ChatMessageResponse => ({
+      ...makeMessage(index),
+      id: `r${index}`,
+      role: "user",
+      sourceKind: "workspace-manager",
+      sourceLabel: label,
+      body: `[Report from ${label} — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\nDone.`,
+    });
+    const wrapper = mount(ThreadStream, {
+      props: {
+        messages: [inbound("Maintainer", 0), inbound("Background task", 1), inbound("Scout", 2)],
+        toolCallsByMessageId: {},
+        activeTurn: null,
+        workspaceId: "ws-room",
+        sessionIconsByName: { Maintainer: "build", Scout: null },
+      },
+      global: { plugins: [pinia] },
+    });
+    const rows = wrapper.findAllComponents(MessageRow);
+    const personas = rows.map((row) => row.props("authorPersona"));
+    // The child with an icon: glyph, no room face.
+    expect(personas[0]).toMatchObject({ imageUrl: null });
+    expect(personas[0]?.glyph).toBeTruthy();
+    // The engine's relay: its kind's glyph, no room face.
+    expect(personas[1]).toMatchObject({ imageUrl: null });
+    expect(personas[1]?.glyph).toBeTruthy();
+    // The child without an icon: initials, no room face, no glyph.
+    expect(personas[2]).toMatchObject({ imageUrl: null, glyph: null, monogram: "SC" });
+    // And the face reaches the DOM as a glyph where the initials would go.
+    expect(rows[0]!.find(".author-avatar .persona-glyph").exists()).toBe(true);
+    expect(rows[0]!.find(".author-avatar img").exists()).toBe(false);
   });
 
   // A manager speaking AT HOME carries a bare label ("letterman", no " · "
