@@ -5,6 +5,36 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Fixed
+
+- **A workspace shows "working" while any of its sessions works.** A task sent to a session that
+  lives in a workspace (by `send_message`) used to run as if it belonged to the global area, so
+  the workspace's row, tab, sidebar card, and node all read idle while its child was busy. The
+  run now announces itself in the workspace the session belongs to.
+
+- **The Global row ends with its state like every other row.** It showed nothing while parked or
+  after a problem; it now wears the same play glyph and status dots the workspace rows wear.
+
+- **Agent runs open from the thread while they run.** Clicking a running agent's card on an
+  ongoing conversation did nothing (the card had no session to open); it now opens the agent's
+  panel, which also shows the instruction the agent was given and, once done, its result. The
+  agent's card is the pointer card alone — no duplicate tool chip beside it.
+
+### Added
+
+- **Sessions wear their icon in the chat.** A reply or report delivered by a child session shows
+  the session's curated icon in its author line instead of two-letter initials. Notices Vynel
+  itself writes (a background task it relayed for, the task list, a schedule, a monitor) each
+  wear their own icon, with one fallback for anything else.
+
+- **File paths are clickable, screenshots are visible.** The file name on a Read/Write/Edit
+  card, the path in its expanded header, and any file path written in a message (yours or the
+  assistant's) open the file in its workspace's editor. A tool that returns a picture — a
+  desktop screenshot, an image file the assistant read — shows the picture on its card, small
+  when folded and full-size with its caption when expanded.
+
 ## [0.3.7] — 2026-08-26
 
 ### Fixed

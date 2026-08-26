@@ -3,6 +3,26 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ✅ 2026-08-26 SESSION/WORKSPACE STATE FIXES — BUILT on `fix/session-state` (worktree, band 18960)
+
+Kafi's five-screenshot list (`.tmp/fix-session-state/`), all landed, gate green, journal =
+`.claude/journal/2026-08-26-session-state-fixes.md`. (1) `TreeStateMark.vue` = the ONE state mark
+for every tree row, the Global row included. (2) ROOT CAUSE of "workspace idle while its child
+works": BOTH doors into a child announced a workspace-grounded spawned session as
+`scopeKind:'global'` — `run-task-job.ts` (now resolves the target first and announces under the
+grounding workspace, the agent-run shape) and the interactive `session-turn.ts` (now announces by
+`spawned.workspaceId` alone) — every workspace indicator already reads `useWorkspaceStatuses`, so
+nothing else moved; TasksPanel's overview-resolution workaround is no longer load-bearing. (3)
+Delivered session rows wear the session's curated icon (`useSessionIconsByName` → `MessageRow`
+`authorPersona.glyph`); the engine's reporter labels live in ONE contract
+(`contracts/chat/engine-reporter-labels.ts`) with per-kind glyphs + a default. (4) Agent-run
+pointers open on continuing conversations (`liveTurnHostSessionId`); the pointer is the whole
+card (generic Agent chip dropped); `AgentRunPane` shows instruction + result. (5) `vynel://file/`
+links (ui `lib/file-link.ts` + the shell's link router + `file-link-target.ts`) make tool-card
+paths and chat paths open the editor; image tool results (screenshot_app, observe, image Read)
+render as pictures. **Remaining:** Kafi's live smoke (a child session working → the room spins;
+a screenshot card; a path click), then merge to main.
+
 ## ✅ 2026-08-26 VOICE CLOUD PROVIDERS — MERGED TO MAIN (Kafi: "get everything to main")
 
 Kafi's directive: users connect their own **ElevenLabs / Google Cloud** with an API key and use
