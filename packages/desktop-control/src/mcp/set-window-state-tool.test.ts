@@ -24,6 +24,7 @@ function build(
   envelope = armed(),
   overrides: {
     findPid?: (query: string) => Promise<number | null>
+    isRunning?: (query: string) => Promise<boolean>
     apply?: (pid: number, state: WindowState) => Promise<boolean>
     authorize?: (appName: string, required: string) => void
     appNameByPid?: (pid: number) => string | null
@@ -32,6 +33,12 @@ function build(
   const applied: Array<{ pid: number; state: WindowState }> = []
   const tool = makeSetWindowStateTool(envelope, {
       findPid: overrides.findPid ?? (async () => 42),
+      // The "running but no window" probe is the tool's SECOND lookup and
+      // reaches the real process list by default — a unit test must never
+      // depend on what happens to be running on the box ("Ghost" matched
+      // `IDMMsgHost.exe` on a dev machine and the not-open case read "IS
+      // running"). Nothing here exercises the tray-hidden branch.
+      isRunning: overrides.isRunning ?? (async () => false),
       // Injected so these tests never load the capture binary — the default
       // identity lookup reaches node-screenshots (the request_desktop_access
       // precedent).
@@ -93,10 +100,7 @@ describe('makeSetWindowStateTool', () => {
 
   it('reports an app that is not open instead of guessing', async () => {
     const { tool, applied } = build(armed(), { findPid: async () => null })
-    // A name no real process on the test box can contain: the tool also
-    // scans the live process list by substring, and "Ghost" matched
-    // `IDMMsgHost.exe` on a dev machine — the test then read "IS running".
-    const result = await tool.handler({ app: 'Zq-No-Such-App-Zq', state: 'maximized' })
+    const result = await tool.handler({ app: 'Ghost', state: 'maximized' })
     expect(result.isError).toBe(true)
     expect(result.content[0]?.text).toContain('list_open_apps')
     expect(applied).toEqual([])
