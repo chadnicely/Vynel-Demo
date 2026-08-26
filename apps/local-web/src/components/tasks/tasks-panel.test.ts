@@ -88,12 +88,10 @@ function mountPanel(
   });
 }
 
-function queueTab(wrapper: ReturnType<typeof mountPanel>) {
-  return wrapper.findAll('[role="tab"]')[0]!;
-}
-
 describe("TasksPanel (work rail)", () => {
-  it("the queue lists only open work, with the count on its tab", async () => {
+  // Chad, 2026-08-25: ONE list — completed work floats to the top, struck,
+  // then the live task, then the queue. Each task keeps its original number.
+  it("lists every task — done first and struck, live, then queued — numbered by original place", async () => {
     const client = makeClient({
       tasksUser: {
         list: async () => [
@@ -112,11 +110,15 @@ describe("TasksPanel (work rail)", () => {
     const wrapper = mountPanel(client);
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Ship the launch email");
-    expect(wrapper.text()).toContain("Draft the brief");
-    // Done rows live behind the Completed tab now, not in the queue.
-    expect(wrapper.text()).not.toContain("Old news");
-    expect(queueTab(wrapper).get(".tab-count").text()).toBe("2");
+    const rows = wrapper.findAll(".task-row");
+    expect(rows.map((row) => row.get(".task-title").text())).toEqual([
+      "3. Old news",
+      "2. Draft the brief",
+      "1. Ship the launch email",
+    ]);
+    expect(rows[0]!.classes()).toContain("is-done");
+    expect(rows[1]!.classes()).toContain("is-live");
+    expect(wrapper.text()).toContain("All Tasks");
   });
 
   it("narrows to the scope it sits in — global shows only global work", async () => {
@@ -134,7 +136,7 @@ describe("TasksPanel (work rail)", () => {
 
     expect(wrapper.text()).toContain("Ship the launch email");
     expect(wrapper.text()).not.toContain("Room work");
-    expect(queueTab(wrapper).get(".tab-count").text()).toBe("1");
+    expect(wrapper.findAll(".task-row")).toHaveLength(1);
   });
 
   // test: correct expectation for scope visibility — was "workspace = own +
@@ -157,7 +159,7 @@ describe("TasksPanel (work rail)", () => {
     expect(listCalls).toEqual(["w1"]);
     expect(wrapper.text()).toContain("Room work");
     expect(wrapper.text()).not.toContain("Ship the launch email");
-    expect(queueTab(wrapper).get(".tab-count").text()).toBe("1");
+    expect(wrapper.findAll(".task-row")).toHaveLength(1);
   });
 
   it("cycles a task's status from its compact control", async () => {
@@ -186,7 +188,7 @@ describe("TasksPanel (work rail)", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("Nothing on the list");
-    expect(queueTab(wrapper).get(".tab-count").text()).toBe("0");
+    expect(wrapper.findAll(".task-row")).toHaveLength(0);
   });
 
   // ── The rail's own additions. ──
@@ -210,11 +212,17 @@ describe("TasksPanel (work rail)", () => {
     await flushPromises();
 
     const rows = wrapper.findAll(".task-row .task-title");
-    expect(rows[0]!.text()).toBe("1. Ship the rail");
+    // test: correct expectation for the row number — was "1." (display
+    // position), should be "2." (the task's ORIGINAL place, Chad 2026-08-25:
+    // the card's "Task N" must still point at row N when done work floats up).
+    expect(rows[0]!.text()).toBe("2. Ship the rail");
     expect(wrapper.find(".live-title").text()).toBe("Ship the rail");
+    expect(wrapper.find(".live-meta").text()).toBe("Task 2 · building now");
   });
 
-  it("stop → confirm interrupts the room's live session", async () => {
+  // Chad, 2026-08-25: the red button at the top does the stopping ITSELF, no
+  // confirm — "it needs to stop IMMEDIATELY".
+  it("ABORT interrupts the room's live session, no confirm", async () => {
     const interruptCalls: unknown[] = [];
     const client = makeClient({
       tasks: { list: async () => [] },
@@ -246,13 +254,86 @@ describe("TasksPanel (work rail)", () => {
     );
     await flushPromises();
 
-    expect(wrapper.find(".live-kicker").text()).toContain("working");
-    await wrapper.get(".abort-button").trigger("click");
-    await wrapper.get(".abort-do").trigger("click");
+    expect(wrapper.find(".live-kicker").text()).toContain("Working on now");
+    const abort = wrapper.get(".abort-btn");
+    expect(abort.attributes("disabled")).toBeUndefined();
+    await abort.trigger("click");
     await flushPromises();
 
     expect(interruptCalls).toEqual([["w1", "s-live"]]);
-    expect(wrapper.find(".abort-confirm").exists()).toBe(false);
+  });
+
+  it("on the Global rail, ABORT stops the global turn by identity", async () => {
+    const interruptCalls: unknown[] = [];
+    const client = makeClient({
+      root: {
+        interruptTurn: async (body: unknown) => {
+          interruptCalls.push(body);
+        },
+      },
+    });
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useActivityStore().applyServerActivity({
+      kind: "turn-started",
+      turnId: "turn-g",
+      scopeKind: "global",
+      workspaceId: null,
+      sessionId: "s-global",
+      origin: "web",
+      startedAt: "2026-08-14T10:00:00.000Z",
+    });
+
+    const wrapper = mountPanel(client, { kind: "global" }, pinia);
+    await flushPromises();
+
+    await wrapper.get(".abort-btn").trigger("click");
+    await flushPromises();
+
+    expect(interruptCalls).toEqual([{ sessionId: "s-global" }]);
+  });
+
+  // Two DIFFERENT signals, deliberately (Chad, 2026-08-25): the card stays lit
+  // while the task is unresolved; the status says whether it is moving now.
+  it("stays lit between turns — until the task is actually resolved", async () => {
+    const client = makeClient({
+      tasks: {
+        list: async () => [
+          makeTask({ id: "t2", workspaceId: "w1", title: "Ship the rail", status: "in-progress" }),
+        ],
+      },
+    });
+
+    const wrapper = mountPanel(client, { kind: "workspace", workspaceId: "w1" });
+    await flushPromises();
+
+    // No turn is streaming, but the task is still open — lit, and named.
+    expect(wrapper.find(".live-card").classes()).toContain("is-lit");
+    expect(wrapper.find(".live-kicker").text()).toContain("Working on now");
+    expect(wrapper.find(".live-meta").text()).toBe("Task 1 · building now");
+  });
+
+  it("what you typed while it was working shows in the card", async () => {
+    const wrapper = mount(TasksPanel, {
+      props: {
+        scope: { kind: "global" },
+        saidWhileWorking: ["also fix the footer", "and the login page"],
+      },
+      global: {
+        plugins: [
+          createPinia(),
+          [
+            VueQueryPlugin,
+            { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+          ],
+        ],
+        provide: { [vynelClientKey as symbol]: makeClient() },
+      },
+    });
+    await flushPromises();
+
+    const lines = wrapper.findAll(".live-said li").map((node) => node.text());
+    expect(lines).toEqual(["also fix the footer", "and the login page"]);
   });
 
   it("a row's title opens the full task view", async () => {
@@ -665,7 +746,9 @@ describe("TasksPanel (work rail)", () => {
     expect(wrapper.find(".live-kicker").text()).toContain("Not running");
     expect(wrapper.find(".live-title").text()).toBe("Nothing running");
     expect(wrapper.find(".live-bar").exists()).toBe(false);
-    expect(wrapper.find(".abort-button").exists()).toBe(false);
+    expect(wrapper.find(".live-card").classes()).not.toContain("is-lit");
+    // The kill switch is always there — disabled, never hidden.
+    expect(wrapper.get(".abort-btn").attributes("disabled")).toBeDefined();
     expect(wrapper.text()).toContain("Nothing running to open");
   });
 });

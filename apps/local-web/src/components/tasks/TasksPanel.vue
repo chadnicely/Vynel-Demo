@@ -12,7 +12,6 @@ import {
   PhCircleNotch as CircleNotch,
   PhMonitor as Monitor,
   PhPlus as Plus,
-  PhStopCircle as StopCircle,
   PhTrash as Trash,
 } from "@phosphor-icons/vue";
 import { ConfirmButton, EmptyState } from "@vynel/ui";
@@ -50,10 +49,13 @@ import TaskStatusControl from "./TaskStatusControl.vue";
 const props = withDefaults(
   defineProps<{
     scope: SectionScope;
-    /** Who works this scope — the workspace manager persona / the assistant. */
-    assistantName?: string;
+    /** What you typed while it was working, newest last. It belongs HERE, in
+     *  the live card, not only in a chip row above the composer (Chad,
+     *  2026-08-25) — the card is where the current work lives, so what you
+     *  said to it while it ran belongs in the same box. */
+    saidWhileWorking?: readonly string[];
   }>(),
-  { assistantName: "Assistant" },
+  { saidWhileWorking: () => [] },
 );
 
 const vynel = useVynel();
@@ -91,10 +93,18 @@ const completedTasks = computed(() =>
   tasksInScope.value.filter((row) => row.status === "done"),
 );
 
-const listTab = ref<"queue" | "done">("queue");
+// ALL tasks in one list (Chad, 2026-08-25): completed work floats to the
+// TOP, kept struck, then the live task, then the queued ones — finished work
+// stacks up visibly instead of hiding behind a tab. The sort is stable and
+// each task keeps the number of its original place, so the card's "Task N"
+// still points at row N.
+const STAGE_ORDER: Record<TaskStatus, number> = { done: 0, "in-progress": 1, open: 2 };
 const shownTasks = computed(() =>
-  listTab.value === "done" ? completedTasks.value : queuedTasks.value,
+  [...tasksInScope.value].sort((a, b) => STAGE_ORDER[a.status] - STAGE_ORDER[b.status]),
 );
+function numberOf(task: TaskResponse): number {
+  return tasksInScope.value.indexOf(task) + 1;
+}
 
 // The turns anchoring the live card + interrupt, as before: for a WORKSPACE,
 // the room's own thread alone (matchTurnToIdentity's workspace identity
@@ -196,12 +206,18 @@ const stepProgress = computed(() => {
   return { done, total: todos.length, pct: Math.round((100 * done) / todos.length) };
 });
 
-// The canvas's kicker vocabulary — one line per state.
+// The card is LIT while the task is unresolved, not only while a turn
+// streams (Chad, 2026-08-25): tied to the stream it went quiet between turns
+// on plainly unfinished work. The status dot still says whether it is moving
+// right now.
+const isLit = computed(() => liveTask.value !== null);
+
+// Chad's kicker vocabulary — one line per state.
 const liveKicker = computed(() => {
-  if (scopeStatus.value === "needs_input") return "Waiting on you";
+  if (scopeStatus.value === "needs_input") return "Wants your feedback";
   if (scopeStatus.value === "problem") return "Hit a problem";
-  if (scopeStatus.value === "completed") return "All tasks done";
-  if (scopeStatus.value === "running") return `${props.assistantName} working`;
+  if (scopeStatus.value === "completed") return "All done";
+  if (scopeStatus.value === "running" || isLit.value) return "Working on now";
   return "Not running";
 });
 const liveTitle = computed(() => {
@@ -215,7 +231,12 @@ const liveTitle = computed(() => {
 const liveMeta = computed(() => {
   // The assistant's own one-line why (set_workspace_status note) wins.
   const note = statusView.value?.note;
-  if (note != null && note !== "") return note;
+  if (note) return note;
+  // "Task 2 · building now" — the live task by its number (Chad, 2026-08-25).
+  if (liveTask.value !== null) {
+    const stage = scopeStatus.value === "needs_input" ? "waiting on you" : "building now";
+    return `Task ${numberOf(liveTask.value)} · ${stage}`;
+  }
   if (scopeStatus.value === "needs_input") return "Open the chat to answer";
   if (scopeStatus.value === "problem") return "Open the chat to see what broke";
   if (scopeStatus.value === "running") return "Building now";
@@ -231,9 +252,9 @@ const taskProgressLabel = computed(() => {
   if (view === null || view.tasksTotal === 0) return null;
   if (scopeStatus.value === "completed")
     return `${view.tasksTotal} of ${view.tasksTotal} tasks completed`;
-  if (scopeStatus.value === "needs_input" || scopeStatus.value === "problem")
-    return `${view.tasksDone} of ${view.tasksTotal} tasks done`;
-  return null;
+  // Every other state reads the task rollup (Chad's "N of M tasks done");
+  // while a turn runs with steps, the step bar takes the slot instead.
+  return `${view.tasksDone} of ${view.tasksTotal} tasks done`;
 });
 const taskProgressPct = computed(() => {
   const view = statusView.value;
@@ -250,18 +271,23 @@ const openableApps = computed(() =>
   ),
 );
 
-const isAbortConfirmOpen = ref(false);
+// THE KILL SWITCH — pinned at the top, no confirm (Chad, 2026-08-25: "it
+// needs to stop IMMEDIATELY, no delay"). Stops THIS scope's running turn;
+// other rooms keep going. A workspace room interrupts its own session; the
+// Global rail stops the global turn by identity — the same two doors the
+// composer's Stop uses, so the red button is never a dead press.
+const canAbort = computed(() => liveSessionId.value !== null);
 const isInterrupting = ref(false);
-// Workspace-only by design — the stop lives in the OPEN IT block, and the
-// Global surface already carries its own interrupt on the live turn.
 async function abortLiveSession() {
   const sessionId = liveSessionId.value;
-  isAbortConfirmOpen.value = false;
-  if (isInterrupting.value) return;
-  if (props.scope.kind !== "workspace" || sessionId === null) return;
+  if (isInterrupting.value || sessionId === null) return;
   isInterrupting.value = true;
   try {
-    await vynel.chat.interruptSession(props.scope.workspaceId, sessionId);
+    if (props.scope.kind === "workspace") {
+      await vynel.chat.interruptSession(props.scope.workspaceId, sessionId);
+    } else {
+      await vynel.root.interruptTurn({ sessionId });
+    }
   } catch {
     // The turn may have settled between the click and the call — the rail's
     // presence view corrects itself on the next activity event either way.
@@ -377,7 +403,6 @@ const newTaskTitle = ref("");
 const createInput = ref<HTMLInputElement | null>(null);
 
 function openCreate() {
-  listTab.value = "queue";
   isCreateOpen.value = true;
   void nextTick(() => createInput.value?.focus());
 }
@@ -416,6 +441,20 @@ function completedAtLabel(task: TaskResponse): string {
 
 <template>
   <aside class="work-rail">
+    <!-- THE KILL SWITCH — at the top where the eye lands, no confirm (Chad,
+         2026-08-25). Stops THIS scope's work; other rooms keep going.
+         Disabled, never hidden, while nothing runs: a button that vanishes
+         reads as a bug, a dead press reads as a broken one. -->
+    <button
+      type="button"
+      class="abort-btn"
+      :disabled="!canAbort || isInterrupting"
+      :title="canAbort ? 'Stop this project\'s work — other projects keep going' : 'Nothing running to stop'"
+      @click="abortLiveSession"
+    >
+      <span class="abort-square" aria-hidden="true" />ABORT
+    </button>
+
     <!-- The activity header — the scope's rollup at a glance: tasks done of
          total, and who is working. The sessions box expands into the scope's
          working sessions (always workspace-filtered). -->
@@ -473,7 +512,7 @@ function completedAtLabel(task: TaskResponse): string {
     <!-- The live card — the scope's status, what's being worked, and the
          real numbers: session steps while running, the task rollup in the
          end states. One status, one colour. -->
-    <div class="live-card" :data-status="scopeStatus">
+    <div class="live-card" :class="{ 'is-lit': isLit }" :data-status="scopeStatus">
       <p class="live-kicker">
         <span class="live-dot" aria-hidden="true" />
         {{ liveKicker }}
@@ -494,35 +533,20 @@ function completedAtLabel(task: TaskResponse): string {
         </span>
         <p class="live-bar-label">{{ taskProgressLabel }}</p>
       </template>
+
+      <!-- What you said to it while it was working, in the same box as the
+           work itself. Newest last, so it reads as a conversation. -->
+      <ul v-if="props.saidWhileWorking.length > 0" class="live-said">
+        <li v-for="(line, index) in props.saidWhileWorking" :key="index">
+          {{ line }}
+        </li>
+      </ul>
     </div>
 
-    <!-- Queue | Completed — the canvas's pill segment on the scoped query.
-         The tablist wraps ONLY the tabs; the add button shares the pill
-         visually but stays outside the tablist semantics (ARIA owned-
-         children rule). -->
-    <div class="list-tabs">
-      <div class="list-tabs-group" role="tablist" aria-label="Task lists">
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="listTab === 'queue'"
-          class="list-tab"
-          :class="{ 'is-active': listTab === 'queue' }"
-          @click="listTab = 'queue'"
-        >
-          In the queue <span class="tab-count">{{ queuedTasks.length }}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="listTab === 'done'"
-          class="list-tab"
-          :class="{ 'is-active': listTab === 'done' }"
-          @click="listTab = 'done'"
-        >
-          Completed <span class="tab-count">{{ completedTasks.length }}</span>
-        </button>
-      </div>
+    <!-- ALL TASKS — one list, done work struck at the top (Chad); the add
+         button keeps its place beside the label. -->
+    <div class="list-head">
+      <p class="list-label">All Tasks</p>
       <button
         type="button"
         aria-label="Add a task"
@@ -553,15 +577,11 @@ function completedAtLabel(task: TaskResponse): string {
       </form>
       <EmptyState
         v-if="shownTasks.length === 0"
-        :title="listTab === 'done' ? 'Nothing finished yet' : 'Nothing on the list'"
-        :hint="
-          listTab === 'done'
-            ? 'Completed tasks land here.'
-            : 'Ask for something and it\'ll track the steps here.'
-        "
+        title="Nothing on the list"
+        hint="Ask for something and it'll track the steps here."
       />
 
-      <template v-for="(task, taskIndex) in shownTasks" :key="task.id">
+      <template v-for="task in shownTasks" :key="task.id">
         <div
           class="task-row"
           :class="{
@@ -580,7 +600,7 @@ function completedAtLabel(task: TaskResponse): string {
             :title="task.title"
             @click="viewingTaskId = task.id"
           >
-            {{ taskIndex + 1 }}. {{ task.title }}
+            {{ numberOf(task) }}. {{ task.title }}
           </button>
           <span v-if="task.status === 'done'" class="task-meta">
             {{ completedAtLabel(task) }}
@@ -720,35 +740,6 @@ function completedAtLabel(task: TaskResponse): string {
       <p v-if="openableApps.length === 0" class="open-empty">
         Nothing running to open.
       </p>
-
-      <template v-if="scopeStatus === 'running' && liveSessionId !== null">
-        <button
-          type="button"
-          class="abort-button"
-          @click="isAbortConfirmOpen = !isAbortConfirmOpen"
-        >
-          <StopCircle :size="14" />
-          Stop the current work
-        </button>
-        <div v-if="isAbortConfirmOpen" class="abort-confirm">
-          <p class="abort-note">
-            Stops what {{ props.assistantName }} is doing right now. Finished
-            work stays; the step in flight is dropped.
-          </p>
-          <div class="abort-actions">
-            <button
-              type="button"
-              class="abort-keep"
-              @click="isAbortConfirmOpen = false"
-            >
-              Keep going
-            </button>
-            <button type="button" class="abort-do" @click="abortLiveSession">
-              Stop it
-            </button>
-          </div>
-        </div>
-      </template>
     </div>
 
     <TaskViewDialog
@@ -1037,52 +1028,6 @@ function completedAtLabel(task: TaskResponse): string {
 }
 
 /* ── The queue/completed pill segment. ── */
-.list-tabs {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px;
-  border-radius: 999px;
-  border: 1px solid var(--hair);
-  background: var(--color-neutral-900);
-}
-
-.list-tabs-group {
-  display: flex;
-  flex: 1;
-  gap: 3px;
-  min-width: 0;
-}
-
-.list-tab {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  color: var(--ink-3);
-  font: 400 11px/1.55 var(--font-ui);
-  transition:
-    background var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out);
-}
-
-.list-tab:hover {
-  color: var(--ink-1);
-}
-
-.list-tab.is-active {
-  background: var(--row-active);
-  color: var(--ink-1);
-}
-
-.tab-count {
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-3);
-}
-
 .add-task {
   display: grid;
   place-items: center;
@@ -1121,14 +1066,6 @@ function completedAtLabel(task: TaskResponse): string {
 
 /* The counts sit a step behind their label — accent on the selected tab, the
    quietest neutral on the one you are not looking at. */
-.list-tab.is-active .tab-count {
-  color: var(--color-accent-300);
-}
-
-.list-tab:not(.is-active) .tab-count {
-  color: var(--color-neutral-700);
-}
-
 .task-list {
   overflow-y: auto;
   min-height: 0;
@@ -1434,69 +1371,102 @@ function completedAtLabel(task: TaskResponse): string {
   font: 500 11px/1.5 var(--font-ui);
 }
 
-.abort-button {
+/* ── The kill switch (Chad, 2026-08-25) — red, pinned at the top. Disabled,
+   never hidden, while nothing runs. ── */
+.abort-btn {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--danger) 38%, transparent);
-  border-radius: var(--radius-m);
+  padding: 9px 12px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
-  font: 600 12px/1.4 var(--font-ui);
-  transition:
-    background var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out);
+  font: 700 11.5px/1.4 var(--font-ui);
+  letter-spacing: 0.08em;
+  cursor: default;
+  transition: background var(--t-fast) var(--ease-out);
 }
 
-.abort-button:hover {
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
+.abort-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 24%, transparent);
 }
 
-.abort-confirm {
-  display: grid;
-  gap: 8px;
-  padding: 10px 11px;
-  border-radius: var(--radius-m);
-  background: color-mix(in srgb, var(--danger) 9%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+.abort-btn:disabled {
+  opacity: 0.45;
 }
 
-.abort-note {
-  margin: 0;
-  color: var(--ink-1);
-  font: 500 11px/1.45 var(--font-ui);
-  text-wrap: pretty;
+.abort-square {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--danger);
 }
 
-.abort-actions {
+/* Lit while the task is unresolved, not only while a turn streams. */
+.live-card.is-lit {
+  animation: live-card-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes live-card-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--gold),
+      0 0 16px -4px var(--gold);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-card.is-lit {
+    animation: none;
+  }
+}
+
+/* What you said while it worked — quiet rows inside the card, one line
+   each, clipped so a paragraph cannot push the task out of view. */
+.live-said {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--hair);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-said li {
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ALL TASKS — the one list's head. */
+.list-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
 }
 
-.abort-keep {
-  padding: 4px 11px;
-  border-radius: var(--radius-s);
-  color: var(--ink-2);
-  font: 600 11px/1.5 var(--font-ui);
+.list-label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
-.abort-keep:hover {
-  background: var(--row-hover);
-  color: var(--ink-1);
-}
-
-.abort-do {
-  padding: 4px 12px;
-  border-radius: var(--radius-s);
-  background: color-mix(in srgb, var(--danger) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
-  color: var(--danger);
-  font: 600 11px/1.5 var(--font-ui);
-}
-
-.abort-do:hover {
-  background: color-mix(in srgb, var(--danger) 26%, transparent);
+/* Done work stays in the list, struck and dimmed. */
+.task-row.is-done .task-title {
+  text-decoration: line-through;
+  opacity: 0.6;
 }
 </style>

@@ -564,7 +564,7 @@ const queuedSend = useQueuedSend(
     <TasksPanel
       v-if="ui.isTasksPanelOpen && isTasksPanelSurface(shell.mainView)"
       :scope="scope"
-      :assistant-name="activeWorkspace?.managerName ?? 'Assistant'"
+      :said-while-working="queuedSend.queued.value.map((message) => message.text)"
     />
   </div>
 </template>

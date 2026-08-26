@@ -531,7 +531,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage, "global");
     <TasksPanel
       v-if="ui.isTasksPanelOpen && isTasksPanelSurface(shell.mainView)"
       :scope="{ kind: 'global' }"
-      :assistant-name="ASSISTANT_NAME"
+      :said-while-working="queuedSend.queued.value.map((message) => message.text)"
     />
   </div>
 </template>
