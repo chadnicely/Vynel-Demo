@@ -38,6 +38,15 @@ describe('composeSessionInstruction', () => {
     expect(() => composeSessionInstruction('workspace-manager')).toThrow(/workspace_name/)
   })
 
+  it('renders names containing replacement-pattern characters verbatim ($&, $$)', () => {
+    // User-supplied names must never be read as `replaceAll` replacement patterns.
+    const manager = composeSessionInstruction('workspace-manager', { workspaceName: 'Acme $& Co' })
+    expect(manager).toContain('the workspace "Acme $& Co"')
+    expect(manager).not.toContain('{{workspace_name}}')
+    const colleague = composeSessionInstruction('agent-colleague', { agentName: 'Q$$ Ltd' })
+    expect(colleague).toContain('You are "Q$$ Ltd"')
+  })
+
   it('renders the agent-colleague kind with the agent name filled in', () => {
     const composed = composeSessionInstruction('agent-colleague', { agentName: 'Nova' })
     expect(composed).toContain('You are "Nova"')

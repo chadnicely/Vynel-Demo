@@ -18,17 +18,22 @@ export function composeSessionInstruction(
 ): string {
   const base = loadSessionInstruction(options.voice === true ? 'voice-base' : 'base')
   let kindInstruction = loadSessionInstruction(kind)
-  if (options.agentName !== undefined) {
-    kindInstruction = kindInstruction.replaceAll('{{agentName}}', options.agentName)
+  // Replacer FUNCTIONS, never replacement strings: the names are user input,
+  // and `replaceAll(str, str)` reads `$&`, `$$`, `` $` `` in the replacement
+  // (a workspace named "Acme $& Co" would re-insert the placeholder and trip
+  // the guard below on every turn).
+  const { agentName, workspaceName } = options
+  if (agentName !== undefined) {
+    kindInstruction = kindInstruction.replaceAll('{{agentName}}', () => agentName)
   }
-  if (options.workspaceName !== undefined) {
-    kindInstruction = kindInstruction.replaceAll('{{workspace_name}}', options.workspaceName)
+  if (workspaceName !== undefined) {
+    kindInstruction = kindInstruction.replaceAll('{{workspace_name}}', () => workspaceName)
   }
   // Fail loud on ANY unrendered placeholder — a kind file may add one (the
   // manager's {{workspace_name}}, the colleague's {{agentName}}) and a door
   // that forgets to pass the value must break in tests, never ship mustache
   // to the model.
-  const unrendered = kindInstruction.match(/\{\{[a-zA-Z_]+\}\}/)
+  const unrendered = kindInstruction.match(/\{\{[^}]+\}\}/)
   if (unrendered !== null) {
     throw new Error(
       `Session instruction "${kind}" carries an unrendered ${unrendered[0]} placeholder — pass the matching option (agentName / workspaceName) to compose it.`,

@@ -24,6 +24,7 @@ describe('loadSessionInstruction', () => {
     // The assistant is Claude, working through Vynel — the runtime stays out of the user's view.
     expect(prompt).toContain('Vynel')
     expect(prompt).toContain('You are Claude')
+    expect(prompt).toContain('runtime underneath')
     // Every kind has a duty book — the base carries the pointer once.
     expect(prompt).toContain('read_playbook')
     expect(prompt).toContain('whoami')
@@ -47,16 +48,18 @@ describe('loadSessionInstruction', () => {
   })
 
   // test: correct expectation for the base+kind split — plain-language and the
-  // approval rule now live in base; the kind file states what this session IS:
-  // the workspace's MANAGER (the primary runs the work and manages children).
+  // approval rule live in base; the kind file states what this session IS:
+  // the Workspace Manager persona (Kafi 2026-08-26) — it never builds, it
+  // routes every change to a child persona and speaks for the workspace.
   it('workspace-manager frames the primary as the workspace manager', () => {
     const prompt = loadSessionInstruction('workspace-manager')
     expect(prompt).toContain('Workspace Manager')
     expect(prompt).toContain('child session')
-    // Sending a task to a child means sending instructions with it.
+    // What a child needs to know travels inside its task.
     expect(prompt).toContain('goes into its task')
-    // The merge discipline (Kafi 2026-08-25): children live in worktrees;
-    // the MANAGER merges into main and removes the worktree — never a child.
+    // The merge discipline (Kafi 2026-08-26): children live in worktrees, and
+    // the MAINTAINER — the standing developer persona — lands every merge into
+    // main; nothing else touches main, the manager included.
     expect(prompt).toContain('worktree')
     expect(prompt).toContain('merge')
     expect(prompt).toContain('Maintainer')
@@ -66,9 +69,10 @@ describe('loadSessionInstruction', () => {
     const prompt = loadSessionInstruction('spawned-session')
     expect(prompt).toContain('CHILD session')
     expect(prompt).toContain('instructions')
-    // The working discipline (Kafi 2026-08-25): context first, own worktree
-    // (the merge is the manager's), and the review gate is a FRESH agent with
-    // no conversation context; small tasks skip the ceremony.
+    // The working discipline (Kafi 2026-08-25/26): context first, own worktree
+    // (the merge is the Maintainer's, never the child's), and the review gate
+    // is a FRESH agent with no conversation context; small tasks skip the
+    // ceremony.
     expect(prompt).toContain('worktree')
     expect(prompt).toContain('FRESH review agent')
     expect(prompt).toContain('skips the ceremony')
