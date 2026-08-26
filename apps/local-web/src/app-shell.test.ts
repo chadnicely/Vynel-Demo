@@ -557,11 +557,16 @@ describe("app shell", () => {
 
     await pickNavView(wrapper, "nav-menu");
 
-    // The tree shows the same presence: room dot + the Global row's dot.
+    // The tree shows the same presence: room dot + the Global row's dot — the
+    // one state mark every row wears (TreeStateMark), Global included.
     expect(
       wrapper.find('[aria-label="Marketing is waiting on you"]').exists(),
     ).toBe(true);
-    expect(wrapper.find('[aria-label="Waiting on you"]').exists()).toBe(true);
+    expect(
+      wrapper
+        .find('.tree-mark[data-status="needs_input"][aria-label="Global is waiting on you"]')
+        .exists(),
+    ).toBe(true);
   });
 
   it("folders group their member workspaces in the tree", async () => {

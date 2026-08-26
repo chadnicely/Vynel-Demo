@@ -187,6 +187,29 @@ describe("WorkspaceTree", () => {
     wrapper.unmount();
   });
 
+  // The Global row ends with its state like every other row (Kafi,
+  // 2026-08-26): it used to draw only the spinner and the needs-input dot,
+  // so a parked or failed global area was the one row that ended with nothing.
+  it("the Global row wears the same state mark as a workspace row — play when parked, a dot on a problem", async () => {
+    const wrapper = mountTree();
+    // Global is the active scope in the fixture, so it is the one aria-current row.
+    const globalRow = () => wrapper.get('button[aria-current="page"]');
+    expect(globalRow().text()).toContain("Global");
+    expect(globalRow().find(".tree-state-parked").exists()).toBe(true);
+    expect(globalRow().find('[aria-label="Working"]').exists()).toBe(false);
+
+    await wrapper.setProps({ globalStatus: "problem" });
+    expect(globalRow().find('[aria-label="Global hit a problem"]').exists()).toBe(true);
+    expect(globalRow().find(".tree-state-parked").exists()).toBe(false);
+
+    await wrapper.setProps({ globalStatus: "running" });
+    expect(globalRow().find('[aria-label="Working"]').exists()).toBe(true);
+
+    await wrapper.setProps({ globalStatus: "completed" });
+    expect(globalRow().find('[aria-label="Global is completed"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
   // A dragover with a pointer position: the tree reads which half of the
   // hovered element it's in. happy-dom rects are all zeros, so the target's
   // box is pinned to 30px tall and the pointer placed by hand.

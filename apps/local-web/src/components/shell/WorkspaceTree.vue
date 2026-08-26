@@ -3,7 +3,6 @@ import { computed, nextTick, ref, watch } from "vue";
 import {
   PhCaretDown as CaretDown,
   PhCaretRight as CaretRight,
-  PhCircleNotch as CircleNotch,
   PhHouse as House,
   PhPlus as Plus,
   PhStack as Stack,
@@ -13,6 +12,7 @@ import { ContextMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import type { WorkspaceEffectiveStatus } from "@vynel/contracts/workspaces/workspace-status";
 import SidebarAccountRow from "./SidebarAccountRow.vue";
+import TreeStateMark from "./TreeStateMark.vue";
 import WorkspaceTreeRow from "./WorkspaceTreeRow.vue";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
 import {
@@ -257,18 +257,10 @@ function onGroupMenu(group: { id: string; name: string }, itemId: string) {
                 <House :size="10" />
               </span>
               <span class="min-w-0 truncate">Global</span>
+              <!-- The same state mark every workspace row ends with — parked
+                   play glyph included (Kafi, 2026-08-26). -->
               <span class="flex items-center gap-[7px]">
-                <span
-                  v-if="props.globalStatus === 'needs_input'"
-                  aria-label="Waiting on you"
-                  class="size-2 shrink-0 animate-pulse rounded-full bg-needs-input"
-                />
-                <CircleNotch
-                  v-else-if="props.globalStatus === 'running'"
-                  aria-label="Working"
-                  :size="12"
-                  class="shrink-0 animate-spin text-gold"
-                />
+                <TreeStateMark :status="props.globalStatus" name="Global" />
               </span>
             </button>
           </div>

@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import {
-  PhCaretRight as CaretRight,
-  PhCircleNotch as CircleNotch,
-  PhPlay as Play,
-} from "@phosphor-icons/vue";
+import { PhCaretRight as CaretRight } from "@phosphor-icons/vue";
 import { workspaceColorSlot, workspaceMonogram } from "@vynel/ui";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
+import TreeStateMark from "./TreeStateMark.vue";
 
 // One workspace row of the tree: caret · the workspace's OWN icon (its
 // uploaded image, else its monogram over its accent — the same face its
 // chips wear in chat) · name · the state cluster on the RIGHT: `done/total`,
-// then ONE mark, ALWAYS — spinner while working, a bold status dot when it
-// needs you / hit a problem / completed, the play glyph when parked (Kafi,
-// 2026-08-19: state moved right, icon took the left, marks bolder; every
-// row ends with its state, open tasks or not). Used at
+// then ONE mark, ALWAYS (TreeStateMark — the Global row wears the same one).
+// Kafi, 2026-08-19: state moved right, icon took the left, marks bolder;
+// every row ends with its state, open tasks or not. Used at
 // the root, inside groups, and under NOT RUNNING, so the row lives in
 // exactly one home. Draggable: the tree owns the drag-and-drop state; the
 // row only reports its lifecycle. Data-blind — the icon fields ride in on
@@ -39,12 +35,6 @@ const emit = defineEmits<{
   "drag-end": [];
 }>();
 
-const MARK_LABELS = {
-  needs_input: "is waiting on you",
-  problem: "hit a problem",
-  completed: "is completed",
-} as const;
-
 const monogram = computed(() => workspaceMonogram(props.workspace.name));
 const accent = computed(
   () => props.workspace.accent ?? `var(--ws-${workspaceColorSlot(props.workspace.name)})`,
@@ -54,11 +44,11 @@ function status() {
   return props.statusView?.status ?? "not_running";
 }
 
-function markStatus(): keyof typeof MARK_LABELS | null {
+// The count reads quieter beside a bold mark (dot) than beside the spinner
+// or the play glyph.
+function hasMarkDot(): boolean {
   const current = status();
-  return current === "needs_input" || current === "problem" || current === "completed"
-    ? current
-    : null;
+  return current === "needs_input" || current === "problem" || current === "completed";
 }
 
 function progressLabel(): string | null {
@@ -128,36 +118,14 @@ function progressLabel(): string | null {
           v-if="progressLabel()"
           class="whitespace-nowrap text-[10.5px] font-medium tabular-nums"
           :class="
-            markStatus()
+            hasMarkDot()
               ? 'text-[var(--color-neutral-400)]'
               : 'text-[var(--color-neutral-500)]'
           "
         >
           {{ progressLabel() }}
         </span>
-        <CircleNotch
-          v-if="status() === 'running'"
-          :size="14"
-          weight="bold"
-          class="tree-state-running shrink-0 animate-spin text-gold"
-          aria-label="Working"
-        />
-        <span
-          v-else-if="markStatus()"
-          :aria-label="`${props.workspace.name} ${MARK_LABELS[markStatus()!]}`"
-          class="tree-mark size-2.5 shrink-0 rounded-full"
-          :data-status="markStatus()"
-        />
-        <!-- Parked: the play mark — ALWAYS, open tasks or not (one rule: every
-             row ends with its state; the count sits before it). -->
-        <Play
-          v-else
-          :size="12"
-          weight="fill"
-          class="tree-state-parked shrink-0 text-[var(--color-neutral-500)]"
-          aria-hidden="true"
-          title="Pick up where it left off"
-        />
+        <TreeStateMark :status="status()" :name="props.workspace.name" />
       </span>
     </button>
   </div>
@@ -180,45 +148,5 @@ function progressLabel(): string | null {
   bottom: 0;
   left: -10px;
   width: 24px;
-}
-
-/* One status, one colour — the mark dot's hue is the state's, everywhere.
-   A soft ring of the same hue makes it read from across the room. */
-.tree-mark {
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
-  animation: tree-mark-pulse 1.4s ease-in-out infinite;
-}
-
-.tree-mark[data-status="needs_input"] {
-  background: var(--needs-input);
-  color: var(--needs-input);
-}
-
-.tree-mark[data-status="problem"] {
-  background: var(--danger);
-  color: var(--danger);
-}
-
-.tree-mark[data-status="completed"] {
-  background: var(--ok);
-  color: var(--ok);
-}
-
-@keyframes tree-mark-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.45;
-    transform: scale(0.8);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tree-mark {
-    animation: none;
-  }
 }
 </style>
