@@ -53,8 +53,8 @@ import AskNotifier from "../asks/AskNotifier.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import ConversationSidebar from "../sidebar/ConversationSidebar.vue";
 import SessionsSidebar from "../sessions/SessionsSidebar.vue";
-import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
 import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
+import WhichProjectDialog from "../workspace/WhichProjectDialog.vue";
 import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
 import WorkspaceWizard from "../workspace/wizard/WorkspaceWizard.vue";
 import ClaudeAccountDialog from "../providers/ClaudeAccountDialog.vue";
@@ -514,11 +514,14 @@ function openAccount() {
 const isSidebarOpen = ref(true);
 const isPaletteOpen = ref(false);
 // Adding a workspace is a fork first (the door): "Walk me through it" opens
-// the wizard, "Pull from a folder" the register dialog. Every entry point —
-// the tree "+", the strip, the Vynel menu, the Nodes screen's bell — lands on
-// the door; the group it was opened from rides through to whichever path.
+// the wizard, "Pull from a folder" the "Which project?" screen — the OS folder
+// window, then whatever Vynel found inside (Kafi, 2026-08-27: the in-app
+// folder tree stays in the codebase; how it attaches here is a later call).
+// Every entry point — the tree "+", the strip, the Vynel menu, the Nodes
+// screen's bell — lands on the door; the group it was opened from rides
+// through to whichever path.
 const isNewWorkspaceDoorOpen = ref(false);
-const isCreateWorkspaceOpen = ref(false);
+const isWhichProjectOpen = ref(false);
 const isWorkspaceWizardOpen = ref(false);
 const isCloneRepositoryOpen = ref(false);
 // The group a "+" was clicked on — the starting Group; null = root.
@@ -531,7 +534,7 @@ function onNewWorkspacePick(choice: "wizard" | "folder" | "clone") {
   isNewWorkspaceDoorOpen.value = false;
   if (choice === "wizard") isWorkspaceWizardOpen.value = true;
   else if (choice === "clone") isCloneRepositoryOpen.value = true;
-  else isCreateWorkspaceOpen.value = true;
+  else isWhichProjectOpen.value = true;
 }
 // Back from a path's first screen returns to the door.
 function returnToDoor() {
@@ -548,7 +551,7 @@ const onboardingStore = useOnboardingStore();
 onMounted(() => {
   const door = onboardingStore.takeFirstProjectDoor();
   if (door === "new") isWorkspaceWizardOpen.value = true;
-  else if (door === "existing") isCreateWorkspaceOpen.value = true;
+  else if (door === "existing") isWhichProjectOpen.value = true;
 });
 // The strip's stack-plus: one create in flight at a time (a double-click must
 // not mint two "New group" rows); the created row opens into its rename box.
@@ -644,9 +647,17 @@ watch(
 );
 
 function onWorkspaceCreated(workspace: WorkspaceResponse) {
-  isCreateWorkspaceOpen.value = false;
   isCloneRepositoryOpen.value = false;
   addTab(workspace.id);
+}
+
+// "Which project?" hands back EVERY project that landed. One opens as the
+// register dialog always did; several stay quietly in the sidebar — marching
+// the user through four rooms back to back is the wrong welcome.
+function onProjectsPulledIn(workspaces: WorkspaceResponse[]) {
+  isWhichProjectOpen.value = false;
+  const only = workspaces.length === 1 ? workspaces[0] : undefined;
+  if (only) addTab(only.id);
 }
 
 // The wizard's "Open my workspace": the chat opens on the new workspace and
@@ -970,11 +981,11 @@ onBeforeUnmount(() => {
       @close="isNewWorkspaceDoorOpen = false"
       @pick="onNewWorkspacePick"
     />
-    <CreateWorkspaceDialog
-      :open="isCreateWorkspaceOpen"
-      :default-group-id="createWorkspaceGroupId"
-      @close="isCreateWorkspaceOpen = false"
-      @created="onWorkspaceCreated"
+    <WhichProjectDialog
+      :open="isWhichProjectOpen"
+      :group-id="createWorkspaceGroupId"
+      @close="isWhichProjectOpen = false"
+      @created="onProjectsPulledIn"
     />
     <CloneRepositoryDialog
       :open="isCloneRepositoryOpen"

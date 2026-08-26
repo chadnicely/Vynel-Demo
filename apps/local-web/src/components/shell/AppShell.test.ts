@@ -10,7 +10,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
-import { createPinia } from "pinia";
+import { createPinia, setActivePinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { ResizablePanel } from "@vynel/ui";
 import type { VynelClient } from "@vynel/sdk";
@@ -18,13 +18,14 @@ import { createAppRouter } from "../../router.js";
 import { vynelClientKey } from "../../plugins/vynel-client.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
+import { useOnboardingStore } from "../../stores/onboarding-store.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import AppShell from "./AppShell.vue";
 import AppTitleBar from "./AppTitleBar.vue";
 import VoiceOverlay from "../voice/VoiceOverlay.vue";
 import NewWorkspaceDialog from "../workspace/NewWorkspaceDialog.vue";
 import WorkspaceWizard from "../workspace/wizard/WorkspaceWizard.vue";
-import CreateWorkspaceDialog from "../workspace/CreateWorkspaceDialog.vue";
+import WhichProjectDialog from "../workspace/WhichProjectDialog.vue";
 import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
 
 /** Every read the shell makes, answering empty. */
@@ -39,7 +40,7 @@ const quietClient = new Proxy(
   },
 ) as unknown as VynelClient;
 
-async function mountShell() {
+async function mountShell(pinia = createPinia()) {
   // No socket in this environment — the live channel goes "unavailable"
   // instead of dialing localhost and retrying for the whole run. The one POST
   // the window's voice makes on its own (the daemon's session hand-back) has
@@ -54,7 +55,7 @@ async function mountShell() {
     global: {
       plugins: [
         router,
-        createPinia(),
+        pinia,
         [
           VueQueryPlugin,
           { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
@@ -317,6 +318,34 @@ describe("AppShell — the view switch", () => {
 // the pick opens ONE of the two paths, the wizard's Back returns to the door,
 // and "Open my workspace" opens the new workspace with the stored brief seeded
 // — after the tab switch, so it reaches the new chat's composer.
+// First launch ends on "something new, or something you already have?" — the
+// answer parks in the onboarding store while the wizard unmounts, and the
+// shell opens that door once, on mount.
+describe("AppShell — the first-project door", () => {
+  async function mountWithDoor(door: "new" | "existing") {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useOnboardingStore().markCompleted(door);
+    return mountShell(pinia);
+  }
+
+  it("'something I already have' opens Which project?", async () => {
+    const { wrapper } = await mountWithDoor("existing");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(WhichProjectDialog).props("open")).toBe(true);
+    expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(false);
+    // Read-once: the door is spent.
+    expect(useOnboardingStore().pendingFirstProjectDoor).toBeNull();
+  });
+
+  it("'something new' opens the build wizard", async () => {
+    const { wrapper } = await mountWithDoor("new");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(true);
+    expect(wrapper.getComponent(WhichProjectDialog).props("open")).toBe(false);
+  });
+});
+
 describe("AppShell — the new-workspace door", () => {
   it("the Vynel menu's New workspace opens the door, not a dialog", async () => {
     const { wrapper } = await mountShell();
@@ -326,7 +355,7 @@ describe("AppShell — the new-workspace door", () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(true);
-    expect(wrapper.getComponent(CreateWorkspaceDialog).props("open")).toBe(false);
+    expect(wrapper.getComponent(WhichProjectDialog).props("open")).toBe(false);
     expect(wrapper.getComponent(WorkspaceWizard).props("open")).toBe(false);
   });
 
@@ -338,8 +367,8 @@ describe("AppShell — the new-workspace door", () => {
     wrapper.getComponent(NewWorkspaceDialog).vm.$emit("pick", "folder");
     await wrapper.vm.$nextTick();
     expect(wrapper.getComponent(NewWorkspaceDialog).props("open")).toBe(false);
-    expect(wrapper.getComponent(CreateWorkspaceDialog).props("open")).toBe(true);
-    wrapper.getComponent(CreateWorkspaceDialog).vm.$emit("close");
+    expect(wrapper.getComponent(WhichProjectDialog).props("open")).toBe(true);
+    wrapper.getComponent(WhichProjectDialog).vm.$emit("close");
     await wrapper.vm.$nextTick();
 
     wrapper.getComponent(AppTitleBar).vm.$emit("command", "new-workspace");

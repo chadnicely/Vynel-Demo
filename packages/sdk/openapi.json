@@ -45399,6 +45399,157 @@
         }
       }
     },
+    "/workspaces/pick-folder": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "The chosen absolute path, or null — cancelling is a normal answer, never an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postWorkspacesPick-folder",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [],
+        "summary": "Open the OS folder dialog and return what the user picked.",
+        "x-sdk-name": "workspaces.pickFolder"
+      }
+    },
+    "/workspaces/scan-folder": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "single (adopt it) / several (the user ticks which) / none (offer \"add it anyway\").",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "single"
+                        },
+                        "project": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "foundBy": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "name",
+                            "foundBy"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "project"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "several"
+                        },
+                        "projects": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "foundBy": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "name",
+                              "foundBy"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "projects"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "none"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Path not found, not a directory, or not readable."
+          }
+        },
+        "operationId": "getWorkspacesScan-folder",
+        "tags": [
+          "workspaces"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "required": true
+          }
+        ],
+        "summary": "Say whether a folder IS a project, HOLDS projects, or neither.",
+        "x-sdk-name": "workspaces.scanFolder"
+      }
+    },
     "/workspaces/directories": {
       "get": {
         "responses": {

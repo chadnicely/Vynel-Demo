@@ -2495,6 +2495,11 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  pickFolder: async () => {
+    const { data, error, response } = await client["POST"]("/workspaces/pick-folder")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   register: async (input: NonNullable<paths["/workspaces"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces", {
       body: input,
@@ -2513,6 +2518,13 @@ export function makeNamespaced(client: Client<paths>) {
   scaffold: async (input: NonNullable<paths["/workspaces/wizard/scaffold"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/wizard/scaffold", {
       body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  scanFolder: async (options: NonNullable<paths["/workspaces/scan-folder"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/workspaces/scan-folder", {
+      params: { query: options },
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data

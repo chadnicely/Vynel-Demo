@@ -4622,6 +4622,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/pick-folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open the OS folder dialog and return what the user picked. */
+        post: operations["postWorkspacesPick-folder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/scan-folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Say whether a folder IS a project, HOLDS projects, or neither. */
+        get: operations["getWorkspacesScan-folder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/directories": {
         parameters: {
             query?: never;
@@ -21573,6 +21607,76 @@ export interface operations {
             };
             /** @description This directory is already a workspace. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "postWorkspacesPick-folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chosen absolute path, or null — cancelling is a normal answer, never an error. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        path: string | null;
+                    };
+                };
+            };
+        };
+    };
+    "getWorkspacesScan-folder": {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description single (adopt it) / several (the user ticks which) / none (offer "add it anyway"). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        kind: "single";
+                        project: {
+                            path: string;
+                            name: string;
+                            foundBy: string;
+                        };
+                    } | {
+                        /** @constant */
+                        kind: "several";
+                        projects: {
+                            path: string;
+                            name: string;
+                            foundBy: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        kind: "none";
+                    };
+                };
+            };
+            /** @description Path not found, not a directory, or not readable. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

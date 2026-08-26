@@ -174,6 +174,31 @@ export const DirectoryListingResponseSchema = z.object({
   ),
 })
 
+/** The ONE Browse button: null = the user cancelled, or this platform has no
+ *  dialog to offer. */
+export const PickFolderResponseSchema = z.object({
+  path: z.string().nullable(),
+})
+
+export const ScanFolderQuerySchema = z.object({
+  path: z.string().min(1).max(4_096),
+})
+
+const ScannedProjectSchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  /** Which marker found it — the screen says WHY it thinks this is a project. */
+  foundBy: z.string(),
+})
+
+// "Which project?" — a discriminated union so the screen cannot render "tick
+// which ones" for a folder that IS one project, or vice versa.
+export const ScanFolderResponseSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('single'), project: ScannedProjectSchema }),
+  z.object({ kind: z.literal('several'), projects: z.array(ScannedProjectSchema) }),
+  z.object({ kind: z.literal('none') }),
+])
+
 export type CreateWorkspaceRequest = z.infer<typeof CreateWorkspaceRequestSchema>
 export type CreateDirectoryRequest = z.infer<typeof CreateDirectoryRequestSchema>
 export type UpdateWorkspaceRequest = z.infer<typeof UpdateWorkspaceRequestSchema>

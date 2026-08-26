@@ -2,6 +2,8 @@
 // (USER-scoped, no `:workspaceId` prefix) from `apps/local-api/src/app.ts`:
 //   - GET    /workspaces                        -> listWorkspacesForUser  [x-mcp]
 //   - POST   /workspaces                        -> createWorkspace
+//   - POST   /workspaces/pick-folder             -> pickFolderWithNativeDialog
+//   - GET    /workspaces/scan-folder             -> scanFolderForProjects
 //   - GET    /workspaces/directories             -> listChildDirectories
 //   - POST   /workspaces/directories             -> createChildDirectory
 //   - GET    /workspaces/groups                 -> listWorkspaceGroups    [x-mcp]
@@ -57,6 +59,8 @@ import {
   hardDeleteWorkspace,
   listChildDirectories,
   createChildDirectory,
+  pickFolderWithNativeDialog,
+  scanFolderForProjects,
   createWorkspaceGroup,
   listWorkspaceGroups,
   renameWorkspaceGroup,
@@ -67,6 +71,9 @@ import {
 import type { WorkspaceGroup } from '@vynel/workspaces'
 import {
   CreateWorkspaceRequestSchema,
+  PickFolderResponseSchema,
+  ScanFolderQuerySchema,
+  ScanFolderResponseSchema,
   UpdateWorkspaceRequestSchema,
   DeleteWorkspaceRequestSchema,
   ListWorkspacesQuerySchema,
@@ -176,6 +183,53 @@ export const workspacesApp = factory
       )
       return c.json(serializeWorkspaceForResponse(workspace), 201)
     },
+  )
+  // The ONE Browse button — opens the operating system's own choose-a-folder
+  // window (Chad, 2026-08-24: people know this dialog from every other program
+  // they use). A POST: a dialog on the user's screen is a side effect, and the
+  // request parks until they answer. The dialog opens wherever the ENGINE
+  // runs — the user's own machine today; if the engine ever moves to a server
+  // this route must give way to the desktop shell's own dialog.
+  .post(
+    '/pick-folder',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Open the OS folder dialog and return what the user picked.',
+      'x-sdk-name': 'workspaces.pickFolder',
+      responses: {
+        200: {
+          description:
+            'The chosen absolute path, or null — cancelling is a normal answer, never an error.',
+          content: { 'application/json': { schema: resolver(PickFolderResponseSchema) } },
+        },
+      },
+      // No x-mcp — an agent must never pop a dialog on the user's screen.
+    }),
+    ...userScoped,
+    async (c) => c.json({ path: await pickFolderWithNativeDialog() }),
+  )
+  // "Which project?" — look inside the folder the user pointed at and say what
+  // is in there. Read-only: it looks, it never adopts — adding is still the
+  // create call. Static segment, registered before `/:workspaceId`.
+  .get(
+    '/scan-folder',
+    describeRoute({
+      tags: ['workspaces'],
+      summary: 'Say whether a folder IS a project, HOLDS projects, or neither.',
+      'x-sdk-name': 'workspaces.scanFolder',
+      responses: {
+        200: {
+          description:
+            'single (adopt it) / several (the user ticks which) / none (offer "add it anyway").',
+          content: { 'application/json': { schema: resolver(ScanFolderResponseSchema) } },
+        },
+        400: { description: 'Path not found, not a directory, or not readable.' },
+      },
+      // No x-mcp — a picker's read, not an agent tool.
+    }),
+    validator('query', ScanFolderQuerySchema),
+    ...userScoped,
+    async (c) => c.json(await scanFolderForProjects(c.req.valid('query').path)),
   )
   // Registered before `/:workspaceId` so the static segment wins (mirrors
   // chat's `/sessions/search`). Backs the workspace folder picker.

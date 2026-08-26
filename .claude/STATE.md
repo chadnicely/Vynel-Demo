@@ -18,8 +18,14 @@ Welcome copy, `IdentitySeedStep` (label "What should it help with?"), `ConnectBr
 `WizardFireworks` (one teardown), `WizardBrand` split out, the door choice parked in
 `onboarding-store` (read-once) and opened by `AppShell` on mount (wizard or the Explorer picker).
 No `projectsDirectory`, no migration. Scoped tests green (46 engine + 25 web), parity green; the
-full gate + the live walk are in the session log. **Next:** Kafi's word on which slice follows
-(Slice 0 items or D2–D4) — nothing moves before that.
+full gate + the live walk are in the session log. **Same day, Kafi's second call — "on the file
+browser question just use windows default file explorer but don't remove our old code":** Chad's
+"Which project?" screen is a NEW `WhichProjectDialog.vue` (Choose folder… → the OS dialog via
+`POST /workspaces/pick-folder`, the Windows picker embedded as `-EncodedCommand`; the engine scans
+via `GET /workspaces/scan-folder` → Found it / Which of these? / Nothing recognised; several add
+at once, one failure names itself); both doors open it; `CreateWorkspaceDialog.vue` +
+`FileSystemBrowser.vue` untouched (how they attach is a later decision). **Next:** Kafi's word on
+which slice follows (Slice 0 items or D2–D4) — nothing moves before that.
 
 ## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
 

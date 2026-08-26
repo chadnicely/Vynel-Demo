@@ -20,6 +20,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   assistant's first memory, at the user level (no project exists yet), so they follow you into
   every project.
 
+- **"Which project?" — bring in a project through your computer's own folder window.** Pull
+  from a folder (the "+" door, or "Something I already have" after setup) now shows one
+  **Choose folder…** button that opens the operating system's folder dialog; Vynel then looks
+  inside and answers — it IS a project (**Found it**), it HOLDS several (**Which of these?** — tick
+  which, "Add 3 projects"), or nothing recognisable ("add it anyway"). Adding several at once is
+  real: one failure names itself and the rest still go in; a single project opens its room,
+  several stay quietly in the sidebar. Nothing is ever moved. Chad's screen (2026-08-24); the
+  in-app folder browser stays in the codebase for the other pickers.
+
 ### Changed
 
 - **Setup is five steps.** Welcome (Chad's copy: "Your projects stay where they are" first) →

@@ -18,7 +18,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync, mkdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, mkdirSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pino from 'pino'
@@ -173,6 +173,61 @@ describe('workspaces routes', () => {
           })
           expect(second.status).toBe(409)
         })
+      })
+    })
+  })
+
+  describe('GET /workspaces/scan-folder', () => {
+    it('answers single for a folder that IS a project', async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        const app = createApp({ db, logger: silentLogger })
+        const root = mkdtempSync(join(tmpdir(), 'vynel-scan-route-'))
+        try {
+          const project = join(root, 'my-shop')
+          mkdirSync(project)
+          writeFileSync(join(project, 'package.json'), '{}')
+          const res = await app.request(
+            `/workspaces/scan-folder?path=${encodeURIComponent(project)}`,
+          )
+          expect(res.status).toBe(200)
+          const body = (await res.json()) as { kind: string; project?: { name: string } }
+          expect(body.kind).toBe('single')
+          expect(body.project?.name).toBe('my-shop')
+        } finally {
+          rmSync(root, { recursive: true, force: true })
+        }
+      })
+    })
+
+    it('answers several for a folder that HOLDS projects', async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        const app = createApp({ db, logger: silentLogger })
+        const root = mkdtempSync(join(tmpdir(), 'vynel-scan-route-'))
+        try {
+          for (const name of ['letterman', 'mintbird']) {
+            mkdirSync(join(root, name))
+            writeFileSync(join(root, name, 'package.json'), '{}')
+          }
+          const res = await app.request(`/workspaces/scan-folder?path=${encodeURIComponent(root)}`)
+          expect(res.status).toBe(200)
+          const body = (await res.json()) as { kind: string; projects?: { name: string }[] }
+          expect(body.kind).toBe('several')
+          expect(body.projects?.map((project) => project.name)).toEqual(['letterman', 'mintbird'])
+        } finally {
+          rmSync(root, { recursive: true, force: true })
+        }
+      })
+    })
+
+    it('400s a folder that does not exist', async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        const app = createApp({ db, logger: silentLogger })
+        const missing = join(tmpdir(), `vynel-missing-${randomUUID()}`)
+        const res = await app.request(`/workspaces/scan-folder?path=${encodeURIComponent(missing)}`)
+        expect(res.status).toBe(400)
       })
     })
   })
