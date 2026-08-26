@@ -164,7 +164,7 @@ function sendMessage(
     settings,
   });
 }
-const queuedSend = useQueuedSend(activeTurn, sendMessage);
+const queuedSend = useQueuedSend(activeTurn, sendMessage, `sidebar:${props.workspaceId}`);
 </script>
 
 <template>

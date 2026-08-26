@@ -212,7 +212,7 @@ function sendMessage(
 // Mid-turn sends QUEUE and fire in order as each turn settles (the chat views'
 // contract — ChatComposer clears the draft on emit, so the host must never
 // drop a send). Text-only surface: the attachments half rides along empty.
-const queuedSend = useQueuedSend(activeTurn, sendMessage);
+const queuedSend = useQueuedSend(activeTurn, sendMessage, `session:${props.sessionId}`);
 </script>
 
 <template>

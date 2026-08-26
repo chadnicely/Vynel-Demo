@@ -1,16 +1,11 @@
-import { ref, watch } from "vue";
+import { computed, nextTick, onMounted, watch } from "vue";
 import type { ShallowRef } from "vue";
 import type { ActiveTurnView } from "./active-turn-view.js";
 import type { TurnAttachmentInput } from "./turn-attachments.js";
 import type { ComposerSettings } from "./use-session-settings.js";
+import { useQueuedSendStore, type QueuedMessage } from "../../stores/queued-send-store.js";
 
-export interface QueuedMessage {
-  text: string;
-  attachments: TurnAttachmentInput[];
-  /** The composer settings at CLICK time — what the user saw is what the
-   *  drained turn carries, even when it fires minutes later. */
-  settings: ComposerSettings;
-}
+export type { QueuedMessage };
 
 // While a turn is in flight, sends QUEUE instead of silently dropping (the
 // old composer just refused them); when the turn fully settles, the queue
@@ -22,6 +17,9 @@ export interface QueuedMessage {
 //  - Each dequeue calls the view's OWN send at drain time, so the target
 //    re-derives from current state (a fresh conversation's first turn creates
 //    the session; its queued follow-up must continue it, not fork a new one).
+//
+// The queue itself lives in `useQueuedSendStore`, keyed by conversation, so it
+// survives the chat view being destroyed by a tab switch.
 export function useQueuedSend(
   turnView: Readonly<ShallowRef<ActiveTurnView | null>>,
   send: (
@@ -29,8 +27,13 @@ export function useQueuedSend(
     attachments: TurnAttachmentInput[],
     settings: ComposerSettings,
   ) => void,
+  /** Which conversation this queue belongs to — "global", `workspace:<id>`.
+   *  Two composers on the same key share one queue, which is what a room
+   *  re-mounting after a tab switch relies on. */
+  queueKey = "global",
 ) {
-  const queued = ref<QueuedMessage[]>([]);
+  const store = useQueuedSendStore();
+  const queued = computed<QueuedMessage[]>(() => store.queueFor(queueKey));
 
   function submit(
     text: string,
@@ -38,14 +41,24 @@ export function useQueuedSend(
     settings: ComposerSettings,
   ) {
     if (turnView.value !== null) {
-      queued.value = [...queued.value, { text, attachments, settings }];
+      store.setQueue(queueKey, [...queued.value, { text, attachments, settings }]);
       return;
     }
     send(text, attachments, settings);
   }
 
   function removeQueued(index: number) {
-    queued.value = queued.value.filter((_, i) => i !== index);
+    store.setQueue(
+      queueKey,
+      queued.value.filter((_, i) => i !== index),
+    );
+  }
+
+  function drainOne() {
+    const next = queued.value[0];
+    if (next === undefined) return;
+    store.setQueue(queueKey, queued.value.slice(1));
+    send(next.text, next.attachments, next.settings);
   }
 
   watch(turnView, (view, previous) => {
@@ -60,10 +73,19 @@ export function useQueuedSend(
     ) {
       return;
     }
-    const next = queued.value[0];
-    if (next === undefined) return;
-    queued.value = queued.value.slice(1);
-    send(next.text, next.attachments, next.settings);
+    drainOne();
+  });
+
+  // Coming BACK to a room whose turn finished while we were elsewhere. The
+  // watch above only fires on a transition, and the transition happened with
+  // no component mounted to hear it — so without this, a queue survives the
+  // tab switch and then sits there forever, which reads exactly like the
+  // disappearance it was meant to fix. One tick's grace lets a watched turn
+  // that lands during mount say "still busy" before anything fires.
+  onMounted(() => {
+    void nextTick().then(() => {
+      if (turnView.value === null) drainOne();
+    });
   });
 
   return { queued, submit, removeQueued };

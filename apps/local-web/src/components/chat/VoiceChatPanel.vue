@@ -192,7 +192,7 @@ function sendMessage(text: string, attachments: TurnAttachmentInput[]) {
     ...(attachments.length > 0 ? { attachments } : {}),
   });
 }
-const queuedSend = useQueuedSend(activeTurn, sendMessage);
+const queuedSend = useQueuedSend(activeTurn, sendMessage, "voice");
 
 const isEmpty = computed(
   () =>

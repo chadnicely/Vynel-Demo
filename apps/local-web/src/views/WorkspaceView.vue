@@ -379,7 +379,13 @@ function sendMessage(
 // Mid-turn sends queue and fire in order as each turn settles; the drain calls
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
-const queuedSend = useQueuedSend(busyTurn, sendMessage);
+// Keyed by the room: the view is destroyed on a tab switch, and the queue has
+// to be waiting when it comes back.
+const queuedSend = useQueuedSend(
+  busyTurn,
+  sendMessage,
+  `workspace:${tab.workspaceId ?? "none"}`,
+);
 </script>
 
 <template>

@@ -338,7 +338,7 @@ function sendMessage(
 // Mid-turn sends queue and fire in order as each turn settles; the drain calls
 // sendMessage fresh, so a queued follow-up continues the session the first
 // turn just created.
-const queuedSend = useQueuedSend(busyTurn, sendMessage);
+const queuedSend = useQueuedSend(busyTurn, sendMessage, "global");
 </script>
 
 <template>
