@@ -353,6 +353,7 @@ describe('makeNamespaced — shape', () => {
       'toolPolicies',
       'users',
       'voice',
+      'voiceProviders',
       'workspaceApps',
       'workspaces',
     ])

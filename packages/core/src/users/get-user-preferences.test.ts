@@ -45,6 +45,9 @@ describe('getUserPreferences', () => {
         voiceTtsModelId: 'kokoro',
         voiceSpeakerId: 0,
         voiceSttModelId: 'moonshine-base',
+        voiceTtsSource: 'local',
+        voiceTtsProviderVoiceId: null,
+        voiceSttSource: 'web-speech',
         desktopActionsEnabled: false,
       })
     })
