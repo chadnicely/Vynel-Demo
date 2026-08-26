@@ -168,12 +168,19 @@ export function useSessionSettings(
         "This conversation's settings are pinned by the server and cannot be changed from the composer.",
       );
     }
+    // The MODE is a standing preference, not a per-thread setting (Chad,
+    // 2026-08-25): "keep that status until the user changes it again". It has
+    // to survive a new chat, a restart, a model change and coming back from a
+    // rate limit — all of which land on a session whose row has no mode yet,
+    // and so fall back to this default. Writing it here is what makes Auto
+    // stay Auto instead of quietly reverting to Ask.
+    if (patch.mode !== undefined) ui.composerMode = patch.mode;
+
     const id = activeSessionId.value;
     if (id === null) {
       // No session yet — the change updates the new-chat defaults; the first
       // turn's write-through stamps them onto the row it creates.
       if (patch.modelId !== undefined) ui.composerModelId = patch.modelId;
-      if (patch.mode !== undefined) ui.composerMode = patch.mode;
       if (patch.thinkingEffort !== undefined)
         ui.composerThinkingEffort = patch.thinkingEffort;
       if (patch.autoBuildout !== undefined)
