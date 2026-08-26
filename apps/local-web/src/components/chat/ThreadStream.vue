@@ -130,17 +130,6 @@ const reauthorizeState = computed<ReauthorizeState>(() => {
   return props.activeTurn?.status === "streaming" ? "streaming" : "ready";
 });
 
-// Fold the live turn to one line only for an INCOMING turn — one whose ask
-// did not come from this composer (a report/turn from a child session, the
-// workspace manager, a schedule): its work reads as one activity line
-// (Chad, 2026-08-25). A fresh composer ask (`sourceKind` null) streams open —
-// you are watching the answer type in — and the first frame (no userMessage
-// yet) is not foldable either, so a send never flickers.
-const isIncomingTurn = computed(() => {
-  const message = props.activeTurn?.userMessage ?? null;
-  return message !== null && message.sourceKind !== null && message.sourceKind !== "user";
-});
-
 // A persona-attributed row (a manager's reply, a colleague's report/update)
 // wears ITS OWN face in the author line (B8) — resolved from the label the
 // same way the live cards resolve theirs, with the host's name→id map keying
@@ -1161,12 +1150,16 @@ watch(
             :message="props.activeTurn.userMessage"
             class="live-user-row"
           />
+          <!-- Every streaming turn folds to one activity line — the composer's
+               own ask included (Chad's whole-turn fold, taken 2026-08-27; it
+               briefly shipped incoming-only). A pending decision still forces
+               the fold open — LiveTurn's guard. -->
           <LiveTurn
             :view="props.activeTurn"
             :author-label="props.assistantName"
             :author-icon-url="props.assistantIconUrl"
             :reauthorize-state="reauthorizeState"
-            :collapsible="isIncomingTurn"
+            collapsible
             @decide-approval="
               (id, decision) => emit('decideApproval', id, decision)
             "

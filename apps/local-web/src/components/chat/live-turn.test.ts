@@ -391,7 +391,7 @@ describe("LiveTurn fold", () => {
     expect(wrapper.find(".live-preview").exists()).toBe(false);
   });
 
-  it("never folds a fresh composer turn — no collapsible, always open", () => {
+  it("without collapsible the turn streams open — the fold is opt-in per mount", () => {
     const wrapper = mount(LiveTurn, { props: { view: streamingView() } });
     expect(wrapper.find(".live-preview").exists()).toBe(false);
     expect(wrapper.find(".segment").exists()).toBe(true);

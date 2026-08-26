@@ -425,10 +425,11 @@ describe("ThreadStream", () => {
     expect(pill.text()).toMatch(/1m 3[56]s/);
   });
 
-  // The fold plumbing (Chad, 2026-08-25): an INCOMING turn — one whose ask did
-  // not come from this composer — folds to one line; a fresh composer ask
-  // streams open, so you watch your own answer type in.
-  it("folds an incoming turn to one line, but never a fresh composer ask", () => {
+  // The fold plumbing: EVERY streaming turn folds to one line — the composer's
+  // own ask included (Chad's whole-turn fold, taken 2026-08-27; it briefly
+  // shipped incoming-only). test: correct expectation — the composer case
+  // flipped from streams-open to folds by that product decision.
+  it("folds every streaming turn to one line — incoming and composer ask alike", () => {
     const segment = { messageId: "live-1", text: "wiring the routes", thinking: "", toolCalls: [] };
     const base: ActiveTurnView = {
       ...createActiveTurnView(),
@@ -453,11 +454,11 @@ describe("ThreadStream", () => {
       ...base,
       userMessage: { ...makeMessage(0), role: "user", sourceKind: null } as ChatMessageResponse,
     };
-    const open = mount(ThreadStream, {
+    const composerFolded = mount(ThreadStream, {
       props: { messages: [], toolCallsByMessageId: {}, activeTurn: composer },
       global: { plugins: [createPinia()] },
     });
-    expect(open.find(".live-preview").exists()).toBe(false);
+    expect(composerFolded.find(".live-preview").exists()).toBe(true);
   });
 
   it("groups consecutive assistant rows under ONE author line — a reloaded turn reads like the live overlay", async () => {

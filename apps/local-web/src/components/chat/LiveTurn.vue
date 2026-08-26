@@ -44,10 +44,10 @@ const props = withDefaults(
      *  computes it ONCE for settled and live cards alike (this view's status
      *  IS the thread's active turn). Absent = the button waits. */
     reauthorizeState?: ReauthorizeState | undefined;
-    /** Fold the whole turn to ONE line while it streams (Chad, 2026-08-25) —
-     *  a continuing turn's work is one activity line, opening on a click.
-     *  Passed only for a CONTINUING/incoming turn; a fresh composer ask
-     *  streams open, and a pending decision always forces the fold open. */
+    /** Fold the whole turn to ONE line while it streams (Chad, 2026-08-25;
+     *  every turn since 2026-08-27, the composer's own ask included) — the
+     *  work is one activity line, opening on a click, and a pending decision
+     *  always forces the fold open. */
     collapsible?: boolean;
   }>(),
   { authorLabel: "Assistant", authorIconUrl: null, collapsible: false },
@@ -389,7 +389,7 @@ const elapsedLabel = useTickingElapsed(
   border: 0;
   background: transparent;
   padding: 0;
-  cursor: default;
+  cursor: pointer;
   text-align: left;
 }
 
