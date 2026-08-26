@@ -8,6 +8,7 @@ import {
   PhFolderPlus as FolderPlus,
   PhGithubLogo as GithubLogo,
   PhGraph as Graph,
+  PhInfo as Info,
   PhList as List,
   PhListChecks as ListChecks,
   PhMinus as Minus,
@@ -101,6 +102,7 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
       },
       { id: "sep-1", kind: "separator" },
       { id: "account", label: "Account", icon: UserRound },
+      { id: "about", label: "About Vynel", icon: Info },
       { id: "sep-2", kind: "separator" },
       {
         id: "quit",

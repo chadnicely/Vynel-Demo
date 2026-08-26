@@ -59,6 +59,7 @@ import FinishSetupDialog from "../workspace/FinishSetupDialog.vue";
 import CloneRepositoryDialog from "../workspace/CloneRepositoryDialog.vue";
 import WorkspaceWizard from "../workspace/wizard/WorkspaceWizard.vue";
 import ClaudeAccountDialog from "../providers/ClaudeAccountDialog.vue";
+import AboutDialog from "./AboutDialog.vue";
 import PlanViewDialog from "../plans/PlanViewDialog.vue";
 import { useAppLinkRouter } from "../../composables/use-app-link-router.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
@@ -574,6 +575,7 @@ function createGroupFromTree() {
   });
 }
 const isClaudeAccountOpen = ref(false);
+const isAboutOpen = ref(false);
 
 // "Finish setting up" — a project that has not been through it (clicked from
 // the Needs setup section) opens here instead of its chat. Done stamps it and
@@ -752,6 +754,9 @@ function runCommand(id: string) {
     case "claude-account":
       isClaudeAccountOpen.value = true;
       break;
+    case "about":
+      isAboutOpen.value = true;
+      break;
     // Whoever owns the microphone answers. Once the Display has it — the room
     // on screen, or a session still running behind another view — raising the
     // overlay would start a second one and dim the page for an overlay that
@@ -809,6 +814,7 @@ const paletteCommands = computed<CommandItem[]>(() => [
       : { id: item.id, label: item.label, group: "Open" },
   ),
   { id: "claude-account", label: "Claude account", group: "Open", keywords: "sign in login subscription usage" },
+  { id: "about", label: "About Vynel", group: "Open", keywords: "version update" },
   { id: "toggle-theme", label: "Toggle theme", group: "View", keywords: "dark light" },
   { id: "toggle-sidebar", label: "Toggle navigation", group: "View" },
   { id: "toggle-tasks", label: "Toggle tasks", group: "View" },
@@ -1038,6 +1044,7 @@ onBeforeUnmount(() => {
       :open="isClaudeAccountOpen"
       @close="isClaudeAccountOpen = false"
     />
+    <AboutDialog :open="isAboutOpen" @close="isAboutOpen = false" />
     <CommandPalette
       v-model:open="isPaletteOpen"
       :commands="paletteCommands"

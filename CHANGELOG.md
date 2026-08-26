@@ -9,6 +9,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **About Vynel.** The Vynel menu (and the command palette) gained About: the version this computer
+  runs, and a **Check for updates** that asks right now instead of waiting for the update flow's
+  four-hour timer. An update it finds downloads in the background and offers the same one-click
+  restart as the pill. The answers are honest — "You're up to date.", "Couldn't check for updates —
+  try again." when the network is down, and a build without an updater says so.
+
 - **Setup connects a brain and offers a safe copy on GitHub, then celebrates.** Chad's two
   Welcome-prototype screens, built for real against the existing sign-ins: **Connect a brain**
   reads whether Claude is signed in on this computer (Codex and Kimi are shown as "Not yet" and

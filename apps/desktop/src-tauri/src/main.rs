@@ -36,6 +36,10 @@ fn main() {
     // without that block panics at init — so builds on the base config (the
     // dev/voice overlay exe, `tauri dev`) simply run without an updater.
     let updater_configured = context.config().plugins.0.contains_key("updater");
+    // updater_check_now is registered in every build (the About dialog calls
+    // it) — it answers "not available" itself instead of touching the
+    // unregistered plugin, which would panic.
+    updater::set_configured(updater_configured);
 
     let mut builder = tauri::Builder::default()
         // FIRST plugin, deliberately: a second launch of any flavor routes
@@ -90,6 +94,7 @@ fn main() {
             engine_config::engine_restart_app,
             updater::updater_pending_version,
             updater::updater_install_now,
+            updater::updater_check_now,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

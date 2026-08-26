@@ -170,6 +170,26 @@ describe("AppTitleBar", () => {
     expect(wrapper.emitted("command")).toEqual([["voice-settings"]]);
   });
 
+  // About Vynel (2026-08-27): the version + update door lives in the app's
+  // own menu above Quit — the standard place every desktop app keeps it.
+  it("the Vynel menu carries About Vynel above Quit, and emits it", async () => {
+    const wrapper = mountTitleBar();
+    const vynel = wrapper
+      .findAllComponents(DropdownMenu)
+      .find((menu) => menu.text().includes("Vynel"))!;
+    const items: MenuItemModel[] = vynel.props("items");
+    expect(items.filter((item) => item.kind !== "separator").map((item) => [item.id, item.label])).toEqual([
+      ["new-workspace", "New workspace"],
+      ["account", "Account"],
+      ["about", "About Vynel"],
+      ["quit", "Quit Vynel"],
+    ]);
+
+    vynel.vm.$emit("select", "about");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted("command")).toEqual([["about"]]);
+  });
+
   it("choosing Desktop control emits it as a shell command", async () => {
     const wrapper = mountTitleBar();
     const settings = wrapper
