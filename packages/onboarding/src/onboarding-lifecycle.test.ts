@@ -40,17 +40,17 @@ describe('onboarding lifecycle', () => {
     })
   })
 
-  it('start self-heals a run parked on a RETIRED step — abandoned, fresh two-step run begins', async () => {
+  it('start self-heals a run parked on a RETIRED step — abandoned, a fresh run begins', async () => {
     await withTestDatabase(async (db) => {
       const userId = seedUser(db)
       const now = new Date()
       // A row the pre-2026-08-24 seven-step flow left mid-way. The cast
-      // simulates stored data older than the trimmed kind union.
+      // simulates stored data older than the live kind union.
       const stale = insertOnboardingRun(db, {
         id: randomUUID(),
         userId,
         workspaceId: null,
-        currentStepKind: 'identity-seed' as OnboardingStepKind,
+        currentStepKind: 'name-workspace' as OnboardingStepKind,
         completedSteps: ['welcome', 'profile'],
         collectedData: {},
         status: 'in-progress',
@@ -89,17 +89,31 @@ describe('onboarding lifecycle', () => {
     })
   })
 
-  it('completing the last step (profile) flips users.hasCompletedOnboarding + opens the gate', async () => {
+  it('completing the last step (the GitHub copy) flips users.hasCompletedOnboarding + opens the gate', async () => {
     await withTestDatabase(async (db) => {
       const userId = seedUser(db)
       const run = startOnboardingRun(db, userId)
       const atProfile = advanceRun(db, run, 'welcome', { acknowledged: true })
-      const atLast = advanceRun(db, atProfile, 'profile', {
+      const atSeed = advanceRun(db, atProfile, 'profile', {
         displayName: 'Sam',
         locale: 'en-US',
         timezone: 'UTC',
       })
+      expect(atSeed.status).toBe('in-progress')
+      const atBrain = advanceRun(db, atSeed, 'identity-seed', {
+        aboutYouParagraph: 'a',
+        workspaceContextAnswer: 'b',
+      })
+      const atGitHub = advanceRun(db, atBrain, 'connect-brain', { providerId: 'claude' })
+      const atLast = advanceRun(db, atGitHub, 'github-backup', { kind: 'skipped' })
       expect(atLast.status).toBe('completed')
+      expect(atLast.completedSteps).toEqual([
+        'welcome',
+        'profile',
+        'identity-seed',
+        'connect-brain',
+        'github-backup',
+      ])
 
       // The gate flip is injected (invariant #2) — the fake writes through the
       // kernel repo exactly like @vynel/core's markUserOnboardingComplete does.
@@ -128,7 +142,7 @@ describe('onboarding lifecycle', () => {
       const run = startOnboardingRun(db, userId)
       const snap = getOnboardingRunStatus(db, userId, run.id)
       expect(snap.currentStep.stepKind).toBe('welcome')
-      expect(snap.totalSteps).toBe(2)
+      expect(snap.totalSteps).toBe(5)
       expect(() => getOnboardingRunStatus(db, randomUUID(), run.id)).toThrow()
     })
   })

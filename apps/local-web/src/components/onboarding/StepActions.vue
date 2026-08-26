@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // Shared footer for every wizard step: one gold primary (submits the owning
 // form) + an optional quiet skip. Keeps the wizard's action row identical
-// across steps.
+// across steps. `busy` is a submit in flight (both buttons wait); `disabled`
+// is the step's own gate (a brain not signed in yet) — the skip stays live.
 const props = defineProps<{
   primaryLabel: string;
   busy?: boolean;
+  disabled?: boolean;
   skippable?: boolean;
   skipLabel?: string;
 }>();
@@ -25,7 +27,11 @@ const emit = defineEmits<{
     >
       {{ props.skipLabel ?? "Skip for now" }}
     </button>
-    <button type="submit" class="primary" :disabled="props.busy">
+    <button
+      type="submit"
+      class="primary"
+      :disabled="props.busy || props.disabled"
+    >
       {{ props.primaryLabel }}
     </button>
   </div>

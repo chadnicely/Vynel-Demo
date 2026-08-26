@@ -1,45 +1,42 @@
-// Zod schemas for the `onboarding` HTTP routes — request schemas ported
-// faithfully from the source `apps/api/src/routes/onboarding/schemas.ts`;
-// response schemas added per the repo-wide "every 200 declares a resolver()
-// schema" rule (knowledge-routes precedent) — ZERO runtime change, these
-// declare exactly what each handler already returns (`c.json(coreOp(...))`
-// with no serializer — dates pass through `JSON.stringify`'s native
-// Date→ISO conversion, the `root`-routes precedent for a raw-object return).
-// Two steps since 2026-08-24 (welcome + profile) — the five retired steps'
-// schemas left with their handlers.
+// Zod schemas for the onboarding routes — the wire shapes hono-openapi
+// publishes into the SDK. Step inputs come from the ONE contract home; the
+// step-kind enum mirrors the contracts catalog (a kind the catalog does not
+// know 400s at the boundary).
 
 import { z } from 'zod'
 import {
   WelcomeStepInputSchema,
   ProfileStepInputSchema,
+  IdentitySeedStepInputSchema,
+  ConnectBrainStepInputSchema,
+  GitHubBackupStepInputSchema,
 } from '@vynel/contracts/onboarding/onboarding-step-inputs'
 
 export const RunIdParamSchema = z.object({
   runId: z.string().min(1),
 })
 
-const OnboardingStepKindSchema = z.enum(['welcome', 'profile'])
+const OnboardingStepKindSchema = z.enum([
+  'welcome',
+  'profile',
+  'identity-seed',
+  'connect-brain',
+  'github-backup',
+])
 
-// `stepKind` is the OnboardingStepKind enum (kept in sync with the contract);
-// `stepInput` is opaque here — the core dispatcher validates it per-step.
 export const SubmitStepBodySchema = z.object({
   stepKind: OnboardingStepKindSchema,
   stepInput: z.unknown(),
 })
 
-// ── Response schemas ────────────────────────────────────────────────
-
-// The wire shape of `CollectedOnboardingData` — each step's parsed input,
-// keyed by step name (the `advance-run.ts` COLLECTED_KEY_BY_STEP mapping),
-// reusing the exact per-step contract schemas (one source of truth per shape).
 const CollectedOnboardingDataSchema = z.object({
   welcome: WelcomeStepInputSchema.optional(),
   profile: ProfileStepInputSchema.optional(),
+  identitySeed: IdentitySeedStepInputSchema.optional(),
+  connectBrain: ConnectBrainStepInputSchema.optional(),
+  githubBackup: GitHubBackupStepInputSchema.optional(),
 })
 
-// The `onboarding_runs` row — `startedAt` / `lastActivityAt` / `completedAt`
-// are Date columns at the core layer; over the wire (`JSON.stringify`) they
-// serialize to ISO strings.
 export const OnboardingRunResponseSchema = z.object({
   id: z.string(),
   userId: z.string(),

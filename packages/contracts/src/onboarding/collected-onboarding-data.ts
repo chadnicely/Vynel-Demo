@@ -1,12 +1,19 @@
-// The cumulative per-step input accumulated in `onboarding_runs.collectedData`
-// (a `json<T>()` column). Each step's parsed input is stored under its key as
-// the run advances. Rows from the retired seven-step flow may carry legacy
-// keys (nameWorkspace, identitySeed, …) — they are opaque history; the type
-// describes what the live flow writes.
+// The typed view of `onboarding_runs.collectedData` — every step's input keyed
+// by its collected-data key (see the onboarding package's `advanceRun`). The
+// DB stores it opaquely; the core and the web read it through this shape.
 
-import type { WelcomeStepInput, ProfileStepInput } from './onboarding-step-inputs.js'
+import type {
+  WelcomeStepInput,
+  ProfileStepInput,
+  IdentitySeedStepInput,
+  ConnectBrainStepInput,
+  GitHubBackupStepInput,
+} from './onboarding-step-inputs.js'
 
 export interface CollectedOnboardingData {
   welcome?: WelcomeStepInput
   profile?: ProfileStepInput
+  identitySeed?: IdentitySeedStepInput
+  connectBrain?: ConnectBrainStepInput
+  githubBackup?: GitHubBackupStepInput
 }

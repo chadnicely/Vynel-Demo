@@ -33571,7 +33571,10 @@
                       "type": "string",
                       "enum": [
                         "welcome",
-                        "profile"
+                        "profile",
+                        "identity-seed",
+                        "connect-brain",
+                        "github-backup"
                       ]
                     },
                     "completedSteps": {
@@ -33580,7 +33583,10 @@
                         "type": "string",
                         "enum": [
                           "welcome",
-                          "profile"
+                          "profile",
+                          "identity-seed",
+                          "connect-brain",
+                          "github-backup"
                         ]
                       }
                     },
@@ -33661,7 +33667,10 @@
                       "type": "string",
                       "enum": [
                         "welcome",
-                        "profile"
+                        "profile",
+                        "identity-seed",
+                        "connect-brain",
+                        "github-backup"
                       ]
                     },
                     "completedSteps": {
@@ -33670,7 +33679,10 @@
                         "type": "string",
                         "enum": [
                           "welcome",
-                          "profile"
+                          "profile",
+                          "identity-seed",
+                          "connect-brain",
+                          "github-backup"
                         ]
                       }
                     },
@@ -33792,7 +33804,10 @@
                           "type": "string",
                           "enum": [
                             "welcome",
-                            "profile"
+                            "profile",
+                            "identity-seed",
+                            "connect-brain",
+                            "github-backup"
                           ]
                         },
                         "completedSteps": {
@@ -33801,7 +33816,10 @@
                             "type": "string",
                             "enum": [
                               "welcome",
-                              "profile"
+                              "profile",
+                              "identity-seed",
+                              "connect-brain",
+                              "github-backup"
                             ]
                           }
                         },
@@ -33850,7 +33868,10 @@
                           "type": "string",
                           "enum": [
                             "welcome",
-                            "profile"
+                            "profile",
+                            "identity-seed",
+                            "connect-brain",
+                            "github-backup"
                           ]
                         },
                         "order": {
@@ -33919,6 +33940,69 @@
                             "locale",
                             "timezone"
                           ]
+                        },
+                        "identitySeed": {
+                          "type": "object",
+                          "properties": {
+                            "aboutYouParagraph": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "workspaceContextAnswer": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "workingStyleAnswer": {
+                              "type": "string",
+                              "maxLength": 2000
+                            }
+                          },
+                          "required": [
+                            "aboutYouParagraph",
+                            "workspaceContextAnswer"
+                          ]
+                        },
+                        "connectBrain": {
+                          "type": "object",
+                          "properties": {
+                            "providerId": {
+                              "type": "string",
+                              "const": "claude"
+                            }
+                          },
+                          "required": [
+                            "providerId"
+                          ]
+                        },
+                        "githubBackup": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "skipped"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "connected"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ]
+                            }
+                          ]
                         }
                       }
                     }
@@ -33983,7 +34067,10 @@
                       "type": "string",
                       "enum": [
                         "welcome",
-                        "profile"
+                        "profile",
+                        "identity-seed",
+                        "connect-brain",
+                        "github-backup"
                       ]
                     },
                     "completedSteps": {
@@ -33992,7 +34079,10 @@
                         "type": "string",
                         "enum": [
                           "welcome",
-                          "profile"
+                          "profile",
+                          "identity-seed",
+                          "connect-brain",
+                          "github-backup"
                         ]
                       }
                     },
@@ -34074,7 +34164,10 @@
                     "type": "string",
                     "enum": [
                       "welcome",
-                      "profile"
+                      "profile",
+                      "identity-seed",
+                      "connect-brain",
+                      "github-backup"
                     ]
                   },
                   "stepInput": {}

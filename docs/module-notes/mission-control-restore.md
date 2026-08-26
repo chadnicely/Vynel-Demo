@@ -82,10 +82,17 @@ turn (a token-spending smoke — Kafi's, from the worktree).
 
 ## 3. Decisions needed (Kafi, with Chad where product direction reverses)
 
-- **D1 — First launch.** Stay on main's two steps (`0ea46352`, "the user's call"), or take Chad's
-  welcome → profile → (hidden folder) → Help Vynel know you → Connect a brain → GitHub → fireworks →
-  "new or existing?". His two new steps are *outcome records* (they read the existing Claude /
-  GitHub sign-ins and store `{providerId}` / `{kind}`) — cheap to keep, and the finish is his.
+**Standing rules from Kafi (2026-08-27):** pull by checking functionality, never merge; **never
+remove any file-browser functionality** — Chad's "Which project?" screen is built beside the
+Explorer-style `FileSystemBrowser`, creating new code or reusing the old, not replacing it; after
+each slice, stop and discuss the next.
+
+- **D1 — First launch. DECIDED (Kafi, 2026-08-27): Chad's flow WITHOUT "Name your workspace"** —
+  welcome → profile → Help Vynel know you → Connect a brain → GitHub → fireworks → "new or
+  existing?" (five steps). Setup creates no folder and no workspace; the door question does.
+  Built as Slice 1 on `feature/mission-control-pull` (see the status table). Consequence for D2:
+  `users.projectsDirectory` has no setup writer any more — if the hidden-folder model is taken,
+  the folder is `~/Documents/Vynel` (or a Settings field), never a setup step.
 - **D2 — The hidden projects folder.** `users.projectsDirectory`, set at step 3 and never shown;
   new projects mint `<folder>/<name>` and the wizard asks a NAME only (idea first, name at 9);
   pull-in stays where it sits. This reverses Kafi's 2026-08-23 "the picked folder IS the workspace,
@@ -243,7 +250,9 @@ it, so a slow filesystem can never freeze every room. Kafi: re-test first launch
 |---|---|---|
 | Worktree + band + install | — | done (18970) |
 | Area comparison (5 areas) + live UI walk | — | done (this note) |
-| D1–D4 | Kafi / Chad | **open** |
-| Slice 0 | none | ready to start |
-| Slices 1–5 | D1 / D2 / D3 / D4 | blocked on the decisions |
-| The step-3 freeze | — | open, see §6 |
+| D1 | Kafi | **decided 2026-08-27** — Chad's flow minus "Name your workspace" |
+| Slice 1 — first launch (5 steps) | D1 | **BUILT** on `feature/mission-control-pull` (worktree `.claude/worktrees/mission-control-pull`, band 18980): contracts + DB union (grows only) + handlers/seeding restored + narrowed gate allowlist + Chad's four screens + fireworks + the door choice parked in the store and opened by the shell; `StepActions` gained a real `disabled`; scoped tests green (46 engine + 25 web), parity green; full gate + live walk in the session log. No `projectsDirectory`, no migration. |
+| D2–D4 | Kafi / Chad | **open** — next slice discussed with Kafi before anything moves |
+| Slice 0 | none | ready when Kafi says so |
+| Slices 2–5 | D2 / D3 / D4 | blocked on the decisions |
+| The step-3 freeze | — | moot for Slice 1 (the step is gone); the async-mkdir rule stands for Slice 2 |

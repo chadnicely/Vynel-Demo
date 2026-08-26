@@ -76,6 +76,7 @@ import { shortcutHint } from "../../utils/shortcut-label.js";
 import { workspaceAccentCss } from "../../utils/workspace-accent.js";
 import { useVynel } from "../../composables/use-vynel.js";
 import { useBrowserStore } from "../../stores/browser-store.js";
+import { useOnboardingStore } from "../../stores/onboarding-store.js";
 import { useConversationSidebarStore } from "../../stores/conversation-sidebar-store.js";
 import { useWorkspaceList } from "../../composables/workspaces/use-workspace-list.js";
 import {
@@ -538,6 +539,17 @@ function returnToDoor() {
   isCloneRepositoryOpen.value = false;
   isNewWorkspaceDoorOpen.value = true;
 }
+// First launch asked "something new, or something you already have?" on its
+// last screen — the one place that question is asked. The answer parked in
+// the store while the wizard unmounted; read-once, so a later re-render never
+// reopens a dialog the user already dealt with. Both doors are the same ones
+// the "+" leads to: the build wizard, or the folder picker.
+const onboardingStore = useOnboardingStore();
+onMounted(() => {
+  const door = onboardingStore.takeFirstProjectDoor();
+  if (door === "new") isWorkspaceWizardOpen.value = true;
+  else if (door === "existing") isCreateWorkspaceOpen.value = true;
+});
 // The strip's stack-plus: one create in flight at a time (a double-click must
 // not mint two "New group" rows); the created row opens into its rename box.
 const renameGroupId = ref<string | null>(null);

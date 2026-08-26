@@ -29,6 +29,13 @@ function makeHarness(db: Database) {
   app.get('/onboarding/status/needs-onboarding', (c) => c.json({ ok: true }))
   app.get('/openapi.json', (c) => c.json({ ok: true }))
   app.get('/protected', (c) => c.json({ ok: true }))
+  // The sign-in reads + handshakes setup depends on, beside their gated siblings.
+  app.get('/providers/claude/auth', (c) => c.json({ ok: true }))
+  app.post('/providers/claude/auth/login', (c) => c.json({ ok: true }))
+  app.get('/providers/claude/models', (c) => c.json({ ok: true }))
+  app.get('/github/connection', (c) => c.json({ ok: true }))
+  app.delete('/github/connection', (c) => c.json({ ok: true }))
+  app.post('/github/connection/sign-in', (c) => c.json({ ok: true }))
   return app
 }
 
@@ -83,6 +90,38 @@ describe('firstLaunchGateMiddleware', () => {
       expect(res.status).toBe(412)
       const body = (await res.json()) as { inProgressRunId: string | null }
       expect(body.inProgressRunId).toBe(run.id)
+    })
+  })
+
+  // The deadlock this prevents: "Connect a brain" asks whether Claude is
+  // signed in. Gate that read and it always answers not-connected, so the
+  // step's own rule ("nothing builds without a brain") blocks the run forever.
+  it('lets setup see the provider + GitHub sign-in state it depends on', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db, false)
+      startOnboardingRun(db, user.id)
+      const app = makeHarness(db)
+
+      expect((await app.request('/providers/claude/auth')).status).toBe(200)
+      expect((await app.request('/providers/claude/auth/login', { method: 'POST' })).status).toBe(
+        200,
+      )
+      expect((await app.request('/github/connection')).status).toBe(200)
+      expect((await app.request('/github/connection/sign-in', { method: 'POST' })).status).toBe(
+        200,
+      )
+    })
+  })
+
+  it('keeps the rest of /providers and the GitHub disconnect gated during setup', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db, false)
+      startOnboardingRun(db, user.id)
+      const app = makeHarness(db)
+
+      expect((await app.request('/providers/claude/models')).status).toBe(412)
+      expect((await app.request('/github/connection', { method: 'DELETE' })).status).toBe(412)
+      expect((await app.request('/protected')).status).toBe(412)
     })
   })
 

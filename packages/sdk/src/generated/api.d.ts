@@ -17472,8 +17472,8 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        currentStepKind: "welcome" | "profile";
-                        completedSteps: ("welcome" | "profile")[];
+                        currentStepKind: "welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup";
+                        completedSteps: ("welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup")[];
                         collectedData: {
                             [key: string]: unknown;
                         };
@@ -17507,8 +17507,8 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        currentStepKind: "welcome" | "profile";
-                        completedSteps: ("welcome" | "profile")[];
+                        currentStepKind: "welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup";
+                        completedSteps: ("welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup")[];
                         collectedData: {
                             [key: string]: unknown;
                         };
@@ -17568,8 +17568,8 @@ export interface operations {
                             userId: string;
                             workspaceId: string | null;
                             /** @enum {string} */
-                            currentStepKind: "welcome" | "profile";
-                            completedSteps: ("welcome" | "profile")[];
+                            currentStepKind: "welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup";
+                            completedSteps: ("welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup")[];
                             collectedData: {
                                 [key: string]: unknown;
                             };
@@ -17581,7 +17581,7 @@ export interface operations {
                         };
                         currentStep: {
                             /** @enum {string} */
-                            stepKind: "welcome" | "profile";
+                            stepKind: "welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup";
                             order: number;
                             isSkippable: boolean;
                             displayLabel: string;
@@ -17598,6 +17598,22 @@ export interface operations {
                                 displayName: string;
                                 locale: string;
                                 timezone: string;
+                            };
+                            identitySeed?: {
+                                aboutYouParagraph: string;
+                                workspaceContextAnswer: string;
+                                workingStyleAnswer?: string;
+                            };
+                            connectBrain?: {
+                                /** @constant */
+                                providerId: "claude";
+                            };
+                            githubBackup?: {
+                                /** @constant */
+                                kind: "skipped";
+                            } | {
+                                /** @constant */
+                                kind: "connected";
                             };
                         };
                     };
@@ -17625,7 +17641,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    stepKind: "welcome" | "profile";
+                    stepKind: "welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup";
                     stepInput?: unknown;
                 };
             };
@@ -17642,8 +17658,8 @@ export interface operations {
                         userId: string;
                         workspaceId: string | null;
                         /** @enum {string} */
-                        currentStepKind: "welcome" | "profile";
-                        completedSteps: ("welcome" | "profile")[];
+                        currentStepKind: "welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup";
+                        completedSteps: ("welcome" | "profile" | "identity-seed" | "connect-brain" | "github-backup")[];
                         collectedData: {
                             [key: string]: unknown;
                         };

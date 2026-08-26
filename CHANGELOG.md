@@ -9,6 +9,25 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Setup connects a brain and offers a safe copy on GitHub, then celebrates.** Chad's two
+  Welcome-prototype screens, built for real against the existing sign-ins: **Connect a brain**
+  reads whether Claude is signed in on this computer (Codex and Kimi are shown as "Not yet" and
+  refused by the contract), **A safe copy on GitHub** reads the `gh` sign-in and can be skipped
+  ("Vynel will offer it again the first time it matters") — the CLIs keep their own credentials,
+  Vynel never sees a token. Setup ends on congratulations with fireworks behind the card, then the
+  ONE place "something new, or something you already have?" is asked; the answer opens the build
+  wizard or the folder picker. **Help Vynel know you** is back: its answers become your
+  assistant's first memory, at the user level (no project exists yet), so they follow you into
+  every project.
+
+### Changed
+
+- **Setup is five steps.** Welcome (Chad's copy: "Your projects stay where they are" first) →
+  Your profile → Help Vynel know you → Connect a brain → A safe copy on GitHub. No "Name your
+  workspace" step (Kafi, 2026-08-27): setup creates no folder and no workspace — the question at
+  the finish line does. While setup runs, the engine lets through only the sign-in reads and
+  handshakes those two screens need; everything else stays behind the first-launch gate.
+
 - **Write your own rules, commands and skills — and let Claude write them too.** The Rules,
   Commands and Skills shelves (global menu and each workspace) now create, edit and delete: a rule
   is a standing instruction Claude follows in every conversation at that scope; a command is a

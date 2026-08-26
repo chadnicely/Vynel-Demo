@@ -9,19 +9,24 @@ import {
 } from "../../composables/onboarding/use-onboarding-run.js";
 import { formatSdkError } from "../../utils/format-sdk-error.js";
 import WizardBootScreen from "./WizardBootScreen.vue";
+import WizardBrand from "./WizardBrand.vue";
 import WizardDoneScreen from "./WizardDoneScreen.vue";
+import WizardFireworks from "./WizardFireworks.vue";
 import WizardProgressHeader from "./WizardProgressHeader.vue";
 import WizardStepBody from "./WizardStepBody.vue";
 import WelcomeStep from "./steps/WelcomeStep.vue";
 import ProfileStep from "./steps/ProfileStep.vue";
+import IdentitySeedStep from "./steps/IdentitySeedStep.vue";
+import ConnectBrainStep from "./steps/ConnectBrainStep.vue";
+import GitHubBackupStep from "./steps/GitHubBackupStep.vue";
 
 // The first-launch wizard — takes over the whole window until the run
 // completes (the API's first-launch gate 412s everything else anyway).
 // Server truth drives it: the run/status snapshot decides which step shows.
-// Two steps since 2026-08-24: welcome + the name (profile) — workspaces,
-// skills, channels, and schedules each have their own in-app door now.
 const emit = defineEmits<{
-  completed: [];
+  /** Setup is done, and which door the user picked on the way out — the shell
+   *  opens it so the "new or existing" question is asked exactly once. */
+  completed: [choice: "new" | "existing"];
 }>();
 
 const runId = ref<string | null>(null);
@@ -33,6 +38,9 @@ const submit = useSubmitOnboardingStep();
 
 // A completed submit is terminal even before the snapshot refetches.
 const submittedComplete = ref(false);
+// The congratulations beat. Cleared when the done screen turns into the
+// "new or existing?" question.
+const isCelebrating = ref(true);
 
 function startRun() {
   start.reset();
@@ -105,11 +113,15 @@ function startOver() {
 
 <template>
   <div class="wizard">
+    <!-- Behind the card, across the whole backdrop — the celebration is the
+         room, not a decoration inside the panel (Chad, 2026-08-24). It stops
+         the moment the card becomes a question: `v-if` unmounts the canvas,
+         which cancels its animation frame rather than leaving it burning
+         behind the next screen. -->
+    <WizardFireworks v-if="isComplete && isCelebrating" />
+
     <div class="card">
-      <header class="brand">
-        <span class="orb" aria-hidden="true"></span>
-        <span class="wordmark">Vynel</span>
-      </header>
+      <WizardBrand />
 
       <WizardBootScreen
         v-if="!isComplete && snapshot === undefined"
@@ -120,7 +132,8 @@ function startOver() {
       <WizardDoneScreen
         v-else-if="isComplete"
         :display-name="displayName"
-        @open="emit('completed')"
+        @choosing="isCelebrating = false"
+        @open="(choice) => emit('completed', choice)"
       />
 
       <template v-else-if="snapshot">
@@ -141,6 +154,21 @@ function startOver() {
             />
             <ProfileStep
               v-else-if="currentStepKind === 'profile'"
+              :busy="busy"
+              @submit="submitCurrent"
+            />
+            <IdentitySeedStep
+              v-else-if="currentStepKind === 'identity-seed'"
+              :busy="busy"
+              @submit="submitCurrent"
+            />
+            <ConnectBrainStep
+              v-else-if="currentStepKind === 'connect-brain'"
+              :busy="busy"
+              @submit="submitCurrent"
+            />
+            <GitHubBackupStep
+              v-else-if="currentStepKind === 'github-backup'"
               :busy="busy"
               @submit="submitCurrent"
             />
@@ -174,55 +202,15 @@ function startOver() {
 }
 
 .card {
+  /* Above the fireworks — they burst behind it, never over the words. */
+  position: relative;
+  z-index: 1;
   width: min(580px, 94vw);
   background: var(--bg-panel);
   border: 1px solid var(--hair);
   border-radius: var(--radius-l);
   box-shadow: var(--shadow-overlay);
   padding: 26px 30px 22px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.orb {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at 35% 35%,
-    var(--gold-bright),
-    var(--gold) 70%
-  );
-  box-shadow: 0 0 10px var(--gold-soft);
-  animation: orb-breathe 3.2s var(--ease-out) infinite;
-}
-
-@keyframes orb-breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 6px var(--gold-soft);
-  }
-  50% {
-    box-shadow: 0 0 14px var(--gold-soft);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .orb {
-    animation: none;
-  }
-}
-
-.wordmark {
-  color: var(--ink-2);
-  font: 600 12px/1 var(--font-ui);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 
 .submit-error {

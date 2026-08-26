@@ -18,8 +18,10 @@ const isBare = computed(() => route.meta.bare === true);
 const onboardingStore = useOnboardingStore();
 const queryClient = useQueryClient();
 
-function finishOnboarding() {
-  onboardingStore.markCompleted();
+// The wizard's last screen asked "something new, or something you already
+// have?" — the answer parks in the store for the shell to open once mounted.
+function finishOnboarding(choice: "new" | "existing") {
+  onboardingStore.markCompleted(choice);
   void queryClient.invalidateQueries();
 }
 </script>

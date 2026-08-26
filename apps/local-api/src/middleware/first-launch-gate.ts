@@ -17,12 +17,32 @@ import { findSingleLocalUser } from '@vynel/db/repositories/users'
 import { checkIfOnboardingNeeded } from '@vynel/onboarding'
 import { factory } from '../factory.js'
 
+// `GET /providers/:id/auth` + the sign-in handshake under it.
+const PROVIDER_AUTH_PATH = /^\/providers\/[^/]+\/auth(\/login(\/.*)?)?$/
+// The GitHub device-flow handshake.
+const GITHUB_SIGN_IN_PATH = /^\/github\/connection\/sign-in(\/.*)?$/
+
+// The reads + sign-in doors setup ITSELF needs: "Connect a brain" asks whether
+// Claude is signed in and "A safe copy on GitHub" whether `gh` is. Gating
+// those deadlocks setup — the brain step would always read as not-connected,
+// and its own rule ("nothing builds without a brain") blocks the run forever.
+//
+// Deliberately narrow: status reads + handshakes only. The rest of
+// `/providers/*` (models, limits, skills) and `DELETE /github/connection` stay
+// gated, and no response here carries a secret — the CLIs hold their own
+// credentials.
+function isAllowedDuringOnboarding(method: string, path: string): boolean {
+  if (path === '/openapi.json') return true
+  if (path === '/onboarding' || path.startsWith('/onboarding/')) return true
+  if (PROVIDER_AUTH_PATH.test(path)) return true
+  if (path === '/github/connection') return method === 'GET'
+  return GITHUB_SIGN_IN_PATH.test(path)
+}
+
 export const firstLaunchGateMiddleware = factory.createMiddleware(async (c, next) => {
-  const path = c.req.path
-  // Onboarding routes + the OpenAPI spec are always allowed (and the skip
-  // happens BEFORE any c.var.db access, keeping the SDK generator's stub-deps
-  // /openapi.json request safe).
-  if (path === '/openapi.json' || path === '/onboarding' || path.startsWith('/onboarding/')) {
+  // The skip happens BEFORE any c.var.db access, keeping the SDK generator's
+  // stub-deps /openapi.json request safe.
+  if (isAllowedDuringOnboarding(c.req.method, c.req.path)) {
     await next()
     return
   }

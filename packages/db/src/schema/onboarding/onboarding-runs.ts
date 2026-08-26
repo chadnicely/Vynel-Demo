@@ -18,17 +18,20 @@ import { workspaces } from '../workspaces/workspaces.js'
 
 // `OnboardingStepKind` + `OnboardingRunStatus` are declared LOCALLY (the
 // schedules `ScheduleTemplateKind` colocation precedent) — schema files import
-// `@vynel/db/dialect` + sibling schema only, never `@vynel/contracts`. The
-// 7-literal union DELIBERATELY retains the five kinds retired 2026-08-24:
-// rows carrying them exist, and this type describes STORED data — trimming it
-// would make those rows type-lies. The live two-step flow is the contracts
-// catalog's, and its string-widened `findOnboardingStepByKind` is the
-// boundary where these legacy kinds are read.
+// `@vynel/db/dialect` + sibling schema only, never `@vynel/contracts`. This
+// union describes STORED data, so it only ever GROWS: it keeps the kinds
+// retired 2026-08-24 (rows carrying them exist — trimming would make those
+// rows type-lies) beside the live five-screen flow's two newest kinds
+// (2026-08-27). The live flow is the contracts catalog's, and its
+// string-widened `findOnboardingStepByKind` is the boundary where legacy
+// kinds are read.
 export type OnboardingStepKind =
   | 'welcome'
   | 'profile'
   | 'name-workspace'
   | 'identity-seed'
+  | 'connect-brain'
+  | 'github-backup'
   | 'install-suggested-skills'
   | 'optional-channel'
   | 'optional-schedule'

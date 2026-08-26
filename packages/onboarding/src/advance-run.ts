@@ -19,6 +19,9 @@ import {
 const COLLECTED_KEY_BY_STEP: Record<OnboardingStepKind, string> = {
   welcome: 'welcome',
   profile: 'profile',
+  'identity-seed': 'identitySeed',
+  'connect-brain': 'connectBrain',
+  'github-backup': 'githubBackup',
 }
 
 export function advanceRun(

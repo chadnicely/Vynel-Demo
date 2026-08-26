@@ -2,7 +2,6 @@
 // ownership + run status + step match, parses the per-step Zod schema, calls the
 // handler, and — when the run reaches `completed` (the last step) — flips
 // users.hasCompletedOnboarding via completeOnboardingRun (the gate-opening seam).
-// Async. Spec: blueprint.md §6.3.
 
 import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
@@ -10,9 +9,18 @@ import { findOnboardingRunById, type OnboardingRun } from '@vynel/db/repositorie
 import {
   WelcomeStepInputSchema,
   ProfileStepInputSchema,
+  IdentitySeedStepInputSchema,
+  ConnectBrainStepInputSchema,
+  GitHubBackupStepInputSchema,
 } from '@vynel/contracts/onboarding/onboarding-step-inputs'
 import type { OnboardingStepKind } from '@vynel/contracts/onboarding/onboarding-step-catalog'
-import { handleWelcomeStep, handleProfileStep } from './handlers/index.js'
+import {
+  handleWelcomeStep,
+  handleProfileStep,
+  handleIdentitySeedStep,
+  handleConnectBrainStep,
+  handleGitHubBackupStep,
+} from './handlers/index.js'
 import { completeOnboardingRun } from './complete-onboarding-run.js'
 import {
   OnboardingRunAlreadyCompletedError,
@@ -40,6 +48,8 @@ export async function submitOnboardingStep(
     throw new OnboardingStepKindMismatchError(run.currentStepKind, input.stepKind)
   }
 
+  // The whole `OnboardingDeps` bundle is passed straight through; the handlers
+  // each declare the narrow Pick they need.
   let result: OnboardingRun
   switch (input.stepKind) {
     case 'welcome':
@@ -47,6 +57,30 @@ export async function submitOnboardingStep(
       break
     case 'profile':
       result = handleProfileStep(db, run, ProfileStepInputSchema.parse(input.stepInput), deps)
+      break
+    case 'identity-seed':
+      result = handleIdentitySeedStep(
+        db,
+        run,
+        IdentitySeedStepInputSchema.parse(input.stepInput),
+        deps,
+      )
+      break
+    case 'connect-brain':
+      result = handleConnectBrainStep(
+        db,
+        run,
+        ConnectBrainStepInputSchema.parse(input.stepInput),
+        deps,
+      )
+      break
+    case 'github-backup':
+      result = handleGitHubBackupStep(
+        db,
+        run,
+        GitHubBackupStepInputSchema.parse(input.stepInput),
+        deps,
+      )
       break
     default: {
       const exhaustive: never = input.stepKind

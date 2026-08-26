@@ -3,6 +3,24 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## 🔨 2026-08-27 MISSION-CONTROL PULL — Slice 1 (first launch, five steps) BUILT (worktree 18980)
+
+Kafi's calls: pull by functionality, never merge; never remove file-browser functionality (Chad's
+"Which project?" is built beside `FileSystemBrowser`, not instead of it); **D1 = Chad's first
+launch WITHOUT "Name your workspace"**; after each slice, stop and discuss the next. Built on
+`feature/mission-control-pull` (`.claude/worktrees/mission-control-pull`, band 18980, gate flag
+ON in its `.env`): catalog = welcome · profile · identity-seed · connect-brain · github-backup
+(skippable); the DB union only grows (+2 kinds, retired ones kept); handlers + memory seeding
+restored (user-level entries, `workspaceId: null`); the gate lets through only
+`/providers/:id/auth[/login…]`, `GET /github/connection` and its sign-in handshake; web = Chad's
+Welcome copy, `IdentitySeedStep` (label "What should it help with?"), `ConnectBrainStep` +
+`GitHubBackupStep` on a real `StepActions.disabled`, `WizardDoneScreen` two beats +
+`WizardFireworks` (one teardown), `WizardBrand` split out, the door choice parked in
+`onboarding-store` (read-once) and opened by `AppShell` on mount (wizard or the Explorer picker).
+No `projectsDirectory`, no migration. Scoped tests green (46 engine + 25 web), parity green; the
+full gate + the live walk are in the session log. **Next:** Kafi's word on which slice follows
+(Slice 0 items or D2–D4) — nothing moves before that.
+
 ## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
 
 Kafi's ask: worktree for `origin/chad/mission-control-restore` (Chad's 3 commits, cut from

@@ -138,7 +138,7 @@ describe('GET /onboarding/:runId', () => {
       expect(res.status).toBe(200)
       const body = (await res.json()) as { currentStep: { stepKind: string }; totalSteps: number }
       expect(body.currentStep.stepKind).toBe('welcome')
-      expect(body.totalSteps).toBe(2)
+      expect(body.totalSteps).toBe(5)
     })
   })
 

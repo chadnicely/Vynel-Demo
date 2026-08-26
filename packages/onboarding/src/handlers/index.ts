@@ -1,5 +1,5 @@
-// Barrel for the two step handlers (domain-internal — the dispatcher is the
-// public entry point). Per `.claude/rules/structure-standard.md`.
-
 export { handleWelcomeStep } from './handle-welcome-step.js'
 export { handleProfileStep } from './handle-profile-step.js'
+export { handleIdentitySeedStep } from './handle-identity-seed-step.js'
+export { handleConnectBrainStep } from './handle-connect-brain-step.js'
+export { handleGitHubBackupStep } from './handle-github-backup-step.js'

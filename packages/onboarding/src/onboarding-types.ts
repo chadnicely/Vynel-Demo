@@ -1,12 +1,9 @@
-// Domain-only types for the `onboarding` package. Per
-// `.claude/rules/structure-standard.md` "packages/core/src/".
+// Domain-only types for the `onboarding` package.
 //
 // The DB row types `collectedData` opaquely (`Record<string, unknown>`); the
 // core works with the typed contract `CollectedOnboardingData`, casting at the
 // few read sites (the chat tool-I/O opaque-JSON precedent). `completedSteps` +
 // `currentStepKind` are already the (structurally identical) step union.
-//
-// Spec: docs/blueprints/onboarding/coding.md §3.
 
 import type { Database } from '@vynel/db'
 import type { OnboardingRun, NewOnboardingRun } from '@vynel/db/schema/onboarding'
@@ -31,16 +28,32 @@ export interface OnboardingRunStatusSnapshot {
   collectedData: CollectedOnboardingData
 }
 
+// One memory entry the identity-seed step writes. Declared STRUCTURALLY
+// (assignable to @vynel/memory's CreateMemoryEntryInput — narrower literal
+// unions) so the leaf never imports the memory leaf, not even type-only
+// (invariant #2 — a type import is still a package dependency).
+export interface MemorySeedEntry {
+  userId: string
+  /** Null = a USER-level memory, which is the only shape setup writes: no
+   *  workspace exists yet, and these answers are about the person. */
+  workspaceId: string | null
+  kind: 'note' | 'preference'
+  body: string
+  category: 'user' | 'preferences' | 'memory'
+  section: string
+  createdSource: 'onboarding-seed'
+}
+
 // The sibling ops the step handlers call, injected at the api-edge composition
 // point (apps/local-api routes/onboarding/build-onboarding-deps.ts) and typed
-// STRUCTURALLY here so the onboarding leaf never imports @vynel/core
-// (invariant #2 — no sibling-leaf import; the FireScheduleDeps precedent).
-// Two steps since 2026-08-24: only the profile write + the gate flip remain —
-// workspaces/memory/skills/channels/schedules got their own in-app doors.
+// STRUCTURALLY here — the exact call shapes the handlers invoke — so the
+// onboarding leaf never imports @vynel/core / @vynel/memory (invariant #2 — no
+// sibling-leaf import; the FireScheduleDeps / ProcessInboundDeps precedent).
+// Each handler takes the narrow Pick it needs; the dispatcher threads the whole
+// bundle through.
 export interface OnboardingDeps {
   logger?: StructuralLogger
-  // The profile (name) step + run completion — the boot-created user's row
-  // (@vynel/core users ops at the composition point).
+  // Step 2 (profile) + run completion — the boot-created user's row.
   updateUserProfile: (
     db: Database,
     userId: string,
@@ -48,4 +61,6 @@ export interface OnboardingDeps {
     deps?: { logger?: StructuralLogger },
   ) => unknown
   markUserOnboardingComplete: (db: Database, userId: string) => unknown
+  // Step 3 (identity-seed).
+  createMemoryEntry: (db: Database, entry: MemorySeedEntry) => unknown
 }
