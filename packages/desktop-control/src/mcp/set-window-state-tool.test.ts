@@ -93,7 +93,10 @@ describe('makeSetWindowStateTool', () => {
 
   it('reports an app that is not open instead of guessing', async () => {
     const { tool, applied } = build(armed(), { findPid: async () => null })
-    const result = await tool.handler({ app: 'Ghost', state: 'maximized' })
+    // A name no real process on the test box can contain: the tool also
+    // scans the live process list by substring, and "Ghost" matched
+    // `IDMMsgHost.exe` on a dev machine — the test then read "IS running".
+    const result = await tool.handler({ app: 'Zq-No-Such-App-Zq', state: 'maximized' })
     expect(result.isError).toBe(true)
     expect(result.content[0]?.text).toContain('list_open_apps')
     expect(applied).toEqual([])
