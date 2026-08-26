@@ -29,13 +29,29 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   several stay quietly in the sidebar. Nothing is ever moved. Chad's screen (2026-08-24); the
   in-app folder browser stays in the codebase for the other pickers.
 
-### Changed
+- **The sidebar sorts your projects for you.** Two sections: **Active Projects** — running, waiting
+  on you, or stuck — and **Not running**, everything idle or done. A group is never split across
+  the two; it follows its liveliest member, and an empty group stays under Active. Each section
+  folds on its heading. The menu groups (Toolkit, Utils, Context, Connections) start folded on a
+  fresh install and remember what you open.
 
-- **Setup is five steps.** Welcome (Chad's copy: "Your projects stay where they are" first) →
-  Your profile → Help Vynel know you → Connect a brain → A safe copy on GitHub. No "Name your
-  workspace" step (Kafi, 2026-08-27): setup creates no folder and no workspace — the question at
-  the finish line does. While setup runs, the engine lets through only the sign-in reads and
-  handshakes those two screens need; everything else stays behind the first-launch gate.
+- **The work rail has a kill switch.** A red **ABORT** at the top stops this room's work at once —
+  no confirm, other rooms keep going; it is greyed, never hidden, while nothing runs. The live card
+  headlines the task ("Task 2 · building now"), stays lit while that task is unresolved, and
+  shows what you typed while it worked. **All Tasks** is one list: finished work floats to the top,
+  struck, then the live task, then the queue — each keeping its number.
+
+- **A mode change reaches the turn already running, and Stop bites at once.** Switching to Ask
+  cards the very next tool call instead of the next turn; picking a mode inside a chat also makes
+  it the default for new ones. Stop sends the engine's own interrupt before tearing the turn down,
+  so it lands inside a long command instead of waiting for it to finish.
+
+- **A queued message survives changing rooms.** What you queue while a room is busy waits for that
+  room — switching tabs no longer loses it — and sends when you come back and the room is idle.
+
+- **"What are we adding?"** — the "+" door asks two short questions: something new (the build
+  wizard), or something you already have — and only then where it is (a folder, or a repository to
+  clone).
 
 - **Write your own rules, commands and skills — and let Claude write them too.** The Rules,
   Commands and Skills shelves (global menu and each workspace) now create, edit and delete: a rule
@@ -69,7 +85,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   desktop screenshot, an image file the assistant read — shows the picture on its card, small
   when folded and full-size with its caption when expanded.
 
+### Changed
+
+- **Setup is five steps.** Welcome (Chad's copy: "Your projects stay where they are" first) →
+  Your profile → Help Vynel know you → Connect a brain → A safe copy on GitHub. No "Name your
+  workspace" step (Kafi, 2026-08-27): setup creates no folder and no workspace — the question at
+  the finish line does. While setup runs, the engine lets through only the sign-in reads and
+  handshakes those two screens need; everything else stays behind the first-launch gate.
+
 ### Fixed
+
+- **`pnpm test` could not run from a checkout path containing a space.** Three parity checks
+  spawned a helper through `shell: true` without quoting the path; every such site now shares one
+  quoting rule (`scripts/src/quote-for-shell.ts`).
+- **A persistent dialog no longer dismisses itself when the system folder window opens** — the
+  native window moves focus off the page with no click and no key, which read as "clicked outside".
 
 - Uninstalling a skill that was discovered on disk removed its record but left the folder when the
   folder's name differed from the skill's name; the folder recorded at install time is used now.

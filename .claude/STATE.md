@@ -24,8 +24,14 @@ browser question just use windows default file explorer but don't remove our old
 `POST /workspaces/pick-folder`, the Windows picker embedded as `-EncodedCommand`; the engine scans
 via `GET /workspaces/scan-folder` → Found it / Which of these? / Nothing recognised; several add
 at once, one failure names itself); both doors open it; `CreateWorkspaceDialog.vue` +
-`FileSystemBrowser.vue` untouched (how they attach is a later decision). **Next:** Kafi's word on
-which slice follows (Slice 0 items or D2–D4) — nothing moves before that.
+`FileSystemBrowser.vue` untouched (how they attach is a later decision). **Then "Slice 0"** (Kafi,
+same day) — six commits: shell-quoting fix + Modal focus guard + mode pick becomes the default;
+two-stage "+" door; queue-by-conversation store; sidebar Active / Not running read off the ONE
+status derivation (Kafi: "filter them with the state we already have"), groups follow their
+liveliest member, menu groups folded by default; providers live mode-switch + Stop's
+interrupt-before-abort (typed seam, SDK first, refusals surface); the work-rail graft (top ABORT,
+Chad's card copy, one All Tasks list, typed lines in the card). Full gate green. **Next:** Kafi's
+word on D2–D4 — nothing moves before that.
 
 ## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
 
