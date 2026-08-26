@@ -76,6 +76,12 @@ export async function* runClaudeChatSession(
   // it, so Ask starts carding the next tool call rather than the next turn.
   const livePermissionMode = { current: input.permissionMode }
 
+  // Set the moment the user stops the turn. The CLI answers our interrupt
+  // with an ERROR-shaped result ("Operation aborted") — that is the stop's
+  // own footprint, not a failure, and the room must not read "hit a problem"
+  // because the user pressed Stop.
+  let stopRequested = false
+
   // Per-turn feature mutating tools (e.g. desktop act_on_app) → carded in every
   // carding mode, UNIONED with the static floor in BOTH the PreToolUse hook +
   // the canUseTool callback. Convert once; pass to both so gate + backstop
@@ -249,6 +255,7 @@ export async function* runClaudeChatSession(
       // first and abort straight after; the race is bounded so a runtime that
       // never answers cannot hold the stop open.
       cancel: async () => {
+        stopRequested = true
         try {
           await Promise.race([
             queryInstance.interrupt(),
@@ -401,7 +408,12 @@ export async function* runClaudeChatSession(
     }
 
     const resultError = readResultError(latestResultMessage)
-    if (resultError !== null) {
+    if (resultError !== null && stopRequested) {
+      // The CLI's answer to the stop the user asked for — interrupted, not
+      // errored. (A turn that finished cleanly in the same instant still
+      // reports as completed below: nothing of it was lost.)
+      yield { kind: 'session-interrupted', sessionId, interruptedAt: new Date() }
+    } else if (resultError !== null) {
       yield {
         kind: 'session-errored',
         sessionId,

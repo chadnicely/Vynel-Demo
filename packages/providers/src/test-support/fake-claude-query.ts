@@ -44,9 +44,17 @@ export function createFakeClaudeQuery(
 ): typeof query {
   return (params) => {
     const options = (params.options ?? {}) as FakeClaudeQueryOptions
+    // The real CLI answers an interrupt by ending the turn with an ERROR-shaped
+    // result ("Operation aborted") — and that result usually lands before the
+    // caller's abort signal does. The fake does the same once interrupted.
+    let interruptedResult: Record<string, unknown> | null = null
     async function* generate(): AsyncGenerator<unknown, void> {
       for (const step of script) {
         await Promise.resolve() // let the event loop turn between steps
+        if (interruptedResult !== null) {
+          yield interruptedResult
+          return
+        }
         if (options.abortController?.signal.aborted === true) {
           const abortError = new Error('The session was interrupted.')
           abortError.name = 'AbortError'
@@ -68,6 +76,13 @@ export function createFakeClaudeQuery(
     const controls = {
       interrupt: async () => {
         controlLog.interruptCount += 1
+        interruptedResult = {
+          type: 'result',
+          subtype: 'error',
+          session_id: FAKE_CLAUDE_SESSION_ID,
+          errors: ['Operation aborted'],
+          usage: {},
+        }
       },
       setPermissionMode: async (mode: string) => {
         if (controlLog.refuseModeSwitch === true) {

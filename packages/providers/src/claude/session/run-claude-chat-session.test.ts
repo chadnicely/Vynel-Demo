@@ -202,6 +202,31 @@ describe('runClaudeChatSession', () => {
     expect(activeSessionRegistry.listActiveSessionIds()).toEqual([])
   })
 
+  // The CLI answers the interrupt with an error-shaped result ("Operation
+  // aborted"), usually before our abort signal lands. That is the stop's own
+  // footprint — the room must read "stopped", never "hit a problem" (Kafi's
+  // smoke, 2026-08-27).
+  it("a stop the CLI answers with 'Operation aborted' ends as interrupted, not errored", async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      fakeTextStreamStep('one'),
+      fakeTextStreamStep('two'),
+      fakeSuccessResultStep(),
+    ])
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    const iterator = startSession({ activeSessionRegistry })[Symbol.asyncIterator]()
+    await iterator.next()
+
+    await activeSessionRegistry.interrupt(FAKE_CLAUDE_SESSION_ID)
+    const remaining: NormalizedSessionEvent[] = []
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      remaining.push(next.value)
+    }
+
+    expect(remaining.map((event) => event.kind)).not.toContain('session-errored')
+    expect(remaining.at(-1)?.kind).toBe('session-interrupted')
+  })
+
   // Chad, 2026-08-25: "it needs to stop IMMEDIATELY, no delay". Aborting alone
   // only unwinds our iteration — a long Bash keeps running inside the CLI
   // until it returns. The CLI's own interrupt reaches it mid-tool.
