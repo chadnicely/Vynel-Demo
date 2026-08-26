@@ -30,6 +30,11 @@ const props = withDefaults(
   { size: "md", hideClose: false, persistent: false },
 );
 
+// All FOUR dismiss paths, not three. `focus-outside` is the one an operating
+// system window trips: opening the native folder dialog moves focus off the
+// page with no pointer event and no key press, so the other guards never fire
+// and a persistent modal dismissed itself the moment a folder was picked
+// (Chad, 2026-08-25).
 function blockWhenPersistent(event: Event) {
   if (props.persistent) event.preventDefault();
 }
@@ -80,6 +85,7 @@ function onOpenAutoFocus(event: Event) {
         @escape-key-down="blockWhenPersistent"
         @pointer-down-outside="blockWhenPersistent"
         @interact-outside="blockWhenPersistent"
+        @focus-outside="blockWhenPersistent"
       >
         <header
           v-if="props.title || props.description || $slots.title"
