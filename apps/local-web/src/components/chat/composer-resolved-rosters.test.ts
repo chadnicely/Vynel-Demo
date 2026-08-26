@@ -70,7 +70,7 @@ describe("AppComposer — mention rosters", () => {
 
     expect(spies.agentsResolved).toHaveBeenCalledWith({ workspaceId: "w1" });
     expect(spies.skillsResolved).toHaveBeenCalledWith("w1");
-    expect(spies.commandsResolved).toHaveBeenCalledWith("w1");
+    expect(spies.commandsResolved).toHaveBeenCalledWith({ workspaceId: "w1" });
 
     // The menu's reads must stay out of the picker — they are a shorter list.
     expect(spies.agentsList).not.toHaveBeenCalled();

@@ -1,4 +1,4 @@
-// The shared install choreography's disk-safety contract: a
+// Integration tests for createAgent's disk-mirror choreography (every source, 2026-08-26) —
 // hand-authored `.claude/agents/<slug>.md` aborts the install untouched
 // (twin of the removal-path protection in `agent-mirror-on-disk.test.ts`),
 // and the mirror is written only for an ENABLED install (file present ⇔
@@ -16,8 +16,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findAgentBySlug } from '@vynel/db/repositories/agents'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { AGENT_CREATED } from '../agents-events.js'
-import type { CreateAgentInput } from './create-agent.js'
-import { installMarketplaceAgent } from './install-marketplace-agent.js'
+import { createAgent, type CreateAgentInput } from './create-agent.js'
 
 const tempDirs: string[] = []
 
@@ -82,7 +81,7 @@ function makeInstallInput(
   }
 }
 
-describe('installMarketplaceAgent', () => {
+describe('createAgent — the disk mirror (every source)', () => {
   it('aborts with ConflictError when a hand-authored agent file holds the path — file untouched, no row', async () => {
     await withTestDatabase(async (db) => {
       const workspaceDir = await makeTempDir()
@@ -93,7 +92,7 @@ describe('installMarketplaceAgent', () => {
       await writeFile(mirrorPath, handAuthored, 'utf8')
 
       await expect(
-        installMarketplaceAgent(
+        createAgent(
           db,
           makeInstallInput({ userId: user.id, workspaceId: workspace.id }),
         ),
@@ -117,7 +116,7 @@ describe('installMarketplaceAgent', () => {
       const { user, workspace } = seedWorkspace(db, workspaceDir)
       const mirrorPath = path.join(workspaceDir, '.claude', 'agents', 'focus-writer.md')
 
-      const agent = await installMarketplaceAgent(
+      const agent = await createAgent(
         db,
         makeInstallInput({ userId: user.id, workspaceId: workspace.id, enabled: false }),
       )

@@ -38,6 +38,7 @@ export const sectionCountsApp = factory.createApp().get(
     const counts = await countSections(c.var.db, {
       userId: c.var.user.id,
       workspace: null,
+      provider: c.var.aiProvider,
     })
     return c.json({ counts })
   },

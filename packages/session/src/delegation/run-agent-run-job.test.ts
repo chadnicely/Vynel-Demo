@@ -14,7 +14,7 @@ import type { StartChatSessionInput } from '@vynel/providers'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findChatSessionById, listChatMessagesForSession } from '@vynel/chat/repositories'
-import { createAgent } from '@vynel/agents'
+import { createAgentRowForTest as createAgent } from '@vynel/agents/test-support'
 import {
   enqueueAgentRun,
   findDelegationJobById,

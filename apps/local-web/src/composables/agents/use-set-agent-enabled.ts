@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import { useVynel } from "../use-vynel.js";
+import { agentsKeys } from "./agents-keys.js";
 
 /** Flip an agent on or off for the session resolver. A user-scope agent
  *  shows on every surface, so the whole `["agents"]` prefix refreshes. */
@@ -10,7 +11,7 @@ export function useSetAgentEnabled() {
     mutationFn: (input: { agentId: string; enabled: boolean }) =>
       vynel.agents.setEnabled(input.agentId, { enabled: input.enabled }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agents"] });
+      queryClient.invalidateQueries({ queryKey: agentsKeys.all });
     },
   });
 }

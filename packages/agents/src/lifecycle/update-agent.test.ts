@@ -7,16 +7,18 @@
 
 import path from 'node:path'
 import os from 'node:os'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { beginHomeDirOverride } from '../internal/resolve-host-home-dir.js'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listSkillIdsForAgent } from '@vynel/db/repositories/agents'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { ConflictError, NotFoundError } from '@vynel/errors'
-import { createAgent, type CreateAgentInput } from './create-agent.js'
+import { createAgentRow as createAgent, type CreateAgentInput } from './create-agent-row.js'
 import { updateAgent } from './update-agent.js'
 import { AGENT_UPDATED } from '../agents-events.js'
 
@@ -62,6 +64,20 @@ function baseInput(userId: string, overrides: Partial<CreateAgentInput> = {}): C
     ...overrides,
   }
 }
+
+// updateAgent syncs the disk mirror for EVERY source (2026-08-26), so a
+// user-scope row updated here would write into the developer's real
+// ~/.claude/agents — the home is isolated per test.
+let isolatedHomeDir = ''
+let restoreHomeDir: () => void = () => undefined
+beforeEach(() => {
+  isolatedHomeDir = mkdtempSync(path.join(os.tmpdir(), 'vynel-agent-update-home-'))
+  restoreHomeDir = beginHomeDirOverride(isolatedHomeDir)
+})
+afterEach(() => {
+  restoreHomeDir()
+  rmSync(isolatedHomeDir, { recursive: true, force: true })
+})
 
 describe('updateAgent', () => {
   it('patches fields and leaves the skill set untouched when skillIds is omitted', async () => {
@@ -225,7 +241,7 @@ describe('updateAgent — disk mirror sync (marketplace-sourced agents)', () => 
     })
   })
 
-  it('never writes a mirror for a user-built agent', async () => {
+  it('writes a mirror for a user-built agent too (every source, 2026-08-26)', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())
       const now = new Date()
@@ -244,7 +260,7 @@ describe('updateAgent — disk mirror sync (marketplace-sourced agents)', () => 
       })
       const agent = await createAgent(db, baseInput(user.id, { workspaceId: workspace.id }))
       await updateAgent(db, { agentId: agent.id, userId: user.id, prompt: 'Edited.' })
-      expect(await fileExists(mirrorPathIn(workspaceDir, 'researcher'))).toBe(false)
+      expect(await fileExists(mirrorPathIn(workspaceDir, 'researcher'))).toBe(true)
     })
   })
 })

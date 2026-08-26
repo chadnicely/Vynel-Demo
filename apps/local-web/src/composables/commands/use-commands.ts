@@ -2,6 +2,7 @@ import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
+import { commandsKeys } from "./commands-keys.js";
 
 /** The slash commands a SURFACE owns — the workspace's own `.claude/commands`,
  *  or the user folder on the global menu, so the list matches disk. `resolved`
@@ -16,11 +17,10 @@ export function useCommands(
   return useQuery({
     queryKey: computed(() => {
       const surface = toValue(scope);
-      return [
-        "commands",
+      return commandsKeys.list(
         isResolved ? "resolved" : "owned",
         surface.kind === "workspace" ? surface.workspaceId : "user",
-      ];
+      );
     }),
     queryFn: async () => {
       const surface = toValue(scope);
@@ -29,7 +29,7 @@ export function useCommands(
         return (await vynel.commandsUser.list()).commands;
       }
       const response = isResolved
-        ? await vynel.commands.listResolved(surface.workspaceId)
+        ? await vynel.commands.listResolved({ workspaceId: surface.workspaceId })
         : await vynel.commands.list(surface.workspaceId);
       return response.commands;
     },

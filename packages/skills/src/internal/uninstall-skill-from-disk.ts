@@ -3,13 +3,17 @@
 // silently. Per coding.md §1.2 (only filesystem writer for these
 // paths). Used by `uninstallSkill` (hard removal — the only way a
 // skill leaves disk since install/uninstall-only, 2026-08-01).
+//
+// The folder comes from the row's `installLocation`, never from
+// `<root>/<skillId>` — an external row's skillId is its frontmatter name,
+// which need not be the folder name (the 2026-08-26 audit found the
+// recomputed path deleting nothing while the row vanished).
 
-import path from 'node:path'
 import { rm } from 'node:fs/promises'
 import type { InstalledSkillRow } from '../repositories/index.js'
 import type { VerifiedSkillDefinition } from '@vynel/contracts/skills/verified-skills/verified-skill-definition'
 import { updateMcpServersForScope } from './update-mcp-servers-for-scope.js'
-import { resolveSkillsRoot } from './resolve-skills-root.js'
+import { resolveInstalledSkillFolder } from './resolve-installed-skill-folder.js'
 
 export type UninstallSkillFromDiskInput = {
   installedSkill: InstalledSkillRow
@@ -21,14 +25,15 @@ export type UninstallSkillFromDiskInput = {
 }
 
 export async function uninstallSkillFromDisk(input: UninstallSkillFromDiskInput): Promise<void> {
-  const skillsRoot = resolveSkillsRoot(input.installedSkill.scope, input.workspacePath)
-  const skillFolder = path.join(skillsRoot, input.installedSkill.skillId)
+  // Containment is asserted BEFORE anything is removed — a row pointing
+  // outside the skills root throws rather than deleting elsewhere.
+  const skillFolder = resolveInstalledSkillFolder(input.installedSkill, input.workspacePath)
 
   // Best-effort folder removal — sync still works if the folder is
-  // already gone (e.g., disable then uninstall, or external removal
-  // surfaced via `synchronizeSkillsWithProvider`).
+  // already gone (e.g., external removal surfaced via
+  // `synchronizeSkillsWithProvider`).
   try {
-    await rm(skillFolder, { recursive: true, force: true })
+    await rm(skillFolder, { recursive: true, force: true, maxRetries: 3 })
   } catch {
     // Permission failure or unexpected error — row deletion still
     // succeeds; sync will reconcile on next run.

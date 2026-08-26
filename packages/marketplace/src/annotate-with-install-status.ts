@@ -117,7 +117,16 @@ function determineSkillInstallStatus(
   item: MarketplaceItem,
   installedSkills: InstalledSkillView[],
 ): MarketplaceItemInstallStatus {
-  const matches = installedSkills.filter((s) => s.skillId === item.skillId)
+  // Catalog-sourced rows only: a hand-authored or Vynel-written skill whose
+  // frontmatter name equals a catalog itemId (discovered as 'external', or
+  // created as 'user') must never flip the card to "Installed" — the
+  // uninstall route resolves through this same match and would delete the
+  // user's own folder (the agents slug-collision lesson, 2026-08-26).
+  const matches = installedSkills.filter(
+    (s) =>
+      s.skillId === item.skillId &&
+      (s.installedFromSource === 'verified-catalog' || s.installedFromSource === 'marketplace'),
+  )
   if (matches.length === 0) return { kind: 'not-installed' }
   // D12: workspace-scope match preferred when both exist.
   const workspaceScoped = matches.find((s) => s.workspaceId !== null)

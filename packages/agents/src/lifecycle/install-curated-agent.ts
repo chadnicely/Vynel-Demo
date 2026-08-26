@@ -2,7 +2,7 @@
 // (`CURATED_AGENT_CATALOG`) as an `agents` row — the seed-install path.
 // Mirrors `installSkill` (catalog lookup → row): looks up the curated
 // definition by slug, stamps `source: 'vynel'` + `trustTier: 'verified'`
-// + `enabled: true`, and delegates to `installMarketplaceAgent` (the
+// + `enabled: true`, and delegates to `createAgent` (the
 // transparency mirror at `.claude/agents/<slug>.md` + the `createAgent`
 // row/outbox tx).
 //
@@ -16,7 +16,7 @@ import type { Database } from '@vynel/db'
 import { NotFoundError } from '@vynel/errors'
 import { findCuratedAgentBySlug } from '@vynel/contracts/agents/curated-agents/curated-agent-catalog'
 import type { CreateAgentInput } from './create-agent.js'
-import { installMarketplaceAgent } from './install-marketplace-agent.js'
+import { createAgent } from './create-agent.js'
 import type { AgentRow, StructuralLogger } from '../agents-types.js'
 
 export type InstallCuratedAgentInput = {
@@ -65,5 +65,5 @@ export async function installCuratedAgent(
     createInput.disallowedTools = [...definition.disallowedTools]
   }
 
-  return installMarketplaceAgent(db, createInput, deps)
+  return createAgent(db, createInput, deps)
 }

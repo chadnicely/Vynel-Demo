@@ -5,16 +5,25 @@
 // the shared `resolve-host-home-dir` seam so tests isolate to a tmpdir.
 
 import path from 'node:path'
+import { ValidationError } from '@vynel/errors'
 import type { SkillScope } from '../repositories/index.js'
 import { resolveHostHomeDir } from '../internal/resolve-host-home-dir.js'
+import { isSafeFileStem, MAX_FILE_STEM_LENGTH } from '../internal/safe-file-stem.js'
 
-// Catalog ids are hub-validated kebab-case, but the id becomes a filename —
-// defense-in-depth against a path-traversal id ever reaching the fs ops.
-const SAFE_RULE_ID = /^[a-z0-9][a-z0-9-]*$/
+export const MAX_RULE_ID_LENGTH = MAX_FILE_STEM_LENGTH
+
+/** A rule id is one file stem in the rules folder — the shared predicate
+ *  keeps the folder reader and every writer addressing the same files. */
+export function isSafeRuleId(ruleId: string): boolean {
+  return isSafeFileStem(ruleId)
+}
 
 export function assertSafeRuleId(ruleId: string): void {
-  if (!SAFE_RULE_ID.test(ruleId)) {
-    throw new Error(`Rule id '${ruleId}' is not a safe file name`)
+  if (!isSafeRuleId(ruleId)) {
+    throw new ValidationError(
+      `Rule name '${ruleId}' is not a safe file name — use letters, digits and dashes ` +
+        '(no slashes, no leading dot).',
+    )
   }
 }
 

@@ -41,6 +41,7 @@ describe('getMarketplaceItem', () => {
             workspaceId: null,
             scope: 'user',
             versionInstalled: '1.0.0',
+          installedFromSource: 'marketplace',
           },
         ]),
       )

@@ -80,14 +80,22 @@ const EXPECTED_CHANNELS_USER_METHODS = [
 // what a session there can reach, user ∪ workspace — the "/" picker's read
 // and the one carrying `list_installed_skills` (owned/resolved split,
 // 2026-08-03).
+// + the user's own skills (2026-08-26): create, the file doors (getFiles /
+// writeFile / deleteFile) and a by-scope uninstall — the top-level mount's
+// methods land in this namespace too.
 const EXPECTED_SKILLS_METHODS = [
+  'create',
+  'deleteFile',
+  'getFiles',
   'install',
   'listAvailable',
   'listInstalled',
   'listInstalledResolved',
   'synchronize',
   'uninstall',
+  'uninstallByScope',
   'updateSettings',
+  'writeFile',
 ] as const
 
 // The marketplace namespace's methods, sorted. Two read GETs

@@ -6,12 +6,13 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { getOrCreateLocalUser } from '@vynel/core/users'
 import { withHomeDir } from '@vynel/agents/test-support'
 import { createApp } from '../../app.js'
+import { beginHomeDirOverride } from '@vynel/agents/test-support'
 
 const logger = pino({ level: 'silent' })
 
@@ -25,6 +26,20 @@ async function withIsolatedHome<T>(fn: () => Promise<T>): Promise<T> {
     rmSync(homeDir, { recursive: true, force: true })
   }
 }
+
+// Every test here creates agents through the API, and createAgent writes the
+// disk mirror for EVERY source (2026-08-26) — the home is isolated per test so
+// a user-scope fixture never lands in the developer's real ~/.claude/agents.
+let isolatedHomeDir = ''
+let restoreHomeDir: () => void = () => undefined
+beforeEach(() => {
+  isolatedHomeDir = mkdtempSync(join(tmpdir(), 'vynel-agents-routes-home-'))
+  restoreHomeDir = beginHomeDirOverride(isolatedHomeDir)
+})
+afterEach(() => {
+  restoreHomeDir()
+  rmSync(isolatedHomeDir, { recursive: true, force: true })
+})
 
 describe('POST /agents', () => {
   it('creates a user-scope agent — 201 with preloaded skillIds', async () => {

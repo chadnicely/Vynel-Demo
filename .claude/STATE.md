@@ -3,6 +3,31 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## ✅ 2026-08-26 CLAUDE CONFIG CRUD — rules · commands · skills · agents BUILT (worktree)
+
+Kafi's ask: finalize Rules / Agents / Skills / Commands — user (UI) AND Claude (MCP) create /
+edit / delete; on-disk files discovered consistently; skills multi-file. Decisions: **no new
+tables** (files are the truth; skills keep their row and now sync with disk on every shelf read),
+mirror every agent source, per-kind tools. Built in `.claude/worktrees/claude-config`
+(`feature/claude-config`, band 18940): slices 1–3 (rules, commands, skills) — package doors in
+`@vynel/skills`, `/agents`-shaped top-level routes (`resolveScopeTarget` in `routes/_shared`),
+11 new tools on root + workspace-interactive (`list/write/delete_rule`, `list/write/delete_command`,
+`create_skill` `get_skill` `write_skill_file` `delete_skill_file` `uninstall_skill`; DELETEs +
+`write_rule` card in ask), Notebook-shaped dialogs + the multi-file `EditSkillFilesDialog`, a
+commands menu count, three skills bug fixes (uninstall follows `installLocation`; the marketplace
+card matches catalog-sourced rows only; settings render disk-first) and the reviewer's Windows
+reserved-character wall in the shared stem predicate. Design record + status =
+`docs/module-notes/claude-config.md`. Slice 4 agents landed the same day: `createAgent` mirrors EVERY
+source (user-built agents are visible on disk; a colliding hand-authored file is refused),
+hand-authored `.claude/agents/*.md` are listed beside the rows ("On disk") with raw edit/delete
+(`list/write/delete_agent_file`), and the shelf gained Build / Edit / Delete / Catalog. Two
+reviewer passes closed (rules+commands, skills: sync never throws on disk state, stale rows
+uninstall, Windows-reserved characters everywhere via `@vynel/contracts/fs/safe-file-stem`).
+**Next:** Kafi's live smoke from the worktree (band 18940) — write a rule / command / skill /
+agent from each shelf and from chat, confirm the files land — then merge to main. Side finding (its own
+move): the workspace-scope MCP-config tests write the developer's REAL `~/.claude.json` and a torn
+parallel write corrupted it once today (repaired from backup).
+
 ## ✅ 2026-08-26 VOICE CLOUD PROVIDERS — MERGED TO MAIN (Kafi: "get everything to main")
 
 Kafi's directive: users connect their own **ElevenLabs / Google Cloud** with an API key and use

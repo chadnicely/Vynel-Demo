@@ -90,7 +90,9 @@ describe('uninstallSkillFromDisk (workspace scope)', () => {
     await withTempWorkspace(async (workspacePath) => {
       await expect(
         uninstallSkillFromDisk({
-          installedSkill: makeInstalledSkillRow('workspace'),
+          installedSkill: makeInstalledSkillRow('workspace', {
+            installLocation: join(workspacePath, '.claude', 'skills', 'email-drafter', 'SKILL.md'),
+          }),
           skillDefinition: makeDefinition(),
           workspacePath,
         }),
@@ -116,7 +118,9 @@ describe('uninstallSkillFromDisk (workspace scope)', () => {
       expect(config.mcpServers.gmail).toBeDefined()
 
       await uninstallSkillFromDisk({
-        installedSkill: makeInstalledSkillRow('workspace'),
+        installedSkill: makeInstalledSkillRow('workspace', {
+            installLocation: join(workspacePath, '.claude', 'skills', 'email-drafter', 'SKILL.md'),
+          }),
         skillDefinition: def,
         workspacePath,
       })
@@ -134,7 +138,9 @@ describe('uninstallSkillFromDisk (workspace scope)', () => {
       await writeFile(mcpPath, JSON.stringify({ mcpServers: { gmail: handMade } }), 'utf8')
 
       await uninstallSkillFromDisk({
-        installedSkill: makeInstalledSkillRow('workspace'),
+        installedSkill: makeInstalledSkillRow('workspace', {
+            installLocation: join(workspacePath, '.claude', 'skills', 'email-drafter', 'SKILL.md'),
+          }),
         skillDefinition: makeDefinition({
           requiredMcpServers: [
             { serverName: 'gmail', transport: 'stdio', commandOrUrl: 'c', args: [], environment: {} },
@@ -159,7 +165,9 @@ describe('uninstallSkillFromDisk (workspace scope)', () => {
       )
 
       await uninstallSkillFromDisk({
-        installedSkill: makeInstalledSkillRow('workspace'),
+        installedSkill: makeInstalledSkillRow('workspace', {
+            installLocation: join(workspacePath, '.claude', 'skills', 'email-drafter', 'SKILL.md'),
+          }),
         skillDefinition: null,
         workspacePath,
       })

@@ -1,6 +1,11 @@
-// Uninstalls a Vynel skill. Removes the on-disk SKILL.md + MCP
+// Uninstalls a Vynel skill. Removes the on-disk folder + MCP
 // entries, then hard-deletes the DB row (FK cascade purges
 // settings). INSTANT hard-delete per D13 — no soft-delete cycle.
+//
+// A row whose folder is already gone (`missing-on-disk` — the user removed
+// it by hand, or the workspace moved) skips the disk step and just drops the
+// row: the containment check in the disk op exists to stop a corrupted row
+// from deleting elsewhere, not to keep a stale row forever.
 //
 // Throws:
 //   - `NotFoundError('installed-skill', id)` — row missing OR
@@ -15,6 +20,7 @@ import { NotFoundError, ForbiddenError } from '@vynel/errors'
 import { findVerifiedSkillById } from '@vynel/contracts/skills/verified-skills/verified-skill-catalog'
 import * as installedSkillsRepository from '../repositories/index.js'
 import { insertOutboxEvent } from '@vynel/db/repositories/_shared'
+import { checkInstallLocationExists } from '../internal/check-install-location-exists.js'
 import { uninstallSkillFromDisk } from '../internal/uninstall-skill-from-disk.js'
 import type { StructuralLogger } from '../skills-types.js'
 import { SKILL_UNINSTALLED, type SkillUninstalledPayload } from '../skills-events.js'
@@ -45,13 +51,16 @@ export async function uninstallSkill(
     throw new ForbiddenError(`Skill ${row.skillId} is system-installed and cannot be uninstalled`)
   }
 
-  // 3. FS uninstall first (idempotent; ignores missing folder).
-  const fsInput: Parameters<typeof uninstallSkillFromDisk>[0] = {
-    installedSkill: row,
-    skillDefinition: definition,
+  // 3. FS uninstall first (idempotent) — only when there is a folder to
+  // remove; a stale row just leaves.
+  if (await checkInstallLocationExists(row.installLocation)) {
+    const fsInput: Parameters<typeof uninstallSkillFromDisk>[0] = {
+      installedSkill: row,
+      skillDefinition: definition,
+    }
+    if (input.workspacePath !== undefined) fsInput.workspacePath = input.workspacePath
+    await uninstallSkillFromDisk(fsInput)
   }
-  if (input.workspacePath !== undefined) fsInput.workspacePath = input.workspacePath
-  await uninstallSkillFromDisk(fsInput)
 
   // 4. SYNC tx — row delete (cascades settings) + outbox event.
   const now = new Date()

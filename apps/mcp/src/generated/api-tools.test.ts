@@ -251,6 +251,33 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'display_update_widget',
   'display_remove_widget',
   'display_clear',
+  // The rules doors (Kafi 2026-08-26): rootSurface + workspaceInteractiveSurface
+  // — the global chat and a workspace conversation both read and write the
+  // user's standing rules; a schedule fire or a spawned leaf never rewrites
+  // standing instructions, so they stay out of the plain array. write_rule
+  // opts into the ask tier (a rule changes every future session).
+  'list_rules',
+  'write_rule',
+  'delete_rule',
+  // The commands doors (same day, same surfaces): a slash command is a
+  // reusable prompt — writing one changes nothing until it is run, so only
+  // the DELETE cards.
+  'list_commands',
+  'write_command',
+  'delete_command',
+  // The skills doors (same day): a skill is a FOLDER — create it from parts,
+  // read/write/delete its files, uninstall it — addressed by skillId + scope
+  // so the global chat can manage the user's own ~/.claude/skills too.
+  'create_skill',
+  'get_skill',
+  'write_skill_file',
+  'delete_skill_file',
+  'uninstall_skill',
+  // The hand-authored agent FILES (same day): `.claude/agents/*.md` the user
+  // wrote — live in every session, now listed and editable as files.
+  'list_agent_files',
+  'write_agent_file',
+  'delete_agent_file',
   // Voice-in-calls (merged 2026-08-13): the call lifecycle rides the ROOT
   // surface — the brain joins, lists and leaves calls; speak predates them.
   'end_call',
@@ -308,6 +335,21 @@ const EXPECTED_WORKSPACE_INTERACTIVE_TOOL_NAMES = [
   'display_update_widget',
   'display_remove_widget',
   'display_clear',
+  // The rules doors (2026-08-26) — same three names the root surface gets.
+  'list_rules',
+  'write_rule',
+  'delete_rule',
+  'list_commands',
+  'write_command',
+  'delete_command',
+  'create_skill',
+  'get_skill',
+  'write_skill_file',
+  'delete_skill_file',
+  'uninstall_skill',
+  'list_agent_files',
+  'write_agent_file',
+  'delete_agent_file',
   // The agent that can hand work off must be the agent that can read it back —
   // a workspace root delegates via send_message, so it needs these too.
   'get_delegated_task',

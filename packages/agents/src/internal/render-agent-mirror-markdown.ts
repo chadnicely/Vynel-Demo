@@ -44,6 +44,15 @@ function toSingleCommentLine(value: string): string {
   return value.replace(/[\r\n\u0085\u2028\u2029]+/g, ' ')
 }
 
+/** True for a file THIS renderer wrote: the frontmatter opens with the
+ *  managed-marker comment. A hand-authored file whose prompt merely mentions
+ *  the phrase is not a mirror — `includes()` once made such a file vanish
+ *  from the "On disk" list and get overwritten by a same-slug create. */
+export function isAgentMirrorMarkdown(content: string): boolean {
+  const withoutBom = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content
+  return /^---\r?\n# Managed by Vynel\b/.test(withoutBom)
+}
+
 export function renderAgentMirrorMarkdown(source: AgentMirrorSource): string {
   const lines = [
     '---',
@@ -53,10 +62,10 @@ export function renderAgentMirrorMarkdown(source: AgentMirrorSource): string {
     `name: ${yamlQuote(source.slug)}`,
     `description: ${yamlQuote(source.description)}`,
   ]
-  if (source.allowedTools != null && source.allowedTools.length > 0) {
+  if (source.allowedTools !== null && source.allowedTools !== undefined && source.allowedTools.length > 0) {
     lines.push(`tools: ${yamlQuote(source.allowedTools.join(', '))}`)
   }
-  if (source.model != null) {
+  if (source.model !== null && source.model !== undefined) {
     lines.push(`model: ${yamlQuote(source.model)}`)
   }
   lines.push('---', '', source.prompt.trimEnd(), '')

@@ -8,9 +8,9 @@
 // the same transaction). This lets thin callers (e.g. the enable
 // toggle) patch a single field without disturbing skills.
 //
-// Marketplace-sourced agents (source `community`/`vynel`) keep a disk
-// transparency mirror (`.claude/agents/<slug>.md`) that must track the
-// row: present exactly while enabled. This is LOAD-BEARING, not
+// Every agent keeps a disk transparency mirror (`.claude/agents/<slug>.md`,
+// every source since 2026-08-26) that must track the row: present exactly
+// while enabled. This is LOAD-BEARING, not
 // cosmetic — the SDK loads filesystem agents, and only a same-named
 // programmatic definition shadows the file; a disabled agent's stale
 // mirror would go LIVE from disk. So after the tx commits: disable
@@ -32,7 +32,9 @@ import type { StructuralLogger } from '../agents-types.js'
 import {
   removeAgentMirrorOnDisk,
   syncAgentMirrorOnDisk,
+  assertNoHandAuthoredAgentFile,
 } from '../internal/agent-mirror-on-disk.js'
+import { resolveAgentMirrorPath } from '../internal/resolve-agent-mirror-path.js'
 import { AGENT_UPDATED, type AgentUpdatedPayload } from '../agents-events.js'
 
 export type UpdateAgentInput = {
@@ -76,6 +78,15 @@ export async function updateAgent(
     if (clash) {
       throw new ConflictError(`An agent with slug "${input.slug}" already exists at this scope.`)
     }
+    // …or with a hand-authored FILE at the new slug's path: the renamed row
+    // would shadow it while enabled and un-shadow it on disable (the
+    // create-time refusal, applied to the rename door too).
+    const newMirrorPath = resolveAgentMirrorPath(db, {
+      scope: existing.scope,
+      workspaceId: existing.workspaceId,
+      slug: input.slug,
+    })
+    if (newMirrorPath !== null) await assertNoHandAuthoredAgentFile(newMirrorPath)
   }
 
   // Build the patch from defined fields only (exactOptionalPropertyTypes
@@ -128,18 +139,16 @@ export async function updateAgent(
     return row
   })
 
-  // Mirror sync AFTER the commit (header note). `source: 'user'` agents
-  // never had a mirror — the disk is not touched for them.
-  if (updated.source !== 'user') {
-    if (updated.slug !== existing.slug) {
-      await removeAgentMirrorOnDisk(
-        db,
-        { scope: existing.scope, workspaceId: existing.workspaceId, slug: existing.slug },
-        deps.logger,
-      )
-    }
-    await syncAgentMirrorOnDisk(db, updated, deps.logger)
+  // Mirror sync AFTER the commit (header note) — every source since
+  // 2026-08-26; a user-built agent is a visible file like any other.
+  if (updated.slug !== existing.slug) {
+    await removeAgentMirrorOnDisk(
+      db,
+      { scope: existing.scope, workspaceId: existing.workspaceId, slug: existing.slug },
+      deps.logger,
+    )
   }
+  await syncAgentMirrorOnDisk(db, updated, deps.logger)
 
   deps.logger?.info({ agentId: input.agentId }, 'agent updated')
   return updated

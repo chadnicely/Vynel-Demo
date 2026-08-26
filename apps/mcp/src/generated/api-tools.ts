@@ -338,7 +338,7 @@ export const completeTask: McpToolFactory = (scope, app) =>
 export const createAgent: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_agent',
-    "Create a custom subagent the user can enable for their sessions. `slug` is the stable identifier (kebab-case), `name` the display name, `description` when to use it, `prompt` its system prompt. `scope` is \"user\" (available everywhere) or \"workspace\" (+ `workspaceId`, defaults to the active workspace). Optional: `icon`, `model`, `effort`, `permissionMode`, `background`, `allowedTools` / `disallowedTools`, `skillIds` to preload skills. Use when the user asks for a specialist helper (e.g. a code reviewer, a research agent). The agent must then be enabled (set_agent_enabled) to join sessions. Side effect: it appears in the user's agents panel.",
+    "Create a custom subagent the user can enable for their sessions. `slug` is the stable identifier (kebab-case), `name` the display name, `description` when to use it, `prompt` its system prompt. `scope` is \"user\" (available everywhere) or \"workspace\" (+ `workspaceId`, defaults to the active workspace). Optional: `icon`, `model`, `effort`, `permissionMode`, `background`, `allowedTools` / `disallowedTools`, `skillIds` to preload skills. Use when the user asks for a specialist helper (e.g. a code reviewer, a research agent). The agent starts ENABLED and joins sessions at once (set_agent_enabled turns it off). Side effects: it appears in the user's agents panel and is written to <root>/.claude/agents/<slug>.md as a Vynel-managed mirror; a hand-authored file already at that path is refused (409) — use write_agent_file for files the user keeps by hand.",
     {
     slug: z.string(),
     name: z.string(),
@@ -771,6 +771,49 @@ export const createSession: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const createSkill: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'create_skill',
+    "Create a NEW skill — a folder Claude Code loads on demand when a task matches its description: <root>/.claude/skills/<skillId>/SKILL.md. `skillId` is kebab-case (e.g. \"weekly-report\"); `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `description` is the one line that tells Claude WHEN to use the skill (be specific — it is the trigger); `body` is the SKILL.md instructions in markdown. Add supporting files (references, templates, scripts) afterwards with write_skill_file. Refuses a name already installed or already on disk. Only create a skill when the user asked for one. Mutating.",
+    {
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    skillId: z.string(),
+    description: z.string(),
+    body: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/skills'
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope', 'workspaceId', 'skillId', 'description', 'body']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const createTask: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'create_task',
@@ -845,6 +888,92 @@ export const deleteAgent: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const deleteAgentFile: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'delete_agent_file',
+    "Delete ONE hand-authored subagent file by `slug` (`scope` \"user\" or \"workspace\" + `workspaceId`, defaults to the active workspace). Removes the file from disk so the subagent stops existing. A Vynel agent is deleted with delete_agent instead. Irreversible; confirm with the user unless they just asked for exactly this.",
+    {
+    slug: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/agents/files/{slug}'
+        pathStr = pathStr.replace('{slug}', encodeURIComponent(String(args['slug'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope', 'workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const deleteCommand: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'delete_command',
+    "Delete ONE slash command by `commandName`. `scope` is \"user\" (~/.claude/commands — runnable in every workspace) or \"workspace\" (<workspace>/.claude/commands; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Removes the file from disk so \"/<commandName>\" stops working. Irreversible; confirm with the user unless they just asked for exactly this.",
+    {
+    commandName: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/commands/{commandName}'
+        pathStr = pathStr.replace('{commandName}', encodeURIComponent(String(args['commandName'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope', 'workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const deleteFeature: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'delete_feature',
@@ -894,6 +1023,93 @@ export const deletePhase: McpToolFactory = (scope, app) =>
         pathStr = pathStr.replace('{workspaceId}', encodeURIComponent(String(args['workspaceId'] ?? scope.workspaceId ?? '')))
         pathStr = pathStr.replace('{phaseId}', encodeURIComponent(String(args['phaseId'] ?? '')))
         const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const deleteRule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'delete_rule',
+    "Delete ONE rule file by `ruleId`. `scope` is \"user\" (~/.claude/rules — applies in every workspace) or \"workspace\" (<workspace>/.claude/rules; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Removes the file from disk — the user's own or a Marketplace install alike — so the rule stops applying to future sessions. Irreversible; confirm with the user unless they just asked for exactly this.",
+    {
+    ruleId: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/rules/{ruleId}'
+        pathStr = pathStr.replace('{ruleId}', encodeURIComponent(String(args['ruleId'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope', 'workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const deleteSkillFile: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'delete_skill_file',
+    "Delete ONE supporting file from an installed skill by `skillId` and `relativePath`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). SKILL.md cannot be deleted this way — that is uninstall_skill. Irreversible.",
+    {
+    skillId: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    relativePath: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/skills/{skillId}/files'
+        pathStr = pathStr.replace('{skillId}', encodeURIComponent(String(args['skillId'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope', 'workspaceId', 'relativePath']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'DELETE' })
@@ -1788,6 +2004,50 @@ export const getPhase: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const getSkill: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'get_skill',
+    "Read an installed skill by `skillId`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Returns every file in the skill folder (relativePath, size, whether it is text) and the content of ONE text file — SKILL.md unless `relativePath` names another. Use it to see what a skill does before editing it, or to open a supporting file. Read-only.",
+    {
+    skillId: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    relativePath: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/skills/{skillId}/files'
+        pathStr = pathStr.replace('{skillId}', encodeURIComponent(String(args['skillId'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope', 'workspaceId', 'relativePath']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const getUserPreferences: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'get_user_preferences',
@@ -2028,6 +2288,46 @@ export const killBackgroundProcess: McpToolFactory = (scope, app) =>
       }
     },
     { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const listAgentFiles: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_agent_files',
+    "List the subagent files the user wrote by hand — every `.claude/agents/*.md` in ~/.claude/agents (scope \"user\") plus the workspace's own when `workspaceId` is set (defaults to the active workspace; omit on the global surface). These are NOT the agents list_agents returns (those live in Vynel); they are plain Claude Code subagent files, live in every session. Each row: slug (the file name), name, description, tools, model, the full file content and the prompt body. Read-only.",
+    {
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/agents/files'
+        const queryParams = new URLSearchParams()
+        for (const k of ['workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
   )
 
 export const listAgents: McpToolFactory = (scope, app) =>
@@ -2388,6 +2688,46 @@ export const listChatSessions: McpToolFactory = (scope, app) =>
         for (const k of ['includeArchived', 'limit']) {
           const v = args[k]
           if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
+export const listCommands: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_commands',
+    "List the user's slash commands — every command file in ~/.claude/commands (scope \"user\", runnable in every workspace) plus the workspace's own .claude/commands when `workspaceId` is set (defaults to the active workspace; omit on the global surface). Each row: commandName (what the user types after \"/\", e.g. \"git:commit\"), description, argumentHint, the full file content, and scope. A command is a reusable prompt the user runs by name; use this to see what exists before writing one, or when the user asks what commands they have. Read-only.",
+    {
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/commands/resolved'
+        const queryParams = new URLSearchParams()
+        for (const k of ['workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
         }
         const queryStr = queryParams.toString()
         const requestBody: string | undefined = undefined
@@ -3174,6 +3514,46 @@ export const listRoutingWorkspaces: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: true } },
   )
 
+export const listRules: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'list_rules',
+    "List the standing rules Claude follows — every rule file in the user's ~/.claude/rules (scope \"user\", applies in every workspace) plus the workspace's own .claude/rules when `workspaceId` is set (defaults to the active workspace; omit on the global surface). Each row: ruleId (the file name), title, the full markdown content, scope, and marketplace provenance (non-null = installed from the Marketplace and still managed by it). These files already load into your context — use this to see, quote, or check a rule before writing or deleting one. Read-only.",
+    {
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/rules/resolved'
+        const queryParams = new URLSearchParams()
+        for (const k of ['workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'GET' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: true } },
+  )
+
 export const listScheduleRuns: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'list_schedule_runs',
@@ -3789,7 +4169,7 @@ export const sendToChannel: McpToolFactory = (scope, app) =>
 export const setAgentEnabled: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'set_agent_enabled',
-    "Enable or disable an agent by `agentId` (`enabled` true/false). Only ENABLED agents join sessions as invokable subagents; a freshly created or installed agent starts disabled until the user wants it live. Fully reversible.",
+    "Enable or disable an agent by `agentId` (`enabled` true/false). Only ENABLED agents join sessions as invokable subagents; a freshly created or installed agent starts enabled. Disabling also removes its .claude/agents mirror file. Fully reversible.",
     {
     agentId: z.string(),
     enabled: z.boolean(),
@@ -4179,6 +4559,49 @@ export const uninstallMarketplaceItem: McpToolFactory = (scope, app) =>
         const requestBody = JSON.stringify(bodyObj)
         const url = pathStr + (queryStr ? '?' + queryStr : '')
         const response = await app(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const uninstallSkill: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'uninstall_skill',
+    "Uninstall a skill by `skillId`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Removes the whole skill folder from disk (SKILL.md and every supporting file) and forgets it — the user's own, a discovered one, or a Marketplace install alike. Irreversible; confirm with the user unless they just asked for exactly this.",
+    {
+    skillId: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/skills/{skillId}'
+        pathStr = pathStr.replace('{skillId}', encodeURIComponent(String(args['skillId'] ?? '')))
+        const queryParams = new URLSearchParams()
+        for (const k of ['scope', 'workspaceId']) {
+          const v = args[k]
+          if (v !== undefined && v !== null) queryParams.set(k, String(v))
+        }
+        if (!queryParams.has('workspaceId') && scope.workspaceId !== undefined) {
+          queryParams.set('workspaceId', scope.workspaceId)
+        }
+        const queryStr = queryParams.toString()
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'DELETE' })
         const bodyText = await response.text()
         if (!response.ok) {
           return {
@@ -4641,6 +5064,181 @@ export const updateTask: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const writeAgentFile: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'write_agent_file',
+    "Create or replace ONE hand-authored subagent file — `<root>/.claude/agents/<slug>.md`, a plain Claude Code subagent (NOT a Vynel agent: for those use create_agent / update_agent). `slug` is the file name (kebab-case); `scope` is \"user\" (~/.claude/agents — every workspace) or \"workspace\" (+ `workspaceId`, defaults to the active workspace; on the global surface pass it explicitly); `content` is the whole file: a frontmatter block with `name: <slug>`, a `description` (when to delegate to it), optional `tools` (comma list) and `model`, then the system prompt. Refuses a slug that already names a Vynel agent at that scope, or a file Vynel manages. Read it with list_agent_files first when editing. Mutating.",
+    {
+    slug: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    content: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/agents/files/{slug}'
+        pathStr = pathStr.replace('{slug}', encodeURIComponent(String(args['slug'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope', 'workspaceId', 'content']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const writeCommand: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'write_command',
+    "Create or replace ONE slash command — a reusable prompt the user runs by typing \"/<commandName>\" (kebab-case; a \":\" groups commands in a folder, e.g. \"git:commit\"). `scope` is \"user\" (~/.claude/commands — runnable in every workspace) or \"workspace\" (<workspace>/.claude/commands; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `body` is the prompt Claude runs (markdown; \"$ARGUMENTS\" stands for what the user types after the name); `description` is the one-line summary shown in the \"/\" menu; `argumentHint` (optional) names the expected arguments, e.g. \"[pr-number]\". Replaces the file — read it with list_commands first when editing; frontmatter keys you did not send are kept. Only write a command when the user asked for one. Mutating.",
+    {
+    commandName: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    description: z.string().nullable().optional(),
+    argumentHint: z.string().nullable().optional(),
+    body: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/commands/{commandName}'
+        pathStr = pathStr.replace('{commandName}', encodeURIComponent(String(args['commandName'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope', 'workspaceId', 'description', 'argumentHint', 'body']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const writeRule: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'write_rule',
+    "Create or replace ONE rule file — a standing instruction Claude follows in every future session at that scope. `ruleId` becomes `<ruleId>.md` (kebab-case, e.g. \"git-hygiene\"); `scope` is \"user\" (~/.claude/rules — applies in every workspace) or \"workspace\" (<workspace>/.claude/rules; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `content` is the whole markdown file (open with a `# Title` heading, then the instructions in plain words). Replaces the file entirely — read it with list_rules first when editing. Saving over a Marketplace-installed rule turns it into the user's own copy (Marketplace updates stop applying). Only write a rule when the user asked for a standing instruction; a fact about them belongs in memory, not here. Mutating.",
+    {
+    ruleId: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    content: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/rules/{ruleId}'
+        pathStr = pathStr.replace('{ruleId}', encodeURIComponent(String(args['ruleId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope', 'workspaceId', 'content']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
+export const writeSkillFile: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'write_skill_file',
+    "Write ONE text file into an installed skill's folder by `skillId`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `relativePath` is inside the skill folder (e.g. \"references/style.md\" — folders are created; no \"..\", no hidden names); `content` replaces the whole file. Writing \"SKILL.md\" must keep a frontmatter with `name: <skillId>` and a `description`, or Claude Code stops loading the skill. Read the file first with get_skill when editing. Mutating.",
+    {
+    skillId: z.string(),
+    scope: z.enum(['user', 'workspace']),
+    workspaceId: z.string().optional(),
+    relativePath: z.string(),
+    content: z.string(),
+  },
+    async (args: Record<string, unknown>) => {
+      try {
+        let pathStr = '/skills/{skillId}/files'
+        pathStr = pathStr.replace('{skillId}', encodeURIComponent(String(args['skillId'] ?? '')))
+        const queryStr = ''
+        const bodyObj: Record<string, unknown> = {}
+        for (const k of ['scope', 'workspaceId', 'relativePath', 'content']) {
+          if (args[k] !== undefined) bodyObj[k] = args[k]
+        }
+        if (bodyObj['workspaceId'] === undefined && scope.workspaceId !== undefined) {
+          bodyObj['workspaceId'] = scope.workspaceId
+        }
+        const requestBody = JSON.stringify(bodyObj)
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: requestBody })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 // Workspace-scoped tools — the normal chat turn's in-process server.
 export const generatedMcpTools: McpToolFactory[] = [
   addApp,
@@ -4747,6 +5345,11 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   createGlobalMonitor,
   createMySchedule,
   createSession,
+  createSkill,
+  deleteAgentFile,
+  deleteCommand,
+  deleteRule,
+  deleteSkillFile,
   disableMySchedule,
   displayAddWidget,
   displayClear,
@@ -4758,14 +5361,18 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   getBackgroundProcess,
   getChatSession,
   getDelegatedTask,
+  getSkill,
   killBackgroundProcess,
+  listAgentFiles,
   listBackgroundProcesses,
   listCalls,
+  listCommands,
   listDelegatedTasks,
   listGlobalMonitors,
   listMySchedules,
   listRoutingChannels,
   listRoutingWorkspaces,
+  listRules,
   listSessions,
   registerWorkspace,
   replyToChannel,
@@ -4777,7 +5384,12 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   speak,
   startCall,
   stopGlobalMonitor,
+  uninstallSkill,
   updateMySchedule,
+  writeAgentFile,
+  writeCommand,
+  writeRule,
+  writeSkillFile,
 ]
 
 // Session-library Slice ④b (widened 2026-07-21) — tools ALSO exposed on
@@ -4786,15 +5398,29 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
 // fires and spawned-session targets never see it.
 export const generatedWorkspaceInteractiveMcpTools: McpToolFactory[] = [
   createSession,
+  createSkill,
+  deleteAgentFile,
+  deleteCommand,
+  deleteRule,
+  deleteSkillFile,
   displayAddWidget,
   displayClear,
   displayListWidgets,
   displayRemoveWidget,
   displayUpdateWidget,
   getDelegatedTask,
+  getSkill,
+  listAgentFiles,
+  listCommands,
   listDelegatedTasks,
+  listRules,
   listSessions,
   replyToChannel,
+  uninstallSkill,
+  writeAgentFile,
+  writeCommand,
+  writeRule,
+  writeSkillFile,
 ]
 
 // The ask-approval tier — DELETE-method routes + x-mcp.askApproval opt-ins.
@@ -4805,8 +5431,12 @@ export const generatedAskModeApprovalToolNames: string[] = [
   'mcp__vynel__create_my_schedule',
   'mcp__vynel__create_schedule',
   'mcp__vynel__delete_agent',
+  'mcp__vynel__delete_agent_file',
+  'mcp__vynel__delete_command',
   'mcp__vynel__delete_feature',
   'mcp__vynel__delete_phase',
+  'mcp__vynel__delete_rule',
+  'mcp__vynel__delete_skill_file',
   'mcp__vynel__disable_my_schedule',
   'mcp__vynel__disable_schedule',
   'mcp__vynel__enable_my_schedule',
@@ -4817,6 +5447,8 @@ export const generatedAskModeApprovalToolNames: string[] = [
   'mcp__vynel__run_background_process',
   'mcp__vynel__start_call',
   'mcp__vynel__uninstall_marketplace_item',
+  'mcp__vynel__uninstall_skill',
   'mcp__vynel__update_my_schedule',
   'mcp__vynel__update_schedule',
+  'mcp__vynel__write_rule',
 ]

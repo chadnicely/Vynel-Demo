@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { NotFoundError } from '@vynel/errors'
-import { createAgent, type CreateAgentInput } from './create-agent.js'
+import { createAgentRow as createAgent, type CreateAgentInput } from './create-agent-row.js'
 import { findAgentBySlug, getAgentBySlugOrThrow } from './find-agent-by-slug.js'
 
 function makeUser(id: string = randomUUID()) {

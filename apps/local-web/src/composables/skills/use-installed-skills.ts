@@ -2,12 +2,14 @@ import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
+import { skillsKeys } from "./skills-keys.js";
 
 /** Skills installed INTO a surface — a workspace's own installs, or the user's
- *  on the global menu, so the list matches what is on disk there. `resolved`
- *  switches to what a session there can reach (user ∪ workspace): the "/"
- *  picker's question. Cached apart from the menu's answer. Keyed under
- *  `["skills", "installed"]` so a marketplace install refreshes every shelf. */
+ *  on the global menu, so the list matches what is on disk there (the engine
+ *  syncs the rows with disk on every read). `resolved` switches to what a
+ *  session there can reach (user ∪ workspace): the "/" picker's question.
+ *  Cached apart from the menu's answer. Keyed under `["skills", "installed"]`
+ *  so a marketplace install refreshes every shelf. */
 export function useInstalledSkills(
   scope: MaybeRefOrGetter<SectionScope>,
   options: { resolved?: boolean } = {},
@@ -17,12 +19,10 @@ export function useInstalledSkills(
   return useQuery({
     queryKey: computed(() => {
       const surface = toValue(scope);
-      return [
-        "skills",
-        "installed",
+      return skillsKeys.installed(
         isResolved ? "resolved" : "owned",
         surface.kind === "workspace" ? surface.workspaceId : "user",
-      ];
+      );
     }),
     queryFn: () => {
       const surface = toValue(scope);

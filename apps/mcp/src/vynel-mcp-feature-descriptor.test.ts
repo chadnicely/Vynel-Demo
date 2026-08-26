@@ -55,8 +55,12 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__create_my_schedule',
       'mcp__vynel__create_schedule',
       'mcp__vynel__delete_agent',
+      'mcp__vynel__delete_agent_file',
+      'mcp__vynel__delete_command',
       'mcp__vynel__delete_feature',
       'mcp__vynel__delete_phase',
+      'mcp__vynel__delete_rule',
+      'mcp__vynel__delete_skill_file',
       'mcp__vynel__disable_my_schedule',
       'mcp__vynel__disable_schedule',
       'mcp__vynel__enable_my_schedule',
@@ -73,8 +77,12 @@ describe('vynelWorkspaceDescriptor', () => {
       'mcp__vynel__run_background_process',
       'mcp__vynel__start_call',
       'mcp__vynel__uninstall_marketplace_item',
+      'mcp__vynel__uninstall_skill',
       'mcp__vynel__update_my_schedule',
       'mcp__vynel__update_schedule',
+      // The rules doors (2026-08-26): writing a standing rule changes every
+      // future session, so it cards in ask mode like a schedule create.
+      'mcp__vynel__write_rule',
     ])
     expect(vynelWorkspaceInteractiveDescriptor.askModeApprovalToolNames).toEqual(
       vynelWorkspaceDescriptor.askModeApprovalToolNames,

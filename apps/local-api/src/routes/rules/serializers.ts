@@ -16,6 +16,7 @@ export function serializeRuleFile(
     fileName: rule.fileName,
     title: rule.title,
     content: rule.content,
+    body: rule.body,
     scope,
     marketplace: rule.marketplace,
   }

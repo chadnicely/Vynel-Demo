@@ -2,6 +2,7 @@ import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
+import { rulesKeys } from "./rules-keys.js";
 
 /** The rule files a SURFACE OWNS: a workspace drawer lists that workspace's
  *  `.claude/rules`, the global menu the user folder — each list mirrors the
@@ -12,11 +13,9 @@ export function useRules(scope: MaybeRefOrGetter<SectionScope>) {
   return useQuery({
     queryKey: computed(() => {
       const surface = toValue(scope);
-      return [
-        "rules",
-        "list",
+      return rulesKeys.list(
         surface.kind === "workspace" ? surface.workspaceId : "user",
-      ];
+      );
     }),
     queryFn: async () => {
       const surface = toValue(scope);

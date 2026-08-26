@@ -20,7 +20,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { insertChatSession } from '@vynel/chat/repositories'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { listPendingApprovalsForUser } from '@vynel/approvals'
-import { createAgent } from '@vynel/agents'
+import { createAgentRowForTest as createAgent } from '@vynel/agents/test-support'
 import {
   claimNextPendingDelegationJob,
   enqueueAgentRun,

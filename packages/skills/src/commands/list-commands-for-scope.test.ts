@@ -43,6 +43,10 @@ describe('listCommandsForScope', () => {
           description: 'Review a pull request',
           argumentHint: '[pr-number]',
           bodyPreview: 'Review PR $1 carefully.',
+          // The whole file rides the row (2026-08-26) — the view + edit dialog's read.
+          content:
+            '---\ndescription: Review a pull request\nargument-hint: "[pr-number]"\n---\n\nReview PR $1 carefully.\n',
+          body: 'Review PR $1 carefully.\n',
         },
       ])
     })
@@ -85,7 +89,7 @@ describe('listCommandsForScope', () => {
   it('tolerates BOM + CRLF frontmatter', async () => {
     await withCommandsDir('user', async (commandsDir) => {
       const content = '---\r\ndescription: Windowsy\r\n---\r\nBody line.\r\n'
-      writeFileSync(join(commandsDir, 'win.md'), `﻿${content}`, 'utf8')
+      writeFileSync(join(commandsDir, 'win.md'), `\uFEFF${content}`, 'utf8')
       expect(listCommandsForScope('user')[0]).toMatchObject({
         description: 'Windowsy',
         bodyPreview: 'Body line.',

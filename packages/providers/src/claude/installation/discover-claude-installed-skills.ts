@@ -22,7 +22,8 @@ export async function discoverClaudeInstalledSkills(
 ): Promise<InstalledSkill[]> {
   const skills: InstalledSkill[] = []
 
-  skills.push(...(await scanSkillsDirectory(path.join(os.homedir(), '.claude', 'skills'), 'user')))
+  const homeDir = input.userHomeDir ?? os.homedir()
+  skills.push(...(await scanSkillsDirectory(path.join(homeDir, '.claude', 'skills'), 'user')))
 
   if (input.workspacePath !== undefined) {
     skills.push(

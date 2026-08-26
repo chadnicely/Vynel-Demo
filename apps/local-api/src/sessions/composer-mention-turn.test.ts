@@ -10,7 +10,7 @@ import type { Logger } from 'pino'
 import { withTestDatabase } from '@vynel/testing'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
-import { createAgent } from '@vynel/agents'
+import { createAgentRowForTest as createAgent } from '@vynel/agents/test-support'
 import { claimNextPendingDelegationJob, type DelegationJob } from '@vynel/orchestration'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import {

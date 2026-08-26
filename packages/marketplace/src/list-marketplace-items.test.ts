@@ -77,6 +77,7 @@ describe('listMarketplaceItems', () => {
             workspaceId: null,
             scope: 'user',
             versionInstalled: '1.0.0',
+          installedFromSource: 'marketplace',
           },
         ]),
       )
@@ -101,6 +102,7 @@ describe('listMarketplaceItems', () => {
             workspaceId: 'ws-1',
             scope: 'workspace',
             versionInstalled: '1.0.0',
+          installedFromSource: 'marketplace',
           },
         ]),
       )
@@ -151,6 +153,7 @@ describe('listMarketplaceItems', () => {
             workspaceId: null,
             scope: 'user',
             versionInstalled: '1.0.0',
+          installedFromSource: 'marketplace',
           },
         ]),
       )

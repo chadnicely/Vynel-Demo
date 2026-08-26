@@ -21,7 +21,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { findDelegationJobById, enqueueWorkspaceDelegation } from '@vynel/orchestration'
 import { createSpawnedSession } from '@vynel/session/spawned'
-import { createAgent } from '@vynel/agents'
+import { createAgentRowForTest as createAgent } from '@vynel/agents/test-support'
 import { withVynelUserDataDir } from '../../sessions/global-root-workspace.js'
 import {
   getOrCreatePrimarySession,

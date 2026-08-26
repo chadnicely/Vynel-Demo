@@ -23,13 +23,21 @@ import { insertChatSession, type NewChatSession } from '@vynel/chat/repositories
 import { insertAgent } from '@vynel/db/repositories/agents'
 import type { Database } from '@vynel/db'
 import type { AppEnv } from '../../factory.js'
+import type { AiAgentProvider } from '@vynel/providers'
 import { sectionCountsApp } from './index.js'
 import { sectionCountsWorkspaceApp } from './workspace-scoped.js'
 
 const silentLogger = pino({ level: 'silent' })
 
 type CountsBody = {
-  counts: { sessions: number; agents: number; skills: number; rules: number; apps?: number }
+  counts: {
+    sessions: number
+    agents: number
+    skills: number
+    rules: number
+    commands: number
+    apps?: number
+  }
 }
 
 function makeHarness(db: Database) {
@@ -37,6 +45,11 @@ function makeHarness(db: Database) {
   app.use('*', async (c, next) => {
     c.set('db', db)
     c.set('logger', silentLogger)
+    // The skills count syncs the shelf with disk through the provider's
+    // discovery (2026-08-26); the harness has no provider, so a silent one.
+    c.set('aiProvider', {
+      discoverInstalledSkills: async () => [],
+    } as unknown as AiAgentProvider)
     c.set('appRequest', app.request.bind(app))
     await next()
   })

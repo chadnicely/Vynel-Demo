@@ -21,6 +21,19 @@ export type RuleFileMarker = {
   version: string
 }
 
+/** The content without its marker line (and the blank line the writer puts
+ * after it). Saving a marketplace rule through Vynel's own editor FORKS it:
+ * the file becomes the user's, so the marker must go — otherwise the card
+ * would keep reading "Installed" and the next re-install would clobber the
+ * user's edits. A file with no marker comes back unchanged. */
+export function stripRuleFileMarker(content: string): string {
+  if (parseRuleFileMarker(content) === null) return content
+  const withoutBom = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content
+  const newlineIndex = withoutBom.indexOf('\n')
+  if (newlineIndex === -1) return ''
+  return withoutBom.slice(newlineIndex + 1).replace(/^\r?\n/, '')
+}
+
 /** Parses the first line of a rule file. `null` = no marker — the file is
  * hand-authored (or foreign) and must be left alone. A leading UTF-8 BOM
  * (a Windows-editor re-save) is stripped so the installed file keeps

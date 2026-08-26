@@ -41,6 +41,7 @@ function makeInstall(overrides: Partial<InstalledSkillView> = {}): InstalledSkil
     skillId: 'email-drafter',
     scope: 'user',
     versionInstalled: '1.0.0',
+    installedFromSource: 'marketplace',
     ...overrides,
   }
 }

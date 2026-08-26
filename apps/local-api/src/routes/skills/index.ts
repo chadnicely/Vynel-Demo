@@ -2,8 +2,8 @@
 // `/workspaces/:workspaceId/skills` from `apps/local-api/src/app.ts`:
 //
 //   GET    /available                              -> listAvailableSkills          [x-mcp]
-//   GET    /installed                              -> the workspace's OWN installs
-//   GET    /installed/resolved                     -> user ∪ workspace             [x-mcp]
+//   GET    /installed                              -> the workspace's OWN installs (disk-synced)
+//   GET    /installed/resolved                     -> user ∪ workspace (disk-synced) [x-mcp]
 //   POST   /install                                -> installSkill
 //   DELETE /installed/:installedSkillId            -> uninstallSkill
 //   PATCH  /installed/:installedSkillId/settings   -> updateSkillSettings
@@ -39,7 +39,7 @@ import { describeRoute } from '../../openapi.js'
 import { workspaceScoped } from '../../handler-bundles/workspace-scoped.js'
 import {
   listAvailableSkills,
-  listInstalledSkillsForContext,
+  listInstalledSkillsSynced,
   installSkill,
   uninstallSkill,
   updateSkillSettings,
@@ -60,6 +60,7 @@ import {
   serializeInstalledSkillRow,
   serializeInstalledSkillWithDefinition,
 } from './serializers.js'
+
 
 export const skillsApp = factory
   .createApp()
@@ -96,7 +97,7 @@ export const skillsApp = factory
     '/installed',
     describeRoute({
       tags: ['skills'],
-      summary: "List the skills installed INTO this workspace (what it owns).",
+      summary: 'List the skills installed INTO this workspace (what it owns), synced with disk.',
       'x-sdk-name': 'skills.listInstalled',
       responses: {
         200: {
@@ -108,11 +109,14 @@ export const skillsApp = factory
       },
     }),
     ...workspaceScoped,
-    (c) => {
-      const list = listInstalledSkillsForContext(c.var.db, {
+    async (c) => {
+      const workspace = c.var.workspace!
+      const list = await listInstalledSkillsSynced(c.var.db, {
         userId: c.var.user.id,
-        workspaceId: c.var.workspace!.id,
+        workspace: { id: workspace.id, path: workspace.path },
+        provider: c.var.aiProvider,
         ownedByWorkspaceOnly: true,
+        logger: c.var.logger,
       })
       return c.json(list.map(serializeInstalledSkillWithDefinition))
     },
@@ -146,10 +150,13 @@ export const skillsApp = factory
       },
     }),
     ...workspaceScoped,
-    (c) => {
-      const list = listInstalledSkillsForContext(c.var.db, {
+    async (c) => {
+      const workspace = c.var.workspace!
+      const list = await listInstalledSkillsSynced(c.var.db, {
         userId: c.var.user.id,
-        workspaceId: c.var.workspace!.id,
+        workspace: { id: workspace.id, path: workspace.path },
+        provider: c.var.aiProvider,
+        logger: c.var.logger,
       })
       return c.json(list.map(serializeInstalledSkillWithDefinition))
     },

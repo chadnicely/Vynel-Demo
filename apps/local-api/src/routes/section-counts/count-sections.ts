@@ -17,7 +17,12 @@
 
 import { countSessionsOverview } from '@vynel/session/overview'
 import { listAgentsForWorkspace } from '@vynel/agents'
-import { listInstalledSkillsForContext, countAllRuleFilesForScope } from '@vynel/skills'
+import {
+  countAllRuleFilesForScope,
+  countCommandsForScope,
+  listInstalledSkillsSynced,
+} from '@vynel/skills'
+import type { AiAgentProvider } from '@vynel/providers'
 import { listApps } from '@vynel/apps'
 import type { Database } from '@vynel/db'
 
@@ -25,6 +30,8 @@ export type SectionCountsScope = {
   userId: string
   /** The drilled workspace, or null for the Global menu. */
   workspace: { id: string; path: string } | null
+  /** The skills count syncs with disk like the shelf it decorates. */
+  provider: AiAgentProvider
 }
 
 export type SectionCounts = {
@@ -32,6 +39,7 @@ export type SectionCounts = {
   agents: number
   skills: number
   rules: number
+  commands: number
   apps?: number
 }
 
@@ -49,9 +57,10 @@ export async function countSections(
     workspaceId,
     ownedByWorkspaceOnly: true,
   })
-  const skills = listInstalledSkillsForContext(db, {
+  const skills = await listInstalledSkillsSynced(db, {
     userId,
-    workspaceId,
+    workspace,
+    provider: scope.provider,
     ownedByWorkspaceOnly: true,
   })
   // Rules are FILES, so the count is a directory listing — never the list
@@ -62,6 +71,11 @@ export async function countSections(
     workspace === null
       ? countAllRuleFilesForScope('user')
       : countAllRuleFilesForScope('workspace', workspace.path)
+  // Commands are files too — the same names-only walk (2026-08-26).
+  const commands =
+    workspace === null
+      ? countCommandsForScope('user')
+      : countCommandsForScope('workspace', workspace.path)
 
   // A real total, not a page length — the library scrolls now, so taking the
   // list read's length would have frozen the badge at the first page.
@@ -72,6 +86,7 @@ export async function countSections(
     agents: agents.length,
     skills: skills.length,
     rules,
+    commands,
     ...(workspace !== null ? { apps: listApps(db, { userId, workspaceId: workspace.id }).length } : {}),
   }
 }

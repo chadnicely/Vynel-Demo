@@ -10,6 +10,10 @@ export type SkillScope = 'user' | 'workspace' | 'plugin'
 export type DiscoverSkillsInput = {
   /** Omit to discover only user-scope and plugin-scope skills. */
   workspacePath?: string
+  /** The home dir whose `.claude/skills` is the user scope. Defaults to the
+   *  OS home; the skills leaf passes its own (test-isolatable) seam so a
+   *  list-time sync never scans a developer's real folder under test. */
+  userHomeDir?: string
 }
 
 export type InstalledSkill = {

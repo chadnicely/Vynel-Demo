@@ -176,7 +176,7 @@ import {
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { SessionTargetLocks } from '@vynel/session/delegation'
 import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
-import { createAgent } from '@vynel/agents'
+import { createAgentRowForTest as createAgent } from '@vynel/agents/test-support'
 import { withVynelUserDataDir } from '../sessions/global-root-workspace.js'
 import { createApp } from '../app.js'
 

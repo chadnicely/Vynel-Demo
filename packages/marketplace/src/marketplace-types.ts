@@ -23,6 +23,9 @@ export type InstalledSkillView = {
   workspaceId: string | null
   scope: SkillScope
   versionInstalled: string
+  /** Plain string (no sibling import): the annotator matches only rows a
+   *  catalog install produced — 'verified-catalog' | 'marketplace'. */
+  installedFromSource: string
 }
 
 // The four fields `annotateWithInstallStatus` reads off an installed

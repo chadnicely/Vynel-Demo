@@ -48,3 +48,20 @@ export {
   installCloudAgent,
   type InstallCloudAgentInput,
 } from './lifecycle/install-cloud-agent.js'
+// The HAND-AUTHORED agent files (`.claude/agents/*.md` Vynel did not write)
+// — live in every session, listed beside the rows, edited as raw files.
+export {
+  listFileAgentsForScope,
+  readFileAgentForScope,
+  type FileAgentForScope,
+} from './files/list-file-agents-for-scope.js'
+export {
+  writeFileAgentForScope,
+  MAX_AGENT_FILE_LENGTH,
+  type WriteFileAgentForScopeInput,
+} from './files/write-file-agent-for-scope.js'
+export {
+  deleteFileAgentForScope,
+  type DeleteFileAgentForScopeInput,
+} from './files/delete-file-agent-for-scope.js'
+export { parseAgentFile, type AgentFileParts } from './files/agent-file-frontmatter.js'

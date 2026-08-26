@@ -13,6 +13,7 @@ export const SectionCountsResponseSchema = z.object({
     agents: z.number().int(),
     skills: z.number().int(),
     rules: z.number().int(),
+    commands: z.number().int(),
     /** Workspace-only — Apps needs a running project, so it has no global row. */
     apps: z.number().int().optional(),
   }),

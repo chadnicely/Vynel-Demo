@@ -17,6 +17,8 @@ export function serializeCommandFile(
     description: command.description,
     argumentHint: command.argumentHint,
     bodyPreview: command.bodyPreview,
+    content: command.content,
+    body: command.body,
     scope,
   }
 }

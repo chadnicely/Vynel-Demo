@@ -89,6 +89,9 @@ describe('user-scoped /commands', () => {
             description: null,
             argumentHint: null,
             bodyPreview: 'Commit the work.',
+            // The whole file rides the row (2026-08-26) — the view + edit dialog's read.
+            content: 'Commit the work.\n',
+            body: 'Commit the work.\n',
             scope: 'user',
           },
           {
@@ -97,6 +100,8 @@ describe('user-scoped /commands', () => {
             description: 'Review a PR',
             argumentHint: '[pr]',
             bodyPreview: 'Review it.',
+            content: '---\ndescription: Review a PR\nargument-hint: "[pr]"\n---\n\nReview it.\n',
+            body: 'Review it.\n',
             scope: 'user',
           },
         ],
@@ -138,7 +143,10 @@ describe('workspace-scoped /workspaces/:workspaceId/commands', () => {
     })
   })
 
-  it('fuses user ∪ workspace commands on /resolved, with scope chips', async () => {
+  // The resolved read moved to the top-level mount (2026-08-26) so ONE route —
+  // and one `list_commands` tool — serves the global root (no workspace) and a
+  // workspace turn alike, the `/agents/resolved` shape.
+  it('fuses user ∪ workspace commands on /commands/resolved, with scope chips', async () => {
     await withWorld(async ({ app, homeDir, workspaceDir, workspaceId }) => {
       const userCommands = join(homeDir, '.claude', 'commands')
       const wsCommands = join(workspaceDir, '.claude', 'commands')
@@ -147,13 +155,20 @@ describe('workspace-scoped /workspaces/:workspaceId/commands', () => {
       writeFileSync(join(userCommands, 'everywhere.md'), 'Global command.\n', 'utf8')
       writeFileSync(join(wsCommands, 'here-only.md'), 'Room command.\n', 'utf8')
 
-      const res = await app.request(`/workspaces/${workspaceId}/commands/resolved`)
+      const res = await app.request(`/commands/resolved?workspaceId=${workspaceId}`)
       expect(res.status).toBe(200)
       const body = (await res.json()) as { commands: { commandName: string; scope: string }[] }
       expect(body.commands.map((command) => [command.commandName, command.scope])).toEqual([
         ['everywhere', 'user'],
         ['here-only', 'workspace'],
       ])
+
+      const userOnly = await app.request('/commands/resolved')
+      const userBody = (await userOnly.json()) as { commands: { commandName: string }[] }
+      expect(userBody.commands.map((command) => command.commandName)).toEqual(['everywhere'])
+      expect((await app.request(`/commands/resolved?workspaceId=${randomUUID()}`)).status).toBe(
+        404,
+      )
     })
   })
 

@@ -9,7 +9,7 @@ import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import { listSkillIdsForAgent } from '@vynel/db/repositories/agents'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { ConflictError } from '@vynel/errors'
-import { createAgent, type CreateAgentInput } from './create-agent.js'
+import { createAgentRow as createAgent, type CreateAgentInput } from './create-agent-row.js'
 import { AGENT_CREATED } from '../agents-events.js'
 
 function makeUser(id: string = randomUUID()) {
@@ -55,7 +55,7 @@ function baseInput(userId: string, overrides: Partial<CreateAgentInput> = {}): C
   }
 }
 
-describe('createAgent', () => {
+describe('createAgentRow', () => {
   it('persists the row, derives workspace scope, and inserts preloaded skills', async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

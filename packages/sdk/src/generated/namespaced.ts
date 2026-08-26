@@ -49,6 +49,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error) throw new SdkError(response, error)
 
   },
+  deleteFile: async (slug: NonNullable<paths["/agents/files/{slug}"]["delete"]['parameters']>['path']["slug"], options: NonNullable<paths["/agents/files/{slug}"]["delete"]['parameters']>['query']) => {
+    const { error, response } = await client["DELETE"]("/agents/files/{slug}", {
+      params: { path: { slug: slug }, query: options },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
   getBySlug: async (slug: NonNullable<paths["/agents/{slug}"]["get"]['parameters']>['path']["slug"], options?: NonNullable<paths["/agents/{slug}"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/agents/{slug}", {
       params: { path: { slug: slug }, ...(options && { query: options }) },
@@ -75,6 +82,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  listFiles: async (options?: NonNullable<paths["/agents/files"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/agents/files", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   listResolved: async (options?: NonNullable<paths["/agents/resolved"]["get"]['parameters']>['query']) => {
     const { data, error, response } = await client["GET"]("/agents/resolved", {
       params: { ...(options && { query: options }) },
@@ -93,6 +107,14 @@ export function makeNamespaced(client: Client<paths>) {
   update: async (agentId: NonNullable<paths["/agents/{agentId}"]["patch"]['parameters']>['path']["agentId"], input: NonNullable<paths["/agents/{agentId}"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/agents/{agentId}", {
       params: { path: { agentId: agentId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  writeFile: async (slug: NonNullable<paths["/agents/files/{slug}"]["put"]['parameters']>['path']["slug"], input: NonNullable<paths["/agents/files/{slug}"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/agents/files/{slug}", {
+      params: { path: { slug: slug } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
@@ -464,6 +486,13 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   commands: {
+  delete: async (commandName: NonNullable<paths["/commands/{commandName}"]["delete"]['parameters']>['path']["commandName"], options: NonNullable<paths["/commands/{commandName}"]["delete"]['parameters']>['query']) => {
+    const { error, response } = await client["DELETE"]("/commands/{commandName}", {
+      params: { path: { commandName: commandName }, query: options },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
   list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/commands"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/commands", {
       params: { path: { workspaceId: workspaceId } },
@@ -471,9 +500,17 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
-  listResolved: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/commands/resolved"]["get"]['parameters']>['path']["workspaceId"]) => {
-    const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/commands/resolved", {
-      params: { path: { workspaceId: workspaceId } },
+  listResolved: async (options?: NonNullable<paths["/commands/resolved"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/commands/resolved", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  write: async (commandName: NonNullable<paths["/commands/{commandName}"]["put"]['parameters']>['path']["commandName"], input: NonNullable<paths["/commands/{commandName}"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/commands/{commandName}", {
+      params: { path: { commandName: commandName } },
+      body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
@@ -1601,9 +1638,31 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   rules: {
+  delete: async (ruleId: NonNullable<paths["/rules/{ruleId}"]["delete"]['parameters']>['path']["ruleId"], options: NonNullable<paths["/rules/{ruleId}"]["delete"]['parameters']>['query']) => {
+    const { error, response } = await client["DELETE"]("/rules/{ruleId}", {
+      params: { path: { ruleId: ruleId }, query: options },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
   list: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/rules"]["get"]['parameters']>['path']["workspaceId"]) => {
     const { data, error, response } = await client["GET"]("/workspaces/{workspaceId}/rules", {
       params: { path: { workspaceId: workspaceId } },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  listResolved: async (options?: NonNullable<paths["/rules/resolved"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/rules/resolved", {
+      params: { ...(options && { query: options }) },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  write: async (ruleId: NonNullable<paths["/rules/{ruleId}"]["put"]['parameters']>['path']["ruleId"], input: NonNullable<paths["/rules/{ruleId}"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/rules/{ruleId}", {
+      params: { path: { ruleId: ruleId } },
+      body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
@@ -1888,6 +1947,27 @@ export function makeNamespaced(client: Client<paths>) {
   },
   },
   skills: {
+  create: async (input: NonNullable<paths["/skills"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/skills", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  deleteFile: async (skillId: NonNullable<paths["/skills/{skillId}/files"]["delete"]['parameters']>['path']["skillId"], options: NonNullable<paths["/skills/{skillId}/files"]["delete"]['parameters']>['query']) => {
+    const { error, response } = await client["DELETE"]("/skills/{skillId}/files", {
+      params: { path: { skillId: skillId }, query: options },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
+  getFiles: async (skillId: NonNullable<paths["/skills/{skillId}/files"]["get"]['parameters']>['path']["skillId"], options: NonNullable<paths["/skills/{skillId}/files"]["get"]['parameters']>['query']) => {
+    const { data, error, response } = await client["GET"]("/skills/{skillId}/files", {
+      params: { path: { skillId: skillId }, query: options },
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   install: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['parameters']>['path']["workspaceId"], input: NonNullable<paths["/workspaces/{workspaceId}/skills/install"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/workspaces/{workspaceId}/skills/install", {
       params: { path: { workspaceId: workspaceId } },
@@ -1931,9 +2011,24 @@ export function makeNamespaced(client: Client<paths>) {
     if (error) throw new SdkError(response, error)
 
   },
+  uninstallByScope: async (skillId: NonNullable<paths["/skills/{skillId}"]["delete"]['parameters']>['path']["skillId"], options: NonNullable<paths["/skills/{skillId}"]["delete"]['parameters']>['query']) => {
+    const { error, response } = await client["DELETE"]("/skills/{skillId}", {
+      params: { path: { skillId: skillId }, query: options },
+    })
+    if (error) throw new SdkError(response, error)
+
+  },
   updateSettings: async (workspaceId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['parameters']>['path']["workspaceId"], installedSkillId: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['parameters']>['path']["installedSkillId"], input: NonNullable<paths["/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings"]["patch"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["PATCH"]("/workspaces/{workspaceId}/skills/installed/{installedSkillId}/settings", {
       params: { path: { workspaceId: workspaceId, installedSkillId: installedSkillId } },
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
+  writeFile: async (skillId: NonNullable<paths["/skills/{skillId}/files"]["put"]['parameters']>['path']["skillId"], input: NonNullable<paths["/skills/{skillId}/files"]["put"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["PUT"]("/skills/{skillId}/files", {
+      params: { path: { skillId: skillId } },
       body: input,
     })
     if (error || data === undefined) throw new SdkError(response, error ?? data)

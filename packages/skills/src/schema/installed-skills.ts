@@ -33,6 +33,7 @@ export type InstalledFromSource =
   | 'verified-catalog' // installed from Vynel's Verified pack
   | 'marketplace' // Phase 1.5: installed from cloud marketplace
   | 'external' // user installed via raw Claude Code outside Vynel
+  | 'user' // written in Vynel's own skill editor (or by Claude via create_skill)
 
 export type InstallHealth =
   | 'healthy' // files present, MCP servers configured, all good

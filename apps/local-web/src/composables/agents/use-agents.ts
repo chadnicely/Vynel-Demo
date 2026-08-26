@@ -2,6 +2,7 @@ import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import type { SectionScope } from "../../components/sections/section-scope.js";
 import { useVynel } from "../use-vynel.js";
+import { agentsKeys } from "./agents-keys.js";
 
 /** The agents a SURFACE owns — a workspace's own, or the user's on the global
  *  menu. `resolved` switches to what a session THERE can delegate to (user ∪
@@ -17,11 +18,10 @@ export function useAgents(
   return useQuery({
     queryKey: computed(() => {
       const surface = toValue(scope);
-      return [
-        "agents",
+      return agentsKeys.list(
         isResolved ? "resolved" : "list",
         surface.kind === "workspace" ? surface.workspaceId : "user",
-      ];
+      );
     }),
     queryFn: () => {
       const surface = toValue(scope);

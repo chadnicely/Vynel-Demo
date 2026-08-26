@@ -103,7 +103,7 @@ describe('writeAgentMirrorOnDisk / removeAgentMirrorOnDisk', () => {
       const { workspace } = seedWorkspace(db, workspaceDir)
       const mirrorPath = path.join(workspaceDir, '.claude', 'agents', 'focus-writer.md')
 
-      await writeAgentMirrorOnDisk(mirrorPath, `# ${AGENT_MIRROR_MANAGED_MARKER}\nbody`)
+      await writeAgentMirrorOnDisk(mirrorPath, `---\n# ${AGENT_MIRROR_MANAGED_MARKER} — test\nbody`)
       expect(await readFile(mirrorPath, 'utf8')).toContain(AGENT_MIRROR_MANAGED_MARKER)
 
       await removeAgentMirrorOnDisk(db, {
@@ -159,7 +159,7 @@ describe('writeAgentMirrorOnDisk hand-authored guard', () => {
     await writeFile(mirrorPath, handAuthored, 'utf8')
 
     await expect(
-      writeAgentMirrorOnDisk(mirrorPath, `# ${AGENT_MIRROR_MANAGED_MARKER}\nbody`),
+      writeAgentMirrorOnDisk(mirrorPath, `---\n# ${AGENT_MIRROR_MANAGED_MARKER} — test\nbody`),
     ).rejects.toBeInstanceOf(ConflictError)
     expect(await readFile(mirrorPath, 'utf8')).toBe(handAuthored)
   })
@@ -167,8 +167,8 @@ describe('writeAgentMirrorOnDisk hand-authored guard', () => {
   it('overwrites its own managed mirror freely', async () => {
     const workspaceDir = await makeTempDir()
     const mirrorPath = path.join(workspaceDir, '.claude', 'agents', 'focus-writer.md')
-    await writeAgentMirrorOnDisk(mirrorPath, `# ${AGENT_MIRROR_MANAGED_MARKER}\nfirst`)
-    await writeAgentMirrorOnDisk(mirrorPath, `# ${AGENT_MIRROR_MANAGED_MARKER}\nsecond`)
+    await writeAgentMirrorOnDisk(mirrorPath, `---\n# ${AGENT_MIRROR_MANAGED_MARKER} — test\nfirst`)
+    await writeAgentMirrorOnDisk(mirrorPath, `---\n# ${AGENT_MIRROR_MANAGED_MARKER} — test\nsecond`)
     expect(await readFile(mirrorPath, 'utf8')).toContain('second')
   })
 })

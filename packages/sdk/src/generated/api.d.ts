@@ -211,7 +211,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the skills installed INTO this workspace (what it owns). */
+        /** List the skills installed INTO this workspace (what it owns), synced with disk. */
         get: operations["getWorkspacesByWorkspaceIdSkillsInstalled"];
         put?: never;
         post?: never;
@@ -332,23 +332,6 @@ export interface paths {
         };
         /** List the workspace's OWN slash commands (its folder on disk). */
         get: operations["getWorkspacesByWorkspaceIdCommands"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/workspaces/{workspaceId}/commands/resolved": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List every slash command runnable here: user ∪ workspace. */
-        get: operations["getWorkspacesByWorkspaceIdCommandsResolved"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2980,11 +2963,64 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the user's USER-SCOPE installed skills (the global view). */
+        /** List the user's USER-SCOPE installed skills (the global view), synced with disk. */
         get: operations["getSkillsInstalled"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create one of the user's own skills — a new folder with its SKILL.md. */
+        post: operations["postSkills"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skillId}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One skill's files, plus the text of one of them (SKILL.md by default). */
+        get: operations["getSkillsBySkillIdFiles"];
+        /** Create or replace one text file inside an installed skill. */
+        put: operations["putSkillsBySkillIdFiles"];
+        post?: never;
+        /** Delete one supporting file from an installed skill. */
+        delete: operations["deleteSkillsBySkillIdFiles"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skillId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Uninstall a skill at a scope — its folder and its row. */
+        delete: operations["deleteSkillsBySkillId"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3007,6 +3043,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rules/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every rule a session follows: the user folder ∪ one workspace's. */
+        get: operations["getRulesResolved"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rules/{ruleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or replace one of the user's own rule files. */
+        put: operations["putRulesByRuleId"];
+        post?: never;
+        /** Delete one rule file at a scope. */
+        delete: operations["deleteRulesByRuleId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commands": {
         parameters: {
             query?: never;
@@ -3019,6 +3090,41 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commands/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every slash command runnable in a scope: the user folder ∪ one workspace's. */
+        get: operations["getCommandsResolved"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commands/{commandName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or replace one of the user's own slash commands. */
+        put: operations["putCommandsByCommandName"];
+        post?: never;
+        /** Delete one slash-command file at a scope. */
+        delete: operations["deleteCommandsByCommandName"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3537,6 +3643,41 @@ export interface paths {
         /** Install a Vynel-curated agent from the catalog into a scope. */
         post: operations["postAgentsCuratedInstall"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the hand-authored agent files a scope holds (user's ∪ one workspace's). */
+        get: operations["getAgentsFiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/files/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or replace one hand-authored agent file. */
+        put: operations["putAgentsFilesBySlug"];
+        post?: never;
+        /** Delete one hand-authored agent file. */
+        delete: operations["deleteAgentsFilesBySlug"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5445,7 +5586,7 @@ export interface operations {
                         scope: "user" | "workspace";
                         workspaceId: string | null;
                         /** @enum {string} */
-                        installedFromSource: "verified-catalog" | "marketplace" | "external";
+                        installedFromSource: "verified-catalog" | "marketplace" | "external" | "user";
                         versionInstalled: string;
                         /** @enum {string} */
                         installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
@@ -5518,7 +5659,7 @@ export interface operations {
                         scope: "user" | "workspace";
                         workspaceId: string | null;
                         /** @enum {string} */
-                        installedFromSource: "verified-catalog" | "marketplace" | "external";
+                        installedFromSource: "verified-catalog" | "marketplace" | "external" | "user";
                         versionInstalled: string;
                         /** @enum {string} */
                         installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
@@ -5602,7 +5743,7 @@ export interface operations {
                         scope: "user" | "workspace";
                         workspaceId: string | null;
                         /** @enum {string} */
-                        installedFromSource: "verified-catalog" | "marketplace" | "external";
+                        installedFromSource: "verified-catalog" | "marketplace" | "external" | "user";
                         versionInstalled: string;
                         /** @enum {string} */
                         installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
@@ -5766,6 +5907,7 @@ export interface operations {
                             fileName: string;
                             title: string;
                             content: string;
+                            body: string;
                             /** @enum {string} */
                             scope: "user" | "workspace";
                             marketplace: {
@@ -5809,45 +5951,8 @@ export interface operations {
                             description: string | null;
                             argumentHint: string | null;
                             bodyPreview: string | null;
-                            /** @enum {string} */
-                            scope: "user" | "workspace";
-                        }[];
-                    };
-                };
-            };
-            /** @description Workspace not found. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getWorkspacesByWorkspaceIdCommandsResolved: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workspaceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description One row per command file across both scopes, scope per row. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        commands: {
-                            commandName: string;
-                            relativePath: string;
-                            description: string | null;
-                            argumentHint: string | null;
-                            bodyPreview: string | null;
+                            content: string;
+                            body: string;
                             /** @enum {string} */
                             scope: "user" | "workspace";
                         }[];
@@ -11415,6 +11520,7 @@ export interface operations {
                             agents: number;
                             skills: number;
                             rules: number;
+                            commands: number;
                             apps?: number;
                         };
                     };
@@ -16105,7 +16211,7 @@ export interface operations {
                         scope: "user" | "workspace";
                         workspaceId: string | null;
                         /** @enum {string} */
-                        installedFromSource: "verified-catalog" | "marketplace" | "external";
+                        installedFromSource: "verified-catalog" | "marketplace" | "external" | "user";
                         versionInstalled: string;
                         /** @enum {string} */
                         installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
@@ -16147,6 +16253,259 @@ export interface operations {
             };
         };
     };
+    postSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope: "user" | "workspace";
+                    workspaceId?: string;
+                    skillId: string;
+                    description: string;
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The installed-skill row (source "user"). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        skillId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        workspaceId: string | null;
+                        /** @enum {string} */
+                        installedFromSource: "verified-catalog" | "marketplace" | "external" | "user";
+                        versionInstalled: string;
+                        /** @enum {string} */
+                        installHealth: "healthy" | "missing-on-disk" | "mcp-config-drift" | "failed-install";
+                        installHealthMessage: string | null;
+                        installedAt: string;
+                        updatedAt: string;
+                    };
+                };
+            };
+            /** @description Bad name, description, body, or workspaceId missing for the workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (or not owned by this user). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A skill with that name is already installed, or its folder already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSkillsBySkillIdFiles: {
+        parameters: {
+            query: {
+                scope: "user" | "workspace";
+                workspaceId?: string;
+                relativePath?: string;
+            };
+            header?: never;
+            path: {
+                skillId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file list and the requested file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        skillId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        files: {
+                            relativePath: string;
+                            sizeBytes: number;
+                            isText: boolean;
+                        }[];
+                        file: {
+                            relativePath: string;
+                            content: string;
+                        };
+                    };
+                };
+            };
+            /** @description The file is binary or too large to open as text, or the path is unsafe. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such skill at that scope, no such file, or workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putSkillsBySkillIdFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                skillId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope: "user" | "workspace";
+                    workspaceId?: string;
+                    relativePath: string;
+                    content: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The file list after the write, with the written file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        skillId: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        files: {
+                            relativePath: string;
+                            sizeBytes: number;
+                            isText: boolean;
+                        }[];
+                        file: {
+                            relativePath: string;
+                            content: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unsafe path, oversized content, or a SKILL.md that would not load. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such skill at that scope, or workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteSkillsBySkillIdFiles: {
+        parameters: {
+            query: {
+                scope: "user" | "workspace";
+                workspaceId?: string;
+                relativePath: string;
+            };
+            header?: never;
+            path: {
+                skillId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted (no body). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsafe path, or the entry file. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such skill, no such file, or workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteSkillsBySkillId: {
+        parameters: {
+            query: {
+                scope: "user" | "workspace";
+                workspaceId?: string;
+            };
+            header?: never;
+            path: {
+                skillId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Uninstalled (no body). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The skill is system-installed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such skill at that scope, or workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getRules: {
         parameters: {
             query?: never;
@@ -16168,6 +16527,7 @@ export interface operations {
                             fileName: string;
                             title: string;
                             content: string;
+                            body: string;
                             /** @enum {string} */
                             scope: "user" | "workspace";
                             marketplace: {
@@ -16177,6 +16537,143 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+        };
+    };
+    getRulesResolved: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User-scope rules first, then the workspace's (when workspaceId is given). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rules: {
+                            ruleId: string;
+                            fileName: string;
+                            title: string;
+                            content: string;
+                            body: string;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                            marketplace: {
+                                ruleId: string;
+                                version: string;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putRulesByRuleId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope: "user" | "workspace";
+                    workspaceId?: string;
+                    content: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The rule file as it now reads on disk. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ruleId: string;
+                        fileName: string;
+                        title: string;
+                        content: string;
+                        body: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                        marketplace: {
+                            ruleId: string;
+                            version: string;
+                        } | null;
+                    };
+                };
+            };
+            /** @description Unsafe rule name, empty or oversized content, or workspaceId missing for the workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (or not owned by this user). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteRulesByRuleId: {
+        parameters: {
+            query: {
+                scope: "user" | "workspace";
+                workspaceId?: string;
+            };
+            header?: never;
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted (no body). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsafe rule name, or workspaceId missing for the workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such rule file at that scope, or workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -16202,11 +16699,148 @@ export interface operations {
                             description: string | null;
                             argumentHint: string | null;
                             bodyPreview: string | null;
+                            content: string;
+                            body: string;
                             /** @enum {string} */
                             scope: "user" | "workspace";
                         }[];
                     };
                 };
+            };
+        };
+    };
+    getCommandsResolved: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User-scope commands first, then the workspace's (when workspaceId is given). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        commands: {
+                            commandName: string;
+                            relativePath: string;
+                            description: string | null;
+                            argumentHint: string | null;
+                            bodyPreview: string | null;
+                            content: string;
+                            body: string;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putCommandsByCommandName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                commandName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope: "user" | "workspace";
+                    workspaceId?: string;
+                    description?: string | null;
+                    argumentHint?: string | null;
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The command file as it now reads on disk. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        commandName: string;
+                        relativePath: string;
+                        description: string | null;
+                        argumentHint: string | null;
+                        bodyPreview: string | null;
+                        content: string;
+                        body: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                    };
+                };
+            };
+            /** @description Unsafe command name, empty or oversized parts, or workspaceId missing for the workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (or not owned by this user). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteCommandsByCommandName: {
+        parameters: {
+            query: {
+                scope: "user" | "workspace";
+                workspaceId?: string;
+            };
+            header?: never;
+            path: {
+                commandName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted (no body). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsafe command name, or workspaceId missing for the workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such command at that scope, or workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -17873,6 +18507,155 @@ export interface operations {
                 content?: never;
             };
             /** @description An agent with that slug already exists at the requested scope. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAgentsFiles: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User-scope files first, then the workspace's (when workspaceId is given). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        agentFiles: {
+                            slug: string;
+                            fileName: string;
+                            name: string;
+                            description: string | null;
+                            tools: string[] | null;
+                            model: string | null;
+                            content: string;
+                            body: string;
+                            /** @enum {string} */
+                            scope: "user" | "workspace";
+                        }[];
+                    };
+                };
+            };
+            /** @description Workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putAgentsFilesBySlug: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    scope: "user" | "workspace";
+                    workspaceId?: string;
+                    content: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The agent file as it now reads on disk. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        slug: string;
+                        fileName: string;
+                        name: string;
+                        description: string | null;
+                        tools: string[] | null;
+                        model: string | null;
+                        content: string;
+                        body: string;
+                        /** @enum {string} */
+                        scope: "user" | "workspace";
+                    };
+                };
+            };
+            /** @description Unsafe slug, a file that would not load, or workspaceId missing. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Workspace not found (or not owned by this user). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The slug names a Vynel agent, or the file is a Vynel mirror. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteAgentsFilesBySlug: {
+        parameters: {
+            query: {
+                scope: "user" | "workspace";
+                workspaceId?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted (no body). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsafe slug, or workspaceId missing for the workspace scope. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such file at that scope, or workspace not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The file is a Vynel mirror — delete the agent instead. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -19928,6 +20711,7 @@ export interface operations {
                             agents: number;
                             skills: number;
                             rules: number;
+                            commands: number;
                             apps?: number;
                         };
                     };

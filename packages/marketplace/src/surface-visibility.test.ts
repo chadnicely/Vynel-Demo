@@ -173,6 +173,7 @@ describe('surface filtering through the browse pipeline', () => {
                   workspaceId: owner.workspaceId,
                   scope: 'workspace',
                   versionInstalled: '1.0.0',
+                installedFromSource: 'marketplace',
                 },
               ],
         listInstalledAgents: () => [],

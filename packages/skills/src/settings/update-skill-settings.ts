@@ -52,6 +52,39 @@ export async function updateSkillSettings(
     validateSettingValue(schema, value)
   }
 
+  // Re-render SKILL.md from the settings AS THEY WILL BE — and do it BEFORE
+  // the transaction (D8, disk-first, like every other lifecycle op): a
+  // failed render leaves the stored settings untouched instead of a row
+  // that claims values the file never received. Only rows whose disk bytes
+  // CAME from the bundled template render (allowlist, not denylist: a
+  // marketplace row's folder is the cloud artifact, and an external or
+  // user-written row is someone's hand-made folder — rendering the template
+  // over either silently clobbers content the user chose; the
+  // template-clobber drift class, module-notes). Settings still persist and
+  // resolve for every source.
+  if (row.installedFromSource === 'verified-catalog') {
+    const stored = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
+    const next = [
+      ...stored.filter((setting) => !(setting.settingKey in input.newSettings)),
+      ...Object.entries(input.newSettings).map(([settingKey, value]) => ({
+        installedSkillId: input.installedSkillId,
+        settingKey,
+        settingValue: JSON.stringify(value),
+        updatedAt: new Date(),
+      })),
+    ]
+    const resolved = resolveSkillSettings(definition, next)
+    const fsInput: Parameters<typeof installSkillOnDisk>[0] = {
+      skillDefinition: definition,
+      scope: row.scope,
+      resolvedSettings: resolved,
+    }
+    if (row.scope === 'workspace' && input.workspacePath !== undefined) {
+      fsInput.workspacePath = input.workspacePath
+    }
+    await installSkillOnDisk(fsInput)
+  }
+
   // Persist (sync tx) + emit outbox event.
   const now = new Date()
   const changedKeys = Object.keys(input.newSettings)
@@ -80,27 +113,6 @@ export async function updateSkillSettings(
       processedAt: null,
     })
   })
-
-  // Re-render SKILL.md from the new resolved settings — but only for rows
-  // whose disk bytes CAME from the bundled template (allowlist, not
-  // denylist: a marketplace row's folder is the cloud artifact, and an
-  // external row with a colliding skillId is someone's hand-made folder —
-  // rendering the template over either silently clobbers content the user
-  // chose; the template-clobber drift class, module-notes). Settings still
-  // persist and resolve for every source.
-  if (row.installedFromSource === 'verified-catalog') {
-    const stored = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
-    const resolved = resolveSkillSettings(definition, stored)
-    const fsInput: Parameters<typeof installSkillOnDisk>[0] = {
-      skillDefinition: definition,
-      scope: row.scope,
-      resolvedSettings: resolved,
-    }
-    if (row.scope === 'workspace' && input.workspacePath !== undefined) {
-      fsInput.workspacePath = input.workspacePath
-    }
-    await installSkillOnDisk(fsInput)
-  }
 
   const final = skillSettingsRepository.listSettingsForInstalledSkill(db, input.installedSkillId)
   return resolveSkillSettings(definition, final)

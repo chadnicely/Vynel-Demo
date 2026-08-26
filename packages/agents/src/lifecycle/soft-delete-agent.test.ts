@@ -1,9 +1,11 @@
 // Integration tests for `softDeleteAgent`. Real SQLite via
 // `withTestDatabase` (no mocking). Includes the disk-mirror behavior:
 // a marketplace-sourced agent's `.claude/agents/<slug>.md` is removed
-// with the row, while user-built agents (which never had a mirror)
-// leave the disk alone — even when a same-named hand-authored file
-// exists. Spec: `docs/agent-base/agents.md`.
+// with the row, while a hand-authored file that happens to sit at a
+// deleted agent's path is never destroyed (marker-checked removal). Rows
+// here are created through the row op — the mirror path is exercised by
+// the mirror tests, and a user-scope fixture must never reach the real
+// home. Spec: `docs/agent-base/agents.md`.
 
 import path from 'node:path'
 import os from 'node:os'
@@ -15,7 +17,7 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { findAgentById } from '@vynel/db/repositories/agents'
 import { listOutboxEventsByType } from '@vynel/db/repositories/_shared'
 import { NotFoundError } from '@vynel/errors'
-import { createAgent, type CreateAgentInput } from './create-agent.js'
+import { createAgentRow as createAgent, type CreateAgentInput } from './create-agent-row.js'
 import { softDeleteAgent } from './soft-delete-agent.js'
 import { installCuratedAgent } from './install-curated-agent.js'
 import { withHomeDir } from '../internal/resolve-host-home-dir.js'
@@ -136,7 +138,7 @@ describe('softDeleteAgent', () => {
     await withTestDatabase(async (db) => {
       await withIsolatedHome(async (homeDir) => {
         const user = insertUser(db, makeUser())
-        const agent = await createAgent(db, baseInput(user.id)) // source 'user' — no mirror
+        const agent = await createAgent(db, baseInput(user.id)) // row only — no mirror written here
         // The user's OWN `.claude/agents/researcher.md`, not Vynel's.
         const handAuthoredPath = path.join(homeDir, '.claude', 'agents', 'researcher.md')
         await mkdir(path.dirname(handAuthoredPath), { recursive: true })

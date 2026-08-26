@@ -102,7 +102,7 @@ describe('cloud catalog merge', () => {
         { userId: 'u', surface: 'workspace', workspaceId: 'w' },
         {
           listInstalledSkills: () => [
-            { id: 'i1', skillId: 'email-drafter', workspaceId: null, scope: 'user', versionInstalled: '1.0.0' },
+            { id: 'i1', skillId: 'email-drafter', workspaceId: null, scope: 'user', versionInstalled: '1.0.0', installedFromSource: 'marketplace' },
           ],
           listInstalledAgents: () => [],
           listInstalledPlugins: () => [],

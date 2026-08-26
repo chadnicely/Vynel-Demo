@@ -7,7 +7,7 @@
 //   3. Enforce manifest.slug === itemId — the install-status annotation
 //      keys agents on slug === itemId; a mismatch would install an agent
 //      whose marketplace card never flips to "Installed".
-//   4. Delegate to `installMarketplaceAgent` (duplicate pre-check +
+//   4. Delegate to `createAgent` (duplicate pre-check +
 //      transparency mirror at `.claude/agents/<slug>.md` + `createAgent`
 //      row/outbox tx), stamping `source: 'community'` +
 //      `trustTier: 'community'`. The DB row stays the FUNCTIONAL source
@@ -22,7 +22,7 @@ import type { Database } from '@vynel/db'
 import { ValidationError } from '@vynel/errors'
 import { extractAgentManifest } from '../internal/extract-agent-manifest.js'
 import type { CreateAgentInput } from './create-agent.js'
-import { installMarketplaceAgent } from './install-marketplace-agent.js'
+import { createAgent } from './create-agent.js'
 import type { AgentRow, AgentScope, StructuralLogger } from '../agents-types.js'
 
 export type InstallCloudAgentInput = {
@@ -70,7 +70,7 @@ export async function installCloudAgent(
     )
   }
 
-  // 4. `installMarketplaceAgent` owns the duplicate pre-check, the disk
+  // 4. `createAgent` owns the duplicate pre-check, the disk
   //    mirror, and the delegated `createAgent` tx. Carding is NOT
   //    tier-gated: the provider's PreToolUse hook enforces the
   //    TOOLS_ALWAYS_REQUIRING_APPROVAL floor per the SESSION's mode (it
@@ -99,7 +99,7 @@ export async function installCloudAgent(
   if (manifest.allowedTools !== undefined) createInput.allowedTools = manifest.allowedTools
   if (manifest.disallowedTools !== undefined) createInput.disallowedTools = manifest.disallowedTools
 
-  const installed = await installMarketplaceAgent(db, createInput, deps)
+  const installed = await createAgent(db, createInput, deps)
   deps.logger?.info(
     { itemId: input.itemId, scope: input.scope, agentId: installed.id },
     'cloud agent installed',

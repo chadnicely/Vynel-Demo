@@ -46,6 +46,38 @@ export { installSkill, type InstallSkillInput } from './lifecycle/install-skill.
 export { installCloudSkill, type InstallCloudSkillInput } from './lifecycle/install-cloud-skill.js'
 export { updateCloudSkill, type UpdateCloudSkillInput } from './lifecycle/update-cloud-skill.js'
 export { uninstallSkill, type UninstallSkillInput } from './lifecycle/uninstall-skill.js'
+export {
+  getInstalledSkillByScopeOrThrow,
+  type GetInstalledSkillByScopeInput,
+} from './queries/get-installed-skill-by-scope.js'
+// The ONE disk-synced shelf read (menus, counts, CLI): reconcile, then list.
+export {
+  listInstalledSkillsSynced,
+  type ListInstalledSkillsSyncedInput,
+} from './queries/list-installed-skills-synced.js'
+// The user's OWN skills — written in Vynel's editor or by Claude
+// (`create_skill`); supporting files ride the skill-files doors below.
+export {
+  createOwnSkill,
+  SAFE_SKILL_ID,
+  MAX_SKILL_ID_LENGTH,
+  MAX_SKILL_DESCRIPTION_LENGTH,
+  MAX_SKILL_BODY_LENGTH,
+  type CreateOwnSkillInput,
+} from './lifecycle/create-own-skill.js'
+export {
+  listSkillFiles,
+  MAX_SKILL_TEXT_FILE_BYTES,
+  type SkillFileEntry,
+} from './skill-files/list-skill-files.js'
+export { readSkillFile } from './skill-files/read-skill-file.js'
+export { writeSkillFile, type WriteSkillFileInput } from './skill-files/write-skill-file.js'
+export { deleteSkillFile } from './skill-files/delete-skill-file.js'
+export {
+  SKILL_ENTRY_FILE,
+  MAX_SKILL_FILE_PATH_LENGTH,
+} from './skill-files/assert-safe-skill-file-path.js'
+export { parseSkillMarkdownFrontmatter } from './skill-files/skill-markdown-frontmatter.js'
 export { updateSkillSettings, type UpdateSkillSettingsInput } from './settings/update-skill-settings.js'
 export {
   synchronizeSkillsWithProvider,
@@ -97,11 +129,41 @@ export {
 export {
   listAllRuleFilesForScope,
   countAllRuleFilesForScope,
+  readRuleFileForScope,
   type RuleFileForScope,
 } from './rules/list-all-rule-files-for-scope.js'
+// The user's OWN rule files — the create/edit/delete doors behind the Rules
+// view and the `write_rule` / `delete_rule` tools. Never stamp a marker;
+// saving over a marketplace rule forks it.
+export {
+  writeOwnRuleFileForScope,
+  MAX_RULE_FILE_LENGTH,
+  type WriteOwnRuleFileForScopeInput,
+} from './rules/write-own-rule-file-for-scope.js'
+export {
+  deleteOwnRuleFileForScope,
+  type DeleteOwnRuleFileForScopeInput,
+} from './rules/delete-own-rule-file-for-scope.js'
+export { isSafeRuleId, MAX_RULE_ID_LENGTH } from './rules/resolve-rules-root.js'
 // The Commands view's folder read (`.claude/commands/`) — also the "/" menu's
 // planned data source.
 export {
   listCommandsForScope,
+  countCommandsForScope,
+  readCommandFileForScope,
   type CommandFileForScope,
 } from './commands/list-commands-for-scope.js'
+// The user's OWN slash commands — the create/edit/delete doors behind the
+// Commands view and the `write_command` / `delete_command` tools.
+export {
+  writeOwnCommandFileForScope,
+  MAX_COMMAND_BODY_LENGTH,
+  MAX_COMMAND_DESCRIPTION_LENGTH,
+  MAX_COMMAND_ARGUMENT_HINT_LENGTH,
+  type WriteOwnCommandFileForScopeInput,
+} from './commands/write-own-command-file-for-scope.js'
+export {
+  deleteOwnCommandFileForScope,
+  type DeleteOwnCommandFileForScopeInput,
+} from './commands/delete-own-command-file-for-scope.js'
+export { isSafeCommandName, MAX_COMMAND_NAME_LENGTH } from './commands/resolve-commands-root.js'

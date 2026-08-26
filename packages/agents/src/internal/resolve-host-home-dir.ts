@@ -27,6 +27,16 @@ export function resolveHostHomeDir(): string {
   return homeOverride ?? os.homedir()
 }
 
+/** Hook-shaped twin of `withHomeDir` for a whole test file: call in
+ *  `beforeEach`, invoke the returned restore in `afterEach`. */
+export function beginHomeDirOverride(dir: string): () => void {
+  const previous = homeOverride
+  homeOverride = dir
+  return () => {
+    homeOverride = previous
+  }
+}
+
 export async function withHomeDir<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   const previous = homeOverride
   homeOverride = dir

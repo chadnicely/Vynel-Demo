@@ -154,6 +154,44 @@ export const AgentWithSkillsSchema = AgentSchema.extend({
 
 export const ListAgentsResponseSchema = z.array(AgentSchema)
 
+// ── The hand-authored agent FILES (`.claude/agents/*.md` Vynel did not write)
+// — addressed by file stem + { scope, workspaceId? }; the file is the record.
+export const AgentFileSlugParamSchema = z.object({
+  slug: z.string().min(1).max(120),
+})
+
+export const AgentFileScopeQuerySchema = z.object({
+  scope: AgentScopeSchema,
+  workspaceId: z.string().min(1).optional(),
+})
+
+export const ListAgentFilesQuerySchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+})
+
+export const WriteAgentFileBodySchema = z.object({
+  scope: AgentScopeSchema,
+  workspaceId: z.string().min(1).optional(),
+  /** The whole file: a frontmatter block (name = the file stem, description) + the prompt. */
+  content: z.string().min(1).max(100_000),
+})
+
+export const AgentFileSchema = z.object({
+  slug: z.string(),
+  fileName: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  tools: z.array(z.string()).nullable(),
+  model: z.string().nullable(),
+  content: z.string(),
+  body: z.string(),
+  scope: AgentScopeSchema,
+})
+
+export const ListAgentFilesResponseSchema = z.object({
+  agentFiles: z.array(AgentFileSchema),
+})
+
 // `serializeCuratedAgent`'s output — a `CURATED_AGENT_CATALOG` entry as
 // the Agents panel's browse shape. Optional catalog fields (`model`,
 // `effort`, `permissionMode`) serialize to `null` when omitted.

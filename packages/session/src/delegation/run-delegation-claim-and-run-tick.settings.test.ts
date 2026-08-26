@@ -20,7 +20,7 @@ import {
   type ChatSession,
 } from '@vynel/chat/repositories'
 import { buildNewChatSessionRow } from '@vynel/chat'
-import { createAgent } from '@vynel/agents'
+import { createAgentRowForTest as createAgent } from '@vynel/agents/test-support'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import {
   enqueueAgentRun,

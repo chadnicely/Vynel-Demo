@@ -19,6 +19,8 @@
 // See `docs/blueprints/skills/blueprint.md §8` + `decisions.md`
 // D16.
 
+import type { InstalledFromSource } from './schema/installed-skills.js'
+
 export const SKILL_INSTALLED = 'skill.installed' as const
 export const SKILL_UNINSTALLED = 'skill.uninstalled' as const
 export const SKILL_UPDATED = 'skill.updated' as const
@@ -31,7 +33,7 @@ export type SkillInstalledPayload = {
   skillId: string
   scope: 'user' | 'workspace'
   version: string
-  source: 'verified-catalog' | 'marketplace' | 'external'
+  source: InstalledFromSource
   installedAt: string
 }
 

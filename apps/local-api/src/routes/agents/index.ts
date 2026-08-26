@@ -8,6 +8,9 @@
 //   GET    /agents/resolved?workspaceId= -> user ∪ workspace          [x-mcp]
 //   GET    /agents/curated           -> the curated catalog (browse source)
 //   POST   /agents/curated/install   -> installCuratedAgent (seed install)
+//   GET    /agents/files?workspaceId= -> the HAND-AUTHORED agent files    [x-mcp]
+//   PUT    /agents/files/:slug       -> write one hand-authored agent file [x-mcp]
+//   DELETE /agents/files/:slug       -> delete one hand-authored agent file [x-mcp]
 //   GET    /agents/:slug             -> getAgentBySlugOrThrow
 //   PATCH  /agents/:agentId          -> updateAgent
 //   POST   /agents/:agentId/enable   -> updateAgent({ enabled })
@@ -28,10 +31,17 @@
 // cross-feature imports (cross-feature composition lives in apps/
 // local-api, mirroring the capabilities-composer precedent).
 //
-// Every route is `x-mcp`-exposed (task 4b, Chad 2026-07-26: "expose all the
-// useful tools so Claude can manage them through chat") — Claude manages the
-// user's agent roster end-to-end. `delete_agent` rides the ask-approval tier
+// Every route but the menu's own `GET /agents` is `x-mcp`-exposed (task 4b,
+// Chad 2026-07-26: "expose all the useful tools so Claude can manage them
+// through chat") — Claude manages the user's agent roster end-to-end.
+// `delete_agent` and `delete_agent_file` ride the ask-approval tier
 // automatically (DELETE method); the other mutations are reversible.
+//
+// The agent FILES (2026-08-26): `.claude/agents/*.md` the user wrote by hand
+// are live in every session (settingSources) and had no shelf or door. They
+// stay files (no row) — listed beside the rows, edited raw, deleted — through
+// the `/agents/files` trio, which takes `{ scope, workspaceId? }` like the
+// rest of this surface. Vynel's own mirrors are never reachable here.
 //
 // Error mapping: NONE here. Core ops throw typed `VynelError`
 // subclasses; the global `onError` middleware maps them.
@@ -48,9 +58,13 @@ import {
   getAgentBySlugOrThrow,
   listAgentSkillIds,
   installCuratedAgent,
+  listFileAgentsForScope,
+  readFileAgentForScope,
+  writeFileAgentForScope,
+  deleteFileAgentForScope,
 } from '@vynel/agents'
 import { getWorkspaceById } from '@vynel/workspaces'
-import { ValidationError } from '@vynel/errors'
+import { NotFoundError, ValidationError } from '@vynel/errors'
 import { CURATED_AGENT_CATALOG } from '@vynel/contracts/agents/curated-agents/curated-agent-catalog'
 import {
   CreateAgentRequestSchema,
@@ -61,11 +75,23 @@ import {
   AgentSlugParamSchema,
   ListAgentsQuerySchema,
   AgentSlugQuerySchema,
+  AgentFileSlugParamSchema,
+  AgentFileScopeQuerySchema,
+  ListAgentFilesQuerySchema,
+  WriteAgentFileBodySchema,
+  AgentFileSchema,
+  ListAgentFilesResponseSchema,
   AgentWithSkillsSchema,
   ListAgentsResponseSchema,
   ListCuratedAgentsResponseSchema,
 } from './schemas.js'
-import { serializeAgent, serializeAgentWithSkills, serializeCuratedAgent } from './serializers.js'
+import {
+  serializeAgent,
+  serializeAgentFile,
+  serializeAgentWithSkills,
+  serializeCuratedAgent,
+} from './serializers.js'
+import { resolveScopeTarget, workspacePathOf } from '../_shared/resolve-scope-target.js'
 
 export const agentsApp = factory
   .createApp()
@@ -85,8 +111,11 @@ export const agentsApp = factory
           '(+ `workspaceId`, defaults to the active workspace). Optional: `icon`, `model`, ' +
           '`effort`, `permissionMode`, `background`, `allowedTools` / `disallowedTools`, ' +
           '`skillIds` to preload skills. Use when the user asks for a specialist helper (e.g. a ' +
-          'code reviewer, a research agent). The agent must then be enabled (set_agent_enabled) ' +
-          'to join sessions. Side effect: it appears in the user\'s agents panel.',
+          'code reviewer, a research agent). The agent starts ENABLED and joins sessions at once ' +
+          '(set_agent_enabled turns it off). Side effects: it appears in the user\'s agents panel ' +
+          'and is written to <root>/.claude/agents/<slug>.md as a Vynel-managed mirror; a ' +
+          'hand-authored file already at that path is refused (409) — use write_agent_file for ' +
+          'files the user keeps by hand.',
         mutatingApproved: true,
       },
       responses: {
@@ -303,6 +332,142 @@ export const agentsApp = factory
       return c.json(serializeAgentWithSkills(installed, skillIds), 201)
     },
   )
+  // ── The hand-authored agent FILES — declared before `/:slug` so the static
+  // segment `files` is never read as a slug.
+  .get(
+    '/files',
+    describeRoute({
+      tags: ['agents'],
+      summary: "List the hand-authored agent files a scope holds (user's ∪ one workspace's).",
+      'x-sdk-name': 'agents.listFiles',
+      'x-mcp': {
+        exposed: true,
+        name: 'list_agent_files',
+        description:
+          "List the subagent files the user wrote by hand — every `.claude/agents/*.md` in " +
+          "~/.claude/agents (scope \"user\") plus the workspace's own when `workspaceId` is set " +
+          '(defaults to the active workspace; omit on the global surface). These are NOT the agents ' +
+          'list_agents returns (those live in Vynel); they are plain Claude Code subagent files, ' +
+          'live in every session. Each row: slug (the file name), name, description, tools, model, ' +
+          'the full file content and the prompt body. Read-only.',
+        rootSurface: true,
+        workspaceInteractiveSurface: true,
+      },
+      responses: {
+        200: {
+          description: "User-scope files first, then the workspace's (when workspaceId is given).",
+          content: { 'application/json': { schema: resolver(ListAgentFilesResponseSchema) } },
+        },
+        404: { description: 'Workspace not found.' },
+      },
+    }),
+    validator('query', ListAgentFilesQuerySchema),
+    ...userScoped,
+    async (c) => {
+      const { workspaceId } = c.req.valid('query')
+      const target =
+        workspaceId === undefined
+          ? null
+          : await resolveScopeTarget(c.var.db, c.var.user.id, { scope: 'workspace', workspaceId })
+      const agentFiles = [
+        ...listFileAgentsForScope('user').map((file) => serializeAgentFile(file, 'user')),
+        ...(target?.scope === 'workspace'
+          ? listFileAgentsForScope('workspace', target.workspacePath).map((file) =>
+              serializeAgentFile(file, 'workspace'),
+            )
+          : []),
+      ]
+      return c.json({ agentFiles })
+    },
+  )
+  .put(
+    '/files/:slug',
+    describeRoute({
+      tags: ['agents'],
+      summary: 'Create or replace one hand-authored agent file.',
+      'x-sdk-name': 'agents.writeFile',
+      'x-mcp': {
+        exposed: true,
+        name: 'write_agent_file',
+        description:
+          'Create or replace ONE hand-authored subagent file — `<root>/.claude/agents/<slug>.md`, ' +
+          'a plain Claude Code subagent (NOT a Vynel agent: for those use create_agent / ' +
+          'update_agent). `slug` is the file name (kebab-case); `scope` is "user" ' +
+          '(~/.claude/agents — every workspace) or "workspace" (+ `workspaceId`, defaults to the ' +
+          'active workspace; on the global surface pass it explicitly); `content` is the whole ' +
+          'file: a frontmatter block with `name: <slug>`, a `description` (when to delegate to ' +
+          'it), optional `tools` (comma list) and `model`, then the system prompt. Refuses a ' +
+          'slug that already names a Vynel agent at that scope, or a file Vynel manages. Read it ' +
+          'with list_agent_files first when editing. Mutating.',
+        mutatingApproved: true,
+        rootSurface: true,
+        workspaceInteractiveSurface: true,
+      },
+      responses: {
+        200: {
+          description: 'The agent file as it now reads on disk.',
+          content: { 'application/json': { schema: resolver(AgentFileSchema) } },
+        },
+        400: { description: 'Unsafe slug, a file that would not load, or workspaceId missing.' },
+        404: { description: 'Workspace not found (or not owned by this user).' },
+        409: { description: 'The slug names a Vynel agent, or the file is a Vynel mirror.' },
+      },
+    }),
+    validator('param', AgentFileSlugParamSchema),
+    validator('json', WriteAgentFileBodySchema),
+    ...userScoped,
+    async (c) => {
+      const { slug } = c.req.valid('param')
+      const body = c.req.valid('json')
+      const target = await resolveScopeTarget(c.var.db, c.var.user.id, body)
+      await writeFileAgentForScope(c.var.db, {
+        userId: c.var.user.id,
+        scope: target.scope,
+        workspaceId: target.workspaceId,
+        slug,
+        content: body.content,
+        ...workspacePathOf(target),
+      })
+      const written = readFileAgentForScope(target.scope, slug, target.workspacePath)
+      if (written === null) throw new NotFoundError('agent file', slug)
+      return c.json(serializeAgentFile(written, target.scope))
+    },
+  )
+  .delete(
+    '/files/:slug',
+    describeRoute({
+      tags: ['agents'],
+      summary: 'Delete one hand-authored agent file.',
+      'x-sdk-name': 'agents.deleteFile',
+      'x-mcp': {
+        exposed: true,
+        name: 'delete_agent_file',
+        description:
+          'Delete ONE hand-authored subagent file by `slug` (`scope` "user" or "workspace" + ' +
+          '`workspaceId`, defaults to the active workspace). Removes the file from disk so the ' +
+          'subagent stops existing. A Vynel agent is deleted with delete_agent instead. ' +
+          'Irreversible; confirm with the user unless they just asked for exactly this.',
+        mutatingApproved: true,
+        rootSurface: true,
+        workspaceInteractiveSurface: true,
+      },
+      responses: {
+        204: { description: 'Deleted (no body).' },
+        400: { description: 'Unsafe slug, or workspaceId missing for the workspace scope.' },
+        404: { description: 'No such file at that scope, or workspace not found.' },
+        409: { description: 'The file is a Vynel mirror — delete the agent instead.' },
+      },
+    }),
+    validator('param', AgentFileSlugParamSchema),
+    validator('query', AgentFileScopeQuerySchema),
+    ...userScoped,
+    async (c) => {
+      const { slug } = c.req.valid('param')
+      const target = await resolveScopeTarget(c.var.db, c.var.user.id, c.req.valid('query'))
+      await deleteFileAgentForScope({ scope: target.scope, slug, ...workspacePathOf(target) })
+      return c.body(null, 204)
+    },
+  )
   .get(
     '/:slug',
     describeRoute({
@@ -414,7 +579,7 @@ export const agentsApp = factory
         description:
           'Enable or disable an agent by `agentId` (`enabled` true/false). Only ENABLED agents ' +
           'join sessions as invokable subagents; a freshly created or installed agent starts ' +
-          'disabled until the user wants it live. Fully reversible.',
+          'enabled. Disabling also removes its .claude/agents mirror file. Fully reversible.',
         mutatingApproved: true,
       },
       responses: {

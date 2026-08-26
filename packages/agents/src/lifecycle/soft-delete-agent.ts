@@ -58,13 +58,11 @@ export async function softDeleteAgent(
 
   // Mirror removal AFTER the commit: the row's state must win even if
   // the disk misbehaves (removal is best-effort + marker-checked).
-  if (deleted.source !== 'user') {
-    await removeAgentMirrorOnDisk(
-      db,
-      { scope: deleted.scope, workspaceId: deleted.workspaceId, slug: deleted.slug },
-      deps.logger,
-    )
-  }
+  await removeAgentMirrorOnDisk(
+    db,
+    { scope: deleted.scope, workspaceId: deleted.workspaceId, slug: deleted.slug },
+    deps.logger,
+  )
 
   deps.logger?.info({ agentId: input.agentId }, 'agent soft-deleted')
 }

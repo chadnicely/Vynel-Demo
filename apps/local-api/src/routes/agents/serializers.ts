@@ -10,7 +10,13 @@
 import type { z } from 'zod'
 import type { AgentRow } from '@vynel/db/repositories/agents'
 import type { CuratedAgentDefinition } from '@vynel/contracts/agents/curated-agents/curated-agent-definition'
-import { AgentSchema, AgentWithSkillsSchema, CuratedAgentSchema } from './schemas.js'
+import type {
+  AgentFileSchema,
+  AgentSchema,
+  AgentWithSkillsSchema,
+  CuratedAgentSchema,
+} from './schemas.js'
+import type { FileAgentForScope } from '@vynel/agents'
 
 export type SerializedAgent = z.infer<typeof AgentSchema>
 
@@ -71,5 +77,26 @@ export function serializeCuratedAgent(
     disallowedTools: definition.disallowedTools ? [...definition.disallowedTools] : null,
     skillIds: [...definition.skillIds],
     recommendedScope: definition.recommendedScope,
+  }
+}
+
+// A hand-authored agent FILE → the wire row (+ the surface's scope tag) —
+// field-for-field with `AgentFileSchema`.
+export type SerializedAgentFile = z.infer<typeof AgentFileSchema>
+
+export function serializeAgentFile(
+  file: FileAgentForScope,
+  scope: 'user' | 'workspace',
+): SerializedAgentFile {
+  return {
+    slug: file.slug,
+    fileName: file.fileName,
+    name: file.name,
+    description: file.description,
+    tools: file.tools,
+    model: file.model,
+    content: file.content,
+    body: file.body,
+    scope,
   }
 }

@@ -2404,7 +2404,8 @@
                         "enum": [
                           "verified-catalog",
                           "marketplace",
-                          "external"
+                          "external",
+                          "user"
                         ]
                       },
                       "versionInstalled": {
@@ -2612,7 +2613,7 @@
             "required": true
           }
         ],
-        "summary": "List the skills installed INTO this workspace (what it owns).",
+        "summary": "List the skills installed INTO this workspace (what it owns), synced with disk.",
         "x-sdk-name": "skills.listInstalled"
       }
     },
@@ -2652,7 +2653,8 @@
                         "enum": [
                           "verified-catalog",
                           "marketplace",
-                          "external"
+                          "external",
+                          "user"
                         ]
                       },
                       "versionInstalled": {
@@ -2903,7 +2905,8 @@
                       "enum": [
                         "verified-catalog",
                         "marketplace",
-                        "external"
+                        "external",
+                        "user"
                       ]
                     },
                     "versionInstalled": {
@@ -3223,6 +3226,9 @@
                           "content": {
                             "type": "string"
                           },
+                          "body": {
+                            "type": "string"
+                          },
                           "scope": {
                             "type": "string",
                             "enum": [
@@ -3254,6 +3260,7 @@
                           "fileName",
                           "title",
                           "content",
+                          "body",
                           "scope",
                           "marketplace"
                         ]
@@ -3328,6 +3335,12 @@
                               "null"
                             ]
                           },
+                          "content": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
                           "scope": {
                             "type": "string",
                             "enum": [
@@ -3342,6 +3355,8 @@
                           "description",
                           "argumentHint",
                           "bodyPreview",
+                          "content",
+                          "body",
                           "scope"
                         ]
                       }
@@ -3374,93 +3389,6 @@
         ],
         "summary": "List the workspace's OWN slash commands (its folder on disk).",
         "x-sdk-name": "commands.list"
-      }
-    },
-    "/workspaces/{workspaceId}/commands/resolved": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "One row per command file across both scopes, scope per row.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "commands": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "commandName": {
-                            "type": "string"
-                          },
-                          "relativePath": {
-                            "type": "string"
-                          },
-                          "description": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "argumentHint": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "bodyPreview": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "scope": {
-                            "type": "string",
-                            "enum": [
-                              "user",
-                              "workspace"
-                            ]
-                          }
-                        },
-                        "required": [
-                          "commandName",
-                          "relativePath",
-                          "description",
-                          "argumentHint",
-                          "bodyPreview",
-                          "scope"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "commands"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Workspace not found."
-          }
-        },
-        "operationId": "getWorkspacesByWorkspaceIdCommandsResolved",
-        "tags": [
-          "commands"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "workspaceId",
-            "required": true
-          }
-        ],
-        "summary": "List every slash command runnable here: user ∪ workspace.",
-        "x-sdk-name": "commands.listResolved"
       }
     },
     "/workspaces/{workspaceId}/mcp-servers": {
@@ -18032,6 +17960,9 @@
                         "rules": {
                           "type": "integer"
                         },
+                        "commands": {
+                          "type": "integer"
+                        },
                         "apps": {
                           "type": "integer"
                         }
@@ -18040,7 +17971,8 @@
                         "sessions",
                         "agents",
                         "skills",
-                        "rules"
+                        "rules",
+                        "commands"
                       ]
                     }
                   },
@@ -30569,7 +30501,8 @@
                         "enum": [
                           "verified-catalog",
                           "marketplace",
-                          "external"
+                          "external",
+                          "user"
                         ]
                       },
                       "versionInstalled": {
@@ -30765,8 +30698,559 @@
           "skills"
         ],
         "parameters": [],
-        "summary": "List the user's USER-SCOPE installed skills (the global view).",
+        "summary": "List the user's USER-SCOPE installed skills (the global view), synced with disk.",
         "x-sdk-name": "skillsUser.listInstalled"
+      }
+    },
+    "/skills": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "The installed-skill row (source \"user\").",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "skillId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "workspaceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "installedFromSource": {
+                      "type": "string",
+                      "enum": [
+                        "verified-catalog",
+                        "marketplace",
+                        "external",
+                        "user"
+                      ]
+                    },
+                    "versionInstalled": {
+                      "type": "string"
+                    },
+                    "installHealth": {
+                      "type": "string",
+                      "enum": [
+                        "healthy",
+                        "missing-on-disk",
+                        "mcp-config-drift",
+                        "failed-install"
+                      ]
+                    },
+                    "installHealthMessage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "installedAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "skillId",
+                    "scope",
+                    "workspaceId",
+                    "installedFromSource",
+                    "versionInstalled",
+                    "installHealth",
+                    "installHealthMessage",
+                    "installedAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad name, description, body, or workspaceId missing for the workspace scope."
+          },
+          "404": {
+            "description": "Workspace not found (or not owned by this user)."
+          },
+          "409": {
+            "description": "A skill with that name is already installed, or its folder already exists."
+          }
+        },
+        "operationId": "postSkills",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [],
+        "summary": "Create one of the user's own skills — a new folder with its SKILL.md.",
+        "x-sdk-name": "skills.create",
+        "x-mcp": {
+          "exposed": true,
+          "name": "create_skill",
+          "description": "Create a NEW skill — a folder Claude Code loads on demand when a task matches its description: <root>/.claude/skills/<skillId>/SKILL.md. `skillId` is kebab-case (e.g. \"weekly-report\"); `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `description` is the one line that tells Claude WHEN to use the skill (be specific — it is the trigger); `body` is the SKILL.md instructions in markdown. Add supporting files (references, templates, scripts) afterwards with write_skill_file. Refuses a name already installed or already on disk. Only create a skill when the user asked for one. Mutating.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "workspace"
+                    ]
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "skillId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200000
+                  }
+                },
+                "required": [
+                  "scope",
+                  "skillId",
+                  "description",
+                  "body"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skills/{skillId}/files": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The file list and the requested file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "skillId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "sizeBytes": {
+                            "type": "integer"
+                          },
+                          "isText": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "relativePath",
+                          "sizeBytes",
+                          "isText"
+                        ]
+                      }
+                    },
+                    "file": {
+                      "type": "object",
+                      "properties": {
+                        "relativePath": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "relativePath",
+                        "content"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "skillId",
+                    "scope",
+                    "files",
+                    "file"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The file is binary or too large to open as text, or the path is unsafe."
+          },
+          "404": {
+            "description": "No such skill at that scope, no such file, or workspace not found."
+          }
+        },
+        "operationId": "getSkillsBySkillIdFiles",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "skillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "workspace"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "relativePath",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "required": false
+          }
+        ],
+        "summary": "One skill's files, plus the text of one of them (SKILL.md by default).",
+        "x-sdk-name": "skills.getFiles",
+        "x-mcp": {
+          "exposed": true,
+          "name": "get_skill",
+          "description": "Read an installed skill by `skillId`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Returns every file in the skill folder (relativePath, size, whether it is text) and the content of ONE text file — SKILL.md unless `relativePath` names another. Use it to see what a skill does before editing it, or to open a supporting file. Read-only.",
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The file list after the write, with the written file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "skillId": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "sizeBytes": {
+                            "type": "integer"
+                          },
+                          "isText": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "relativePath",
+                          "sizeBytes",
+                          "isText"
+                        ]
+                      }
+                    },
+                    "file": {
+                      "type": "object",
+                      "properties": {
+                        "relativePath": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "relativePath",
+                        "content"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "skillId",
+                    "scope",
+                    "files",
+                    "file"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsafe path, oversized content, or a SKILL.md that would not load."
+          },
+          "404": {
+            "description": "No such skill at that scope, or workspace not found."
+          }
+        },
+        "operationId": "putSkillsBySkillIdFiles",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "skillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Create or replace one text file inside an installed skill.",
+        "x-sdk-name": "skills.writeFile",
+        "x-mcp": {
+          "exposed": true,
+          "name": "write_skill_file",
+          "description": "Write ONE text file into an installed skill's folder by `skillId`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `relativePath` is inside the skill folder (e.g. \"references/style.md\" — folders are created; no \"..\", no hidden names); `content` replaces the whole file. Writing \"SKILL.md\" must keep a frontmatter with `name: <skillId>` and a `description`, or Claude Code stops loading the skill. Read the file first with get_skill when editing. Mutating.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "workspace"
+                    ]
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "relativePath": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 1048576
+                  }
+                },
+                "required": [
+                  "scope",
+                  "relativePath",
+                  "content"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deleted (no body)."
+          },
+          "400": {
+            "description": "Unsafe path, or the entry file."
+          },
+          "404": {
+            "description": "No such skill, no such file, or workspace not found."
+          }
+        },
+        "operationId": "deleteSkillsBySkillIdFiles",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "skillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "workspace"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "relativePath",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240
+            },
+            "required": true
+          }
+        ],
+        "summary": "Delete one supporting file from an installed skill.",
+        "x-sdk-name": "skills.deleteFile",
+        "x-mcp": {
+          "exposed": true,
+          "name": "delete_skill_file",
+          "description": "Delete ONE supporting file from an installed skill by `skillId` and `relativePath`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). SKILL.md cannot be deleted this way — that is uninstall_skill. Irreversible.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
+      }
+    },
+    "/skills/{skillId}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Uninstalled (no body)."
+          },
+          "403": {
+            "description": "The skill is system-installed."
+          },
+          "404": {
+            "description": "No such skill at that scope, or workspace not found."
+          }
+        },
+        "operationId": "deleteSkillsBySkillId",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "skillId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "workspace"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false
+          }
+        ],
+        "summary": "Uninstall a skill at a scope — its folder and its row.",
+        "x-sdk-name": "skills.uninstallByScope",
+        "x-mcp": {
+          "exposed": true,
+          "name": "uninstall_skill",
+          "description": "Uninstall a skill by `skillId`. `scope` is \"user\" (~/.claude/skills — available in every workspace) or \"workspace\" (<workspace>/.claude/skills; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Removes the whole skill folder from disk (SKILL.md and every supporting file) and forgets it — the user's own, a discovered one, or a Marketplace install alike. Irreversible; confirm with the user unless they just asked for exactly this.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
       }
     },
     "/rules": {
@@ -30794,6 +31278,9 @@
                             "type": "string"
                           },
                           "content": {
+                            "type": "string"
+                          },
+                          "body": {
                             "type": "string"
                           },
                           "scope": {
@@ -30827,6 +31314,7 @@
                           "fileName",
                           "title",
                           "content",
+                          "body",
                           "scope",
                           "marketplace"
                         ]
@@ -30848,6 +31336,301 @@
         "parameters": [],
         "summary": "List every rule file in the user's ~/.claude/rules folder.",
         "x-sdk-name": "rulesUser.list"
+      }
+    },
+    "/rules/resolved": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "User-scope rules first, then the workspace's (when workspaceId is given).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ruleId": {
+                            "type": "string"
+                          },
+                          "fileName": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          },
+                          "marketplace": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "ruleId": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "ruleId",
+                              "version"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "ruleId",
+                          "fileName",
+                          "title",
+                          "content",
+                          "body",
+                          "scope",
+                          "marketplace"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "rules"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getRulesResolved",
+        "tags": [
+          "rules"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "summary": "List every rule a session follows: the user folder ∪ one workspace's.",
+        "x-sdk-name": "rules.listResolved",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_rules",
+          "description": "List the standing rules Claude follows — every rule file in the user's ~/.claude/rules (scope \"user\", applies in every workspace) plus the workspace's own .claude/rules when `workspaceId` is set (defaults to the active workspace; omit on the global surface). Each row: ruleId (the file name), title, the full markdown content, scope, and marketplace provenance (non-null = installed from the Marketplace and still managed by it). These files already load into your context — use this to see, quote, or check a rule before writing or deleting one. Read-only.",
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
+      }
+    },
+    "/rules/{ruleId}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The rule file as it now reads on disk.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ruleId": {
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    },
+                    "marketplace": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "ruleId": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "ruleId",
+                        "version"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ruleId",
+                    "fileName",
+                    "title",
+                    "content",
+                    "body",
+                    "scope",
+                    "marketplace"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsafe rule name, empty or oversized content, or workspaceId missing for the workspace scope."
+          },
+          "404": {
+            "description": "Workspace not found (or not owned by this user)."
+          }
+        },
+        "operationId": "putRulesByRuleId",
+        "tags": [
+          "rules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ruleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Create or replace one of the user's own rule files.",
+        "x-sdk-name": "rules.write",
+        "x-mcp": {
+          "exposed": true,
+          "name": "write_rule",
+          "description": "Create or replace ONE rule file — a standing instruction Claude follows in every future session at that scope. `ruleId` becomes `<ruleId>.md` (kebab-case, e.g. \"git-hygiene\"); `scope` is \"user\" (~/.claude/rules — applies in every workspace) or \"workspace\" (<workspace>/.claude/rules; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `content` is the whole markdown file (open with a `# Title` heading, then the instructions in plain words). Replaces the file entirely — read it with list_rules first when editing. Saving over a Marketplace-installed rule turns it into the user's own copy (Marketplace updates stop applying). Only write a rule when the user asked for a standing instruction; a fact about them belongs in memory, not here. Mutating.",
+          "mutatingApproved": true,
+          "askApproval": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "workspace"
+                    ]
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  }
+                },
+                "required": [
+                  "scope",
+                  "content"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deleted (no body)."
+          },
+          "400": {
+            "description": "Unsafe rule name, or workspaceId missing for the workspace scope."
+          },
+          "404": {
+            "description": "No such rule file at that scope, or workspace not found."
+          }
+        },
+        "operationId": "deleteRulesByRuleId",
+        "tags": [
+          "rules"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ruleId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "workspace"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false
+          }
+        ],
+        "summary": "Delete one rule file at a scope.",
+        "x-sdk-name": "rules.delete",
+        "x-mcp": {
+          "exposed": true,
+          "name": "delete_rule",
+          "description": "Delete ONE rule file by `ruleId`. `scope` is \"user\" (~/.claude/rules — applies in every workspace) or \"workspace\" (<workspace>/.claude/rules; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Removes the file from disk — the user's own or a Marketplace install alike — so the rule stops applying to future sessions. Irreversible; confirm with the user unless they just asked for exactly this.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
       }
     },
     "/commands": {
@@ -30889,6 +31672,12 @@
                               "null"
                             ]
                           },
+                          "content": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
                           "scope": {
                             "type": "string",
                             "enum": [
@@ -30903,6 +31692,8 @@
                           "description",
                           "argumentHint",
                           "bodyPreview",
+                          "content",
+                          "body",
                           "scope"
                         ]
                       }
@@ -30923,6 +31714,310 @@
         "parameters": [],
         "summary": "List the user's global slash commands (~/.claude/commands).",
         "x-sdk-name": "commandsUser.list"
+      }
+    },
+    "/commands/resolved": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "User-scope commands first, then the workspace's (when workspaceId is given).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commands": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "commandName": {
+                            "type": "string"
+                          },
+                          "relativePath": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "argumentHint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "bodyPreview": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "commandName",
+                          "relativePath",
+                          "description",
+                          "argumentHint",
+                          "bodyPreview",
+                          "content",
+                          "body",
+                          "scope"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "commands"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getCommandsResolved",
+        "tags": [
+          "commands"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "summary": "List every slash command runnable in a scope: the user folder ∪ one workspace's.",
+        "x-sdk-name": "commands.listResolved",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_commands",
+          "description": "List the user's slash commands — every command file in ~/.claude/commands (scope \"user\", runnable in every workspace) plus the workspace's own .claude/commands when `workspaceId` is set (defaults to the active workspace; omit on the global surface). Each row: commandName (what the user types after \"/\", e.g. \"git:commit\"), description, argumentHint, the full file content, and scope. A command is a reusable prompt the user runs by name; use this to see what exists before writing one, or when the user asks what commands they have. Read-only.",
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
+      }
+    },
+    "/commands/{commandName}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The command file as it now reads on disk.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commandName": {
+                      "type": "string"
+                    },
+                    "relativePath": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "argumentHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "bodyPreview": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "commandName",
+                    "relativePath",
+                    "description",
+                    "argumentHint",
+                    "bodyPreview",
+                    "content",
+                    "body",
+                    "scope"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsafe command name, empty or oversized parts, or workspaceId missing for the workspace scope."
+          },
+          "404": {
+            "description": "Workspace not found (or not owned by this user)."
+          }
+        },
+        "operationId": "putCommandsByCommandName",
+        "tags": [
+          "commands"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "commandName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            },
+            "required": true
+          }
+        ],
+        "summary": "Create or replace one of the user's own slash commands.",
+        "x-sdk-name": "commands.write",
+        "x-mcp": {
+          "exposed": true,
+          "name": "write_command",
+          "description": "Create or replace ONE slash command — a reusable prompt the user runs by typing \"/<commandName>\" (kebab-case; a \":\" groups commands in a folder, e.g. \"git:commit\"). `scope` is \"user\" (~/.claude/commands — runnable in every workspace) or \"workspace\" (<workspace>/.claude/commands; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). `body` is the prompt Claude runs (markdown; \"$ARGUMENTS\" stands for what the user types after the name); `description` is the one-line summary shown in the \"/\" menu; `argumentHint` (optional) names the expected arguments, e.g. \"[pr-number]\". Replaces the file — read it with list_commands first when editing; frontmatter keys you did not send are kept. Only write a command when the user asked for one. Mutating.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "workspace"
+                    ]
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 300
+                  },
+                  "argumentHint": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 120
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000
+                  }
+                },
+                "required": [
+                  "scope",
+                  "body"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deleted (no body)."
+          },
+          "400": {
+            "description": "Unsafe command name, or workspaceId missing for the workspace scope."
+          },
+          "404": {
+            "description": "No such command at that scope, or workspace not found."
+          }
+        },
+        "operationId": "deleteCommandsByCommandName",
+        "tags": [
+          "commands"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "commandName",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "workspace"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false
+          }
+        ],
+        "summary": "Delete one slash-command file at a scope.",
+        "x-sdk-name": "commands.delete",
+        "x-mcp": {
+          "exposed": true,
+          "name": "delete_command",
+          "description": "Delete ONE slash command by `commandName`. `scope` is \"user\" (~/.claude/commands — runnable in every workspace) or \"workspace\" (<workspace>/.claude/commands; + `workspaceId`, defaults to the active workspace; on the global surface there is none, so pass it explicitly). Removes the file from disk so \"/<commandName>\" stops working. Irreversible; confirm with the user unless they just asked for exactly this.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
       }
     },
     "/mcp-servers": {
@@ -34314,7 +35409,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "create_agent",
-          "description": "Create a custom subagent the user can enable for their sessions. `slug` is the stable identifier (kebab-case), `name` the display name, `description` when to use it, `prompt` its system prompt. `scope` is \"user\" (available everywhere) or \"workspace\" (+ `workspaceId`, defaults to the active workspace). Optional: `icon`, `model`, `effort`, `permissionMode`, `background`, `allowedTools` / `disallowedTools`, `skillIds` to preload skills. Use when the user asks for a specialist helper (e.g. a code reviewer, a research agent). The agent must then be enabled (set_agent_enabled) to join sessions. Side effect: it appears in the user's agents panel.",
+          "description": "Create a custom subagent the user can enable for their sessions. `slug` is the stable identifier (kebab-case), `name` the display name, `description` when to use it, `prompt` its system prompt. `scope` is \"user\" (available everywhere) or \"workspace\" (+ `workspaceId`, defaults to the active workspace). Optional: `icon`, `model`, `effort`, `permissionMode`, `background`, `allowedTools` / `disallowedTools`, `skillIds` to preload skills. Use when the user asks for a specialist helper (e.g. a code reviewer, a research agent). The agent starts ENABLED and joins sessions at once (set_agent_enabled turns it off). Side effects: it appears in the user's agents panel and is written to <root>/.claude/agents/<slug>.md as a Vynel-managed mirror; a hand-authored file already at that path is refused (409) — use write_agent_file for files the user keeps by hand.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -35132,6 +36227,316 @@
         }
       }
     },
+    "/agents/files": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "User-scope files first, then the workspace's (when workspaceId is given).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agentFiles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "slug": {
+                            "type": "string"
+                          },
+                          "fileName": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "tools": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "model": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": [
+                              "user",
+                              "workspace"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "slug",
+                          "fileName",
+                          "name",
+                          "description",
+                          "tools",
+                          "model",
+                          "content",
+                          "body",
+                          "scope"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "agentFiles"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found."
+          }
+        },
+        "operationId": "getAgentsFiles",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "summary": "List the hand-authored agent files a scope holds (user's ∪ one workspace's).",
+        "x-sdk-name": "agents.listFiles",
+        "x-mcp": {
+          "exposed": true,
+          "name": "list_agent_files",
+          "description": "List the subagent files the user wrote by hand — every `.claude/agents/*.md` in ~/.claude/agents (scope \"user\") plus the workspace's own when `workspaceId` is set (defaults to the active workspace; omit on the global surface). These are NOT the agents list_agents returns (those live in Vynel); they are plain Claude Code subagent files, live in every session. Each row: slug (the file name), name, description, tools, model, the full file content and the prompt body. Read-only.",
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
+      }
+    },
+    "/agents/files/{slug}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "The agent file as it now reads on disk.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tools": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "workspace"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "fileName",
+                    "name",
+                    "description",
+                    "tools",
+                    "model",
+                    "content",
+                    "body",
+                    "scope"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsafe slug, a file that would not load, or workspaceId missing."
+          },
+          "404": {
+            "description": "Workspace not found (or not owned by this user)."
+          },
+          "409": {
+            "description": "The slug names a Vynel agent, or the file is a Vynel mirror."
+          }
+        },
+        "operationId": "putAgentsFilesBySlug",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          }
+        ],
+        "summary": "Create or replace one hand-authored agent file.",
+        "x-sdk-name": "agents.writeFile",
+        "x-mcp": {
+          "exposed": true,
+          "name": "write_agent_file",
+          "description": "Create or replace ONE hand-authored subagent file — `<root>/.claude/agents/<slug>.md`, a plain Claude Code subagent (NOT a Vynel agent: for those use create_agent / update_agent). `slug` is the file name (kebab-case); `scope` is \"user\" (~/.claude/agents — every workspace) or \"workspace\" (+ `workspaceId`, defaults to the active workspace; on the global surface pass it explicitly); `content` is the whole file: a frontmatter block with `name: <slug>`, a `description` (when to delegate to it), optional `tools` (comma list) and `model`, then the system prompt. Refuses a slug that already names a Vynel agent at that scope, or a file Vynel manages. Read it with list_agent_files first when editing. Mutating.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "workspace"
+                    ]
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100000
+                  }
+                },
+                "required": [
+                  "scope",
+                  "content"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Deleted (no body)."
+          },
+          "400": {
+            "description": "Unsafe slug, or workspaceId missing for the workspace scope."
+          },
+          "404": {
+            "description": "No such file at that scope, or workspace not found."
+          },
+          "409": {
+            "description": "The file is a Vynel mirror — delete the agent instead."
+          }
+        },
+        "operationId": "deleteAgentsFilesBySlug",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "workspace"
+              ]
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspaceId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false
+          }
+        ],
+        "summary": "Delete one hand-authored agent file.",
+        "x-sdk-name": "agents.deleteFile",
+        "x-mcp": {
+          "exposed": true,
+          "name": "delete_agent_file",
+          "description": "Delete ONE hand-authored subagent file by `slug` (`scope` \"user\" or \"workspace\" + `workspaceId`, defaults to the active workspace). Removes the file from disk so the subagent stops existing. A Vynel agent is deleted with delete_agent instead. Irreversible; confirm with the user unless they just asked for exactly this.",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "workspaceInteractiveSurface": true
+        }
+      }
+    },
     "/agents/{slug}": {
       "get": {
         "responses": {
@@ -35847,7 +37252,7 @@
         "x-mcp": {
           "exposed": true,
           "name": "set_agent_enabled",
-          "description": "Enable or disable an agent by `agentId` (`enabled` true/false). Only ENABLED agents join sessions as invokable subagents; a freshly created or installed agent starts disabled until the user wants it live. Fully reversible.",
+          "description": "Enable or disable an agent by `agentId` (`enabled` true/false). Only ENABLED agents join sessions as invokable subagents; a freshly created or installed agent starts enabled. Disabling also removes its .claude/agents mirror file. Fully reversible.",
           "mutatingApproved": true
         },
         "requestBody": {
@@ -41433,6 +42838,9 @@
                         "rules": {
                           "type": "integer"
                         },
+                        "commands": {
+                          "type": "integer"
+                        },
                         "apps": {
                           "type": "integer"
                         }
@@ -41441,7 +42849,8 @@
                         "sessions",
                         "agents",
                         "skills",
-                        "rules"
+                        "rules",
+                        "commands"
                       ]
                     }
                   },

@@ -18,6 +18,7 @@ function makeRule(overrides: Record<string, unknown> = {}) {
     fileName: "git-hygiene.md",
     title: "Git hygiene",
     content: "# Git hygiene\n\nSmall commits.",
+    body: "# Git hygiene\n\nSmall commits.",
     scope: "user",
     marketplace: { ruleId: "git-hygiene", version: "2.1.0" },
     ...overrides,
@@ -31,6 +32,8 @@ function makeCommand(overrides: Record<string, unknown> = {}) {
     description: "Commit the current work",
     argumentHint: "[message]",
     bodyPreview: "Commit the work.",
+    content: "Commit the work.\n",
+    body: "Commit the work.\n",
     scope: "user",
     ...overrides,
   };

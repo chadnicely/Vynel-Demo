@@ -48,6 +48,8 @@ function makeClient(options: {
     agents: {
       list: options.list ?? (async () => [makeAgent()]),
       listResolved: options.listResolved ?? (async () => [makeAgent()]),
+      // The shelf also lists hand-authored agent files (2026-08-26).
+      listFiles: async () => ({ agentFiles: [] }),
       setEnabled:
         options.setEnabled ?? (async () => makeAgent({ enabled: false })),
     },
@@ -135,12 +137,13 @@ describe("AgentsSection — rows", () => {
     wrapper.unmount();
   });
 
-  it("invites a marketplace visit when there are no agents", async () => {
+  it("invites building an agent (or the catalog) when there are no agents", async () => {
     const wrapper = mountSection(makeClient({ list: async () => [] }));
     await flushPromises();
 
     expect(wrapper.text()).toContain("No agents yet");
-    expect(wrapper.text()).toContain("Marketplace");
+    expect(wrapper.text()).toContain("Build an agent");
+    expect(wrapper.text()).toContain("Catalog");
     wrapper.unmount();
   });
 });

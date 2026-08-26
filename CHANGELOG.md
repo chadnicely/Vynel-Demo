@@ -5,6 +5,41 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Added
+
+- **Write your own rules, commands and skills — and let Claude write them too.** The Rules,
+  Commands and Skills shelves (global menu and each workspace) now create, edit and delete: a rule
+  is a standing instruction Claude follows in every conversation at that scope; a command is a
+  reusable prompt you run as `/its-name` (with a description and an optional argument hint — the
+  `/` menu shows it); a skill is a folder Claude opens when a task matches its description, with a
+  file editor for its instructions and any reference files. Editing a Marketplace rule makes it
+  your own copy. Claude gets the same doors as tools (`write_rule`, `write_command`,
+  `create_skill`, `write_skill_file`, …) on the global chat and workspace conversations — deleting
+  anything, or writing a rule, asks first in ask mode.
+- **Build and edit agents from the shelf.** The Agents shelf can build a specialist (name,
+  when to use it, instructions, optional tools and model), edit or delete one, and add from the
+  curated catalog — doors Claude already had through chat. Every agent you build is now also
+  written as a file under `.claude/agents`, so plain Claude Code sessions see it too. Subagent
+  files you wrote by hand are listed beside them ("On disk") and can be edited or removed; Claude
+  can list, write and delete those files as well (`list_agent_files`, `write_agent_file`,
+  `delete_agent_file`).
+- **Skills you add by hand show up.** A skill folder dropped into `.claude/skills` appears on the
+  shelf the next time you open it, chipped "On disk"; one you removed reads "Needs attention".
+  The Commands row in the menu now shows a count.
+
+### Fixed
+
+- Uninstalling a skill that was discovered on disk removed its record but left the folder when the
+  folder's name differed from the skill's name; the folder recorded at install time is used now.
+- A hand-made skill whose name matched a Marketplace item made the Marketplace card read
+  "Installed" — and its Uninstall would have deleted the hand-made folder. Only skills that came
+  from the catalog count.
+- A rule file with a name the editor could not address (spaces, accents) was listed but could not
+  be opened for editing; the list and the editor now agree on what a valid name is, and names with
+  characters Windows forbids (`: < > " | ? *`) are refused instead of silently writing nothing.
+
 ## [0.3.7] — 2026-08-26
 
 ### Fixed

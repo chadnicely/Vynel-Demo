@@ -15,10 +15,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import type { Database } from '@vynel/db'
 import { ConflictError } from '@vynel/errors'
 import type { AgentRow, StructuralLogger } from '../agents-types.js'
-import {
-  AGENT_MIRROR_MANAGED_MARKER,
-  renderAgentMirrorMarkdown,
-} from './render-agent-mirror-markdown.js'
+import { isAgentMirrorMarkdown, renderAgentMirrorMarkdown } from './render-agent-mirror-markdown.js'
 import {
   resolveAgentMirrorPath,
   type AgentMirrorLocator,
@@ -41,14 +38,33 @@ export async function writeAgentMirrorOnDisk(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
-  if (existingContent !== null && !existingContent.includes(AGENT_MIRROR_MANAGED_MARKER)) {
-    throw new ConflictError(
-      `An agent file you authored yourself already exists at ${mirrorPath} — ` +
-        'rename or remove it first, then retry.',
-    )
+  if (existingContent !== null && !isAgentMirrorMarkdown(existingContent)) {
+    throw handAuthoredFileConflict(mirrorPath)
   }
   await mkdir(path.dirname(mirrorPath), { recursive: true })
   await writeFile(mirrorPath, markdown, 'utf8')
+}
+
+function handAuthoredFileConflict(mirrorPath: string): ConflictError {
+  return new ConflictError(
+    `An agent file you authored yourself already exists at ${mirrorPath} — ` +
+      'rename or remove it first, then retry.',
+  )
+}
+
+/** The collision guard on its own — for the paths that must refuse a
+ *  hand-authored file BEFORE any DB write even when no mirror is written
+ *  yet (a disabled create, a slug rename): otherwise the row shadows the
+ *  user's file while enabled and un-shadows it on disable. */
+export async function assertNoHandAuthoredAgentFile(mirrorPath: string): Promise<void> {
+  let content: string
+  try {
+    content = await readFile(mirrorPath, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
+  if (!isAgentMirrorMarkdown(content)) throw handAuthoredFileConflict(mirrorPath)
 }
 
 // Best-effort, marker-checked removal. Idempotent: a missing file is a
@@ -71,7 +87,7 @@ export async function removeAgentMirrorOnDisk(
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
       throw error
     }
-    if (!content.includes(AGENT_MIRROR_MANAGED_MARKER)) {
+    if (!isAgentMirrorMarkdown(content)) {
       logger?.info(
         { slug: locator.slug, mirrorPath },
         'agent file on disk is not a Vynel mirror — left in place',

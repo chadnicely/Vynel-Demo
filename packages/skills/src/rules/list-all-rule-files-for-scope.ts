@@ -9,8 +9,8 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import type { SkillScope } from '../repositories/index.js'
-import { parseRuleFileMarker } from './rule-file-marker.js'
-import { resolveRulesRoot } from './resolve-rules-root.js'
+import { parseRuleFileMarker, stripRuleFileMarker } from './rule-file-marker.js'
+import { isSafeRuleId, resolveRulesRoot } from './resolve-rules-root.js'
 
 export type RuleFileForScope = {
   /** The file name without `.md` — the row's stable id within the scope. */
@@ -20,6 +20,8 @@ export type RuleFileForScope = {
   title: string
   /** Full markdown content (rule files are small) — powers the view dialog. */
   content: string
+  /** `content` without the marketplace marker line — what the editor edits. */
+  body: string
   /** Non-null when the file carries a matching marketplace provenance marker
    *  (`rule-file-marker.ts` discipline: marker id must equal the file name). */
   marketplace: { ruleId: string; version: string } | null
@@ -27,12 +29,15 @@ export type RuleFileForScope = {
 
 /** The scope's rule FILE NAMES — the one predicate for "what is a rule here",
  *  shared by the list and the count so the menu's number and the rows behind
- *  it can never disagree about membership. */
+ *  it can never disagree about membership. A `.md` whose name the writers
+ *  could not address (`isSafeRuleId`) is left out: a row the edit and delete
+ *  doors cannot reach would only be a dead end in the view. */
 function listRuleFileNamesForScope(scope: SkillScope, workspacePath?: string): string[] {
   const rulesRoot = resolveRulesRoot(scope, workspacePath)
   try {
     return readdirSync(rulesRoot)
       .filter((fileName) => fileName.endsWith('.md'))
+      .filter((fileName) => isSafeRuleId(fileName.slice(0, -'.md'.length)))
       .sort()
   } catch {
     return []
@@ -72,22 +77,44 @@ export function listAllRuleFilesForScope(
     } catch {
       continue
     }
-    const ruleId = fileName.slice(0, -'.md'.length)
-    const marker = parseRuleFileMarker(content)
-    rules.push({
-      ruleId,
-      fileName,
-      title: extractTitle(content) ?? ruleId,
-      content,
-      // Same discipline as the installed-reader: a marker naming a DIFFERENT
-      // rule is a user-renamed copy — it is theirs, not the marketplace's.
-      marketplace:
-        marker !== null && marker.ruleId === ruleId
-          ? { ruleId: marker.ruleId, version: marker.version }
-          : null,
-    })
+    rules.push(toRuleFile(fileName, content))
   }
   return rules
+}
+
+/** One rule by id — the write door's read-back. `null` = no such file (or one
+ *  the writers could not address). */
+export function readRuleFileForScope(
+  scope: SkillScope,
+  ruleId: string,
+  workspacePath?: string,
+): RuleFileForScope | null {
+  if (!isSafeRuleId(ruleId)) return null
+  const fileName = `${ruleId}.md`
+  try {
+    const content = readFileSync(path.join(resolveRulesRoot(scope, workspacePath), fileName), 'utf8')
+    return toRuleFile(fileName, content)
+  } catch {
+    return null
+  }
+}
+
+function toRuleFile(fileName: string, content: string): RuleFileForScope {
+  const ruleId = fileName.slice(0, -'.md'.length)
+  const marker = parseRuleFileMarker(content)
+  return {
+    ruleId,
+    fileName,
+    title: extractTitle(content) ?? ruleId,
+    content,
+    body: stripRuleFileMarker(content),
+    // Same discipline as the installed-reader: a marker naming a DIFFERENT
+    // rule is a user-renamed copy — it is theirs, not the marketplace's.
+    marketplace:
+      marker !== null && marker.ruleId === ruleId
+        ? { ruleId: marker.ruleId, version: marker.version }
+        : null,
+  }
 }
 
 // First ATX heading wins. BOM + CRLF tolerant like `parseRuleFileMarker` —
