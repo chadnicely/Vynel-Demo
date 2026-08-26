@@ -1,6 +1,6 @@
 # Vynel — current state (RESUME HERE)
 
-**Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
+**Updated 2026-08-27.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
 ## 🔨 2026-08-27 MISSION-CONTROL PULL — Slice 1 (first launch, five steps) BUILT (worktree 18980)
@@ -51,12 +51,25 @@ word on D2–D4 — nothing moves before that.
   streams open; an unresolved approval / blocked call ALWAYS forces it open. **Confirm with Kafi:**
   we fold only incoming turns (Chad folded ALL) — flip `:collapsible` to always-on to fold the
   fresh ask too.
-**Next:** final tip gate green → `git merge --ff-only` main (done in-session). Push to origin held
-for Kafi. Owed smokes: a pulled-in project lands in **Needs setup** (D3); the wizard opens on the
-idea + names at screen 9 (D2); an incoming turn folds to one line (D4). Housekeeping for Kafi to
-green-light: remove review worktree `.claude/worktrees/mission-control-restore` (band 18970) and
-this pull worktree (band 18980) post-merge; delete the empty probe folders under
-`~/Documents/Vynel` + the stray `.vynel/` in harnesslauncher.
+**Next:** all three landed on `feature/mission-control-pull`, full gate green; main's docs-only
+commit `386fe2fa` (claude-defaults rule) merged in, then **main fast-forwarded to this tip
+in-session** (a true ff once main was behind). **Push to origin held for Kafi.** Owed smokes: a
+pulled-in project lands in **Needs setup** (D3); the wizard opens on the idea + names at screen 9
+(D2); an incoming turn folds to one line (D4). Housekeeping for Kafi to green-light: remove review
+worktree `.claude/worktrees/mission-control-restore` (band 18970) and this pull worktree (band
+18980) post-merge; delete the empty probe folders under `~/Documents/Vynel` + the stray `.vynel/`
+in harnesslauncher.
+
+## 📌 2026-08-27 CLAUDE DEFAULTS RULE — a teammate's "Credit balance is too low" (no code change)
+
+Root cause: a User-level `ANTHROPIC_API_KEY` on his Windows account — desktop app → engine →
+bundled `claude.exe` inherit it (SDK `env` defaults to `{...process.env}`), and in non-interactive
+mode the CLI uses an env key over the subscription without the interactive consent — Claude
+Code's documented precedence. Resolved on his machine (User var removed, full relaunch).
+**Decision (Kafi): Vynel keeps ALL of Claude Code's default config + behavior; where a default
+conflicts with Vynel's preference, the conflict is ignored** — no env stripping, no billing
+override, no `customApiKeyResponses`, no `CLAUDE_CONFIG_DIR` isolation. Support recipe + the
+verified chain: `.claude/journal/2026-08-27-claude-defaults-rule.md`.
 
 ## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
 
