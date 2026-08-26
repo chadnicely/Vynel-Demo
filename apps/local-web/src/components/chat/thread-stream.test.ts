@@ -425,6 +425,41 @@ describe("ThreadStream", () => {
     expect(pill.text()).toMatch(/1m 3[56]s/);
   });
 
+  // The fold plumbing (Chad, 2026-08-25): an INCOMING turn — one whose ask did
+  // not come from this composer — folds to one line; a fresh composer ask
+  // streams open, so you watch your own answer type in.
+  it("folds an incoming turn to one line, but never a fresh composer ask", () => {
+    const segment = { messageId: "live-1", text: "wiring the routes", thinking: "", toolCalls: [] };
+    const base: ActiveTurnView = {
+      ...createActiveTurnView(),
+      status: "streaming",
+      segments: [segment],
+    };
+    const incoming: ActiveTurnView = {
+      ...base,
+      userMessage: {
+        ...makeMessage(0),
+        role: "user",
+        sourceKind: "workspace-manager",
+      } as ChatMessageResponse,
+    };
+    const folded = mount(ThreadStream, {
+      props: { messages: [], toolCallsByMessageId: {}, activeTurn: incoming },
+      global: { plugins: [createPinia()] },
+    });
+    expect(folded.find(".live-preview").exists()).toBe(true);
+
+    const composer: ActiveTurnView = {
+      ...base,
+      userMessage: { ...makeMessage(0), role: "user", sourceKind: null } as ChatMessageResponse,
+    };
+    const open = mount(ThreadStream, {
+      props: { messages: [], toolCallsByMessageId: {}, activeTurn: composer },
+      global: { plugins: [createPinia()] },
+    });
+    expect(open.find(".live-preview").exists()).toBe(false);
+  });
+
   it("groups consecutive assistant rows under ONE author line — a reloaded turn reads like the live overlay", async () => {
     // One turn persists as several assistant rows (one per provider message).
     // Only the first of a run shows the header; a user row breaks the group.

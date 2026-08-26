@@ -363,3 +363,91 @@ describe("LiveTurn reply voice", () => {
     expect(markdown.classes()).toContain("is-reply");
   });
 });
+
+// The fold (Chad, 2026-08-25): a collapsible streaming turn is ONE line until
+// clicked — but a settled answer and any pending decision are never hidden.
+describe("LiveTurn fold", () => {
+  function streamingView(): ActiveTurnView {
+    return {
+      ...createActiveTurnView(),
+      segments: [{ messageId: "m1", text: "Working on the answer.", thinking: "", toolCalls: [] }],
+    };
+  }
+
+  it("folds a streaming turn to one activity line, hiding the work", () => {
+    const wrapper = mount(LiveTurn, {
+      props: { view: streamingView(), collapsible: true },
+    });
+    expect(wrapper.find(".live-preview").exists()).toBe(true);
+    expect(wrapper.find(".segment").exists()).toBe(false);
+  });
+
+  it("opens on a click — the work shows, the preview goes", async () => {
+    const wrapper = mount(LiveTurn, {
+      props: { view: streamingView(), collapsible: true },
+    });
+    await wrapper.get(".role-label").trigger("click");
+    expect(wrapper.find(".segment").exists()).toBe(true);
+    expect(wrapper.find(".live-preview").exists()).toBe(false);
+  });
+
+  it("never folds a fresh composer turn — no collapsible, always open", () => {
+    const wrapper = mount(LiveTurn, { props: { view: streamingView() } });
+    expect(wrapper.find(".live-preview").exists()).toBe(false);
+    expect(wrapper.find(".segment").exists()).toBe(true);
+  });
+
+  it("an unresolved approval is NEVER hidden behind the fold", () => {
+    const wrapper = mount(LiveTurn, {
+      props: {
+        view: { ...streamingView(), approvals: [makeApproval("Bash")] },
+        collapsible: true,
+      },
+    });
+    // A pending decision forces the whole turn open — card visible, no preview.
+    expect(wrapper.findComponent({ name: "ApprovalCard" }).exists()).toBe(true);
+    expect(wrapper.find(".live-preview").exists()).toBe(false);
+  });
+
+  it("a blocked call forces the turn open so its Run-it-anyway shows", () => {
+    const blocked: ChatToolCallResponse = {
+      id: "tc-b",
+      parentMessageId: "m1",
+      toolUseId: "tu-b",
+      toolName: "Bash",
+      toolInput: { command: "rm -rf build" },
+      toolOutput: null,
+      status: "blocked",
+      approvalStatus: null,
+      isErrorResult: false,
+      startedAt: "2026-07-19T10:00:00.000Z",
+      completedAt: null,
+    } as ChatToolCallResponse;
+    const wrapper = mount(LiveTurn, {
+      props: {
+        view: {
+          ...createActiveTurnView(),
+          segments: [{ messageId: "m1", text: "", thinking: "", toolCalls: [blocked] }],
+        },
+        collapsible: true,
+      },
+    });
+    expect(wrapper.find(".segment").exists()).toBe(true);
+    expect(wrapper.find(".live-preview").exists()).toBe(false);
+  });
+
+  it("a settled turn is open even when collapsible — the answer is never hidden", () => {
+    const wrapper = mount(LiveTurn, {
+      props: {
+        view: {
+          ...createActiveTurnView(),
+          status: "completed",
+          segments: [{ messageId: "m1", text: "The final answer.", thinking: "", toolCalls: [] }],
+        },
+        collapsible: true,
+      },
+    });
+    expect(wrapper.find(".segment").exists()).toBe(true);
+    expect(wrapper.find(".live-preview").exists()).toBe(false);
+  });
+});

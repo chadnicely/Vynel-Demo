@@ -49,6 +49,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 - **A queued message survives changing rooms.** What you queue while a room is busy waits for that
   room — switching tabs no longer loses it — and sends when you come back and the room is idle.
 
+- **A turn arriving from elsewhere folds to one line.** When a session works in a room on its own —
+  a delivered report, the workspace manager, a schedule — its live turn shows as ONE line naming
+  what it is doing right now, rewriting itself as it goes, and opens on a click. Five tool calls no
+  longer stack into five boxes. Your own question always streams open, and a card waiting for your
+  approval is never hidden.
+
 - **"What are we adding?"** — the "+" door asks two short questions: something new (the build
   wizard), or something you already have — and only then where it is (a folder, or a repository to
   clone).

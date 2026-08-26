@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { PhCaretDown as CaretDown } from "@phosphor-icons/vue";
 import {
   ApprovalCard,
   ClaudeMark,
@@ -11,6 +12,7 @@ import {
   mergeToolOnlyBatches,
   type ReauthorizeState,
 } from "@vynel/ui";
+import { deriveLivePreview } from "./live-turn-preview.js";
 // The pure taxonomy the server itself records with — same function, so the
 // inline card and the notifier card always classify identically.
 import { deriveActionKind } from "@vynel/approvals/action-kind";
@@ -42,8 +44,13 @@ const props = withDefaults(
      *  computes it ONCE for settled and live cards alike (this view's status
      *  IS the thread's active turn). Absent = the button waits. */
     reauthorizeState?: ReauthorizeState | undefined;
+    /** Fold the whole turn to ONE line while it streams (Chad, 2026-08-25) —
+     *  a continuing turn's work is one activity line, opening on a click.
+     *  Passed only for a CONTINUING/incoming turn; a fresh composer ask
+     *  streams open, and a pending decision always forces the fold open. */
+    collapsible?: boolean;
   }>(),
-  { authorLabel: "Assistant", authorIconUrl: null },
+  { authorLabel: "Assistant", authorIconUrl: null, collapsible: false },
 );
 
 const emit = defineEmits<{
@@ -142,6 +149,32 @@ const hasUnresolvedApproval = computed(() =>
   props.view.approvals.some((approval) => !approval.isResolved),
 );
 
+// The fold (Chad, 2026-08-25). It engages only while the turn STREAMS and the
+// container asked for it; a click opens it, a settled turn opens on its own
+// (isLive false), and a pending DECISION — an unresolved approval or a blocked
+// call's "Run it anyway" — always forces it open so a choice is never hidden.
+const userExpanded = ref(false);
+const isLive = computed(() => props.view.status === "streaming");
+const hasBlockedCall = computed(() =>
+  props.view.segments.some((segment) =>
+    segment.toolCalls.some((call) => call.status === "blocked"),
+  ),
+);
+const hasPendingDecision = computed(
+  () => hasUnresolvedApproval.value || hasBlockedCall.value,
+);
+const isExpanded = computed(
+  () =>
+    !props.collapsible ||
+    !isLive.value ||
+    userExpanded.value ||
+    hasPendingDecision.value,
+);
+function toggleFold(): void {
+  userExpanded.value = !userExpanded.value;
+}
+const livePreview = computed(() => deriveLivePreview(props.view));
+
 function agentPointersFor(segment: ActiveTurnSegment): ThreadPointerModel[] {
   const pointers: ThreadPointerModel[] = [];
   for (const call of segment.toolCalls) {
@@ -190,19 +223,38 @@ const elapsedLabel = useTickingElapsed(
 </script>
 
 <template>
-  <div class="live-turn">
-    <p class="role-label">
+  <div class="live-turn" :class="{ 'is-folded': props.collapsible && !isExpanded }">
+    <!-- The author row doubles as the fold toggle when this turn is
+         collapsible — folded, it carries the one-line current activity and a
+         caret; a click opens it. A non-collapsible turn keeps the plain
+         label. -->
+    <component
+      :is="props.collapsible ? 'button' : 'p'"
+      class="role-label"
+      :class="{ 'is-foldable': props.collapsible }"
+      :type="props.collapsible ? 'button' : undefined"
+      @click="props.collapsible ? toggleFold() : undefined"
+    >
       <span class="author-avatar" :class="{ 'has-image': props.authorIconUrl }" aria-hidden="true">
         <img v-if="props.authorIconUrl" :src="props.authorIconUrl" alt="" />
         <ClaudeMark v-else :size="14" />
       </span>
       {{ props.authorLabel }}
-    </p>
+      <span v-if="props.collapsible && !isExpanded" class="live-preview">{{ livePreview }}</span>
+      <CaretDown
+        v-if="props.collapsible"
+        :size="12"
+        class="fold-caret"
+        :class="{ 'is-open': isExpanded }"
+      />
+    </component>
 
     <!-- One block per assistant message, in arrival order — the SAME
          thinking → text → tool-calls shape MessageRow gives the settled row,
          so the thread never reformats when the turn completes. A
-         continuation's anchor row sits where its output begins. -->
+         continuation's anchor row sits where its output begins. Hidden while
+         the turn is folded; a pending decision keeps it open. -->
+    <template v-if="isExpanded">
     <template v-for="row in liveRows" :key="row.key">
       <MessageRow
         v-if="row.kind === 'continuation'"
@@ -247,7 +299,11 @@ const elapsedLabel = useTickingElapsed(
         />
       </div>
     </template>
+    </template>
 
+    <!-- A pending approval / blocked call is NEVER hidden behind the fold —
+         it forces the turn open (hasPendingDecision) and renders here, outside
+         the fold guard as a second guarantee. -->
     <template
       v-for="approval in props.view.approvals"
       :key="approval.approvalRequestId"
@@ -274,7 +330,9 @@ const elapsedLabel = useTickingElapsed(
     <!-- The turn's real state, always at the live edge: what Claude is doing
          right now (thinking vs working) + how long the turn has run. Stays as
          a quiet "done" through the settle window instead of vanishing. -->
-    <p v-if="props.view.status === 'streaming'" class="live-status">
+    <!-- Folded, the preview line already names the activity — the chip would
+         just say it twice, so it shows only when the turn is open. -->
+    <p v-if="props.view.status === 'streaming' && isExpanded" class="live-status">
       <span class="live-chip"
         >{{ liveChipLabel }} · {{ elapsedLabel }}</span
       >
@@ -322,6 +380,48 @@ const elapsedLabel = useTickingElapsed(
   font: 400 10px/1.5 var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.14em;
+}
+
+/* As the fold toggle: a full-width button that keeps the label's exact look. */
+.role-label.is-foldable {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: default;
+  text-align: left;
+}
+
+/* The one-line current activity, shown only while folded — sentence case, not
+   the label's uppercase, so it reads as content and truncates cleanly. */
+.live-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.fold-caret {
+  flex-shrink: 0;
+  color: var(--color-neutral-500);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+/* Down when folded (click to open), up when open (click to fold). */
+.fold-caret.is-open {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold-caret {
+    transition: none;
+  }
 }
 
 .author-avatar {

@@ -33,6 +33,24 @@ interrupt-before-abort (typed seam, SDK first, refusals surface); the work-rail 
 Chad's card copy, one All Tasks list, typed lines in the card). Full gate green. **Next:** Kafi's
 word on D2–D4 — nothing moves before that.
 
+**Kafi, 2026-08-27: "Complete them all then merge."** D2/D3/D4 built on
+`feature/mission-control-pull`, each its own commit, full gate green after each:
+- **D2** (`78f4c5ab`): wizard opens on the IDEA, names at screen 9; engine mints
+  `<projects home>/<name>` (migration 0056 `users.projectsDirectory`, null → `~/Documents/Vynel`);
+  `sanitizeFolderName` refuses `.`/`..`; study/plan resolve the folder server-side; scaffold's
+  `directory` optional (pull-in only).
+- **D3** (`bfc34d56`): `workspaces.setupCompletedAt` (migration 0057) → a Needs setup sidebar
+  section (first, hidden at zero, beats status); "Finish setting up" reads repo / .env KEY NAMES /
+  db + links to the global account, Done stamps it; scaffold+clone stamp at birth; setup read
+  UI-only (no x-mcp); FinishSetupDialog on the shared Modal (WizardModal dropped), dead controls
+  removed.
+- **D4** (pending commit): the fold-the-live-turn on main's LiveTurn — a collapsible INCOMING turn
+  (non-composer origin) shows one activity line + caret, opens on click; a fresh composer ask
+  streams open; an unresolved approval / blocked call ALWAYS forces it open. **Confirm with Kafi:**
+  we fold only incoming turns (Chad folded ALL) — flip `:collapsible` to always-on to fold the
+  fresh ask too.
+**Next:** commit D4, final gate, fast-forward main.
+
 ## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
 
 Kafi's ask: worktree for `origin/chad/mission-control-restore` (Chad's 3 commits, cut from
