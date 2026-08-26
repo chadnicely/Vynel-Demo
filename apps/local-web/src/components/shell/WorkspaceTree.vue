@@ -6,7 +6,6 @@ import {
   PhHouse as House,
   PhPlus as Plus,
   PhStack as Stack,
-  PhStackPlus as StackPlus,
 } from "@phosphor-icons/vue";
 import { ContextMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
@@ -14,7 +13,13 @@ import type { WorkspaceEffectiveStatus } from "@vynel/contracts/workspaces/works
 import SidebarAccountRow from "./SidebarAccountRow.vue";
 import TreeStateMark from "./TreeStateMark.vue";
 import WorkspaceTreeRow from "./WorkspaceTreeRow.vue";
+import WorkspaceTreeSectionHeader from "./WorkspaceTreeSectionHeader.vue";
 import type { WorkspaceStatusView } from "../../composables/workspaces/use-workspace-status.js";
+import {
+  activityBucketOfStatus,
+  groupActivityBucket,
+  type WorkspaceActivityBucket,
+} from "./workspace-activity-bucket.js";
 import {
   ROOT_LIST_KEY,
   emptyTreeOrder,
@@ -23,15 +28,25 @@ import {
 } from "./tree-order.js";
 import { useTreeDragDrop } from "./use-tree-drag-drop.js";
 
-// Menu mode's sidebar root — the workspace tree: the create strip, the pinned
-// Global row, the user's groups (each with its members), then the ungrouped
-// workspaces. Every row keeps ITS place no matter its state — a parked room
-// dims where it sits, never relocates (Kafi, 2026-08-19: the NOT RUNNING
-// pseudo-group is gone). Groups and workspaces drag: between rows to reorder,
-// onto a group header to join it, onto the root zone to leave it; a group
-// drags above/below another group. Position comes in as `treeOrder` and
-// goes out as `order-change` (the host stores it); membership goes to the
-// host and re-renders from the server's answer. A group's context menu renames inline or deletes (members
+// Menu mode's sidebar root — the workspace tree: the pinned Global row, then
+// each ACTIVITY SECTION (Active Projects, Not running), and inside a section
+// the user's groups (each with its members) followed by the ungrouped
+// workspaces.
+//
+// A row's SECTION is derived from its status, never dragged (Chad,
+// 2026-08-24 — reversing Kafi's 2026-08-19 "dims where it sits"): a quiet
+// project sits under Not running; the moment it runs, waits on you, or gets
+// stuck it is active. Order is still the user's inside a section; the
+// section is just the top-level split. A GROUP is never split across
+// sections — it moves whole, and counts as active while any one member is
+// (splitting a group would put half of "Client work" in each section, which
+// reads as two groups with one name).
+//
+// Groups and workspaces drag: between rows to reorder, onto a group header to
+// join it, onto the root zone to leave it; a group drags above/below another
+// group. Position comes in as `treeOrder` and goes out as `order-change` (the
+// host stores it); membership goes to the host and re-renders from the
+// server's answer. A group's context menu renames inline or deletes (members
 // detach, never deleted — the engine enforces it). Row click opens that
 // workspace's chat; the caret drills. Data-blind: rows + groups + status
 // views in, events out.
@@ -47,7 +62,7 @@ const props = defineProps<{
   groups: { id: string; name: string }[];
   /** The active scope: a workspace id, or null for Global. */
   activeWorkspaceId: string | null;
-  /** A group the host just created for the user (from the strip's stack-plus):
+  /** A group the host just created for the user (from the header's stack-plus):
    *  the tree opens its rename box the moment the row is on screen. */
   renameGroupId?: string | null;
   /** Where the user dragged things — the host's stored layout (null until the first drop). */
@@ -107,13 +122,62 @@ const membersByListKey = computed(() => {
 function membersOf(listKey: string) {
   return membersByListKey.value.get(listKey) ?? [];
 }
-const rootWorkspaces = computed(() => membersOf(ROOT_LIST_KEY));
+
+// ── Sections: the top-level Active / Not running split, read off each row's
+// status. ──
+function bucketOf(workspaceId: string): WorkspaceActivityBucket {
+  return activityBucketOfStatus(statusViewOf(workspaceId)?.status ?? null);
+}
+
+const bucketByGroupId = computed(() => {
+  const buckets = new Map<string, WorkspaceActivityBucket>();
+  for (const group of props.groups) {
+    buckets.set(
+      group.id,
+      groupActivityBucket(membersOf(group.id).map((workspace) => bucketOf(workspace.id))),
+    );
+  }
+  return buckets;
+});
+
+const SECTIONS = [
+  // Active Projects wears the accent and carries the create buttons — the
+  // working things are the headline, and nothing is born parked.
+  { id: "active", label: "Active Projects", addable: true, accent: true },
+  { id: "not-running", label: "Not running", addable: false, accent: false },
+] as const;
+
+// Each section's own groups + ungrouped rows, in the user's stored order.
+// The count is PROJECTS, not rows on screen — a group contributes its
+// members, so "4" means four projects whether or not they sit in groups.
+const sections = computed(() =>
+  SECTIONS.map((section) => {
+    const groups = orderedGroups.value.filter(
+      (group) => bucketByGroupId.value.get(group.id) === section.id,
+    );
+    const rootWorkspaces = membersOf(ROOT_LIST_KEY).filter(
+      (workspace) => bucketOf(workspace.id) === section.id,
+    );
+    const count =
+      groups.reduce((total, group) => total + membersOf(group.id).length, 0) +
+      rootWorkspaces.length;
+    return { ...section, groups, rootWorkspaces, count };
+  }),
+);
 
 // ── Drag and drop — the composable owns the state + drop math. ──
+// Both display orders are the sections CONCATENATED, so a drop index means
+// the same thing it looks like on screen even across a section boundary.
 const dnd = useTreeDragDrop({
   order,
-  displayedGroupIds: () => orderedGroups.value.map((group) => group.id),
-  displayedListIds: (listKey) => membersOf(listKey).map((workspace) => workspace.id),
+  displayedGroupIds: () =>
+    sections.value.flatMap((section) => section.groups.map((group) => group.id)),
+  displayedListIds: (listKey) =>
+    listKey === ROOT_LIST_KEY
+      ? sections.value.flatMap((section) =>
+          section.rootWorkspaces.map((workspace) => workspace.id),
+        )
+      : membersOf(listKey).map((workspace) => workspace.id),
   listKeyOfWorkspace: (workspaceId) => {
     const workspace = props.workspaces.find((row) => row.id === workspaceId);
     return workspace === undefined ? ROOT_LIST_KEY : listKeyOfWorkspace(workspace);
@@ -122,11 +186,11 @@ const dnd = useTreeDragDrop({
   onOrderChange: (next) => emit("order-change", next),
 });
 
-// ── Group fold state — persisted like the sidebar's group folds. ──
-const FOLDS_STORAGE_KEY = "vynel.tree.collapsed-folders";
-function readCollapsed(): Set<string> {
+// ── Fold state — group folds and section folds, persisted like the sidebar's
+// group folds, each under its own key. ──
+function readStoredIds(storageKey: string): Set<string> {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(FOLDS_STORAGE_KEY) ?? "[]");
+    const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
     return new Set(
       Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [],
     );
@@ -134,14 +198,34 @@ function readCollapsed(): Set<string> {
     return new Set();
   }
 }
-const collapsedFolderIds = ref<Set<string>>(readCollapsed());
-function toggleFolder(groupId: string) {
-  const next = new Set(collapsedFolderIds.value);
-  if (next.has(groupId)) next.delete(groupId);
-  else next.add(groupId);
-  collapsedFolderIds.value = next;
-  localStorage.setItem(FOLDS_STORAGE_KEY, JSON.stringify([...next]));
+function toggleStoredId(ids: Set<string>, id: string, storageKey: string): Set<string> {
+  const next = new Set(ids);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  localStorage.setItem(storageKey, JSON.stringify([...next]));
+  return next;
 }
+
+const FOLDS_STORAGE_KEY = "vynel.tree.collapsed-folders";
+const collapsedFolderIds = ref<Set<string>>(readStoredIds(FOLDS_STORAGE_KEY));
+function toggleFolder(groupId: string) {
+  collapsedFolderIds.value = toggleStoredId(collapsedFolderIds.value, groupId, FOLDS_STORAGE_KEY);
+}
+
+const SECTION_FOLDS_STORAGE_KEY = "vynel.tree.collapsed-sections";
+const collapsedSectionIds = ref<Set<string>>(readStoredIds(SECTION_FOLDS_STORAGE_KEY));
+function toggleSection(sectionId: string) {
+  collapsedSectionIds.value = toggleStoredId(
+    collapsedSectionIds.value,
+    sectionId,
+    SECTION_FOLDS_STORAGE_KEY,
+  );
+}
+
+// Which section's root zone the pointer is over. `dnd.isRootTarget()` knows a
+// root drop is in flight but not WHERE — without this both sections would
+// light up at once.
+const hoveredRootSectionId = ref<string | null>(null);
 
 // ── Inline group rename (context menu or double-click → input swap). The
 // ref lives inside v-for, so Vue collects it as an ARRAY — only one input
@@ -200,35 +284,10 @@ function onGroupMenu(group: { id: string; name: string }, itemId: string) {
        child — the account foot included — sits inset. -->
   <nav class="flex h-full flex-col bg-[var(--color-bg)] px-[8.4px] py-[16.8px] text-[12.5px]">
     <div class="min-h-0 flex-1 overflow-y-auto">
-      <!-- The create strip: workspaces + groups are made from up here, above
-           everything they'll join. -->
-      <div class="tree-create-strip mb-1.5 flex items-center pl-[10px] pr-[5px]">
-        <span class="flex-1 text-[10px] uppercase tracking-[0.12em] text-[var(--color-neutral-600)]">
-          Workspaces
-        </span>
-        <button
-          type="button"
-          aria-label="New group"
-          title="New group"
-          class="tree-new-group grid size-6 shrink-0 cursor-default place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-[var(--color-accent)]"
-          @click="emit('create-group')"
-        >
-          <StackPlus :size="14" weight="bold" />
-        </button>
-        <button
-          type="button"
-          aria-label="New workspace"
-          title="New workspace"
-          class="tree-new-workspace grid size-6 shrink-0 cursor-default place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-[var(--color-accent)]"
-          @click="emit('create-workspace', null)"
-        >
-          <Plus :size="13" weight="bold" />
-        </button>
-      </div>
       <ul class="my-0 grid list-none gap-1 pl-0">
-        <!-- The pinned Global scope — the tree's anchor, like the strip's.
-             It carries only its own status; creating lives in the strip
-             above and on each group. -->
+        <!-- The pinned Global scope — the tree's anchor. It carries only its
+             own status; creating lives on the Active Projects header and on
+             each group. -->
         <li>
           <div
             class="group flex items-center rounded-sm pl-[10px] pr-[7px] transition"
@@ -267,93 +326,151 @@ function onGroupMenu(group: { id: string; name: string }, itemId: string) {
         </li>
       </ul>
 
-      <!-- Groups. Dashed border while a workspace hovers the header (join);
-           an insertion line above/below while another group hovers (reorder). -->
-      <div class="mt-1.5 grid gap-2">
-        <div
-          v-for="group in orderedGroups"
-          :key="group.id"
-          class="tree-group rounded-sm border border-dashed pb-1.5 transition"
-          :class="[
-            dnd.isGroupHeaderTarget(group.id) ? 'border-gold bg-gold-soft' : 'border-transparent',
-            dnd.groupSlotEdge(group.id) === 'before' && 'tree-drop-before',
-            dnd.groupSlotEdge(group.id) === 'after' && 'tree-drop-after',
-          ]"
-          @drop.prevent="dnd.drop()"
-        >
-          <ContextMenu :items="GROUP_MENU" @select="(id) => onGroupMenu(group, id)">
+      <!-- Each activity section: its heading + count, then its groups, then
+           its ungrouped rows. Sections always render, empty or not — a
+           "NOT RUNNING 0" tells you nothing is parked, which is worth
+           knowing; a heading that vanishes just reads as a bug. -->
+      <section v-for="section in sections" :key="section.id" class="tree-section mt-2">
+        <WorkspaceTreeSectionHeader
+          :label="section.label"
+          :count="section.count"
+          :accent="section.accent"
+          :addable="section.addable"
+          :collapsed="collapsedSectionIds.has(section.id)"
+          @toggle="toggleSection(section.id)"
+          @create-group="emit('create-group')"
+          @create-workspace="emit('create-workspace', null)"
+        />
+
+        <template v-if="!collapsedSectionIds.has(section.id)">
+          <!-- Groups. Dashed border while a workspace hovers the header (join);
+               an insertion line above/below while another group hovers (reorder). -->
+          <div class="mt-1.5 grid gap-2">
             <div
-              class="tree-group-header mb-1 flex w-full items-center pl-[7px] pr-[5px] text-ink-1"
-              draggable="true"
-              @dragstart="dnd.startGroupDrag(group.id)"
-              @dragend="dnd.endDrag()"
-              @dragover="dnd.onGroupHeaderDragOver($event, group.id)"
-              @dragleave="dnd.clearTargetIf((t) => 'groupId' in t && t.groupId === group.id)"
+              v-for="group in section.groups"
+              :key="group.id"
+              class="tree-group rounded-sm border border-dashed pb-1.5 transition"
+              :class="[
+                dnd.isGroupHeaderTarget(group.id) ? 'border-gold bg-gold-soft' : 'border-transparent',
+                dnd.groupSlotEdge(group.id) === 'before' && 'tree-drop-before',
+                dnd.groupSlotEdge(group.id) === 'after' && 'tree-drop-after',
+              ]"
+              @drop.prevent="dnd.drop()"
             >
-              <button
-                type="button"
-                :aria-expanded="!collapsedFolderIds.has(group.id)"
-                class="flex min-w-0 flex-1 cursor-default items-center gap-2 py-[5px] text-left text-[12px] font-semibold transition hover:text-ink-1"
-                @click="toggleFolder(group.id)"
-              >
-                <component
-                  :is="collapsedFolderIds.has(group.id) ? CaretRight : CaretDown"
-                  :size="10"
-                  class="shrink-0 text-[var(--color-neutral-600)]"
-                />
-                <!-- A GROUP of workspaces — the stack glyph, never a folder
-                     (folders mean files everywhere else now). -->
-                <Stack :size="13" weight="duotone" class="shrink-0 text-[var(--color-neutral-400)]" />
-                <input
-                  v-if="editingGroupId === group.id"
-                  ref="renameInput"
-                  v-model="editingName"
-                  maxlength="60"
-                  :aria-label="`Rename ${group.name}`"
-                  class="min-w-0 flex-1 rounded-sm bg-inset px-1 text-[12px] text-ink-1 outline-none"
-                  @keydown.enter.prevent="commitRename"
-                  @keydown.esc.prevent="editingGroupId = null"
-                  @blur="commitRename"
-                  @click.stop
-                />
-                <span
-                  v-else
-                  class="min-w-0 flex-1 truncate"
-                  @dblclick.stop="startRename(group)"
-                  >{{ group.name }}</span
+              <ContextMenu :items="GROUP_MENU" @select="(id) => onGroupMenu(group, id)">
+                <div
+                  class="tree-group-header mb-1 flex w-full items-center pl-[7px] pr-[5px] text-ink-1"
+                  draggable="true"
+                  @dragstart="dnd.startGroupDrag(group.id)"
+                  @dragend="dnd.endDrag()"
+                  @dragover="dnd.onGroupHeaderDragOver($event, group.id)"
+                  @dragleave="dnd.clearTargetIf((t) => 'groupId' in t && t.groupId === group.id)"
                 >
-                <span class="shrink-0 text-[10.5px] font-normal text-[var(--color-neutral-600)]">
-                  {{ membersOf(group.id).length }}
-                </span>
-              </button>
-              <button
-                type="button"
-                :aria-label="`New workspace in ${group.name}`"
-                :title="`New workspace in ${group.name}`"
-                class="tree-group-add ml-1 grid size-5 shrink-0 cursor-default place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-[var(--color-accent)]"
-                @click.stop="emit('create-workspace', group.id)"
+                  <button
+                    type="button"
+                    :aria-expanded="!collapsedFolderIds.has(group.id)"
+                    class="flex min-w-0 flex-1 cursor-default items-center gap-2 py-[5px] text-left text-[12px] font-semibold transition hover:text-ink-1"
+                    @click="toggleFolder(group.id)"
+                  >
+                    <component
+                      :is="collapsedFolderIds.has(group.id) ? CaretRight : CaretDown"
+                      :size="10"
+                      class="shrink-0 text-[var(--color-neutral-600)]"
+                    />
+                    <!-- A GROUP of workspaces — the stack glyph, never a folder
+                         (folders mean files everywhere else now). -->
+                    <Stack :size="13" weight="duotone" class="shrink-0 text-[var(--color-neutral-400)]" />
+                    <input
+                      v-if="editingGroupId === group.id"
+                      ref="renameInput"
+                      v-model="editingName"
+                      maxlength="60"
+                      :aria-label="`Rename ${group.name}`"
+                      class="min-w-0 flex-1 rounded-sm bg-inset px-1 text-[12px] text-ink-1 outline-none"
+                      @keydown.enter.prevent="commitRename"
+                      @keydown.esc.prevent="editingGroupId = null"
+                      @blur="commitRename"
+                      @click.stop
+                    />
+                    <span
+                      v-else
+                      class="min-w-0 flex-1 truncate"
+                      @dblclick.stop="startRename(group)"
+                      >{{ group.name }}</span
+                    >
+                    <span class="shrink-0 text-[10.5px] font-normal text-[var(--color-neutral-600)]">
+                      {{ membersOf(group.id).length }}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    :aria-label="`New workspace in ${group.name}`"
+                    :title="`New workspace in ${group.name}`"
+                    class="tree-group-add ml-1 grid size-5 shrink-0 cursor-default place-items-center rounded-sm text-[var(--color-neutral-500)] transition hover:bg-row-hover hover:text-[var(--color-accent)]"
+                    @click.stop="emit('create-workspace', group.id)"
+                  >
+                    <Plus :size="12" weight="bold" />
+                  </button>
+                </div>
+              </ContextMenu>
+              <!-- Members hang off a guide line dropped from the header's own
+                   left edge, so an ungrouped row below (flush left, no spine)
+                   never reads as one of them. The 7px + 1px rule + 4px pad keeps
+                   each row at the same 12px indent the tree has always used. -->
+              <ul
+                v-if="!collapsedFolderIds.has(group.id)"
+                class="tree-members my-0 ml-[7px] grid list-none gap-0.5 border-l border-hair-strong pl-1"
               >
-                <Plus :size="12" weight="bold" />
-              </button>
+                <li
+                  v-for="workspace in membersOf(group.id)"
+                  :key="workspace.id"
+                  class="tree-slot rounded-sm"
+                  :class="[
+                    dnd.rowEdge(workspace.id) === 'before' && 'tree-drop-before',
+                    dnd.rowEdge(workspace.id) === 'after' && 'tree-drop-after',
+                  ]"
+                  @dragover="dnd.onRowDragOver($event, workspace.id, group.id)"
+                  @dragleave="dnd.clearTargetIf((t) => t.kind === 'row' && t.workspaceId === workspace.id)"
+                  @drop.prevent.stop="dnd.drop()"
+                >
+                  <WorkspaceTreeRow
+                    :workspace="workspace"
+                    :is-active="props.activeWorkspaceId === workspace.id"
+                    :status-view="statusViewOf(workspace.id)"
+                    @select="emit('select', workspace.id)"
+                    @drill="emit('drill', workspace.id)"
+                    @drag-start="dnd.startWorkspaceDrag(workspace.id)"
+                    @drag-end="dnd.endDrag()"
+                  />
+                </li>
+              </ul>
             </div>
-          </ContextMenu>
-          <!-- Members hang off a guide line dropped from the header's own
-               left edge, so an ungrouped row below (flush left, no spine)
-               never reads as one of them. The 7px + 1px rule + 4px pad keeps
-               each row at the same 12px indent the tree has always used. -->
+          </div>
+
+          <!-- The root zone — ungrouped rows, in their own order; a drop on the
+               zone itself detaches (last), a drop between rows places. -->
           <ul
-            v-if="!collapsedFolderIds.has(group.id)"
-            class="tree-members my-0 ml-[7px] grid list-none gap-0.5 border-l border-hair-strong pl-1"
+            class="tree-root mt-2 mb-0 grid min-h-6 list-none gap-0.5 rounded-sm border border-dashed p-0.5 pl-0.5 transition"
+            :class="
+              dnd.isRootTarget() && hoveredRootSectionId === section.id
+                ? 'border-gold bg-gold-soft'
+                : 'border-transparent'
+            "
+            @dragover="hoveredRootSectionId = section.id, dnd.onRootDragOver($event)"
+            @dragleave="
+              hoveredRootSectionId = null, dnd.clearTargetIf((t) => t.kind === 'root')
+            "
+            @drop.prevent="hoveredRootSectionId = null, dnd.drop()"
           >
             <li
-              v-for="workspace in membersOf(group.id)"
+              v-for="workspace in section.rootWorkspaces"
               :key="workspace.id"
               class="tree-slot rounded-sm"
               :class="[
                 dnd.rowEdge(workspace.id) === 'before' && 'tree-drop-before',
                 dnd.rowEdge(workspace.id) === 'after' && 'tree-drop-after',
               ]"
-              @dragover="dnd.onRowDragOver($event, workspace.id, group.id)"
+              @dragover="dnd.onRowDragOver($event, workspace.id, ROOT_LIST_KEY)"
               @dragleave="dnd.clearTargetIf((t) => t.kind === 'row' && t.workspaceId === workspace.id)"
               @drop.prevent.stop="dnd.drop()"
             >
@@ -368,41 +485,8 @@ function onGroupMenu(group: { id: string; name: string }, itemId: string) {
               />
             </li>
           </ul>
-        </div>
-      </div>
-
-      <!-- The root zone — ungrouped rows, in their own order; a drop on the
-           zone itself detaches (last), a drop between rows places. -->
-      <ul
-        class="tree-root mt-2 mb-0 grid min-h-6 list-none gap-0.5 rounded-sm border border-dashed p-0.5 pl-0.5 transition"
-        :class="dnd.isRootTarget() ? 'border-gold bg-gold-soft' : 'border-transparent'"
-        @dragover="dnd.onRootDragOver($event)"
-        @dragleave="dnd.clearTargetIf((t) => t.kind === 'root')"
-        @drop.prevent="dnd.drop()"
-      >
-        <li
-          v-for="workspace in rootWorkspaces"
-          :key="workspace.id"
-          class="tree-slot rounded-sm"
-          :class="[
-            dnd.rowEdge(workspace.id) === 'before' && 'tree-drop-before',
-            dnd.rowEdge(workspace.id) === 'after' && 'tree-drop-after',
-          ]"
-          @dragover="dnd.onRowDragOver($event, workspace.id, ROOT_LIST_KEY)"
-          @dragleave="dnd.clearTargetIf((t) => t.kind === 'row' && t.workspaceId === workspace.id)"
-          @drop.prevent.stop="dnd.drop()"
-        >
-          <WorkspaceTreeRow
-            :workspace="workspace"
-            :is-active="props.activeWorkspaceId === workspace.id"
-            :status-view="statusViewOf(workspace.id)"
-            @select="emit('select', workspace.id)"
-            @drill="emit('drill', workspace.id)"
-            @drag-start="dnd.startWorkspaceDrag(workspace.id)"
-            @drag-end="dnd.endDrag()"
-          />
-        </li>
-      </ul>
+        </template>
+      </section>
 
       <p
         v-if="props.workspaces.length === 0"

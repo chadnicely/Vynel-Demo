@@ -9,8 +9,10 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import WorkspaceTree from "./WorkspaceTree.vue";
 
-// Two groups + two ungrouped rows. Every row keeps its place whatever its
-// state — Blog is parked (quiet, nothing open) and still sits at the root.
+// Two groups + two ungrouped rows, across both sections: Clients is active
+// (Acme is running; Cove's status has not landed, which reads as active),
+// Side is an empty group, and Blog + Dune are quiet at the root — so they sit
+// under Not running.
 function mountTree() {
   return mount(WorkspaceTree, {
     props: {
@@ -28,6 +30,7 @@ function mountTree() {
       statusByWorkspaceId: {
         "ws-a": { status: "running" as const, note: null, tasksDone: 1, tasksTotal: 3 },
         "ws-b": { status: "not_running" as const, note: null, tasksDone: 0, tasksTotal: 0 },
+        "ws-d": { status: "not_running" as const, note: null, tasksDone: 0, tasksTotal: 0 },
       },
       globalStatus: "not_running" as const,
       accountName: "Sam",
@@ -78,16 +81,21 @@ describe("WorkspaceTree", () => {
     wrapper.unmount();
   });
 
-  it("creating lives in the strip above Global and on each group", async () => {
+  it("creating lives on the Active Projects header and on each group", async () => {
     const wrapper = mountTree();
 
-    // The strip sits ABOVE the Global row.
-    const html = wrapper.html();
-    expect(html.indexOf("tree-create-strip")).toBeLessThan(html.indexOf("Global"));
+    // Creating rides the ACTIVE section's header, and only that one — a new
+    // project is never born parked.
+    const headers = wrapper.findAll(".tree-section-header");
+    expect(headers).toHaveLength(2);
+    expect(headers[0]!.text()).toContain("Active Projects");
+    expect(headers[0]!.find("button.tree-new-workspace").exists()).toBe(true);
+    expect(headers[1]!.text()).toContain("Not running");
+    expect(headers[1]!.find("button.tree-new-workspace").exists()).toBe(false);
 
-    // Strip: group first, then workspace (Kafi) — a new group, a new workspace at the root.
-    const strip = wrapper.find(".tree-create-strip").html();
-    expect(strip.indexOf("tree-new-group")).toBeLessThan(strip.indexOf("tree-new-workspace"));
+    // Group first, then workspace (Kafi) — a new group, a new workspace at the root.
+    const header = headers[0]!.html();
+    expect(header.indexOf("tree-new-group")).toBeLessThan(header.indexOf("tree-new-workspace"));
     await wrapper.find("button.tree-new-group").trigger("click");
     expect(wrapper.emitted("create-group")).toHaveLength(1);
     await wrapper.find("button.tree-new-workspace").trigger("click");
@@ -242,14 +250,54 @@ describe("WorkspaceTree", () => {
     await wrapper.setProps({ treeOrder: emittedOrder(wrapper) ?? null });
   }
 
-  it("parked rows stay exactly where they are — no NOT RUNNING group", () => {
+  // Chad, 2026-08-24 — reversing the 2026-08-19 "rows stay put": the section
+  // is read off the row's status (Kafi, 2026-08-27), never dragged.
+  it("parked rows sit under Not running; a group follows its liveliest member", () => {
     const wrapper = mountTree();
-    expect(wrapper.text()).not.toContain("Not running");
-    // Blog (parked) still lists at the root, in server order, dimmed.
-    const rootNames = wrapper
+
+    const sections = wrapper.findAll(".tree-section");
+    expect(sections).toHaveLength(2);
+
+    // Clients holds a running member, so the whole group is active — and its
+    // members travel WITH it, never split across sections.
+    const active = sections[0]!;
+    expect(active.text()).toContain("Active Projects");
+    expect(active.find(".tree-group-header").text()).toContain("Clients");
+    expect(active.findAll("ul.tree-root li.tree-slot")).toHaveLength(0);
+
+    // Blog and Dune are quiet and ungrouped — they sit under Not running,
+    // keeping their order relative to each other.
+    const parked = sections[1]!;
+    expect(parked.text()).toContain("Not running");
+    const parkedNames = parked
       .findAll("ul.tree-root li.tree-slot")
       .map((node) => node.find(".truncate").text());
-    expect(rootNames).toEqual(["Blog", "Dune"]);
+    expect(parkedNames).toEqual(["Blog", "Dune"]);
+    wrapper.unmount();
+  });
+
+  it("each section counts PROJECTS, groups flattened", () => {
+    const wrapper = mountTree();
+    const counts = wrapper
+      .findAll(".tree-section-toggle")
+      .map((node) => node.findAll("span").at(-1)!.text());
+    // Active: Acme + Cove inside Clients (Side is empty). Parked: Blog + Dune.
+    expect(counts).toEqual(["2", "2"]);
+    wrapper.unmount();
+  });
+
+  it("a section folds on its heading and the fold is remembered", async () => {
+    const wrapper = mountTree();
+    const toggles = wrapper.findAll(".tree-section-toggle");
+    expect(toggles[1]!.attributes("aria-expanded")).toBe("true");
+
+    await toggles[1]!.trigger("click");
+
+    expect(toggles[1]!.attributes("aria-expanded")).toBe("false");
+    expect(wrapper.text()).not.toContain("Blog");
+    expect(JSON.parse(localStorage.getItem("vynel.tree.collapsed-sections")!)).toEqual([
+      "not-running",
+    ]);
     wrapper.unmount();
   });
 

@@ -73,22 +73,34 @@ const blocks = computed<SidebarBlock[]>(() => {
   return built;
 });
 
-// Folded groups persist across launches, like the sidebar width. A corrupt
-// stored value falls back to everything-open — losing a fold preference is
-// the harmless failure, so no error surfaces.
+// Folded groups persist across launches, like the sidebar width.
 const STORAGE_KEY = "vynel.sidebar.collapsed-groups";
+
+// CLOSED until opened (Chad, 2026-08-25: "it's really overwhelming"). Every
+// group open at once is seventeen rows before you have done anything; closed,
+// it is the four things you navigate by plus four headings you open when you
+// actually want them. Marketplace and Schedules sit outside every group, so
+// they stay visible either way.
+//
+// The list is the DEFAULT, not a rule — a group you open stays open, because
+// the choice is written to storage the moment you touch one.
+const COLLAPSED_BY_DEFAULT = ["toolkit", "utils", "context", "connections"];
 
 function readCollapsed(): Set<string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed: unknown = raw === null ? [] : JSON.parse(raw);
+    // Never opened this app before → start folded.
+    if (raw === null) return new Set(COLLAPSED_BY_DEFAULT);
+    const parsed: unknown = JSON.parse(raw);
     return new Set(
       Array.isArray(parsed)
         ? parsed.filter((value): value is string => typeof value === "string")
-        : [],
+        : COLLAPSED_BY_DEFAULT,
     );
   } catch {
-    return new Set();
+    // A corrupt stored value falls back to the default rather than throwing a
+    // wall of rows at someone — losing a fold preference is harmless.
+    return new Set(COLLAPSED_BY_DEFAULT);
   }
 }
 

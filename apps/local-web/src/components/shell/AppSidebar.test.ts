@@ -141,6 +141,8 @@ describe("AppSidebar", () => {
 
   describe("groups", () => {
     it("renders plain rows and grouped rows in catalog order, headers labeled", () => {
+      // Everything open — the user folded nothing back.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
       const wrapper = mountSidebar({ sectionItems: makeGroupedItems() });
 
       expect(rowLabels(wrapper)).toEqual([
@@ -157,7 +159,43 @@ describe("AppSidebar", () => {
       ).toEqual(["Toolkit", "Planner"]);
     });
 
+    // Chad, 2026-08-25: "it's really overwhelming". Every group open at once is
+    // seventeen rows before you have done anything, so the real groups start
+    // FOLDED. Headings and ungrouped rows (Marketplace) always show.
+    it("starts folded on a fresh install — headings and ungrouped rows only", () => {
+      const wrapper = mountSidebar({ sectionItems: makeGroupedItems() });
+
+      // Toolkit is folded by default; Planner is not on the default list.
+      expect(rowLabels(wrapper)).toEqual(["Home", "Chat", "Plans", "Tasks", "Marketplace"]);
+      // Both headings are still there — folded, not hidden.
+      expect(groupHeader(wrapper, "Toolkit").attributes("aria-expanded")).toBe("false");
+      expect(groupHeader(wrapper, "Planner").attributes("aria-expanded")).toBe("true");
+    });
+
+    it("opening a folded group reveals its rows and remembers the choice", async () => {
+      const wrapper = mountSidebar({ sectionItems: makeGroupedItems() });
+
+      await groupHeader(wrapper, "Toolkit").trigger("click");
+
+      expect(rowLabels(wrapper)).toContain("Agents");
+      expect(rowLabels(wrapper)).toContain("Skills");
+      expect(groupHeader(wrapper, "Toolkit").attributes("aria-expanded")).toBe("true");
+      // The default is a starting point, not a rule — a group you open stays
+      // open, so the stored set no longer holds it.
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).not.toContain("toolkit");
+    });
+
+    it("an empty stored set means everything OPEN — the user folded nothing back", () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+
+      const wrapper = mountSidebar({ sectionItems: makeGroupedItems() });
+
+      expect(rowLabels(wrapper)).toContain("Agents");
+      expect(rowLabels(wrapper)).toContain("Plans");
+    });
+
     it("folding a group hides its rows, persists, and unfolding restores them", async () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
       const wrapper = mountSidebar({ sectionItems: makeGroupedItems() });
 
       await groupHeader(wrapper, "Toolkit").trigger("click");
@@ -191,13 +229,14 @@ describe("AppSidebar", () => {
       expect(rowLabels(wrapper)).toContain("Agents");
     });
 
-    it("a corrupt stored value falls back to everything open", () => {
+    it("a corrupt stored value falls back to the folded default, not a wall of rows", () => {
       localStorage.setItem(STORAGE_KEY, "not json {");
 
       const wrapper = mountSidebar({ sectionItems: makeGroupedItems() });
 
-      expect(rowLabels(wrapper)).toContain("Agents");
+      expect(rowLabels(wrapper)).not.toContain("Agents");
       expect(rowLabels(wrapper)).toContain("Plans");
+      expect(rowLabels(wrapper)).toContain("Marketplace");
     });
 
     it("navigating to a section inside a folded group unfolds it", async () => {
