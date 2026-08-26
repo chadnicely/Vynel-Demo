@@ -227,6 +227,30 @@ describe('runClaudeChatSession', () => {
     expect(remaining.at(-1)?.kind).toBe('session-interrupted')
   })
 
+  // The mid-tool case: the interrupt lands while a tool runs, so the SDK
+  // THROWS its own "Operation aborted" (name != 'AbortError') on the next
+  // pull. That is still the stop the user asked for — interrupted, not errored.
+  it("a stop that surfaces as the runtime's own throw still ends as interrupted", async () => {
+    const controlLog = createFakeClaudeQueryControlLog()
+    controlLog.interruptThrows = true
+    installFakeQuery(
+      [fakeSystemInitStep(), fakeTextStreamStep('one'), fakeTextStreamStep('two')],
+      controlLog,
+    )
+    const activeSessionRegistry = new ActiveSessionRegistry()
+    const iterator = startSession({ activeSessionRegistry })[Symbol.asyncIterator]()
+    await iterator.next()
+
+    await activeSessionRegistry.interrupt(FAKE_CLAUDE_SESSION_ID)
+    const remaining: NormalizedSessionEvent[] = []
+    for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+      remaining.push(next.value)
+    }
+
+    expect(remaining.map((event) => event.kind)).not.toContain('session-errored')
+    expect(remaining.at(-1)?.kind).toBe('session-interrupted')
+  })
+
   // Chad, 2026-08-25: "it needs to stop IMMEDIATELY, no delay". Aborting alone
   // only unwinds our iteration — a long Bash keeps running inside the CLI
   // until it returns. The CLI's own interrupt reaches it mid-tool.

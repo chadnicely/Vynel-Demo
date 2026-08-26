@@ -431,7 +431,12 @@ export async function* runClaudeChatSession(
       }
     }
   } catch (error) {
-    if (isAbortError(error)) {
+    // A stop the user asked for reaches here two ways: our own AbortError, or
+    // the runtime's own "Operation aborted" throw (the SDK's, whose name is
+    // NOT 'AbortError') when the interrupt lands mid-tool. Either is the
+    // stop's footprint, not a failure — the room must never read "hit a
+    // problem" because someone pressed ABORT.
+    if (isAbortError(error) || stopRequested) {
       yield { kind: 'session-interrupted', sessionId, interruptedAt: new Date() }
     } else {
       const { code, message } = describeThrownError(error)

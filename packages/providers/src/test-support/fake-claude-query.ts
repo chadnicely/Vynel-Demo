@@ -27,6 +27,9 @@ export type FakeClaudeQueryControlLog = {
   permissionModes: string[]
   /** Make the next mode switch fail the way a runtime that refuses it would. */
   refuseModeSwitch?: boolean
+  /** Interrupt by THROWING "Operation aborted" on the next pull (the SDK's
+   *  real mid-tool shape) rather than emitting an error result. */
+  interruptThrows?: boolean
 }
 
 export function createFakeClaudeQueryControlLog(): FakeClaudeQueryControlLog {
@@ -48,9 +51,11 @@ export function createFakeClaudeQuery(
     // result ("Operation aborted") — and that result usually lands before the
     // caller's abort signal does. The fake does the same once interrupted.
     let interruptedResult: Record<string, unknown> | null = null
+    let interruptedThrow: Error | null = null
     async function* generate(): AsyncGenerator<unknown, void> {
       for (const step of script) {
         await Promise.resolve() // let the event loop turn between steps
+        if (interruptedThrow !== null) throw interruptedThrow
         if (interruptedResult !== null) {
           yield interruptedResult
           return
@@ -76,12 +81,18 @@ export function createFakeClaudeQuery(
     const controls = {
       interrupt: async () => {
         controlLog.interruptCount += 1
-        interruptedResult = {
-          type: 'result',
-          subtype: 'error',
-          session_id: FAKE_CLAUDE_SESSION_ID,
-          errors: ['Operation aborted'],
-          usage: {},
+        if (controlLog.interruptThrows === true) {
+          // The runtime's own mid-tool throw — a non-AbortError "Operation
+          // aborted" (the SDK's real shape), so the next pull rejects.
+          interruptedThrow = new Error('Operation aborted')
+        } else {
+          interruptedResult = {
+            type: 'result',
+            subtype: 'error',
+            session_id: FAKE_CLAUDE_SESSION_ID,
+            errors: ['Operation aborted'],
+            usage: {},
+          }
         }
       },
       setPermissionMode: async (mode: string) => {
