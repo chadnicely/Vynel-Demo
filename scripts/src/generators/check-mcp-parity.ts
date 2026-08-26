@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { quoteArgsForShell } from '../quote-for-shell.js'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const checkedInPath = path.join(repoRoot, 'apps', 'mcp', 'src', 'generated', 'api-tools.ts')
@@ -37,7 +38,7 @@ try {
 // leaving the working tree in a regenerated state on a clean run.
 const result = spawnSync(
   'tsx',
-  [path.join(repoRoot, 'scripts', 'src', 'generators', 'generate-mcp-tools.ts')],
+  quoteArgsForShell([path.join(repoRoot, 'scripts', 'src', 'generators', 'generate-mcp-tools.ts')]),
   { stdio: 'inherit', shell: true },
 )
 if (result.status !== 0) {

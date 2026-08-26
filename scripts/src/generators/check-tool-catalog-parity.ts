@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { quoteArgsForShell } from "../quote-for-shell.js";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -38,7 +39,7 @@ try {
 
 const result = spawnSync(
   "tsx",
-  [
+  quoteArgsForShell([
     path.join(
       repoRoot,
       "scripts",
@@ -46,7 +47,7 @@ const result = spawnSync(
       "generators",
       "generate-tool-catalog.ts",
     ),
-  ],
+  ]),
   { stdio: "inherit", shell: true },
 );
 if (result.status !== 0) {

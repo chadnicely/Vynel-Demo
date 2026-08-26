@@ -27,6 +27,7 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { rcedit } from 'rcedit'
+import { quoteArgsForShell } from '../quote-for-shell.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..')
@@ -36,10 +37,11 @@ const payloadDir = join(srcTauriDir, 'payload')
 function run(command: string, args: string[], cwd: string): void {
   // shell: true (needed for the .cmd shims) joins args UNQUOTED — quote here,
   // once, so a spaced path can never silently split into two arguments.
-  const quotedArgs = args.map((arg) =>
-    arg.includes(' ') && !arg.startsWith('"') ? `"${arg}"` : arg,
-  )
-  const result = spawnSync(command, quotedArgs, { cwd, stdio: 'inherit', shell: true })
+  const result = spawnSync(command, quoteArgsForShell(args), {
+    cwd,
+    stdio: 'inherit',
+    shell: true,
+  })
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status ?? 'null'}.`)
   }

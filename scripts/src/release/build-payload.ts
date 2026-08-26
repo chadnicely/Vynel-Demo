@@ -29,6 +29,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectBackendThirdPartyDependencies } from "./collect-backend-dependencies.js";
+import { quoteArgsForShell } from "../quote-for-shell.js";
 import {
   expectedNativeBinaryFormat,
   readNativeBinaryFormat,
@@ -52,7 +53,9 @@ function run(
   cwd: string,
   extraEnv?: Record<string, string>,
 ): void {
-  const result = spawnSync(command, args, {
+  // shell: true joins args UNQUOTED — `prebuild-install/bin.js` arrives as an
+  // absolute path, so a spaced checkout would split it.
+  const result = spawnSync(command, quoteArgsForShell(args), {
     cwd,
     stdio: "inherit",
     shell: true,

@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { quoteArgsForShell } from '../quote-for-shell.js'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const artifacts = [
@@ -49,7 +50,7 @@ const generators = ['generate-sdk.ts', 'generate-namespaced-sdk.ts']
 for (const generator of generators) {
   const result = spawnSync(
     'tsx',
-    [path.join(repoRoot, 'scripts', 'src', 'generators', generator)],
+    quoteArgsForShell([path.join(repoRoot, 'scripts', 'src', 'generators', generator)]),
     { stdio: 'inherit', shell: true },
   )
   if (result.status !== 0) {
