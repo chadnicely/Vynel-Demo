@@ -77,3 +77,32 @@ describe("MarkdownText", () => {
     expect(wrapper.text()).toContain("const price = 49;");
   });
 });
+
+// File paths become in-app links (Kafi, 2026-08-26): in prose and in inline
+// code, never inside a real URL or a code block.
+describe("MarkdownText file links", () => {
+  it("links paths in prose and in inline code on the app's file scheme", () => {
+    const wrapper = mount(MarkdownText, {
+      props: { source: "Wrote `docs/plan.md` and C:\\Users\\me\\a.ts today." },
+    });
+    const links = wrapper.findAll("a.file-link");
+    expect(links.map((link) => link.text())).toEqual(["docs/plan.md", "C:\\Users\\me\\a.ts"]);
+    expect(links[0]!.attributes("href")).toBe(`vynel://file/${encodeURIComponent("docs/plan.md")}`);
+    expect(wrapper.find("code a.file-link").exists()).toBe(true);
+  });
+
+  it("leaves a URL's path and a fenced code block alone", () => {
+    const wrapper = mount(MarkdownText, {
+      props: { source: "see https://example.com/docs/a.md\n\n```\nsrc/a.ts\n```" },
+    });
+    expect(wrapper.findAll("a.file-link")).toHaveLength(0);
+    expect(wrapper.get("a").attributes("href")).toBe("https://example.com/docs/a.md");
+  });
+
+  it("the plain variant (what the person typed) links paths too", () => {
+    const wrapper = mount(MarkdownText, {
+      props: { source: "open src/pricing.ts please", variant: "plain" },
+    });
+    expect(wrapper.get("a.file-link").text()).toBe("src/pricing.ts");
+  });
+});

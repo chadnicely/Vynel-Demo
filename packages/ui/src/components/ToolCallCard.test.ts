@@ -275,3 +275,56 @@ describe("ToolCallCard", () => {
     });
   });
 });
+
+// Paths are clickable (Kafi, 2026-08-26): the chip's file name and the
+// expanded path header are in-app file links; a picture in the result shows
+// small on the chip and full size when expanded.
+describe("ToolCallCard — file links and pictures", () => {
+  it("links the file on the chip and in the path header, on the app's file scheme", async () => {
+    const wrapper = mount(ToolCallCard, {
+      props: { toolCall: makeToolCall({ toolInput: { file_path: "C:\\proj\\src\\pricing.ts" } }) },
+    });
+    const chip = wrapper.get("a.argument.is-file-link");
+    expect(chip.text()).toBe("pricing.ts");
+    expect(chip.attributes("href")).toBe(
+      `vynel://file/${encodeURIComponent("C:\\proj\\src\\pricing.ts")}`,
+    );
+    // The link never toggles the card; the row itself still does.
+    await chip.trigger("click");
+    expect(wrapper.find(".detail").exists()).toBe(false);
+    await wrapper.find(".summary").trigger("click");
+    const header = wrapper.get("a.file-path.is-link");
+    expect(header.text()).toBe("C:\\proj\\src\\pricing.ts");
+    expect(header.attributes("href")).toBe(chip.attributes("href"));
+  });
+
+  it("a command card has no file link", () => {
+    const wrapper = mount(ToolCallCard, {
+      props: {
+        toolCall: makeToolCall({ toolName: "Bash", toolInput: { command: "ls" }, toolOutput: "a" }),
+      },
+    });
+    expect(wrapper.find("a.is-file-link").exists()).toBe(false);
+  });
+
+  it("shows a returned picture small on the chip and full size with its caption when expanded", async () => {
+    const wrapper = mount(ToolCallCard, {
+      props: {
+        toolCall: makeToolCall({
+          toolName: "mcp__desktop__screenshot_app",
+          toolInput: { app: "Notepad" },
+          toolOutput: [
+            { type: "text", text: "Screenshot of Notepad" },
+            { type: "image", data: "AAAA", mimeType: "image/png" },
+          ],
+        }),
+      },
+    });
+    const preview = wrapper.get("img.image-preview");
+    expect(preview.attributes("src")).toBe("data:image/png;base64,AAAA");
+    await preview.trigger("click");
+    expect(wrapper.find("img.image-preview").exists()).toBe(false);
+    expect(wrapper.get("img.image-full").attributes("src")).toBe("data:image/png;base64,AAAA");
+    expect(wrapper.get(".image-caption").text()).toBe("Screenshot of Notepad");
+  });
+});

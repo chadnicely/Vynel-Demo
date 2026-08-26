@@ -12,6 +12,9 @@ export type ToolCallBody =
   | { kind: "diff"; language: string; removed: string; added: string }
   | { kind: "terminal"; command: string; output: string }
   | { kind: "text"; text: string }
+  /** A picture the tool returned (a desktop screenshot, an image file read)
+   *  — shown as the picture, never as a base64 dump. */
+  | { kind: "image"; src: string; caption: string | null }
   | { kind: "payloads"; input: unknown; output: unknown };
 
 export interface ToolCallStats {
@@ -26,9 +29,68 @@ export interface ToolCallPresentation {
   argument: string | null;
   /** Fuller context shown as the expanded header — usually the full path. */
   subtitle: string | null;
+  /** The file this call touched, as the tool named it — the chip and the
+   *  path header link to it (`fileLinkHref`). Absent on non-file calls. */
+  filePath?: string | null;
   /** Added/removed line counts for file-writing tools — the "+29 -3" chip. */
   stats: ToolCallStats | null;
   body: ToolCallBody;
+}
+
+/** The first image block in an MCP/SDK tool result, as a data URL, with the
+ *  result's text blocks as its caption. Both block grammars are read: the
+ *  MCP one (`{type:'image', data, mimeType}` — the desktop tools) and the
+ *  API one (`{type:'image', source:{data, media_type}}` — an image file
+ *  Read). Null when the output carries no picture. */
+export function imageContentOf(
+  output: unknown,
+): { src: string; caption: string | null } | null {
+  const blocks = Array.isArray(output)
+    ? output
+    : typeof output === "object" &&
+        output !== null &&
+        Array.isArray((output as Record<string, unknown>)["content"])
+      ? ((output as Record<string, unknown>)["content"] as unknown[])
+      : null;
+  if (blocks === null) return null;
+  let src: string | null = null;
+  const texts: string[] = [];
+  for (const block of blocks) {
+    if (typeof block !== "object" || block === null) continue;
+    const fields = block as Record<string, unknown>;
+    if (fields["type"] === "text" && typeof fields["text"] === "string") {
+      texts.push(fields["text"]);
+      continue;
+    }
+    if (fields["type"] !== "image" || src !== null) continue;
+    const source =
+      typeof fields["source"] === "object" && fields["source"] !== null
+        ? (fields["source"] as Record<string, unknown>)
+        : fields;
+    const data = source["data"];
+    if (typeof data !== "string" || data === "") continue;
+    const mimeType =
+      typeof source["mimeType"] === "string"
+        ? source["mimeType"]
+        : typeof source["media_type"] === "string"
+          ? source["media_type"]
+          : "image/png";
+    src = data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`;
+  }
+  if (src === null) return null;
+  const caption = texts.join("\n").trim();
+  return { src, caption: caption === "" ? null : caption };
+}
+
+/** The presentation as built, unless the result carried a picture — then the
+ *  picture IS the body (a screenshot's whole point is seeing it). */
+function withImageBody(
+  presentation: ToolCallPresentation,
+  image: ReturnType<typeof imageContentOf>,
+): ToolCallPresentation {
+  return image === null
+    ? presentation
+    : { ...presentation, body: { kind: "image", src: image.src, caption: image.caption } };
 }
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
@@ -110,28 +172,34 @@ export function presentToolCall(
 ): ToolCallPresentation {
   const { toolName, toolInput } = toolCall;
   const toolOutput = displayableToolOutput(toolCall);
+  const image = imageContentOf(toolOutput);
 
   // Desktop-control calls read as actions on the user's screen ("Pressed
   // 'Save' in Notepad"), never as raw payload panes — the same grammar the
-  // attention overlay narrates with (desktop-step-presenter.ts).
+  // attention overlay narrates with (desktop-step-presenter.ts). A screenshot
+  // (or an act with `observe`) shows its picture.
   const desktopPresentation = presentDesktopToolCall(toolName, toolInput, toolOutput);
-  if (desktopPresentation !== null) return desktopPresentation;
+  if (desktopPresentation !== null) return withImageBody(desktopPresentation, image);
 
   const filePath = inputField(toolInput, "file_path");
 
   if (toolName === "Read" && filePath) {
-    return {
-      verb: "Read",
-      argument: baseName(filePath),
-      subtitle: filePath,
-      stats: null,
-      body: {
-        kind: "code",
-        code: asDisplayString(toolOutput),
-        language: languageForFilePath(filePath),
-        startLine: inputNumberField(toolInput, "offset") ?? 1,
+    return withImageBody(
+      {
+        verb: "Read",
+        argument: baseName(filePath),
+        subtitle: filePath,
+        filePath,
+        stats: null,
+        body: {
+          kind: "code",
+          code: asDisplayString(toolOutput),
+          language: languageForFilePath(filePath),
+          startLine: inputNumberField(toolInput, "offset") ?? 1,
+        },
       },
-    };
+      image,
+    );
   }
 
   if (toolName === "Write" && filePath) {
@@ -143,6 +211,7 @@ export function presentToolCall(
       verb: "Wrote",
       argument: baseName(filePath),
       subtitle: filePath,
+      filePath,
       stats: { added: countLines(content), removed: 0 },
       body: {
         kind: "diff",
@@ -160,6 +229,7 @@ export function presentToolCall(
       verb: "Edited",
       argument: baseName(filePath),
       subtitle: filePath,
+      filePath,
       stats: { added: countLines(added), removed: countLines(removed) },
       body: {
         kind: "diff",
@@ -245,13 +315,16 @@ export function presentToolCall(
     };
   }
 
-  return {
-    verb: displayToolName(toolName),
-    argument: null,
-    subtitle: null,
-    stats: null,
-    body: { kind: "payloads", input: toolInput, output: toolOutput },
-  };
+  return withImageBody(
+    {
+      verb: displayToolName(toolName),
+      argument: null,
+      subtitle: null,
+      stats: null,
+      body: { kind: "payloads", input: toolInput, output: toolOutput },
+    },
+    image,
+  );
 }
 
 function soleStringField(input: unknown): string | null {

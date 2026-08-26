@@ -62,6 +62,13 @@ export {
 } from "./lib/workspace-color.js";
 export { splitSourceLabel } from "./lib/source-label.js";
 export {
+  FILE_LINK_PREFIX,
+  fileLinkHref,
+  filePathFromAppLink,
+  findFilePaths,
+  isAbsoluteFilePath,
+} from "./lib/file-link.js";
+export {
   formatMessageTimestamp,
   formatMessageTime,
   formatElapsed,
