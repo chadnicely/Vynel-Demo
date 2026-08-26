@@ -3,7 +3,7 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
-## ✅ 2026-08-26 SESSION/WORKSPACE STATE FIXES — BUILT on `fix/session-state` (worktree, band 18960)
+## ✅ 2026-08-26 SESSION/WORKSPACE STATE FIXES — MERGED TO MAIN (`ae855a1f`, fast-forward from `fix/session-state`)
 
 Kafi's five-screenshot list (`.tmp/fix-session-state/`), all landed, gate green, journal =
 `.claude/journal/2026-08-26-session-state-fixes.md`. (1) `TreeStateMark.vue` = the ONE state mark
@@ -20,8 +20,11 @@ pointers open on continuing conversations (`liveTurnHostSessionId`); the pointer
 card (generic Agent chip dropped); `AgentRunPane` shows instruction + result. (5) `vynel://file/`
 links (ui `lib/file-link.ts` + the shell's link router + `file-link-target.ts`) make tool-card
 paths and chat paths open the editor; image tool results (screenshot_app, observe, image Read)
-render as pictures. **Remaining:** Kafi's live smoke (a child session working → the room spins;
-a screenshot card; a path click), then merge to main.
+render as pictures. Reviewer's five should-fixes folded in before the final gate (1044 files /
+7108 tests green). **Remaining:** Kafi's live smoke NOW FROM MAIN (a child session working → the
+room spins on tree/tab/sidebar card/nodes; a delivered row wears its session icon; a running
+agent card opens the pane; a screenshot card shows the picture; a path click opens the editor).
+The worktree `.claude/worktrees/fix-session-state` (band 18960) can be removed once smoked.
 
 ## ✅ 2026-08-26 VOICE CLOUD PROVIDERS — MERGED TO MAIN (Kafi: "get everything to main")
 
