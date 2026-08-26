@@ -39,17 +39,24 @@ word on D2–D4 — nothing moves before that.
   `<projects home>/<name>` (migration 0056 `users.projectsDirectory`, null → `~/Documents/Vynel`);
   `sanitizeFolderName` refuses `.`/`..`; study/plan resolve the folder server-side; scaffold's
   `directory` optional (pull-in only).
-- **D3** (`bfc34d56`): `workspaces.setupCompletedAt` (migration 0057) → a Needs setup sidebar
+- **D3** (`f4a556a2`): `workspaces.setupCompletedAt` (migration 0057) → a Needs setup sidebar
   section (first, hidden at zero, beats status); "Finish setting up" reads repo / .env KEY NAMES /
   db + links to the global account, Done stamps it; scaffold+clone stamp at birth; setup read
   UI-only (no x-mcp); FinishSetupDialog on the shared Modal (WizardModal dropped), dead controls
-  removed.
-- **D4** (pending commit): the fold-the-live-turn on main's LiveTurn — a collapsible INCOMING turn
+  removed. (The first D3 commit dropped its whole `apps/local-web` layer — green in the tree,
+  incomplete in the commit; amended it back in and proved the amended commit in isolation, D4
+  stashed: 1440 web tests green.)
+- **D4** (`ab4801aa`): the fold-the-live-turn on main's LiveTurn — a collapsible INCOMING turn
   (non-composer origin) shows one activity line + caret, opens on click; a fresh composer ask
   streams open; an unresolved approval / blocked call ALWAYS forces it open. **Confirm with Kafi:**
   we fold only incoming turns (Chad folded ALL) — flip `:collapsible` to always-on to fold the
   fresh ask too.
-**Next:** commit D4, final gate, fast-forward main.
+**Next:** final tip gate green → `git merge --ff-only` main (done in-session). Push to origin held
+for Kafi. Owed smokes: a pulled-in project lands in **Needs setup** (D3); the wizard opens on the
+idea + names at screen 9 (D2); an incoming turn folds to one line (D4). Housekeeping for Kafi to
+green-light: remove review worktree `.claude/worktrees/mission-control-restore` (band 18970) and
+this pull worktree (band 18980) post-merge; delete the empty probe folders under
+`~/Documents/Vynel` + the stray `.vynel/` in harnesslauncher.
 
 ## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
 
