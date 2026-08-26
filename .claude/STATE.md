@@ -3,6 +3,25 @@
 **Updated 2026-08-26.** After a compaction read this first, then `CLAUDE.md` →
 `docs/architecture.md` + the memories. State lives on disk, not chat.
 
+## 🔍 2026-08-27 MISSION-CONTROL RESTORE — Chad's branch reviewed, pull plan written (worktree 18970)
+
+Kafi's ask: worktree for `origin/chad/mission-control-restore` (Chad's 3 commits, cut from
+`fe55c557` = 0.3.6; main 71 ahead; 167 files, 52 touched on both sides), compare, review his UI
+first, plan the pull. Done: worktree `.claude/worktrees/mission-control-restore` (band 18970, own
+DB, `VYNEL_FIRST_LAUNCH_GATE_ENABLED=1` in its `.env`), five-area comparison + a live walk of every
+screen (screenshots in the session scratchpad), plan = **`docs/module-notes/mission-control-restore.md`**.
+Verdict: his UI is good and pullable as drawn; **never merge / never copy a file** (his files erase
+main's post-fork work in five places and bring the `claude_code` preset back); two schema columns
+ship as migrations 0053/0054 that collide with main's (regenerate as 0056+); **four decisions block
+most of it** — D1 first launch (main's 2 steps vs his 6), D2 hidden projects folder (reverses
+"the picked folder IS the workspace" for new projects), D3 `setupCompletedAt` + Needs setup (Kafi
+dropped it), D4 fold the whole live turn (hides the typing answer + Ask cards). Slice 0 (no
+decision: shell-quote fix, Modal focus-outside, queue-by-conversation as a store, providers
+live-switch + interrupt with fixes, sidebar buckets + folded groups as hunks, two-stage door,
+TasksPanel graft) can start now. Open: a step-3 engine freeze seen twice in the walk, never
+reproduced on demand (§6 of the note — most likely Defender/CFA on a sync `mkdirSync`; make the
+step async regardless). **Next:** Kafi decides D1–D4 (Chad for the reversals), then Slice 0.
+
 ## ✅ 2026-08-26 CLAUDE CONFIG CRUD — rules · commands · skills · agents BUILT (worktree)
 
 Kafi's ask: finalize Rules / Agents / Skills / Commands — user (UI) AND Claude (MCP) create /
