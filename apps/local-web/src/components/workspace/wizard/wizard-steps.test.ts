@@ -20,7 +20,6 @@ const GITHUB_TOO = { isSignedIn: true, isGitHubSignedIn: true };
 function answeredThroughQ2(): WizardAnswers {
   return {
     ...makeEmptyAnswers(),
-    directory: "C:\\Users\\chad\\Projects",
     appName: "Front of House",
     idea: "A place where my regulars can book a table.",
     who: "My customers",

@@ -14,7 +14,6 @@ import { useWizardPlan, type WizardPlanEngine } from "./use-wizard-plan.js";
 function answered(): WizardAnswers {
   return reactive({
     ...makeEmptyAnswers(),
-    directory: "C:\\Users\\chad\\Projects",
     appName: "Front of House",
     idea: "A place where my regulars can book a table.",
     who: "My customers",

@@ -30,7 +30,8 @@ function makeUser(id: string = randomUUID()) {
   }
 }
 
-// The folder the user chose on screen 1 — this IS the workspace.
+// A real tmp folder — a pull-in directory in some tests, the user's
+// projects home in others.
 function chosenFolder(): string {
   return mkdtempSync(path.join(os.tmpdir(), 'vynel-scaffold-'))
 }
@@ -150,6 +151,31 @@ describe('scaffoldWorkspace', () => {
       )
 
       expect(made.workspace.path).toBe(realpathSync(path.join(home, 'workspace')))
+    })
+  })
+
+  // Re-using a name lands in the EXISTING folder — adopt, never overwrite
+  // (the mint's documented protocol; refuse-or-confirm was considered and not
+  // taken, 2026-08-27). Only a folder that is already a WORKSPACE conflicts.
+  it('minting a name whose folder already exists adopts it and keeps its files', async () => {
+    await withTestDatabase(async (db) => {
+      const user = makeUser()
+      insertUser(db, user)
+      const home = chosenFolder()
+      updateUser(db, user.id, { projectsDirectory: home })
+      mkdirSync(path.join(home, 'My Shop'))
+      writeFileSync(path.join(home, 'My Shop', 'README.md'), 'mine already\n')
+
+      const made = await scaffoldWorkspace(
+        db,
+        { userId: user.id, name: 'My Shop', answers: ANSWERS, plan: PLAN },
+        { runGit: fakeGit([]) },
+      )
+
+      expect(made.workspace.path).toBe(realpathSync(path.join(home, 'My Shop')))
+      // writeIfAbsent: the folder's own README survives the mint.
+      expect(readFileSync(path.join(home, 'My Shop', 'README.md'), 'utf8')).toBe('mine already\n')
+      expect(existsSync(path.join(home, 'My Shop', '.vynel'))).toBe(true)
     })
   })
 

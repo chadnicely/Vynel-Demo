@@ -255,7 +255,32 @@ it, so a slow filesystem can never freeze every room. Kafi: re-test first launch
 | Slice 3 — Which project? picker | Kafi 2026-08-27: "use the Windows default file explorer, don't remove our old code" | **BUILT** on `feature/mission-control-pull`: `pickFolderWithNativeDialog` with the Windows picker embedded as `-EncodedCommand` (no `.ps1` in dist), `scanFolderForProjects` + Chad's 9 tests, `POST /workspaces/pick-folder` (a dialog is a side effect) + `GET /workspaces/scan-folder` + route tests, `WhichProjectDialog.vue` (Chad's screen, a NEW file) + 8 tests, both doors ("Pull from a folder", "Something I already have") open it; `CreateWorkspaceDialog.vue`, its 12 tests and `FileSystemBrowser.vue` untouched (still used by clone / knowledge / memory) — how the in-app browser attaches to the new screen is a later decision. One project opens its room; several stay in the sidebar (no setup stamp — D3 open). |
 | D2 — wizard opens on the idea, folder from name | Kafi 2026-08-27 | **BUILT + committed** `78f4c5ab`: migration 0056 `users.projectsDirectory` (null → `~/Documents/Vynel`), `sanitizeFolderName` refuses `.`/`..`, study/plan resolve the folder server-side, "Name your workspace" step gone (names at screen 9). |
 | D3 — `setupCompletedAt` + Needs setup + Finish setting up | Kafi 2026-08-27 | **BUILT + committed** `f4a556a2`: migration 0057, sidebar Needs-setup section (first, hidden at zero, beats status), Finish-setup reads repo / .env KEY NAMES / db + links to the account, scaffold+clone stamp at birth, setup read UI-only. First commit dropped its `apps/local-web` layer (green in tree, incomplete commit) → amended in + proved in isolation (D4 stashed, 1440 web tests). |
-| D4 — fold an incoming live turn | Kafi 2026-08-27 | **BUILT + committed** `ab4801aa`: an INCOMING turn (non-composer origin) folds to one activity line + caret, opens on click; the fresh composer ask streams open; an unresolved approval / blocked call ALWAYS forces it open (rebuilt to our rules — Chad folded every turn). Open call: fold only incoming vs. all. |
+| D4 — fold an incoming live turn | Kafi 2026-08-27 | **BUILT + committed** `ab4801aa`: an INCOMING turn (non-composer origin) folds to one activity line + caret, opens on click; the fresh composer ask streams open; an unresolved approval / blocked call ALWAYS forces it open (rebuilt to our rules — Chad folded every turn). **Open call resolved (Kafi, 2026-08-27 verification): Chad's whole-turn fold taken** — every streaming turn folds, the composer's own ask included; the pending-decision force-open and settled-turn-opens guards kept. |
 | Slice 0 | Kafi 2026-08-27: "Slice 0" + "filter them with the state we already have: idle or running" | **BUILT** as six commits on `feature/mission-control-pull`: shell-quoting fix + Modal focus-outside + mode-pick-becomes-default; the two-stage "+" door; queue-by-conversation (a Pinia store, drain-on-return waits a tick); sidebar Active / Not running **read off `useWorkspaceStatuses`** (no clock, no per-minute re-check — `workspace-activity-bucket.ts`), groups follow their liveliest member, `WorkspaceTreeSectionHeader.vue`, menu groups folded by default; providers live mode-switch (typed seam, SDK first then the holder, refusals surface) + Stop's interrupt-before-abort (failures logged) + the PATCH route pushing through `toPermissionMode`; the work-rail GRAFT (top ABORT with the Global door, Chad's card copy, lit while the task is unresolved, "All Tasks" one list with original numbers, typed lines in the card; main's sessions box / rows / quick-add kept; his dead "Open it" buttons, HALTED state and palette island not taken). Full gate + smoke in the session log. |
 | Slices 2–5 | D2 / D3 / D4 | **done** — all landed as D2/D3/D4 above; branch fast-forwarded into main in-session (push held for Kafi) |
 | The step-3 freeze | — | moot for Slice 1 (the step is gone); the async-mkdir rule stands for Slice 2 |
+
+---
+
+## Verification (2026-08-27, on main after the fast-forward)
+
+Eight parallel agents re-checked every slice + the "Always"/never-erase lists against the branch.
+**All slices landed as planned**; generated artifacts regenerated (journal monotonic 0–57), nothing
+of main's post-fork work erased. Real gaps found and fixed in the same pass:
+
+- `create-workspace.ts` still ran `mkdirSync('.vynel')` INSIDE the sync transaction (pre-fork code
+  the freeze-rule sweep missed) → hoisted to async `ensureWorkspaceMetadataDirectory` before the
+  transaction (wrapper + scaffold's direct `createWorkspaceWithin` call site), with tests.
+- `POST /workspaces/pick-folder` had no route test (no seam) → `CreateAppOptions.pickFolder`
+  (the mcpAuthDelegate precedent) + two route tests.
+- Finish-setup's AI Platform row promised "each project can use a different account" — accounts
+  are global; copy trimmed to the truth (**wording is Chad's to revisit**).
+- Stale docs/comments: this repo's wizard note superseded-marked; `wizard-steps.ts` / `wizard.ts`
+  headers rewritten to the D2 model; dead `WizardAnswers.directory` removed; the workspaces route
+  inventory recounted (nineteen, setup-complete added); fold-caret cursor `default` → `pointer`.
+- **Decisions recorded:** a mint into an existing same-name folder ADOPTS it (write-if-absent,
+  never overwrite; only an existing workspace conflicts) — chosen over the plan's refuse-or-confirm,
+  now pinned by a test. The branch's `use-default-location` / `FileSystemBrowser.startPath` /
+  clone-dialog start-path were NOT ported — coherent with D2 (pull-in stays where it sits), but the
+  clone browser no longer opens at the projects home; **open for Chad** if he wants it back.
+- False gap: StepCare's "we'll account for that too." was already on main.

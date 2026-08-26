@@ -1,9 +1,10 @@
 // The 13-screen "Walk me through it" wizard's step machine — ids, the copy
 // each screen opens with, and the per-step gate (what still stands between
 // the user and Continue, said in words beside the button — never a silently
-// dead control). Ported from Chad's design branch; the folder comes FIRST
-// (Kafi, 2026-08-23): the user picks the folder that IS the workspace before
-// anything else, and every AI read dispatches from that folder.
+// dead control). Ported from Chad's design branch; opens on the IDEA and asks
+// only a NAME at screen 9 (Chad, 2026-08-24 — D2): Finish mints the folder
+// from the name under the user's projects home, and the AI reads dispatch
+// from that home.
 
 import { REPOSITORY_NAME_PATTERN } from "@vynel/contracts/github/github-repository";
 import type { WorkspaceBriefAnswers } from "@vynel/contracts/workspaces/workspace-brief";
@@ -38,8 +39,6 @@ export type WizardWant = { text: string; from: string };
 
 /** Everything the user answers, in one flat object the screens write into. */
 export type WizardAnswers = {
-  /** Screen 1 — the folder (absolute path) that IS the workspace. */
-  directory: string | null;
   appName: string;
   idea: string;
   who: string | null;
@@ -72,7 +71,6 @@ export type WizardAnswers = {
 
 export function makeEmptyAnswers(): WizardAnswers {
   return {
-    directory: null,
     appName: "",
     idea: "",
     who: null,

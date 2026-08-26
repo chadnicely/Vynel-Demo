@@ -4,6 +4,17 @@
 (commits `40c5a5e8` engine + `5daf8ff6` web, 2026-08-11). Kafi's decisions 2026-08-23. This note is
 the per-module advice build-discipline asks for — read it before touching any slice.*
 
+> **Superseded in part (2026-08-27, the mission-control pull — D2/D3 in
+> `docs/module-notes/mission-control-restore.md`).** Chad reversed two of the 2026-08-23 calls for
+> the NEW-project path: the wizard now opens on the IDEA and asks only a NAME (screen 9); Finish
+> mints `<projects home>/<name>` under `users.projectsDirectory` (default `~/Documents/Vynel`,
+> migration 0056) — no folder pick, no path on screen until Finish. Re-using a name ADOPTS the
+> existing folder (write-if-absent, never overwrite; only a folder that is already a WORKSPACE
+> conflicts — decided over refuse-or-confirm, 2026-08-27). `workspaces.setupCompletedAt` is BACK
+> (migration 0057) with the Needs-setup bucket + "Finish setting up". PULL-IN is unchanged: the
+> picked folder is used exactly as handed over. The one-shot reads dispatch from the projects home,
+> not the not-yet-existing project folder.
+
 ## The ask
 
 Chad's demo adds a 13-screen "Walk me through it" wizard to the add-workspace flow: the user
@@ -20,7 +31,7 @@ the demo sits on decisions main has rejected).
 | Fixed `~/Vynel` home for new apps | The user picks folders (FileSystemBrowser, locked) | **Folder first** — the user chooses the app's home on screen 1; never the global space. |
 | Per-app account picker (Claude / Codex / Kimi) | One global Claude account; GitHub (later) global in Settings | Screen 10 becomes a **read-only pre-flight**: signed in? (Claude) · GitHub status (later). Nothing chosen, nothing stored per workspace. |
 | `gh repo create` on Finish | No GitHub on main | Repo leg deferred to the global GitHub connection arc; screen 9's repo fields hidden until then. |
-| `setupCompletedAt` + "Finish setting up" | Doesn't exist | Dropped. |
+| `setupCompletedAt` + "Finish setting up" | Doesn't exist | Dropped. *(Reversed 2026-08-27 — D3 brought both back.)* |
 | Own `WizardModal` + Nocturne scoped CSS | `@vynel/ui` `Modal` (reka) + Tailwind v4 | Steps restyled; logic ported verbatim. |
 | Brief seeded into the composer only | — | **The plan lives in the DB** (Kafi: no `PLAN.md`), plus the composer seed as the live channel. |
 
@@ -28,8 +39,8 @@ the demo sits on decisions main has rejected).
 
 | Fork | Call |
 |---|---|
-| Where the app is stored | **The user's chosen folder IS the workspace** (screen 1; live-smoke correction 2026-08-23 — the first cut minted a child folder from the name, which asked for the name twice and made `vynel-beta\vynel-beta`). The browser's New folder makes an empty one; the name follows the folder until edited, as in "Pull from a folder". The scaffold writes README/.gitignore only if absent, keeps an existing `.git`, and takes back only what it added on failure. The clone needs an EMPTY folder (git's rule) and empties it again on failure. The one-shots dispatch from the folder (`cwd`); a read writes nothing there. |
-| Screen order | **Place first**: place → idea → q1 → q2 → rivals → wants → plan → goals → stack → account (pre-flight) → care → sessions → done. |
+| Where the app is stored | *(Superseded 2026-08-27 for NEW projects — see the block above.)* **The user's chosen folder IS the workspace** (screen 1; live-smoke correction 2026-08-23 — the first cut minted a child folder from the name, which asked for the name twice and made `vynel-beta\vynel-beta`). The browser's New folder makes an empty one; the name follows the folder until edited, as in "Pull from a folder". The scaffold writes README/.gitignore only if absent, keeps an existing `.git`, and takes back only what it added on failure. The clone needs an EMPTY folder (git's rule) and empties it again on failure. The one-shots dispatch from the folder (`cwd`); a read writes nothing there. |
+| Screen order | *(Superseded 2026-08-27 — idea first, name at screen 9; see the block above.)* **Place first**: place → idea → q1 → q2 → rivals → wants → plan → goals → stack → account (pre-flight) → care → sessions → done. |
 | Accounts | **Global.** Claude = the signed-in account; GitHub = a global Settings connection when it lands. Never per workspace. |
 | Where the plan lives | **The DB**, attached to the workspace — not a file in the folder. |
 | How the primary session gets it | Durable: the DB row, readable by the session through a read tool. Live: "Open my app" seeds the brief into the composer; **the user presses send** (building is never a wizard side effect — Chad's rule, kept). |

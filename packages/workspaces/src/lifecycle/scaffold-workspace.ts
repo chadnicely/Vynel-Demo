@@ -33,6 +33,7 @@ import {
 } from '@vynel/contracts/workspaces/workspace-brief'
 import { createWorkspaceWithin, type CreateWorkspaceDependencies } from './create-workspace.js'
 import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
+import { ensureWorkspaceMetadataDirectory } from '../directory/ensure-workspace-metadata-directory.js'
 import { resolveExistingDirectory } from '../directory/resolve-existing-directory.js'
 import { resolveNewProjectDirectory } from '../directory/resolve-new-project-directory.js'
 import { sanitizeFolderName } from '../directory/sanitize-folder-name.js'
@@ -128,6 +129,12 @@ export async function scaffoldWorkspace(
     await writeIfAbsent(path.join(directory, 'README.md'), buildReadme(name, input.answers.stack), written)
     await writeIfAbsent(path.join(directory, '.gitignore'), GITIGNORE, written)
     const git = await initialiseGit(directory, deps, written)
+
+    // Direct `createWorkspaceWithin` callers ensure `.vynel/` themselves —
+    // async, before the transaction (see ensure-workspace-metadata-directory.ts).
+    // Tracked like every other write: a refused Finish takes it back.
+    const createdMetadataDirectory = await ensureWorkspaceMetadataDirectory(directory)
+    if (createdMetadataDirectory !== null) written.push(createdMetadataDirectory)
 
     const { workspace, brief } = withTransaction(db, (tx) => {
       const workspace = createWorkspaceWithin(tx, {

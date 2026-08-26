@@ -119,6 +119,10 @@ export interface AppEnv {
     // Set once at construction (`app.ts`) — real CLI in production, a fake
     // in route tests (a test must never open a browser).
     mcpAuthDelegate: McpAuthDelegate
+    // The native folder-picker (the OS choose-a-folder dialog seam). Set once
+    // at construction (`app.ts`) — the real dialog in production, a fake in
+    // route tests (a test must never pop a dialog on the developer's screen).
+    pickFolder: () => Promise<string | null>
     // Which remote servers hold a usable OAuth credential in Claude Code's
     // native store (metadata only, never token values) — powers the rows'
     // persisted `signedIn`. Real store read in production, a stub in route

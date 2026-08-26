@@ -116,6 +116,9 @@ describe('createWorkspace (existing-directory model)', () => {
         createWorkspace(db, { userId: user.id, name: 'Nope', directory, groupId: foreignGroup.id }),
       ).rejects.toThrow(NotFoundError)
       expect(workspacesRepository.findWorkspaceByNormalizedPath(db, user.id, directory)).toBeNull()
+      // The refused registration also took back the .vynel it had just made —
+      // the user's folder is left exactly as it was found.
+      expect(existsSync(path.join(directory, '.vynel'))).toBe(false)
     })
   })
 

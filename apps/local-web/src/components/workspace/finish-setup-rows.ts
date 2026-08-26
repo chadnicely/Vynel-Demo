@@ -35,7 +35,7 @@ const BODIES = {
   repository:
     "Where this project keeps its history, so nothing is lost and any change can be undone. A project can have more than one — the app and the server, sometimes a mobile or desktop version too.",
   account:
-    "Which of your connected accounts does the building. Each project can use a different one — keep a client on their own account and your own work on yours.",
+    "Which of your connected accounts does the building. Accounts are connected once, up in the title bar, and every project builds with them.",
   env: "The private settings the project needs to run — database address, payment keys, that sort of thing. The file stays on this computer and is never committed.",
   database:
     "The address is in the .env; the data is on a server somewhere. That last part matters.",

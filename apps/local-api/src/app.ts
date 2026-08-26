@@ -88,6 +88,7 @@ import {
   type MarketplacePluginDelegate,
 } from './services/marketplace-plugin-delegate.js'
 import { claudeMcpAuthDelegate, type McpAuthDelegate } from './services/mcp-auth-delegate.js'
+import { pickFolderWithNativeDialog } from '@vynel/workspaces'
 import { listClaudeMarketplaceSources } from './services/claude-marketplaces-reader.js'
 import type { ClaudeMarketplaceSourceView } from '@vynel/marketplace'
 import {
@@ -176,6 +177,10 @@ export interface CreateAppOptions {
   // CLI seam). Production omits it (the real CLI); a route test injects a
   // fake so the HTTP stack never opens a browser.
   readonly mcpAuthDelegate?: McpAuthDelegate
+  // Override the native folder-picker (the OS choose-a-folder dialog seam).
+  // Production omits it (the real dialog); a route test injects a fake so the
+  // HTTP stack never pops a dialog on the developer's screen.
+  readonly pickFolder?: () => Promise<string | null>
   // Override the credential-store presence reader behind the rows'
   // persisted `signedIn`. Production omits it (Claude Code's real store,
   // metadata only); a route test injects a stub.
@@ -332,6 +337,7 @@ export function createApp(options: CreateAppOptions): Hono<AppEnv> {
       options.marketplaceInstalledPluginsReader ?? listInstalledClaudePlugins,
     )
     c.set('mcpAuthDelegate', options.mcpAuthDelegate ?? claudeMcpAuthDelegate)
+    c.set('pickFolder', options.pickFolder ?? (() => pickFolderWithNativeDialog()))
     c.set(
       'mcpCredentialStatusesReader',
       options.mcpCredentialStatusesReader ?? (() => listMcpOauthCredentialStatuses()),

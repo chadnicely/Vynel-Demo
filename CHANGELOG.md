@@ -49,11 +49,11 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 - **A queued message survives changing rooms.** What you queue while a room is busy waits for that
   room — switching tabs no longer loses it — and sends when you come back and the room is idle.
 
-- **A turn arriving from elsewhere folds to one line.** When a session works in a room on its own —
-  a delivered report, the workspace manager, a schedule — its live turn shows as ONE line naming
-  what it is doing right now, rewriting itself as it goes, and opens on a click. Five tool calls no
-  longer stack into five boxes. Your own question always streams open, and a card waiting for your
-  approval is never hidden.
+- **A working turn folds to one line.** While Vynel works — on your own question, or in a room on
+  its own (a delivered report, the workspace manager, a schedule) — the live turn shows as ONE line
+  naming what it is doing right now, rewriting itself as it goes. A click opens it any time, it
+  opens by itself the moment it finishes, and a card waiting for your approval is never hidden.
+  Five tool calls no longer stack into five boxes.
 
 - **"What are we adding?"** — the "+" door asks two short questions: something new (the build
   wizard), or something you already have — and only then where it is (a folder, or a repository to
@@ -114,6 +114,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **Adding a project can no longer freeze the engine.** Creating the project's hidden metadata
+  folder now happens off the engine's main thread and outside the database transaction (a security
+  filter stalling that write once froze every room for minutes), and a refused add takes the folder
+  back — yours is left exactly as it was found.
 - **`pnpm test` could not run from a checkout path containing a space.** Three parity checks
   spawned a helper through `shell: true` without quoting the path; every such site now shares one
   quoting rule (`scripts/src/quote-for-shell.ts`).

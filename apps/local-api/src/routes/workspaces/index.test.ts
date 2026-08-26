@@ -232,6 +232,36 @@ describe('workspaces routes', () => {
     })
   })
 
+  // The dialog itself is faked via `CreateAppOptions.pickFolder` (the
+  // mcpAuthDelegate precedent) — a route test must never pop a dialog on the
+  // developer's screen. The real picker's protocol is unit-tested in
+  // `packages/workspaces` (`pick-folder.test.ts`).
+  describe('POST /workspaces/pick-folder', () => {
+    it('answers the picked path from the dialog seam', async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        const app = createApp({
+          db,
+          logger: silentLogger,
+          pickFolder: async () => 'C:\\picked\\folder',
+        })
+        const res = await app.request('/workspaces/pick-folder', { method: 'POST' })
+        expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({ path: 'C:\\picked\\folder' })
+      })
+    })
+
+    it('answers null on cancel — a normal answer, never an error', async () => {
+      await withTestDatabase(async (db) => {
+        seedUser(db)
+        const app = createApp({ db, logger: silentLogger, pickFolder: async () => null })
+        const res = await app.request('/workspaces/pick-folder', { method: 'POST' })
+        expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({ path: null })
+      })
+    })
+  })
+
   describe('GET /workspaces/directories', () => {
     it('lists subdirectories of an explicit path', async () => {
       await withTestDatabase(async (db) => {

@@ -1,6 +1,7 @@
-// Register an EXISTING directory the user selects as a workspace. In one
-// transaction: dedup-guard, insert the DB row, ensure Vynel's `.vynel/`
-// metadata dir, publish the workspace.created outbox event. Per
+// Register an EXISTING directory the user selects as a workspace. Vynel's
+// `.vynel/` metadata dir is ensured first (async, outside the transaction —
+// see ensure-workspace-metadata-directory.ts), then in one transaction:
+// dedup-guard, insert the DB row, publish the workspace.created outbox event. Per
 // `docs/blueprints/workspaces/blueprint.md §6.1` (existing-directory model,
 // 2026-06-19) + decisions D3 (case-insensitive path dedup). Identity files are
 // retired (A2) — workspace context now lives in structured memory.
@@ -11,13 +12,15 @@
 // call-site shape survives the Phase 2 Postgres flip.
 
 import path from 'node:path'
-import { mkdirSync, accessSync, statSync, realpathSync, constants as fsConstants } from 'node:fs'
+import { accessSync, statSync, realpathSync, constants as fsConstants } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import * as workspacesRepository from '@vynel/db/repositories/workspaces'
 import * as outboxRepository from '@vynel/db/repositories/_shared'
 import { ConflictError, ValidationError } from '@vynel/errors'
 import { withTransaction, type Database } from '@vynel/db'
 import type { Workspace, WorkspaceKind } from '@vynel/db/repositories/workspaces'
 import { WORKSPACE_CREATED_EVENT } from '../workspaces-events.js'
+import { ensureWorkspaceMetadataDirectory } from '../directory/ensure-workspace-metadata-directory.js'
 import { getWorkspaceGroupForUserOrThrow } from '../groups/get-workspace-group-for-user.js'
 
 export type CreateWorkspaceInput = {
@@ -45,6 +48,7 @@ export type CreateWorkspaceInput = {
 export type CreateWorkspaceDependencies = {
   readonly logger?: {
     info: (obj: object, msg: string) => void
+    warn?: (obj: object, msg: string) => void
   }
 }
 
@@ -53,7 +57,34 @@ export async function createWorkspace(
   input: CreateWorkspaceInput,
   deps: CreateWorkspaceDependencies = {},
 ): Promise<Workspace> {
-  const createdWorkspace = withTransaction(db, (tx) => createWorkspaceWithin(tx, input))
+  // The existing-directory guard runs FIRST: the ensure's recursive mkdir
+  // would otherwise mint a missing folder (or throw raw ENOTDIR on a file)
+  // instead of this ValidationError. Then `.vynel/` — async, before the
+  // transaction (a filter driver stalling a sync mkdir inside it froze every
+  // room; see ensure-workspace-metadata-directory.ts). A caller going through
+  // `createWorkspaceWithin` directly does its own ensure first.
+  assertExistingWritableDirectory(input.directory)
+  const createdMetadataDirectory = await ensureWorkspaceMetadataDirectory(input.directory)
+
+  let createdWorkspace: Workspace
+  try {
+    createdWorkspace = withTransaction(db, (tx) => createWorkspaceWithin(tx, input))
+  } catch (error) {
+    // A refused registration (dedup clash, foreign group) leaves the user's
+    // folder as it was found — take back the dir THIS call created. A cleanup
+    // failure is logged, never thrown over the real refusal (the scaffold's rule).
+    if (createdMetadataDirectory !== null) {
+      try {
+        await rm(createdMetadataDirectory, { recursive: true, force: true })
+      } catch (cleanupError) {
+        deps.logger?.warn?.(
+          { err: cleanupError, directory: input.directory },
+          'could not take back the .vynel metadata dir',
+        )
+      }
+    }
+    throw error
+  }
 
   deps.logger?.info(
     { workspaceId: createdWorkspace.id, kind: createdWorkspace.kind, path: createdWorkspace.path },
@@ -116,11 +147,6 @@ export function createWorkspaceWithin(tx: Database, input: CreateWorkspaceInput)
     updatedAt: now,
     lastAccessedAt: now,
   })
-
-  // Minimal scaffold: the user's existing folder layout is left untouched —
-  // only Vynel's `.vynel/` metadata dir is created. Identity files are retired
-  // (A2); workspace context now lives in structured memory.
-  mkdirSync(path.join(workspacePath, '.vynel'), { recursive: true })
 
   outboxRepository.insertOutboxEvent(tx, {
     id: crypto.randomUUID(),

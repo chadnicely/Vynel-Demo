@@ -1,8 +1,8 @@
-// The `workspaces` HTTP surface — fifteen routes mounted at `/workspaces`
+// The `workspaces` HTTP surface — nineteen routes mounted at `/workspaces`
 // (USER-scoped, no `:workspaceId` prefix) from `apps/local-api/src/app.ts`:
 //   - GET    /workspaces                        -> listWorkspacesForUser  [x-mcp]
 //   - POST   /workspaces                        -> createWorkspace
-//   - POST   /workspaces/pick-folder             -> pickFolderWithNativeDialog
+//   - POST   /workspaces/pick-folder             -> c.var.pickFolder (the OS-dialog seam)
 //   - GET    /workspaces/scan-folder             -> scanFolderForProjects
 //   - GET    /workspaces/directories             -> listChildDirectories
 //   - POST   /workspaces/directories             -> createChildDirectory
@@ -15,6 +15,7 @@
 //   - PATCH  /workspaces/:workspaceId           -> updateWorkspaceMetadata
 //   - PUT    /workspaces/:workspaceId/group     -> setWorkspaceGroup
 //   - PUT    /workspaces/:workspaceId/status    -> setWorkspaceStatus     [x-mcp]
+//   - POST   /workspaces/:workspaceId/setup-complete -> markWorkspaceSetupComplete
 //   - POST   /workspaces/:workspaceId/archive   -> archiveWorkspace
 //   - POST   /workspaces/:workspaceId/unarchive -> unarchiveWorkspace
 //   - DELETE /workspaces/:workspaceId           -> hardDeleteWorkspace
@@ -59,7 +60,6 @@ import {
   hardDeleteWorkspace,
   listChildDirectories,
   createChildDirectory,
-  pickFolderWithNativeDialog,
   scanFolderForProjects,
   createWorkspaceGroup,
   listWorkspaceGroups,
@@ -207,7 +207,7 @@ export const workspacesApp = factory
       // No x-mcp — an agent must never pop a dialog on the user's screen.
     }),
     ...userScoped,
-    async (c) => c.json({ path: await pickFolderWithNativeDialog() }),
+    async (c) => c.json({ path: await c.var.pickFolder() }),
   )
   // "Which project?" — look inside the folder the user pointed at and say what
   // is in there. Read-only: it looks, it never adopts — adding is still the

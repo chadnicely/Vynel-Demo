@@ -15,11 +15,12 @@
 // plan derivation, and nothing is lost. No x-mcp — these are human
 // affordances inside the wizard, not agent tools.
 //
-// The folder the user chose on screen 1 IS the workspace (Kafi, 2026-08-23:
-// their own folder, never the global space, never a child minted from the
-// name). Before Finish it is only the dispatch cwd — it must exist
-// (`resolveExistingDirectory` → 400 when it doesn't); nothing is written by a
-// read (the dispatch is toolless), though the folder's own Claude Code
+// The wizard asks only a NAME (Chad, 2026-08-24 — D2, reversing the
+// 2026-08-23 folder-first model): Finish mints the project's folder from the
+// name under the user's projects home. The two AI reads dispatch from that
+// home (`resolveNewProjectDirectory`) — the project's own folder does not
+// exist until Finish, and the client is never told a path. Nothing is written
+// by a read (the dispatch is toolless), though the home's own Claude Code
 // settings / CLAUDE.md load exactly as they would for any workspace.
 
 import { resolver, validator } from 'hono-openapi/zod'
