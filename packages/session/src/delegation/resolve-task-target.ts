@@ -53,8 +53,9 @@ export type ResolveTaskTargetResult =
   /** A gone agent or a missing scopeRef on a colleague target — a FAILED
    *  ATTEMPT, not bookkeeping: the caller settles it through the give-up
    *  push so the requester hears about it (the agent-run resolution-phase
-   *  rule). */
-  | { ok: false; errorMessage: string }
+   *  rule). The grounding still rides along: the failure's problem signal
+   *  must fire in the room the target lives in, not in the global area. */
+  | { ok: false; errorMessage: string; spawnedTargetWorkspaceId: string | null }
 
 /** Resolve the target's persona ONCE — one fresh read per run. */
 export async function resolveTaskTarget(
@@ -87,6 +88,7 @@ export async function resolveTaskTarget(
             slug === null
               ? 'agent-scope target has no scopeRef (corrupt colleague row)'
               : `no agent "${slug}" resolves for the targeted colleague any more`,
+          spawnedTargetWorkspaceId,
         }
       }
       return {

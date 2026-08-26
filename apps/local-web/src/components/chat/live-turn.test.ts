@@ -295,6 +295,29 @@ describe("LiveTurn agent-spawn pointer", () => {
       agentRun: { hostSessionId: "sess-1", toolUseId: "toolu_agent" },
     });
   });
+
+  // A continuing conversation never gets a `session-created` frame (it only
+  // announces a NEW segment), which left every live spawn's door with no host
+  // — the click did nothing (Kafi, 2026-08-26). The persisted user row names
+  // the segment the turn runs on.
+  it("the door's host falls back to the persisted user row's session on a continuing conversation", async () => {
+    const view: ActiveTurnView = {
+      ...makeAgentSegmentView(),
+      session: null,
+      userMessage: { id: "u1", sessionId: "sess-continuing" } as never,
+    };
+    const wrapper = mount(LiveTurn, { props: { view } });
+    await wrapper.get('[data-testid="thread-pointer"]').trigger("click");
+    expect(wrapper.emitted("openPointer")![0]![0]).toMatchObject({
+      agentRun: { hostSessionId: "sess-continuing", toolUseId: "toolu_agent" },
+    });
+  });
+
+  it("the pointer is the spawn's whole card — no generic Agent tool chip beside it", () => {
+    const wrapper = mount(LiveTurn, { props: { view: makeAgentSegmentView() } });
+    expect(wrapper.find('[data-testid="thread-pointer"]').exists()).toBe(true);
+    expect(wrapper.find(".tool-call-list").exists()).toBe(false);
+  });
 });
 
 describe("LiveTurn inline approval card", () => {

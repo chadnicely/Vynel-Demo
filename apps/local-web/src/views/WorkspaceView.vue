@@ -22,6 +22,7 @@ import WorkspaceWelcomeHero from "../components/workspace/WorkspaceWelcomeHero.v
 import DisplayView from "./display/DisplayView.vue";
 import type { WorkspaceSectionId } from "../components/workspace/workspace-sections.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
+import { useSessionIconsByName } from "../composables/sessions/session-icons-by-name.js";
 import { useWorkspaceStatuses } from "../composables/workspaces/use-workspace-status.js";
 import { useWorkspaceGit } from "../composables/workspaces/use-workspace-git.js";
 import { describeGitFacts } from "../composables/workspaces/git-facts-label.js";
@@ -69,6 +70,9 @@ const workspacesByName = computed(() =>
     ]),
   ),
 );
+// This room's child session name -> its curated icon (the delivered rows'
+// author line wears the session's own icon, not its initials).
+const sessionIconsByName = useSessionIconsByName(() => tab.workspaceId);
 const workspaces = computed(() => workspacesQuery.data.value ?? []);
 
 const activeWorkspace = computed(
@@ -503,6 +507,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
         :pointers-by-trace-id="threadPointers"
         :workspaces-by-name="workspacesByName"
         :workspace-id="tab.workspaceId"
+        :session-icons-by-name="sessionIconsByName"
         :session-model="sessionModel"
         :workspace-status="statusView?.status ?? null"
         @decide-approval="onDecideApproval"

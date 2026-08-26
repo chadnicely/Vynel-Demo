@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { defineComponent, markRaw } from "vue";
 import { mount } from "@vue/test-utils";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import MessageRow from "./MessageRow.vue";
+
+// A glyph rides inside a prop object, so the host marks it raw (the app's
+// icon catalogs do) — the fixtures do the same, or Vue warns about a
+// component made reactive.
+function makeGlyph(testId: string) {
+  return markRaw(defineComponent({ name: "Glyph", template: `<i data-testid="${testId}" />` }));
+}
 
 function makeMessage(
   overrides: Partial<ChatMessageResponse> = {},
@@ -352,6 +360,65 @@ describe("MessageRow author avatar", () => {
     });
     expect(wrapper.get(".monogram-text").text()).toBe("NV");
     expect(wrapper.find(".author-avatar img").exists()).toBe(false);
+  });
+
+  // A child session's curated icon (Kafi, 2026-08-26): the host hands a
+  // ready glyph component and the row draws IT over the accent where the
+  // initials would go — an image still wins, and no glyph means initials.
+  it("a persona row wears the host-resolved glyph instead of its initials; an image still wins", () => {
+    const Glyph = makeGlyph("persona-glyph");
+    const message = makeMessage({
+      role: "user",
+      sourceKind: "workspace-manager",
+      sourceLabel: "Maintainer",
+      body: "[Report from Maintainer — the result of work you delegated, relayed automatically by Vynel. This is NOT a message the user typed.]\n\nGreen.",
+    });
+
+    const withGlyph = mount(MessageRow, {
+      props: {
+        message,
+        authorPersona: { imageUrl: null, monogram: "MA", accent: "var(--ws-4)", glyph: Glyph },
+      },
+    });
+    expect(withGlyph.find('.author-avatar [data-testid="persona-glyph"]').exists()).toBe(true);
+    expect(withGlyph.find(".monogram-text").exists()).toBe(false);
+
+    const withImage = mount(MessageRow, {
+      props: {
+        message,
+        authorPersona: {
+          imageUrl: "data:image/png;base64,CCCC",
+          monogram: "MA",
+          accent: "var(--ws-4)",
+          glyph: Glyph,
+        },
+      },
+    });
+    expect(withImage.find(".author-avatar img").exists()).toBe(true);
+    expect(withImage.find('[data-testid="persona-glyph"]').exists()).toBe(false);
+  });
+
+  it("a system notice draws the producer's glyph in the card instead of the bell", () => {
+    const Glyph = makeGlyph("producer-glyph");
+    const message = makeMessage({
+      role: "user",
+      sourceKind: "system",
+      sourceLabel: "Schedule · Tea",
+      body: "[System notification from Schedule · Tea]\n\nThe run failed.",
+    });
+    const withGlyph = mount(MessageRow, {
+      props: {
+        message,
+        authorPersona: { imageUrl: null, monogram: "S", accent: "var(--ws-1)", glyph: Glyph },
+      },
+    });
+    expect(withGlyph.find('.inbound-card [data-testid="producer-glyph"]').exists()).toBe(true);
+    expect(withGlyph.find(".inbound-card svg.inbound-card-icon").exists()).toBe(false);
+    // No avatar in the author line — a notice is nobody speaking.
+    expect(withGlyph.find(".author-avatar").exists()).toBe(false);
+
+    const bell = mount(MessageRow, { props: { message } });
+    expect(bell.find(".inbound-card svg.inbound-card-icon").exists()).toBe(true);
   });
 });
 

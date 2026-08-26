@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { ToolCallPresentation } from "../tool-cards/tool-presenters.js";
+import { fileLinkHref } from "../lib/file-link.js";
 import CodeBlock from "./CodeBlock.vue";
 
 // The expanded half of a tool card: the path header with copy, and the
@@ -78,6 +79,7 @@ const copyText = computed(() => {
   if (body.kind === "diff") return body.added || body.removed;
   if (body.kind === "terminal") return body.command;
   if (body.kind === "text") return body.text;
+  if (body.kind === "image") return body.caption ?? "";
   const panes = payloadPanes.value;
   if (panes === null) return "";
   return panes.hasOutput ? panes.output.copySource : panes.input.copySource;
@@ -102,7 +104,16 @@ async function copyPrimary() {
 <template>
   <div class="detail">
     <div v-if="props.presentation.subtitle" class="file-header">
-      <span class="file-path">{{ props.presentation.subtitle }}</span>
+      <!-- The path opens the file in the editor (the shell's link router
+           handles the app scheme). -->
+      <a
+        v-if="props.presentation.filePath"
+        class="file-path is-link"
+        :href="fileLinkHref(props.presentation.filePath)"
+        :title="`Open ${props.presentation.filePath}`"
+        >{{ props.presentation.subtitle }}</a
+      >
+      <span v-else class="file-path">{{ props.presentation.subtitle }}</span>
       <button
         type="button"
         class="copy-button"
@@ -196,6 +207,17 @@ async function copyPrimary() {
       >{{ props.presentation.body.text || "—" }}</pre
     >
 
+    <!-- The picture the tool returned, full width, its text as the caption. -->
+    <figure
+      v-else-if="props.presentation.body.kind === 'image'"
+      class="image-figure"
+    >
+      <img class="image-full" :src="props.presentation.body.src" alt="" />
+      <figcaption v-if="props.presentation.body.caption" class="image-caption">
+        {{ props.presentation.body.caption }}
+      </figcaption>
+    </figure>
+
     <div v-else-if="payloadPanes" class="payloads">
       <div class="payload">
         <p class="payload-label">Input</p>
@@ -237,6 +259,35 @@ async function copyPrimary() {
   border: 1px solid var(--hair);
   border-radius: var(--radius-s);
   background: var(--bg-shell);
+}
+
+.file-path.is-link {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.file-path.is-link:hover {
+  color: var(--info);
+}
+
+.image-figure {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.image-full {
+  max-width: 100%;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-s);
+}
+
+.image-caption {
+  color: var(--ink-3);
+  font: 400 11.5px/1.5 var(--font-ui);
+  white-space: pre-wrap;
 }
 
 .file-path {

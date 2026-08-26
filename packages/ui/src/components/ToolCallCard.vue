@@ -3,6 +3,7 @@ import { computed, onScopeDispose, ref, watch } from "vue";
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import { presentToolCall } from "../tool-cards/tool-presenters.js";
 import { formatElapsed } from "../lib/format-timestamp.js";
+import { fileLinkHref } from "../lib/file-link.js";
 import PresenceDot from "./PresenceDot.vue";
 import ToolCallDetail from "./ToolCallDetail.vue";
 import ToolCallBlockedLine, { type ReauthorizeState } from "./ToolCallBlockedLine.vue";
@@ -95,12 +96,11 @@ const durationLabel = computed(() => {
 <template>
   <div class="tool-call-card" :class="{ 'is-expanded': isExpanded }">
     <div class="summary-row">
-    <button
-      type="button"
-      class="summary"
-      :aria-expanded="isExpanded"
-      @click="isExpanded = !isExpanded"
-    >
+    <!-- A plain row, not a button: the file argument inside is a real link,
+         and a button (HTML or ARIA) would swallow it. The whole row still
+         toggles on click for pointer users; the caret at its end is the
+         REAL button — the keyboard's toggle and the row's aria-expanded. -->
+    <div class="summary" @click="isExpanded = !isExpanded">
       <PresenceDot
         v-if="statusTone === 'running'"
         state="live"
@@ -108,7 +108,17 @@ const durationLabel = computed(() => {
       />
       <span v-else class="status-dot" :class="`tone-${statusTone}`" />
       <span class="verb">{{ presentation.verb }}</span>
-      <span v-if="presentation.argument" class="argument">{{
+      <!-- The file the call touched opens in the editor (the shell's link
+           router handles the app scheme); a click on it never toggles the card. -->
+      <a
+        v-if="presentation.filePath && presentation.argument"
+        class="argument is-file-link"
+        :href="fileLinkHref(presentation.filePath)"
+        :title="`Open ${presentation.filePath}`"
+        @click.stop
+        >{{ presentation.argument }}</a
+      >
+      <span v-else-if="presentation.argument" class="argument">{{
         presentation.argument
       }}</span>
       <span v-if="presentation.stats" class="stats">
@@ -123,24 +133,32 @@ const durationLabel = computed(() => {
         <span v-if="durationLabel">{{ durationLabel }}</span>
         <span v-if="statusLabel" class="status-text">{{ statusLabel }}</span>
       </span>
-      <svg
-        class="caret"
-        :class="{ 'is-open': isExpanded }"
-        width="11"
-        height="11"
-        viewBox="0 0 16 16"
-        fill="none"
-        aria-hidden="true"
+      <button
+        type="button"
+        class="caret-button"
+        :aria-expanded="isExpanded"
+        :aria-label="isExpanded ? 'Hide details' : 'Show details'"
+        @click.stop="isExpanded = !isExpanded"
       >
-        <path
-          d="M3 6l5 5 5-5"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </button>
+        <svg
+          class="caret"
+          :class="{ 'is-open': isExpanded }"
+          width="11"
+          height="11"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M3 6l5 5 5-5"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
     <button
       v-if="props.watchable"
       type="button"
@@ -162,11 +180,44 @@ const durationLabel = computed(() => {
       @reauthorize="emit('reauthorize')"
     />
 
+    <!-- A picture the tool returned shows right on the chip, small — a
+         screenshot's whole point is seeing it (Kafi, 2026-08-26); expanding
+         shows it full size with its caption. -->
+    <img
+      v-if="!isExpanded && presentation.body.kind === 'image'"
+      class="image-preview"
+      :src="presentation.body.src"
+      alt=""
+      @click="isExpanded = true"
+    />
+
     <ToolCallDetail v-if="isExpanded" :presentation="presentation" />
   </div>
 </template>
 
 <style scoped>
+.argument.is-file-link {
+  color: var(--ink-1);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.argument.is-file-link:hover {
+  color: var(--info);
+}
+
+.image-preview {
+  display: block;
+  max-width: calc(100% - 20px);
+  max-height: 180px;
+  margin: 0 10px 8px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-s);
+  object-fit: contain;
+  cursor: zoom-in;
+}
+
 .summary-row {
   display: flex;
   align-items: stretch;
@@ -219,8 +270,6 @@ const durationLabel = computed(() => {
 }
 
 .summary {
-  appearance: none;
-  border: 0;
   margin: 0;
   width: 100%;
   display: flex;
@@ -236,9 +285,23 @@ const durationLabel = computed(() => {
   background: var(--row-hover);
 }
 
-.summary:focus-visible {
+.caret-button {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: default;
+  border-radius: var(--radius-s);
+}
+
+.caret-button:focus-visible {
   outline: 2px solid var(--gold);
-  outline-offset: -2px;
+  outline-offset: 1px;
 }
 
 .status-dot {
@@ -307,7 +370,6 @@ const durationLabel = computed(() => {
 
 .caret {
   flex: none;
-  color: var(--ink-3);
   transition: transform var(--t-fast) var(--ease-out);
 }
 

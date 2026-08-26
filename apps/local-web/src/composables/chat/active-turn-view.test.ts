@@ -7,6 +7,7 @@ import {
   applyChatTurnEvent,
   createActiveTurnView,
   liveClockStartMs,
+  liveTurnHostSessionId,
 } from "./active-turn-view.js";
 
 function fold(events: ChatTurnEvent[]) {
@@ -289,5 +290,43 @@ describe("applyChatTurnEvent", () => {
     expect(noSwap.status).toBe("streaming");
     expect(noSwap.contextPatch).toBeNull();
     expect(noSwap.continuations[0]?.atSegmentIndex).toBe(0);
+  });
+});
+
+// The host an agent-run pointer opens by (Kafi, 2026-08-26): `session-created`
+// announces only a NEW segment, so a continuing conversation's turn never
+// fills `session` — the persisted user row names the segment instead, and a
+// boundary swap's landing wins once it happened.
+describe("liveTurnHostSessionId", () => {
+  const userRow = {
+    kind: "user-message-persisted" as const,
+    message: { id: "u1", sessionId: "sess-continuing" } as never,
+  };
+
+  it("is null before the first frame, then the persisted user row's session", () => {
+    expect(liveTurnHostSessionId(createActiveTurnView())).toBeNull();
+    expect(liveTurnHostSessionId(fold([userRow]))).toBe("sess-continuing");
+  });
+
+  it("a created session (a fresh conversation) wins over the row", () => {
+    const view = fold([
+      { kind: "session-created", session: { id: "sess-new" } as never },
+      userRow,
+    ]);
+    expect(liveTurnHostSessionId(view)).toBe("sess-new");
+  });
+
+  it("a landed context patch moves the host onto the fresh segment", () => {
+    const view = fold([
+      userRow,
+      { kind: "context-patching", sessionId: "sess-continuing", primarySessionId: "p-1" },
+      {
+        kind: "context-patched",
+        sessionId: "sess-continuing",
+        primarySessionId: "p-1",
+        toSessionId: "sess-fresh",
+      },
+    ]);
+    expect(liveTurnHostSessionId(view)).toBe("sess-fresh");
   });
 });

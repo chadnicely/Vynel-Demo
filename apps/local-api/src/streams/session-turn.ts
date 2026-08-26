@@ -535,14 +535,18 @@ export async function streamSpawnedSessionTurn(
           )
         },
       })
-      // Announce on the liveness feed — a spawned session is global-scoped on
-      // the feed (the delegation tick's session-target shape); an agent
-      // colleague announces under its GROUNDING workspace (the agent-run
-      // parity). Origin 'voice' for the live-call leg, else 'web'. Begun
-      // immediately before the try (zombie-turn doctrine).
+      // Announce on the liveness feed under the session's GROUNDING: a child
+      // spawned inside a room (a spawned session or an agent colleague) works
+      // IN that room, and the room must read "working" for it — the same
+      // frame the delegated door (`run-task-job`) announces, so the two doors
+      // into one child never disagree about where it lives. It still names
+      // its own primary, so a workspace chat never binds to it as the room's
+      // thread. A global-grounded child announces in the global area. Origin
+      // 'voice' for the live-call leg, else 'web'. Begun immediately before
+      // the try (zombie-turn doctrine).
       const activity = c.var.activityFeed.begin({
         userId,
-        ...(spawned.scope === 'agent' && spawned.workspaceId !== null
+        ...(spawned.workspaceId !== null
           ? { scopeKind: 'workspace' as const, workspaceId: spawned.workspaceId }
           : { scopeKind: 'global' as const }),
         sessionId: resumeSessionId,

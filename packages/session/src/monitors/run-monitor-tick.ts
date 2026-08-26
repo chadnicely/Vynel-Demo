@@ -25,6 +25,7 @@
 
 import type { Database } from '@vynel/db'
 import type { Logger } from 'pino'
+import { monitorSourceLabel } from '@vynel/contracts/chat/engine-reporter-labels'
 import {
   listOutboxEventsByTypesInWindow,
   OUTBOX_WINDOW_READ_MAX_LIMIT,
@@ -195,7 +196,7 @@ function enqueueMonitorWake(
   const body = composeWakeBody(monitor, event)
   // The wake is its own chain: a monitor is not a hop of some earlier task, it
   // is a new thing happening. Leaving threadId unset self-seeds one.
-  const reporterLabel = `Monitor · ${monitor.description}`
+  const reporterLabel = monitorSourceLabel(monitor.description)
 
   if (monitor.ownerKind === 'spawned-session') {
     const primary =

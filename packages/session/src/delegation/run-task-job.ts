@@ -39,7 +39,11 @@ import {
 import { traceChannelKey, type TurnEventBroadcaster } from './turn-event-broadcaster.js'
 import { publishTurnActivityStep } from '../runtime/activity-turn-steps.js'
 import type { DelegationCancelRegistry } from './delegation-cancel-registry.js'
-import type { SessionActivityFeed } from '../runtime/session-activity-feed.js'
+import type {
+  BeginTurnActivityInput,
+  SessionActivityFeed,
+  SessionTurnActivityHandle,
+} from '../runtime/session-activity-feed.js'
 import { createDelegatedTurnCancelLever } from './delegated-turn-cancel-lever.js'
 
 /** The delegated-turn MCP composition (the api edge binds it per target: a
@@ -147,19 +151,21 @@ export async function runTaskJob(
   // The chain this turn belongs to — hoisted for the feed enrichment below
   // AND the MCP composition inside try (one resolve, pure on the row).
   const claimedThreadId = resolveThreadIdOf(claimed)
-  // Announce on the liveness feed so every open UI sees the target go busy
-  // (presence dot, thread poll, banner). Immediately before try/finally —
-  // anything throwable in between would leak a process-lifetime zombie turn.
-  // A SESSION target is global-grounded: scopeKind 'global', no workspaceId
-  // (the Sessions panel's working dot keys on the resolved session id).
-  // Enrichment (persona-sessions): everything pure/enqueue-time — labels
-  // resolved from the row, never a DB read that could throw pre-try.
-  const activityHandle = deps.activityFeed.begin({
+  // The frame this run announces under on the liveness feed (presence dot,
+  // thread poll, banner). Enrichment (persona-sessions): everything
+  // pure/enqueue-time — labels resolved from the row. What the row alone
+  // cannot say is the GROUNDING: a session target lives wherever its spawned
+  // primary does — a child spawned inside a room works IN that room, and the
+  // room must light up for it. The interactive door (`session-turn.ts`)
+  // announces the same frame; announcing this door as global left the
+  // workspace reading idle while its child worked (Kafi, 2026-08-26). Only
+  // the resolution phase knows the grounding, so the announce sits INSIDE
+  // the try, right after the resolve (the agent-run shape, audit R2-K). The
+  // zombie-turn doctrine still holds: nothing throwable sits between the
+  // begin and the finally that ends it.
+  const announceFrame = {
     userId: claimed.userId,
-    ...(claimed.targetPrimarySessionId !== null || claimed.workspaceId === null
-      ? { scopeKind: 'global' as const }
-      : { scopeKind: 'workspace' as const, workspaceId: claimed.workspaceId }),
-    origin: 'delegation',
+    origin: 'delegation' as const,
     jobId: claimed.id,
     ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
     ...(partialSessionId !== undefined ? { partialSessionId } : {}),
@@ -171,7 +177,9 @@ export async function runTaskJob(
     // holds on a note row.
     ...(isNote ? {} : { taskLabel: deriveDelegationTaskLabel(claimed.taskText) }),
     ...(claimed.workspaceName !== null ? { personaName: claimed.workspaceName } : {}),
-  })
+  }
+  // Hoisted so the catch/finally can end a turn the try announced.
+  let announcedTurn: SessionTurnActivityHandle | null = null
   try {
     // The run cwd — one column, one reading ("where this job's turn runs"): the
     // workspace folder for a workspace target, the spawned session's cwd for a
@@ -182,11 +190,29 @@ export async function runTaskJob(
     }
 
     const resolvedTarget = await resolveTaskTarget(db, claimed)
+    // The grounding workspace — ONE reading for the announce frame and the MCP
+    // attachment: the job's workspace for a workspace target, the spawned
+    // primary's own workspaceId for a workspace-grounded session target
+    // (Slice ④b); null = the global area.
+    const groundingWorkspaceId =
+      claimed.targetPrimarySessionId !== null
+        ? resolvedTarget.ok
+          ? resolvedTarget.target.spawnedTargetWorkspaceId
+          : resolvedTarget.spawnedTargetWorkspaceId
+        : claimed.workspaceId
+    const groundedFrame: BeginTurnActivityInput = {
+      ...announceFrame,
+      ...(groundingWorkspaceId === null
+        ? { scopeKind: 'global' as const }
+        : { scopeKind: 'workspace' as const, workspaceId: groundingWorkspaceId }),
+    }
     if (!resolvedTarget.ok) {
       // A gone agent / corrupt colleague row is a FAILED ATTEMPT, not
       // bookkeeping — it settles through the give-up push so the requester
-      // hears about it (the agent-run resolution-phase rule).
-      activityHandle.end('failed')
+      // hears about it (the agent-run resolution-phase rule). The grounding's
+      // problem signal still fires — a frame that opens and ends in the same
+      // breath.
+      deps.activityFeed.begin(groundedFrame).end('failed')
       settleFailedDelegationAttempt(db, claimed, resolvedTarget.errorMessage, {
         logger: deps.logger,
         queueLabel: 'delegation',
@@ -194,8 +220,10 @@ export async function runTaskJob(
       })
       return true
     }
-    const { targetName, spawnedTargetWorkspaceId, targetHeadSdkSessionId, colleagueAgent } =
-      resolvedTarget.target
+    const { targetName, targetHeadSdkSessionId, colleagueAgent } = resolvedTarget.target
+
+    const activityHandle = deps.activityFeed.begin(groundedFrame)
+    announcedTurn = activityHandle
 
     // The turn's settings — `job ?? target row ?? DEFAULT` (A5, decisions
     // D3/D4): the job's stamped picks (the creator's resolved mode, a tool-arg
@@ -229,23 +257,20 @@ export async function runTaskJob(
     approvalHandler = handler
 
     // The routed turn's MCP attachment — the target's grounding workspace picks
-    // it: the job's workspace for a workspace target, the spawned primary's own
-    // workspaceId for a workspace-grounded session target (Slice ④b). A
-    // global-grounded session target composes NOTHING — bare is CONSISTENT
-    // there (its priming attached nothing, so no deferred tools exist to
-    // strip); every workspace-grounded turn MUST attach, or the resumed
-    // session's deferred tools get stripped ("server disconnected").
-    const mcpGroundingWorkspaceId =
-      claimed.targetPrimarySessionId !== null ? spawnedTargetWorkspaceId : claimed.workspaceId
+    // it (the same reading the announce frame used). A global-grounded session
+    // target composes NOTHING — bare is CONSISTENT there (its priming attached
+    // nothing, so no deferred tools exist to strip); every workspace-grounded
+    // turn MUST attach, or the resumed session's deferred tools get stripped
+    // ("server disconnected").
     const mcpAttachment =
       deps.composeWorkspaceMcpServers !== undefined &&
-      (mcpGroundingWorkspaceId !== null || claimed.targetPrimarySessionId !== null)
+      (groundingWorkspaceId !== null || claimed.targetPrimarySessionId !== null)
         ? deps.composeWorkspaceMcpServers({
             db,
             userId: claimed.userId,
             ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
             jobId: claimed.id,
-            workspaceId: mcpGroundingWorkspaceId,
+            workspaceId: groundingWorkspaceId,
             target:
               claimed.targetPrimarySessionId !== null
                 ? colleagueAgent !== null
@@ -398,13 +423,13 @@ export async function runTaskJob(
     // the job stuck `claimed` (Ch1 does not auto-reclaim) — nor a parked approval hanging.
     // Terminal, never retried: a throw from THIS body is our own bookkeeping (a corrupt
     // row would loop forever on requeue), not a transient provider failure.
-    activityHandle.end('failed')
+    announcedTurn?.end('failed')
     await approvalHandler?.abandonParked()
     failDelegationJob(db, claimed.id, err instanceof Error ? err.message : String(err), new Date())
     deps.logger.error({ err, jobId: claimed.id }, 'delegation job run threw unexpectedly')
     return true
   } finally {
     cancelHandle?.end()
-    activityHandle.end()
+    announcedTurn?.end()
   }
 }

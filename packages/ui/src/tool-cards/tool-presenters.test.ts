@@ -2,10 +2,67 @@ import { describe, expect, it } from "vitest";
 import type { ChatToolCallResponse } from "@vynel/contracts/chat/chat-http";
 import {
   describeToolCallGroup,
+  imageContentOf,
   languageForFilePath,
   presentToolCall,
 } from "./tool-presenters.js";
 import { groupConsecutiveToolCalls } from "./group-tool-calls.js";
+
+// File tools name the file they touched (Kafi, 2026-08-26: paths are
+// clickable) — the card links it; a picture in a result IS the body.
+describe("presentToolCall — file paths and pictures", () => {
+  it("Read / Write / Edit carry the file path the tool named", () => {
+    expect(
+      presentToolCall(makeToolCall("Read", { file_path: "C:\\proj\\src\\a.ts" }, "x")).filePath,
+    ).toBe("C:\\proj\\src\\a.ts");
+    expect(
+      presentToolCall(makeToolCall("Write", { file_path: "docs/plan.md", content: "hi" })).filePath,
+    ).toBe("docs/plan.md");
+    expect(
+      presentToolCall(
+        makeToolCall("Edit", { file_path: "src/b.ts", old_string: "a", new_string: "b" }),
+      ).filePath,
+    ).toBe("src/b.ts");
+    expect(presentToolCall(makeToolCall("Bash", { command: "ls" })).filePath).toBeUndefined();
+  });
+
+  it("a desktop screenshot's result renders as the picture with its caption", () => {
+    const presentation = presentToolCall(
+      makeToolCall("mcp__desktop__screenshot_app", { app: "Notepad" }, [
+        { type: "text", text: 'Screenshot of "Untitled" (app: Notepad), 800×600px' },
+        { type: "image", data: "AAAA", mimeType: "image/png" },
+      ]),
+    );
+    expect(presentation.verb).toBe("Screenshotted");
+    expect(presentation.body).toEqual({
+      kind: "image",
+      src: "data:image/png;base64,AAAA",
+      caption: 'Screenshot of "Untitled" (app: Notepad), 800×600px',
+    });
+  });
+
+  it("an image file Read (the API block grammar) renders as the picture too", () => {
+    const presentation = presentToolCall(
+      makeToolCall("Read", { file_path: "shots/login.png" }, [
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "BBBB" } },
+      ]),
+    );
+    expect(presentation.body).toEqual({
+      kind: "image",
+      src: "data:image/jpeg;base64,BBBB",
+      caption: null,
+    });
+    expect(presentation.filePath).toBe("shots/login.png");
+  });
+
+  it("imageContentOf reads both block grammars and ignores everything else", () => {
+    expect(imageContentOf("plain text")).toBeNull();
+    expect(imageContentOf([{ type: "text", text: "no picture" }])).toBeNull();
+    expect(
+      imageContentOf({ content: [{ type: "image", data: "data:image/png;base64,CC" }] }),
+    ).toEqual({ src: "data:image/png;base64,CC", caption: null });
+  });
+});
 
 function makeToolCall(
   toolName: string,

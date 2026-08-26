@@ -22,6 +22,7 @@ import {
   type ReportDeliveryRequester,
 } from '@vynel/orchestration'
 import { findWorkspaceById } from '@vynel/workspaces'
+import { BACKGROUND_TASK_REPORTER_LABEL } from '@vynel/contracts/chat/engine-reporter-labels'
 
 const TASK_PREVIEW_LIMIT = 160
 
@@ -97,7 +98,7 @@ function enqueueReportForJob(db: Database, job: DelegationJob, reportBody: strin
     ...(threadId !== null ? { threadId } : {}),
     userId: job.userId,
     reporterSessionId: job.targetPrimarySessionId ?? job.workspaceId ?? job.parentSessionId,
-    reporterLabel: job.workspaceName ?? 'Background task',
+    reporterLabel: job.workspaceName ?? BACKGROUND_TASK_REPORTER_LABEL,
     reportBody,
     requester: resolveJobReportRequester(db, job),
     ...(origin !== null ? { origin } : {}),

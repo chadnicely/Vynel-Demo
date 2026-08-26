@@ -13,6 +13,7 @@
 // bookkeeping would loop every create into a wasted turn.
 
 import { findWorkspaceById } from '@vynel/db/repositories/workspaces'
+import { TASKS_REPORTER_LABEL } from '@vynel/contracts/chat/engine-reporter-labels'
 import { enqueueReportDelivery } from './enqueue-report-delivery.js'
 import type { Database } from '@vynel/db'
 
@@ -43,7 +44,7 @@ export function consumeTaskCreatedEvent(
     // Loose provenance ref (never a FK) — there is no chat session behind a
     // panel-created task.
     reporterSessionId: `task:${payload.taskId}`,
-    reporterLabel: 'Tasks',
+    reporterLabel: TASKS_REPORTER_LABEL,
     // ONE short human-readable line: the row renders on the user's transcript
     // as a quiet system notice, so no tool mechanics here — the standing tasks
     // prompt + the task-planner notebook already carry the full discipline

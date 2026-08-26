@@ -7,6 +7,7 @@ import {
   getLoadedHighlighter,
   isHighlightableLanguage,
 } from "../lib/shiki-highlighter.js";
+import { fileLinkHref, findFilePaths } from "../lib/file-link.js";
 
 // One renderer for every markdown surface (assistant messages, file preview).
 // Module-scoped: configured once, shared by all instances. Fenced code blocks
@@ -54,6 +55,48 @@ function renderMentionChips(html: string): string {
       chunk,
       (name) => `<span class="mention-chip">@${name}</span>`,
     )
+  })
+}
+
+// File paths the assistant (or the person) mentions become in-app links
+// (Kafi, 2026-08-26: "paths need to be clickable") — the same `vynel://file/`
+// href the tool cards use, so the shell's link router opens them in the
+// editor. Same text-run walk as the mentions: never inside a tag, never
+// inside an existing anchor (a URL's path is not a file), never inside a
+// `<pre>` block (code is quoted, not referenced) — inline `<code>` IS
+// admitted, because a path in prose is almost always written in backticks.
+const ANCHOR_OPEN = /^<a\b/i
+const ANCHOR_CLOSE = /^<\/a\s*>/i
+const PRE_OPEN = /^<pre\b/i
+const PRE_CLOSE = /^<\/pre\s*>/i
+
+function linkFilePathsInText(text: string): string {
+  const hits = findFilePaths(text)
+  if (hits.length === 0) return text
+  let rendered = ''
+  let cursor = 0
+  for (const hit of hits) {
+    rendered +=
+      text.slice(cursor, hit.start) +
+      `<a class="file-link" href="${fileLinkHref(hit.path)}">${hit.path}</a>`
+    cursor = hit.end
+  }
+  return rendered + text.slice(cursor)
+}
+
+function renderFileLinks(html: string): string {
+  let preDepth = 0
+  let anchorDepth = 0
+  return html.replace(TAG_OR_TEXT, (chunk) => {
+    if (chunk.startsWith('<')) {
+      if (PRE_CLOSE.test(chunk)) preDepth = Math.max(0, preDepth - 1)
+      else if (PRE_OPEN.test(chunk)) preDepth += 1
+      else if (ANCHOR_CLOSE.test(chunk)) anchorDepth = Math.max(0, anchorDepth - 1)
+      else if (ANCHOR_OPEN.test(chunk)) anchorDepth += 1
+      return chunk
+    }
+    if (preDepth > 0 || anchorDepth > 0) return chunk
+    return linkFilePathsInText(chunk)
   })
 }
 
@@ -115,8 +158,10 @@ const rendered = computed(() => {
   void isHighlighterReady.value;
   return DOMPurify.sanitize(
     props.variant === "plain"
-      ? renderMentionChips(markdown.utils.escapeHtml(props.source))
-      : renderMentionChips(renderTaskCheckboxes(markdown.render(props.source))),
+      ? renderMentionChips(renderFileLinks(markdown.utils.escapeHtml(props.source)))
+      : renderMentionChips(
+          renderFileLinks(renderTaskCheckboxes(markdown.render(props.source))),
+        ),
     // DOMPurify 3.4's default URI allowlist plus the app's own `vynel:`
     // scheme — in-app deep links (e.g. `vynel://plan/<id>`) the shell's link
     // router intercepts. Everything else (javascript:, data:, …) still
@@ -219,6 +264,19 @@ const rendered = computed(() => {
 .markdown-text :deep(a) {
   color: var(--info);
   text-decoration: none;
+}
+
+/* A file path reads as the path it is (mono), lightly underlined to say it
+   opens; inside inline code it keeps the code's own colour. */
+.markdown-text :deep(.file-link) {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.markdown-text :deep(code .file-link) {
+  color: inherit;
 }
 
 .markdown-text :deep(a:hover) {

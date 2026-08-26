@@ -60,6 +60,7 @@ import { useOpenPointerTarget } from "../components/chat/open-pointer-target.js"
 import type { TurnAttachmentInput } from "../composables/chat/turn-attachments.js";
 import type { ComposerSettings } from "../composables/chat/use-session-settings.js";
 import { useWorkspaceList } from "../composables/workspaces/use-workspace-list.js";
+import { useSessionIconsByName } from "../composables/sessions/session-icons-by-name.js";
 import { useCurrentUser } from "../composables/users/use-current-user.js";
 import { isTasksPanelSurface, useUiStore } from "../stores/ui-store.js";
 import { useActivityStore } from "../stores/activity-store.js";
@@ -151,6 +152,9 @@ const workspacesByName = computed(() =>
     ]),
   ),
 );
+// Child session name -> its curated icon for the delivered rows' author line.
+// The global thread hears every room's children, so no room scopes the read.
+const sessionIconsByName = useSessionIconsByName(null);
 const activeWorkspaces = computed(() =>
   (workspacesQuery.data.value ?? []).filter(
     (workspace) => !workspace.isArchived,
@@ -491,6 +495,7 @@ const queuedSend = useQueuedSend(busyTurn, sendMessage);
         :assistant-icon-url="assistantIconUrl"
         :pointers-by-trace-id="threadPointers"
         :workspaces-by-name="workspacesByName"
+        :session-icons-by-name="sessionIconsByName"
         :session-model="sessionModel"
         @decide-approval="onDecideApproval"
         @open-pointer="openPointerTarget"

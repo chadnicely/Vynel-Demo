@@ -27,6 +27,28 @@ uninstall, Windows-reserved characters everywhere via `@vynel/contracts/fs/safe-
 agent from each shelf and from chat, confirm the files land — then merge to main. Side finding (its own
 move): the workspace-scope MCP-config tests write the developer's REAL `~/.claude.json` and a torn
 parallel write corrupted it once today (repaired from backup).
+## ✅ 2026-08-26 SESSION/WORKSPACE STATE FIXES — MERGED TO MAIN (`ae855a1f`, fast-forward from `fix/session-state`)
+
+Kafi's five-screenshot list (`.tmp/fix-session-state/`), all landed, gate green, journal =
+`.claude/journal/2026-08-26-session-state-fixes.md`. (1) `TreeStateMark.vue` = the ONE state mark
+for every tree row, the Global row included. (2) ROOT CAUSE of "workspace idle while its child
+works": BOTH doors into a child announced a workspace-grounded spawned session as
+`scopeKind:'global'` — `run-task-job.ts` (now resolves the target first and announces under the
+grounding workspace, the agent-run shape) and the interactive `session-turn.ts` (now announces by
+`spawned.workspaceId` alone) — every workspace indicator already reads `useWorkspaceStatuses`, so
+nothing else moved; TasksPanel's overview-resolution workaround is no longer load-bearing. (3)
+Delivered session rows wear the session's curated icon (`useSessionIconsByName` → `MessageRow`
+`authorPersona.glyph`); the engine's reporter labels live in ONE contract
+(`contracts/chat/engine-reporter-labels.ts`) with per-kind glyphs + a default. (4) Agent-run
+pointers open on continuing conversations (`liveTurnHostSessionId`); the pointer is the whole
+card (generic Agent chip dropped); `AgentRunPane` shows instruction + result. (5) `vynel://file/`
+links (ui `lib/file-link.ts` + the shell's link router + `file-link-target.ts`) make tool-card
+paths and chat paths open the editor; image tool results (screenshot_app, observe, image Read)
+render as pictures. Reviewer's five should-fixes folded in before the final gate (1044 files /
+7108 tests green). **Remaining:** Kafi's live smoke NOW FROM MAIN (a child session working → the
+room spins on tree/tab/sidebar card/nodes; a delivered row wears its session icon; a running
+agent card opens the pane; a screenshot card shows the picture; a path click opens the editor).
+The worktree `.claude/worktrees/fix-session-state` (band 18960) can be removed once smoked.
 
 ## ✅ 2026-08-26 VOICE CLOUD PROVIDERS — MERGED TO MAIN (Kafi: "get everything to main")
 

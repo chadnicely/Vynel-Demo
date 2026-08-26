@@ -23,8 +23,9 @@ import {
 } from "../../composables/chat/active-turn-view.js";
 import { useTickingElapsed } from "../../composables/chat/use-ticking-elapsed.js";
 import PointerRow from "./PointerRow.vue";
-import { buildAgentRunPointer } from "./thread-pointers.js";
+import { buildAgentRunPointer, isAgentSpawnToolCall } from "./thread-pointers.js";
 import type { ThreadPointerModel } from "./thread-pointers.js";
+import { liveTurnHostSessionId } from "../../composables/chat/active-turn-view.js";
 
 // The in-flight turn: everything the assistant is doing RIGHT NOW —
 // thinking, answer text typing in, tool cards appearing, approvals pausing
@@ -94,11 +95,18 @@ const liveRows = computed<LiveRow[]>(() => {
 // thread applies): a text-less segment's calls fold into the nearest text
 // segment above, so a run of one-call provider messages reads as ONE batch,
 // live exactly as it will settle. A continuation anchor resets the run.
+// An agent spawn is NOT a tool card here: its pointer under the segment is
+// the whole card (status, live line, the door — Kafi, 2026-08-26: "show
+// this directly"), so the generic Agent chip is dropped from the batch and
+// only the ordinary calls fold.
 const mergedSegmentToolCalls = computed(() => {
   const merged = mergeToolOnlyBatches(
     liveRows.value.map((row) => ({
       hasText: row.kind === "segment" && row.segment.text.trim().length > 0,
-      toolCalls: row.kind === "segment" ? row.segment.toolCalls : [],
+      toolCalls:
+        row.kind === "segment"
+          ? row.segment.toolCalls.filter((call) => !isAgentSpawnToolCall(call.toolName))
+          : [],
       startsRun: row.kind === "continuation",
     })),
   );
@@ -137,10 +145,14 @@ const hasUnresolvedApproval = computed(() =>
 function agentPointersFor(segment: ActiveTurnSegment): ThreadPointerModel[] {
   const pointers: ThreadPointerModel[] = [];
   for (const call of segment.toolCalls) {
+    if (!isAgentSpawnToolCall(call.toolName)) continue;
     const pointer = buildAgentRunPointer(
       call,
       props.view.agentActivity[call.toolUseId] ?? deriveSettledAgentActivity(call),
-      props.view.session?.id ?? null,
+      // The door needs the HOST session — resolved off every frame the turn
+      // has, not `session` alone (that one is empty on a continuing
+      // conversation, which left every live spawn's click a no-op).
+      liveTurnHostSessionId(props.view),
     );
     if (pointer === null) continue;
     pointers.push(
@@ -224,7 +236,6 @@ const elapsedLabel = useTickingElapsed(
         <ToolCallList
           v-if="segmentToolCalls(row.segment).length > 0"
           :tool-calls="segmentToolCalls(row.segment)"
-          :agent-activity="props.view.agentActivity"
           :reauthorize-state="props.reauthorizeState"
           @reauthorize="(call) => emit('reauthorizeToolCall', call)"
         />

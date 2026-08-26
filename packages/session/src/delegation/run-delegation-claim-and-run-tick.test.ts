@@ -1319,7 +1319,8 @@ describe('runDelegationClaimAndRunTick', () => {
         taskText: 'compare pricing',
       })
 
-      // The liveness feed sees a GLOBAL-scoped turn (no workspace to key on).
+      // The liveness feed sees a GLOBAL-scoped turn — this spawned session is
+      // global-grounded (no workspace to key on).
       const activityFeed = new SessionActivityFeed()
       const turnStarts: Array<{ scopeKind: string; workspaceId: string | null }> = []
       activityFeed.subscribe(user.id, (event) => {
@@ -1368,6 +1369,75 @@ describe('runDelegationClaimAndRunTick', () => {
         }),
       ).toBe(true)
       expect(reportCalls[0]?.reportBody).toContain(AUTO_REPORT_MARKER)
+    })
+  })
+
+  // A child spawned INSIDE a room works in that room: the delegated door
+  // announces under the workspace it is grounded in, exactly as the
+  // interactive door does — so the room reads "working" while its child
+  // works, whichever door the turn came through. It still names its own
+  // continuing identity, so no workspace chat can mistake it for the room's
+  // own thread.
+  it('a WORKSPACE-grounded session target announces its turn in the room, naming its own primary', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const workspace = insertWorkspace(db, makeWorkspace(user.id))
+      const globalSessionId = await setUpGlobalRoot(db, user.id)
+      const created = await createSpawnedSession(
+        db,
+        new FakeAiAgentProvider({ seededSessionId: 'sdk-spawned-in-room' }),
+        {
+          userId: user.id,
+          name: 'Maintainer',
+          purpose: 'keep the build green',
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
+        },
+      )
+
+      const jobId = enqueueSessionDelegation(db, {
+        userId: user.id,
+        parentSessionId: globalSessionId,
+        targetPrimarySessionId: created.primarySessionId,
+        runCwdPath: workspace.path,
+        taskText: 'run the tests',
+      })
+
+      const activityFeed = new SessionActivityFeed()
+      const turnStarts: Array<{
+        scopeKind: string
+        workspaceId: string | null
+        primarySessionId: string | null | undefined
+      }> = []
+      activityFeed.subscribe(user.id, (event) => {
+        if (event.kind === 'turn-started') {
+          turnStarts.push({
+            scopeKind: event.scopeKind,
+            workspaceId: event.workspaceId,
+            primarySessionId: event.primarySessionId,
+          })
+        }
+      })
+
+      expect(
+        await runDelegationClaimAndRunTick(db, {
+          provider: new FakeAiAgentProvider({
+            seededSessionId: created.sessionId,
+            resultText: 'green.',
+          }),
+          logger: silentLogger,
+          activityFeed,
+        }),
+      ).toBe(true)
+
+      expect(turnStarts).toEqual([
+        {
+          scopeKind: 'workspace',
+          workspaceId: workspace.id,
+          primarySessionId: created.primarySessionId,
+        },
+      ])
+      expect(findDelegationJobById(db, jobId)?.status).toBe('completed')
     })
   })
 

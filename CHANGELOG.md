@@ -29,6 +29,18 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   shelf the next time you open it, chipped "On disk"; one you removed reads "Needs attention".
   The Commands row in the menu now shows a count.
 
+
+- **Sessions wear their icon in the chat.** A reply or report delivered by a child session shows
+  the session's curated icon in its author line instead of two-letter initials. Notices Vynel
+  itself writes (a background task it relayed for, the task list, a schedule, a monitor) each
+  wear their own icon, with one fallback for anything else.
+
+- **File paths are clickable, screenshots are visible.** The file name on a Read/Write/Edit
+  card, the path in its expanded header, and any file path written in a message (yours or the
+  assistant's) open the file in its workspace's editor. A tool that returns a picture — a
+  desktop screenshot, an image file the assistant read — shows the picture on its card, small
+  when folded and full-size with its caption when expanded.
+
 ### Fixed
 
 - Uninstalling a skill that was discovered on disk removed its record but left the folder when the
@@ -39,6 +51,21 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 - A rule file with a name the editor could not address (spaces, accents) was listed but could not
   be opened for editing; the list and the editor now agree on what a valid name is, and names with
   characters Windows forbids (`: < > " | ? *`) are refused instead of silently writing nothing.
+
+
+- **A workspace shows "working" while any of its sessions works.** A task sent to a session that
+  lives in a workspace (by `send_message`) used to run as if it belonged to the global area, so
+  the workspace's row, tab, sidebar card, and node all read idle while its child was busy. The
+  run now announces itself in the workspace the session belongs to.
+
+- **The Global row ends with its state like every other row.** It showed nothing while parked or
+  after a problem; it now wears the same play glyph and status dots the workspace rows wear.
+
+- **Agent runs open from the thread while they run.** Clicking a running agent's card on an
+  ongoing conversation did nothing (the card had no session to open); it now opens the agent's
+  panel, which also shows the instruction the agent was given and, once done, its result. The
+  agent's card is the pointer card alone — no duplicate tool chip beside it.
+
 
 ## [0.3.7] — 2026-08-26
 

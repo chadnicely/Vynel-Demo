@@ -177,8 +177,30 @@ import { buildNewChatSessionRow } from '@vynel/chat'
 import { SessionTargetLocks } from '@vynel/session/delegation'
 import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
 import { createAgentRowForTest as createAgent } from '@vynel/agents/test-support'
+import { SessionActivityFeed } from '@vynel/session/runtime'
 import { withVynelUserDataDir } from '../sessions/global-root-workspace.js'
 import { createApp } from '../app.js'
+
+/** The liveness frames a turn announces — the scope every workspace indicator
+ *  keys on, so the two doors into one child (this one and the delegated
+ *  `run-task-job`) must agree on it. */
+function collectTurnStarts(feed: SessionActivityFeed, userId: string) {
+  const starts: Array<{
+    scopeKind: string
+    workspaceId: string | null
+    primarySessionId: string | null | undefined
+  }> = []
+  feed.subscribe(userId, (event) => {
+    if (event.kind === 'turn-started') {
+      starts.push({
+        scopeKind: event.scopeKind,
+        workspaceId: event.workspaceId,
+        primarySessionId: event.primarySessionId,
+      })
+    }
+  })
+  return starts
+}
 
 const silentLogger = pino({ level: 'silent' })
 
@@ -342,7 +364,9 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
       await withVynelUserDataDir(dataDir, async () => {
         const user = seedUser(db)
         const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-global')
-        const app = createApp({ db, logger: silentLogger })
+        const activityFeed = new SessionActivityFeed()
+        const turnStarts = collectTurnStarts(activityFeed, user.id)
+        const app = createApp({ db, logger: silentLogger, activityFeed })
 
         const res = await postTurn(app, spawned.sessionId, { userMessageText: 'hello session' })
         expect(res.status).toBe(200)
@@ -354,6 +378,10 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         expect(frames).toContain('event: turn-stream-ended')
         // A free target never queues — the sentinel must NOT appear.
         expect(frames).not.toContain('event: turn-queued')
+        // A global-grounded child announces in the global area, as its own primary.
+        expect(turnStarts).toEqual([
+          { scopeKind: 'global', workspaceId: null, primarySessionId: spawned.primarySessionId },
+        ])
 
         expect(startChatSessionInputs).toHaveLength(1)
         const input = startChatSessionInputs[0]!
@@ -391,7 +419,9 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         const user = seedUser(db)
         const workspace = seedWorkspace(db, user.id)
         const spawned = await seedSpawnedSession(db, user.id, 'sdk-sp-ws', workspace)
-        const app = createApp({ db, logger: silentLogger })
+        const activityFeed = new SessionActivityFeed()
+        const turnStarts = collectTurnStarts(activityFeed, user.id)
+        const app = createApp({ db, logger: silentLogger, activityFeed })
 
         const res = await postTurn(app, spawned.sessionId, {
           userMessageText: 'hi',
@@ -399,6 +429,18 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
           thinkingEffort: 'low',
         })
         await res.text()
+
+        // A child spawned INSIDE a room works in that room: the frame carries
+        // the workspace (so the room reads "working") and the child's own
+        // primary (so no workspace chat mistakes it for the room's thread) —
+        // the same frame the delegated door announces.
+        expect(turnStarts).toEqual([
+          {
+            scopeKind: 'workspace',
+            workspaceId: workspace.id,
+            primarySessionId: spawned.primarySessionId,
+          },
+        ])
 
         expect(startChatSessionInputs).toHaveLength(1)
         const input = startChatSessionInputs[0]!

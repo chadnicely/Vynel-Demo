@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, type Component } from "vue";
 import type { ChatMessageResponse } from "@vynel/contracts/chat/chat-http";
 import {
   isDirectMessageBody,
@@ -43,11 +43,17 @@ const props = withDefaults(
      *  the host resolves the row's sourceLabel to an image or monogram, and a
      *  report/update/persona row wears IT instead of the blanket Claude mark.
      *  Null keeps the pre-B8 fallbacks. `accent` is a CSS COLOUR (a palette
-     *  reference like `var(--ws-3)` or a hand-picked `#hex`), used as-is. */
+     *  reference like `var(--ws-3)` or a hand-picked `#hex`), used as-is.
+     *  `glyph` is a ready icon COMPONENT the host resolved — a child session's
+     *  curated icon, or the engine's own mark on a row it authored — drawn
+     *  over the accent where the monogram would go (this package stays
+     *  icon-library-free: it renders what it is handed, never a name). On a
+     *  system notice it replaces the card's bell. */
     authorPersona?: {
       imageUrl: string | null;
       monogram: string;
       accent: string;
+      glyph?: Component | null;
     } | null;
     /** The row's SCOPE identity chip: a persona row wears its workspace, a
      *  relayed/mention row its ORIGIN scope. The host resolves the label to
@@ -212,6 +218,7 @@ const isPersonaAuthor = computed(
 // only when both speakers have a face).
 type AuthorGlyph =
   | { kind: "image"; imageUrl: string }
+  | { kind: "icon"; component: Component; accent: string }
   | { kind: "monogram"; monogram: string; accent: string }
   | { kind: "claude" }
   | { kind: "user" }
@@ -224,13 +231,20 @@ const authorGlyph = computed<AuthorGlyph>(() => {
   if (props.message.role === "user" && !isInboundReport.value)
     return { kind: "user" };
   if (isPersonaAuthor.value && props.authorPersona) {
-    return props.authorPersona.imageUrl
-      ? { kind: "image", imageUrl: props.authorPersona.imageUrl }
-      : {
-          kind: "monogram",
-          monogram: props.authorPersona.monogram,
-          accent: props.authorPersona.accent,
-        };
+    // An uploaded face wins; then the session's own icon; then initials.
+    if (props.authorPersona.imageUrl)
+      return { kind: "image", imageUrl: props.authorPersona.imageUrl };
+    if (props.authorPersona.glyph)
+      return {
+        kind: "icon",
+        component: props.authorPersona.glyph,
+        accent: props.authorPersona.accent,
+      };
+    return {
+      kind: "monogram",
+      monogram: props.authorPersona.monogram,
+      accent: props.authorPersona.accent,
+    };
   }
   const speaksAsSurfaceAssistant =
     props.message.role === "assistant" &&
@@ -433,9 +447,10 @@ const collapsedPreview = computed(() => {
           class="author-avatar"
           :class="{ 'has-image': authorGlyph.kind === 'image' }"
           :style="
-            authorGlyph.kind === 'monogram'
+            authorGlyph.kind === 'monogram' || authorGlyph.kind === 'icon'
               ? {
                   background: `color-mix(in srgb, ${authorGlyph.accent} 30%, transparent)`,
+                  color: authorGlyph.accent,
                 }
               : undefined
           "
@@ -445,6 +460,13 @@ const collapsedPreview = computed(() => {
             v-if="authorGlyph.kind === 'image'"
             :src="authorGlyph.imageUrl"
             alt=""
+          />
+          <component
+            :is="authorGlyph.component"
+            v-else-if="authorGlyph.kind === 'icon'"
+            class="persona-glyph"
+            :size="11"
+            weight="bold"
           />
           <span
             v-else-if="authorGlyph.kind === 'monogram'"
@@ -790,10 +812,18 @@ const collapsedPreview = computed(() => {
           :disabled="inboundCardParts.remainder === null"
           @click="isExpanded = !isExpanded"
         >
-          <!-- SYSTEM NOTIFICATION: a small bell — Vynel telling the room
-               something; nobody speaking. -->
+          <!-- SYSTEM NOTIFICATION: the producer's own glyph when the host
+               resolved one (a schedule, the task list, a monitor), else a
+               small bell — Vynel telling the room something; nobody
+               speaking. -->
+          <component
+            :is="props.authorPersona.glyph"
+            v-if="isSystemNotice && props.authorPersona?.glyph"
+            class="inbound-card-icon"
+            :size="13"
+          />
           <svg
-            v-if="isSystemNotice"
+            v-else-if="isSystemNotice"
             class="inbound-card-icon"
             width="13"
             height="13"
