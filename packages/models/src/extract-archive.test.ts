@@ -5,7 +5,7 @@
 // bzip2 layer must never reach the system tar.
 
 import { describe, expect, it } from 'vitest'
-import { copyFile, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -34,6 +34,23 @@ describe('extractArchive', () => {
       // No intermediates left for the caller to trip on: the compressed
       // original and the decompressed .tar are both gone.
       expect((await readdir(dir)).sort()).toEqual(['sample-model'])
+    })
+  })
+
+  it('a truncated .tar.bz2 rejects loudly — no half-extracted model appears', async () => {
+    await inTempDir(async (dir) => {
+      // The failure class this module exists for: a download cut mid-stream on
+      // a user machine. Half the fixture is enough header to start decoding
+      // and not enough to finish.
+      const whole = await readFile(join(fixturesDir, 'sample.tar.bz2'))
+      await writeFile(join(dir, 'sample.tar.bz2'), whole.subarray(0, Math.floor(whole.length / 2)))
+
+      await expect(extractArchive('sample.tar.bz2', dir)).rejects.toThrow()
+
+      const leftovers = await readdir(dir)
+      // Nothing extractable ever reached tar — no model folder to mistake for
+      // an install (the caller's staging-dir wipe removes the partials).
+      expect(leftovers).not.toContain('sample-model')
     })
   })
 
