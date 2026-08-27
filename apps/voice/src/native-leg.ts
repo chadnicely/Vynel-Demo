@@ -97,6 +97,13 @@ export function startNativeLeg(deps: NativeLegDeps): NativeLeg | null {
           { utterance: utterance.slice(0, 80), watchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS },
           'turn watchdog fired — the room is back; the turn streams on and its answer is spoken when it lands',
         ),
+      // The user's custom wake name, read off the live selection each check —
+      // a Settings save lands through `/reload` (slot.apply carries it) with
+      // no restart. The built-ins always work beside it.
+      readWakeNames: () => {
+        const wakeName = slot.engines.selection.wakeName
+        return wakeName !== null ? [wakeName] : []
+      },
       // The browser owns the command session (Web Speech STT + spoken reply
       // run there). What a wake does to the screen lives in `wake-handoff.ts`;
       // without the dock feature it is simply "hand off to a connected client

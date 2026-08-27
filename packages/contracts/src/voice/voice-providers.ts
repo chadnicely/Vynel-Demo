@@ -85,6 +85,26 @@ export function isVoiceSttSource(value: unknown): value is VoiceSttSource {
   return VOICE_STT_SOURCES.some((source) => source === value)
 }
 
+// The CUSTOM wake name (Kafi, 2026-08-28): "hey <name>" wakes the daemon
+// BESIDE the built-in names (vynel/claude — additive, so a name the STT
+// cannot hear can never lock the user out). ONE word, letters + digits +
+// apostrophe, bounded: the daemon matches it loosely (edit distance) against
+// tiny-STT transcripts, and a phrase or symbols would make that matching
+// meaningless. The one predicate the Settings input, the prefs route, and
+// the daemon's read all share.
+export const WAKE_NAME_MIN_LENGTH = 2
+export const WAKE_NAME_MAX_LENGTH = 24
+const WAKE_NAME_PATTERN = /^\p{L}[\p{L}\p{N}']*$/u
+
+export function isValidWakeName(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length >= WAKE_NAME_MIN_LENGTH &&
+    value.length <= WAKE_NAME_MAX_LENGTH &&
+    WAKE_NAME_PATTERN.test(value)
+  )
+}
+
 /** A provider voice the user can pick for speaking (fetched live — the
  *  ElevenLabs list is account-scoped; Google's is global and huge, so the
  *  picker filters by language client-side). */

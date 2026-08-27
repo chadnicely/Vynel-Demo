@@ -35,11 +35,74 @@ const WAKE_PATTERN = new RegExp(
   'i',
 )
 
-export function detectWakeWord(transcript: string): WakeWordResult {
+export interface DetectWakeWordOptions {
+  /** The user's CUSTOM wake names (Settings → Voice), matched BESIDE the
+   *  built-ins — additive, so a name the STT cannot hear never locks the user
+   *  out. Matched LOOSELY (edit distance scaled to the name's length), the
+   *  same tolerance the hand-tuned garble list gives the built-ins. */
+  readonly extraWakeNames?: readonly string[]
+}
+
+// greeting + the next word — the custom-name probe. The token after the
+// greeting is fuzzy-compared against each custom name; everything after it is
+// the command.
+const WAKE_GREETING_TOKEN_PATTERN = new RegExp(
+  `^[\\s,.!?-]*(?:${WAKE_GREETING})[\\s,]+([\\p{L}\\p{N}']+)[\\s,.!?:-]*`,
+  'iu',
+)
+
+export function detectWakeWord(
+  transcript: string,
+  options: DetectWakeWordOptions = {},
+): WakeWordResult {
   const match = transcript.match(WAKE_PATTERN)
-  if (match === null) return { detected: false, command: '' }
-  // Slice the ORIGINAL (not a normalized copy) so the command keeps its casing.
-  return { detected: true, command: transcript.slice(match[0].length).trim() }
+  if (match !== null) {
+    // Slice the ORIGINAL (not a normalized copy) so the command keeps its casing.
+    return { detected: true, command: transcript.slice(match[0].length).trim() }
+  }
+  const extraNames = options.extraWakeNames ?? []
+  if (extraNames.length > 0) {
+    const candidate = transcript.match(WAKE_GREETING_TOKEN_PATTERN)
+    const heardName = candidate?.[1]?.toLowerCase()
+    if (candidate !== null && heardName !== undefined) {
+      const isCustomName = extraNames.some((name) =>
+        isLooseWakeNameMatch(heardName, name.toLowerCase()),
+      )
+      if (isCustomName) {
+        return { detected: true, command: transcript.slice(candidate[0].length).trim() }
+      }
+    }
+  }
+  return { detected: false, command: '' }
+}
+
+/** How far a heard token may drift from the custom name and still wake: the
+ *  same class of tolerance the built-ins get from their garble lists, scaled
+ *  to length — a short name allows one slip, a longer one two. Never zero:
+ *  tiny STT rarely returns an invented name verbatim. */
+function isLooseWakeNameMatch(heard: string, name: string): boolean {
+  if (heard === name) return true
+  const allowedDistance = name.length <= 5 ? 1 : 2
+  if (Math.abs(heard.length - name.length) > allowedDistance) return false
+  return levenshteinDistance(heard, name) <= allowedDistance
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  let previousRow = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i += 1) {
+    const row = [i]
+    for (let j = 1; j <= b.length; j += 1) {
+      row.push(
+        Math.min(
+          previousRow[j]! + 1,
+          row[j - 1]! + 1,
+          previousRow[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1),
+        ),
+      )
+    }
+    previousRow = row
+  }
+  return previousRow[b.length]!
 }
 
 // Strip a leading "hey vynel" / bare "vynel" that the command capture may have

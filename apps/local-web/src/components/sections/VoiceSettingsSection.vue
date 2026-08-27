@@ -21,6 +21,7 @@ import VoiceBrainSettings from "../voice/VoiceBrainSettings.vue";
 import LocalModelCard from "../models/LocalModelCard.vue";
 import CloudVoicesSettings from "../voice/CloudVoicesSettings.vue";
 import HearingSourceSettings from "../voice/HearingSourceSettings.vue";
+import WakeWordSettings from "../voice/WakeWordSettings.vue";
 import SectionHeader from "./SectionHeader.vue";
 
 // Settings → Voice: the models Vynel speaks and hears with — which are on this
@@ -248,6 +249,11 @@ async function preview() {
           Used to catch “hey Vynel” and open the window — always on this computer, whatever the
           conversation hearing above says. From then on, your picked hearing source takes over.
         </p>
+        <WakeWordSettings
+          :wake-name="preferences?.voiceWakeName ?? null"
+          :saving="updatePreferences.isPending.value"
+          @save="savePick"
+        />
         <LocalModelCard
           v-for="model in sttModels"
           :key="model.id"

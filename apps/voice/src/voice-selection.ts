@@ -5,6 +5,7 @@ import {
   type LocalTtsModelId,
 } from '@vynel/contracts/models/local-model-catalog'
 import {
+  isValidWakeName,
   isVoiceSttSource,
   isVoiceTtsSource,
   type VoiceSttSource,
@@ -27,6 +28,11 @@ export interface VoiceSelection {
   readonly ttsModelId: LocalTtsModelId
   readonly sttModelId: LocalSttModelId
   readonly speakerId: number
+  /** The user's CUSTOM wake name ("hey <name>"), matched BESIDE the built-in
+   *  names — null = built-ins only. Part of the pick so a Settings save
+   *  reaches the running daemon through the same `/reload` every other voice
+   *  preference takes. */
+  readonly wakeName: string | null
 }
 
 export interface ReadVoiceSelectionOptions {
@@ -65,8 +71,10 @@ export async function fetchVoiceSelection(
       voiceSpeakerId?: unknown
       voiceTtsSource?: unknown
       voiceSttSource?: unknown
+      voiceWakeName?: unknown
     }
     return {
+      wakeName: isValidWakeName(body.voiceWakeName) ? body.voiceWakeName : null,
       ttsSource: isVoiceTtsSource(body.voiceTtsSource) ? body.voiceTtsSource : options.fallback.ttsSource,
       sttSource: isVoiceSttSource(body.voiceSttSource) ? body.voiceSttSource : options.fallback.sttSource,
       ttsModelId: isTtsModelId(body.voiceTtsModelId) ? body.voiceTtsModelId : options.fallback.ttsModelId,
@@ -165,6 +173,7 @@ export function planVoiceReload(
       ttsModelId,
       sttModelId,
       speakerId: next.speakerId,
+      wakeName: next.wakeName,
     },
     swapTts: ttsModelId !== current.ttsModelId,
     swapStt: sttModelId !== current.sttModelId,

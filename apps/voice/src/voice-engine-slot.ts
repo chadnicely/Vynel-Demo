@@ -80,7 +80,13 @@ export class VoiceEngineSlot {
   tryLoad(selection: VoiceSelection): boolean {
     if (this.#engines !== null) return true
     if (this.#loadOnce(selection)) return true
-    const fallback = { ...this.#fallback, speakerId: selection.speakerId }
+    // The fallback swaps MODELS only — the pick's speaker and wake name are
+    // not files, nothing about them can be missing from the disk.
+    const fallback = {
+      ...this.#fallback,
+      speakerId: selection.speakerId,
+      wakeName: selection.wakeName,
+    }
     const fallbackIsThePick =
       fallback.ttsModelId === selection.ttsModelId && fallback.sttModelId === selection.sttModelId
     return !fallbackIsThePick && this.#loadOnce(fallback)

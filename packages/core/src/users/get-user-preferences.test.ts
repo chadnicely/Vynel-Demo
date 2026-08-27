@@ -48,6 +48,7 @@ describe('getUserPreferences', () => {
         voiceTtsSource: 'local',
         voiceTtsProviderVoiceId: null,
         voiceSttSource: 'web-speech',
+        voiceWakeName: null,
         desktopActionsEnabled: false,
         voiceTierModel: 'claude-haiku-4-5',
         voiceTierThinking: 'off',

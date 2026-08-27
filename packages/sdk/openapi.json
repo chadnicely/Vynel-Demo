@@ -33616,6 +33616,12 @@
                         "google"
                       ]
                     },
+                    "voiceWakeName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "desktopActionsEnabled": {
                       "type": "boolean"
                     },
@@ -33647,6 +33653,7 @@
                     "voiceTtsSource",
                     "voiceTtsProviderVoiceId",
                     "voiceSttSource",
+                    "voiceWakeName",
                     "desktopActionsEnabled",
                     "voiceTierModel",
                     "voiceTierThinking"
@@ -33738,6 +33745,12 @@
                         "google"
                       ]
                     },
+                    "voiceWakeName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "desktopActionsEnabled": {
                       "type": "boolean"
                     },
@@ -33769,6 +33782,7 @@
                     "voiceTtsSource",
                     "voiceTtsProviderVoiceId",
                     "voiceSttSource",
+                    "voiceWakeName",
                     "desktopActionsEnabled",
                     "voiceTierModel",
                     "voiceTierThinking"
@@ -33853,6 +33867,10 @@
                       "elevenlabs",
                       "google"
                     ]
+                  },
+                  "voiceWakeName": {
+                    "type": "string",
+                    "maxLength": 24
                   },
                   "desktopActionsEnabled": {
                     "type": "boolean"

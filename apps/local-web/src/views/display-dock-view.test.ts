@@ -148,6 +148,13 @@ vi.mock("../composables/activity/use-session-activity-feed.js", () => ({
   useSessionActivityFeed: () => {},
 }));
 
+// The status line reads the custom wake name off the prefs query — these
+// mounts have no query client, and the prefs are not what the cases test.
+vi.mock("../composables/users/use-user-preferences.js", async () => {
+  const { ref } = await import("vue");
+  return { useUserPreferences: () => ({ data: ref(null) }) };
+});
+
 const overlay = vi.hoisted(() => ({
   layouts: [] as OverlayLayout[],
   reveal: vi.fn(),

@@ -78,3 +78,34 @@ describe('stripWakePrefix', () => {
     expect(stripWakePrefix('what time is it')).toBe('what time is it')
   })
 })
+
+// The CUSTOM wake name (Kafi, 2026-08-28): the user's own name wakes the
+// daemon BESIDE the built-ins, matched loosely — the same tolerance class the
+// built-ins get from their hand-tuned garble lists.
+describe('detectWakeWord — custom wake names', () => {
+  const options = { extraWakeNames: ['friday'] }
+
+  it('wakes on the custom name and carries the command', () => {
+    expect(detectWakeWord('Hey Friday, what time is it?', options)).toEqual({
+      detected: true,
+      command: 'what time is it?',
+    })
+  })
+
+  it('tolerates a mishearing within the edit-distance budget', () => {
+    // "friday" → "fridey" (1 slip, length 6 allows 2).
+    expect(detectWakeWord('hey fridey open the news', options).detected).toBe(true)
+    // Too far — "fright" is 3 edits away.
+    expect(detectWakeWord('hey fright open the news', options).detected).toBe(false)
+  })
+
+  it('keeps the built-ins working beside a custom name', () => {
+    expect(detectWakeWord('hey vynel status', options).detected).toBe(true)
+    expect(detectWakeWord('hey claude status', options).detected).toBe(true)
+  })
+
+  it('never wakes on the custom name without a greeting, and never with none configured', () => {
+    expect(detectWakeWord('friday what time is it', options).detected).toBe(false)
+    expect(detectWakeWord('hey friday what time is it').detected).toBe(false)
+  })
+})

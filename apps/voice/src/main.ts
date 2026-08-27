@@ -54,6 +54,9 @@ async function main(): Promise<void> {
     ttsModelId: env.VYNEL_VOICE_TTS,
     sttModelId: env.VYNEL_VOICE_STT,
     speakerId: env.VYNEL_VOICE_ID,
+    // Custom wake names come from the user's preferences only — the built-ins
+    // always work, so a daemon on the env fallback is never deaf.
+    wakeName: null,
   }
   const readSelection = () =>
     readVoiceSelection({ apiUrl: env.VYNEL_API_URL, fallback: envSelection })

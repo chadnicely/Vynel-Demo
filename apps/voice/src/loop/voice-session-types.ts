@@ -94,6 +94,10 @@ export interface VoiceSessionDriverDeps {
   readonly brain: VoiceBrainClient
   readonly io: VoiceSessionIo
   readonly wakeHandoff?: WakeHandoff
+  /** The user's CUSTOM wake names, read AT CALL TIME so a Settings save (via
+   *  `/reload`) reaches the very next utterance — matched beside the
+   *  built-ins, never instead of them. Absent = built-ins only. */
+  readonly readWakeNames?: () => readonly string[]
   /** Surface a swallowed speak/synth failure (silent otherwise — the queue keeps
    *  going). The shell logs it; tests omit it. */
   readonly onSpeakError?: (error: unknown, text: string) => void

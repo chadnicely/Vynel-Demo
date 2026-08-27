@@ -13,6 +13,7 @@ const FALLBACK: VoiceSelection = {
   ttsModelId: 'kokoro',
   sttModelId: 'moonshine-base',
   speakerId: 0,
+  wakeName: null,
 }
 
 function answering(body: unknown, status = 200): typeof fetch {

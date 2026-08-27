@@ -17,6 +17,7 @@ import {
 import {
   DEFAULT_VOICE_STT_SOURCE,
   DEFAULT_VOICE_TTS_SOURCE,
+  isValidWakeName,
   isVoiceSttSource,
   isVoiceTtsSource,
   type VoiceSttSource,
@@ -48,6 +49,9 @@ export interface ResolvedUserPreferences {
   voiceTtsSource: VoiceTtsSource
   voiceTtsProviderVoiceId: string | null
   voiceSttSource: VoiceSttSource
+  // The custom wake name (2026-08-28): "hey <name>" wakes the daemon BESIDE
+  // the built-in names. Null = built-ins only.
+  voiceWakeName: string | null
   // Settings → Desktop control (2026-08-23): may Vynel CLICK and TYPE on this
   // desktop? Looking (screenshots, window lists) is never gated. Fail-closed
   // default; `VYNEL_DESKTOP_ACT_ENABLED` seeds it only while the user has
@@ -74,6 +78,7 @@ export const DEFAULT_PREFERENCES: ResolvedUserPreferences = {
   voiceTtsSource: DEFAULT_VOICE_TTS_SOURCE,
   voiceTtsProviderVoiceId: null,
   voiceSttSource: DEFAULT_VOICE_STT_SOURCE,
+  voiceWakeName: null,
   desktopActionsEnabled: false,
   voiceTierModel: VOICE_TIER_MODEL,
   voiceTierThinking: DEFAULT_VOICE_TIER_THINKING,
@@ -139,6 +144,12 @@ export function getUserPreferences(db: Database, userId: string): ResolvedUserPr
         break
       case 'voiceSttSource':
         if (isVoiceSttSource(parsed)) resolved.voiceSttSource = parsed
+        break
+      case 'voiceWakeName':
+        // The empty string is the CLEAR (back to built-ins only); anything
+        // else must satisfy the shared predicate the daemon matches with.
+        if (parsed === '') resolved.voiceWakeName = null
+        else if (isValidWakeName(parsed)) resolved.voiceWakeName = parsed
         break
       case 'desktopActionsEnabled':
         // The fail-closed `false` this falls back to is the ROW default — what

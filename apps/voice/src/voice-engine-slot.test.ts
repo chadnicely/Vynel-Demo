@@ -11,6 +11,7 @@ const PICK: VoiceSelection = {
   ttsModelId: 'kokoro',
   sttModelId: 'moonshine-base',
   speakerId: 2,
+  wakeName: null,
 }
 const ENV_MODELS: VoiceSelection = {
   ttsSource: 'local',
@@ -18,6 +19,7 @@ const ENV_MODELS: VoiceSelection = {
   ttsModelId: 'piper-lessac',
   sttModelId: 'moonshine-tiny',
   speakerId: 0,
+  wakeName: null,
 }
 
 /** Stands in for the native engines: records applies, never touches sherpa. */

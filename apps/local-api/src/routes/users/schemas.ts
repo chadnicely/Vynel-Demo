@@ -4,7 +4,13 @@
 
 import { z } from 'zod'
 import { LOCAL_STT_MODEL_IDS, LOCAL_TTS_MODEL_IDS } from '@vynel/contracts/models/local-model-catalog'
-import { VOICE_STT_SOURCES, VOICE_TTS_SOURCES } from '@vynel/contracts/voice/voice-providers'
+import {
+  VOICE_STT_SOURCES,
+  VOICE_TTS_SOURCES,
+  WAKE_NAME_MAX_LENGTH,
+  WAKE_NAME_MIN_LENGTH,
+  isValidWakeName,
+} from '@vynel/contracts/voice/voice-providers'
 import {
   VOICE_TIER_ALLOWED_MODELS,
   VOICE_TIER_THINKING_OPTIONS,
@@ -28,6 +34,15 @@ export const SetUserPreferencesRequestSchema = z.object({
   voiceTtsSource: z.enum(VOICE_TTS_SOURCES).optional(),
   voiceTtsProviderVoiceId: z.string().min(1).max(200).nullable().optional(),
   voiceSttSource: z.enum(VOICE_STT_SOURCES).optional(),
+  // One word, letters/digits/apostrophe (the shared predicate the daemon
+  // matches with). "" clears back to the built-in names only.
+  voiceWakeName: z
+    .string()
+    .max(WAKE_NAME_MAX_LENGTH)
+    .refine((value) => value === '' || isValidWakeName(value), {
+      message: `wake name must be one word of ${WAKE_NAME_MIN_LENGTH}-${WAKE_NAME_MAX_LENGTH} letters (or "" to clear)`,
+    })
+    .optional(),
   desktopActionsEnabled: z.boolean().optional(),
   voiceTierModel: z.enum(VOICE_TIER_ALLOWED_MODELS).optional(),
   voiceTierThinking: z.enum(VOICE_TIER_THINKING_OPTIONS).optional(),
@@ -55,6 +70,7 @@ export const UserPreferencesResponseSchema = z.object({
   voiceTtsSource: z.enum(VOICE_TTS_SOURCES),
   voiceTtsProviderVoiceId: z.string().nullable(),
   voiceSttSource: z.enum(VOICE_STT_SOURCES),
+  voiceWakeName: z.string().nullable(),
   desktopActionsEnabled: z.boolean(),
   voiceTierModel: z.enum(VOICE_TIER_ALLOWED_MODELS),
   voiceTierThinking: z.enum(VOICE_TIER_THINKING_OPTIONS),

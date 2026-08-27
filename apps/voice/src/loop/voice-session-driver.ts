@@ -287,7 +287,9 @@ export class VoiceSessionDriver {
       this.#startTurn(transcript)
       return
     }
-    const wake = detectWakeWord(transcript)
+    const wake = detectWakeWord(transcript, {
+      extraWakeNames: this.#deps.readWakeNames?.() ?? [],
+    })
     if (!wake.detected) return
     this.#deps.io.setState('wake')
     if (this.#deps.wakeHandoff?.shouldHandOff() === true) {

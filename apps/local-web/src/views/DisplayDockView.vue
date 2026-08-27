@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onScopeDispose, ref, watch } from "vue";
 import { useVynel } from "../composables/use-vynel.js";
+import { useUserPreferences } from "../composables/users/use-user-preferences.js";
 import { useVoiceSession } from "../composables/voice/use-voice-session.js";
 import { useVoiceDaemonLink } from "../composables/voice/use-voice-daemon-link.js";
 import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-window.js";
@@ -270,11 +271,14 @@ const isListening = computed(() =>
 const caption = computed(() =>
   voiceStageCaption(voice.view.value, isMuted.value, voice.failure.value),
 );
-const statusLine = computed(() =>
-  daemon.isDaemonConnected.value
-    ? "Wake word active — “Hey Claude”"
-    : "Wake daemon offline",
-);
+const preferencesQuery = useUserPreferences();
+const statusLine = computed(() => {
+  if (!daemon.isDaemonConnected.value) return "Wake daemon offline";
+  // The user's custom wake name when set (built-ins keep working beside it);
+  // the assistant's display name otherwise — the matcher accepts both.
+  const wakeName = preferencesQuery.data.value?.voiceWakeName ?? "Claude";
+  return `Wake word active — “Hey ${wakeName}”`;
+});
 
 // The mini row's orb, off the same derivation the room uses. Its resting
 // energy is the idle one: the dock is a conversation in a corner, not the
