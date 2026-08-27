@@ -99,6 +99,15 @@ describe('detectWakeWord — custom wake names', () => {
     expect(detectWakeWord('hey fright open the news', options).detected).toBe(false)
   })
 
+  it('a short name gets NO fuzz — "Max" must not answer every "hey man" in the room', () => {
+    const max = { extraWakeNames: ['max'] }
+    expect(detectWakeWord('hey max what time is it', max).detected).toBe(true)
+    // Distance 1, but the ≤3-letter floor is exact-only: everyday speech
+    // (and the TV) is full of the distance-1 ball around a short name.
+    expect(detectWakeWord('hey man what time is it', max).detected).toBe(false)
+    expect(detectWakeWord('hey mad about that', max).detected).toBe(false)
+  })
+
   it('keeps the built-ins working beside a custom name', () => {
     expect(detectWakeWord('hey vynel status', options).detected).toBe(true)
     expect(detectWakeWord('hey claude status', options).detected).toBe(true)

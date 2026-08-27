@@ -92,7 +92,9 @@ export function isVoiceSttSource(value: unknown): value is VoiceSttSource {
 // tiny-STT transcripts, and a phrase or symbols would make that matching
 // meaningless. The one predicate the Settings input, the prefs route, and
 // the daemon's read all share.
-export const WAKE_NAME_MIN_LENGTH = 2
+// Min 3: a 2-letter name is a false-wake machine even matched exactly —
+// "Jo" collides with no/so/go/to in everyday speech, and "yo" IS a greeting.
+export const WAKE_NAME_MIN_LENGTH = 3
 export const WAKE_NAME_MAX_LENGTH = 24
 const WAKE_NAME_PATTERN = /^\p{L}[\p{L}\p{N}']*$/u
 

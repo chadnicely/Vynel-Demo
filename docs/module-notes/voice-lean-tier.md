@@ -159,8 +159,9 @@ touch).
 
 ## 4. Verification
 
-- Provider options test: `hostResources: 'none'` → empty settingSources + tools, everything
-  else byte-identical; default 'full' unchanged.
+- Provider options test: `hostResources: 'none'` → empty settingSources + the web/read-only
+  native whitelist (BARE_HOST_TOOL_NAMES, amended 2026-08-28), everything else byte-identical;
+  default 'full' unchanged.
 - Settings test: voice tier resolves haiku; fit-overflow resolves sonnet-5, never the chain's
   model; env override honored + rejected outside the two.
 - Compose test: a voice turn's append is exactly the voice base.

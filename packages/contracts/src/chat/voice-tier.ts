@@ -1,8 +1,9 @@
 // The VOICE TIER — the one home for what the spoken surfaces run on. Revised
 // 2026-08-27 (Kafi, the voice-lean tier): HAIKU 4.5 at LOW effort — the
 // fastest first spoken syllable — made safe by the lean context that ships
-// with it (`hostResources: 'none'`: no CLAUDE.md, no native tools, the voice
-// base alone), so the 200k window is no longer the 2026-08-19 crash class:
+// with it (`hostResources: 'none'`: no CLAUDE.md, only the web + read-only
+// natives — BARE_HOST_TOOL_NAMES, 2026-08-28 — the voice base alone), so the
+// 200k window is no longer the 2026-08-19 crash class:
 // the thread stays small, the boundary swap fires at 85% of ITS window, and
 // when a resumed head still cannot fit the pin the turn falls back to
 // `VOICE_TIER_FALLBACK_MODEL` (sonnet's 1M) — those two ARE the entire voice

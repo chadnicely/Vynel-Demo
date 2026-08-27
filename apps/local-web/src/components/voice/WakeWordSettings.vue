@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import {
   WAKE_NAME_MAX_LENGTH,
+  WAKE_NAME_MIN_LENGTH,
   isValidWakeName,
 } from "@vynel/contracts/voice/voice-providers";
 import type { UserPreferencesPatch } from "../../composables/users/use-user-preferences.js";
@@ -44,7 +45,8 @@ function save(): void {
   <div class="flex flex-col gap-2">
     <p class="m-0 text-xs text-ink-3">
       Add your own wake name — “hey {{ trimmed || "…" }}” will open the conversation too. “Hey
-      Vynel” always keeps working. One word, letters only.
+      Vynel” always keeps working. One word, {{ WAKE_NAME_MIN_LENGTH }}–{{ WAKE_NAME_MAX_LENGTH }}
+      characters.
     </p>
     <div class="flex items-center gap-2">
       <input
@@ -68,7 +70,8 @@ function save(): void {
       </button>
     </div>
     <p v-if="!isDraftValid" class="m-0 text-xs text-red-400" data-testid="wake-name-invalid">
-      One word of 2–{{ WAKE_NAME_MAX_LENGTH }} letters — no spaces or symbols.
+      One word of {{ WAKE_NAME_MIN_LENGTH }}–{{ WAKE_NAME_MAX_LENGTH }} characters, starting
+      with a letter — no spaces or symbols.
     </p>
   </div>
 </template>

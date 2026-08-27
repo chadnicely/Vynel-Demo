@@ -78,11 +78,15 @@ export function detectWakeWord(
 
 /** How far a heard token may drift from the custom name and still wake: the
  *  same class of tolerance the built-ins get from their garble lists, scaled
- *  to length — a short name allows one slip, a longer one two. Never zero:
- *  tiny STT rarely returns an invented name verbatim. */
+ *  to length. A SHORT name gets NO fuzz — the distance-1 ball around a
+ *  3-letter name is full of everyday speech ("Max" would take "man"/"mad"/
+ *  "mat", and the always-on mic hears the TV too), and short names are real
+ *  names tiny STT transcribes fine; the built-ins' common-word garbles were
+ *  hand-curated for collisions, an automatic ball is not. */
 function isLooseWakeNameMatch(heard: string, name: string): boolean {
   if (heard === name) return true
-  const allowedDistance = name.length <= 5 ? 1 : 2
+  const allowedDistance = name.length <= 3 ? 0 : name.length <= 5 ? 1 : 2
+  if (allowedDistance === 0) return false
   if (Math.abs(heard.length - name.length) > allowedDistance) return false
   return levenshteinDistance(heard, name) <= allowedDistance
 }

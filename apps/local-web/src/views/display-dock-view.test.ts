@@ -149,10 +149,15 @@ vi.mock("../composables/activity/use-session-activity-feed.js", () => ({
 }));
 
 // The status line reads the custom wake name off the prefs query — these
-// mounts have no query client, and the prefs are not what the cases test.
+// mounts have no query client, so the mock is a mutable holder: null (the
+// default "Hey Claude") unless a case sets a name.
+const prefsMock = vi.hoisted(
+  () => ({}) as { data: Ref<{ voiceWakeName: string | null } | null> },
+);
 vi.mock("../composables/users/use-user-preferences.js", async () => {
   const { ref } = await import("vue");
-  return { useUserPreferences: () => ({ data: ref(null) }) };
+  prefsMock.data = ref(null);
+  return { useUserPreferences: () => ({ data: prefsMock.data }) };
 });
 
 const overlay = vi.hoisted(() => ({
@@ -240,6 +245,7 @@ beforeEach(() => {
   overlay.park.mockClear();
   daemon.cancelRelayedLine.mockClear();
   stopListening.mockClear();
+  prefsMock.data.value = null;
 });
 
 describe("DisplayDockView", () => {
@@ -388,6 +394,18 @@ describe("DisplayDockView", () => {
     expect(voice.end).toHaveBeenCalled();
     expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
     expect(overlay.dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the custom wake name on the status line, and the default without one", async () => {
+    prefsMock.data.value = { voiceWakeName: "Friday" };
+    const wrapper = await mountDock();
+    daemon.wake();
+    await flushPromises();
+    expect(wrapper.text()).toContain("Hey Friday");
+
+    prefsMock.data.value = null;
+    await flushPromises();
+    expect(wrapper.text()).toContain("Hey Claude");
   });
 
   // The dock's wake sessions listen in minutes — the user ends them; the cap
