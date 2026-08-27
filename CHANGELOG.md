@@ -29,6 +29,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   Display no longer counts as "the room is on screen" — which was actively hiding the widget at
   the exact moment it was needed.
 
+- **A spoken line can no longer vanish silently.** When the browser refused to start playing a
+  delegated line (a window that never had a click — autoplay policy), the words were simply lost
+  while the daemon believed they were delivered. A refused line now comes back to the daemon,
+  which says it through the machine's own speaker instead — and the dock's caption now shows the
+  line even when the audio plays in a different window.
+
 ## [0.3.9] — 2026-08-27
 
 ### Changed
