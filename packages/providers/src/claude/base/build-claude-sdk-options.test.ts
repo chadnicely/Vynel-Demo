@@ -2,7 +2,11 @@
 // See `docs/blueprints/providers/blueprint.md §11.5`.
 
 import { describe, expect, it } from 'vitest'
-import { buildClaudeSdkOptions, CLAUDE_CODE_BASE_TOOL_NAMES } from './build-claude-sdk-options.js'
+import {
+  BARE_HOST_TOOL_NAMES,
+  buildClaudeSdkOptions,
+  CLAUDE_CODE_BASE_TOOL_NAMES,
+} from './build-claude-sdk-options.js'
 
 const base = {
   workspacePath: '/tmp/ws',
@@ -78,10 +82,20 @@ describe('buildClaudeSdkOptions', () => {
     expect(on.effort).toBe('low')
   })
 
-  it('hostResources "none" empties settingSources + native tools; default stays the full host (voice-lean tier)', () => {
+  it('hostResources "none" empties settingSources + trims natives to web + read-only; default stays the full host (voice-lean tier)', () => {
     const bare = buildClaudeSdkOptions({ ...base, permissionMode: 'auto', hostResources: 'none' })
     expect(bare.settingSources).toEqual([])
-    expect(bare.tools).toEqual([])
+    // The spoken thread looks things up itself (Kafi 2026-08-28) but gets
+    // nothing that mutates (voice runs uncarded) and no orchestration.
+    expect(bare.tools).toEqual(['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'])
+    expect(bare.tools).not.toContain('Bash')
+    expect(bare.tools).not.toContain('Write')
+    expect(bare.tools).not.toContain('Edit')
+    expect(bare.tools).not.toContain('Agent')
+    // Every bare-host tool is a base tool — the lists cannot drift.
+    for (const toolName of BARE_HOST_TOOL_NAMES) {
+      expect(CLAUDE_CODE_BASE_TOOL_NAMES).toContain(toolName)
+    }
     // The safety machinery is untouched by the diet: the PreToolUse backstop
     // stays registered and the SDK auto-memory stays off.
     expect(bare.hooks?.PreToolUse).toHaveLength(1)

@@ -13,9 +13,10 @@ export type BuildClaudeSdkOptionsInput = {
   resumeSessionId?: string
   /** What the runtime loads from the HOST machine (voice-lean tier): `'none'`
    *  empties `settingSources` (no CLAUDE.md, no user/workspace settings) and
-   *  the native `tools` whitelist (MCP servers become the entire toolset).
-   *  Omit / `'full'` = the shipped shape, byte-for-byte. Hooks, gates, and
-   *  the flag-layer settings are untouched either way. */
+   *  trims the native `tools` whitelist to the web + read-only basics
+   *  (`BARE_HOST_TOOL_NAMES` — Vynel's MCP servers plus lookups; nothing that
+   *  mutates). Omit / `'full'` = the shipped shape, byte-for-byte. Hooks,
+   *  gates, and the flag-layer settings are untouched either way. */
   hostResources?: 'full' | 'none'
   /** The Claude model to run (Agent SDK `options.model`). Omit for the CLI default. */
   model?: string
@@ -161,6 +162,16 @@ export const CLAUDE_CODE_BASE_TOOL_NAMES = [
   'TaskStop',
 ] as const
 
+// A BARE host (the voice lean tier) attaches the WEB + READ-ONLY natives only
+// (Kafi, 2026-08-28): a spoken surface looks things up itself — "what's the
+// news" must not cost a delegation round-trip — but everything that MODIFIES
+// (shell, file writes) still routes to a workspace, because voice is locked
+// `auto`, where nothing cards: a mutating native here would run unasked on a
+// hands-free surface. Orchestration (Agent/Skill/TaskOutput/TaskStop) is
+// routed work too. Every entry must exist in CLAUDE_CODE_BASE_TOOL_NAMES —
+// pinned by the colocated test so the lists cannot drift.
+export const BARE_HOST_TOOL_NAMES = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'] as const
+
 export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Options {
   const sdkPermissionMode = SDK_PERMISSION_MODE[input.permissionMode]
   const bareHost = input.hostResources === 'none'
@@ -189,10 +200,10 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
     // `systemPromptAppend` above).
     ...(input.systemPromptAppend !== undefined ? { systemPrompt: input.systemPromptAppend } : {}),
     // The built-in toolset is a WHITELIST; Vynel's own features arrive as MCP
-    // tools (`mcpServers` below). A bare host attaches NO natives — the MCP
-    // servers are the entire toolset (the spoken thread routes work, it never
-    // edits files or runs shells itself).
-    tools: bareHost ? [] : [...CLAUDE_CODE_BASE_TOOL_NAMES],
+    // tools (`mcpServers` below). A bare host attaches the web + read-only
+    // basics only (see BARE_HOST_TOOL_NAMES) — the spoken thread looks things
+    // up itself but routes anything that mutates.
+    tools: bareHost ? [...BARE_HOST_TOOL_NAMES] : [...CLAUDE_CODE_BASE_TOOL_NAMES],
     // The SDK's auto-memory would have the model keep a SECOND memory under
     // `~/.claude/projects/<cwd>/memory/` that the user never sees, beside
     // `@vynel/memory` (found live 2026-08-26 — the global root's hidden cwd had

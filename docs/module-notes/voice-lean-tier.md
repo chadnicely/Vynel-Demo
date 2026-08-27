@@ -86,8 +86,14 @@ The per-call spawned-session leg stays its own parked arc.
   `voice-thread.md` = the routing duty; the voice THREAD composes exactly those two. The call
   leg keeps `voice-base` + `spawned-session` and inherits talk-first for free.
 - The provider field landed as `hostResources: 'full' | 'none'` on `StartChatSessionInput`;
-  `'none'` empties `settingSources` + the native `tools` whitelist only — hooks, gates, and
+  `'none'` empties `settingSources` + trims the native `tools` whitelist — hooks, gates, and
   `autoMemoryEnabled: false` untouched (pinned by test).
+- **Amended 2026-08-28 (Kafi):** a bare host is no longer tool-free — it attaches the WEB +
+  READ-ONLY natives (`BARE_HOST_TOOL_NAMES` = Read/Glob/Grep/WebFetch/WebSearch): a spoken
+  lookup ("what's the news") must not cost a delegation round-trip. Everything that MUTATES
+  (Bash/Write/Edit) and all orchestration (Agent/Skill/TaskOutput/TaskStop) stays off — voice
+  runs locked-`auto` where nothing cards, so a mutating native would execute unasked on a
+  hands-free surface; that work still routes.
 - `VOICE_TIER_ALLOWED_MODELS` = [haiku-4-5, sonnet-5] in the contract; the fit clamp lands on
   `VOICE_TIER_FALLBACK_MODEL`, never the session's model or the engine default (test
   expectation corrected — the old "engine default on overflow" contradicted the two-model rule).

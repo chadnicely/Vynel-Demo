@@ -98,10 +98,12 @@ export type StartChatSessionInput = {
    * `'full'` (the default, every shipped caller) — the runtime reads the
    * user's and workspace's own Claude configuration (CLAUDE.md, settings) and
    * attaches its native toolset. `'none'` — a bare runtime: no host
-   * configuration is read and no native tools attach; the session's tools are
-   * exactly the MCP servers the caller registers. The spoken thread runs bare:
-   * its identity is Vynel's own prompt, and host files are foreign text on a
-   * latency-critical surface.
+   * configuration is read, and only the web + read-only native basics attach
+   * (search/fetch/read — Kafi 2026-08-28: a spoken lookup must not cost a
+   * delegation round-trip; anything that MUTATES still routes, since voice
+   * runs uncarded). The rest of the session's tools are the MCP servers the
+   * caller registers. The spoken thread runs bare: its identity is Vynel's
+   * own prompt, and host files are foreign text on a latency-critical surface.
    */
   hostResources?: 'full' | 'none'
 
