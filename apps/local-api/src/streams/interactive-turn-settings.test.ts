@@ -11,7 +11,11 @@ import { insertUser } from '@vynel/db/repositories/users'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { insertChatSession, updateChatSession } from '@vynel/chat/repositories'
 import { DEFAULT_SESSION_MODE, toPermissionMode } from '@vynel/session'
-import { VOICE_TIER_MODE, VOICE_TIER_MODEL } from '@vynel/contracts/chat/voice-tier'
+import {
+  VOICE_TIER_MODE,
+  VOICE_TIER_MODEL,
+  VOICE_TIER_FALLBACK_MODEL,
+} from '@vynel/contracts/chat/voice-tier'
 import type { Database } from '@vynel/db'
 import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
 
@@ -119,29 +123,55 @@ describe('resolveInteractiveTurnSettings — voice', () => {
     })
   })
 
-  it("sets the pin aside for a session the tier's window cannot hold (the fit guard's verdict runs the turn)", async () => {
+  // test: correct expectation for the fit clamp — was "the engine default runs
+  // an overflowing session", should be the tier's OWN fallback (voice-lean
+  // tier, 2026-08-27): {pin, fallback} is the entire voice model universe, so
+  // an overflow lands on VOICE_TIER_FALLBACK_MODEL — never the session's model,
+  // never the engine default.
+  it("clamps a session the pin's window cannot hold to the voice FALLBACK model, never outside the tier", async () => {
     await withTestDatabase(async (db) => {
       seedSession(db, 'sdk-fat')
-      // Past the swap threshold on the tier's own 1M window (the 2026-08-19
-      // incident shape, one generation up): no larger window exists, so the
-      // guard hands the turn to the engine default rather than a pin that
-      // provably dies with "Prompt is too long".
-      updateChatSession(db, 'sdk-fat', { model: 'claude-fable-5[1m]', lastContextTokens: 900_000 })
+      // 400k occupancy on a 1M-driven chain: far past the haiku pin's 200k
+      // window — the clamp hands the turn to the tier's sonnet fallback.
+      updateChatSession(db, 'sdk-fat', { model: 'claude-fable-5[1m]', lastContextTokens: 400_000 })
       const resolved = resolveInteractiveTurnSettings(
         db,
         { voice: true },
         { sessionId: 'sdk-fat' },
         { logger: silentLogger },
       )
-      expect(resolved.model).not.toBe(VOICE_TIER_MODEL)
-      expect(resolved.model).toBeUndefined()
+      expect(resolved.model).toBe(VOICE_TIER_FALLBACK_MODEL)
       expect(resolved.permissionMode).toBe(toPermissionMode(VOICE_TIER_MODE))
-      // A session the pin CAN hold keeps the tier.
-      updateChatSession(db, 'sdk-fat', { lastContextTokens: 400_000 })
+      // A session the pin CAN hold keeps the tier's pin.
+      updateChatSession(db, 'sdk-fat', { lastContextTokens: 50_000 })
       expect(
         resolveInteractiveTurnSettings(db, { voice: true }, { sessionId: 'sdk-fat' }, { logger: silentLogger })
           .model,
       ).toBe(VOICE_TIER_MODEL)
+    })
+  })
+
+  it('the voiceModelOverride replaces the PIN only — the A/B lever (VYNEL_VOICE_TIER_MODEL)', async () => {
+    await withTestDatabase(async (db) => {
+      seedSession(db, 'sdk-ab')
+      updateChatSession(db, 'sdk-ab', { lastContextTokens: 50_000 })
+      expect(
+        resolveInteractiveTurnSettings(
+          db,
+          { voice: true },
+          { sessionId: 'sdk-ab', voiceModelOverride: VOICE_TIER_FALLBACK_MODEL },
+          { logger: silentLogger },
+        ).model,
+      ).toBe(VOICE_TIER_FALLBACK_MODEL)
+      // Keyboard turns never read the lever.
+      expect(
+        resolveInteractiveTurnSettings(
+          db,
+          {},
+          { sessionId: 'sdk-ab', voiceModelOverride: VOICE_TIER_FALLBACK_MODEL },
+          { logger: silentLogger },
+        ).model,
+      ).toBeUndefined()
     })
   })
 })

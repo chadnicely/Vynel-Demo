@@ -128,6 +128,20 @@ describe('loadSessionInstruction', () => {
     }
   })
 
+  // LOAD-BEARING like global-root's guard (voice-lean tier): voice-thread.md is
+  // the spoken thread's ONLY prompt-side routing steer — no kind file, no MCP
+  // prompt sections ride a voice turn — so the model calls these tools only
+  // because this file names them. A rename in the catalog must break here.
+  it('voice-thread names the routing + schedule tools the spoken thread steers by', () => {
+    const prompt = loadSessionInstruction('voice-thread')
+    expect(prompt).toContain('list_routing_workspaces')
+    expect(prompt).toContain('send_message')
+    expect(prompt).toContain('create_my_schedule')
+    expect(prompt).toContain('list_my_schedules')
+    // The duty in one line: hand work down, reports come back on their own.
+    expect(prompt).toContain('never send the same task twice')
+  })
+
   it('autopilot-marker tells the model it is on autopilot and names the needs_input exit', () => {
     const body = loadSessionInstruction('autopilot-marker')
     expect(body).toContain('AUTOPILOT')

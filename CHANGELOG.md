@@ -7,6 +7,16 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ## [Unreleased]
 
+### Changed
+
+- **Voice got faster: a lean, bare session that talks before it acts.** The spoken thread now
+  runs on Haiku 4.5 (Sonnet 5 remains the only fallback when a long conversation needs the
+  bigger window — nothing else ever runs a spoken turn), and it travels light: no computer-level
+  Claude configuration is read, no native file/shell tools attach (Vynel's own tools are the
+  whole surface), and the prompt is the spoken identity alone. The voice instruction was
+  rewritten around one rule — say one short sentence about your request first, then do the work,
+  then say the outcome — so you always hear something before the tools start.
+
 ### Fixed
 
 - **A task sent by voice now reports back to the voice conversation.** Work the spoken thread

@@ -24,6 +24,7 @@ import {
   parseVynelPortBase,
   resolveVynelPorts,
 } from '@vynel/contracts/network/ports'
+import { VOICE_TIER_ALLOWED_MODELS } from '@vynel/contracts/chat/voice-tier'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..', '..', '..') // src -> api -> apps -> repo-root
@@ -62,6 +63,13 @@ function buildEnvSchema(portBase: number) {
   // fire a swap in a few turns. Unset in production. Consumed by
   // `streamChatTurn` → `applyRootTurnContinuity`.
   VYNEL_CONTEXT_PRESSURE_THRESHOLD: z.coerce.number().gt(0).lte(1).optional(),
+  // The voice-tier A/B lever (voice-lean tier, 2026-08-27): overrides the
+  // spoken thread's PIN for this engine run — validated against the tier's
+  // OWN allowed pair (one home in the contract, so a tier change can never
+  // drift past this gate). Unset = the contract's default pin. The fallback
+  // clamp stands either way. Consumed by `resolveVoiceTierSettings` via the
+  // voice streams.
+  VYNEL_VOICE_TIER_MODEL: z.enum(VOICE_TIER_ALLOWED_MODELS).optional(),
   // How many delegated runs (child sessions, routed tasks, agent runs) may live at
   // once — each is a Claude CLI subprocess. Default 3 (Chad, 2026-07-21); becomes a
   // user-facing setting in the settings arc. Bounded: a runaway value would fan out

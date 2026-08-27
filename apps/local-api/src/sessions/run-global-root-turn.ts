@@ -346,6 +346,7 @@ export async function runGlobalRootTurn(
   // (voice-requester routing) — the voice TIER, forced and fit-clamped (D2),
   // the row neither read nor written: the same one-home rule the interactive
   // voice leg resolves through.
+  const voiceTierOverride = loadEnv().VYNEL_VOICE_TIER_MODEL
   const voiceSettings = isVoiceThread
     ? resolveInteractiveTurnSettings(
         deps.db,
@@ -353,6 +354,7 @@ export async function runGlobalRootTurn(
         {
           sessionId: conversationTarget.resumeSdkSessionId,
           ...(swapThreshold !== undefined ? { pressureThreshold: swapThreshold } : {}),
+          ...(voiceTierOverride !== undefined ? { voiceModelOverride: voiceTierOverride } : {}),
         },
         { logger: deps.logger },
       )
@@ -505,11 +507,14 @@ export async function runGlobalRootTurn(
     : composedRoutingMcp
 
   // USER-scope agents ride channel turns too — a Telegram ask can spawn the
-  // same subagents the app chats can (agents parity, one lifecycle).
-  const sessionAgents = await composeSessionAgents(deps.db, {
-    userId: input.userId,
-    workspaceId: null,
-  })
+  // same subagents the app chats can (agents parity, one lifecycle). NEVER on
+  // the VOICE thread (the lean tier) — the interactive voice leg's rule.
+  const sessionAgents = isVoiceThread
+    ? {}
+    : await composeSessionAgents(deps.db, {
+        userId: input.userId,
+        workspaceId: null,
+      })
   const agentSlugs = Object.keys(sessionAgents)
   const agentRunId = agentSlugs.length > 0 ? crypto.randomUUID() : null
   if (agentRunId) {

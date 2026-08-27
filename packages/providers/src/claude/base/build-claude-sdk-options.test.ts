@@ -61,6 +61,23 @@ describe('buildClaudeSdkOptions', () => {
     expect(withoutEffort.effort).toBeUndefined()
   })
 
+  it('hostResources "none" empties settingSources + native tools; default stays the full host (voice-lean tier)', () => {
+    const bare = buildClaudeSdkOptions({ ...base, permissionMode: 'auto', hostResources: 'none' })
+    expect(bare.settingSources).toEqual([])
+    expect(bare.tools).toEqual([])
+    // The safety machinery is untouched by the diet: the PreToolUse backstop
+    // stays registered and the SDK auto-memory stays off.
+    expect(bare.hooks?.PreToolUse).toHaveLength(1)
+    expect(bare.settings).toEqual({ autoMemoryEnabled: false })
+
+    const full = buildClaudeSdkOptions({ ...base, permissionMode: 'auto' })
+    expect(full.settingSources).toEqual(['user', 'project', 'local'])
+    expect(full.tools).toEqual([...CLAUDE_CODE_BASE_TOOL_NAMES])
+    const explicit = buildClaudeSdkOptions({ ...base, permissionMode: 'auto', hostResources: 'full' })
+    expect(explicit.settingSources).toEqual(['user', 'project', 'local'])
+    expect(explicit.tools).toEqual([...CLAUDE_CODE_BASE_TOOL_NAMES])
+  })
+
   it('passes resumeSessionId through as the SDK resume option', () => {
     const options = buildClaudeSdkOptions({
       ...base,

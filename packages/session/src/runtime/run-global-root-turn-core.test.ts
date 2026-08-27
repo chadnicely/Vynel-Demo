@@ -386,6 +386,53 @@ describe('runGlobalRootTurnCore — the voice thread (voice-session arc)', () =>
     })
   })
 
+  it('a voice turn runs BARE (the lean tier): hostResources none + voice-base/voice-thread alone; a global turn keeps the full host + stack', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      const voiceInputs: StartChatSessionInput[] = []
+      const voiceProvider = new FakeAiAgentProvider({
+        sessionIds: ['voice-lean-a'],
+        resultText: 'Spoken.',
+        usage: RELAXED_USAGE,
+        summary: USABLE_CARRY,
+        startChatSessionInputs: voiceInputs,
+      })
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveVoiceTarget(db, user.id), provider: voiceProvider },
+        {
+          ...bareTurnInput(user.id, 'check the weather'),
+          voice: true,
+          mcpSystemPromptAppend: '## A feature blurb voice must not carry',
+        },
+        new CollectingSink(),
+      )
+      expect(voiceInputs[0]!.hostResources).toBe('none')
+      const voicePrompt = voiceInputs[0]!.systemPromptAppend ?? ''
+      expect(voicePrompt).toContain(loadSessionInstruction('voice-base'))
+      expect(voicePrompt).toContain(loadSessionInstruction('voice-thread'))
+      expect(voicePrompt).not.toContain('A feature blurb voice must not carry')
+      expect(voicePrompt).not.toContain(loadSessionInstruction('global-root'))
+
+      const globalInputs: StartChatSessionInput[] = []
+      const globalProvider = new FakeAiAgentProvider({
+        sessionIds: ['global-full-a'],
+        resultText: 'Typed.',
+        usage: RELAXED_USAGE,
+        summary: USABLE_CARRY,
+        startChatSessionInputs: globalInputs,
+      })
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveGlobalTarget(db, user.id), provider: globalProvider },
+        { ...bareTurnInput(user.id, 'hello'), mcpSystemPromptAppend: '## The feature blurb' },
+        new CollectingSink(),
+      )
+      expect(globalInputs[0]!.hostResources).toBeUndefined()
+      const globalPrompt = globalInputs[0]!.systemPromptAppend ?? ''
+      expect(globalPrompt).toContain(loadSessionInstruction('global-root'))
+      expect(globalPrompt).toContain('The feature blurb')
+    })
+  })
+
   it("a second voice turn RESUMES the voice thread — one continuing chain whose segments stay scope 'voice'", async () => {
     await withTestDatabase(async (db) => {
       const user = insertUser(db, makeUser())

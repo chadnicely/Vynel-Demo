@@ -203,16 +203,20 @@ export async function streamGlobalRootTurn(
   // Settings (one home: `resolveInteractiveTurnSettings`). A KEYBOARD turn:
   // input ?? the thread's persisted row ?? the default. A VOICE turn is a
   // surface with PINNED parameters, not the user's chips (D2): the voice tier
-  // — sonnet-5 / low / auto — forced over whatever the body carries, the row
-  // neither read nor written (the write-through below is gated the same way),
-  // and the pin fit-clamped against the head it resumes so a large brain can
-  // never break speech (the 2026-08-19 incident).
+  // — the contract's pin at low effort / auto — forced over whatever the body
+  // carries, the row neither read nor written (the write-through below is
+  // gated the same way), and an overflowing head fit-clamped to the tier's
+  // own fallback so a large chain can never break speech (the 2026-08-19
+  // incident, resolved inside the two-model tier since the voice-lean arc).
   const turnSettings = resolveInteractiveTurnSettings(
     c.var.db,
     input,
     {
       sessionId: conversationTarget.resumeSdkSessionId,
       ...(pressureThreshold !== undefined ? { pressureThreshold } : {}),
+      ...(env.VYNEL_VOICE_TIER_MODEL !== undefined
+        ? { voiceModelOverride: env.VYNEL_VOICE_TIER_MODEL }
+        : {}),
     },
     { logger: c.var.logger },
   )
@@ -355,11 +359,16 @@ export async function streamGlobalRootTurn(
   return streamSSE(c, async (stream) => {
     // USER-scope agents ride the global chat too — the same spawn lifecycle
     // the workspace turn gets (agents parity; workspace-scope agents stay in
-    // their rooms). Composed inside the SSE callback like the rest.
-    const sessionAgents = await composeSessionAgents(c.var.db, {
-      userId: c.var.user.id,
-      workspaceId: null,
-    })
+    // their rooms). Composed inside the SSE callback like the rest. NEVER on
+    // a VOICE turn (the lean tier): a spoken turn routes work, it does not
+    // spawn subagents, and every agent definition is standing tokens on a
+    // latency-critical surface.
+    const sessionAgents = isVoiceTurn
+      ? {}
+      : await composeSessionAgents(c.var.db, {
+          userId: c.var.user.id,
+          workspaceId: null,
+        })
     const agentSlugs = Object.keys(sessionAgents)
     const agentRunId = agentSlugs.length > 0 ? crypto.randomUUID() : null
     if (agentRunId) {

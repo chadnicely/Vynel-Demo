@@ -54,21 +54,33 @@ import type {
   RunGlobalRootTurnCoreInput,
   SessionSink,
 } from './session-types.js'
-import { composeSessionInstruction } from '@vynel/instructions/session-instructions'
+import {
+  composeSessionInstruction,
+  loadSessionInstruction,
+} from '@vynel/instructions/session-instructions'
 import { rootTurnLockKey, runUnderRootTurnLock } from './root-turn-lock.js'
 import { DEFAULT_SESSION_MODE, toPermissionMode } from '../session-mode.js'
 import { publishTurnEventsToSessionChannel } from './session-turn-channel.js'
 import { composeGlobalRootProviderMessage } from './compose-global-root-provider-message.js'
 
 /**
- * Compose the turn's `systemPromptAppend`: the identity stack (the channel base
- * — `voice-base` on a voice turn, else `base` — plus the `global-root` kind
- * file, all editable markdown from `@vynel/instructions/session-instructions`),
- * then the feature/MCP contribution and any per-turn steer.
+ * Compose the turn's `systemPromptAppend`. GLOBAL: the identity stack (`base`
+ * + the `global-root` kind file, all editable markdown from
+ * `@vynel/instructions/session-instructions`), then the feature/MCP
+ * contribution and any per-turn steer. VOICE (the lean tier, 2026-08-27):
+ * `voice-base` + the few-line `voice-thread` duty plus the steer — no
+ * `global-root` kind file, no MCP feature sections; every standing token on
+ * the spoken thread is paid on every request, and the tools speak for
+ * themselves through their definitions.
  */
 function buildSystemPromptAppend(input: RunGlobalRootTurnCoreInput): string {
-  const parts = [composeSessionInstruction('global-root', { voice: input.voice === true })]
-  if (input.mcpSystemPromptAppend !== '') parts.push(input.mcpSystemPromptAppend)
+  const parts =
+    input.voice === true
+      ? [loadSessionInstruction('voice-base'), loadSessionInstruction('voice-thread')]
+      : [
+          composeSessionInstruction('global-root'),
+          ...(input.mcpSystemPromptAppend !== '' ? [input.mcpSystemPromptAppend] : []),
+        ]
   if (input.steerPromptAppend !== undefined && input.steerPromptAppend !== '') {
     parts.push(input.steerPromptAppend)
   }
@@ -204,6 +216,10 @@ async function* runOneGlobalTurn(
   const providerEventStream = provider.startChatSession({
     workspacePath: target.workspacePath,
     ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),
+    // The spoken thread runs on a BARE host (voice-lean tier): no CLAUDE.md,
+    // no user/workspace settings, no native toolset — the MCP servers below
+    // are its entire tool surface, and Vynel's own prompt its entire identity.
+    ...(input.voice === true ? { hostResources: 'none' as const } : {}),
     userMessageText: providerUserMessageText,
     ...(attachedImages.length > 0 ? { attachedImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),

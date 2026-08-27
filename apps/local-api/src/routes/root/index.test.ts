@@ -16,6 +16,7 @@ import pino from 'pino'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { withTestDatabase } from '@vynel/testing'
+import { VOICE_TIER_MODEL } from '@vynel/contracts/chat/voice-tier'
 import { VynelError } from '@vynel/errors'
 import { insertUser } from '@vynel/db/repositories/users'
 import { insertAgent } from '@vynel/db/repositories/agents'
@@ -778,7 +779,8 @@ describe('POST /root/turn (SSE)', () => {
           body: JSON.stringify({
             userMessageText: 'traffic in dhaka?',
             voice: true,
-            model: 'claude-haiku-4-5',
+            // A model OUTSIDE the voice tier proves the force.
+            model: 'claude-opus-4-8',
           }),
         })
         expect(spoken.status).toBe(200)
@@ -786,7 +788,7 @@ describe('POST /root/turn (SSE)', () => {
 
         // test: correct expectation — the voice turn ran on the TIER (was: the
         // body's pin + the core's bypass default), 2026-08-19 session-hardening.
-        expect(startChatSessionInputs[1]!.model).toBe('claude-sonnet-5')
+        expect(startChatSessionInputs[1]!.model).toBe(VOICE_TIER_MODEL)
         expect(startChatSessionInputs[1]!.thinkingEffort).toBe('low')
         expect(startChatSessionInputs[1]!.permissionMode).toBe('auto')
         // …and the thread's persisted settings are untouched.

@@ -17,6 +17,7 @@ import pino from 'pino'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { withTestDatabase } from '@vynel/testing'
+import { VOICE_TIER_MODEL } from '@vynel/contracts/chat/voice-tier'
 import { VynelError } from '@vynel/errors'
 import { insertUser, upsertPreferenceForUser } from '@vynel/db/repositories/users'
 import type { Database } from '@vynel/db'
@@ -204,7 +205,7 @@ async function withDataDir<T>(run: () => Promise<T>): Promise<T> {
 }
 
 describe('streamGlobalRootTurn — the voice leg (D1/D2)', () => {
-  it('a VOICE turn runs the tier (sonnet-5 / low / auto) forced over the body, attaches NO ask_user, never auto-continues, and writes no settings', async () => {
+  it('a VOICE turn runs the tier (pin / low / auto) forced over the body, attaches NO ask_user, never auto-continues, and writes no settings', async () => {
     await withTestDatabase(async (db) => {
       seedUser(db)
       const app = makeHarness(db)
@@ -212,8 +213,9 @@ describe('streamGlobalRootTurn — the voice leg (D1/D2)', () => {
         const spoken = await postTurn(app, {
           userMessageText: 'traffic in dhaka?',
           voice: true,
-          // A stale pin / a typed pick — none of it rides.
-          model: 'claude-haiku-4-5',
+          // A stale pin / a typed pick — none of it rides (a model OUTSIDE
+          // the voice tier proves the force).
+          model: 'claude-opus-4-8',
           thinkingEffort: 'max',
           mode: 'ask',
         })
@@ -221,7 +223,7 @@ describe('streamGlobalRootTurn — the voice leg (D1/D2)', () => {
         await spoken.text()
       })
       const input = startChatSessionInputs[0]!
-      expect(input.model).toBe('claude-sonnet-5')
+      expect(input.model).toBe(VOICE_TIER_MODEL)
       expect(input.thinkingEffort).toBe('low')
       expect(input.permissionMode).toBe('auto')
       // No ask form on a hands-free surface — the model asks in speech.

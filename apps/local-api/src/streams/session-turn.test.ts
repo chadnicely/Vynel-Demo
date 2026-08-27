@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
+import { VOICE_TIER_MODEL } from '@vynel/contracts/chat/voice-tier'
 import { insertUser, upsertPreferenceForUser } from '@vynel/db/repositories/users'
 import { insertWorkspace } from '@vynel/db/repositories/workspaces'
 import type { Database } from '@vynel/db'
@@ -816,7 +817,8 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
           await postTurn(app, spawned.sessionId, {
             userMessageText: 'note that down',
             voice: true,
-            model: 'claude-haiku-4-5',
+            // A model OUTSIDE the voice tier proves the force.
+            model: 'claude-opus-4-8',
             thinkingEffort: 'max',
             mode: 'ask',
           })
@@ -825,7 +827,7 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
 
         const input = startChatSessionInputs[0]!
         expect(input.permissionMode).toBe('auto')
-        expect(input.model).toBe('claude-sonnet-5')
+        expect(input.model).toBe(VOICE_TIER_MODEL)
         expect(input.thinkingEffort).toBe('low')
         // The children inherit the tier's mode too.
         expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('auto')

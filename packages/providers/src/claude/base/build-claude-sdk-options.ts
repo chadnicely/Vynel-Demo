@@ -11,6 +11,12 @@ import { buildClaudePreToolUseHook } from '../approvals/build-claude-pre-tool-us
 export type BuildClaudeSdkOptionsInput = {
   workspacePath: string
   resumeSessionId?: string
+  /** What the runtime loads from the HOST machine (voice-lean tier): `'none'`
+   *  empties `settingSources` (no CLAUDE.md, no user/workspace settings) and
+   *  the native `tools` whitelist (MCP servers become the entire toolset).
+   *  Omit / `'full'` = the shipped shape, byte-for-byte. Hooks, gates, and
+   *  the flag-layer settings are untouched either way. */
+  hostResources?: 'full' | 'none'
   /** The Claude model to run (Agent SDK `options.model`). Omit for the CLI default. */
   model?: string
   /** Reasoning effort (Agent SDK `options.effort`). Omit for the adaptive default. */
@@ -145,6 +151,7 @@ export const CLAUDE_CODE_BASE_TOOL_NAMES = [
 
 export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Options {
   const sdkPermissionMode = SDK_PERMISSION_MODE[input.permissionMode]
+  const bareHost = input.hostResources === 'none'
 
   const options: Options = {
     cwd: input.workspacePath,
@@ -160,14 +167,20 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
     forwardSubagentText: true,
     // Load the workspace's own settings + CLAUDE.md so Vynel wraps Claude
     // Code as the user experiences it (Implement decision — blueprint §11.5
-    // gave only the input shape).
-    settingSources: ['user', 'project', 'local'],
+    // gave only the input shape). A BARE host (`hostResources: 'none'` — the
+    // voice-lean tier) reads no user/project/local sources (the SDK's managed
+    // POLICY tier is still honored — right for "bare", it is the admin's
+    // floor): host files are foreign identity text on a latency-critical
+    // surface, and every one of their tokens rides every request.
+    settingSources: bareHost ? [] : ['user', 'project', 'local'],
     // Vynel's stack IS the system prompt — never the `claude_code` preset (see
     // `systemPromptAppend` above).
     ...(input.systemPromptAppend !== undefined ? { systemPrompt: input.systemPromptAppend } : {}),
     // The built-in toolset is a WHITELIST; Vynel's own features arrive as MCP
-    // tools (`mcpServers` below).
-    tools: [...CLAUDE_CODE_BASE_TOOL_NAMES],
+    // tools (`mcpServers` below). A bare host attaches NO natives — the MCP
+    // servers are the entire toolset (the spoken thread routes work, it never
+    // edits files or runs shells itself).
+    tools: bareHost ? [] : [...CLAUDE_CODE_BASE_TOOL_NAMES],
     // The SDK's auto-memory would have the model keep a SECOND memory under
     // `~/.claude/projects/<cwd>/memory/` that the user never sees, beside
     // `@vynel/memory` (found live 2026-08-26 — the global root's hidden cwd had

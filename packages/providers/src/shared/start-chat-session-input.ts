@@ -78,6 +78,18 @@ export type StartChatSessionInput = {
   /** Permission mode for this session — see `ClaudePermissionMode`. */
   permissionMode: ClaudePermissionMode
 
+  /**
+   * What the runtime loads from the HOST machine (voice-lean tier, 2026-08-27).
+   * `'full'` (the default, every shipped caller) — the runtime reads the
+   * user's and workspace's own Claude configuration (CLAUDE.md, settings) and
+   * attaches its native toolset. `'none'` — a bare runtime: no host
+   * configuration is read and no native tools attach; the session's tools are
+   * exactly the MCP servers the caller registers. The spoken thread runs bare:
+   * its identity is Vynel's own prompt, and host files are foreign text on a
+   * latency-critical surface.
+   */
+  hostResources?: 'full' | 'none'
+
   /** Allowed tool names — empty array means "use runtime defaults". */
   allowedToolNames: string[]
 

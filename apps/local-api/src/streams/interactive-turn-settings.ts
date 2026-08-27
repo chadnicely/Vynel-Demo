@@ -11,17 +11,17 @@
 //   stamps it on every routing request unconditionally.
 //
 //   VOICE turn (`input.voice`) — the VOICE TIER, forced over whatever the body
-//   carries (decision D2: sonnet-5 / low / auto on EVERY leg — a typed
+//   carries (decision D2, revised by the voice-lean tier 2026-08-27: the
+//   contract's pin — haiku — at low effort / auto on EVERY leg; a typed
 //   Voice-chat turn cannot pick another model, a daemon build with an old pin
 //   cannot reintroduce it), and the row is neither read nor written: those are
 //   the user's chips for the keyboard surface. No auto-buildout either — the
-//   tier has no chips. The pin must actually FIT the session it resumes: the
-//   global brain legitimately grows to hundreds of k tokens under 1M-window
-//   models (below the swap threshold), and resuming that history on a smaller
-//   window is a guaranteed "Prompt is too long" — a hands-free surface dying
-//   with nobody watching (live incident 2026-08-19). When the pin can't hold
-//   the occupancy this one turn runs on the session's own last-ran model (it
-//   provably fits), or the engine default when even that is unknown. Never
+//   tier has no chips. The pin must actually FIT the session it resumes
+//   (resuming a fat history on a small window is a guaranteed "Prompt is too
+//   long" — a hands-free surface dying with nobody watching, live incident
+//   2026-08-19). When the pin can't hold the occupancy the turn runs on
+//   `VOICE_TIER_FALLBACK_MODEL` — {pin, fallback} is the entire voice model
+//   universe; never the session's model, never the engine default. Never
 //   persisted.
 
 import type { Logger } from 'pino'
@@ -29,6 +29,7 @@ import type { Database } from '@vynel/db'
 import {
   VOICE_TIER_MODE,
   VOICE_TIER_MODEL,
+  VOICE_TIER_FALLBACK_MODEL,
   VOICE_TIER_THINKING_EFFORT,
 } from '@vynel/contracts/chat/voice-tier'
 import type { ThinkingEffortLevel } from '@vynel/contracts/chat/thinking-effort'
@@ -61,6 +62,10 @@ export function resolveInteractiveTurnSettings(
     sessionId: string | null
     /** The swap-threshold knob every continuity consumer honors. */
     pressureThreshold?: number
+    /** The voice A/B lever (`VYNEL_VOICE_TIER_MODEL`, env-validated to the
+     *  tier's allowed pair) — replaces the PIN only; the fallback clamp and
+     *  every other tier value stand. Ignored on keyboard turns. */
+    voiceModelOverride?: string
   },
   deps: { logger: Logger },
 ): InteractiveTurnSettings {
@@ -77,22 +82,27 @@ export function resolveInteractiveTurnSettings(
 
 function resolveVoiceTierSettings(
   db: Database,
-  target: { sessionId: string | null; pressureThreshold?: number },
+  target: { sessionId: string | null; pressureThreshold?: number; voiceModelOverride?: string },
   deps: { logger: Logger },
 ): InteractiveTurnSettings {
-  let model: string | undefined = VOICE_TIER_MODEL
+  const pinnedModel = target.voiceModelOverride ?? VOICE_TIER_MODEL
+  let model: string | undefined = pinnedModel
   if (target.sessionId !== null) {
     const fit = fitPinnedModelToSession(db, {
       resumeSdkSessionId: target.sessionId,
-      pinnedModel: VOICE_TIER_MODEL,
+      pinnedModel,
       ...(target.pressureThreshold !== undefined ? { threshold: target.pressureThreshold } : {}),
     })
     if (fit.wasReplaced) {
+      // The clamp lands on the tier's OWN fallback, never "the session's
+      // model" (voice-lean tier): {pin, fallback} is the entire voice model
+      // universe — a chain that once ran something else must not smuggle it
+      // back onto a spoken turn.
       deps.logger.info(
-        { pinnedModel: VOICE_TIER_MODEL, model: fit.model ?? null, occupancyTokens: fit.occupancyTokens },
-        'voice model pin cannot hold the session occupancy — running on the session model',
+        { pinnedModel, model: VOICE_TIER_FALLBACK_MODEL, occupancyTokens: fit.occupancyTokens },
+        'voice model pin cannot hold the session occupancy — running on the voice fallback model',
       )
-      model = fit.model
+      model = VOICE_TIER_FALLBACK_MODEL
     }
   }
   return {

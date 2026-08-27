@@ -132,7 +132,13 @@ export async function streamSpawnedSessionTurn(
   const turnSettings = resolveInteractiveTurnSettings(
     db,
     input,
-    { sessionId, ...(swapThreshold !== undefined ? { pressureThreshold: swapThreshold } : {}) },
+    {
+      sessionId,
+      ...(swapThreshold !== undefined ? { pressureThreshold: swapThreshold } : {}),
+      ...(env.VYNEL_VOICE_TIER_MODEL !== undefined
+        ? { voiceModelOverride: env.VYNEL_VOICE_TIER_MODEL }
+        : {}),
+    },
     { logger: c.var.logger },
   )
   const turnPermissionMode = turnSettings.permissionMode

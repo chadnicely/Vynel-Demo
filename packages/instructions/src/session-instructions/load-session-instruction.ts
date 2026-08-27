@@ -42,6 +42,11 @@ import { resolveInstructionsContentDirectory } from '../content-root.js'
 export type SessionInstructionId =
   | 'base'
   | 'voice-base'
+  // The spoken THREAD's whole standing identity beyond the voice base (the
+  // lean tier, 2026-08-27): the routing duty in a few lines. The voice thread
+  // composes `voice-base` + this ALONE — no kind file, no MCP feature
+  // sections; the live-call leg keeps `voice-base` + `spawned-session`.
+  | 'voice-thread'
   | 'global-root'
   | 'workspace-manager'
   | 'spawned-session'

@@ -107,6 +107,7 @@ export async function* runClaudeChatSession(
     ...(alwaysRequireApprovalToolNames !== undefined ? { alwaysRequireApprovalToolNames } : {}),
     ...(askModeApprovalToolNames !== undefined ? { askModeApprovalToolNames } : {}),
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
+    ...(input.hostResources !== undefined ? { hostResources: input.hostResources } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
     ...(input.mcpServers !== undefined

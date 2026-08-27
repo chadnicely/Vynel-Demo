@@ -1,10 +1,17 @@
-// The VOICE TIER — the one home for what the spoken surfaces run on (Kafi
-// 2026-08-19): a real model at LOW effort — fast to first token so it speaks
-// back quickly, capable enough to route work like the global brain, and a 1M
-// window so the spoken thread can never outgrow its own pin (the haiku-200k
-// crash class). Consumed by the daemon's wake line + call loop, the web
-// overlay leg, and the Voice chat panel's composer DEFAULTS — one constant,
-// four surfaces, zero drift.
+// The VOICE TIER — the one home for what the spoken surfaces run on. Revised
+// 2026-08-27 (Kafi, the voice-lean tier): HAIKU 4.5 at LOW effort — the
+// fastest first spoken syllable — made safe by the lean context that ships
+// with it (`hostResources: 'none'`: no CLAUDE.md, no native tools, the voice
+// base alone), so the 200k window is no longer the 2026-08-19 crash class:
+// the thread stays small, the boundary swap fires at 85% of ITS window, and
+// when a resumed head still cannot fit the pin the turn falls back to
+// `VOICE_TIER_FALLBACK_MODEL` (sonnet's 1M) — those two ARE the entire voice
+// model universe; nothing else ever runs a spoken turn. `resolveVoiceTierSettings`
+// is the clamp's one home; `VYNEL_VOICE_TIER_MODEL` (env, validated to the
+// pair) is the A/B lever. Consumed by the daemon's wake line + call loop, the
+// web overlay leg, and the Voice chat panel's composer DEFAULTS — one
+// constant, four surfaces, zero drift (the server forces it for voice turns
+// regardless of what a stale build sends).
 //
 // Lives in `@vynel/contracts` (the api↔web↔daemon shared, db-free home) per
 // the promotion rule: the third consumer made the copies a liability.
@@ -29,7 +36,12 @@
 
 import type { ThinkingEffortLevel } from './thinking-effort.js'
 
-export const VOICE_TIER_MODEL = 'claude-sonnet-5'
+export const VOICE_TIER_MODEL = 'claude-haiku-4-5'
+/** Where a spoken turn lands when the pin cannot hold the resumed head's
+ *  occupancy (the fit clamp) — the ONLY other model a voice turn may run. */
+export const VOICE_TIER_FALLBACK_MODEL = 'claude-sonnet-5'
+/** The whole voice model universe — the env override validates against it. */
+export const VOICE_TIER_ALLOWED_MODELS = [VOICE_TIER_MODEL, VOICE_TIER_FALLBACK_MODEL] as const
 export const VOICE_TIER_THINKING_EFFORT: ThinkingEffortLevel = 'low'
 // The voice tier's PERMISSION MODE (Kafi 2026-08-19: "no card for anything
 // through voice or chat"): `auto` — no Vynel card of any kind on a hands-free
