@@ -35,7 +35,7 @@ describe('recordDirectReplyMessage', () => {
       )
 
       const persisted = recordDirectReplyMessage(db, {
-        globalRootSessionId: 'g-root-1',
+        targetSessionId: 'g-root-1',
         body: '[Report from James · Claw Launcher — …]\n\nOverview of the module.',
         sourceLabel: 'James · Claw Launcher',
         threadId: 'thread-1',
@@ -59,7 +59,7 @@ describe('recordDirectReplyMessage', () => {
   it('never mints a global-root session — a missing row returns false, no insert', async () => {
     await withTestDatabase(async (db) => {
       const persisted = recordDirectReplyMessage(db, {
-        globalRootSessionId: 'missing',
+        targetSessionId: 'missing',
         body: 'x',
         sourceLabel: 'James',
       })

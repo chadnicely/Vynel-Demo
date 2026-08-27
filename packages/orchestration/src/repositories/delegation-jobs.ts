@@ -234,8 +234,14 @@ export function heartbeatDelegationJob(
 
 export type FindPendingUpdateDeliveryInput = {
   userId: string
-  /** The requester target — a workspace primary's id, or null for the global root. */
+  /** The requester target — a workspace primary's id, or null for a
+   *  workspace-less requester (the global root, or the voice thread). */
   requesterWorkspaceId: string | null
+  /** The workspace-less requester's OWN address — the voice thread's primary
+   *  id (voice-requester routing), null for the global root and every
+   *  workspace requester. Both halves match, or a voice update would coalesce
+   *  into a global one (both carry a null workspaceId). */
+  requesterPrimarySessionId: string | null
   threadId: string
 }
 
@@ -258,6 +264,9 @@ export function findPendingUpdateDelivery(
         input.requesterWorkspaceId === null
           ? isNull(delegationJobs.workspaceId)
           : eq(delegationJobs.workspaceId, input.requesterWorkspaceId),
+        input.requesterPrimarySessionId === null
+          ? isNull(delegationJobs.targetPrimarySessionId)
+          : eq(delegationJobs.targetPrimarySessionId, input.requesterPrimarySessionId),
         eq(delegationJobs.threadId, input.threadId),
       ),
     )

@@ -8,7 +8,7 @@
 // routine status). Called by `runDelegationClaimAndRunTick` after the claim
 // (which already fired `onRunStarted` — pool slot reserved).
 //
-// TWO requester shapes:
+// THREE requester shapes:
 //   - WORKSPACE primary (`workspaceId` set): the same `delegateToWorkspaceRoot`
 //     machinery a task job uses — single-writer holds for free (the pool's
 //     exclusion key is the workspaceId, shared with task jobs), the interactive
@@ -20,6 +20,12 @@
 //     global notify turn runs at a time: the pool key is the SHARED
 //     `GLOBAL_ROOT_DELIVERY_TARGET_KEY`, so the rest wait as PENDING instead
 //     of burning their cap queued on the root-turn lock.
+//   - VOICE thread (`targetPrimarySessionId` set, workspace columns null —
+//     voice-requester routing 2026-08-27): the SAME injected runner with
+//     `thread: 'voice'` — the spoken twin's own lock lane, the voice tier, no
+//     `speak`. The pool key is the voice primary id (the claim derives it from
+//     the target column), so voice deliveries queue FIFO on their own lane and
+//     never behind the global conversation's.
 //
 // BOUNDS (session-hardening A1/A3): the notify turn runs under the same hard
 // cap every delegated turn gets — suspended while one of ITS approvals is
@@ -68,6 +74,7 @@ import { composeChannelAnswerMarker, shipSilentChannelTurnFallback } from '@vyne
 import {
   dropPendingCheckpoint,
   findPrimaryConversation,
+  findVoicePrimarySessionForUser,
   peekPendingCheckpoint,
 } from '../continuity/index.js'
 import { isRootTurnLockBusy, rootTurnLockKey } from '../runtime/root-turn-lock.js'
@@ -111,6 +118,10 @@ const GLOBAL_ROOT_BUSY_YIELD_MS = 5_000
 
 export type RunGlobalRootReportTurn = (input: {
   userId: string
+  /** WHICH workspace-less thread absorbs this delivery (voice-requester
+   *  routing): 'voice' runs the notify turn on the spoken twin — its own lock
+   *  lane, the voice tier, no `speak`. Omitted = the global root (shipped). */
+  thread?: 'global' | 'voice'
   /** The child's report — the notify turn's inbound message. */
   reportBody: string
   /** The child's composed display label — the inbound row's sourceLabel. */
@@ -265,9 +276,31 @@ export async function runReportDeliveryJob(
       ? composeChannelAnswerMarker({ channelKind: deliverableOrigin.channel.channelKind })
       : undefined
   const inboundSourceKind = isSystemNotification ? ('system' as const) : ('workspace-manager' as const)
-  // Captured once for narrowing: null = the GLOBAL root is the requester.
+  // Captured once for narrowing: null = a workspace-less requester — the
+  // GLOBAL root, or (voice-requester routing) the VOICE thread when the row is
+  // addressed at the spoken thread's primary. The address is resolved against
+  // the LIVE voice primary (one per user): the spoken thread is one
+  // conversation, so the live row is the honest destination whatever id the
+  // enqueue stamped. A voice-addressed row with NO live voice thread falls
+  // back to the global root — the deleted-requester-workspace failover,
+  // applied to the voice shape.
   const requesterWorkspaceId = claimed.workspaceId
-  const isGlobalRequester = requesterWorkspaceId === null
+  const voiceRequesterPrimary =
+    requesterWorkspaceId === null && claimed.targetPrimarySessionId !== null
+      ? findVoicePrimarySessionForUser(db, claimed.userId)
+      : null
+  if (
+    requesterWorkspaceId === null &&
+    claimed.targetPrimarySessionId !== null &&
+    voiceRequesterPrimary === null
+  ) {
+    deps.logger.warn(
+      { jobId: claimed.id, targetPrimarySessionId: claimed.targetPrimarySessionId },
+      `${queueLabel}: voice-addressed delivery has no live voice thread — delivering to the global root`,
+    )
+  }
+  const isVoiceRequester = voiceRequesterPrimary !== null
+  const isGlobalRequester = requesterWorkspaceId === null && !isVoiceRequester
 
   // DIRECT-REPLY mode (live-tracking redesign): the message IS for the user,
   // so it persists straight onto the root's transcript (the box is the
@@ -280,6 +313,12 @@ export async function runReportDeliveryJob(
   // do not restate"). The momentary feed announce below carries no narration —
   // it exists so every open window's turn-ended invalidation lands the new
   // row live.
+  // The VOICE requester deliberately stays OUT of this branch (voice-requester
+  // routing): the voice thread has no absorb net — no catch-up runs on it
+  // (`composeGlobalRootProviderMessage` gates the collector off voice), so a
+  // transcript-only persist would leave the spoken model blind to a reply the
+  // user can see. Its direct/mention deliveries fall through to the notify
+  // machinery under the DIRECT steer — the workspace requester's exact shape.
   if (isGlobalRequester && !isNote && (isDirect || isMentionChainReply)) {
     const root = findPrimaryConversation(db, { userId: claimed.userId })
     let persisted = false
@@ -290,7 +329,7 @@ export async function runReportDeliveryJob(
       // a provider turn sits in the middle; here nothing does).
       withTransaction(db, (tx) => {
         persisted = recordDirectReplyMessage(tx, {
-          globalRootSessionId: root.currentSdkSessionId!,
+          targetSessionId: root.currentSdkSessionId!,
           body: reportBody,
           sourceLabel,
           ...(claimedThreadId !== null ? { threadId: claimedThreadId } : {}),
@@ -321,13 +360,18 @@ export async function runReportDeliveryJob(
     // which handles the no-session shapes honestly.
   }
 
-  // A GLOBAL notify turn runs under the user's root-turn lock. While an
-  // interactive global turn holds it, starting now would only park inside the
+  // A GLOBAL (or VOICE) notify turn runs under that identity's root-turn lock.
+  // While an interactive turn holds it, starting now would only park inside the
   // core and burn one of the few pool slots for as long as that turn lasts (up
   // to the cap — the audit's "a delivery burns its slot queued on the root
   // lock"). Yield instead: back to pending, due again in a moment, no attempt
-  // spent — the slot goes to a job that can actually run right now.
-  if (isGlobalRequester && isRootTurnLockBusy(rootTurnLockKey(claimed.userId, false))) {
+  // spent — the slot goes to a job that can actually run right now. The voice
+  // thread is its own single-writer lane (`${userId}:voice`), so a voice
+  // delivery yields to a live CALL turn, never to the global conversation.
+  if (
+    requesterWorkspaceId === null &&
+    isRootTurnLockBusy(rootTurnLockKey(claimed.userId, isVoiceRequester))
+  ) {
     requeueDelegationJob(db, claimed.id, {
       errorMessage: claimed.errorMessage ?? 'waiting for the global root — yielded the slot',
       errorCode: claimed.errorCode ?? null,
@@ -336,7 +380,9 @@ export async function runReportDeliveryJob(
     })
     deps.logger.debug(
       { jobId: claimed.id, kind: queueLabel },
-      `${queueLabel}: the global root is mid-turn — yielded the pool slot, due again shortly`,
+      isVoiceRequester
+        ? `${queueLabel}: the voice thread is mid-turn — yielded the pool slot, due again shortly`
+        : `${queueLabel}: the global root is mid-turn — yielded the pool slot, due again shortly`,
     )
     return true
   }
@@ -420,7 +466,11 @@ export async function runReportDeliveryJob(
   deps.logger.info(
     {
       jobId: claimed.id,
-      requester: isGlobalRequester ? 'global-root' : claimed.workspaceId,
+      requester: isVoiceRequester
+        ? 'voice-thread'
+        : isGlobalRequester
+          ? 'global-root'
+          : claimed.workspaceId,
       from: sourceLabel,
     },
     `${queueLabel}: claimed — running the notify turn on the requester`,
@@ -474,6 +524,7 @@ export async function runReportDeliveryJob(
           delegate: async () => {
             const turn = await runGlobalRootReportTurn({
               userId: claimed.userId,
+              ...(isVoiceRequester ? { thread: 'voice' as const } : {}),
               reportBody,
               sourceLabel,
               sourceKind: inboundSourceKind,

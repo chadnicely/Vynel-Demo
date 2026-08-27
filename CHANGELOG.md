@@ -5,6 +5,19 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Fixed
+
+- **A task sent by voice now reports back to the voice conversation.** Work the spoken thread
+  asked for used to come back on the Global chat — the voice conversation never heard the result.
+  The voice thread is now a first-class requester: its tasks record the spoken thread as the
+  asker, every report — the child's own message, a final answer to you, the engine's stand-in
+  report, a failure notice — arrives as a real turn on the voice conversation (its own queue lane,
+  the voice tier, no forms), and the Global chat no longer narrates outcomes that belong to the
+  spoken thread. Workspace children were verified unaffected — their reports still land on the
+  workspace that asked.
+
 ## [0.3.8] — 2026-08-27
 
 ### Added

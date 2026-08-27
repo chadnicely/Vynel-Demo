@@ -48,6 +48,10 @@ import {
   parseDelegationJobHeader,
   DELEGATION_JOB_HEADER,
 } from '../../sessions/delegation-job-header.js'
+import {
+  parseTurnSessionHeader,
+  TURN_SESSION_HEADER,
+} from '../../sessions/turn-session-header.js'
 import { resolveUpwardSender } from './resolve-upward-sender.js'
 import { resolveSpawnedSessionRunCwd } from '../../sessions/spawned-session-ground.js'
 
@@ -111,6 +115,21 @@ async function resolveTaskSender(
     callingWorkspaceId !== undefined
       ? await getWorkspaceById(c.var.db, callingWorkspaceId, c.var.user.id)
       : null
+  // The VOICE thread (voice-requester routing): a workspace-less send whose
+  // running segment is scope 'voice' is the SPOKEN thread asking, not the
+  // global root — its jobs parent on that segment, the asker stamp every
+  // report door derives the requester from (`resolveVoiceRequesterOfJob`), so
+  // the reports come back to the voice conversation. Resolved from the ambient
+  // turn-session header, never model input (the note dispatch's precedent).
+  if (callingWorkspace === null) {
+    const turnSegmentId = parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER))
+    if (turnSegmentId !== undefined) {
+      const turnSegment = findChatSessionById(c.var.db, turnSegmentId)
+      if (turnSegment?.scope === 'voice' && turnSegment.userId === c.var.user.id) {
+        return { parentSessionId: turnSegmentId }
+      }
+    }
+  }
   const creator = findPrimaryConversation(c.var.db, {
     userId: c.var.user.id,
     workspaceId: callingWorkspace?.id ?? null,

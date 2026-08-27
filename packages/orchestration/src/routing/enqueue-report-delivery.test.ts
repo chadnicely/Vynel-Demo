@@ -104,6 +104,29 @@ describe('enqueueReportDelivery', () => {
     })
   })
 
+  it('a VOICE requester targets the spoken thread: targetPrimarySessionId set, workspace columns null (voice-requester routing)', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const voicePrimaryId = randomUUID()
+
+      const jobId = enqueueReportDelivery(db, {
+        userId: user.id,
+        reporterSessionId: 'ws-root-sdk-9',
+        reporterLabel: 'Mark · Acme',
+        reportBody: 'The task you asked for is done.',
+        requester: { kind: 'voice', voicePrimarySessionId: voicePrimaryId },
+      })
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.jobKind).toBe('report-delivery')
+      expect(job?.targetPrimarySessionId).toBe(voicePrimaryId)
+      expect(job?.workspaceId).toBeNull()
+      expect(job?.workspacePath).toBeNull()
+      expect(job?.workspaceName).toBe('Mark · Acme')
+      expect(job?.taskText).toBe('The task you asked for is done.')
+    })
+  })
+
   it('rejects an empty report body and an empty reporter session id (fail fast at the boundary)', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())

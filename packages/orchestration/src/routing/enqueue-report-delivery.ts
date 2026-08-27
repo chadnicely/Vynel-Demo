@@ -8,10 +8,14 @@
 // ROW INVARIANT (adjusted here, by construction): a 'task' row carries exactly
 // ONE target; a 'report-delivery' row targets the REQUESTER — `workspaceId` set
 // = that workspace's primary conversation, BOTH targets null = the global root
-// (the only kind permitted to carry no target at all). `targetPrimarySessionId`
-// is NEVER set on a report-delivery row: spawned sessions are leaves — they send
-// reports, they never receive them (the creator graph is a tree that terminates
-// at the global root).
+// (the only kind permitted to carry no target at all), and
+// `targetPrimarySessionId` set (workspace columns null) = the VOICE thread's
+// continuing conversation (voice-requester routing, 2026-08-27): the spoken
+// twin is workspace-less like the root but is its OWN conversation, so its
+// reports need an address of their own. Spawned sessions and colleagues remain
+// leaves — they send reports, they never receive them (the creator graph is a
+// tree that terminates at the global root; the voice thread sits beside the
+// root, not below it).
 //
 // Column reuse (the module notes' shape): `taskText` carries the REPORT body,
 // `workspaceName` the CHILD's composed source label, `parentSessionId` the
@@ -38,6 +42,13 @@ export type ReportDeliveryRequester =
       workspacePath: string
     }
   | { kind: 'global-root' }
+  | {
+      kind: 'voice'
+      /** The spoken twin's stable primary id (`primary_sessions`, scope
+       *  'voice') — the delivery row's `targetPrimarySessionId`, so the tick
+       *  runs the notify turn on the VOICE thread, never the global root. */
+      voicePrimarySessionId: string
+    }
 
 export interface EnqueueReportDeliveryInput {
   /** The chain this hop continues — one task and everything it caused. Omit to
@@ -98,7 +109,7 @@ export function enqueueReportDelivery(
     workspaceId: requester.kind === 'workspace-primary' ? requester.workspaceId : null,
     workspacePath: requester.kind === 'workspace-primary' ? requester.workspacePath : null,
     workspaceName: input.reporterLabel,
-    targetPrimarySessionId: null,
+    targetPrimarySessionId: requester.kind === 'voice' ? requester.voicePrimarySessionId : null,
     taskText: input.reportBody,
     partialSessionId,
     threadId: resolveThreadId({

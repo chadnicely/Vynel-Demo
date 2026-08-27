@@ -23,6 +23,7 @@ import {
 } from '@vynel/orchestration'
 import { findWorkspaceById } from '@vynel/workspaces'
 import { BACKGROUND_TASK_REPORTER_LABEL } from '@vynel/contracts/chat/engine-reporter-labels'
+import { resolveVoiceRequesterOfJob } from './resolve-voice-requester.js'
 
 const TASK_PREVIEW_LIMIT = 160
 
@@ -65,7 +66,9 @@ export function extractSenderFacingReport(reportBody: string): string {
 }
 
 /** The requester a job's reports address: its recorded originating-chat
- *  workspace when it still exists, else the global root. */
+ *  workspace when it still exists, else the VOICE thread when the spoken
+ *  thread asked (voice-requester routing — derived from the job's asker
+ *  segment), else the global root. */
 export function resolveJobReportRequester(
   db: Database,
   claimed: DelegationJob,
@@ -79,6 +82,10 @@ export function resolveJobReportRequester(
         workspacePath: workspace.path,
       }
     }
+  }
+  const voiceRequester = resolveVoiceRequesterOfJob(db, claimed)
+  if (voiceRequester !== null) {
+    return { kind: 'voice', voicePrimarySessionId: voiceRequester.voicePrimarySessionId }
   }
   return { kind: 'global-root' }
 }

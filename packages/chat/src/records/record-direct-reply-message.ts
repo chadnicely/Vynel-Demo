@@ -1,19 +1,22 @@
 // `recordDirectReplyMessage` — persists a colleague's @mention reply DIRECTLY
-// onto the global root's transcript (live-tracking redesign, the direct-reply
-// tweak): the user addressed the colleague, so its reply is a message TO THE
-// USER. It lands as the colleague speaking (the report/update box — role
-// 'user' + sourceKind 'agent', the inbound-report shape) WITHOUT a notify
-// turn, so nothing re-narrates it; the root absorbs it silently on its next
-// turn via the catch-up net. Same FK-id-gate as the old push recorder: a
-// reply never mints a global-root session.
+// onto the requester thread's transcript (live-tracking redesign, the
+// direct-reply tweak): the user addressed the colleague, so its reply is a
+// message TO THE USER. The requester thread is the global root — or the VOICE
+// thread, when the spoken thread asked (voice-requester routing). It lands as
+// the colleague speaking (the report/update box — role 'user' + sourceKind
+// 'agent', the inbound-report shape) WITHOUT a notify turn, so nothing
+// re-narrates it; the requester absorbs it silently on its next turn via the
+// catch-up net. Same FK-id-gate as the old push recorder: a reply never mints
+// a requester session.
 
 import { randomUUID } from 'node:crypto'
 import { withTransaction, type Database } from '@vynel/db'
 import * as chatRepository from '../repositories/index.js'
 
 export type RecordDirectReplyMessageInput = {
-  /** The global root's CURRENT SDK session id (re-resolved at delivery time). */
-  globalRootSessionId: string
+  /** The requester thread's CURRENT SDK session id (re-resolved at delivery
+   *  time) — the global root's head, or the voice thread's. */
+  targetSessionId: string
   /** The marker-prefixed body (the report/update message marker + the reply) —
    *  the marker keeps model-facing attribution; the box strips it for display
    *  and reads the update-vs-report kind from it. */
@@ -26,21 +29,21 @@ export type RecordDirectReplyMessageInput = {
   partialSessionId?: string
 }
 
-/** Persist one direct colleague reply onto the global root's session. Returns
+/** Persist one direct colleague reply onto the requester's session. Returns
  *  false (no insert) when that session row is missing — the caller falls back
  *  to the notify machinery, which handles the no-session shapes. */
 export function recordDirectReplyMessage(
   db: Database,
   input: RecordDirectReplyMessageInput,
 ): boolean {
-  if (chatRepository.findChatSessionById(db, input.globalRootSessionId) === null) {
+  if (chatRepository.findChatSessionById(db, input.targetSessionId) === null) {
     return false
   }
   const now = new Date()
   withTransaction(db, (tx) => {
     chatRepository.insertChatMessage(tx, {
       id: randomUUID(),
-      sessionId: input.globalRootSessionId,
+      sessionId: input.targetSessionId,
       role: 'user',
       body: input.body,
       sourceKind: 'agent',
@@ -58,7 +61,7 @@ export function recordDirectReplyMessage(
       completedAt: now,
       createdAt: now,
     })
-    chatRepository.updateChatSession(tx, input.globalRootSessionId, { lastMessageAt: now })
+    chatRepository.updateChatSession(tx, input.targetSessionId, { lastMessageAt: now })
   })
   return true
 }

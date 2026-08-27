@@ -17,8 +17,10 @@ import {
   completeDelegationJob,
   collectDelegationReportsForRoot,
 } from '@vynel/orchestration'
+import { insertChatSession } from '@vynel/chat/repositories'
+import { buildNewChatSessionRow } from '@vynel/chat'
 import { insertPrimarySession } from '../repositories/index.js'
-import { markPendingCheckpoint } from '../continuity/index.js'
+import { markPendingCheckpoint, getOrCreateContinuingSession } from '../continuity/index.js'
 import { composeGlobalRootProviderMessage } from './compose-global-root-provider-message.js'
 
 function seedUnseenReport(db: Database, userId: string): void {
@@ -117,6 +119,62 @@ describe('composeGlobalRootProviderMessage — the voice-thread catch-up rule', 
       // The user's own text still leads the spoken turn (the voice marker is
       // appended after it — instruction-file content, not asserted verbatim).
       expect(providerText).toContain('check the weather')
+    })
+  })
+
+  it('a VOICE-ASKED outcome never enters the GLOBAL narration, but its id retires with the latch (voice-requester routing)', async () => {
+    await withTestDatabase(async (db) => {
+      const user = insertUser(db, makeUser())
+      await getOrCreateContinuingSession(db, { userId: user.id, scope: 'voice' })
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'voice-seg-compose',
+          userId: user.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Voice conversation',
+          visibility: 'hidden',
+          scope: 'voice',
+        }),
+      )
+      const now = new Date()
+      const workspace = insertWorkspace(db, {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        name: 'Seo',
+        kind: 'personal' as const,
+        path: `/tmp/vynel/${crypto.randomUUID()}`,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        lastAccessedAt: now,
+      })
+      const voiceAskedJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'voice-seg-compose',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'spoken ask',
+      })
+      claimNextPendingDelegationJob(db, now)
+      completeDelegationJob(db, voiceAskedJobId, 'Spoken-ask outcome.', now)
+      seedUnseenReport(db, user.id)
+
+      const message = composeGlobalRootProviderMessage(db, {
+        userId: user.id,
+        userMessageText: 'hello',
+      })
+
+      // The global block narrates only ITS ledger; the voice-asked id still
+      // rides the latch so the scan retires it (its delivery pipeline is how
+      // the voice thread learns).
+      expect(message.providerUserMessageText).toContain('Audit done: 3 findings.')
+      expect(message.providerUserMessageText).not.toContain('Spoken-ask outcome.')
+      expect(message.catchUpJobIds).toHaveLength(2)
+      expect(message.catchUpJobIds).toContain(voiceAskedJobId)
     })
   })
 })

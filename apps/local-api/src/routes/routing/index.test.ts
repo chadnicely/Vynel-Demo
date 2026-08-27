@@ -2308,3 +2308,168 @@ describe('POST /routing/message → to:"global" (the global note address)', () =
     })
   })
 })
+
+// Voice-requester routing (2026-08-27): the spoken thread as the ASKER. A task
+// sent from a voice turn parents on the VOICE segment (never the global
+// brain), and every report of that work comes back addressed to the voice
+// thread — module notes `docs/module-notes/voice-requester-routing.md`.
+describe('voice-requester routing (the spoken thread as the asker)', () => {
+  // The live spoken thread: its continuing primary + a linked voice segment.
+  async function seedLinkedVoiceThread(db: Database, userId: string, sdkSessionId: string) {
+    const voicePrimary = await getOrCreateContinuingSession(db, { userId, scope: 'voice' })
+    insertChatSession(
+      db,
+      buildNewChatSessionRow({
+        sessionId: sdkSessionId,
+        userId,
+        workspaceId: null,
+        providerId: 'claude',
+        startedAt: new Date(),
+        title: 'Voice conversation',
+        visibility: 'hidden',
+        scope: 'voice',
+      }),
+    )
+    linkPrimarySessionToSdkSession(db, { primarySessionId: voicePrimary.id, userId, sdkSessionId })
+    return voicePrimary
+  }
+
+  it('a VOICE turn task parents on the voice segment — no active global root required', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      // Deliberately NO global root: the old resolution demanded one and threw
+      // "Routing is only available during an active global-root turn".
+      await seedLinkedVoiceThread(db, user.id, 'voice-seg-t1')
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/message',
+        { to: `workspace:${workspace.id}`, body: 'check the backlog' },
+        { 'x-vynel-turn-session': 'voice-seg-t1' },
+      )
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+
+      const job = findDelegationJobById(db, jobId)
+      expect(job?.parentSessionId).toBe('voice-seg-t1')
+      expect(job?.requesterWorkspaceId).toBeNull()
+    })
+  })
+
+  it('a foreign or non-voice turn-session header keeps the global-root sender', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const stranger = seedUser(db)
+      const workspace = seedWorkspace(db, user.id)
+      const globalParent = await seedLinkedGlobalRoot(db, user.id)
+      // A stranger's voice segment — the ownership check must refuse it.
+      insertChatSession(
+        db,
+        buildNewChatSessionRow({
+          sessionId: 'stranger-voice-seg',
+          userId: stranger.id,
+          workspaceId: null,
+          providerId: 'claude',
+          startedAt: new Date(),
+          title: 'Voice conversation',
+          visibility: 'hidden',
+          scope: 'voice',
+        }),
+      )
+      const app = makeHarness(db)
+
+      const res = await postJson(
+        app,
+        '/routing/message',
+        { to: `workspace:${workspace.id}`, body: 'check the backlog' },
+        { 'x-vynel-turn-session': 'stranger-voice-seg' },
+      )
+      expect(res.status).toBe(200)
+      const { jobId } = (await res.json()) as { jobId: string }
+      expect(findDelegationJobById(db, jobId)?.parentSessionId).toBe(globalParent)
+    })
+  })
+
+  it('a voice-asked job child report addresses the VOICE thread, not the global root', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const workspace = seedManagedWorkspace(db, user.id)
+      const voicePrimary = await seedLinkedVoiceThread(db, user.id, 'voice-seg-r1')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, workspace.id, 'ws-primary-v1')
+      // The running task the voice thread asked for (parent = the voice segment).
+      const runningJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'voice-seg-r1',
+        workspaceId: workspace.id,
+        workspacePath: workspace.path,
+        workspaceName: workspace.name,
+        taskText: 'the spoken ask',
+      })
+      const app = makeHarness(db)
+
+      const res = await app.request('/routing/message', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: workspace.id,
+          }),
+          [DELEGATION_JOB_HEADER]: runningJobId,
+        },
+        body: JSON.stringify({ to: 'requester', body: 'Backlog checked: 4 stale items.' }),
+      })
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string }
+      expect(out.deliveredTo).toBe('Voice')
+
+      const delivery = findDelegationJobById(db, out.jobId)
+      expect(delivery?.jobKind).toBe('report-delivery')
+      expect(delivery?.workspaceId).toBeNull()
+      expect(delivery?.targetPrimarySessionId).toBe(voicePrimary.id)
+    })
+  })
+
+  it('a workspace-asked job report still lands on that workspace when the voice thread also exists', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const asker = seedManagedWorkspace(db, user.id, 'Asker')
+      const worker = seedManagedWorkspace(db, user.id, 'Worker')
+      await seedLinkedVoiceThread(db, user.id, 'voice-seg-r2')
+      await seedLinkedWorkspacePrimaryFor(db, user.id, worker.id, 'ws-primary-v2')
+      const runningJobId = enqueueWorkspaceDelegation(db, {
+        userId: user.id,
+        parentSessionId: 'asker-seg-1',
+        requesterWorkspaceId: asker.id,
+        workspaceId: worker.id,
+        workspacePath: worker.path,
+        workspaceName: worker.name,
+        taskText: 'a workspace ask',
+      })
+      const app = makeHarness(db)
+
+      const res = await app.request('/routing/message', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [REPORT_CALLER_HEADER]: serializeReportCaller({
+            kind: 'workspace-primary',
+            workspaceId: worker.id,
+          }),
+          [REPORT_REQUESTER_HEADER]: asker.id,
+          [DELEGATION_JOB_HEADER]: runningJobId,
+        },
+        body: JSON.stringify({ to: 'requester', body: 'done' }),
+      })
+      expect(res.status).toBe(200)
+      const out = (await res.json()) as { jobId: string; deliveredTo: string }
+      expect(out.deliveredTo).toBe('Asker')
+
+      const delivery = findDelegationJobById(db, out.jobId)
+      expect(delivery?.workspaceId).toBe(asker.id)
+      expect(delivery?.targetPrimarySessionId).toBeNull()
+    })
+  })
+})

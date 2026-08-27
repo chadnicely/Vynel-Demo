@@ -9,13 +9,14 @@
 // mis-set, and a mis-addressed message is unrecoverable once enqueued.
 
 import type { Context } from 'hono'
-import type { ReportDeliveryRequester } from '@vynel/orchestration'
+import { findDelegationJobById, type ReportDeliveryRequester } from '@vynel/orchestration'
 import { getWorkspaceById, resolveManagerName } from '@vynel/workspaces'
 import { findPrimaryConversation } from '@vynel/session/continuity'
 import { findSpawnedSessionById, findAgentSessionById } from '@vynel/session/spawned'
 import {
   resolveSpawnedSessionDisplayName,
   resolveColleagueAgent,
+  resolveVoiceRequesterOfJob,
 } from '@vynel/session/delegation'
 import { composeManagerSourceLabel } from '@vynel/chat'
 import { ValidationError, NotFoundError } from '@vynel/errors'
@@ -28,6 +29,10 @@ import {
   parseReportRequesterHeader,
   REPORT_REQUESTER_HEADER,
 } from '../../sessions/report-requester-header.js'
+import {
+  parseDelegationJobHeader,
+  DELEGATION_JOB_HEADER,
+} from '../../sessions/delegation-job-header.js'
 
 type RoutingContext = Context<AppEnv>
 
@@ -48,6 +53,25 @@ export type ResolvedRequester = {
 const GLOBAL_ROOT_REQUESTER: ResolvedRequester = {
   requester: { kind: 'global-root' },
   requesterLabel: 'Global',
+}
+
+/** The VOICE thread as the requester (voice-requester routing): when no
+ *  workspace claimed the report, the RUNNING job's asker segment decides
+ *  whether the spoken thread asked — read off the ambient running-job header
+ *  (never model input), through the one-home derivation the engine's own
+ *  pushes use (`resolveVoiceRequesterOfJob`). Null = not voice-asked, and the
+ *  chain terminates at the global root as it always did. */
+function resolveVoiceRequesterOfRunningJob(c: RoutingContext): ResolvedRequester | null {
+  const runningJobId = parseDelegationJobHeader(c.req.header(DELEGATION_JOB_HEADER))
+  if (runningJobId === undefined) return null
+  const job = findDelegationJobById(c.var.db, runningJobId)
+  if (job === null || job.userId !== c.var.user.id) return null
+  const voice = resolveVoiceRequesterOfJob(c.var.db, job)
+  if (voice === null) return null
+  return {
+    requester: { kind: 'voice', voicePrimarySessionId: voice.voicePrimarySessionId },
+    requesterLabel: 'Voice',
+  }
 }
 
 /** An already-ownership-checked requester workspace → the delivery target plus
@@ -191,6 +215,14 @@ export async function resolveUpwardSender(c: RoutingContext): Promise<ResolvedUp
     throw new ValidationError(
       'The calling conversation has no linked session — cannot attribute the report.',
     )
+  }
+  // Voice wins ONLY where the chain would otherwise terminate at the root: a
+  // workspace that asked keeps its report (the override/grounding above), and
+  // a voice-asked job's chain ends at the spoken thread instead of the global
+  // conversation (voice-requester routing).
+  if (resolvedRequester.requester.kind === 'global-root') {
+    const voiceRequester = resolveVoiceRequesterOfRunningJob(c)
+    if (voiceRequester !== null) resolvedRequester = voiceRequester
   }
   return { reporterSessionId, reporterLabel, ...resolvedRequester }
 }

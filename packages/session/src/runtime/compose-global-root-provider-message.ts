@@ -27,6 +27,7 @@ import { collectDelegationReportsForRoot } from '@vynel/orchestration'
 import { loadSessionInstruction } from '@vynel/instructions/session-instructions'
 import { resolveTurnTimeMarker } from './resolve-turn-time-marker.js'
 import { resolveSurvivorCheckpointMarker } from '../continuity/index.js'
+import { resolveVoiceRequesterOfJob } from '../delegation/resolve-voice-requester.js'
 
 export type ComposeGlobalRootProviderMessageInput = {
   userId: string
@@ -64,12 +65,19 @@ export function composeGlobalRootProviderMessage(
   // The catch-up block belongs to the GLOBAL conversation: the collector is
   // user-wide and marks reports surfaced exactly-once, so a VOICE-thread turn
   // absorbing it would silently steal the reports from the global chat
-  // (voice-session arc — reports stay addressed to global; the voice thread
-  // fires work but never holds the ledger).
+  // (voice-session arc). The inverse holds too (voice-requester routing): a
+  // VOICE-ASKED job's outcome is the spoken thread's — its delivery pipeline
+  // is how the voice conversation learns — so the global narration excludes
+  // it (the collector still returns its id and the latch retires it from the
+  // scan; the voice thread needs no net of its own, because every voice
+  // delivery — direct included — runs as a real turn on it).
   const reports =
     input.voice === true || input.continuation === true
       ? { contextBlock: null, jobIds: [] as string[] }
-      : collectDelegationReportsForRoot(db, { userId: input.userId })
+      : collectDelegationReportsForRoot(db, {
+          userId: input.userId,
+          belongsToRoot: (job) => resolveVoiceRequesterOfJob(db, job) === null,
+        })
   let providerUserMessageText =
     reports.contextBlock !== null
       ? `${reports.contextBlock}\n\n${input.userMessageText}`

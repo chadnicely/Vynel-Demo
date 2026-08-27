@@ -66,7 +66,12 @@ import { composeSessionMcpServers } from './compose-session-mcp-servers.js'
 import { createTurnSessionCarrier, type TurnSessionCarrier } from './turn-session-header.js'
 import type { ReadEnabledFeatureKeys } from './enabled-feature-keys.js'
 import { resolveSessionToolPolicies } from './session-tool-catalog.js'
-import { resolveGlobalRootConversationTarget } from './resolve-global-root-conversation.js'
+import {
+  resolveGlobalRootConversationTarget,
+  resolveVoiceConversationTarget,
+} from './resolve-global-root-conversation.js'
+import { withVoiceThreadToolDenials } from './voice-thread-tools.js'
+import { resolveInteractiveTurnSettings } from '../streams/interactive-turn-settings.js'
 import { ensureGlobalRootWorkspaceDir } from './global-root-workspace.js'
 import { serializeDelegationOrigin, DELEGATION_ORIGIN_HEADER } from './delegation-origin-header.js'
 import { wrapAppRequestWithMode } from './delegation-mode-header.js'
@@ -108,6 +113,11 @@ export interface RunGlobalRootTurnDeps {
 
 export interface RunGlobalRootTurnInput {
   userId: string
+  /** WHICH workspace-less thread this turn runs on (voice-requester routing):
+   *  'voice' resumes the SPOKEN twin — its own continuing session, lock lane,
+   *  the voice tier, `speak` denied, no ask forms. Omitted = the global root
+   *  (every shipped caller, byte-for-byte). */
+  thread?: 'global' | 'voice'
   userMessageText: string
   /** Set when a CHANNEL drove this turn (Ch4) — threaded onto any delegation the root enqueues. */
   origin?: DelegationOrigin
@@ -317,29 +327,49 @@ export async function runGlobalRootTurn(
   deps: RunGlobalRootTurnDeps,
   input: RunGlobalRootTurnInput,
 ): Promise<RunGlobalRootTurnResult> {
-  // The global root's STABLE identity, resolved pre-lock so the desktop action
+  // The thread's STABLE identity, resolved pre-lock so the desktop action
   // record can key its rows by it (the SDK id is only assigned mid-stream).
   // `getOrCreatePrimarySession` is idempotent + partial-unique race-safe, so
   // this early call cannot fight the authoritative in-lock `resolveTarget`.
-  const conversationTarget = await resolveGlobalRootConversationTarget(deps.db, {
-    userId: input.userId,
-  })
+  const isVoiceThread = input.thread === 'voice'
+  const conversationTarget = isVoiceThread
+    ? await resolveVoiceConversationTarget(deps.db, { userId: input.userId })
+    : await resolveGlobalRootConversationTarget(deps.db, { userId: input.userId })
   const swapThreshold = loadEnv().VYNEL_CONTEXT_PRESSURE_THRESHOLD
-  // The turn's settings — what the user chose for the GLOBAL conversation
-  // (its head segment's row), `input ?? row ?? DEFAULT` (session-hardening D1:
-  // "channels run the global row's mode when set, else auto"). No more fixed
-  // unattended default: a stored Ask cards through the channel's own card
-  // push, a stored model/effort runs here too. The model is fit-checked
-  // against the head (a Telegram turn dying with "Prompt is too long" has
-  // nobody watching an error row); never persisted.
+  // The turn's settings. GLOBAL — what the user chose for the global
+  // conversation (its head segment's row), `input ?? row ?? DEFAULT`
+  // (session-hardening D1: "channels run the global row's mode when set, else
+  // auto"). No more fixed unattended default: a stored Ask cards through the
+  // channel's own card push, a stored model/effort runs here too. The model is
+  // fit-checked against the head (a Telegram turn dying with "Prompt is too
+  // long" has nobody watching an error row); never persisted. VOICE
+  // (voice-requester routing) — the voice TIER, forced and fit-clamped (D2),
+  // the row neither read nor written: the same one-home rule the interactive
+  // voice leg resolves through.
+  const voiceSettings = isVoiceThread
+    ? resolveInteractiveTurnSettings(
+        deps.db,
+        { voice: true },
+        {
+          sessionId: conversationTarget.resumeSdkSessionId,
+          ...(swapThreshold !== undefined ? { pressureThreshold: swapThreshold } : {}),
+        },
+        { logger: deps.logger },
+      )
+    : null
   const globalRow =
-    conversationTarget.resumeSdkSessionId !== null
+    voiceSettings === null && conversationTarget.resumeSdkSessionId !== null
       ? findChatSessionById(deps.db, conversationTarget.resumeSdkSessionId)
       : null
   const turnSettings = resolveTurnSessionSettings({ model: input.model }, globalRow)
-  const permissionMode = toPermissionMode(turnSettings.mode ?? DEFAULT_SESSION_MODE)
-  let turnModel = turnSettings.model
-  if (turnModel !== undefined && conversationTarget.resumeSdkSessionId !== null) {
+  const permissionMode =
+    voiceSettings?.permissionMode ?? toPermissionMode(turnSettings.mode ?? DEFAULT_SESSION_MODE)
+  let turnModel = voiceSettings !== null ? voiceSettings.model : turnSettings.model
+  if (
+    voiceSettings === null &&
+    turnModel !== undefined &&
+    conversationTarget.resumeSdkSessionId !== null
+  ) {
     const fit = fitPinnedModelToSession(deps.db, {
       resumeSdkSessionId: conversationTarget.resumeSdkSessionId,
       pinnedModel: turnModel,
@@ -353,6 +383,8 @@ export async function runGlobalRootTurn(
       turnModel = fit.model
     }
   }
+  const turnThinkingEffort =
+    voiceSettings !== null ? voiceSettings.thinkingEffort : turnSettings.thinkingEffort
   const autoBuildout = globalRow?.autoBuildout === true
 
   // Origin-wrap at the edge — the core stays origin-agnostic (the additive
@@ -396,8 +428,10 @@ export async function runGlobalRootTurn(
   // proceeds with judgment instead of parking a background job forever.
   // Interactive streams keep the recorded no-timeout decision (fork #1).
   const askTurnKey = crypto.randomUUID()
+  // NEVER on the VOICE thread (the interactive voice leg's rule): a form on a
+  // hands-free surface parks the spoken thread with nobody to see it.
   const askFeatureDescriptors =
-    deps.askWaiters !== undefined
+    deps.askWaiters !== undefined && !isVoiceThread
       ? [
           (await import('@vynel/asks/mcp')).buildAskFeatureDescriptor({
             waiters: deps.askWaiters,
@@ -408,7 +442,7 @@ export async function runGlobalRootTurn(
           }),
         ]
       : []
-  const composedMcp = composeSessionMcpServers(
+  const composedRoutingMcp = composeSessionMcpServers(
     [
       vynelRoutingDescriptor,
       notebookFeatureDescriptor,
@@ -453,6 +487,11 @@ export async function runGlobalRootTurn(
       surfaceKind: 'global-channel',
     },
   )
+  // The spoken thread's own rule (VR1, the interactive leg's shape): its text
+  // IS its voice, so `speak` is denied for it — every other caller unchanged.
+  const composedMcp = isVoiceThread
+    ? withVoiceThreadToolDenials(composedRoutingMcp)
+    : composedRoutingMcp
 
   // USER-scope agents ride channel turns too — a Telegram ask can spawn the
   // same subagents the app chats can (agents parity, one lifecycle).
@@ -483,9 +522,9 @@ export async function runGlobalRootTurn(
   // child whose message it carries; jobId/keys let the live views settle-match.
   const activity = deps.activityFeed.begin({
     userId: input.userId,
-    scopeKind: 'global',
-    // Identity on the wire (session-hardening D1): every global turn names the
-    // global primary it runs on, so readers match by identity — the desktop
+    scopeKind: isVoiceThread ? 'voice' : 'global',
+    // Identity on the wire (session-hardening D1): every turn names the
+    // primary it runs on, so readers match by identity — the desktop
     // overlay's Stop, the pre-resolution windows — never by an absence.
     primarySessionId: conversationTarget.primarySessionId,
     // The channels service sets originChannel; the report-delivery runner sets
@@ -537,11 +576,13 @@ export async function runGlobalRootTurn(
         db: deps.db,
         logger: deps.logger,
         ...(deps.turnEvents !== undefined ? { turnEvents: deps.turnEvents } : {}),
-        // Resolve the global root + ensure its hidden cwd, INSIDE the lock (the runner
+        // Resolve the thread + ensure its hidden cwd, INSIDE the lock (the runner
         // calls this) — apps/local-api owns the env-coupled user-data-dir read.
         resolveTarget: async () => {
           armWallClock()
-          const target = await resolveGlobalRootConversationTarget(deps.db, { userId: input.userId })
+          const target = isVoiceThread
+            ? await resolveVoiceConversationTarget(deps.db, { userId: input.userId })
+            : await resolveGlobalRootConversationTarget(deps.db, { userId: input.userId })
           ensureGlobalRootWorkspaceDir()
           return target
         },
@@ -549,11 +590,14 @@ export async function runGlobalRootTurn(
       {
         userId: input.userId,
         userMessageText: input.userMessageText,
+        // The spoken thread's core shape (voice-requester routing): its own
+        // lock lane, the voice-base identity, and — load-bearing — a fresh or
+        // swapped segment minted mid-turn wears the VOICE presentation
+        // (scope 'voice', hidden, "Voice conversation"), never the global's.
+        ...(isVoiceThread ? { voice: true } : {}),
         permissionMode,
         ...(turnModel !== undefined ? { model: turnModel } : {}),
-        ...(turnSettings.thinkingEffort !== undefined
-          ? { thinkingEffort: turnSettings.thinkingEffort }
-          : {}),
+        ...(turnThinkingEffort !== undefined ? { thinkingEffort: turnThinkingEffort } : {}),
         ...(autoBuildout ? { autoBuildout: true } : {}),
         ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
         ...(input.channelReplyMarker !== undefined
@@ -655,6 +699,9 @@ export function buildGlobalRootReportTurnRunner(
     const waitGate = input.waitGate
     const turn = await runGlobalRootTurn(deps, {
       userId: input.userId,
+      // The VOICE requester's delivery runs on the spoken thread (voice-
+      // requester routing) — same runner, its thread flag.
+      ...(input.thread !== undefined ? { thread: input.thread } : {}),
       userMessageText: input.reportBody,
       ...(waitGate !== undefined
         ? {

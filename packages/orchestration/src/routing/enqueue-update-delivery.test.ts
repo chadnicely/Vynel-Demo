@@ -98,6 +98,40 @@ describe('enqueueUpdateDelivery', () => {
     })
   })
 
+  it('a VOICE requester targets the spoken thread and never coalesces into a global update on the same thread', async () => {
+    await withTestDatabase((db) => {
+      const user = insertUser(db, makeUser())
+      const voicePrimaryId = randomUUID()
+      const threadId = randomUUID()
+
+      const globalId = enqueueUpdateDelivery(db, {
+        threadId,
+        userId: user.id,
+        reporterSessionId: 'sdk-1',
+        reporterLabel: 'Mark · Acme',
+        updateBody: 'For the global thread.',
+        requester: { kind: 'global-root' },
+      })
+      const voiceId = enqueueUpdateDelivery(db, {
+        threadId,
+        userId: user.id,
+        reporterSessionId: 'sdk-1',
+        reporterLabel: 'Mark · Acme',
+        updateBody: 'For the voice thread.',
+        requester: { kind: 'voice', voicePrimarySessionId: voicePrimaryId },
+      })
+
+      // Two rows — a voice update must never replace a pending global one
+      // (both carry a null workspaceId; the target column tells them apart).
+      expect(voiceId).not.toBe(globalId)
+      const voiceJob = findDelegationJobById(db, voiceId)
+      expect(voiceJob?.jobKind).toBe('update-delivery')
+      expect(voiceJob?.targetPrimarySessionId).toBe(voicePrimaryId)
+      expect(voiceJob?.workspaceId).toBeNull()
+      expect(findDelegationJobById(db, globalId)?.taskText).toBe('For the global thread.')
+    })
+  })
+
   it('COALESCES while pending: same (user, target, thread) replaces the body in place', async () => {
     await withTestDatabase((db) => {
       const user = insertUser(db, makeUser())

@@ -11,24 +11,38 @@
 // `userId` (one global root per user) so the compaction swap never enters the picture.
 
 import type { Database } from '@vynel/db'
+import type { DelegationJob } from '../schema/delegation-jobs.js'
 import { listUnsurfacedTerminalDelegationsForUser } from '../repositories/index.js'
 
 export interface DelegationReportsForRoot {
   /** The system-framed block to prepend to the root turn's PROVIDER input — null when
    *  nothing is unseen (the turn runs with the user's message untouched). */
   contextBlock: string | null
-  /** The surfaced jobs — the caller marks these `surfacedToRootAt` after building the turn. */
+  /** The retired jobs — the caller marks these `surfacedToRootAt` after building the turn.
+   *  Includes jobs `belongsToRoot` rejected: their narration is elsewhere, but the latch
+   *  is what stops them re-scanning here. */
   jobIds: string[]
 }
 
 export function collectDelegationReportsForRoot(
   db: Database,
-  input: { userId: string },
+  input: {
+    userId: string
+    /** Whether a job's outcome belongs on the GLOBAL root's ledger
+     *  (voice-requester routing): a job the predicate rejects — one the VOICE
+     *  thread asked for — is omitted from the narration (its own delivery
+     *  pipeline is how its requester learns), but its id still returns in
+     *  `jobIds` so the caller's surfaced-latch retires it from this scan.
+     *  Absent = everything belongs (the shipped shape, byte-for-byte). */
+    belongsToRoot?: (job: DelegationJob) => boolean
+  },
 ): DelegationReportsForRoot {
   const jobs = listUnsurfacedTerminalDelegationsForUser(db, input.userId)
   if (jobs.length === 0) return { contextBlock: null, jobIds: [] }
+  const rootJobs = input.belongsToRoot !== undefined ? jobs.filter(input.belongsToRoot) : jobs
+  if (rootJobs.length === 0) return { contextBlock: null, jobIds: jobs.map((job) => job.id) }
 
-  const lines = jobs.map((job) => {
+  const lines = rootJobs.map((job) => {
     // An agent-run is a colleague the USER @mentioned (the direct-reply
     // tweak): its reply already landed on the transcript with no narration —
     // this line is how the root LEARNS it, never a prompt to restate it. The
@@ -76,5 +90,6 @@ export function collectDelegationReportsForRoot(
     'silently are already visible to the user — never restate those):\n' +
     lines.join('\n')
 
+  // ALL scanned ids retire, narrated or not — see `jobIds` above.
   return { contextBlock, jobIds: jobs.map((job) => job.id) }
 }

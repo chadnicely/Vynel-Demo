@@ -16,10 +16,11 @@
 //      (the tick's rule) — the final report remains the only guaranteed copy.
 //
 // ROW INVARIANT: identical to report-delivery — requester `workspaceId` set =
-// that workspace's primary, BOTH targets null = the global root;
-// `targetPrimarySessionId` never set (leaves send updates, never receive them).
-// Column reuse identical: `taskText` = the update body, `workspaceName` = the
-// child's composed label, `parentSessionId` = the reporter's sdk session id.
+// that workspace's primary, BOTH targets null = the global root,
+// `targetPrimarySessionId` set = the VOICE thread (voice-requester routing;
+// leaves still never receive updates). Column reuse identical: `taskText` =
+// the update body, `workspaceName` = the child's composed label,
+// `parentSessionId` = the reporter's sdk session id.
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@vynel/db'
@@ -61,6 +62,10 @@ export function enqueueUpdateDelivery(
   const now = (deps.now ?? (() => new Date()))()
   const requester = input.requester
   const requesterWorkspaceId = requester.kind === 'workspace-primary' ? requester.workspaceId : null
+  // The VOICE requester's address (voice-requester routing) — also the coalesce
+  // key's second half: a voice update and a global update share a null
+  // workspaceId, and only this column tells their pending rows apart.
+  const requesterPrimarySessionId = requester.kind === 'voice' ? requester.voicePrimarySessionId : null
 
   // A fresh correlation key per delivery hop (the report-delivery shape) —
   // resolved BEFORE the coalesce check because the thread key derives from it
@@ -77,6 +82,7 @@ export function enqueueUpdateDelivery(
   const pending = findPendingUpdateDelivery(db, {
     userId: input.userId,
     requesterWorkspaceId,
+    requesterPrimarySessionId,
     threadId,
   })
   if (pending !== null) {
@@ -96,7 +102,7 @@ export function enqueueUpdateDelivery(
     workspaceId: requesterWorkspaceId,
     workspacePath: requester.kind === 'workspace-primary' ? requester.workspacePath : null,
     workspaceName: input.reporterLabel,
-    targetPrimarySessionId: null,
+    targetPrimarySessionId: requesterPrimarySessionId,
     taskText: input.updateBody,
     partialSessionId,
     threadId,
