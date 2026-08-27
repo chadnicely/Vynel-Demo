@@ -5,6 +5,30 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Changed
+
+- **Every session travels ~10k tokens lighter.** The signed-in claude.ai account's cloud
+  connectors (Calendar, Drive) were silently attaching to every conversation — uncurated tools
+  that never raised an approval card and cost thousands of tokens of schemas on every request.
+  They are now off by default everywhere; a session that genuinely wants them opts in explicitly.
+
+- **The voice speaks sooner.** The first spoken chunk of a reply now cuts at the first short
+  clause instead of waiting for a full sentence, and a cloud voice no longer queues behind the
+  local engine's one-at-a-time lane — the first syllable lands noticeably earlier on every leg.
+  Each spoken turn also logs how long the brain took to its first word and how long to the first
+  chunk handed to the speaker, so a slow turn can be triaged from the daemon log.
+
+### Fixed
+
+- **The assistant is visible whenever it talks to you.** A spoken line used to play with no
+  pixels anywhere when Vynel was minimized or you were working in another tab — nothing surfaced
+  the voice widget. The dock's corner row now appears for every spoken line (a speaking orb with
+  the line as its caption, lingering briefly past the words), and a window minimized while on the
+  Display no longer counts as "the room is on screen" — which was actively hiding the widget at
+  the exact moment it was needed.
+
 ## [0.3.9] — 2026-08-27
 
 ### Changed
