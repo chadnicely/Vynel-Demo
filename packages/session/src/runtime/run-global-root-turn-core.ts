@@ -219,9 +219,19 @@ async function* runOneGlobalTurn(
     // The spoken thread runs on a BARE host (voice-lean tier): no CLAUDE.md,
     // no user/workspace settings, no native toolset — the MCP servers below
     // are its entire tool surface, and Vynel's own prompt its entire identity.
-    // And NO extended thinking: on a spoken surface a thought block is dead
-    // air before the first syllable — the model talks first, then acts.
-    ...(input.voice === true ? { hostResources: 'none' as const, disableThinking: true } : {}),
+    ...(input.voice === true ? { hostResources: 'none' as const } : {}),
+    // Thinking rides the resolved settings (the `voiceTierThinking`
+    // preference, default 'off' — a thought block is dead air on a spoken
+    // surface; a user who prefers depth picks a level in Settings → Voice).
+    // On a VOICE turn the core BACKSTOPS the default: a spoken turn whose
+    // caller resolved nothing never thinks (review SF1 — the guarantee stays
+    // structural, not caller-remembered); an explicit `false` (a picked
+    // level) passes through.
+    ...(input.voice === true
+      ? { disableThinking: input.disableThinking ?? true }
+      : input.disableThinking === true
+        ? { disableThinking: true }
+        : {}),
     userMessageText: providerUserMessageText,
     ...(attachedImages.length > 0 ? { attachedImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),

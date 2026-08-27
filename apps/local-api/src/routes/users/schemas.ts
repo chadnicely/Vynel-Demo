@@ -5,6 +5,10 @@
 import { z } from 'zod'
 import { LOCAL_STT_MODEL_IDS, LOCAL_TTS_MODEL_IDS } from '@vynel/contracts/models/local-model-catalog'
 import { VOICE_STT_SOURCES, VOICE_TTS_SOURCES } from '@vynel/contracts/voice/voice-providers'
+import {
+  VOICE_TIER_ALLOWED_MODELS,
+  VOICE_TIER_THINKING_OPTIONS,
+} from '@vynel/contracts/chat/voice-tier'
 
 export const UpdateUserProfileRequestSchema = z.object({
   displayName: z.string().min(1).max(120).optional(),
@@ -25,6 +29,8 @@ export const SetUserPreferencesRequestSchema = z.object({
   voiceTtsProviderVoiceId: z.string().min(1).max(200).nullable().optional(),
   voiceSttSource: z.enum(VOICE_STT_SOURCES).optional(),
   desktopActionsEnabled: z.boolean().optional(),
+  voiceTierModel: z.enum(VOICE_TIER_ALLOWED_MODELS).optional(),
+  voiceTierThinking: z.enum(VOICE_TIER_THINKING_OPTIONS).optional(),
 })
 
 export const UserResponseSchema = z.object({
@@ -50,6 +56,8 @@ export const UserPreferencesResponseSchema = z.object({
   voiceTtsProviderVoiceId: z.string().nullable(),
   voiceSttSource: z.enum(VOICE_STT_SOURCES),
   desktopActionsEnabled: z.boolean(),
+  voiceTierModel: z.enum(VOICE_TIER_ALLOWED_MODELS),
+  voiceTierThinking: z.enum(VOICE_TIER_THINKING_OPTIONS),
 })
 
 export type UpdateUserProfileRequest = z.infer<typeof UpdateUserProfileRequestSchema>

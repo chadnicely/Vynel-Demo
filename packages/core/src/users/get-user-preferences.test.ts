@@ -49,7 +49,28 @@ describe('getUserPreferences', () => {
         voiceTtsProviderVoiceId: null,
         voiceSttSource: 'web-speech',
         desktopActionsEnabled: false,
+        voiceTierModel: 'claude-haiku-4-5',
+        voiceTierThinking: 'off',
       })
+    })
+  })
+
+  it('resolves the voice tier picks and refuses off-tier values (voice-lean arc)', async () => {
+    await withTestDatabase((db) => {
+      const user = getOrCreateLocalUser(db)
+      upsertPreferenceForUser(db, user.id, 'voiceTierModel', JSON.stringify('claude-sonnet-5'))
+      upsertPreferenceForUser(db, user.id, 'voiceTierThinking', JSON.stringify('low'))
+      const prefs = getUserPreferences(db, user.id)
+      expect(prefs.voiceTierModel).toBe('claude-sonnet-5')
+      expect(prefs.voiceTierThinking).toBe('low')
+
+      // A retired / off-tier value reads as never chosen — the spoken thread
+      // must never chase a model off the tier.
+      upsertPreferenceForUser(db, user.id, 'voiceTierModel', JSON.stringify('claude-opus-4-8'))
+      upsertPreferenceForUser(db, user.id, 'voiceTierThinking', JSON.stringify('max'))
+      const guarded = getUserPreferences(db, user.id)
+      expect(guarded.voiceTierModel).toBe('claude-haiku-4-5')
+      expect(guarded.voiceTierThinking).toBe('off')
     })
   })
 

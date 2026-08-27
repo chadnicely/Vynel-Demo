@@ -224,7 +224,11 @@ describe('streamGlobalRootTurn — the voice leg (D1/D2)', () => {
       })
       const input = startChatSessionInputs[0]!
       expect(input.model).toBe(VOICE_TIER_MODEL)
-      expect(input.thinkingEffort).toBe('low')
+      // test: correct expectation — the tier's thinking is the preference
+      // (default 'off'), no longer a fixed 'low' effort: thinking disabled,
+      // no effort sent.
+      expect(input.thinkingEffort).toBeUndefined()
+      expect(input.disableThinking).toBe(true)
       expect(input.permissionMode).toBe('auto')
       // No ask form on a hands-free surface — the model asks in speech.
       expect(input.mcpServers).not.toHaveProperty('vynel-ask')

@@ -17,6 +17,7 @@ import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../../composables/users/use-user-preferences.js";
+import VoiceBrainSettings from "../voice/VoiceBrainSettings.vue";
 import LocalModelCard from "../models/LocalModelCard.vue";
 import CloudVoicesSettings from "../voice/CloudVoicesSettings.vue";
 import HearingSourceSettings from "../voice/HearingSourceSettings.vue";
@@ -167,6 +168,8 @@ async function preview() {
     </p>
 
     <template v-else>
+      <VoiceBrainSettings />
+
       <section class="flex flex-col gap-2">
         <h3 class="m-0 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Speaking</h3>
         <LocalModelCard

@@ -17541,6 +17541,10 @@ export interface operations {
                         /** @enum {string} */
                         voiceSttSource: "web-speech" | "local" | "elevenlabs" | "google";
                         desktopActionsEnabled: boolean;
+                        /** @enum {string} */
+                        voiceTierModel: "claude-haiku-4-5" | "claude-sonnet-5";
+                        /** @enum {string} */
+                        voiceTierThinking: "off" | "low" | "medium" | "high";
                     };
                 };
             };
@@ -17572,6 +17576,10 @@ export interface operations {
                     /** @enum {string} */
                     voiceSttSource?: "web-speech" | "local" | "elevenlabs" | "google";
                     desktopActionsEnabled?: boolean;
+                    /** @enum {string} */
+                    voiceTierModel?: "claude-haiku-4-5" | "claude-sonnet-5";
+                    /** @enum {string} */
+                    voiceTierThinking?: "off" | "low" | "medium" | "high";
                 };
             };
         };
@@ -17599,6 +17607,10 @@ export interface operations {
                         /** @enum {string} */
                         voiceSttSource: "web-speech" | "local" | "elevenlabs" | "google";
                         desktopActionsEnabled: boolean;
+                        /** @enum {string} */
+                        voiceTierModel: "claude-haiku-4-5" | "claude-sonnet-5";
+                        /** @enum {string} */
+                        voiceTierThinking: "off" | "low" | "medium" | "high";
                     };
                 };
             };

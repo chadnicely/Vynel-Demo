@@ -402,14 +402,38 @@ describe('runGlobalRootTurnCore — the voice thread (voice-session arc)', () =>
         {
           ...bareTurnInput(user.id, 'check the weather'),
           voice: true,
+          // NO disableThinking supplied — the core must BACKSTOP the spoken
+          // default (review SF1): a voice turn whose caller resolved nothing
+          // never thinks.
           mcpSystemPromptAppend: '## A feature blurb voice must not carry',
         },
         new CollectingSink(),
       )
       expect(voiceInputs[0]!.hostResources).toBe('none')
-      // …and no extended thinking: on a spoken surface a thought block is
-      // dead air before the first syllable.
       expect(voiceInputs[0]!.disableThinking).toBe(true)
+
+      // An explicit false — the user picked a thinking level in Settings →
+      // Voice — passes through the backstop untouched.
+      const thinkingInputs: StartChatSessionInput[] = []
+      const thinkingProvider = new FakeAiAgentProvider({
+        sessionIds: ['voice-think-a'],
+        resultText: 'Spoken.',
+        usage: RELAXED_USAGE,
+        summary: USABLE_CARRY,
+        startChatSessionInputs: thinkingInputs,
+      })
+      await runGlobalRootTurnCore(
+        { db, logger: silentLogger, resolveTarget: resolveVoiceTarget(db, user.id), provider: thinkingProvider },
+        {
+          ...bareTurnInput(user.id, 'think it through'),
+          voice: true,
+          disableThinking: false,
+          thinkingEffort: 'low',
+        },
+        new CollectingSink(),
+      )
+      expect(thinkingInputs[0]!.disableThinking).toBe(false)
+      expect(thinkingInputs[0]!.thinkingEffort).toBe('low')
       const voicePrompt = voiceInputs[0]!.systemPromptAppend ?? ''
       expect(voicePrompt).toContain(loadSessionInstruction('voice-base'))
       expect(voicePrompt).toContain(loadSessionInstruction('voice-thread'))

@@ -107,6 +107,10 @@ export interface RunGlobalRootTurnCoreInput {
   /** Reasoning effort for this turn (the composer's picker). Omit for the
    *  SDK's adaptive default (background turns). */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /** Thinking OFF for this turn (the voice tier's `voiceTierThinking: 'off'`
+   *  preference, resolved by the caller) — forwarded to the provider, which
+   *  drops any effort beside it. Omit = the runtime default. */
+  disableThinking?: boolean
   /** The provider permission mode for the brain's OWN tools this turn (the caller maps
    *  the user-facing `SessionMode` via `toPermissionMode`). Omit → the one default
    *  (`DEFAULT_SESSION_MODE`, `auto` — session-hardening D3). */

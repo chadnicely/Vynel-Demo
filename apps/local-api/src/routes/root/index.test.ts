@@ -787,9 +787,11 @@ describe('POST /root/turn (SSE)', () => {
         await spoken.text()
 
         // test: correct expectation — the voice turn ran on the TIER (was: the
-        // body's pin + the core's bypass default), 2026-08-19 session-hardening.
+        // body's pin + the core's bypass default), 2026-08-19 session-hardening;
+        // thinking now rides the preference (default 'off' — no effort sent).
         expect(startChatSessionInputs[1]!.model).toBe(VOICE_TIER_MODEL)
-        expect(startChatSessionInputs[1]!.thinkingEffort).toBe('low')
+        expect(startChatSessionInputs[1]!.thinkingEffort).toBeUndefined()
+        expect(startChatSessionInputs[1]!.disableThinking).toBe(true)
         expect(startChatSessionInputs[1]!.permissionMode).toBe('auto')
         // …and the thread's persisted settings are untouched.
         const row = findChatSessionById(db, nextSdkSessionId)

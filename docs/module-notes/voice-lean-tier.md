@@ -95,7 +95,7 @@ The per-call spawned-session leg stays its own parked arc.
   stale sidecar sending sonnet still runs haiku. The web Voice panel's read-only chips show the
   old constant until the next web build — cosmetic.
 
-## 3b-2. Thinking OFF (Kafi, morning smoke 2026-08-28)
+## 3b-2. Thinking OFF (Kafi, morning smoke 2026-08-27)
 
 The first smoke showed a full thought block before the spoken reply — dead air. Added
 `disableThinking` through the seam (`StartChatSessionInput` → `buildClaudeSdkOptions` sends the
@@ -108,6 +108,28 @@ comment. Reviewer (clean verdict) deferred notes: retire the effort field from v
 its own future slice (dead config for the spoken runtime); the drop-effort-beside-disabled rule
 is a per-provider obligation documented on the seam's input; "voice ⇒ no thinking" rides at the
 two producer sites beside `hostResources` — a future third voice leg must carry both switches.
+
+## 3b-3. Settings → Voice "Brain" picks (Kafi, 2026-08-27)
+
+The tier became user-facing: two USER-level preferences — `voiceTierModel` (haiku | sonnet,
+default the contract pin) and `voiceTierThinking` ('off' | low | medium | high, default 'off')
+— stored as `user_preferences` rows through the users route (the desktop-actions precedent),
+resolved per spoken turn in `resolveVoiceTierSettings` (pin precedence: env lever > preference >
+contract default; thinking 'off' ⇒ `disableThinking`, a level ⇒ that effort), and picked in a
+"Brain" block at the top of Settings → Voice. The thinking switch now RIDES the resolved
+settings into the core/call-leg producers instead of being hardcoded; `hostResources: 'none'`
+stays core-hardcoded (host bareness is not a user setting). D2 stands: user-level rows, never
+per-session. The env lever validates via `VOICE_TIER_ALLOWED_MODELS` (review drift fix).
+
+Reviewer (clean verdict) should-fixes applied: the core BACKSTOPS the spoken default
+(`disableThinking: input.disableThinking ?? true` on voice — a caller that resolves nothing
+never re-enables thinking on a spoken surface; an explicit false from a picked level passes
+through, both pinned by the core test), and the Brain block extracted to
+`components/voice/VoiceBrainSettings.vue` (the CloudVoicesSettings sibling shape; the section
+back under the file cap). Deferred notes carried: one home for the tiny `safelyParse` twin on a
+next touch; the legacy senders/chips still transmit the stale 'low' effort (point the chip at
+the preference in a future slice); no malformed-JSON case at the resolution layer (covered at
+core).
 
 ## 3c. Deferred (Kafi, at build time)
 

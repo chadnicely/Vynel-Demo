@@ -828,9 +828,10 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         const input = startChatSessionInputs[0]!
         expect(input.permissionMode).toBe('auto')
         expect(input.model).toBe(VOICE_TIER_MODEL)
-        expect(input.thinkingEffort).toBe('low')
-        // Thinking OFF on every voice leg (the lean tier) — the provider drops
-        // the effort beside it at the SDK boundary.
+        // test: correct expectation — the tier's thinking is the preference
+        // (default 'off'), no longer a fixed 'low' effort: thinking disabled,
+        // no effort sent.
+        expect(input.thinkingEffort).toBeUndefined()
         expect(input.disableThinking).toBe(true)
         // The children inherit the tier's mode too.
         expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('auto')

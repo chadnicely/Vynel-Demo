@@ -213,6 +213,7 @@ export async function streamGlobalRootTurn(
     input,
     {
       sessionId: conversationTarget.resumeSdkSessionId,
+      userId: c.var.user.id,
       ...(pressureThreshold !== undefined ? { pressureThreshold } : {}),
       ...(env.VYNEL_VOICE_TIER_MODEL !== undefined
         ? { voiceModelOverride: env.VYNEL_VOICE_TIER_MODEL }
@@ -495,6 +496,9 @@ export async function streamGlobalRootTurn(
           ...(turnSettings.model !== undefined ? { model: turnSettings.model } : {}),
           ...(turnSettings.thinkingEffort !== undefined
             ? { thinkingEffort: turnSettings.thinkingEffort }
+            : {}),
+          ...(turnSettings.disableThinking !== undefined
+            ? { disableThinking: turnSettings.disableThinking }
             : {}),
           permissionMode,
           // Autopilot (D8) — the resolved Auto-buildout rides the turn; the

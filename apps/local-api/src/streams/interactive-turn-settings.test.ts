@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { withTestDatabase } from '@vynel/testing'
-import { insertUser } from '@vynel/db/repositories/users'
+import { insertUser, upsertPreferenceForUser } from '@vynel/db/repositories/users'
 import { buildNewChatSessionRow } from '@vynel/chat'
 import { insertChatSession, updateChatSession } from '@vynel/chat/repositories'
 import { DEFAULT_SESSION_MODE, toPermissionMode } from '@vynel/session'
@@ -21,7 +21,7 @@ import { resolveInteractiveTurnSettings } from './interactive-turn-settings.js'
 
 const silentLogger = pino({ level: 'silent' })
 
-function seedSession(db: Database, sessionId: string): void {
+function seedSession(db: Database, sessionId: string): { userId: string } {
   const now = new Date()
   const user = insertUser(db, {
     id: randomUUID(),
@@ -45,6 +45,7 @@ function seedSession(db: Database, sessionId: string): void {
       visibility: 'hidden',
     }),
   )
+  return { userId: user.id }
 }
 
 describe('resolveInteractiveTurnSettings — keyboard', () => {
@@ -107,19 +108,52 @@ describe('resolveInteractiveTurnSettings — voice', () => {
         thinkingEffort: 'high',
         autoBuildout: true,
       })
+      // test: correct expectation — the tier's thinking is now the
+      // `voiceTierThinking` preference, default 'off' (was the fixed 'low'
+      // effort): thinking disabled, no effort sent.
       expect(
         resolveInteractiveTurnSettings(
           db,
-          { voice: true, mode: 'ask', model: 'claude-haiku-4-5', thinkingEffort: 'max', autoBuildout: true },
+          { voice: true, mode: 'ask', model: 'claude-opus-4-8', thinkingEffort: 'max', autoBuildout: true },
           { sessionId: 'sdk-voice' },
           { logger: silentLogger },
         ),
       ).toEqual({
         permissionMode: toPermissionMode(VOICE_TIER_MODE),
         model: VOICE_TIER_MODEL,
-        thinkingEffort: 'low',
+        thinkingEffort: undefined,
+        disableThinking: true,
         autoBuildout: undefined,
       })
+    })
+  })
+
+  it('the Settings → Voice picks drive the tier: model preference + a thinking level; env still outranks the model pick', async () => {
+    await withTestDatabase(async (db) => {
+      const { userId } = seedSession(db, 'sdk-pref')
+      upsertPreferenceForUser(db, userId, 'voiceTierModel', JSON.stringify(VOICE_TIER_FALLBACK_MODEL))
+      upsertPreferenceForUser(db, userId, 'voiceTierThinking', JSON.stringify('low'))
+
+      const resolved = resolveInteractiveTurnSettings(
+        db,
+        { voice: true },
+        { sessionId: 'sdk-pref', userId },
+        { logger: silentLogger },
+      )
+      expect(resolved.model).toBe(VOICE_TIER_FALLBACK_MODEL)
+      expect(resolved.thinkingEffort).toBe('low')
+      expect(resolved.disableThinking).toBe(false)
+
+      // The env lever (support) outranks the stored model pick; the thinking
+      // pick stands beside it.
+      const overridden = resolveInteractiveTurnSettings(
+        db,
+        { voice: true },
+        { sessionId: 'sdk-pref', userId, voiceModelOverride: VOICE_TIER_MODEL },
+        { logger: silentLogger },
+      )
+      expect(overridden.model).toBe(VOICE_TIER_MODEL)
+      expect(overridden.thinkingEffort).toBe('low')
     })
   })
 

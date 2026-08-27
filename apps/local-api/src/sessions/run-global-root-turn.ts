@@ -353,6 +353,7 @@ export async function runGlobalRootTurn(
         { voice: true },
         {
           sessionId: conversationTarget.resumeSdkSessionId,
+          userId: input.userId,
           ...(swapThreshold !== undefined ? { pressureThreshold: swapThreshold } : {}),
           ...(voiceTierOverride !== undefined ? { voiceModelOverride: voiceTierOverride } : {}),
         },
@@ -614,6 +615,9 @@ export async function runGlobalRootTurn(
         permissionMode,
         ...(turnModel !== undefined ? { model: turnModel } : {}),
         ...(turnThinkingEffort !== undefined ? { thinkingEffort: turnThinkingEffort } : {}),
+        ...(voiceSettings?.disableThinking !== undefined
+          ? { disableThinking: voiceSettings.disableThinking }
+          : {}),
         ...(autoBuildout ? { autoBuildout: true } : {}),
         ...(input.originChannel !== undefined ? { originChannel: input.originChannel } : {}),
         ...(input.channelReplyMarker !== undefined

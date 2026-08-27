@@ -22,6 +22,14 @@ import {
   type VoiceSttSource,
   type VoiceTtsSource,
 } from '@vynel/contracts/voice/voice-providers'
+import {
+  VOICE_TIER_MODEL,
+  DEFAULT_VOICE_TIER_THINKING,
+  isVoiceTierModel,
+  isVoiceTierThinking,
+  type VoiceTierModel,
+  type VoiceTierThinking,
+} from '@vynel/contracts/chat/voice-tier'
 
 export interface ResolvedUserPreferences {
   theme: 'light' | 'dark' | 'system'
@@ -45,6 +53,14 @@ export interface ResolvedUserPreferences {
   // default; `VYNEL_DESKTOP_ACT_ENABLED` seeds it only while the user has
   // never touched the toggle — see `resolveDesktopActionsEnabled` in local-api.
   desktopActionsEnabled: boolean
+  // The voice TIER (Settings → Voice, voice-lean arc 2026-08-27): which brain
+  // speaks — haiku (fast) or sonnet (the fallback pick) — and whether it
+  // thinks before speaking ('off' = the fast default). USER-level by design:
+  // the D2 rule stands (no voice turn reads or writes per-session settings).
+  // `VYNEL_VOICE_TIER_MODEL` (a dev/support env override) outranks the stored
+  // model pick — see `resolveVoiceTierSettings` in local-api.
+  voiceTierModel: VoiceTierModel
+  voiceTierThinking: VoiceTierThinking
 }
 
 export const DEFAULT_PREFERENCES: ResolvedUserPreferences = {
@@ -59,6 +75,8 @@ export const DEFAULT_PREFERENCES: ResolvedUserPreferences = {
   voiceTtsProviderVoiceId: null,
   voiceSttSource: DEFAULT_VOICE_STT_SOURCE,
   desktopActionsEnabled: false,
+  voiceTierModel: VOICE_TIER_MODEL,
+  voiceTierThinking: DEFAULT_VOICE_TIER_THINKING,
 }
 
 function isTtsModelId(value: unknown): value is LocalTtsModelId {
@@ -131,6 +149,14 @@ export function getUserPreferences(db: Database, userId: string): ResolvedUserPr
         if (typeof parsed === 'boolean') {
           resolved.desktopActionsEnabled = parsed
         }
+        break
+      case 'voiceTierModel':
+        // A model outside the tier's pair (a retired pick) reads as never
+        // chosen — the spoken thread must never chase a model off the tier.
+        if (isVoiceTierModel(parsed)) resolved.voiceTierModel = parsed
+        break
+      case 'voiceTierThinking':
+        if (isVoiceTierThinking(parsed)) resolved.voiceTierThinking = parsed
         break
       // Unknown keys: silently ignored (forward-compat).
     }
