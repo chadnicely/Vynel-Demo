@@ -87,6 +87,10 @@ export type StartChatTurnInput = {
   model?: string
   /** Reasoning effort for this turn (the composer's picker). Omit = Auto. */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /** Thinking OFF for this turn (the voice lean tier — a live-call voice turn
+   *  must speak, not think). Forwarded to the provider, which also suppresses
+   *  `thinkingEffort` beside it. Omit = the runtime default. */
+  disableThinking?: boolean
   /**
    * AUTOPILOT for this turn (session-hardening D8) — the RESOLVED
    * `autoBuildout` (`input ?? row`, `resolveTurnSessionSettings`). True appends
@@ -232,6 +236,7 @@ export async function* startChatTurn(
     ...(chatMessageImages !== undefined ? { attachedImages: chatMessageImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
+    ...(input.disableThinking !== undefined ? { disableThinking: input.disableThinking } : {}),
     permissionMode: input.permissionMode,
     allowedToolNames: [],
     deniedToolNames: input.deniedToolNames ?? [],

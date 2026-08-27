@@ -219,7 +219,9 @@ async function* runOneGlobalTurn(
     // The spoken thread runs on a BARE host (voice-lean tier): no CLAUDE.md,
     // no user/workspace settings, no native toolset — the MCP servers below
     // are its entire tool surface, and Vynel's own prompt its entire identity.
-    ...(input.voice === true ? { hostResources: 'none' as const } : {}),
+    // And NO extended thinking: on a spoken surface a thought block is dead
+    // air before the first syllable — the model talks first, then acts.
+    ...(input.voice === true ? { hostResources: 'none' as const, disableThinking: true } : {}),
     userMessageText: providerUserMessageText,
     ...(attachedImages.length > 0 ? { attachedImages } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),

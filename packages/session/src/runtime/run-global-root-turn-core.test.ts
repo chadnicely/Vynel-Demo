@@ -407,6 +407,9 @@ describe('runGlobalRootTurnCore — the voice thread (voice-session arc)', () =>
         new CollectingSink(),
       )
       expect(voiceInputs[0]!.hostResources).toBe('none')
+      // …and no extended thinking: on a spoken surface a thought block is
+      // dead air before the first syllable.
+      expect(voiceInputs[0]!.disableThinking).toBe(true)
       const voicePrompt = voiceInputs[0]!.systemPromptAppend ?? ''
       expect(voicePrompt).toContain(loadSessionInstruction('voice-base'))
       expect(voicePrompt).toContain(loadSessionInstruction('voice-thread'))
@@ -427,6 +430,7 @@ describe('runGlobalRootTurnCore — the voice thread (voice-session arc)', () =>
         new CollectingSink(),
       )
       expect(globalInputs[0]!.hostResources).toBeUndefined()
+      expect(globalInputs[0]!.disableThinking).toBeUndefined()
       const globalPrompt = globalInputs[0]!.systemPromptAppend ?? ''
       expect(globalPrompt).toContain(loadSessionInstruction('global-root'))
       expect(globalPrompt).toContain('The feature blurb')

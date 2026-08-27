@@ -21,6 +21,11 @@ export type BuildClaudeSdkOptionsInput = {
   model?: string
   /** Reasoning effort (Agent SDK `options.effort`). Omit for the adaptive default. */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  /** Thinking OFF for this session (the voice lean tier): sends the SDK
+   *  `thinking: { type: 'disabled' }` and suppresses `effort` even when a
+   *  caller supplied one — effort guides thinking depth, which no longer
+   *  exists, and some models reject effort without thinking. */
+  disableThinking?: boolean
   /** The mode the turn STARTS in — what the SDK's own option is set to. */
   permissionMode: ClaudePermissionMode
   /** How the backstop hook reads the mode at call time, so a mid-turn switch
@@ -232,7 +237,11 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
   if (input.model !== undefined) {
     options.model = input.model
   }
-  if (input.thinkingEffort !== undefined) {
+  // Thinking OFF is one coherent switch: the SDK's disabled config goes on,
+  // and `effort` never rides beside it (see the input doc above).
+  if (input.disableThinking === true) {
+    options.thinking = { type: 'disabled' }
+  } else if (input.thinkingEffort !== undefined) {
     options.effort = input.thinkingEffort
   }
   // The SDK requires this acknowledgement flag whenever bypassPermissions is set.

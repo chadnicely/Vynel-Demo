@@ -75,6 +75,14 @@ export type StartChatSessionInput = {
    *  default. */
   thinkingEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
+  /** Turn extended thinking OFF for this turn entirely (the voice lean tier:
+   *  on a spoken surface the first syllable beats reasoning depth, and a
+   *  thought block is pure dead air). When true the runtime runs with thinking
+   *  disabled and `thinkingEffort` is NOT sent (effort only guides thinking
+   *  depth, and some models reject it without thinking). Omit = the runtime's
+   *  default thinking behavior, byte-for-byte. */
+  disableThinking?: boolean
+
   /** Permission mode for this session — see `ClaudePermissionMode`. */
   permissionMode: ClaudePermissionMode
 

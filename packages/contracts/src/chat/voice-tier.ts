@@ -42,6 +42,11 @@ export const VOICE_TIER_MODEL = 'claude-haiku-4-5'
 export const VOICE_TIER_FALLBACK_MODEL = 'claude-sonnet-5'
 /** The whole voice model universe — the env override validates against it. */
 export const VOICE_TIER_ALLOWED_MODELS = [VOICE_TIER_MODEL, VOICE_TIER_FALLBACK_MODEL] as const
+/** What the LEGACY senders still transmit (daemon wake, web overlay, the
+ *  panel's read-only chip). The server-side truth since the lean tier: a
+ *  voice turn runs with extended thinking DISABLED entirely (`disableThinking`
+ *  on every voice leg — a thought block is dead air before the first spoken
+ *  syllable), and the provider drops any effort sent beside it. */
 export const VOICE_TIER_THINKING_EFFORT: ThinkingEffortLevel = 'low'
 // The voice tier's PERMISSION MODE (Kafi 2026-08-19: "no card for anything
 // through voice or chat"): `auto` — no Vynel card of any kind on a hands-free

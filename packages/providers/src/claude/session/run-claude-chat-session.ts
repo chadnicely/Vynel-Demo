@@ -108,6 +108,7 @@ export async function* runClaudeChatSession(
     ...(askModeApprovalToolNames !== undefined ? { askModeApprovalToolNames } : {}),
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
     ...(input.hostResources !== undefined ? { hostResources: input.hostResources } : {}),
+    ...(input.disableThinking !== undefined ? { disableThinking: input.disableThinking } : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
     ...(input.mcpServers !== undefined

@@ -9,6 +9,10 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Changed
 
+- **Voice no longer pauses to think.** A spoken turn runs with extended thinking off entirely —
+  the silent reasoning block that used to play as dead air before the first syllable is gone, on
+  every voice leg (the spoken thread and live calls alike).
+
 - **Voice got faster: a lean, bare session that talks before it acts.** The spoken thread now
   runs on Haiku 4.5 (Sonnet 5 remains the only fallback when a long conversation needs the
   bigger window — nothing else ever runs a spoken turn), and it travels light: no computer-level

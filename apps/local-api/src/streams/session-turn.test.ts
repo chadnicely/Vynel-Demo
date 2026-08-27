@@ -829,6 +829,9 @@ describe('POST /sessions/:sessionId/turn (SSE)', () => {
         expect(input.permissionMode).toBe('auto')
         expect(input.model).toBe(VOICE_TIER_MODEL)
         expect(input.thinkingEffort).toBe('low')
+        // Thinking OFF on every voice leg (the lean tier) — the provider drops
+        // the effort beside it at the SDK boundary.
+        expect(input.disableThinking).toBe(true)
         // The children inherit the tier's mode too.
         expect(wrapAppRequestWithModeSpy).toHaveBeenCalledWith('auto')
         // The row stays untouched — the tier's pins are the surface's, not chips.

@@ -442,6 +442,9 @@ export async function streamSpawnedSessionTurn(
             ...(turnSettings.thinkingEffort !== undefined
               ? { thinkingEffort: turnSettings.thinkingEffort }
               : {}),
+            // A live-call voice turn speaks, it does not think (the voice lean
+            // tier) — the provider drops the effort beside it.
+            ...(isVoiceTurn ? { disableThinking: true } : {}),
             // Autopilot (D8) — the resolved Auto-buildout rides the turn; the
             // runner appends the marker when true.
             ...(turnSettings.autoBuildout !== undefined

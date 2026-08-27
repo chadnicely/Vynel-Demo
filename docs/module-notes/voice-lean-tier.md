@@ -95,6 +95,20 @@ The per-call spawned-session leg stays its own parked arc.
   stale sidecar sending sonnet still runs haiku. The web Voice panel's read-only chips show the
   old constant until the next web build — cosmetic.
 
+## 3b-2. Thinking OFF (Kafi, morning smoke 2026-08-28)
+
+The first smoke showed a full thought block before the spoken reply — dead air. Added
+`disableThinking` through the seam (`StartChatSessionInput` → `buildClaudeSdkOptions` sends the
+SDK `thinking: { type: 'disabled' }` and SUPPRESSES `effort` beside it — effort guides thinking
+depth, and some models reject it without thinking). Set on every voice leg: the core's voice
+branch (thread legs — wake, typed panel, notify) and the live-call leg via
+`StartChatTurnInput.disableThinking`. The tier still resolves/transmits `thinkingEffort 'low'`
+(legacy senders + chips); the provider drops it at the SDK boundary — recorded in the contract
+comment. Reviewer (clean verdict) deferred notes: retire the effort field from voice senders in
+its own future slice (dead config for the spoken runtime); the drop-effort-beside-disabled rule
+is a per-provider obligation documented on the seam's input; "voice ⇒ no thinking" rides at the
+two producer sites beside `hostResources` — a future third voice leg must carry both switches.
+
 ## 3c. Deferred (Kafi, at build time)
 
 - **Trimming which MCP/system tools attach to voice** — "we will build a feature; we will

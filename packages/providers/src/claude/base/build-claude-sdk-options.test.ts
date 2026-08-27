@@ -61,6 +61,23 @@ describe('buildClaudeSdkOptions', () => {
     expect(withoutEffort.effort).toBeUndefined()
   })
 
+  it('disableThinking sends the SDK disabled config and suppresses effort beside it (voice-lean tier)', () => {
+    const off = buildClaudeSdkOptions({
+      ...base,
+      permissionMode: 'auto',
+      disableThinking: true,
+      thinkingEffort: 'low',
+    })
+    expect(off.thinking).toEqual({ type: 'disabled' })
+    // Effort guides thinking depth — it must never ride beside disabled
+    // thinking (some models reject it outright).
+    expect(off.effort).toBeUndefined()
+
+    const on = buildClaudeSdkOptions({ ...base, permissionMode: 'auto', thinkingEffort: 'low' })
+    expect(on.thinking).toBeUndefined()
+    expect(on.effort).toBe('low')
+  })
+
   it('hostResources "none" empties settingSources + native tools; default stays the full host (voice-lean tier)', () => {
     const bare = buildClaudeSdkOptions({ ...base, permissionMode: 'auto', hostResources: 'none' })
     expect(bare.settingSources).toEqual([])
