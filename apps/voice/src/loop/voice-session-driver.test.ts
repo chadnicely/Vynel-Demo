@@ -999,3 +999,35 @@ describe('VoiceSessionDriver — the session transcription lane (cloud hearing)'
     expect(recognizer.calls).toBe(1) // wake only — the local model never re-entered
   })
 })
+
+describe('VoiceSessionDriver — stop listening (the stop_listening door)', () => {
+  it('cuts the running turn, interrupts it on the server, and falls asleep', async () => {
+    const brain = controllableBrain()
+    const { driver, io, interruptTurn } = buildDriver(['hey vynel long question'], brain.runTurn)
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(driver.isAwake).toBe(true)
+    brain.runs[0]!.emit({ kind: 'session', sessionId: 'voice-1' })
+    await settle()
+
+    driver.stopListening()
+    await settle()
+    expect(interruptTurn).toHaveBeenCalledWith('voice-1')
+    expect(driver.isAwake).toBe(false)
+    expect(io.states.at(-1)).toBe('idle')
+  })
+
+  it('leaves a handed-off session to the browser — the voice-stop frame ends it there', async () => {
+    const wakeHandoff = new RecordingWakeHandoff()
+    const { driver } = buildDriver(['hey vynel'], () => brainSaying('never'), { wakeHandoff })
+    await driver.pushAudio(chunk())
+    await settle()
+    expect(driver.isHandedOff).toBe(true)
+
+    driver.stopListening()
+    await settle()
+    // Still the browser's session: ending it here would leave the overlay
+    // holding a conversation the daemon already abandoned.
+    expect(driver.isHandedOff).toBe(true)
+  })
+})

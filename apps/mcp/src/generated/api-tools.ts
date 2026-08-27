@@ -4504,6 +4504,36 @@ export const stopGlobalMonitor: McpToolFactory = (scope, app) =>
     { annotations: { readOnlyHint: false, destructiveHint: true } },
   )
 
+export const stopListening: McpToolFactory = (scope, app) =>
+  (tool as unknown as McpToolFn)(
+    'stop_listening',
+    "Stop the live voice conversation: the voice sidecar closes and the microphone is released everywhere (the sidecar, the Display room, the wake daemon). Call this when the user asks you to stop listening or clearly ends the conversation — \"stop listening\", \"that's all\", \"goodbye\". Say a brief closing word FIRST, then call this — after it, nothing you write is heard until the user wakes you again (\"Hey Vynel\" / \"Hey Claude\"). Returns { stopped: true }, or { stopped: false, reason } when no voice surface was running.",
+    {},
+    async (args: Record<string, unknown>) => {
+      try {
+        const pathStr = '/voice/stop-listening'
+        const queryStr = ''
+        const requestBody: string | undefined = undefined
+        const url = pathStr + (queryStr ? '?' + queryStr : '')
+        const response = await app(url, { method: 'POST' })
+        const bodyText = await response.text()
+        if (!response.ok) {
+          return {
+            content: [{ type: 'text', text: `Error ${response.status}: ${bodyText}` }],
+            isError: true,
+          }
+        }
+        return { content: [{ type: 'text', text: bodyText }] }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+          isError: true,
+        }
+      }
+    },
+    { annotations: { readOnlyHint: false, destructiveHint: true } },
+  )
+
 export const stopMonitor: McpToolFactory = (scope, app) =>
   (tool as unknown as McpToolFn)(
     'stop_monitor',
@@ -5384,6 +5414,7 @@ export const generatedRoutingMcpTools: McpToolFactory[] = [
   speak,
   startCall,
   stopGlobalMonitor,
+  stopListening,
   uninstallSkill,
   updateMySchedule,
   writeAgentFile,

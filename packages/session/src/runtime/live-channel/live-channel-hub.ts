@@ -216,12 +216,16 @@ export class LiveChannelHub {
    *  Remembered, because the two windows connect independently: a dock that
    *  reconnects (or opens after the room did) would otherwise never hear the
    *  fact again. `closeConnection` drops the memo when the last window that
-   *  could be showing a Display goes away. */
+   *  could be showing a Display goes away. A `voice-stop` is the exception:
+   *  it is a COMMAND, not a fact — replaying it to a window connecting later
+   *  would kill a session the stop never aimed at. */
   publishVoiceControl(userId: string, frame: VoiceControlEvent): void {
-    const remembered =
-      this.lastVoiceControl.get(userId) ?? new Map<VoiceControlEvent['kind'], VoiceControlEvent>()
-    remembered.set(frame.kind, frame)
-    this.lastVoiceControl.set(userId, remembered)
+    if (frame.kind !== 'voice-stop') {
+      const remembered =
+        this.lastVoiceControl.get(userId) ?? new Map<VoiceControlEvent['kind'], VoiceControlEvent>()
+      remembered.set(frame.kind, frame)
+      this.lastVoiceControl.set(userId, remembered)
+    }
     this.sendToVoiceSubscriptions(userId, frame)
   }
 
@@ -543,6 +547,9 @@ function retractVoiceControl(frame: VoiceControlEvent): VoiceControlEvent | null
   if (frame.kind === 'display-active') {
     return frame.active ? { kind: 'display-active', active: false } : null
   }
+  // A command is never memoized (see publishVoiceControl), so there is never
+  // one to take back.
+  if (frame.kind === 'voice-stop') return null
   return frame.live ? { kind: 'display-session', live: false, phase: 'idle', caption: '' } : null
 }
 

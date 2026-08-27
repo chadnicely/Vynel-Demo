@@ -214,6 +214,12 @@ async function main(): Promise<void> {
           logger.warn({ text: text.slice(0, 80) }, 'browser refused playback and no voice is loaded; nothing was heard')
         }
       },
+      // stop_listening / the sidecar's Stop — the native conversation ends and
+      // the daemon waits for the next wake.
+      onStopListening: () => {
+        logger.info('stop listening — the native conversation ends')
+        nativeLeg?.driver.stopListening()
+      },
     },
     logger,
     // With the dock window on, ONLY it runs wake sessions — app tabs keep

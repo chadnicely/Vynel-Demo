@@ -94,6 +94,12 @@ export type VoiceControlEvent =
        *  `DISPLAY_SESSION_CAPTION_MAX_LENGTH` characters by the producer. */
       caption: string
     }
+  /** Stop listening NOW, wherever the live voice session is — the
+   *  `stop_listening` tool and the sidecar's Stop button both speak through
+   *  this one frame. Fanned to every voice window; the one holding a session
+   *  ends it (the others have nothing to stop). TRANSIENT: never memoized or
+   *  replayed — a window connecting later must not inherit a stale stop. */
+  | { kind: 'voice-stop' }
 
 export type VoiceRelayEvent =
   | VoiceDaemonEvent
@@ -160,6 +166,8 @@ export function parseVoiceControlEvent(raw: unknown): VoiceControlEvent | null {
             caption: candidate['caption'],
           }
         : null
+    case 'voice-stop':
+      return { kind: 'voice-stop' }
     default:
       return null
   }

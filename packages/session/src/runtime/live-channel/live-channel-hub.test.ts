@@ -469,6 +469,36 @@ describe('LiveChannelHub', () => {
     hub.dispose()
   })
 
+  it('never replays a voice-stop — a command is not a fact', () => {
+    const { voice } = fakeVoiceSource()
+    const { hub } = buildHub({ voice })
+    const app = fakeSocket()
+    const appConnection = hub.connect({ userId: USER, transport: app.transport })
+    appConnection.handleMessage(subscribeMessage('voice:app'))
+    app.take()
+    hub.publishVoiceControl(USER, { kind: 'voice-stop' })
+    // Delivered live to the window that was listening…
+    expect(app.take()).toEqual([
+      { kind: 'event', channel: 'voice:app', event: { kind: 'voice-stop' } },
+    ])
+
+    // …but a window connecting later must not inherit it: a stale stop would
+    // kill a session it was never aimed at.
+    const dock = fakeSocket()
+    const dockConnection = hub.connect({ userId: USER, transport: dock.transport })
+    dock.take()
+    dockConnection.handleMessage(subscribeMessage('voice:dock'))
+    const replayed = dock.take()
+    expect(
+      replayed.filter(
+        (message) =>
+          message.kind === 'event' &&
+          (message.event as { kind?: string }).kind === 'voice-stop',
+      ),
+    ).toEqual([])
+    hub.dispose()
+  })
+
   it('retracts display-active when the last app window closes, but not when its link moves inside it', () => {
     const { voice } = fakeVoiceSource()
     const { hub } = buildHub({ voice })

@@ -5,7 +5,7 @@
 import type { ToolCatalogEntry } from '../tool-policy/catalog.js'
 
 /** Every tool the product composes, with its declared defaults — sorted by
- *  (serverName, toolName). 165 entries. */
+ *  (serverName, toolName). 166 entries. */
 export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__desktop__act_on_app","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
   {"toolName":"mcp__desktop__act_on_desktop","serverName":"desktop","surfaces":["global-interactive","global-channel","delegated-global","spawned"],"cardClass":"never"},
@@ -148,6 +148,7 @@ export const TOOL_CATALOG_SNAPSHOT: readonly ToolCatalogEntry[] = [
   {"toolName":"mcp__vynel__start_call","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"ask","featureKey":"voice"},
   {"toolName":"mcp__vynel__stop_app","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never","featureKey":"apps"},
   {"toolName":"mcp__vynel__stop_global_monitor","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"never"},
+  {"toolName":"mcp__vynel__stop_listening","serverName":"vynel","surfaces":["global-interactive","global-channel","delegated-global"],"cardClass":"never"},
   {"toolName":"mcp__vynel__stop_monitor","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"never"},
   {"toolName":"mcp__vynel__uninstall_marketplace_item","serverName":"vynel","surfaces":["workspace-interactive","workspace-background","delegated-workspace","spawned","agent","schedule"],"cardClass":"ask","featureKey":"marketplace"},
   {"toolName":"mcp__vynel__uninstall_skill","serverName":"vynel","surfaces":["workspace-interactive","delegated-workspace","spawned","agent","global-interactive","global-channel","delegated-global"],"cardClass":"ask"},

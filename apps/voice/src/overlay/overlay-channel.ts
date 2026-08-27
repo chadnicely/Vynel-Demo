@@ -86,6 +86,10 @@ export interface OverlayChannelHooks {
    *  it (autoplay policy — zero audio came out). The daemon believed it was
    *  delivered; this is its chance to speak the line another way. */
   onSpeakRefused(text: string): void
+  /** The engine's `stop_listening` door — end the daemon's NATIVE conversation
+   *  (fall asleep, wait for the next wake). A handed-off session is the
+   *  browser's to end; the daemon has nothing of its own to stop then. */
+  onStopListening(): void
   /** Re-read the user's voice pick and apply it (Settings → Voice saved). */
   onReload(): Promise<VoiceReloadOutcome>
 }
@@ -288,6 +292,12 @@ export function startOverlayChannel(
         )
         return c.json({ error: 'speak failed — see the daemon log' }, 500)
       }
+    })
+    // The engine's stop_listening reaching the NATIVE conversation — the
+    // browser legs are stopped by the voice-stop frame on the live channel.
+    .post('/stop-listening', (c) => {
+      hooks.onStopListening()
+      return c.json({ ok: true })
     })
     // A delegated line's playback was REFUSED by the browser (autoplay policy)
     // — without this door the daemon logs "delivered" while nothing was heard.

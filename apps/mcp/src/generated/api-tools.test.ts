@@ -315,6 +315,10 @@ const EXPECTED_ROUTING_TOOL_NAMES = [
   'speak',
   'start_call',
   'stop_global_monitor',
+  // stop_listening (Kafi, 2026-08-28): the voice conversation ends on the
+  // user's say-so — the tool answers "stop listening" said out loud; the
+  // sidecar's Stop button rides the same route.
+  'stop_listening',
 ] as const
 
 // Slice ④b (widened 2026-07-21): the session-routing tools ride workspace-ROOT

@@ -1,6 +1,7 @@
 // The `voice` HTTP surface — the brain's spoken output + the call tools.
 //
 //   POST   /voice/speak           -> speak (rootSurface; callId retargets into a call)
+//   POST   /voice/stop-listening  -> stop_listening (rootSurface; also the Stop button's door)
 //   POST   /voice/display-active  -> the app window's screen state (NOT a tool)
 //   POST   /voice/display-session -> the room's live conversation, mirrored (NOT a tool)
 //   POST   /voice/calls           -> start_call (rootSurface, CARDS in ask mode)
@@ -48,6 +49,7 @@ import { ensureGlobalRootWorkspaceDir } from '../../sessions/global-root-workspa
 import { TURN_SESSION_HEADER, parseTurnSessionHeader } from '../../sessions/turn-session-header.js'
 import { speakThroughDaemon } from './speak-through-daemon.js'
 import { reloadVoiceThroughDaemon } from './reload-through-daemon.js'
+import { stopListeningThroughDaemon } from './stop-through-daemon.js'
 import {
   endCallThroughDaemon,
   listCallsThroughDaemon,
@@ -65,6 +67,7 @@ import {
   SpeakResponseSchema,
   StartCallRequestSchema,
   StartCallResponseSchema,
+  StopListeningResponseSchema,
 } from './schemas.js'
 
 // The spoken persona, matching the daemon's hardcoded address name — the
@@ -133,6 +136,47 @@ export const voiceApp = factory
       // stamped, never model input) — the daemon routes the line by it.
       const sessionId = parseTurnSessionHeader(c.req.header(TURN_SESSION_HEADER)) ?? null
       return c.json(await speakThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL, text, sessionId))
+    },
+  )
+  // Stop listening, wherever the live voice session is: the `voice-stop`
+  // control frame reaches every voice window (the one holding a session ends
+  // it — sidecar, Display, or a browser tab) and the daemon door covers a
+  // conversation the daemon runs natively. Both the `stop_listening` tool
+  // (the user SAID "stop listening") and the sidecar's Stop button land here,
+  // so there is exactly one rulebook for ending a voice conversation.
+  .post(
+    '/stop-listening',
+    describeRoute({
+      tags: ['voice'],
+      summary: 'Stop the live voice conversation — the sidecar closes and the microphone is released.',
+      'x-sdk-name': 'voice.stopListening',
+      responses: {
+        200: {
+          description: '{ stopped: true } — or { stopped: false, reason } when nowhere could hear the stop.',
+          content: { 'application/json': { schema: resolver(StopListeningResponseSchema) } },
+        },
+      },
+      'x-mcp': {
+        exposed: true,
+        name: 'stop_listening',
+        mutatingApproved: true,
+        rootSurface: true,
+        description: loadToolDescription('stop_listening'),
+      },
+    }),
+    ...userScoped,
+    async (c) => {
+      const sink = c.var.voiceControlSink
+      sink?.publish(c.var.user.id, { kind: 'voice-stop' })
+      // The daemon's native conversation, best-effort — a remote engine has no
+      // daemon on its loopback, and the windows' channel above still worked.
+      const daemonStopped = c.var.remoteEngine
+        ? false
+        : await stopListeningThroughDaemon(loadEnv().VYNEL_VOICE_DAEMON_URL)
+      if (sink === undefined && !daemonStopped) {
+        return c.json({ stopped: false, reason: 'no voice window or daemon could hear the stop' })
+      }
+      return c.json({ stopped: true })
     },
   )
   // Settings → Voice saved a pick: apply it to the running daemon now. The

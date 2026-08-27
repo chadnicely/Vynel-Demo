@@ -58,6 +58,15 @@ export const DisplaySessionResponseSchema = z.object({
   published: z.boolean(),
 })
 
+// The `stop_listening` tool's answer. `stopped: true` = the stop reached at
+// least one place a session could live (the windows' voice channel, or the
+// daemon); `false` with a reason = nowhere to deliver it (remote engine with
+// no live channel).
+export const StopListeningResponseSchema = z.object({
+  stopped: z.boolean(),
+  reason: z.string().optional(),
+})
+
 // ── The call tools' wire contracts (voice-in-calls Part C) ──────────────────
 
 export const CallModeSchema = z.enum(['notetaker', 'participant'])

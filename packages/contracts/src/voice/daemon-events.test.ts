@@ -98,6 +98,8 @@ describe('voice control events', () => {
       phase: 'speaking',
       caption: 'Two builds are green',
     })
+    // The stop command — payload-free, one meaning everywhere.
+    expect(parseVoiceControlEvent({ kind: 'voice-stop' })).toEqual({ kind: 'voice-stop' })
     // The daemon's own vocabulary goes the other way, through
     // parseVoiceDaemonEvent — this door only knows the api's words.
     expect(parseVoiceControlEvent({ kind: 'state', state: 'listening' })).toBeNull()

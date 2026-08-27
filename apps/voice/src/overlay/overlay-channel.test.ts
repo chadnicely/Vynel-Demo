@@ -25,6 +25,7 @@ interface RecordedHooks {
   sessionStarts: number
   spoken: Array<{ text: string; sessionId: string | null }>
   refused: string[]
+  stopListens: number
 }
 
 function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
@@ -38,6 +39,7 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
     reloads: 0,
     spoken: [],
     refused: [],
+    stopListens: 0,
   }
   const channel = startOverlayChannel(
     0,
@@ -59,6 +61,9 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
       },
       onSpeakRefused: (text) => {
         hooks.refused.push(text)
+      },
+      onStopListening: () => {
+        hooks.stopListens += 1
       },
       onReload: () => {
         hooks.reloads += 1
@@ -242,6 +247,7 @@ describe('overlay channel', () => {
         onSynthesize: () => Promise.resolve(new Uint8Array()),
         onSpeak: () => Promise.resolve(),
         onSpeakRefused: () => {},
+        onStopListening: () => {},
         onReload: () => Promise.reject(new Error('not under test')),
       },
       silentLogger,
@@ -300,6 +306,7 @@ describe('overlay channel', () => {
         onSynthesize: () => Promise.reject(new Error('model exploded')),
         onSpeak: () => Promise.resolve(),
         onSpeakRefused: () => {},
+        onStopListening: () => {},
         onReload: () => Promise.reject(new Error('not under test')),
       },
       silentLogger,
@@ -657,6 +664,17 @@ describe('the wake window handover, as the wire tells it', () => {
     expect(clamped.kind === 'show-dock' && clamped.text.length).toBe(280)
     dock.close()
     appTab.close()
+  })
+})
+
+describe('POST /stop-listening', () => {
+  it('hands the stop to the hook', async () => {
+    const { channel, hooks } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+    const response = await fetch(`http://127.0.0.1:${port}/stop-listening`, { method: 'POST' })
+    expect(response.status).toBe(200)
+    expect(hooks.stopListens).toBe(1)
   })
 })
 

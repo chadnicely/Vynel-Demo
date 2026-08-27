@@ -2288,6 +2288,11 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  stopListening: async () => {
+    const { data, error, response } = await client["POST"]("/voice/stop-listening")
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   },
   voiceProviders: {
   connect: async (provider: NonNullable<paths["/voice/providers/{provider}/connect"]["post"]['parameters']>['path']["provider"], input: NonNullable<paths["/voice/providers/{provider}/connect"]["post"]['requestBody']>['content']['application/json']) => {

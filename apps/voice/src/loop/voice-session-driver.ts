@@ -234,6 +234,25 @@ export class VoiceSessionDriver {
     this.#clearIdleTimer()
   }
 
+  /** End the NATIVE conversation on the user's say-so (the `stop_listening`
+   *  tool / the sidecar's Stop): cut whatever is running and fall asleep —
+   *  the next "hey vynel" starts fresh. A handed-off session belongs to the
+   *  browser (the voice-stop frame ends it there, and its own session-end
+   *  returns the mic); a relay line mid-drain keeps the drain's state rules
+   *  and only retargets its restore to asleep. */
+  stopListening(): void {
+    // The getter, not the raw state: a relay line draining ON TOP of a handoff
+    // sits in 'relaying' with the handoff as its restore target — retargeting
+    // that to asleep would resume wake-listening under a live browser mic.
+    if (this.isHandedOff) return
+    void this.#abandonRunningTurn()
+    if (this.#drainingSpeakQueue) {
+      this.#drainPriorState = 'asleep'
+      return
+    }
+    this.#toAsleep()
+  }
+
   async #handleSegment(segment: PcmAudio): Promise<void> {
     // Asleep = wake listening → ALWAYS the local recognizer (the room never
     // streams to a cloud API). Once a conversation is live, the utterance is

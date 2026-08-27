@@ -9,7 +9,7 @@ import { resolveInstructionsContentDirectory } from '../content-root.js'
 // (The description flows into the generated MCP registry — re-run
 // `pnpm api:generate` after editing so the wire copy follows.)
 
-export type ToolDescriptionId = 'speak' | 'start_call' | 'end_call' | 'list_calls'
+export type ToolDescriptionId = 'speak' | 'stop_listening' | 'start_call' | 'end_call' | 'list_calls'
 
 const cache = new Map<ToolDescriptionId, string>()
 

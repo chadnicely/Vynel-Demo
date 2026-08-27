@@ -227,6 +227,63 @@ describe('POST /voice/display-active', () => {
   })
 })
 
+describe('POST /voice/stop-listening', () => {
+  it('fans the stop to the user’s voice windows and asks the daemon too', async () => {
+    await withTestDatabase(async (db) => {
+      const user = seedUser(db)
+      const published: Array<{ userId: string; frame: VoiceControlEvent }> = []
+      const daemonCalls: string[] = []
+      vi.stubGlobal('fetch', (url: string | URL) => {
+        daemonCalls.push(String(url))
+        return Promise.resolve(new Response('{"ok":true}', { status: 200 }))
+      })
+      const app = createApp({
+        db,
+        logger: silentLogger,
+        voiceControlSink: { publish: (userId, frame) => published.push({ userId, frame }) },
+      })
+
+      const response = await app.request('/voice/stop-listening', { method: 'POST' })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ stopped: true })
+      expect(published).toEqual([{ userId: user.id, frame: { kind: 'voice-stop' } }])
+      expect(daemonCalls[0]).toContain('/stop-listening')
+    })
+  })
+
+  it('skips the daemon on a remote engine, and says so when nowhere heard it', async () => {
+    await withTestDatabase(async (db) => {
+      seedUser(db)
+      const daemonCalls: string[] = []
+      vi.stubGlobal('fetch', (url: string | URL) => {
+        daemonCalls.push(String(url))
+        return Promise.reject(new Error('no daemon'))
+      })
+
+      // Remote + a live channel: the windows still hear the stop.
+      const published: VoiceControlEvent[] = []
+      const remote = createApp({
+        db,
+        logger: silentLogger,
+        remoteEngine: true,
+        voiceControlSink: { publish: (_userId, frame) => published.push(frame) },
+      })
+      const heard = await remote.request('/voice/stop-listening', { method: 'POST' })
+      expect(await heard.json()).toEqual({ stopped: true })
+      expect(published).toEqual([{ kind: 'voice-stop' }])
+      expect(daemonCalls).toEqual([])
+
+      // No channel and no daemon: an honest false, not a silent success.
+      const deaf = createApp({ db, logger: silentLogger })
+      const unheard = await deaf.request('/voice/stop-listening', { method: 'POST' })
+      expect(unheard.status).toBe(200)
+      const body = (await unheard.json()) as { stopped: boolean; reason?: string }
+      expect(body.stopped).toBe(false)
+      expect(body.reason).toContain('hear')
+    })
+  })
+})
+
 describe('POST /voice/display-session', () => {
   it('hands the room’s live conversation to the live channel, scoped to that user', async () => {
     await withTestDatabase(async (db) => {

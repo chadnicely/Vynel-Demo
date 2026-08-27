@@ -41746,6 +41746,47 @@
         }
       }
     },
+    "/voice/stop-listening": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ stopped: true } — or { stopped: false, reason } when nowhere could hear the stop.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stopped": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "stopped"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceStop-listening",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "Stop the live voice conversation — the sidecar closes and the microphone is released.",
+        "x-sdk-name": "voice.stopListening",
+        "x-mcp": {
+          "exposed": true,
+          "name": "stop_listening",
+          "mutatingApproved": true,
+          "rootSurface": true,
+          "description": "Stop the live voice conversation: the voice sidecar closes and the microphone is released everywhere (the sidecar, the Display room, the wake daemon). Call this when the user asks you to stop listening or clearly ends the conversation — \"stop listening\", \"that's all\", \"goodbye\". Say a brief closing word FIRST, then call this — after it, nothing you write is heard until the user wakes you again (\"Hey Vynel\" / \"Hey Claude\"). Returns { stopped: true }, or { stopped: false, reason } when no voice surface was running."
+        }
+      }
+    },
     "/voice/reload": {
       "post": {
         "responses": {

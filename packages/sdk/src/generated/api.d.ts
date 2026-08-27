@@ -4143,6 +4143,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/stop-listening": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop the live voice conversation — the sidecar closes and the microphone is released. */
+        post: operations["postVoiceStop-listening"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/reload": {
         parameters: {
             query?: never;
@@ -20280,6 +20297,29 @@ export interface operations {
                 content: {
                     "application/json": {
                         spoken: boolean;
+                        reason?: string;
+                    };
+                };
+            };
+        };
+    };
+    "postVoiceStop-listening": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description { stopped: true } — or { stopped: false, reason } when nowhere could hear the stop. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        stopped: boolean;
                         reason?: string;
                     };
                 };
