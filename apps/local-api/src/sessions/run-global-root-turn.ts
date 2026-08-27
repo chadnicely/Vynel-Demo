@@ -393,11 +393,22 @@ export async function runGlobalRootTurn(
   // the interactive streams stamp the same way).
   const originAwareAppRequest =
     input.origin !== undefined ? wrapAppRequestWithOrigin(deps.appRequest, input.origin) : deps.appRequest
-  const appRequest = wrapAppRequestWithMode(originAwareAppRequest, permissionMode)
+  const modeAwareAppRequest = wrapAppRequestWithMode(originAwareAppRequest, permissionMode)
   // This turn's chat-session identity. Composed here (before the toolset) and
   // filled by the drain sink from the stream's first frame — the read half is
   // what lets an `ask_user` on a channel turn name the conversation it parked.
   const turnSession = createTurnSessionCarrier()
+  // VOICE ONLY (voice-requester routing, review finding): the spoken thread's
+  // sender identity IS the turn-session header — without it, a voice notify
+  // turn that delegates follow-up work parents that job on the GLOBAL primary
+  // (`resolveTaskSender`'s workspace-less fallback): the arc's bug, one hop
+  // deeper. GLOBAL background turns deliberately stay header-less (the
+  // shipped shape — the header would also arm set_session_status / journal
+  // attribution on channel turns, a widening that is its own decision;
+  // `turn-session-header.ts` records the header-less background contract).
+  const appRequest = isVoiceThread
+    ? turnSession.wrapAppRequest(modeAwareAppRequest)
+    : modeAwareAppRequest
   // ONE gate per turn (the streams' rule): parked cards (the sink's tracker)
   // and parked asks (the descriptor) both mark it; the wall clock — when the
   // caller bounds the turn — measures only what is left. Inert otherwise.

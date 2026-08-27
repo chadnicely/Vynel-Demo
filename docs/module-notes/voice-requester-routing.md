@@ -89,6 +89,24 @@ precedent). Delivery rows address the voice thread through the existing (deliver
    the surfaced-latch and retires from the scan. The voice thread needs no catch-up net of its
    own precisely because every voice delivery — direct included — runs as a real turn on it.
 
+## 3b. Review findings (code-reviewer on `78a10fd1`, 2026-08-27 — both fixed)
+
+- **The voice notify turn's own re-delegation misrouted one hop deeper**: the background runner
+  composed its toolset over an appRequest with NO turn-session header, so a voice delivery turn
+  that delegated follow-up work parented that job on the GLOBAL primary. Fixed by wrapping the
+  turn-session carrier **for the voice thread only** — the header IS the spoken thread's sender
+  identity. DECISION: global background turns stay header-less (the shipped contract in
+  `turn-session-header.ts`); giving channel turns a session identity (arming
+  `set_session_status`, journal attribution…) is a separate widening, decided on its own day.
+- `recordDirectReplyMessage`'s comment described a voice path that must never exist — tightened
+  to state the global root is the only caller and why (voice has no catch-up net).
+
+Reviewer deferred-improves (recorded): the tick + runner files are past the ~300-line cap and
+grew — split at the requester-resolution head / voice-settings block on next touch; the catch-up
+predicate re-resolves the voice primary per job (hoistable, trivial at SQLite scale); a purged
+voice segment re-classifies its job as root-ledger (benign double-tell, the corrupt-row corner);
+the voice thread has one net (delivery + retries), no catch-up backstop — accepted.
+
 ## 4. Deferred (recorded, not built)
 
 - **Speaking an arriving report aloud on a live call** — the notify turn lands text in the voice
