@@ -46,6 +46,12 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   counts as off screen — the corner row appears for a conversation or a spoken line even when
   the app is minimized while sitting on the Display view.
 
+- **The voice now narrates work as it happens.** On a turn that used tools ("open some music
+  for me"), the assistant used to stay silent through every step and then read the entire
+  narration at once at the end, sentences jammed together. Each piece of text is now spoken the
+  moment the next action starts — you hear "I'll open YouTube for you" while it is actually
+  opening YouTube.
+
 ## [0.3.9] — 2026-08-27
 
 ### Changed
