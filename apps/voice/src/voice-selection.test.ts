@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { planVoiceReload, readVoiceSelection, type VoiceSelection } from './voice-selection.js'
+import {
+  fetchVoiceSelection,
+  planVoiceReload,
+  readVoiceSelection,
+  settleVoiceSelectionWithEngine,
+  type VoiceSelection,
+} from './voice-selection.js'
 
 const FALLBACK: VoiceSelection = {
   ttsSource: 'local',
@@ -77,5 +83,53 @@ describe('planVoiceReload', () => {
     expect(plan.swapTts).toBe(false)
     expect(plan.swapStt).toBe(true)
     expect(plan.missing).toEqual(['piper-lessac'])
+  })
+})
+
+describe('fetchVoiceSelection (the strict read)', () => {
+  it('answers null when the engine is unreachable or not ok — never the fallback', async () => {
+    const refused = (async () => {
+      throw new Error('ECONNREFUSED')
+    }) as unknown as typeof fetch
+    expect(await fetchVoiceSelection({ apiUrl: 'http://engine', fallback: FALLBACK, fetch: refused })).toBeNull()
+    expect(
+      await fetchVoiceSelection({ apiUrl: 'http://engine', fallback: FALLBACK, fetch: answering('nope', 500) }),
+    ).toBeNull()
+  })
+})
+
+describe('settleVoiceSelectionWithEngine', () => {
+  it('keeps asking until the engine answers once, applies exactly once, then stops', async () => {
+    const applied: VoiceSelection[] = []
+    let reads = 0
+    const settle = settleVoiceSelectionWithEngine({
+      read: async () => {
+        reads += 1
+        return reads < 3 ? null : { ...FALLBACK, ttsSource: 'elevenlabs' }
+      },
+      apply: (selection) => applied.push(selection),
+      sleep: async () => {},
+    })
+    await settle.done
+    expect(reads).toBe(3)
+    expect(applied).toHaveLength(1)
+    expect(applied[0]!.ttsSource).toBe('elevenlabs')
+  })
+
+  it('cancel stops the loop without applying', async () => {
+    const applied: VoiceSelection[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const settle = settleVoiceSelectionWithEngine({
+      read: async () => ({ ...FALLBACK }),
+      apply: (selection) => applied.push(selection),
+      sleep: () => gate,
+    })
+    settle.cancel()
+    release()
+    await settle.done
+    expect(applied).toHaveLength(0)
   })
 })

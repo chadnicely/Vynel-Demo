@@ -15,7 +15,11 @@ import { SherpaVoiceActivityDetector } from '@vynel/voice-engine'
 import type { PcmAudio, SpeechRecognizer, SynthesizeOptions, VoiceEngine } from '@vynel/voice-engine'
 import { loadEnv } from './env.js'
 import { VoiceEngineSlot } from './voice-engine-slot.js'
-import { readVoiceSelection } from './voice-selection.js'
+import {
+  fetchVoiceSelection,
+  readVoiceSelection,
+  settleVoiceSelectionWithEngine,
+} from './voice-selection.js'
 import { encodeWavFromPcm } from '@vynel/voice-engine/pcm-codec'
 import { CallRegistry } from './call/call-registry.js'
 import {
@@ -53,7 +57,10 @@ async function main(): Promise<void> {
   }
   const readSelection = () =>
     readVoiceSelection({ apiUrl: env.VYNEL_API_URL, fallback: envSelection })
-  const selection = await readSelection()
+  // The strict boot read: null = the engine is not up yet (an app start races
+  // both processes), and the env fallback is a STAND-IN, not the user's pick.
+  const bootRead = await fetchVoiceSelection({ apiUrl: env.VYNEL_API_URL, fallback: envSelection })
+  const selection = bootRead ?? envSelection
 
   // The pick first; a pick whose files are gone falls back to the env models
   // (the slot owns that order, at boot and on every reload); nothing on the
@@ -248,8 +255,29 @@ async function main(): Promise<void> {
     'voice daemon up',
   )
 
+  // The boot read raced a still-starting engine: the daemon is on the env
+  // stand-in, while Settings truthfully shows the user's saved pick. Keep
+  // asking until the engine answers once, then apply — otherwise a cloud
+  // pick silently speaks the local voice after every app restart.
+  let selectionSettle: { done: Promise<void>; cancel: () => void } | null = null
+  if (bootRead === null) {
+    logger.warn('engine not answering yet — the saved voice pick applies as soon as it does')
+    selectionSettle = settleVoiceSelectionWithEngine({
+      read: () => fetchVoiceSelection({ apiUrl: env.VYNEL_API_URL, fallback: envSelection }),
+      apply: (settled) => {
+        const outcome = slot.apply(settled)
+        if (outcome.ready && nativeLeg === null) nativeLeg = startMicrophoneLeg()
+        logger.info(
+          { ttsSource: outcome.ttsSource, sttSource: outcome.sttSource, changed: outcome.changed },
+          'engine answered — the saved voice pick is in force',
+        )
+      },
+    })
+  }
+
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info({ signal }, 'voice daemon shutting down')
+    selectionSettle?.cancel()
     wakeHandoff.stop()
     callRegistry.stopAll()
     nativeLeg?.stop()

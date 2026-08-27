@@ -46,17 +46,19 @@ function isSttModelId(value: unknown): value is LocalSttModelId {
   return LOCAL_STT_MODEL_IDS.some((id) => id === value)
 }
 
-/** Read the user's voice preferences from the engine; any field the engine
- *  does not answer (or answers with an id the catalog no longer has) keeps the
- *  fallback. An unreachable engine is the fallback whole — never a throw, the
- *  daemon must still come up. */
-export async function readVoiceSelection(options: ReadVoiceSelectionOptions): Promise<VoiceSelection> {
+/** The strict read: the user's voice preferences, or NULL when the engine did
+ *  not answer (unreachable / not ready) — so a caller can tell "the engine
+ *  said use the defaults" from "nobody answered". A field the engine answers
+ *  with an id the catalog no longer has keeps the fallback per field. */
+export async function fetchVoiceSelection(
+  options: ReadVoiceSelectionOptions,
+): Promise<VoiceSelection | null> {
   const fetchImpl = options.fetch ?? fetch
   try {
     const response = await fetchImpl(`${options.apiUrl}/users/me/preferences`, {
       signal: AbortSignal.timeout(options.timeoutMs ?? READ_TIMEOUT_MS),
     })
-    if (!response.ok) return options.fallback
+    if (!response.ok) return null
     const body = (await response.json()) as {
       voiceTtsModelId?: unknown
       voiceSttModelId?: unknown
@@ -77,7 +79,54 @@ export async function readVoiceSelection(options: ReadVoiceSelectionOptions): Pr
           : options.fallback.speakerId,
     }
   } catch {
-    return options.fallback
+    return null
+  }
+}
+
+/** Read the user's voice preferences from the engine; an unreachable engine
+ *  is the fallback whole — never a throw, the daemon must still come up. */
+export async function readVoiceSelection(options: ReadVoiceSelectionOptions): Promise<VoiceSelection> {
+  return (await fetchVoiceSelection(options)) ?? options.fallback
+}
+
+export interface SettleVoiceSelectionOptions {
+  /** The strict read — null while the engine is not answering. */
+  readonly read: () => Promise<VoiceSelection | null>
+  /** Apply the pick the moment the engine answers (once). */
+  readonly apply: (selection: VoiceSelection) => void
+  readonly delayMs?: number
+  readonly sleep?: (ms: number) => Promise<void>
+}
+
+const SETTLE_DELAY_MS = 2_000
+
+/** A daemon that boots BEFORE the engine settles on the env fallback (local
+ *  voice, web-speech hearing) while Settings truthfully shows the user's cloud
+ *  pick — restart-order roulette (the first live smoke's second find). This
+ *  keeps asking until the engine answers ONCE, applies, and stops; a reload
+ *  or shutdown can cancel it. */
+export function settleVoiceSelectionWithEngine(
+  options: SettleVoiceSelectionOptions,
+): { readonly done: Promise<void>; cancel: () => void } {
+  const delayMs = options.delayMs ?? SETTLE_DELAY_MS
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  let cancelled = false
+  const done = (async () => {
+    while (!cancelled) {
+      await sleep(delayMs)
+      if (cancelled) return
+      const selection = await options.read()
+      if (selection !== null) {
+        if (!cancelled) options.apply(selection)
+        return
+      }
+    }
+  })()
+  return {
+    done,
+    cancel: () => {
+      cancelled = true
+    },
   }
 }
 
