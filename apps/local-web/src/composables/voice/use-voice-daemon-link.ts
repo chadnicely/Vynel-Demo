@@ -127,6 +127,10 @@ export function useVoiceDaemonLink(options: {
    *  different window than the one that must appear. `text` = the line's
    *  opening for the row's caption (null from an older daemon). */
   onShowDock?: (text: string | null) => void;
+  /** Stop listening NOW (the `stop_listening` tool / the sidecar's Stop) —
+   *  fanned to every voice window; the one holding a live session ends it.
+   *  A window with nothing running just ignores it. */
+  onVoiceStop?: () => void;
   /** Whether this link should hold the channel right now. Default true — a
    *  view's link lives exactly as long as the view. The Display's voice lives
    *  in a window-lifetime store instead, and a window must never hold TWO
@@ -211,6 +215,10 @@ export function useVoiceDaemonLink(options: {
   function applyControl(control: VoiceControlEvent): void {
     if (control.kind === "display-active") {
       isAppDisplayActive.value = control.active;
+      return;
+    }
+    if (control.kind === "voice-stop") {
+      options.onVoiceStop?.();
       return;
     }
     appDisplaySession.value = {
@@ -304,6 +312,13 @@ export function useVoiceDaemonLink(options: {
     void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
   }
 
+  /** Cut a relayed line mid-play and drop what queued behind it — a stop
+   *  aimed at the assistant's voice, not the whole link (detach does that). */
+  function cancelRelayedLine(): void {
+    speakQueue.length = 0;
+    player.cancel();
+  }
+
   return {
     isDaemonConnected,
     daemonState,
@@ -312,6 +327,7 @@ export function useVoiceDaemonLink(options: {
     appDisplaySession,
     isPlayingRelayedLine,
     relayedLineText,
+    cancelRelayedLine,
     notifySessionStart,
     notifySessionEnd,
   };

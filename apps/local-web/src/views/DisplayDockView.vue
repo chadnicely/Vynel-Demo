@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onScopeDispose, ref, watch } from "vue";
+import { useVynel } from "../composables/use-vynel.js";
 import { useVoiceSession } from "../composables/voice/use-voice-session.js";
 import { useVoiceDaemonLink } from "../composables/voice/use-voice-daemon-link.js";
 import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-window.js";
@@ -46,13 +47,25 @@ import {
 const WINDOW_TITLE = "Vynel Display";
 
 const overlayWindow = createOverlayWindowControls();
+const vynel = useVynel();
 const isMuted = ref(false);
 
-const voice = useVoiceSession({ onEnded: handleSessionEnded, onStarted: handleSessionStarted });
+// The sidecar listens in MINUTES, not seconds (Kafi 2026-08-28): a wake
+// conversation stays open through pauses, and the user ends it — Stop, the
+// stop_listening tool, or this cap. The cap exists so a forgotten open mic
+// (soon possibly a metered cloud one) closes itself; "hey vynel" re-wakes.
+const DOCK_IDLE_TIMEOUT_MS = 300_000;
+
+const voice = useVoiceSession({
+  onEnded: handleSessionEnded,
+  onStarted: handleSessionStarted,
+  idleTimeoutMs: DOCK_IDLE_TIMEOUT_MS,
+});
 const daemon = useVoiceDaemonLink({
   surface: "dock",
   onWake: handleWake,
   onShowDock: handleShowDock,
+  onVoiceStop: handleVoiceStop,
   ownLiveSessionId: voice.currentSessionId,
   speakThroughSession: voice.speakExternal,
 });
@@ -100,20 +113,16 @@ const isConversationInHand = ref(false);
 // is for a conversation that ended on its own.
 let closedByUser = false;
 
-// The mirror is somebody else's conversation, so dismissing it can only ever be
-// "not this one" — it comes back with the NEXT session rather than needing to
-// be turned on again.
-const isMirrorDismissed = ref(false);
 const mirroredSession = computed(() => daemon.appDisplaySession.value);
 const isMirrorAvailable = computed(() => mirroredSession.value?.live === true);
-watch(isMirrorAvailable, (available, wasAvailable) => {
-  if (available && !wasAvailable) isMirrorDismissed.value = false;
-});
 
 const dock = useDisplayDockMode({
   isConversationInHand,
   isAppDisplayActive: daemon.isAppDisplayActive,
-  isAppSessionLive: () => isMirrorAvailable.value && !isMirrorDismissed.value,
+  // No dismiss state (Kafi 2026-08-28): the row is visible exactly while a
+  // session is live — Stop ENDS the session, so a hidden live microphone
+  // cannot exist.
+  isAppSessionLive: () => isMirrorAvailable.value,
   isAssistantLineAudible,
 });
 const mode = computed(() => dock.value.mode);
@@ -161,31 +170,77 @@ function toggleMute(): void {
 function close(): void {
   closedByUser = true;
   isConversationInHand.value = false;
-  // Whatever the X was pointed at, the user asked for the window to go away —
-  // letting a mirror slide into the vacancy would answer the opposite.
-  isMirrorDismissed.value = true;
   if (voice.isActive.value) voice.end();
 }
 
-/** The mini row's X. A conversation this window owns ends; a mirror is only
- *  put away — the room keeps talking, and the next session brings it back. */
-function closeMiniRow(): void {
-  if (isMirror.value) {
-    isMirrorDismissed.value = true;
+/** Put away the spoken-line row's local artifacts — the linger and its caption. */
+function clearSpokenLineRow(): void {
+  if (spokenLineLingerTimer !== null) {
+    clearTimeout(spokenLineLingerTimer);
+    spokenLineLingerTimer = null;
+  }
+  isSpokenLineLingering.value = false;
+  announcedLineText.value = null;
+}
+
+/** The row's Stop: end the voice conversation, wherever it lives. Our own
+ *  session ends right here; anything else — the app window's session, a line
+ *  playing in another window, the daemon's own speaker — is reached through
+ *  the stop door (the same one the `stop_listening` tool uses: one rulebook,
+ *  and Stop always means SILENCE, never just "hide this row"). */
+function stopListening(): void {
+  clearSpokenLineRow();
+  daemon.cancelRelayedLine();
+  if (!isMirror.value) {
+    close();
     return;
   }
-  close();
+  void vynel.voice.stopListening().catch(() => {});
 }
+
+/** A `voice-stop` frame (the tool, or another window's Stop): whatever THIS
+ *  window is doing with its voice stops — its own conversation, a relayed
+ *  line mid-play, the lingering spoken-line row. */
+function handleVoiceStop(): void {
+  clearSpokenLineRow();
+  daemon.cancelRelayedLine();
+  if (isConversationInHand.value) close();
+}
+
+// A MIRROR row waits a beat before revealing: opening the Display fires
+// `display-session` and `display-active` as two independent frames, and the
+// dock can hear "session live" before "the room is on screen" — revealing on
+// that instant flashed the row for the beat until the second frame landed.
+// The wake conversation stays immediate; only the bystander row is patient.
+const MIRROR_REVEAL_GRACE_MS = 400;
+let mirrorRevealTimer: ReturnType<typeof setTimeout> | null = null;
+onScopeDispose(() => {
+  if (mirrorRevealTimer !== null) clearTimeout(mirrorRevealTimer);
+});
 
 // The window follows the mode, and only the mode. Both sources are primitives,
 // so nothing fires on the linger tick that changes neither.
-watch([mode, () => dock.value.stackAboveDesktopControl], ([next]) => {
+watch([mode, () => dock.value.stackAboveDesktopControl], ([next], [previousMode]) => {
+  if (mirrorRevealTimer !== null) {
+    clearTimeout(mirrorRevealTimer);
+    mirrorRevealTimer = null;
+  }
   if (next !== "hidden") {
-    overlayWindow.applyLayout(dock.value.layout);
-    // The keyboard comes with the wake conversation and NEVER with the corner
-    // row: mini appears while the user is typing in whatever it floats over
-    // (and again each time it lifts over the desktop-control window).
-    overlayWindow.reveal({ focus: next === "wake" });
+    const reveal = (): void => {
+      overlayWindow.applyLayout(dock.value.layout);
+      // The keyboard comes with the wake conversation and NEVER with the corner
+      // row: mini appears while the user is typing in whatever it floats over
+      // (and again each time it lifts over the desktop-control window).
+      overlayWindow.reveal({ focus: mode.value === "wake" });
+    };
+    if (next === "mini" && isMirror.value && previousMode === "hidden") {
+      mirrorRevealTimer = setTimeout(() => {
+        mirrorRevealTimer = null;
+        if (mode.value === "mini" && isMirror.value) reveal();
+      }, MIRROR_REVEAL_GRACE_MS);
+      return;
+    }
+    reveal();
     return;
   }
   // Something can still bring the row back — our own conversation (the app's
@@ -286,7 +341,7 @@ const isMiniListening = computed(() =>
       :is-listening="isMiniListening"
       :is-mirror="isMirror"
       @toggle-mute="toggleMute"
-      @close="closeMiniRow"
+      @stop="stopListening"
     />
 
     <!-- `hidden` draws NOTHING. The mode owns the window, but `hide()` is a

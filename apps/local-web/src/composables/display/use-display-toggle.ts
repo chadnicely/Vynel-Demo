@@ -77,9 +77,12 @@ export function useDisplayToggle(): DisplayToggle {
   // The route cannot see a MINIMIZED window: without this, a window minimized
   // while on the Display kept announcing "the room is on screen", and the
   // dock's one-orb rule hid the corner row while speech played with zero
-  // pixels anywhere. WebView2 fires `visibilitychange` on minimize/restore;
-  // occlusion by other windows does not count — an unfocused-but-visible room
-  // still draws its orb, and the announcement stays honest.
+  // pixels anywhere. Two belts, because neither alone covers both hosts:
+  // `visibilitychange` answers for browser tabs, but WebView2's visibility is
+  // the HOST's to set and Tauri does not flip it on minimize — there the
+  // shell's own window events answer (a minimize fires a resize; the handle
+  // then says whether it is minimized). Occlusion by other windows counts for
+  // neither — an unfocused-but-visible room still draws its orb.
   const isDocumentVisible = ref(document.visibilityState === "visible");
   function readDocumentVisibility(): void {
     isDocumentVisible.value = document.visibilityState === "visible";
@@ -88,8 +91,49 @@ export function useDisplayToggle(): DisplayToggle {
   onScopeDispose(() =>
     document.removeEventListener("visibilitychange", readDocumentVisibility),
   );
+  const isWindowMinimized = ref(false);
+  const shellWindow = (
+    window as {
+      __TAURI__?: {
+        window?: {
+          getCurrentWindow(): {
+            isMinimized(): Promise<boolean>;
+            listen(event: string, handler: () => void): Promise<() => void>;
+          };
+        };
+      };
+    }
+  ).__TAURI__?.window?.getCurrentWindow();
+  if (shellWindow !== undefined) {
+    const readMinimized = (): void => {
+      // Presence, not state (the announce precedent): a failed read costs one
+      // wrong shape until the next window event, never a broken toggle.
+      void shellWindow
+        .isMinimized()
+        .then((minimized) => {
+          isWindowMinimized.value = minimized;
+        })
+        .catch(() => {});
+    };
+    readMinimized();
+    let stopResizeListener: (() => void) | null = null;
+    let isToggleDisposed = false;
+    void shellWindow
+      .listen("tauri://resize", readMinimized)
+      .then((stop) => {
+        // The scope can die before listen() resolves — stop right away then,
+        // or the handler outlives the toggle that owned it.
+        if (isToggleDisposed) stop();
+        else stopResizeListener = stop;
+      })
+      .catch(() => {});
+    onScopeDispose(() => {
+      isToggleDisposed = true;
+      stopResizeListener?.();
+    });
+  }
   const isDisplayOnScreen = computed(
-    () => isDisplayActive.value && isDocumentVisible.value,
+    () => isDisplayActive.value && isDocumentVisible.value && !isWindowMinimized.value,
   );
   watch(isDisplayOnScreen, announceDisplayActive, { immediate: true });
   // An engine restart empties the hub's memo of this, and nothing about the

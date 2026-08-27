@@ -38,6 +38,12 @@ const daemon = useVoiceDaemonLink({
   ownLiveSessionId: voice.currentSessionId,
   speakThroughSession: voice.speakExternal,
   onShowDisplay: () => emit("showDisplay"),
+  // stop_listening / the sidecar's Stop: closing the overlay ends its session
+  // through the sync watcher below — the same path every other close takes.
+  onVoiceStop: () => {
+    isMuted.value = false;
+    ui.isVoiceOverlayOpen = false;
+  },
 });
 
 // The session settled (idle silence, close, or a start that couldn't begin):

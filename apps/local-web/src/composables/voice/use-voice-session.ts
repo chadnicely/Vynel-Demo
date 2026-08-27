@@ -74,6 +74,10 @@ export function useVoiceSession(options: {
    *  called for a start that could not begin (no Web Speech): announcing a
    *  session that never ran would deafen the daemon with nothing to release it. */
   onStarted?: () => void;
+  /** Silence (between turns) that ends the session. The dock passes its own
+   *  long window (Kafi 2026-08-28: the sidecar listens for minutes, not
+   *  seconds — the user re-wakes after); omitted = the session default. */
+  idleTimeoutMs?: number;
 }) {
   const vynel = useVynel();
   const player = createSpokenAudioPlayer({
@@ -145,6 +149,7 @@ export function useVoiceSession(options: {
       {
         ...(initialCommand ? { initialCommand } : {}),
         ...(turnWatchdogMs !== undefined ? { turnWatchdogMs } : {}),
+        ...(options.idleTimeoutMs !== undefined ? { idleTimeoutMs: options.idleTimeoutMs } : {}),
       },
     );
     session = started;

@@ -5,9 +5,11 @@
 // the mode derivation itself runs for real.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Ref } from "vue";
+import { nextTick, type Ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import type { VynelClient } from "@vynel/sdk";
+import { vynelClientKey } from "../plugins/vynel-client.js";
 import type { DisplayWidgetView } from "@vynel/contracts/display/display-widget";
 import type { DisplayWidgetContent } from "@vynel/contracts/display/display-widget-content";
 import type { VoiceCommandSessionView } from "../composables/voice/voice-command-session-types.js";
@@ -29,6 +31,8 @@ interface VoiceStub {
   fireEnded: () => void;
   /** The view's own `onStarted` — the real composable fires it from start(). */
   fireStarted: (() => void) | undefined;
+  /** What the view asked for — the dock's long idle window. */
+  idleTimeoutMs: number | undefined;
 }
 
 const voice = vi.hoisted(() => ({}) as VoiceStub);
@@ -60,9 +64,14 @@ vi.mock("../composables/voice/use-voice-session.js", async () => {
   voice.currentSessionId = vi.fn(() => null);
   voice.speakExternal = vi.fn(() => true);
   return {
-    useVoiceSession: (options: { onEnded: () => void; onStarted?: () => void }) => {
+    useVoiceSession: (options: {
+      onEnded: () => void;
+      onStarted?: () => void;
+      idleTimeoutMs?: number;
+    }) => {
       voice.fireEnded = options.onEnded;
       voice.fireStarted = options.onStarted;
+      voice.idleTimeoutMs = options.idleTimeoutMs;
       return voice;
     },
   };
@@ -73,8 +82,11 @@ interface DaemonStub {
   appDisplaySession: Ref<AppDisplaySession | null>;
   notifySessionEnd: ReturnType<typeof vi.fn>;
   notifySessionStart: ReturnType<typeof vi.fn>;
+  cancelRelayedLine: ReturnType<typeof vi.fn>;
   /** The daemon heard the wake word. */
   wake: () => void;
+  /** A `voice-stop` frame landed (the tool / another window's Stop). */
+  voiceStop: () => void;
 }
 
 const daemon = vi.hoisted(() => ({}) as DaemonStub);
@@ -88,18 +100,25 @@ vi.mock("../composables/voice/use-voice-daemon-link.js", async () => {
   daemon.appDisplaySession = makeRef<AppDisplaySession | null>(null);
   daemon.notifySessionEnd = vi.fn();
   daemon.notifySessionStart = vi.fn();
+  daemon.cancelRelayedLine = vi.fn();
   return {
-    useVoiceDaemonLink: (options: { onWake: (command: string) => void }) => {
+    useVoiceDaemonLink: (options: {
+      onWake: (command: string) => void;
+      onVoiceStop?: () => void;
+    }) => {
       daemon.wake = () => options.onWake("");
+      daemon.voiceStop = () => options.onVoiceStop?.();
       return {
         isDaemonConnected: makeRef(true),
         daemonState: makeRef("idle"),
         isDaemonSpeaking: makeRef(false),
         isPlayingRelayedLine: makeRef(false),
+        relayedLineText: makeRef<string | null>(null),
         isAppDisplayActive: daemon.isAppDisplayActive,
         appDisplaySession: daemon.appDisplaySession,
         notifySessionEnd: daemon.notifySessionEnd,
         notifySessionStart: daemon.notifySessionStart,
+        cancelRelayedLine: daemon.cancelRelayedLine,
       };
     },
   };
@@ -173,10 +192,20 @@ function widget(id: string, content: DisplayWidgetContent): DisplayWidgetView {
 // mounted by an earlier case would answer the next case's wake too.
 let mounted: ReturnType<typeof mount> | null = null;
 
+// The Stop door the mirror's button calls — the same route stop_listening uses.
+const stopListening = vi.fn(async () => ({ stopped: true }));
+
 async function mountDock() {
   const pinia = createPinia();
   setActivePinia(pinia);
-  const wrapper = mount(DisplayDockView, { global: { plugins: [pinia] } });
+  const wrapper = mount(DisplayDockView, {
+    global: {
+      plugins: [pinia],
+      provide: {
+        [vynelClientKey as symbol]: { voice: { stopListening } } as unknown as VynelClient,
+      },
+    },
+  });
   mounted = wrapper;
   await flushPromises();
   return wrapper;
@@ -202,6 +231,8 @@ beforeEach(() => {
   overlay.dismiss.mockClear();
   overlay.hide.mockClear();
   overlay.park.mockClear();
+  daemon.cancelRelayedLine.mockClear();
+  stopListening.mockClear();
 });
 
 describe("DisplayDockView", () => {
@@ -334,8 +365,9 @@ describe("DisplayDockView", () => {
     expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(true);
   });
 
-  // The X on the corner row is the way out of a conversation this window owns.
-  it("ends its own conversation from the mini row's X", async () => {
+  // Stop on the corner row ENDS a conversation this window owns — visibility
+  // and liveness are one fact (Kafi 2026-08-28: no hide that leaves a mic on).
+  it("ends its own conversation from the mini row's Stop", async () => {
     const wrapper = await mountDock();
     daemon.wake();
     daemon.isAppDisplayActive.value = true;
@@ -344,11 +376,32 @@ describe("DisplayDockView", () => {
     await flushPromises();
     expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(true);
 
-    await wrapper.find("[data-testid='display-dock-close']").trigger("click");
+    await wrapper.find("[data-testid='display-dock-stop']").trigger("click");
     await flushPromises();
     expect(voice.end).toHaveBeenCalled();
     expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
     expect(overlay.dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  // The dock's wake sessions listen in minutes — the user ends them; the cap
+  // only closes a forgotten open microphone.
+  it("asks for the sidecar's long idle window", async () => {
+    await mountDock();
+    expect(voice.idleTimeoutMs).toBe(300_000);
+  });
+
+  // The stop_listening tool (or another window's Stop) reaching THIS window.
+  it("ends its conversation on a voice-stop frame", async () => {
+    const wrapper = await mountDock();
+    daemon.wake();
+    await flushPromises();
+    expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(true);
+
+    daemon.voiceStop();
+    await flushPromises();
+    expect(voice.end).toHaveBeenCalled();
+    expect(daemon.cancelRelayedLine).toHaveBeenCalled();
+    expect(wrapper.find("[data-testid='display-dock-stage']").exists()).toBe(false);
   });
 });
 
@@ -370,20 +423,32 @@ describe("DisplayDockView — mirroring the app's session", () => {
     await flushPromises();
     expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
 
-    // …and switches to a workspace mid-conversation.
-    daemon.isAppDisplayActive.value = false;
-    await flushPromises();
-    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(true);
+    // …and switches to a workspace mid-conversation. The WINDOW waits a beat
+    // (the reveal grace): `display-session` and `display-active` are two
+    // independent frames, and revealing on the first flashed the row when the
+    // second said the room was on screen all along.
+    vi.useFakeTimers();
+    try {
+      daemon.isAppDisplayActive.value = false;
+      await nextTick();
+      expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(true);
+      expect(overlay.reveal).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(400);
+      await nextTick();
+      expect(overlay.layouts.at(-1)).toEqual({
+        park: "bottom-right",
+        width: 380,
+        height: 150,
+      });
+      // A corner widget never takes the keyboard, mirrored or not.
+      expect(overlay.reveal).toHaveBeenLastCalledWith({ focus: false });
+    } finally {
+      vi.useRealTimers();
+    }
     expect(wrapper.find("[data-testid='display-dock-caption']").text()).toBe(
       "Two builds are green",
     );
-    expect(overlay.layouts.at(-1)).toEqual({
-      park: "bottom-right",
-      width: 380,
-      height: 150,
-    });
-    // A corner widget never takes the keyboard, mirrored or not.
-    expect(overlay.reveal).toHaveBeenLastCalledWith({ focus: false });
     // The mic lives in the app window: this pill reports, it does not switch.
     const mic = wrapper.find("[data-testid='display-dock-mic']");
     expect(mic.element.tagName).toBe("SPAN");
@@ -398,35 +463,25 @@ describe("DisplayDockView — mirroring the app's session", () => {
     expect(wrapper.find("[data-testid='display-dock-mic']").text()).toBe("Muted");
   });
 
-  // The room keeps talking — the X only puts the REPORT away.
-  it("dismisses the mirror without touching the room, and takes it back on the next session", async () => {
+  // Stop on a MIRROR goes through the stop door — the same route the
+  // stop_listening tool uses — and the row leaves when the room's session
+  // actually ends. No dismiss state: a hidden live microphone cannot exist.
+  it("stops the room's session through the stop door", async () => {
     const wrapper = await mountDock();
     daemon.appDisplaySession.value = roomIsTalking();
     await flushPromises();
     expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(true);
 
-    await wrapper.find("[data-testid='display-dock-close']").trigger("click");
+    await wrapper.find("[data-testid='display-dock-stop']").trigger("click");
     await flushPromises();
-    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
+    // Not this window's session to end locally — the door reaches its owner.
     expect(voice.end).not.toHaveBeenCalled();
-    // Never closed: the window has to be there for the next glance away —
-    // outside Tauri `dismiss()` closes it for good.
-    expect(overlay.dismiss).not.toHaveBeenCalled();
-    expect(overlay.hide).toHaveBeenCalled();
+    expect(stopListening).toHaveBeenCalledTimes(1);
 
-    // The room goes on saying things — still dismissed, this conversation.
-    daemon.appDisplaySession.value = roomIsTalking({ caption: "One more thing" });
-    await flushPromises();
-    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
-
-    // A NEW conversation starts: the row is back.
+    // The app window heard the stop and ended its session — the row leaves.
     daemon.appDisplaySession.value = { live: false, phase: "idle", caption: "" };
     await flushPromises();
-    daemon.appDisplaySession.value = roomIsTalking({ caption: "Deploying now" });
-    await flushPromises();
-    const mini = wrapper.find("[data-testid='display-dock-mini']");
-    expect(mini.exists()).toBe(true);
-    expect(wrapper.find("[data-testid='display-dock-caption']").text()).toBe("Deploying now");
+    expect(wrapper.find("[data-testid='display-dock-mini']").exists()).toBe(false);
   });
 
   // The dock has a microphone in THIS window; a mirror is only a report.

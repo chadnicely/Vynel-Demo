@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DisplayOrb } from "@vynel/ui";
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import type { DisplayDockCard } from "../../composables/display/display-dock-cards.js";
 
 // The mini dock: the Display's room squeezed into one row over the corner of
@@ -17,7 +17,7 @@ import type { DisplayDockCard } from "../../composables/display/display-dock-car
 // that opened it and cannot migrate across windows, so a mic button here could
 // only lie — either doing nothing, or opening a second microphone beside the
 // one already listening in the room.
-const props = defineProps<{
+defineProps<{
   /** The orb's three dials, from the room's own derivation. */
   orb: { energy: number; listening: boolean; speaking: boolean };
   /** Bumps once per spoken clause. */
@@ -31,13 +31,7 @@ const props = defineProps<{
   isMirror?: boolean;
 }>();
 
-defineEmits<{ toggleMute: []; close: [] }>();
-
-// The X means two different things, and says so: it ENDS a conversation this
-// window owns, and only puts away a mirror of somebody else's.
-const closeLabel = computed(() =>
-  props.isMirror ? "Hide the voice status" : "End the voice conversation",
-);
+defineEmits<{ toggleMute: []; stop: [] }>();
 
 // A machine without canvas 2D loses the orb, not the row.
 const hasOrb = ref(true);
@@ -91,15 +85,17 @@ const hasOrb = ref(true);
     >
       {{ micLabel }}
     </button>
+    <!-- ONE meaning wherever the session lives (Kafi 2026-08-28): Stop ends
+         the voice conversation — never a hide that leaves a live mic unseen. -->
     <button
       type="button"
-      class="mini-close"
-      :aria-label="closeLabel"
-      :title="closeLabel"
-      data-testid="display-dock-close"
-      @click="$emit('close')"
+      class="mini-stop"
+      aria-label="Stop listening"
+      title="Stop listening"
+      data-testid="display-dock-stop"
+      @click="$emit('stop')"
     >
-      ×
+      Stop
     </button>
   </div>
 </template>
@@ -199,25 +195,25 @@ const hasOrb = ref(true);
   cursor: default;
 }
 
-/* The way out of the corner. Small and quiet — the row is a status widget over
-   someone else's work, not a dialog. */
-.mini-close {
+/* The way out of the corner: stop the conversation. A pill like the mic, so
+   the row's two controls read as one family — quiet, over someone's work. */
+.mini-stop {
   flex: none;
-  align-self: flex-start;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: none;
+  align-self: center;
+  padding: 3px 9px;
+  border: 1px solid var(--display-accent-faint, rgba(79, 216, 255, 0.16));
   background: transparent;
   font: inherit;
-  font-size: 14px;
-  line-height: 1;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--display-accent-dim, rgba(79, 216, 255, 0.45));
   cursor: pointer;
 }
 
-.mini-close:hover,
-.mini-close:focus-visible {
+.mini-stop:hover,
+.mini-stop:focus-visible {
+  border-color: var(--display-accent, #4fd8ff);
   color: var(--display-text, #cdf3ff);
 }
 </style>

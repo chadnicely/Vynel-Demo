@@ -43,17 +43,20 @@ describe("DisplayDockMiniRow", () => {
     expect(row.emitted("toggleMute")).toBeUndefined();
   });
 
-  it("gives the row a way out, named for what it actually does", async () => {
+  // ONE meaning wherever the session lives (Kafi 2026-08-28): Stop ends the
+  // voice conversation — never a hide that leaves a live microphone unseen.
+  it("gives the row a Stop that stops listening, owned or mirrored", async () => {
     const owned = mountRow();
-    const close = owned.find("[data-testid='display-dock-close']");
-    expect(close.attributes("aria-label")).toBe("End the voice conversation");
-    await close.trigger("click");
-    expect(owned.emitted("close")).toHaveLength(1);
+    const stop = owned.find("[data-testid='display-dock-stop']");
+    expect(stop.attributes("aria-label")).toBe("Stop listening");
+    expect(stop.text()).toBe("Stop");
+    await stop.trigger("click");
+    expect(owned.emitted("stop")).toHaveLength(1);
 
-    // Mirrored, the X cannot end anything — the conversation is elsewhere.
+    // Mirrored, the button is the same button — the VIEW routes the stop to
+    // the window that owns the session.
     const mirrored = mountRow({ isMirror: true });
-    expect(mirrored.find("[data-testid='display-dock-close']").attributes("aria-label")).toBe(
-      "Hide the voice status",
-    );
+    await mirrored.find("[data-testid='display-dock-stop']").trigger("click");
+    expect(mirrored.emitted("stop")).toHaveLength(1);
   });
 });

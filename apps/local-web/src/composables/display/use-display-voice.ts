@@ -63,8 +63,14 @@ export const useDisplayVoice = defineStore("display-voice", () => {
     onShowDisplay: () => {
       showDisplayRequestCount.value += 1;
     },
+    // stop_listening / the sidecar's Stop reaching the room's own session.
+    onVoiceStop: handleVoiceStop,
     enabled: ownsVoice,
   });
+
+  function handleVoiceStop(): void {
+    end();
+  }
 
   // Idle silence ends the session and voice stays ON — it is a conversation
   // with a pause in it, not a hang-up. The daemon takes the microphone back so
