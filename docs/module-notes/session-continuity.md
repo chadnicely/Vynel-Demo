@@ -684,3 +684,70 @@ distill; pair it with a "limit-errored turn → force the bridge" rule then.
   turn recalls a pre-swap fact + the transcript shows the full chain + the sessions panel folds
   the chain — the same smoke shape the workspace swap used (build brief Slice 1 §6).
 - Reviewer (`code-reviewer`) on each slice's diff before commit.
+
+## 8. Swap-risk punch-list (id-flow review, 2026-08-27 — cover later, own moves)
+
+*From Kafi's id-lifecycle review. The id model itself verified sound: the primary id never
+changes, the chain lives on the segment rows (`continuedFromSessionId`), never on the primary's
+two pointer columns. The risks below are what the review surfaced around the swap — none blocks
+today's behavior; each is a planned later move, not a slip-in.*
+
+**R1 — Chain-blind delete resurrects a conversation's past (P1, verified).**
+`DELETE /sessions/:sessionId` soft-deletes ONLY the head row
+(`apps/local-api/src/routes/chat/index.ts:432` → single-row `softDeleteChatSession`). The fold
+rebuilds from surviving rows (`packages/session/src/overview/fold-session-chains.ts:53`): the
+pre-swap segments re-fold with the old tail, and a spawned/agent chain still holds its LISTED
+origin row (only manager scopes hide first segments), so `hasListedSegment` admits the entry
+again — the "deleted" conversation reappears, titled by its origin, showing pre-swap history.
+Global/voice chains are admitted even all-hidden (the fold's scope exception), so the Assistant
+entry re-admits its truncated chain the same way. Fix shape: deletion walks the chain — one
+chain-delete op in chat, used by the route.
+
+**R2 — Deleting a live identity's head strands the primary on a soft-deleted row (P1, verified).**
+Nothing links a chat-session delete to `primary_sessions` (no route/op calls
+`softDeletePrimarySession`; grep 2026-08-27). After deleting a spawned/agent conversation the
+primary still points at the deleted row, and `findChatSessionById` does NOT filter `deletedAt`
+(`packages/chat/src/repositories/chat-sessions.ts:52`), so the next turn resumes it and keeps
+inserting messages into the soft-deleted row. After the 30-day purge, `hardDeleteChatSession` +
+the `chat_messages` FK cascade (`chat-messages.ts:58`) silently delete everything written after
+the user's delete — data loss on a still-active identity — and any newer segment chained to the
+purged row is left with a broken link (see R3). Fix shape: product decision — deleting a segment
+a primary points at either retires the identity (soft-delete the primary too) or is refused.
+
+**R3 — Per-row purge vs loose-ref chain = permanent mid-chain gaps (P2).**
+Segments purge independently by design (loose ref, no FK). A purged predecessor stops the
+transcript walk (`resolve-primary-transcript.ts:71`) and the fold promotes the child to a head —
+silent truncation presented as the full history. Invariant to pin when R1's chain-delete lands:
+purge follows the chain, never outpaces it.
+
+**R4 — Deletion rule differs per doorway (P2).**
+`resolveSessionChainTranscript` throws for a deleted head; `resolvePrimaryTranscript` never
+checks `deletedAt` (head or walked links) and happily renders one. Today's split is accidental —
+pick one rule for every chain read (likely: deleted segments stay readable INSIDE a chain as
+platform record; a deleted head reads per the R2 product decision).
+
+**R5 — Orphan segment on crash between insert(B) and repoint (P3, accepted in-code).**
+`bridge-primary-session-after-turn.ts:132` — separate transactions; the orphan is hidden, empty,
+chained to A, and permanent (never listed, never purged). The fold's first-write-wins on two
+claimants keeps the newest child, so it stays invisible. Cover with the recorded cross-domain-tx
+follow-up.
+
+**R6 — Swap-abort loop at the ceiling has no backoff or user signal (P2).**
+A degenerate/failed distill aborts the swap and the primary stays on the near-full segment — so
+EVERY later turn re-runs the full distill attempt (real tokens + latency on a ~200k session)
+until one succeeds or SDK auto-compaction saves it. `session.swap-aborted` goes to the outbox
+but no surface consumes it yet. Fix shape: consecutive-abort counter on the primary (the
+`pendingCheckpointDepth` pattern) + set `problem` status after N aborts.
+
+**R7 — Priming-timeout ghost sessions in runtime storage (P3).**
+The timeout path interrupts and throws BEFORE `recordSwapSegmentSession`, leaving the primed
+session (with a full carry copy) in the runtime's own storage, unreferenced by any Vynel row.
+Repeats per retry. Hygiene note for the day storage size matters.
+
+**R8 — `supersededFromSdkSessionId` is single-slot; never build on it (guard-rail).**
+It records the LAST swap only and nothing reads it today. Any future hard-limit bridge derives
+chains from the segment rows, never from this column.
+
+**R9 — 200-message window, no paging (recorded deferral, chain angle).**
+`resolvePrimaryTranscript` caps at the newest 200 messages across the chain (D16); on a long
+chain the origin's messages are unreachable in the UI until paging lands. Data intact; UX gap.
