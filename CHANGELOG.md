@@ -5,6 +5,20 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
+## [Unreleased]
+
+### Added
+
+- **Name your assistant's wake word.** Settings → Voice now takes a custom wake name — say
+  "hey Friday" (or whatever you pick) and the conversation opens. "Hey Vynel" and "hey Claude"
+  always keep working beside it, and close mishearings still wake it, so an inventive name
+  can't lock you out. Applies to the running voice immediately on save.
+
+- **Voice can look things up itself.** The spoken assistant now carries the web search, page
+  fetch, and file reading tools directly — "what's the news" answers without handing the
+  question to a workspace first. Anything that changes files or runs commands still goes
+  through a workspace, where approvals exist.
+
 ## [0.3.10] — 2026-08-28
 
 ### Changed
