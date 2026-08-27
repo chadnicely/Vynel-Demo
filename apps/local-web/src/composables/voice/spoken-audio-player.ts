@@ -34,8 +34,10 @@ export function toSpokenSentences(text: string): string[] {
 export interface SentencePipelineIo<Wav> {
   /** Synthesize one sentence; null = skip it (the caption already showed the words). */
   fetchWav(text: string, signal: AbortSignal): Promise<Wav | null>;
-  /** Play one WAV; resolves when it ended — or when `stopPlayback` cut it. */
-  playWav(wav: Wav): Promise<void>;
+  /** Play one WAV; resolves when it ended — or when `stopPlayback` cut it.
+   *  `text` is the sentence the WAV speaks, so a playback refusal can name
+   *  what was never heard. */
+  playWav(wav: Wav, text: string): Promise<void>;
   /** Cut the in-flight playback (its `playWav` must resolve). */
   stopPlayback(): void;
   /** One sentence is STARTING to play — not to synthesize. The Display's orb
@@ -92,7 +94,7 @@ export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): Senten
         // sentence is the cost — the caption already showed the words.
         if (wav !== null) {
           io.onSentenceStart?.(current.text);
-          await io.playWav(wav).catch(() => undefined);
+          await io.playWav(wav, current.text).catch(() => undefined);
         }
         if (queue[0] === current) {
           queue.shift();
@@ -164,6 +166,12 @@ export interface SpokenAudioPlayerOptions {
    *  500, an abort or an unreachable daemon must not paint a persistent
    *  'no voice model' message. */
   onVoiceUnavailable?: () => void;
+  /** The browser REFUSED to start this sentence (autoplay policy — the window
+   *  never had a user gesture): zero audio came out, so the line is safe to
+   *  hand elsewhere. Only the refusal: a playback cut mid-line (pause on
+   *  barge-in rejects `play()` with AbortError) or a broken blob must not
+   *  re-speak words that partially sounded. */
+  onPlaybackRefused?: (text: string) => void;
 }
 
 export function createSpokenAudioPlayer(
@@ -196,7 +204,7 @@ export function createSpokenAudioPlayer(
     }
   }
 
-  async function playWav(wav: Blob): Promise<void> {
+  async function playWav(wav: Blob, text: string): Promise<void> {
     const url = URL.createObjectURL(wav);
     try {
       await new Promise<void>((resolve) => {
@@ -205,7 +213,15 @@ export function createSpokenAudioPlayer(
         playing = audio;
         audio.onended = () => resolve();
         audio.onerror = () => resolve(); // an unplayable blob must not hang the turn
-        audio.play().catch(() => resolve());
+        audio.play().catch((error: unknown) => {
+          // NotAllowedError = autoplay policy refused; nothing was ever heard.
+          // Every other rejection (AbortError from a barge-in's pause, a codec
+          // failure) stays silence, exactly as before.
+          if ((error as { name?: string } | null)?.name === "NotAllowedError") {
+            options.onPlaybackRefused?.(text);
+          }
+          resolve();
+        });
       });
     } finally {
       resolvePlaying = null;

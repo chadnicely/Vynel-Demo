@@ -24,13 +24,21 @@ interface RecordedHooks {
   reloads: number
   sessionStarts: number
   spoken: Array<{ text: string; sessionId: string | null }>
+  refused: string[]
 }
 
 function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
   channel: OverlayChannel
   hooks: RecordedHooks
 } {
-  const hooks: RecordedHooks = { sessionStarts: 0, sessionEnds: 0, clientsGone: 0, reloads: 0, spoken: [] }
+  const hooks: RecordedHooks = {
+    sessionStarts: 0,
+    sessionEnds: 0,
+    clientsGone: 0,
+    reloads: 0,
+    spoken: [],
+    refused: [],
+  }
   const channel = startOverlayChannel(
     0,
     {
@@ -48,6 +56,9 @@ function buildChannel(options: OverlayChannelOptions = DEFAULT_OPTIONS): {
       onSpeak: (text, sessionId) => {
         hooks.spoken.push({ text, sessionId })
         return Promise.resolve()
+      },
+      onSpeakRefused: (text) => {
+        hooks.refused.push(text)
       },
       onReload: () => {
         hooks.reloads += 1
@@ -230,6 +241,7 @@ describe('overlay channel', () => {
         onClientsGone: () => {},
         onSynthesize: () => Promise.resolve(new Uint8Array()),
         onSpeak: () => Promise.resolve(),
+        onSpeakRefused: () => {},
         onReload: () => Promise.reject(new Error('not under test')),
       },
       silentLogger,
@@ -287,6 +299,7 @@ describe('overlay channel', () => {
         onClientsGone: () => {},
         onSynthesize: () => Promise.reject(new Error('model exploded')),
         onSpeak: () => Promise.resolve(),
+        onSpeakRefused: () => {},
         onReload: () => Promise.reject(new Error('not under test')),
       },
       silentLogger,
@@ -627,12 +640,38 @@ describe('the wake window handover, as the wire tells it', () => {
     const appTab = await subscribe(port, 'app', '1')
     await waitFor(() => dock.events.length >= 1 && appTab.events.length >= 1)
 
-    channel.publishShowDock()
+    channel.publishShowDock('On my way to the meeting notes.')
     await waitFor(() => dock.events.some((event) => event.kind === 'show-dock'))
     await settle()
+    // The caption rides the event — the audio may play in another window.
+    expect(dock.events.filter((event) => event.kind === 'show-dock')).toEqual([
+      { kind: 'show-dock', text: 'On my way to the meeting notes.' },
+    ])
     // The app window is not the surface that must appear for a spoken line.
     expect(appTab.events.filter((event) => event.kind === 'show-dock')).toEqual([])
+
+    // A long line arrives clamped to the caption cap — the row draws one line.
+    channel.publishShowDock('x'.repeat(500))
+    await waitFor(() => dock.events.filter((event) => event.kind === 'show-dock').length === 2)
+    const clamped = dock.events.filter((event) => event.kind === 'show-dock').at(-1)!
+    expect(clamped.kind === 'show-dock' && clamped.text.length).toBe(280)
     dock.close()
     appTab.close()
+  })
+})
+
+describe('POST /speak-refused', () => {
+  it('hands the unplayed line to the hook, and refuses garbage', async () => {
+    const { channel, hooks } = buildChannel()
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const ok = await postJson(port, '/speak-refused', { text: 'Nothing was heard of this.' })
+    expect(ok.status).toBe(200)
+    expect(hooks.refused).toEqual(['Nothing was heard of this.'])
+
+    expect((await postJson(port, '/speak-refused', { text: '' })).status).toBe(400)
+    expect((await postJson(port, '/speak-refused', { text: 'x'.repeat(2001) })).status).toBe(400)
+    expect(hooks.refused).toHaveLength(1)
   })
 })

@@ -48,8 +48,11 @@ export type VoiceDaemonEvent =
    *  should be visible for it — a spoken line with no pixels anywhere is a
    *  voice from nowhere. Goes to dock surfaces only, and broadcast (unlike
    *  `speak`, which is single-delivery to whoever plays the audio): the dock
-   *  must appear whichever window ends up playing the line. */
-  | { kind: 'show-dock' }
+   *  must appear whichever window ends up playing the line. `text` is the
+   *  line's opening (producer-clamped to the caption cap) so the row can SHOW
+   *  what is being said even when the audio plays in another window; absent
+   *  from an older daemon. */
+  | { kind: 'show-dock'; text?: string }
 
 /** A voice conversation's phase as one window reports it to the others — the
  *  same five the orb has, minus the daemon's own `wake`, which never belongs to
@@ -116,7 +119,9 @@ export function parseVoiceDaemonEvent(raw: unknown): VoiceDaemonEvent | null {
     case 'show-display':
       return { kind: 'show-display' }
     case 'show-dock':
-      return { kind: 'show-dock' }
+      return typeof candidate['text'] === 'string' && candidate['text'] !== ''
+        ? { kind: 'show-dock', text: candidate['text'] }
+        : { kind: 'show-dock' }
     case 'speak':
       return typeof candidate['text'] === 'string' && candidate['text'] !== ''
         ? {

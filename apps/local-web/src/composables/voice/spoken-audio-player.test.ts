@@ -217,6 +217,58 @@ describe("createSpokenAudioPlayer", () => {
     expect(transient).not.toHaveBeenCalled();
   });
 
+  // Autoplay policy rejects play() in a window that never had a user gesture —
+  // without the report the line is lost while the daemon logged it delivered.
+  it("reports a refused playback with its sentence, and still resolves", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(["wav"])) }),
+    );
+    class RefusingAudio {
+      onended: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public src: string) {}
+      play(): Promise<void> {
+        const refusal = new Error("play() failed because the user didn't interact");
+        refusal.name = "NotAllowedError";
+        return Promise.reject(refusal);
+      }
+      pause(): void {}
+    }
+    vi.stubGlobal("Audio", RefusingAudio);
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:test", revokeObjectURL: () => {} });
+
+    const refused: string[] = [];
+    const player = createSpokenAudioPlayer({ onPlaybackRefused: (text) => refused.push(text) });
+    await expect(player.play("First one. Second one.")).resolves.toBeUndefined();
+    expect(refused).toEqual(["First one.", "Second one."]);
+  });
+
+  it("a cut playback is NOT a refusal — pause's AbortError stays silent", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(["wav"])) }),
+    );
+    class AbortingAudio {
+      onended: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public src: string) {}
+      play(): Promise<void> {
+        const cut = new Error("The play() request was interrupted by a call to pause()");
+        cut.name = "AbortError";
+        return Promise.reject(cut);
+      }
+      pause(): void {}
+    }
+    vi.stubGlobal("Audio", AbortingAudio);
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:test", revokeObjectURL: () => {} });
+
+    const refused: string[] = [];
+    const player = createSpokenAudioPlayer({ onPlaybackRefused: (text) => refused.push(text) });
+    await expect(player.play("One sentence.")).resolves.toBeUndefined();
+    expect(refused).toEqual([]);
+  });
+
   it("synthesizes through the daemon proxy once per sentence and stays silent when it is down", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503 });
     vi.stubGlobal("fetch", fetchMock);

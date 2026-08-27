@@ -63,12 +63,17 @@ const daemon = useVoiceDaemonLink({
 // A line played HERE holds the row for exactly as long as it sounds.
 const SHOW_DOCK_LINGER_MS = 8_000;
 const isSpokenLineLingering = ref(false);
+// The announced line's opening — the row's caption when the audio plays in a
+// DIFFERENT window (this one can neither hear it nor read its player).
+const announcedLineText = ref<string | null>(null);
 let spokenLineLingerTimer: ReturnType<typeof setTimeout> | null = null;
-function handleShowDock(): void {
+function handleShowDock(text: string | null): void {
   isSpokenLineLingering.value = true;
+  announcedLineText.value = text;
   if (spokenLineLingerTimer !== null) clearTimeout(spokenLineLingerTimer);
   spokenLineLingerTimer = setTimeout(() => {
     isSpokenLineLingering.value = false;
+    announcedLineText.value = null;
     spokenLineLingerTimer = null;
   }, SHOW_DOCK_LINGER_MS);
 }
@@ -251,13 +256,14 @@ const micLabel = computed(() => {
 });
 
 // What the corner row says, and whether its pill reads as live — the mirror
-// answers off the room's frame (or the relayed line playing in this window),
-// everything else off this window's session.
+// answers off the room's frame; a spoken-line row prefers the line PLAYING in
+// this window (fresher, sentence by sentence) over the announced opening;
+// everything else answers off this window's session.
 const miniCaption = computed(() =>
   isMirror.value
     ? mirroredSession.value?.live === true
       ? mirroredSession.value.caption
-      : (daemon.relayedLineText.value ?? "")
+      : (daemon.relayedLineText.value ?? announcedLineText.value ?? "")
     : caption.value,
 );
 const isMiniListening = computed(() =>

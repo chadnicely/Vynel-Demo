@@ -175,8 +175,9 @@ async function main(): Promise<void> {
         // Whoever ends up playing the line, the dock should be on screen for
         // it — a proactive spoken line with no pixels anywhere is a voice from
         // nowhere. Broadcast, because the audio below is single-delivery and
-        // may land in a window that is not the dock.
-        overlay.publishShowDock()
+        // may land in a window that is not the dock; the text rides along so
+        // the dock has a caption even when another window plays the audio.
+        overlay.publishShowDock(text)
         const preview = text.slice(0, 80)
         const driver = nativeLeg?.driver ?? null
         if (driver?.isHandedOff) {
@@ -198,6 +199,20 @@ async function main(): Promise<void> {
           logger.warn({ text: preview }, 'speak — no voice and no connected client; nothing was heard')
         }
         return Promise.resolve()
+      },
+      // A browser client the line was delegated to could not START it —
+      // autoplay policy, zero audio out. Fall back to the native speaker: the
+      // same thing onSpeak would have done with no client at all. Sentence-
+      // sized POSTs arrive in playback order, and the speech lane keeps them
+      // in order on this side too.
+      onSpeakRefused: (text) => {
+        const driver = nativeLeg?.driver ?? null
+        if (driver !== null) {
+          logger.warn({ text: text.slice(0, 80) }, 'browser refused playback — speaking natively')
+          driver.speak(text)
+        } else {
+          logger.warn({ text: text.slice(0, 80) }, 'browser refused playback and no voice is loaded; nothing was heard')
+        }
       },
     },
     logger,

@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming'
 import type { Logger } from 'pino'
+import { DISPLAY_SESSION_CAPTION_MAX_LENGTH } from '@vynel/contracts/voice/daemon-events'
 import type { VoiceReloadOutcome } from '@vynel/contracts/voice/voice-reload'
 import type { VoiceSessionState } from '../loop/voice-session-types.js'
 import { VoiceNotReadyError } from '../voice-engine-slot.js'
@@ -58,9 +59,11 @@ export type OverlayEvent =
   | { readonly kind: 'speak'; readonly text: string; readonly sessionId: string | null }
   // Bring the desktop app forward on the Display. App surfaces only.
   | { readonly kind: 'show-display' }
-  // A spoken line is about to be heard — the dock should be on screen for it.
+  // A spoken line is about to be heard — the dock should be on screen for it,
+  // with the line's opening as its caption (the audio may play in ANOTHER
+  // window, so the caption has to ride this event, not the playback).
   // Dock surfaces only, broadcast (whichever window plays it, the dock shows).
-  | { readonly kind: 'show-dock' }
+  | { readonly kind: 'show-dock'; readonly text: string }
 
 export type OverlaySurface = 'app' | 'dock'
 
@@ -79,6 +82,10 @@ export interface OverlayChannelHooks {
    *  output); `sessionId` = the producing chat session, null when unknown.
    *  Resolves once the line is accepted for playback. */
   onSpeak(text: string, sessionId: string | null): Promise<void>
+  /** A browser client the daemon delegated a line to could not START playing
+   *  it (autoplay policy — zero audio came out). The daemon believed it was
+   *  delivered; this is its chance to speak the line another way. */
+  onSpeakRefused(text: string): void
   /** Re-read the user's voice pick and apply it (Settings → Voice saved). */
   onReload(): Promise<VoiceReloadOutcome>
 }
@@ -118,8 +125,9 @@ export interface OverlayChannel {
   /** Ask the DOCK to be on screen — a spoken line is about to play and a voice
    *  with no pixels anywhere is a voice from nowhere. Dock surfaces only, and
    *  broadcast, unlike the single-delivery `speak`: the dock must appear
-   *  whichever client ends up playing the audio. */
-  publishShowDock(): void
+   *  whichever client ends up playing the audio. `text` = the line, clamped
+   *  here to the caption cap. */
+  publishShowDock(text: string): void
   stop(): void
 }
 
@@ -281,6 +289,17 @@ export function startOverlayChannel(
         return c.json({ error: 'speak failed — see the daemon log' }, 500)
       }
     })
+    // A delegated line's playback was REFUSED by the browser (autoplay policy)
+    // — without this door the daemon logs "delivered" while nothing was heard.
+    .post('/speak-refused', async (c) => {
+      const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null
+      const text = typeof body?.text === 'string' ? body.text.trim() : ''
+      if (!text || text.length > 2000) {
+        return c.json({ error: 'text must be a non-empty string of at most 2000 characters' }, 400)
+      }
+      hooks.onSpeakRefused(text)
+      return c.json({ ok: true })
+    })
     .post('/synthesize', async (c) => {
       const body = (await c.req.json().catch(() => null)) as { text?: unknown } | null
       const text = typeof body?.text === 'string' ? body.text.trim() : ''
@@ -363,8 +382,14 @@ export function startOverlayChannel(
       // conversation is landing in.
       broadcast({ kind: 'show-display' }, (subscriber) => subscriber.surface === 'app')
     },
-    publishShowDock(): void {
-      broadcast({ kind: 'show-dock' }, (subscriber) => subscriber.surface === 'dock')
+    publishShowDock(text: string): void {
+      // The line's OPENING, not its tail: the row announces what is about to
+      // be said from its first word (display-session clamps to the tail
+      // because its caption grows as the reply streams — this one is static).
+      broadcast(
+        { kind: 'show-dock', text: text.slice(0, DISPLAY_SESSION_CAPTION_MAX_LENGTH) },
+        (subscriber) => subscriber.surface === 'dock',
+      )
     },
     stop(): void {
       for (const stream of subscribers.keys()) void stream.close()

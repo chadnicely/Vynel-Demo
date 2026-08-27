@@ -56,6 +56,12 @@ describe('voice daemon events', () => {
     // Payload-free kinds — the daemon is asking, not describing.
     expect(parseVoiceDaemonEvent({ kind: 'show-display' })).toEqual({ kind: 'show-display' })
     expect(parseVoiceDaemonEvent({ kind: 'show-dock' })).toEqual({ kind: 'show-dock' })
+    // show-dock may carry the line's opening so the row has a caption even
+    // when the audio plays elsewhere; an older daemon omits it.
+    expect(parseVoiceDaemonEvent({ kind: 'show-dock', text: 'On my way.' })).toEqual({
+      kind: 'show-dock',
+      text: 'On my way.',
+    })
     // `display-active` and `daemon-link` are the API's own words on the voice
     // channel; a daemon claiming them is not a daemon event.
     expect(parseVoiceDaemonEvent({ kind: 'display-active', active: true })).toBeNull()

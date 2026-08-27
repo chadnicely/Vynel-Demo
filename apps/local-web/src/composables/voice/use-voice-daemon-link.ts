@@ -124,8 +124,9 @@ export function useVoiceDaemonLink(options: {
   /** The daemon says a spoken line is about to play SOMEWHERE and the dock
    *  should be on screen for it. Only dock surfaces are ever sent it —
    *  broadcast, since the audio itself is single-delivery and may land in a
-   *  different window than the one that must appear. */
-  onShowDock?: () => void;
+   *  different window than the one that must appear. `text` = the line's
+   *  opening for the row's caption (null from an older daemon). */
+  onShowDock?: (text: string | null) => void;
   /** Whether this link should hold the channel right now. Default true — a
    *  view's link lives exactly as long as the view. The Display's voice lives
    *  in a window-lifetime store instead, and a window must never hold TWO
@@ -165,7 +166,19 @@ export function useVoiceDaemonLink(options: {
   let release: (() => void) | null = null;
 
   // Daemon-delegated playback ('speak' events): one player, drained in order.
-  const player = createSpokenAudioPlayer();
+  // A refusal goes BACK to the daemon: autoplay policy can reject play() in a
+  // window with no user gesture (the hidden dock webview, a fresh app-window),
+  // and the daemon — which already logged the line as delivered — is the only
+  // party with another speaker to try. Best-effort, the presence-call precedent.
+  const player = createSpokenAudioPlayer({
+    onPlaybackRefused: (text) => {
+      void fetch("/voice/speak-refused", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      }).catch(() => {});
+    },
+  });
   const speakQueue: string[] = [];
   // The drain's re-entrancy guard, and the ONE reading of "this window is
   // speaking another producer's line" — a surface with an orb (the Display)
@@ -228,7 +241,7 @@ export function useVoiceDaemonLink(options: {
     } else if (event.kind === "show-display") {
       options.onShowDisplay?.();
     } else if (event.kind === "show-dock") {
-      options.onShowDock?.();
+      options.onShowDock?.(event.text ?? null);
     } else if (event.kind === "speak" && event.text) {
       // An older relay omits the producer: unknown is never "ours".
       if (isOwnVoice(event.sessionId ?? null)) return;
