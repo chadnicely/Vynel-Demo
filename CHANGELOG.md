@@ -35,6 +35,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   which says it through the machine's own speaker instead — and the dock's caption now shows the
   line even when the audio plays in a different window.
 
+- **The voice conversation stays open until you end it.** Saying "hey vynel" used to buy a
+  15-second window — the sidecar answered and vanished. A wake conversation now listens for up
+  to 5 minutes of silence between turns, and ending it is explicit: the sidecar's new **Stop**
+  button, or just saying "stop listening" — the assistant has a `stop_listening` tool and ends
+  the conversation everywhere at once (the sidecar, the Display room, the wake daemon). Stop
+  always means stop: there is no longer a way to hide the widget while a microphone stays live.
+
+- **Opening the Display no longer flashes the sidecar first**, and a minimized Vynel now truly
+  counts as off screen — the corner row appears for a conversation or a spoken line even when
+  the app is minimized while sitting on the Display view.
+
 ## [0.3.9] — 2026-08-27
 
 ### Changed
